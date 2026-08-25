@@ -17,6 +17,15 @@ from scripts.navigation_development_boundary import (
     DevelopmentInitialObservation,
     DevelopmentSession,
 )
+from automation_service.registry import (
+    NOVA_FLOW_ID,
+    NOVA_HANDLER_ID,
+    NOVA_PHASE_MODE,
+    NOVA_PRODUCT_ID,
+    NOVA_PRODUCT_REVISION,
+    NOVA_PROFILE_ID,
+    RegisteredDispatchSnapshot,
+)
 from scripts.flow_delivery_nova_praise_bluestacks import (
     FLOW_ID,
     MAX_INPUTS,
@@ -39,6 +48,18 @@ class NovaFlowDeliveryBindingTests(unittest.TestCase):
             reset_id=reset_id,
         )
 
+    def _registration_snapshot(self) -> RegisteredDispatchSnapshot:
+        return RegisteredDispatchSnapshot(
+            NOVA_FLOW_ID,
+            NOVA_PRODUCT_ID,
+            NOVA_PRODUCT_REVISION,
+            NOVA_HANDLER_ID,
+            NOVA_PROFILE_ID,
+            NOVA_PHASE_MODE,
+            "REGISTERED",
+            True,
+        )
+
     def _lease(self, *, maximum: int = 8, reset_id: str = "game-day-2026-08-18"):
         identity = self._identity(reset_id)
         return {
@@ -47,6 +68,7 @@ class NovaFlowDeliveryBindingTests(unittest.TestCase):
             "nova_identity": identity,
             "nova_reset_id": reset_id,
             "development_session": object(),
+            "registration_snapshot": self._registration_snapshot(),
         }
 
     def test_registry_binds_fixed_runner_without_production_promotion(self) -> None:
@@ -194,6 +216,7 @@ class NovaFlowDeliveryBindingTests(unittest.TestCase):
                             invocation_id=session.invocation_id,
                         ),
                     }
+                    lease.pop("registration_snapshot")
                     with patch.object(delivery, "_candidate_commit") as candidate:
                         with self.assertRaises(pnsctl.OperatorError):
                             run_nova_praise_supervised_one_free_pulse({}, lease, live=True)
@@ -360,11 +383,14 @@ class NovaFlowDeliveryBindingTests(unittest.TestCase):
                 "trace_count": 1,
                 "read_only": True,
                 "input_authority": False,
+                "scheduler_enabled": False,
                 "proof_topology": "continuous",
                 "initial_frame_sha256": digest,
                 "transport_count": 5,
                 "praise_transport_calls": 1,
             }
+            trace["registration_snapshot"] = self._registration_snapshot().to_mapping()
+            trace["dispatch_registration"] = dict(trace["registration_snapshot"])
             result = {
                 **self._route_result(session),
                 "input_count": 5,
@@ -379,6 +405,10 @@ class NovaFlowDeliveryBindingTests(unittest.TestCase):
                 "causal_trace": trace,
                 "effect_reconciliation_required": False,
             }
+            result["production_registration"] = "REGISTERED"
+            result["scheduler_enabled"] = False
+            result["registration_snapshot"] = self._registration_snapshot().to_mapping()
+            result["dispatch_registration"] = dict(result["registration_snapshot"])
             _write_delivery_result(
                 session,
                 result,
@@ -403,6 +433,17 @@ class NovaFlowDeliveryBindingTests(unittest.TestCase):
             )
             self.assertEqual(verdict["status"], "evidence_required")
             self.assertFalse(verdict["transport_accounting_verified"])
+
+            forged_registration = dict(retained)
+            forged_registration["registration_snapshot"] = {
+                **retained["registration_snapshot"],
+                "product_id": "world_map_navigation",
+            }
+            verdict = verify_nova_praise_supervised_one_free_pulse(
+                {"result": forged_registration, "session_directory": str(session)}, {}, {}
+            )
+            self.assertEqual(verdict["status"], "evidence_required")
+            self.assertFalse(verdict["registration_verified"])
 
             missing_successor = dict(retained)
             missing_successor["attempts_after"] = retained["attempts_before"]

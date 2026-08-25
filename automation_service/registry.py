@@ -29,6 +29,41 @@ WORLD_SELECTION_HANDLER_ID = WORLD_HANDLER_ID
 WORLD_PROFILE = WORLD_PROFILE_ID
 WORLD_PRODUCT = WORLD_PRODUCT_ID
 WORLD_REVISION = WORLD_PRODUCT_REVISION
+NOVA_FLOW_ID = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
+NOVA_PRODUCT_ID = "nova_praise"
+NOVA_PRODUCT_REVISION = "nova_praise-v1"
+NOVA_HANDLER_ID = "nova_praise_selection_handler"
+NOVA_PROFILE_ID = WORLD_PROFILE_ID
+NOVA_PHASE_MODE = "phase_canary"
+# Explicit aliases keep the fixed binding easy to consume without introducing
+# a second registration vocabulary.
+NOVA_SELECTION_HANDLER_ID = NOVA_HANDLER_ID
+NOVA_PROFILE = NOVA_PROFILE_ID
+NOVA_PRODUCT = NOVA_PRODUCT_ID
+NOVA_REVISION = NOVA_PRODUCT_REVISION
+
+_FIXED_BINDINGS = {
+    WORLD_FLOW_ID: {
+        "flow_id": WORLD_FLOW_ID,
+        "product_id": WORLD_PRODUCT_ID,
+        "product_revision": WORLD_PRODUCT_REVISION,
+        "production_handler": WORLD_HANDLER_ID,
+        "profile": WORLD_PROFILE_ID,
+        "mode": WORLD_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    NOVA_FLOW_ID: {
+        "flow_id": NOVA_FLOW_ID,
+        "product_id": NOVA_PRODUCT_ID,
+        "product_revision": NOVA_PRODUCT_REVISION,
+        "production_handler": NOVA_HANDLER_ID,
+        "profile": NOVA_PROFILE_ID,
+        "mode": NOVA_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+}
 
 # Entry fields are deliberately closed.  Runtime, queue, target, and scheduler
 # implementation details do not belong in the production registration file.
@@ -71,7 +106,7 @@ class DisabledProductionEntry:
 
 @dataclass(frozen=True)
 class RegisteredDispatchSnapshot:
-    """Immutable dispatch-time copy of the one accepted World registration."""
+    """Immutable dispatch-time copy of one accepted fixed registration."""
 
     flow_id: str
     product_id: str
@@ -83,26 +118,23 @@ class RegisteredDispatchSnapshot:
     scheduler_eligible: bool
 
     def __post_init__(self) -> None:
-        expected = {
-            "flow_id": WORLD_FLOW_ID,
-            "product_id": WORLD_PRODUCT_ID,
-            "product_revision": WORLD_PRODUCT_REVISION,
-            "production_handler": WORLD_HANDLER_ID,
-            "profile": WORLD_PROFILE_ID,
-            "mode": WORLD_PHASE_MODE,
-            "registration_status": "REGISTERED",
-            "scheduler_eligible": True,
-        }
+        expected = _FIXED_BINDINGS.get(self.flow_id)
         actual = self.to_mapping()
-        if actual != expected:
+        if (
+            expected is None
+            or actual != expected
+            or type(self.scheduler_eligible) is not bool
+        ):
             raise ValueError(
-                "dispatch registration snapshot is not the fixed World binding"
+                "dispatch registration snapshot is not a fixed World or Nova binding"
             )
 
     @classmethod
     def from_entry(cls, entry: DisabledProductionEntry) -> "RegisteredDispatchSnapshot":
-        if not _entry_is_world_registered(entry):
-            raise ValueError("only the exact registered World entry can be dispatched")
+        if not _entry_is_registered(entry):
+            raise ValueError(
+                "only an exact registered World or Nova entry can be dispatched"
+            )
         return cls(
             flow_id=entry.flow_id,
             product_id=entry.product_id or "",
@@ -112,6 +144,33 @@ class RegisteredDispatchSnapshot:
             mode=entry.mode,
             registration_status=entry.registration_status,
             scheduler_eligible=entry.scheduler_eligible,
+        )
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "RegisteredDispatchSnapshot":
+        """Rehydrate and strictly validate retained dispatch evidence."""
+
+        fields = {
+            "flow_id",
+            "product_id",
+            "product_revision",
+            "production_handler",
+            "profile",
+            "mode",
+            "registration_status",
+            "scheduler_eligible",
+        }
+        if not isinstance(value, Mapping) or set(value) != fields:
+            raise ValueError("dispatch registration snapshot is incomplete")
+        return cls(
+            flow_id=value["flow_id"],
+            product_id=value["product_id"],
+            product_revision=value["product_revision"],
+            production_handler=value["production_handler"],
+            profile=value["profile"],
+            mode=value["mode"],
+            registration_status=value["registration_status"],
+            scheduler_eligible=value["scheduler_eligible"],
         )
 
     def to_mapping(self) -> dict[str, Any]:
@@ -129,23 +188,30 @@ class RegisteredDispatchSnapshot:
     @property
     def handler_id(self) -> str:
         return self.production_handler
-
-
 _REGISTRY_LOCK = threading.RLock()
 
 
-def _entry_is_world_registered(entry: DisabledProductionEntry) -> bool:
+def _entry_is_registered(entry: DisabledProductionEntry) -> bool:
+    expected = _FIXED_BINDINGS.get(entry.flow_id)
     return bool(
-        entry.flow_id == WORLD_FLOW_ID
-        and entry.production_handler == WORLD_HANDLER_ID
-        and entry.profile == WORLD_PROFILE_ID
-        and entry.supported_profiles == (WORLD_PROFILE_ID,)
-        and entry.product_id == WORLD_PRODUCT_ID
-        and entry.product_revision == WORLD_PRODUCT_REVISION
-        and entry.mode == WORLD_PHASE_MODE
-        and entry.registration_status == "REGISTERED"
-        and entry.scheduler_eligible is True
+        expected is not None
+        and entry.production_handler == expected["production_handler"]
+        and entry.profile == expected["profile"]
+        and entry.supported_profiles == (expected["profile"],)
+        and entry.product_id == expected["product_id"]
+        and entry.product_revision == expected["product_revision"]
+        and entry.mode == expected["mode"]
+        and entry.registration_status == expected["registration_status"]
+        and entry.scheduler_eligible is expected["scheduler_eligible"]
     )
+
+
+def _entry_is_world_registered(entry: DisabledProductionEntry) -> bool:
+    return entry.flow_id == WORLD_FLOW_ID and _entry_is_registered(entry)
+
+
+def _entry_is_nova_registered(entry: DisabledProductionEntry) -> bool:
+    return entry.flow_id == NOVA_FLOW_ID and _entry_is_registered(entry)
 
 
 def _entry_is_disabled(entry: DisabledProductionEntry) -> bool:
@@ -232,9 +298,9 @@ def _parse_entries(payload: Mapping[str, Any]) -> tuple[DisabledProductionEntry,
             ),
         )
         if entry.registration_status == "REGISTERED":
-            if not _entry_is_world_registered(entry):
+            if not _entry_is_registered(entry):
                 raise ValueError(
-                    "only the exact World phase-canary registration is allowed"
+                    "only the exact World or Nova phase-canary registration is allowed"
                 )
         elif not _entry_is_disabled(entry):
             raise ValueError("all non-registered entries must remain fully disabled")
@@ -243,8 +309,10 @@ def _parse_entries(payload: Mapping[str, Any]) -> tuple[DisabledProductionEntry,
     registered = [entry for entry in entries if entry.registered]
     if len(registered) > 1:
         raise ValueError("production registry permits at most one registered flow")
-    if registered and not _entry_is_world_registered(registered[0]):
-        raise ValueError("registered production entry is not the fixed World binding")
+    if registered and not _entry_is_registered(registered[0]):
+        raise ValueError(
+            "registered production entry is not a fixed World or Nova binding"
+        )
     return tuple(sorted(entries, key=lambda item: item.flow_id))
 
 
@@ -309,23 +377,21 @@ def _write_payload_atomic(path: Path, payload: Mapping[str, Any]) -> None:
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     os.replace(temporary, path)
-
-
 def consume_registered_entry(
     flow_id: str = WORLD_FLOW_ID,
     *,
     path: Path | None = None,
 ) -> RegisteredDispatchSnapshot | None:
-    """Atomically consume the exact registered entry before any live runner input."""
+    """Atomically consume one exact registered entry before live input."""
 
     registry_path = Path(REGISTRY_PATH if path is None else path)
-    if flow_id != WORLD_FLOW_ID:
+    if flow_id not in _FIXED_BINDINGS:
         return None
     with _REGISTRY_LOCK, _registry_file_lock(registry_path):
         payload = dict(_load_payload(registry_path))
         entries = _parse_entries(payload)
         entry = next((item for item in entries if item.flow_id == flow_id), None)
-        if entry is None or not _entry_is_world_registered(entry):
+        if entry is None or not _entry_is_registered(entry):
             return None
         snapshot = RegisteredDispatchSnapshot.from_entry(entry)
         flows = dict(payload["flows"])
@@ -349,6 +415,14 @@ def consume_registered_entry(
 consume_world_registration = consume_registered_entry
 
 
+def consume_nova_registration(
+    path: Path | None = None,
+) -> RegisteredDispatchSnapshot | None:
+    """Atomically consume the exact registered Nova entry."""
+
+    return consume_registered_entry(NOVA_FLOW_ID, path=path)
+
+
 def world_registration_snapshot(
     path: Path | None = None,
 ) -> RegisteredDispatchSnapshot | None:
@@ -359,6 +433,26 @@ def world_registration_snapshot(
             item
             for item in load_disabled_registry(path)
             if item.flow_id == WORLD_FLOW_ID
+        ),
+        None,
+    )
+    return (
+        RegisteredDispatchSnapshot.from_entry(entry)
+        if entry is not None and entry.registered
+        else None
+    )
+
+
+def nova_registration_snapshot(
+    path: Path | None = None,
+) -> RegisteredDispatchSnapshot | None:
+    """Return the exact registered Nova snapshot without consuming it."""
+
+    entry = next(
+        (
+            item
+            for item in load_disabled_registry(path)
+            if item.flow_id == NOVA_FLOW_ID
         ),
         None,
     )
@@ -384,9 +478,21 @@ __all__ = [
     "WORLD_PRODUCT",
     "WORLD_REVISION",
     "WORLD_PHASE_MODE",
+    "NOVA_FLOW_ID",
+    "NOVA_PRODUCT_ID",
+    "NOVA_PRODUCT_REVISION",
+    "NOVA_HANDLER_ID",
+    "NOVA_SELECTION_HANDLER_ID",
+    "NOVA_PROFILE_ID",
+    "NOVA_PROFILE",
+    "NOVA_PRODUCT",
+    "NOVA_REVISION",
+    "NOVA_PHASE_MODE",
     "consume_registered_entry",
     "consume_world_registration",
+    "consume_nova_registration",
     "load_disabled_registry",
     "load_production_registry",
+    "nova_registration_snapshot",
     "world_registration_snapshot",
 ]

@@ -12,13 +12,21 @@ from automation_service.cli import main
 
 
 class AutomationServiceCliTests(unittest.TestCase):
-    def test_status_reports_disabled_phase_canary_closure(self) -> None:
+    def test_status_reports_safe_disabled_registry_closure(self) -> None:
         output = StringIO()
         with contextlib.redirect_stdout(output):
             self.assertEqual(main(["status"]), 0)
         self.assertIn('"registration_status": "NOT_REGISTERED"', output.getvalue())
         self.assertIn('"scheduler_eligible": false', output.getvalue())
         self.assertIn('"registered_flows": []', output.getvalue())
+        self.assertIn('"NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"', output.getvalue())
+        self.assertIn('"WORLD-MAP-NAVIGATION-FOUNDATION"', output.getvalue())
+
+    def test_status_keeps_non_nova_flows_disabled(self) -> None:
+        output = StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(main(["status"]), 0)
+        self.assertIn('"NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"', output.getvalue())
         self.assertIn('"WORLD-MAP-NAVIGATION-FOUNDATION"', output.getvalue())
 
     def test_automatic_mode_is_rejected(self) -> None:
@@ -79,6 +87,7 @@ class AutomationServiceCliTests(unittest.TestCase):
         output = StringIO()
         with contextlib.redirect_stdout(output):
             self.assertEqual(pnsctl_main(["automation-service", "status"]), 0)
+        self.assertIn('"registration_status": "NOT_REGISTERED"', output.getvalue())
         self.assertIn('"registered_flows": []', output.getvalue())
         self.assertIn('"scheduler_eligible": false', output.getvalue())
 

@@ -10,6 +10,67 @@ import shutil
 import subprocess
 from types import SimpleNamespace
 from typing import Any, Mapping
+from automation_service.registry import (
+    NOVA_FLOW_ID,
+    NOVA_HANDLER_ID,
+    NOVA_PHASE_MODE,
+    NOVA_PRODUCT_ID,
+    NOVA_PRODUCT_REVISION,
+    NOVA_PROFILE_ID,
+    RegisteredDispatchSnapshot,
+)
+
+
+_REGISTRATION_FIELDS = frozenset(
+    {
+        "flow_id",
+        "product_id",
+        "product_revision",
+        "production_handler",
+        "profile",
+        "mode",
+        "registration_status",
+        "scheduler_eligible",
+    }
+)
+
+
+def _validated_registration_snapshot(
+    value: object,
+    *,
+    require_typed: bool = False,
+) -> dict[str, Any]:
+    """Rehydrate only the exact consumed Nova registration snapshot."""
+
+    if require_typed and not isinstance(value, RegisteredDispatchSnapshot):
+        raise _pnsctl().OperatorError(
+            "Nova live execution requires the atomically consumed registration snapshot"
+        )
+    try:
+        snapshot = (
+            value
+            if isinstance(value, RegisteredDispatchSnapshot)
+            else RegisteredDispatchSnapshot.from_mapping(value)  # type: ignore[arg-type]
+        )
+        mapping = snapshot.to_mapping()
+    except (TypeError, ValueError, KeyError) as exc:
+        raise _pnsctl().OperatorError(
+            "Nova dispatch registration snapshot is incomplete or invalid"
+        ) from exc
+    if set(mapping) != _REGISTRATION_FIELDS or mapping != {
+        "flow_id": NOVA_FLOW_ID,
+        "product_id": NOVA_PRODUCT_ID,
+        "product_revision": NOVA_PRODUCT_REVISION,
+        "production_handler": NOVA_HANDLER_ID,
+        "profile": NOVA_PROFILE_ID,
+        "mode": NOVA_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    }:
+        raise _pnsctl().OperatorError(
+            "Nova dispatch registration snapshot is not the fixed Nova binding"
+        )
+    return mapping
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -141,6 +202,7 @@ def _write_read_only_causal_trace(
     *,
     flow_result: Mapping[str, Any],
     initial_observation: Mapping[str, Any],
+    registration_snapshot: object | None = None,
 ) -> dict[str, Any]:
     events = _read_events(session)
     trace = {
@@ -159,6 +221,7 @@ def _write_read_only_causal_trace(
         ],
         "proof_topology": "continuous",
         "flow_id": FLOW_ID,
+        "scheduler_enabled": False,
         "invocation_id": str(initial_observation.get("invocation_id") or ""),
         "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
         "transport_count": _retained_transport_count(session),
@@ -169,6 +232,10 @@ def _write_read_only_causal_trace(
             flow_result.get("effect_reconciliation_required")
         ),
     }
+    if registration_snapshot is not None:
+        snapshot = _validated_registration_snapshot(registration_snapshot)
+        trace["registration_snapshot"] = snapshot
+        trace["dispatch_registration"] = dict(snapshot)
     (session / "causal-trace.json").write_text(
         json.dumps(trace, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -257,6 +324,9 @@ def _write_delivery_result(
         raise _pnsctl().OperatorError(
             "Nova Praise development-session produced no native frame evidence"
         )
+    snapshot = None
+    if result.get("production_registration") == "REGISTERED":
+        snapshot = _validated_registration_snapshot(result.get("registration_snapshot"))
     payload = {
         "schema_version": 1,
         "flow_id": FLOW_ID,
@@ -313,9 +383,14 @@ def _write_delivery_result(
             result.get("effect_reconciliation_required")
         ),
         "candidate_commit": candidate_commit,
-        "production_registration": "NOT_REGISTERED",
+        "production_registration": result.get(
+            "production_registration", "NOT_REGISTERED"
+        ),
         "scheduler_enabled": False,
     }
+    if snapshot is not None:
+        payload["registration_snapshot"] = dict(snapshot)
+        payload["dispatch_registration"] = dict(snapshot)
     (session / "flow-delivery-result.json").write_text(
         json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
@@ -350,6 +425,9 @@ def run_nova_praise_supervised_one_free_pulse(
             sort_keys=True,
         )
 
+    registration_snapshot = _validated_registration_snapshot(
+        lease.get("registration_snapshot"), require_typed=True
+    )
     outer_session = _outer_session(lease)
     initial_observation = _initial_observation(lease, outer_session)
     candidate_commit = _candidate_commit()
@@ -433,8 +511,10 @@ def run_nova_praise_supervised_one_free_pulse(
         result["reset_id"] = reset_id
         result["candidate_commit"] = candidate_commit
         result["max_inputs"] = maximum
-        result["production_registration"] = "NOT_REGISTERED"
+        result["production_registration"] = "REGISTERED"
         result["scheduler_enabled"] = False
+        result["registration_snapshot"] = dict(registration_snapshot)
+        result["dispatch_registration"] = dict(registration_snapshot)
         result["proof_topology"] = "continuous"
         result["initial_observation"] = initial_observation
         result["initial_frame_sha256"] = initial_observation["frame_sha256"]
@@ -448,6 +528,7 @@ def run_nova_praise_supervised_one_free_pulse(
                 runtime_session,
                 flow_result=result,
                 initial_observation=initial_observation,
+                registration_snapshot=registration_snapshot,
             )
             result["causal_trace_count"] = 1
             result["causal_trace"] = trace
@@ -500,6 +581,35 @@ def run_nova_praise_supervised_one_free_pulse(
         )
 
 
+def _registration_evidence_valid(
+    result: Mapping[str, Any], trace: object
+) -> tuple[bool, dict[str, Any] | None]:
+    if result.get("production_registration") != "REGISTERED":
+        return False, None
+    if (
+        result.get("scheduler_enabled") is not False
+        or not isinstance(trace, Mapping)
+        or trace.get("scheduler_enabled") is not False
+    ):
+        return False, None
+    aliases = (
+        result.get("registration_snapshot"),
+        result.get("dispatch_registration"),
+        trace.get("registration_snapshot"),
+        trace.get("dispatch_registration"),
+    )
+    if any(value is None for value in aliases):
+        return False, None
+    try:
+        snapshots = [_validated_registration_snapshot(value) for value in aliases]
+    except (_pnsctl().OperatorError, TypeError, ValueError, KeyError):
+        return False, None
+    first = snapshots[0]
+    if any(snapshot != first for snapshot in snapshots[1:]):
+        return False, None
+    return True, first
+
+
 def verify_nova_praise_supervised_one_free_pulse(
     structure: Mapping[str, Any],
     queue: Mapping[str, Any],
@@ -512,6 +622,9 @@ def verify_nova_praise_supervised_one_free_pulse(
     session = Path(str(structure.get("session_directory") or ""))
     initial = result.get("initial_observation")
     trace = result.get("causal_trace")
+    registration_ok, registration_snapshot = _registration_evidence_valid(
+        result, trace
+    )
     initial_ok = False
     if isinstance(initial, Mapping):
         digest = str(initial.get("frame_sha256") or "")
@@ -559,10 +672,12 @@ def verify_nova_praise_supervised_one_free_pulse(
         and trace.get("trace_count") == 1
         and trace.get("read_only") is True
         and trace.get("input_authority") is False
+        and trace.get("scheduler_enabled") is False
         and trace.get("proof_topology") == "continuous"
         and trace.get("initial_frame_sha256") == result.get("initial_frame_sha256")
         and trace.get("transport_count") == retained_transport
         and trace.get("praise_transport_calls") == retained_praise
+        and registration_ok
     )
     transport_ok = bool(
         retained_transport == result.get("input_count")
@@ -577,8 +692,7 @@ def verify_nova_praise_supervised_one_free_pulse(
         and trace_ok
         and transport_ok
         and semantic_successor
-        and result.get("production_registration") == "NOT_REGISTERED"
-        and result.get("scheduler_enabled") is False
+        and registration_ok
     )
     return {
         "status": "verified" if verified else "evidence_required",
@@ -588,8 +702,12 @@ def verify_nova_praise_supervised_one_free_pulse(
         "transport_accounting_verified": transport_ok,
         "causal_trace_verified": trace_ok,
         "semantic_successor_verified": semantic_successor,
-        "production_registration": "NOT_REGISTERED",
-        "scheduler_enabled": False,
+        "registration_verified": registration_ok,
+        "registration_snapshot": registration_snapshot,
+        "production_registration": (
+            "REGISTERED" if registration_ok else result.get("production_registration")
+        ),
+        "scheduler_enabled": result.get("scheduler_enabled"),
     }
 
 

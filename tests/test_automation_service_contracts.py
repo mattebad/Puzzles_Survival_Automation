@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
 from automation_service import (
@@ -14,11 +15,48 @@ from automation_service import (
     SchedulerFacts,
     SemanticActionIntent,
 )
-from automation_service.registry import ENTRY_FIELDS, load_disabled_registry
+from automation_service.registry import (
+    ENTRY_FIELDS,
+    NOVA_FLOW_ID,
+    NOVA_HANDLER_ID,
+    NOVA_PHASE_MODE,
+    NOVA_PRODUCT_ID,
+    NOVA_PRODUCT_REVISION,
+    NOVA_PROFILE_ID,
+    RegisteredDispatchSnapshot,
+    WORLD_FLOW_ID,
+    WORLD_HANDLER_ID,
+    WORLD_PHASE_MODE,
+    WORLD_PRODUCT_ID,
+    WORLD_PRODUCT_REVISION,
+    WORLD_PROFILE_ID,
+    consume_nova_registration,
+    consume_registered_entry,
+    load_disabled_registry,
+)
 from scripts.pnsctl import BLUESTACKS_FLOW_IDS
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+def nova_registered_registry_payload() -> dict:
+    payload = json.loads(
+        (
+            ROOT / "tasks" / "flow_delivery_disabled_production_registry.json"
+        ).read_text(encoding="utf-8")
+    )
+    payload["flows"][NOVA_FLOW_ID] = {
+        "mode": NOVA_PHASE_MODE,
+        "product_id": NOVA_PRODUCT_ID,
+        "product_revision": NOVA_PRODUCT_REVISION,
+        "production_handler": NOVA_HANDLER_ID,
+        "profile": NOVA_PROFILE_ID,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+        "supported_profiles": [NOVA_PROFILE_ID],
+    }
+    return payload
+
 
 
 class AutomationServiceContractTests(unittest.TestCase):
@@ -68,7 +106,7 @@ class AutomationServiceContractTests(unittest.TestCase):
         result = NormalizedResult(NormalizedOutcome.UNRESOLVED, "UNKNOWN_RESULT")
         self.assertTrue(result.unresolved_action)
 
-    def test_registry_is_fully_disabled_after_phase_canary_closure(self) -> None:
+    def test_registry_closure_disables_every_exact_binding(self) -> None:
         entries = load_disabled_registry()
         self.assertTrue(entries)
         payload = json.loads(
@@ -85,6 +123,77 @@ class AutomationServiceContractTests(unittest.TestCase):
         )
         self.assertTrue(all(item.scheduler_eligible is False for item in entries))
         self.assertEqual({item.flow_id for item in entries}, set(BLUESTACKS_FLOW_IDS))
+
+    def test_snapshot_allowlist_and_registry_cardinality_are_strict(self) -> None:
+        snapshot = RegisteredDispatchSnapshot(
+            NOVA_FLOW_ID,
+            NOVA_PRODUCT_ID,
+            NOVA_PRODUCT_REVISION,
+            NOVA_HANDLER_ID,
+            NOVA_PROFILE_ID,
+            NOVA_PHASE_MODE,
+            "REGISTERED",
+            True,
+        )
+        self.assertEqual(
+            RegisteredDispatchSnapshot.from_mapping(snapshot.to_mapping()),
+            snapshot,
+        )
+        forged = snapshot.to_mapping()
+        forged["product_id"] = WORLD_PRODUCT_ID
+        with self.assertRaises(ValueError):
+            RegisteredDispatchSnapshot.from_mapping(forged)
+        with self.assertRaises(ValueError):
+            RegisteredDispatchSnapshot.from_mapping(
+                {**snapshot.to_mapping(), "extra": "forged"}
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "registry.json"
+            payload = nova_registered_registry_payload()
+            payload["flows"][WORLD_FLOW_ID] = {
+                "mode": WORLD_PHASE_MODE,
+                "product_id": WORLD_PRODUCT_ID,
+                "product_revision": WORLD_PRODUCT_REVISION,
+                "production_handler": WORLD_HANDLER_ID,
+                "profile": WORLD_PROFILE_ID,
+                "registration_status": "REGISTERED",
+                "scheduler_eligible": True,
+                "supported_profiles": [WORLD_PROFILE_ID],
+            }
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "at most one"):
+                load_disabled_registry(path)
+
+    def test_atomic_nova_consumption_returns_snapshot_and_closes_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "registry.json"
+            path.write_text(
+                json.dumps(nova_registered_registry_payload()), encoding="utf-8"
+            )
+            snapshot = consume_registered_entry(NOVA_FLOW_ID, path=path)
+            self.assertIsInstance(snapshot, RegisteredDispatchSnapshot)
+            self.assertEqual(snapshot.flow_id, NOVA_FLOW_ID)
+            self.assertIsNone(consume_registered_entry(NOVA_FLOW_ID, path=path))
+            self.assertFalse(any(item.registered for item in load_disabled_registry(path)))
+
+    def test_nova_wrapper_consumes_nova_not_world_default(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "registry.json"
+            path.write_text(
+                json.dumps(nova_registered_registry_payload()), encoding="utf-8"
+            )
+
+            snapshot = consume_nova_registration(path=path)
+
+            self.assertIsInstance(snapshot, RegisteredDispatchSnapshot)
+            self.assertEqual(snapshot.flow_id, NOVA_FLOW_ID)
+            world = next(
+                item
+                for item in load_disabled_registry(path)
+                if item.flow_id == WORLD_FLOW_ID
+            )
+            self.assertFalse(world.registered)
 
 
 if __name__ == "__main__":

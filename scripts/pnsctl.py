@@ -3536,22 +3536,25 @@ def development_session_run_flow(
             ) from exc
     registration_snapshot = None
     if (
-        flow_id == "WORLD-MAP-NAVIGATION-FOUNDATION"
+        flow_id in {
+            "WORLD-MAP-NAVIGATION-FOUNDATION",
+            NOVA_SUPERVISED_PULSE_FLOW_ID,
+        }
         and live
         and not recovery_only
         and not search_entry_only
     ):
-        from automation_service.registry import consume_world_registration
+        from automation_service.registry import consume_registered_entry
 
         try:
-            registration_snapshot = consume_world_registration()
+            registration_snapshot = consume_registered_entry(flow_id)
         except ValueError as exc:
             raise OperatorError(
-                "World navigation phase registration is invalid"
+                f"{flow_id} phase registration is invalid"
             ) from exc
         if registration_snapshot is None:
             raise OperatorError(
-                "World navigation full route is not registered for a phase canary"
+                f"{flow_id} full route is not registered for a phase canary"
             )
     invocation_id = (
         f"{flow_id}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
@@ -4116,13 +4119,66 @@ def _session_evidence_file(
     return resolved
 
 
+def _canonicalize_nova_supervised_dispatch_evidence(
+    route_result: Mapping[str, Any],
+    registration_snapshot: Mapping[str, Any],
+    *,
+    session_directory: str | Path | None = None,
+) -> dict[str, Any]:
+    """Bind one typed dispatch snapshot to all retained Nova evidence."""
+
+    payload = dict(route_result)
+    snapshot = dict(registration_snapshot)
+    payload["registration_snapshot"] = dict(snapshot)
+    payload["dispatch_registration"] = dict(snapshot)
+    existing_trace = payload.get("causal_trace")
+    if not isinstance(existing_trace, Mapping) and session_directory:
+        trace_path = Path(session_directory) / "causal-trace.json"
+        if os.path.islink(trace_path):
+            raise OperatorError("causal-trace.json must not be a symlink")
+        if trace_path.is_file():
+            try:
+                existing_trace = json.loads(trace_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                raise OperatorError("causal-trace.json is unreadable") from exc
+            if not isinstance(existing_trace, Mapping):
+                raise OperatorError("causal-trace.json must be an object")
+    if isinstance(existing_trace, Mapping):
+        trace = dict(existing_trace)
+    else:
+        trace = {
+            "schema_version": 1,
+            "trace_count": 1,
+            "read_only": True,
+            "input_authority": False,
+            "stages": [
+                "observation",
+                "home_atlas_navigation",
+                "praise_intent",
+                "current_frame_target_binding",
+                "transport",
+                "attempts_cooldown_successor",
+                "terminal_home",
+            ],
+            "proof_topology": "continuous",
+            "flow_id": NOVA_SUPERVISED_PULSE_FLOW_ID,
+        }
+    trace["registration_snapshot"] = dict(snapshot)
+    trace["dispatch_registration"] = dict(snapshot)
+    trace["scheduler_enabled"] = False
+    payload["causal_trace"] = trace
+    if type(payload.get("causal_trace_count")) is not int or payload["causal_trace_count"] < 1:
+        payload["causal_trace_count"] = 1
+    return payload
+
+
 def _persist_nova_session_result(
     session_directory: str | Path,
     updates: Mapping[str, Any],
     *,
     candidate_commit: str | None = None,
 ) -> dict[str, Any]:
-    """Merge authoritative accounting into the session result.json on disk."""
+    """Merge authoritative accounting into every retained Nova session artifact."""
 
     session = Path(session_directory)
     allowed_root = (REPO_ROOT / ".local-captures").resolve()
@@ -4161,6 +4217,34 @@ def _persist_nova_session_result(
     payload["candidate_commit"] = commit
     path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+    causal_trace = payload.get("causal_trace")
+    if isinstance(causal_trace, Mapping):
+        trace_path = resolved_session / "causal-trace.json"
+        if os.path.islink(trace_path):
+            raise OperatorError("causal-trace.json must not be a symlink")
+        trace_path.write_text(
+            json.dumps(dict(causal_trace), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    delivery_path = resolved_session / "flow-delivery-result.json"
+    if os.path.islink(delivery_path):
+        raise OperatorError("flow-delivery-result.json must not be a symlink")
+    delivery = dict(payload)
+    delivery.setdefault("schema_version", 1)
+    delivery.setdefault("flow_id", NOVA_SUPERVISED_PULSE_FLOW_ID)
+    delivery.setdefault("scenario_id", NOVA_SUPERVISED_PULSE_SCENARIO_ID)
+    if isinstance(payload.get("registration_snapshot"), Mapping):
+        delivery["registration_snapshot"] = dict(payload["registration_snapshot"])
+    if isinstance(payload.get("dispatch_registration"), Mapping):
+        delivery["dispatch_registration"] = dict(payload["dispatch_registration"])
+    if isinstance(causal_trace, Mapping):
+        delivery["causal_trace"] = dict(causal_trace)
+    delivery_path.write_text(
+        json.dumps(delivery, indent=2, sort_keys=True, default=str) + "\n",
+        encoding="utf-8",
     )
     return payload
 
@@ -5455,6 +5539,80 @@ def _verify_nova_supervised_one_free_pulse_session(
         raise OperatorError("result.json is required") from exc
     if not isinstance(result, dict):
         raise OperatorError("result.json must be an object")
+    delivery_result = result
+    delivery_result_path = session / "flow-delivery-result.json"
+    if delivery_result_path.is_symlink() or not delivery_result_path.is_file():
+        raise OperatorError("flow-delivery-result.json is required")
+    try:
+        delivery_result = json.loads(
+            delivery_result_path.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("flow-delivery-result.json is required") from exc
+    if not isinstance(delivery_result, dict):
+        raise OperatorError("flow-delivery-result.json must be an object")
+    causal_trace_path = session / "causal-trace.json"
+    if causal_trace_path.is_symlink() or not causal_trace_path.is_file():
+        raise OperatorError("causal-trace.json is required")
+    try:
+        causal_trace = json.loads(
+            causal_trace_path.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("causal-trace.json is required") from exc
+    if not isinstance(causal_trace, dict):
+        raise OperatorError("causal-trace.json must be an object")
+    if delivery_result.get("flow_id") != NOVA_SUPERVISED_PULSE_FLOW_ID:
+        raise OperatorError("flow-delivery result flow_id is not the supervised Praise flow")
+    from automation_service.registry import RegisteredDispatchSnapshot
+
+    def _registration_aliases(payload: Mapping[str, Any], label: str) -> dict[str, Any]:
+        aliases = (
+            payload.get("registration_snapshot"),
+            payload.get("dispatch_registration"),
+        )
+        if any(value is None for value in aliases):
+            raise OperatorError(f"{label} registration snapshot aliases are missing")
+        try:
+            snapshots = [RegisteredDispatchSnapshot.from_mapping(value) for value in aliases]
+        except (TypeError, ValueError, KeyError) as exc:
+            raise OperatorError(f"{label} registration snapshot is forged or partial") from exc
+        if any(snapshot != snapshots[0] for snapshot in snapshots[1:]):
+            raise OperatorError(f"{label} registration snapshot aliases disagree")
+        return snapshots[0].to_mapping()
+
+    if (
+        result.get("production_registration") != "REGISTERED"
+        or result.get("scheduler_enabled") is not False
+        or delivery_result.get("production_registration") != "REGISTERED"
+        or delivery_result.get("scheduler_enabled") is not False
+    ):
+        raise OperatorError("Nova retained production registration evidence is invalid")
+    result_snapshot = _registration_aliases(result, "result")
+    delivery_snapshot = _registration_aliases(delivery_result, "delivery result")
+    causal_snapshot = _registration_aliases(causal_trace, "causal trace")
+    if result_snapshot != delivery_snapshot or causal_snapshot != result_snapshot:
+        raise OperatorError("Nova result and causal trace registration evidence disagree")
+    result_trace = result.get("causal_trace")
+    delivery_trace = delivery_result.get("causal_trace")
+    if not isinstance(result_trace, Mapping) or not isinstance(delivery_trace, Mapping):
+        raise OperatorError("Nova causal trace registration evidence is missing")
+    if (
+        result_trace.get("scheduler_enabled") is not False
+        or delivery_trace.get("scheduler_enabled") is not False
+        or causal_trace.get("scheduler_enabled") is not False
+    ):
+        raise OperatorError("Nova causal trace scheduler evidence is invalid")
+    trace_snapshot = _registration_aliases(result_trace, "result causal trace")
+    delivery_trace_snapshot = _registration_aliases(
+        delivery_trace, "delivery causal trace"
+    )
+    if (
+        trace_snapshot != result_snapshot
+        or delivery_trace_snapshot != result_snapshot
+        or causal_snapshot != result_snapshot
+    ):
+        raise OperatorError("Nova result and causal trace registration evidence disagree")
     if result.get("schema_version") != 1:
         raise OperatorError("unsupported result schema_version")
     if result.get("flow_id") != NOVA_SUPERVISED_PULSE_FLOW_ID:
@@ -5491,10 +5649,10 @@ def _verify_nova_supervised_one_free_pulse_session(
         raise OperatorError("journal_status must be confirmed")
     if result.get("terminal_home_verified") is not True:
         raise OperatorError("terminal Home was not verified")
-    if result.get("production_registration") != "NOT_REGISTERED":
-        raise OperatorError("production registration must remain NOT_REGISTERED")
+    if result.get("production_registration") != "REGISTERED":
+        raise OperatorError("production registration must be REGISTERED at dispatch")
     if result.get("scheduler_enabled") is not False:
-        raise OperatorError("scheduler must remain disabled")
+        raise OperatorError("scheduler execution must remain disabled at dispatch")
     candidate = result.get("candidate_commit")
     scenario_record = result.get("scenario_record")
     if not isinstance(candidate, str) or not candidate.strip():
@@ -5623,8 +5781,11 @@ def _verify_nova_supervised_one_free_pulse_session(
         "attempts_before": before,
         "attempts_after": after,
         "cooldown_seconds": cooldown,
+        "registration_snapshot": result_snapshot,
+        "dispatch_registration": result_snapshot,
+        "production_registration": result.get("production_registration"),
+        "scheduler_enabled": result.get("scheduler_enabled"),
     }
-
 
 def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
     session = session_directory.resolve()
@@ -5795,8 +5956,10 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
                 "attempts_after": structure["attempts_after"],
                 "cooldown_seconds": structure["cooldown_seconds"],
                 "artifacts": structure["artifacts"],
-                "production_registration": "NOT_REGISTERED",
-                "scheduler_enabled": False,
+                "registration_snapshot": structure["registration_snapshot"],
+                "dispatch_registration": structure["dispatch_registration"],
+                "production_registration": structure["production_registration"],
+                "scheduler_enabled": structure["scheduler_enabled"],
             },
             sort_keys=True,
         )
@@ -6191,7 +6354,28 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                 },
                 sort_keys=True,
             )
+        from automation_service.registry import (
+            RegisteredDispatchSnapshot,
+            consume_nova_registration,
+        )
+        try:
+            registration_snapshot = consume_nova_registration()
+        except ValueError as exc:
+            raise OperatorError(
+                "Nova phase registration is invalid"
+            ) from exc
+        if registration_snapshot is None:
+            raise OperatorError(
+                "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE phase registration is not registered"
+            )
+        if not isinstance(registration_snapshot, RegisteredDispatchSnapshot):
+            raise OperatorError(
+                "Nova phase registration did not produce a typed dispatch snapshot"
+            )
+
         from scripts.navigation_development_boundary import NavigationDevelopmentSession
+        args.registration_snapshot = registration_snapshot
+        registration_mapping = registration_snapshot.to_mapping()
 
         _create_nova_supervised_invocation_guard(
             candidate_commit=candidate_commit,
@@ -6239,23 +6423,33 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                     }
                     result_status = "blocked"
                     guard_terminal = "failed"
+                    route_result["registration_snapshot"] = dict(registration_mapping)
+                    route_result["dispatch_registration"] = dict(registration_mapping)
                     return json.dumps(route_result, sort_keys=True)
 
                 route_result = json.loads(runner(args, identity))
                 runner_returned = True
-                navigation_count = int(route_result.get("navigation_input_count", 0))
-                praise_calls = int(route_result.get("praise_transport_calls", 0))
-                status = str(route_result.get("status") or "blocked")
+                if not isinstance(route_result, dict):
+                    raise OperatorError("Nova supervised runner must return an object")
                 session = str(route_result.get("session_directory") or "")
-                result_status = status
-                route_result["candidate_commit"] = candidate_commit
-                route_result["reset_id"] = selected_reset_id
                 if session:
                     _bind_nova_supervised_invocation_guard_session(
                         session,
                         reset_id=selected_reset_id,
                     )
-                    route_result["session_directory"] = str(Path(session).resolve())
+                    session = str(Path(session).resolve())
+                    route_result["session_directory"] = session
+                route_result = _canonicalize_nova_supervised_dispatch_evidence(
+                    route_result,
+                    registration_mapping,
+                    session_directory=session or None,
+                )
+                navigation_count = int(route_result.get("navigation_input_count", 0))
+                praise_calls = int(route_result.get("praise_transport_calls", 0))
+                status = str(route_result.get("status") or "blocked")
+                result_status = status
+                route_result["candidate_commit"] = candidate_commit
+                route_result["reset_id"] = selected_reset_id
                 completed_facts = _supervised_pulse_completed_facts_ok(route_result)
                 if status == "completed" and completed_facts:
                     record = SupervisedNovaPulseScenarioAttemptRecord(
@@ -6357,20 +6551,23 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                     guard_terminal = "blocked"
                 route_result["scenario_record"] = record.to_mapping()
                 route_result["candidate_commit"] = candidate_commit
-                route_result["production_registration"] = "NOT_REGISTERED"
+                route_result["production_registration"] = "REGISTERED"
                 route_result["scheduler_enabled"] = False
                 if session:
+                    persistence_updates = {
+                        "scenario_record": route_result["scenario_record"],
+                        "candidate_commit": candidate_commit,
+                        "session_directory": str(Path(session).resolve()),
+                        "production_registration": "REGISTERED",
+                        "scheduler_enabled": False,
+                        "registration_snapshot": route_result["registration_snapshot"],
+                        "dispatch_registration": route_result["dispatch_registration"],
+                        "causal_trace": route_result["causal_trace"],
+                        "causal_trace_count": route_result["causal_trace_count"],
+                    }
                     persisted = _persist_nova_session_result(
                         session,
-                        {
-                            "scenario_record": route_result["scenario_record"],
-                            "candidate_commit": candidate_commit,
-                            "session_directory": str(Path(session).resolve()),
-                            "production_registration": "NOT_REGISTERED",
-                            "scheduler_enabled": False,
-                            "status": route_result.get("status"),
-                            "reason": route_result.get("reason"),
-                        },
+                        persistence_updates,
                         candidate_commit=candidate_commit,
                     )
                     route_result["action_database"] = persisted.get(
@@ -6834,7 +7031,6 @@ def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
     """Run exactly one fail-closed, zero-transport scheduler pulse."""
 
     from automation_service.contracts import SchedulerFacts
-    from automation_service.registry import WORLD_PRODUCT_ID, WORLD_PRODUCT_REVISION
     from automation_service.service import registry_scheduler_components
     from safe_action_core import SafetyStore, SQLiteSchedulerInvocationRepository
 
@@ -6915,10 +7111,10 @@ def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
                     "scheduler_eligible": bool(
                         registered is not None and registered.scheduler_eligible
                     ),
-                    "accepted_product": WORLD_PRODUCT_ID
+                    "accepted_product": registered.product_id
                     if registered is not None
                     else False,
-                    "product_revision": WORLD_PRODUCT_REVISION
+                    "product_revision": registered.product_revision
                     if registered is not None
                     else None,
                 },

@@ -13,11 +13,16 @@ from .adapters import (
     SupervisedBlueStacksAdapter,
 )
 from .contracts import PerceptionEnvelope, SchedulerFacts, ServiceMode
-from .handlers import DisabledHandler, WorldNavigationSelectionHandler
+from .handlers import (
+    DisabledHandler,
+    NovaPraiseSelectionHandler,
+    WorldNavigationSelectionHandler,
+)
 from .operations import HealthSnapshot, OperationsService
 from .registry import (
     DisabledProductionEntry,
     RegisteredDispatchSnapshot,
+    NOVA_FLOW_ID,
     WORLD_FLOW_ID,
     load_disabled_registry,
 )
@@ -44,11 +49,20 @@ def registry_descriptor(entry: DisabledProductionEntry):
     from .contracts import FlowDescriptor
 
     registered = entry.registered
+    if entry.flow_id == WORLD_FLOW_ID:
+        family = "world_map_navigation"
+        variant = "navigation_only"
+    elif entry.flow_id == NOVA_FLOW_ID:
+        family = "nova_praise"
+        variant = "supervised_one_free_pulse"
+    else:
+        family = "disabled"
+        variant = "disabled"
     return FlowDescriptor(
         flow_id=entry.flow_id,
         owner="automation_service",
-        family="world_map_navigation" if entry.flow_id == WORLD_FLOW_ID else "disabled",
-        variant="navigation_only" if registered else "disabled",
+        family=family if registered else "disabled",
+        variant=variant if registered else "disabled",
         cadence="daily_once_per_reset",
         priority=1 if registered else 100,
         scheduler_eligible=registered and entry.scheduler_eligible,
@@ -75,17 +89,29 @@ def registry_scheduler_components(
     descriptors = tuple(registry_descriptor(entry) for entry in entries)
     handlers: dict[str, Any] = {}
     for entry, descriptor in zip(entries, descriptors):
-        if entry.flow_id == WORLD_FLOW_ID and entry.registered:
+        if entry.registered and entry.flow_id == WORLD_FLOW_ID:
             handlers[entry.flow_id] = WorldNavigationSelectionHandler(
+                RegisteredDispatchSnapshot.from_entry(entry)
+            )
+        elif entry.registered and entry.flow_id == NOVA_FLOW_ID:
+            handlers[entry.flow_id] = NovaPraiseSelectionHandler(
                 RegisteredDispatchSnapshot.from_entry(entry)
             )
         else:
             handlers[entry.flow_id] = DisabledHandler(descriptor)
+    # Keep authority and descriptors bound to the same validated registry
+    # snapshot.  DisabledProductionAuthority normally loads the default path
+    # itself; replacing its private projection avoids a second, potentially
+    # different registration authority when callers supply a registry path.
+    activation_authority = DisabledProductionAuthority()
+    activation_authority._entries = {
+        entry.flow_id: entry for entry in entries
+    }
     coordinator = UtcPulseCoordinator(
         repository,
         descriptors,
         handlers,
-        activation_authority=DisabledProductionAuthority(),
+        activation_authority=activation_authority,
         clock=clock,
     )
     return entries, descriptors, handlers, coordinator

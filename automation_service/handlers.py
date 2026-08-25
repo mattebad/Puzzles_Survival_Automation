@@ -14,6 +14,12 @@ from .contracts import (
 )
 from .registry import (
     RegisteredDispatchSnapshot,
+    NOVA_FLOW_ID,
+    NOVA_HANDLER_ID,
+    NOVA_PHASE_MODE,
+    NOVA_PRODUCT_ID,
+    NOVA_PRODUCT_REVISION,
+    NOVA_PROFILE_ID,
     WORLD_FLOW_ID,
     WORLD_HANDLER_ID,
     WORLD_PHASE_MODE,
@@ -244,6 +250,150 @@ class WorldNavigationSelectionHandler:
         }
 
 
+class NovaPraiseSelectionHandler:
+    """Zero-transport selector for the registered Nova Praise promotion."""
+
+    handler_id = NOVA_HANDLER_ID
+
+    def __init__(self, snapshot: RegisteredDispatchSnapshot | None = None) -> None:
+        if snapshot is None:
+            snapshot = RegisteredDispatchSnapshot(
+                flow_id=NOVA_FLOW_ID,
+                product_id=NOVA_PRODUCT_ID,
+                product_revision=NOVA_PRODUCT_REVISION,
+                production_handler=NOVA_HANDLER_ID,
+                profile=NOVA_PROFILE_ID,
+                mode=NOVA_PHASE_MODE,
+                registration_status="REGISTERED",
+                scheduler_eligible=True,
+            )
+        if not isinstance(snapshot, RegisteredDispatchSnapshot):
+            raise TypeError("Nova selection requires a typed registration snapshot")
+        self._snapshot = snapshot
+        self.plan_calls = 0
+
+    @property
+    def snapshot(self) -> RegisteredDispatchSnapshot:
+        return self._snapshot
+
+    def describe(self) -> FlowDescriptor:
+        return FlowDescriptor(
+            flow_id=NOVA_FLOW_ID,
+            owner="automation_service",
+            family="nova_praise",
+            variant="supervised_one_free_pulse",
+            cadence="daily_once_per_reset",
+            priority=1,
+            scheduler_eligible=True,
+            accepted_product=NOVA_PRODUCT_ID,
+            product_revision=NOVA_PRODUCT_REVISION,
+            registration_status="REGISTERED",
+        )
+
+    def eligibility(
+        self,
+        facts: SchedulerFacts,
+        perception: PerceptionEnvelope | None = None,
+    ) -> bool:
+        descriptor = self.describe()
+        if facts.gate_failures(descriptor):
+            return False
+        if (
+            facts.accepted_product != NOVA_PRODUCT_ID
+            or facts.product_revision != NOVA_PRODUCT_REVISION
+            or facts.registration_status != "REGISTERED"
+            or facts.scheduler_eligible is not True
+            or facts.owner_available is not True
+            or facts.clock_ok is not True
+            or facts.clock_rollback is True
+            or facts.reset_agreement is not True
+        ):
+            return False
+        if perception is not None and perception.profile_id != NOVA_PROFILE_ID:
+            return False
+        return True
+
+    def revalidate(
+        self,
+        facts: SchedulerFacts,
+        perception: PerceptionEnvelope | None = None,
+    ) -> bool:
+        return self.eligibility(facts, perception)
+
+    def plan(
+        self,
+        facts: SchedulerFacts,
+        perception: PerceptionEnvelope | None = None,
+    ) -> NormalizedResult:
+        self.plan_calls += 1
+        if not self.eligibility(facts, perception):
+            return NormalizedResult(
+                NormalizedOutcome.BLOCKED,
+                "NOVA_PRAISE_SELECTION_GATES_FAILED",
+                verified=False,
+                observed_progress={"transport_count": 0},
+            )
+        snapshot = self._snapshot.to_mapping()
+        return NormalizedResult(
+            NormalizedOutcome.COMPLETE_FOR_RESET,
+            "NOVA_PRAISE_PARENT_CANARY_REQUIRED",
+            verified=True,
+            observed_progress={
+                "transport_count": 0,
+                "accepted_product": NOVA_PRODUCT_ID,
+                "product_revision": NOVA_PRODUCT_REVISION,
+                "registration_status": "REGISTERED",
+                "scheduler_eligible": True,
+                "runtime_owner_available": facts.owner_available,
+                "clock_ok": facts.clock_ok,
+                "clock_rollback": facts.clock_rollback,
+                "reset_agreement": facts.reset_agreement,
+                "unresolved_occurrence": False,
+                "registration_snapshot": snapshot,
+                "dispatch_registration": dict(snapshot),
+            },
+        )
+
+    def reconcile(
+        self,
+        plan: SemanticActionIntent | Any,
+        perception: PerceptionEnvelope | None = None,
+    ) -> NormalizedResult:
+        if isinstance(plan, NormalizedResult):
+            return plan
+        return NormalizedResult(
+            NormalizedOutcome.BLOCKED,
+            "NOVA_PRAISE_SELECTION_UNKNOWN_PLAN",
+            verified=False,
+            observed_progress={"transport_count": 0},
+        )
+
+    def recover(self, reason_code: str) -> NormalizedResult:
+        return NormalizedResult(
+            NormalizedOutcome.BLOCKED,
+            "NOVA_PRAISE_SELECTION_RECOVERY_UNAVAILABLE",
+            verified=False,
+            observed_progress={"reason": reason_code, "transport_count": 0},
+        )
+
+    def summarize(self) -> Mapping[str, Any]:
+        return {
+            "flow_id": NOVA_FLOW_ID,
+            "handler_id": NOVA_HANDLER_ID,
+            "mode": NOVA_PHASE_MODE,
+            "product_id": NOVA_PRODUCT_ID,
+            "product_revision": NOVA_PRODUCT_REVISION,
+            "profile": NOVA_PROFILE_ID,
+            "registration_status": "REGISTERED",
+            "scheduler_eligible": True,
+            "transport_count": 0,
+            "plan_calls": self.plan_calls,
+            "registration_snapshot": self._snapshot.to_mapping(),
+        }
+
+
 # Stable concise aliases for callers that use either terminology.
 WorldSelectionHandler = WorldNavigationSelectionHandler
 WorldNavigationHandler = WorldNavigationSelectionHandler
+NovaSelectionHandler = NovaPraiseSelectionHandler
+NovaPraiseHandler = NovaPraiseSelectionHandler
