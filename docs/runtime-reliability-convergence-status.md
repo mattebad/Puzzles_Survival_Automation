@@ -1899,3 +1899,28 @@ continuation through Phase 6 authorizes one STEP_BACK to frozen revision
 `runtime-reliability-stage-10-phase-3-nova-praise-r2`. Its scope is only durable
 exact dispatch-snapshot persistence; runtime and registration authority remain
 unchanged. No Phase 3 live budget has been used.
+
+## Stage 10 phase 3 final blocked disposition
+
+Phase 3 r2 persisted the exact Nova registration snapshot in
+`result.json`, `flow-delivery-result.json`, and `causal-trace.json`. Focused
+validation passed 23/23 DevelopmentSession tests and 64/64 affected
+scheduler/Nova tests. Terra then found that the verifier still accepted a
+non-registration mutation in the on-disk causal trace because it compared only
+the typed registration projection rather than the complete canonical trace.
+The r2 repair added fail-closed file loading and alias checks, but its recheck
+therefore remained unresolved.
+
+This is the second distinct failed evidence-integrity correction after the
+single authorized STEP_BACK. Parent classification is `diminishing_returns`;
+r2 is terminated and no further repair or live admission is authorized. No
+Phase 3 zero-input observation, runtime acquisition, Nova dispatch, Praise, or
+gameplay input occurred. The safely disabled candidate is published at
+`c640ff670ef2c231f8c54613c83ed075f4bf80ca`. The affected suite passes 64/64
+with the checked-in registry closed. Final registry audit: 23 entries, zero
+registered flows, zero scheduler-eligible flows.
+
+Phases 4-6 remain unadmitted and pending. They were not selected, reviewed,
+registered, dispositioned, or used for observation/live input because atomic
+execution stops at the valid Phase 3 blocker. Phase 7 combat remains
+unauthorized and received zero input.
