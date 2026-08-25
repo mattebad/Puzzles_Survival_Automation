@@ -1653,3 +1653,17 @@ a null handler/profile, empty supported profiles, `mode=disabled`,
 No runtime session, production pulse, gameplay input, registration enablement,
 or scheduler activation occurred. Stage 10 remains inactive pending a separate
 phase-1 observation-only admission.
+
+## Stage 10 phase 1 admitted
+
+Revision `runtime-reliability-stage-10-phase-1-observation-r1` admits only
+observation-only eligibility projection. Product preconditions are proven at
+Git and remote HEAD `d10d8c63f2ccd52525cb76f87f851d0c00c86943`: the
+Stage 9 affected suite passes 39 tests, both final repair regressions pass,
+every allowlisted flow is disabled and `NOT_REGISTERED`, and no runtime owner,
+lease, unresolved occurrence, scheduler process, or live operator is active.
+
+The phase permits an offline scheduler pulse and one singleton
+`DevelopmentSession` observation with input ceiling zero. Registration,
+scheduler eligibility, target/session binding, handler start, gameplay input,
+and transport remain prohibited.
