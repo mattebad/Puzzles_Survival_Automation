@@ -1729,3 +1729,14 @@ unstaged and uncommitted for a separately authorized refrozen correction.
 No Stage 10 DevelopmentSession, gameplay input, transport, registration,
 scheduler eligibility, target binding, or handler start occurred. Phases 2–6
 remain unadmitted, and phase 7 combat remains unauthorized.
+
+## Stage 10 phase 1 r4 explicitly authorized
+
+The user explicitly authorized correction of the concrete r3 regression and
+continuation through phase 6. Revision
+`runtime-reliability-stage-10-phase-1-observation-r4` permits one bounded Luna
+correction and one Terra finding-only recheck. The correction must keep direct
+observation terminal evidence fail-closed through post-exit ownership and
+checkpoint validation, persisting actual failure state rather than durable
+`observed` success. No live attempt, registration, scheduler authority, or
+gameplay input is admitted before correction acceptance.
