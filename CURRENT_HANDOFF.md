@@ -2,8 +2,8 @@
 {
   "schema_version": 3,
   "branch": "feature/runtime-reliability-convergence",
-  "head_binding": "c640ff670ef2c231f8c54613c83ed075f4bf80ca",
-  "last_product_candidate_head": "c640ff670ef2c231f8c54613c83ed075f4bf80ca",
+  "head_binding": "82899e462d2ddbc4f3d95d1f741a9aafdc5a49b3",
+  "last_product_candidate_head": "82899e462d2ddbc4f3d95d1f741a9aafdc5a49b3",
   "ahead_behind": {"source": "compute_from_git"},
   "attributable_dirty_paths": [],
   "task_start_worktree": {
@@ -17,36 +17,36 @@
   },
   "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-orchestrator/", ".local-tools/", "evidence/"],
   "current_task_id": "stage-10-phase-3-nova-praise-r3",
-  "current_task_state": "bounded_correction_active",
+  "current_task_state": "accepted_published",
   "next_task_id": "stage-10-phase-4-maintenance",
-  "next_task_activation_status": "not_active",
-  "active_task_or_flow": "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
-  "active_delivery_stage": "stage_10_phase_3_r3",
+  "next_task_activation_status": "awaiting_explicit_activation",
+  "active_task_or_flow": "none",
+  "active_delivery_stage": "stage_10_phase_3_r3_accepted",
   "active_execution_manifest_path": "docs/execution-manifests/runtime-reliability-stage-10-phase-3-nova-praise-r3.md",
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "Safely disabled Phase 3 candidate passed 64/64 affected scheduler/Nova tests; registry audit reports 23 entries, zero registered, zero scheduler-eligible.",
-  "latest_architecture_validation_result": "Explicit user continuation refroze r3 around complete causal-trace object equality only; r2 registration/runtime architecture remains unchanged.",
+  "latest_focused_validation_result": "Phase 3 r3 passed 23/23 DevelopmentSession and 64/64 affected scheduler/Nova tests; retained live evidence passed the checked-in verifier.",
+  "latest_architecture_validation_result": "Independent finding-only recheck returned ADMIT_LIVE_CANARY; Sol accepted exact type-sensitive causal-trace equality and the live semantic terminal.",
   "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "Phase 3 live budget remains unused; no observation, runtime ownership, gameplay input, or live attempt is admitted before r3 tests/review.",
-  "current_evidence_or_session_reference": "Phase 1 and Phase 2 accepted sessions remain authoritative; Phase 3 has offline receipts only.",
-  "last_safe_completed_step": "Verified clean synchronized HEAD 6bcf284fe244fb9266ad677c58f0da5df8522e58 and froze r3 after explicit continuation.",
-  "exact_next_permitted_action": "One Luna XHigh correction may enforce complete causal-trace equality and add the exact non-registration mutation regression.",
+  "current_live_attempt_state": "The one Phase 3 canary completed with six inputs: five navigation and exactly one zero-cost Praise; attempts changed 7 to 6, cooldown was 296 seconds, Home was verified, and ownership was released.",
+  "current_evidence_or_session_reference": ".local-captures/development-sessions/observe-20260825T233622336047Z; .local-captures/development-sessions/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE-20260825T233730748526Z; .local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260825T233731465919Z",
+  "last_safe_completed_step": "Accepted Phase 3 r3; the current-reset guard is completed, registration is disabled, evidence verifies, and no runtime operator remains.",
+  "exact_next_permitted_action": "Separately freeze and admit Stage 10 Phase 4 maintenance only after selecting an accepted cooldown/timer candidate; otherwise record blocked_evidence_required.",
   "current_blocker": null,
-  "prohibited_repeated_action": "Do not run scheduler pulse, restore Nova registration, acquire runtime, issue Phase 3 input, select phases 4-6, dispatch combat, or confirm real-money before r3 integration acceptance.",
+  "prohibited_repeated_action": "Do not repeat the game-day-2026-08-25 Nova occurrence, admit phases 5-6 before serial Phase 4 disposition, dispatch combat, or confirm real-money.",
   "stage_revision": "runtime-reliability-stage-10-phase-3-nova-praise-r3",
-  "stage_type": "bounded_evidence_integrity_correction",
-  "product_precondition": "Accepted Nova product remains unchanged; r3 changes verifier equality only.",
-  "failure_class": "local_defect",
-  "budgets": {"phase_3_r3_implementation_turns_authorized": 1, "phase_3_r3_review_turns_authorized": 1, "phase_3_r3_repair_turns_authorized": 1, "phase_3_live_attempts_used": 0, "phase_3_runtime_inputs_used": 0},
+  "stage_type": "daily_action_phase_accepted",
+  "product_precondition": "Nova product, exact current-reset identity, strict one-shot registration, restart fence, one zero-cost Praise, exact decrement, cooldown successor, confirmed journal, continuous proof, and canonical Home are proven.",
+  "failure_class": null,
+  "budgets": {"phase_3_r3_implementation_turns_authorized": 1, "phase_3_r3_review_turns_authorized": 1, "phase_3_r3_repair_turns_authorized": 1, "phase_3_live_attempts_used": 1, "phase_3_runtime_inputs_used": 6, "phase_3_praise_transports_used": 1, "phase_3_identical_retries_used": 0},
   "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "registered_flows": [], "active_runtime": "none"},
   "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "Require exact complete equality among on-disk, result-embedded, and delivery-embedded causal traces.", "monitoring_issue": "STAGE-10-PHASE-3-R3-ACTIVE", "do_not_recursively_inspect_parent_evidence_tree": true},
+  "evidence": {"evidence_requirement": "satisfied for Phase 3", "monitoring_issue": "STAGE-10-PHASE-3-R3-ACCEPTED", "do_not_recursively_inspect_parent_evidence_tree": true},
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "current-task",
-  "deferred_independent_review": "One Terra High Phase 3 r3 review remains pending after correction and parent tests.",
+  "deferred_independent_review": "Phase 3 r3 finding-only recheck completed with ADMIT_LIVE_CANARY; phases 4-6 remain pending separate serial admission.",
   "stage_7_ordered_plan": [
     "1 Daily Milestone Claim continuous-session migration or evidence-blocked disposition",
     "2 Campaign AP product authority",
@@ -72,9 +72,9 @@
     "22 Legacy retirement and final Stage 7 closure — accepted and published at 92d352f6c835ce344881f151779c12b53c220b55; no Stage 8 activation"
   ],
   "next_three_atomic_tasks": [
-    "Stage 10 Phase 3: separately admit one accepted current-reset Nova Praise occurrence with strict registration and restart fencing.",
-    "Stage 10 Phase 3: run focused gates, Terra review, one zero-input observation, then at most one live occurrence.",
-    "Stage 10 Phases 4-6 remain evidence-blocked; Phase 7 combat remains unauthorized and awaits explicit combat authorization."
+    "Stage 10 Phase 4: separately select and disposition one accepted cooldown/timer maintenance candidate.",
+    "Stage 10 Phase 5: only after Phase 4, separately select and disposition one exact AP/stamina-funded candidate.",
+    "Stage 10 Phase 6: only after Phase 5, separately select and disposition one exact queue/march candidate; Phase 7 combat remains unauthorized."
   ]
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
@@ -439,3 +439,32 @@ hard stop. World registration is disabled, registered flows are empty, and
 scheduler eligibility is false. Phase 1 remains accepted; Phase 2 and Stage 10
 are rejected. Phases 3-6 remain unadmitted and Phase 7 combat remains
 unauthorized.
+
+## Stage 10 phase 3 r3 acceptance
+
+The bounded causal-trace correction is published at
+82899e462d2ddbc4f3d95d1f741a9aafdc5a49b3. It requires type-sensitive,
+complete equality among the on-disk trace and both embedded traces. Parent
+validation passed 23 DevelopmentSession tests and 64 affected scheduler/Nova
+tests. The independent finding-only recheck returned ADMIT_LIVE_CANARY.
+
+Fresh zero-input observation
+.local-captures/development-sessions/observe-20260825T233622336047Z
+captured the native 800x1280 game frame, issued no input, created no lifecycle
+state, and released ownership. The isolated scheduler store retained the
+current-reset occurrence fence and returned NO_ELIGIBLE_TASK after restart
+with zero transport.
+
+The one admitted Nova canary is retained at
+.local-captures/development-sessions/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE-20260825T233730748526Z
+and runtime session
+.local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260825T233731465919Z.
+It used five navigation inputs and exactly one zero-cost Praise, proved attempts
+7 -> 6, a 296-second cooldown, confirmed journal persistence, one continuous
+causal trace, and terminal Home. The checked-in verifier returned verified.
+
+The exact registration was consumed before runtime. Final production
+registration is NOT_REGISTERED, registered flows are empty, scheduler
+eligibility is false, the current-reset guard is completed, and no runtime
+operator remains. Sol accepts Phase 3. Phase 4 requires separate admission;
+phases 5-6 remain serially pending and Phase 7 combat remains unauthorized.

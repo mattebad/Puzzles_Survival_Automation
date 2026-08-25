@@ -1937,3 +1937,33 @@ The correction is limited to complete causal-trace equality: the parsed
 scheduler, runtime, route, and input authority do not change. All registrations
 remain disabled. No scheduler pulse or live action is admitted before focused
 validation, Terra review, and parent integration acceptance.
+
+## Stage 10 phase 3 r3 acceptance
+
+The bounded causal-trace correction is published at
+82899e462d2ddbc4f3d95d1f741a9aafdc5a49b3. It requires recursive,
+type-sensitive complete equality among causal-trace.json and both embedded
+traces. Parent validation passed 23 DevelopmentSession tests and 64 affected
+scheduler/Nova tests. The independent finding-only recheck returned
+ADMIT_LIVE_CANARY, and Sol accepted integration before runtime.
+
+Fresh zero-input observation is retained at
+.local-captures/development-sessions/observe-20260825T233622336047Z. It
+captured the native 800x1280 game frame, issued zero input, created no lifecycle
+state, and released ownership. The isolated scheduler store preserved the
+current-reset occurrence fence and returned NO_ELIGIBLE_TASK after restart
+with transport_count=0.
+
+The one admitted Nova canary is retained at
+.local-captures/development-sessions/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE-20260825T233730748526Z
+and runtime session
+.local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20260825T233731465919Z.
+It used five navigation inputs and exactly one zero-cost Praise, proved attempts
+7 -> 6, a 296-second cooldown, confirmed journal persistence, one continuous
+causal trace, and terminal Home. The checked-in verifier returned verified.
+
+The exact registration was consumed before runtime. Final production
+registration is NOT_REGISTERED, registered flows are empty, scheduler
+eligibility is false, the current-reset guard is completed, and no runtime
+operator remains. Sol accepts Phase 3. Phase 4 requires separate admission;
+phases 5-6 remain serially pending and Phase 7 combat remains unauthorized.
