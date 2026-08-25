@@ -1740,3 +1740,16 @@ observation terminal evidence fail-closed through post-exit ownership and
 checkpoint validation, persisting actual failure state rather than durable
 `observed` success. No live attempt, registration, scheduler authority, or
 gameplay input is admitted before correction acceptance.
+
+## Stage 10 phase 1 r4 integration accepted
+
+The direct-zero terminal regressions passed 4 tests. DevelopmentSession and
+delegated-receipt suites passed 50 tests with two skips. Terra's finding-only
+recheck returned `RESOLVED_ADMIT_ZERO_INPUT_OBSERVATION` with no findings.
+The accepted repair is published at
+`ed5ad567760666df60da75ba0895fd410402cdef`.
+
+Sol accepts r4 integration and admits exactly one parent-owned direct
+observation with input ceiling zero. The candidate remains unregistered and
+scheduler-ineligible; gameplay input, transport, handlers, target binding,
+combat, and purchase remain prohibited.
