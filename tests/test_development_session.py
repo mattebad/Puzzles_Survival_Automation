@@ -259,6 +259,171 @@ class DevelopmentSessionTests(unittest.TestCase):
             self.assertFalse((root / "session" / "actions.jsonl").exists())
             self.assertFalse((root / "session" / "journal.jsonl").exists())
 
+    def test_pnsctl_zero_input_observation_releases_ownership_without_actions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            png = b"ordinary-observation"
+            observation = {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": hashlib.sha256(png).hexdigest(),
+            }
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl,
+                "_development_runtime_observation",
+                return_value=(observation, png),
+            ) as observe, patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                result = json.loads(pnsctl.development_session_observe(max_inputs=0))
+
+            self.assertEqual(result["status"], "observed")
+            self.assertEqual(result["input_count"], 0)
+            self.assertFalse(result["lifecycle_state_created"])
+            self.assertTrue(result["ownership_released"])
+            observe.assert_called_once_with()
+            session_directory = Path(result["session_directory"])
+            summary = json.loads(
+                (session_directory / "summary.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(summary["input_count"], 0)
+            self.assertEqual(summary["action_count"], 0)
+            self.assertFalse(summary["lifecycle_state_created"])
+            self.assertTrue(summary["ownership_released"])
+            self.assertFalse((session_directory / "actions.jsonl").exists())
+            self.assertFalse((session_directory / "journal.jsonl").exists())
+
+    def test_pnsctl_negative_observation_rejects_before_session_acquisition(self):
+        with patch.object(pnsctl, "_development_runtime_observation") as observe, patch.object(
+            boundary, "DevelopmentSession"
+        ) as session:
+            with self.assertRaisesRegex(
+                pnsctl.OperatorError, "ordinary observation requires max_inputs >= 0"
+            ):
+                pnsctl.development_session_observe(max_inputs=-1)
+        observe.assert_not_called()
+        session.assert_not_called()
+
+    def test_pnsctl_observation_release_failure_cannot_return_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            png = b"ordinary-observation"
+            observation = {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": hashlib.sha256(png).hexdigest(),
+            }
+            created = {}
+
+            class UnreleasedSession:
+                def __init__(self, **kwargs):
+                    self.session_directory = Path(kwargs["session_directory"])
+                    lock = type("Lock", (), {"held": True})()
+                    self._ownership = type(
+                        "Ownership", (), {"lock": lock}
+                    )()
+                    self.terminal_status = None
+                    created["session"] = self
+
+                def __enter__(self):
+                    self.session_directory.mkdir(parents=True, exist_ok=True)
+                    return self
+
+                def __exit__(self, *_args):
+                    return None
+
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl,
+                "_development_runtime_observation",
+                return_value=(observation, png),
+            ), patch.object(boundary, "DevelopmentSession", UnreleasedSession):
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "ownership release is unproven"
+                ):
+                    pnsctl.development_session_observe(max_inputs=0)
+
+            self.assertEqual(created["session"].terminal_status, "evidence_required")
+            result = json.loads(
+                (created["session"].session_directory / "result.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            summary = json.loads(
+                (created["session"].session_directory / "summary.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            for artifact in (result, summary):
+                self.assertEqual(artifact["status"], "evidence_required")
+                self.assertEqual(artifact["input_count"], 0)
+                self.assertFalse(artifact["lifecycle_state_created"])
+                self.assertFalse(artifact["ownership_released"])
+            self.assertIn("ownership release is unproven", result["error"])
+            self.assertIn("ownership release is unproven", summary["blocker"])
+
+    def test_pnsctl_observation_checkpoint_mutation_cannot_return_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint = root / "checkpoint.json"
+            checkpoint.write_text("before", encoding="utf-8")
+            png = b"ordinary-observation"
+            observation = {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": hashlib.sha256(png).hexdigest(),
+            }
+
+            def observe_and_mutate():
+                checkpoint.write_text("after", encoding="utf-8")
+                return observation, png
+
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", (checkpoint,)
+            ), patch.object(
+                pnsctl,
+                "_development_runtime_observation",
+                side_effect=observe_and_mutate,
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "mutated a persistent checkpoint artifact"
+                ):
+                    pnsctl.development_session_observe(max_inputs=0)
+
+            session_directories = tuple((root / "sessions").iterdir())
+            self.assertEqual(len(session_directories), 1)
+            session_directory = session_directories[0]
+            result = json.loads(
+                (session_directory / "result.json").read_text(encoding="utf-8")
+            )
+            summary = json.loads(
+                (session_directory / "summary.json").read_text(encoding="utf-8")
+            )
+            for artifact in (result, summary):
+                self.assertEqual(artifact["status"], "evidence_required")
+                self.assertEqual(artifact["input_count"], 0)
+                self.assertFalse(artifact["lifecycle_state_created"])
+                self.assertTrue(artifact["ownership_released"])
+            self.assertIn("mutated a persistent checkpoint artifact", result["error"])
+            self.assertIn("mutated a persistent checkpoint artifact", summary["blocker"])
+
     def test_home_zoom_does_not_require_atlas_localization(self):
         captures = iter((frame("zoom-before"), frame("zoom-after")))
         with tempfile.TemporaryDirectory() as directory:

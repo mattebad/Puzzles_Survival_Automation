@@ -2402,33 +2402,103 @@ def development_session_observe(
                 raise exc from artifact_error
             raise
         return json.dumps(persisted_result, sort_keys=True)
-    if max_inputs < 1:
-        raise OperatorError("ordinary observation requires max_inputs >= 1")
+    if max_inputs < 0:
+        raise OperatorError("ordinary observation requires max_inputs >= 0")
     invocation_id = f"observe-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
     session_directory = _development_session_directory(invocation_id)
     before = _checkpoint_hashes()
+    session: Any | None = None
+    observation: Mapping[str, Any] | None = None
+    result: dict[str, Any] = {
+        "status": "evidence_required",
+        "session_directory": str(session_directory),
+        "observation": None,
+        "input_count": 0,
+        "dispatch": False,
+        "lifecycle_state_created": False,
+        "ownership_released": False,
+    }
+
+    def persist_terminal_artifacts(
+        status: str,
+        *,
+        ownership_released: bool,
+        blocker: str | None = None,
+    ) -> dict[str, Any]:
+        artifact = {
+            **result,
+            "status": status,
+            "observation": observation,
+            "input_count": 0,
+            "lifecycle_state_created": False,
+            "ownership_released": ownership_released,
+        }
+        if blocker:
+            artifact["error"] = blocker
+        summary: dict[str, Any] = {}
+        summary_path = session_directory / "summary.json"
+        if summary_path.is_file() and not summary_path.is_symlink():
+            try:
+                prior = json.loads(summary_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                prior = {}
+            if isinstance(prior, dict):
+                summary.update(prior)
+        summary.update(
+            {
+                "status": status,
+                "input_count": 0,
+                "action_count": 0,
+                "dispatch": False,
+                "ownership_released": ownership_released,
+                "lifecycle_state_created": False,
+            }
+        )
+        if blocker:
+            summary["blocker"] = blocker
+            summary["next_action"] = "repair the reported observation evidence failure"
+        (session_directory / "result.json").write_text(
+            json.dumps(artifact, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        summary_path.write_text(
+            json.dumps(summary, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return artifact
+
     with DevelopmentSession(
         owner="pnsctl-development-observe",
         invocation_id=invocation_id,
         session_directory=session_directory,
         max_inputs=max_inputs,
-    ):
+        allow_zero_inputs=(max_inputs == 0),
+    ) as active_session:
+        session = active_session
+        active_session.terminal_status = "evidence_required"
         observation, frame = _development_runtime_observation()
         (session_directory / "observe.png").write_bytes(frame)
-        if _checkpoint_hashes() != before:
-            raise OperatorError(
-                "ordinary observation mutated a persistent checkpoint artifact"
-            )
-        result = {
-            "status": "observed",
-            "session_directory": str(session_directory),
-            "observation": observation,
-            "input_count": 0,
-            "lifecycle_state_created": False,
-        }
-        (session_directory / "result.json").write_text(
-            json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        result["observation"] = observation
+    ownership_released = _delegated_observation_ownership_released(session)
+    checkpoint_unchanged = _checkpoint_hashes() == before
+    blocker: str | None = None
+    if not ownership_released:
+        blocker = "ordinary observation ownership release is unproven"
+    elif not checkpoint_unchanged:
+        blocker = "ordinary observation mutated a persistent checkpoint artifact"
+    if blocker is not None:
+        persist_terminal_artifacts(
+            "evidence_required",
+            ownership_released=ownership_released,
+            blocker=blocker,
         )
+        raise OperatorError(blocker)
+    if session is not None:
+        session.terminal_status = "observed"
+    result = persist_terminal_artifacts(
+        "observed",
+        ownership_released=True,
+    )
     return json.dumps(result, sort_keys=True)
 
 
