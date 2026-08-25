@@ -1867,3 +1867,18 @@ registration is `NOT_REGISTERED`, registered flows are empty, scheduler
 eligibility is false, and no runtime operator remains. Sol accepts Phase 2.
 Phase 3 requires separate admission; phases 4–6 remain unadmitted and Phase 7
 combat remains unauthorized.
+
+## Stage 10 phase 3 r1 admitted
+
+Phase 2 is accepted and published at
+`695850e1b6e14c910ee37f8c285c834ebba78523`. Revision
+`runtime-reliability-stage-10-phase-3-nova-praise-r1` selects only
+`NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE`, product `nova_praise-v1`, for the
+current static-UTC reset. Scheduler selection remains zero-transport and cannot
+own runtime or input. The exact registration must be consumed before the live
+route and remain disabled on every terminal path.
+
+No Phase 3 observation, dispatch, gameplay input, or live attempt is admitted
+until focused scheduler/Nova tests, independent review, and parent integration
+acceptance pass. The retained 2026-08-24 Nova occurrence is historical and
+must not be reused.
