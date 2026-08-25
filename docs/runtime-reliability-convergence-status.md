@@ -1637,3 +1637,19 @@ disabled. Stage 9 performed no runtime session, ownership acquisition,
 production pulse, gameplay input, registration, or Stage 10 action. Stage 10
 remains inactive and separately dependency-blocked to its exact observation-
 only entry prerequisites.
+
+## Stage 9 publication reconciliation
+
+Git truth adds final scheduler repair commit `543bf98a17925a8ca5feb61a13a6701e8cad33b1`,
+which preserves clock-rollback high-water state and abandoned bounded-repeat
+ordinals across restart. Its two exact regressions passed. The affected
+nine-module Stage 9 suite initially reproduced the individually documented
+disabled-registry membership drift, then passed all 39 tests after the
+disabled-only correction in commit `a9c222e43692466d2f644d70160f40797c20402c`.
+Terra reviewed that correction and reported no findings. Every added entry has
+a null handler/profile, empty supported profiles, `mode=disabled`,
+`registration_status=NOT_REGISTERED`, and `scheduler_eligible=false`.
+
+No runtime session, production pulse, gameplay input, registration enablement,
+or scheduler activation occurred. Stage 10 remains inactive pending a separate
+phase-1 observation-only admission.
