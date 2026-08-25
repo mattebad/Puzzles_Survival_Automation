@@ -1696,3 +1696,19 @@ Focused/offline checks and Terra acceptance must precede the single
 zero-input observation. Registration, scheduler eligibility, target/session
 binding, handler start, gameplay input, transport, and combat remain
 unauthorized.
+
+## Stage 10 phase 1 r2 review and r3 repair admission
+
+The r2 eight-test replay passed. Scheduler status reported 23 disabled flows,
+no registered flows, and scheduler eligibility false. Two separate offline
+pulse processes against the phase-local SQLite state each returned
+`candidate=null`, `GLOBAL_HEALTH_BREAKER`, and `transport_count=0`.
+
+Terra nevertheless returned `DO_NOT_ADMIT`: the frozen direct
+`development-session observe --max-inputs 0` command takes the ordinary path,
+which rejects zero before ownership acquisition. Sol classified this as
+`local_defect`; no live attempt was spent. Final phase-1 revision
+`runtime-reliability-stage-10-phase-1-observation-r3` admits one Luna XHigh
+repair limited to the direct observation boundary and one Terra recheck.
+Registration, scheduler execution authority, and gameplay input remain
+disabled.
