@@ -1882,3 +1882,20 @@ No Phase 3 observation, dispatch, gameplay input, or live attempt is admitted
 until focused scheduler/Nova tests, independent review, and parent integration
 acceptance pass. The retained 2026-08-24 Nova occurrence is historical and
 must not be reused.
+
+## Stage 10 phase 3 r1 review disposition and r2 freeze
+
+The r1 focused suite passed 63/63. A healthy current-reset offline pulse selected
+only Nova with `transport_count=0`; a separate-process duplicate selected
+nothing. Terra found that the public supervised Nova command bypassed atomic
+registration consumption. One r1 repair resolved that finding and passed 22/22
+exact plus 63/63 affected tests.
+
+The finding-only recheck confirmed the bypass resolved, then identified a
+concrete retained-evidence loss: the public branch did not create and persist
+all verifier-required `flow-delivery-result.json` and causal-trace snapshot
+evidence. Parent classification is `local_defect`. The explicit user
+continuation through Phase 6 authorizes one STEP_BACK to frozen revision
+`runtime-reliability-stage-10-phase-3-nova-praise-r2`. Its scope is only durable
+exact dispatch-snapshot persistence; runtime and registration authority remain
+unchanged. No Phase 3 live budget has been used.
