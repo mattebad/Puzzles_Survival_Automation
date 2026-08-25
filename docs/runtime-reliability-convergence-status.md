@@ -1924,3 +1924,16 @@ Phases 4-6 remain unadmitted and pending. They were not selected, reviewed,
 registered, dispositioned, or used for observation/live input because atomic
 execution stops at the valid Phase 3 blocker. Phase 7 combat remains
 unauthorized and received zero input.
+
+## Stage 10 phase 3 r3 explicit continuation
+
+The user explicitly continued after the r2 `diminishing_returns` stop. Revision
+`runtime-reliability-stage-10-phase-3-nova-praise-r3` is frozen at clean,
+synchronized HEAD `6bcf284fe244fb9266ad677c58f0da5df8522e58`.
+
+The correction is limited to complete causal-trace equality: the parsed
+`causal-trace.json` object must equal both embedded traces in `result.json` and
+`flow-delivery-result.json`, including non-registration fields. Registry,
+scheduler, runtime, route, and input authority do not change. All registrations
+remain disabled. No scheduler pulse or live action is admitted before focused
+validation, Terra review, and parent integration acceptance.
