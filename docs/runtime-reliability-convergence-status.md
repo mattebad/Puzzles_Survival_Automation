@@ -1681,3 +1681,18 @@ eligibility change, target binding, or handler start occurred. Phases 2–6 were
 not admitted. Continuing requires explicit user continuation with refreshed
 managed-turn authority, followed by phase-1 review coverage and the already
 frozen zero-input procedure. Phase 7 combat remains separately unauthorized.
+
+## Stage 10 phase 1 r2 continuation
+
+The user explicitly authorized continuing in this chat. Revision
+`runtime-reliability-stage-10-phase-1-observation-r2` preserves the r1
+zero-input architecture and records one additional read-only Terra acceptance
+turn; no mutable delegated turn or repair is authorized. At continuation,
+local, remote, and last-handoff HEAD were
+`1c47c27cb179112a3b6781f592ca929549b92797`, the worktree was clean, and no
+runtime operator was active.
+
+Focused/offline checks and Terra acceptance must precede the single
+zero-input observation. Registration, scheduler eligibility, target/session
+binding, handler start, gameplay input, transport, and combat remain
+unauthorized.
