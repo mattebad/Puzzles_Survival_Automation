@@ -5613,6 +5613,23 @@ def _verify_nova_supervised_one_free_pulse_session(
         or causal_snapshot != result_snapshot
     ):
         raise OperatorError("Nova result and causal trace registration evidence disagree")
+    def _canonical_json(value: Any) -> str:
+        try:
+            return json.dumps(
+                value,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+        except (TypeError, ValueError) as exc:
+            raise OperatorError("Nova causal trace objects are not valid JSON") from exc
+
+    causal_trace_json = _canonical_json(causal_trace)
+    if (
+        causal_trace_json != _canonical_json(result_trace)
+        or causal_trace_json != _canonical_json(delivery_trace)
+    ):
+        raise OperatorError("Nova causal trace objects disagree")
     if result.get("schema_version") != 1:
         raise OperatorError("unsupported result schema_version")
     if result.get("flow_id") != NOVA_SUPERVISED_PULSE_FLOW_ID:

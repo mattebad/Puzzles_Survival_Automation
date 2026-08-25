@@ -1341,6 +1341,35 @@ class DevelopmentSessionTests(unittest.TestCase):
                 self.assertEqual(retained["runner_marker"], "preserved")
                 self.assertEqual(retained["causal_trace"], trace)
                 self.assertEqual(delivery["causal_trace"], trace)
+                mutated_trace = dict(trace)
+                mutated_trace["proof_topology"] = "forged"
+                trace_path.write_text(
+                    json.dumps(mutated_trace, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "causal trace objects disagree"
+                ):
+                    pnsctl.bluestacks_verify_flow(session)
+                trace_path.write_text(
+                    json.dumps(trace, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                for field, forged_value in (("read_only", 1), ("input_authority", 0)):
+                    typed_trace = dict(trace)
+                    typed_trace[field] = forged_value
+                    trace_path.write_text(
+                        json.dumps(typed_trace, indent=2, sort_keys=True) + "\n",
+                        encoding="utf-8",
+                    )
+                    with self.assertRaisesRegex(
+                        pnsctl.OperatorError, "causal trace objects disagree"
+                    ):
+                        pnsctl.bluestacks_verify_flow(session)
+                trace_path.write_text(
+                    json.dumps(trace, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
                 self.assertEqual(json.loads(pnsctl.bluestacks_verify_flow(session))["status"], "verified")
                 trace_path.unlink()
                 with self.assertRaisesRegex(
