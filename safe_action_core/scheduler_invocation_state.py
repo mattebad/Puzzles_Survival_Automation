@@ -309,7 +309,8 @@ class SQLiteSchedulerInvocationRepository:
             raise ValueError("repeat limit must be positive")
         row = self.store.connection.execute(
             """SELECT MAX(repeat_ordinal) AS maximum FROM scheduler_occurrences
-            WHERE account_id=? AND server_id=? AND reset_id=? AND task_id=?""",
+            WHERE account_id=? AND server_id=? AND reset_id=? AND task_id=?
+            AND status IN ('DEFERRED','COMPLETED','BLOCKED','MANUAL_REQUIRED','RECONCILIATION_REQUIRED')""",
             (identity.account_id, identity.server_id, identity.reset_id, identity.task_id),
         ).fetchone()
         ordinal = 0 if row is None or row["maximum"] is None else int(row["maximum"]) + 1
@@ -589,13 +590,14 @@ class SQLiteSchedulerInvocationRepository:
                 (identity.account_id, identity.server_id),
             ).fetchone()["maximum"]
             rollback = watermark is not None and float(watermark) > now_utc_epoch
+            persisted_utc = float(watermark) if rollback else now_utc_epoch
             revision = 0 if row is None else int(row["revision"]) + 1
             db.execute(
                 """INSERT INTO scheduler_clock_state(account_id,server_id,reset_id,last_utc_epoch,valid,revision,updated_at)
                 VALUES (?,?,?,?,?,?,?) ON CONFLICT(account_id,server_id,reset_id) DO UPDATE SET
                 last_utc_epoch=excluded.last_utc_epoch,valid=excluded.valid,revision=excluded.revision,
                 updated_at=excluded.updated_at""",
-                (identity.account_id, identity.server_id, identity.reset_id, now_utc_epoch, int(not rollback), revision, now_utc_epoch),
+                (identity.account_id, identity.server_id, identity.reset_id, persisted_utc, int(not rollback), revision, now_utc_epoch),
             )
             if rollback:
                 db.execute(

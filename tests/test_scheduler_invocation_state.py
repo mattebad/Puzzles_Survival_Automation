@@ -65,6 +65,54 @@ class SchedulerInvocationStateTests(unittest.TestCase):
             self.assertFalse(repo.is_eligible(day1, 999.0))
             self.assertTrue(repo.is_eligible(day2, 11.0))
             store.close()
+
+    def test_clock_rollback_preserves_high_water_mark_until_fresh_recovery(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            identity = SchedulerIdentity("acct", "srv", "reset", "__clock__")
+            projection_identity = SchedulerIdentity("acct", "srv", "reset", "task")
+            projection = RecurrenceProjection(
+                RecurrenceClass.QUEUE_GENERATION,
+                observed_at_utc=100.0,
+                generation="g1",
+            )
+            store = SafetyStore(path)
+            try:
+                repo = SQLiteSchedulerInvocationRepository(store)
+                self.assertTrue(repo.observe_clock(identity, 100.0))
+                repo.save_projection(projection_identity, "projection", projection, 100.0)
+                self.assertFalse(repo.observe_clock(identity, 90.0))
+                self.assertEqual(
+                    store.connection.execute(
+                        "SELECT last_utc_epoch FROM scheduler_clock_state "
+                        "WHERE account_id=? AND server_id=? AND reset_id=?",
+                        ("acct", "srv", "reset"),
+                    ).fetchone()["last_utc_epoch"],
+                    100.0,
+                )
+                self.assertFalse(repo.observe_clock(identity, 91.0))
+                self.assertIsNone(repo.get_projection("projection"))
+            finally:
+                store.close()
+
+            reopened = SafetyStore(path)
+            try:
+                restored = SQLiteSchedulerInvocationRepository(reopened)
+                self.assertFalse(restored.observe_clock(identity, 91.0))
+                self.assertTrue(restored.observe_clock(identity, 100.0))
+                restored.save_projection(
+                    projection_identity,
+                    "projection",
+                    RecurrenceProjection(
+                        RecurrenceClass.QUEUE_GENERATION,
+                        observed_at_utc=100.0,
+                        generation="g2",
+                    ),
+                    100.0,
+                )
+                self.assertTrue(restored.projection_is_valid("projection", 100.0, 300.0))
+            finally:
+                reopened.close()
     def test_populated_legacy_v4_invocation_check_upgrades_in_place(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "state.sqlite3"

@@ -126,6 +126,79 @@ class AutomationServiceSchedulerTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_abandoned_bounded_repeat_claim_reuses_ordinal_across_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            projection = RecurrenceProjection(
+                RecurrenceClass.BOUNDED_REPEAT,
+                observed_at_utc=100.0,
+                repeat_ordinal=0,
+                repeat_limit=2,
+            )
+            d = descriptor(recurrence=projection)
+            handler = Handler(d, revalidate=False)
+            store = SafetyStore(path)
+            try:
+                repo = SQLiteSchedulerInvocationRepository(store)
+                coordinator = UtcPulseCoordinator(
+                    repo, [d], {d.flow_id: handler}, activation_authority=Authority()
+                )
+                first = coordinator.pulse(facts(now=100.0, projections={"flow": projection}))
+                second = coordinator.pulse(facts(now=101.0, projections={"flow": projection}))
+                self.assertEqual(first.reason_code, "POST_SELECTION_REVALIDATION_FAILED")
+                self.assertEqual(second.reason_code, "POST_SELECTION_REVALIDATION_FAILED")
+                self.assertEqual(first.candidate.claim.occurrence.repeat_ordinal, 0)
+                self.assertEqual(second.candidate.claim.occurrence.repeat_ordinal, 0)
+                self.assertEqual(handler.plan_calls, 0)
+                self.assertEqual(repo.next_repeat_ordinal(first.candidate.identity, 2), 0)
+                self.assertEqual(
+                    [item.repeat_ordinal for item in repo.list_occurrences()],
+                    [0],
+                )
+            finally:
+                store.close()
+
+            reopened = SafetyStore(path)
+            try:
+                handler.revalidate_value = True
+                handler.result = NormalizedResult(
+                    NormalizedOutcome.ACTION_PERFORMED,
+                    "CONSUMED",
+                    action_count=1,
+                )
+                repo = SQLiteSchedulerInvocationRepository(reopened)
+                resumed = UtcPulseCoordinator(
+                    repo, [d], {d.flow_id: handler}, activation_authority=Authority()
+                ).pulse(facts(now=102.0, projections={"flow": projection}))
+                self.assertEqual(resumed.candidate.claim.occurrence.repeat_ordinal, 0)
+                self.assertEqual(resumed.reason_code, "CONSUMED")
+                self.assertEqual(handler.plan_calls, 1)
+                self.assertEqual(repo.next_repeat_ordinal(resumed.candidate.identity, 2), 1)
+            finally:
+                reopened.close()
+
+            final_store = SafetyStore(path)
+            try:
+                final_handler = Handler(
+                    d,
+                    result=NormalizedResult(
+                        NormalizedOutcome.ACTION_PERFORMED,
+                        "CONSUMED",
+                        action_count=1,
+                    ),
+                )
+                repo = SQLiteSchedulerInvocationRepository(final_store)
+                final = UtcPulseCoordinator(
+                    repo,
+                    [d],
+                    {d.flow_id: final_handler},
+                    activation_authority=Authority(),
+                ).pulse(facts(now=103.0, projections={"flow": projection}))
+                self.assertEqual(final.candidate.claim.occurrence.repeat_ordinal, 1)
+                self.assertEqual(final_handler.plan_calls, 1)
+            finally:
+                final_store.close()
+
     def test_blocked_result_is_terminal_without_unresolved_lock(self):
         with tempfile.TemporaryDirectory() as folder:
             store = SafetyStore(Path(folder) / "state.sqlite3")
