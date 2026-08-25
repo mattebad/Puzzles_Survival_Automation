@@ -1712,3 +1712,20 @@ which rejects zero before ownership acquisition. Sol classified this as
 repair limited to the direct observation boundary and one Terra recheck.
 Registration, scheduler execution authority, and gameplay input remain
 disabled.
+
+## Stage 10 phase 1 r3 rejected after recheck
+
+The exact new direct-zero regressions passed 3 tests. The DevelopmentSession
+and delegated-receipt suites passed 49 tests with two skips. Terra's bounded
+r3 recheck nevertheless found one must-fix evidence-truthfulness defect: the
+ordinary observation sets terminal status `observed` before leaving the
+session, so a subsequent ownership-release or checkpoint-immutability failure
+can leave `summary.json` claiming observed success.
+
+Sol rejects live admission. R3 authorizes no second repair, and this is the
+third phase-1 revision; the stop is `diminishing_returns`. The unaccepted
+`scripts/pnsctl.py` and `tests/test_development_session.py` repair remains
+unstaged and uncommitted for a separately authorized refrozen correction.
+No Stage 10 DevelopmentSession, gameplay input, transport, registration,
+scheduler eligibility, target binding, or handler start occurred. Phases 2–6
+remain unadmitted, and phase 7 combat remains unauthorized.
