@@ -4,23 +4,21 @@
 {
   "schema_version": 3,
   "branch": "feature/runtime-reliability-convergence",
-  "head_binding": "95b659c27f424fffb99783a518bedb1d1db8c8e1",
-  "last_product_candidate_head": "f2e929b5c6e8448c880db574284adcd5099a474f",
-  "ahead_behind": {"source": "compute_from_git"},
-  "attributable_dirty_paths": [
-    ".cursor/hooks/pns_agent_workflow_guard.py",
-    ".cursorindexingignore",
-    "automation_service/handlers.py",
-    "BACKLOG.md",
-    "CURRENT_HANDOFF.md",
-    "docs/runtime-reliability-convergence-status.md",
-    "scripts/validate_governance.py",
-    "tests/test_automation_service_handlers.py",
-    "tests/test_flow_delivery_orchestrator.py",
-    "tests/test_governance_validation.py"
+  "head_binding": "efd07fe150fe7a4785d32503ea7ff997b5ef32ac",
+  "last_product_candidate_head": "efd07fe150fe7a4785d32503ea7ff997b5ef32ac",
+  "ahead_behind": {
+    "source": "compute_from_git"
+  },
+  "attributable_dirty_paths": [],
+  "task_start_worktree": {
+    "tracked_dirty_paths": [],
+    "protected_untracked_paths": []
+  },
+  "protected_user_owned_paths": [
+    ".local-captures/",
+    ".local-reference/",
+    "evidence/"
   ],
-  "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": []},
-  "protected_user_owned_paths": [".local-captures/", ".local-reference/", "evidence/"],
   "current_task_id": "STAGE-11-FINAL-RECONCILIATION",
   "current_task_state": "completed",
   "next_task_id": "RUNTIME-RELIABILITY-MERGE-BOUNDARY",
@@ -32,24 +30,24 @@
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "Stage 11 focused profiles passed: automation service, DevelopmentSession, Stage 10 adapters, scheduler pulse, gameplay contracts, and selector authority",
-  "latest_architecture_validation_result": "Authority consistency, workflow guard, governance schema, loop policy, and zero-authority checks passed",
+  "latest_focused_validation_result": "Startup recovery and shared safety profiles passed: 274 tests passed with 1 expected skip",
+  "latest_architecture_validation_result": "Governance validation and diff checks passed; branch is synchronized with main and mergeable",
   "latest_full_suite_result": "Not required by frozen Stage 11 profile",
-  "current_live_attempt_state": "none",
-  "current_evidence_or_session_reference": "docs/execution-manifests/runtime-reliability-stage-11-final-reconciliation-r3.md",
-  "last_safe_completed_step": "Stage 11 final offline validation passed with 24 registry entries, 0 registered, and 0 scheduler eligible",
-  "exact_next_permitted_action": "Await explicit merge-boundary activation, final review approval, and branch synchronization; do not merge or push before all three.",
+  "current_live_attempt_state": "completed_recovery_then_local_budget_block",
+  "current_evidence_or_session_reference": ".local-captures/flow-delivery/RECRUITMENT-FREE-ATTEMPT-MAINTENANCE/noahs-tavern-unified-recruitment-20260826T031443384877Z",
+  "last_safe_completed_step": "Exact VIP popup recovery was confirmed live; the conditional recovery-input reserve was repaired, validated offline, and committed",
+  "exact_next_permitted_action": "Push the synchronized branch for external approval on PR #4; keep the merge successor inactive until approval.",
   "current_blocker": "none",
   "prohibited_repeated_action": "Do not repeat Stage 10 Phase 4, Phase 5, or Phase 6 canary execution.",
-  "stage_revision": "stage-11-r3",
-  "stage_type": "offline_reconciliation",
+  "stage_revision": "merge-boundary-r1",
+  "stage_type": "merge_boundary",
   "product_precondition": "not_applicable",
-  "failure_class": "none",
+  "failure_class": "local_defect_resolved",
   "budgets": {
     "stage_revisions_used": 3,
     "managed_turns_used": 0,
-    "live_attempts_used": 0,
-    "runtime_inputs_used": 0
+    "live_attempts_used": 1,
+    "runtime_inputs_used": 12
   },
   "registration_and_scheduler": {
     "production_registration": "NOT_REGISTERED",
@@ -70,7 +68,7 @@
   },
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "runtime-reliability-convergence-20260826",
-  "deferred_independent_review": "merge-boundary review remains required",
+  "deferred_independent_review": "PR #4 external approval pending",
   "stage_7_ordered_plan": [
     "Phases 1-3 accepted",
     "Phases 4-5 blocked_evidence_required after zero-input canaries",
@@ -78,12 +76,12 @@
     "Stage 11 offline reconciliation"
   ],
   "next_three_atomic_tasks": [
-    "Review the terminal Stage 11 diff",
-    "Synchronize the branch after explicit activation",
-    "Perform one reviewed non-force merge"
+    "Push the synchronized feature branch",
+    "Obtain external approval on PR #4",
+    "Activate and perform one reviewed non-force merge"
   ],
   "stage_start_utc": "2026-08-26T00:11:00Z",
-  "continuation_checkpoint_utc": "2026-08-26T00:11:00Z"
+  "continuation_checkpoint_utc": "2026-08-26T04:22:00Z"
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
@@ -98,4 +96,9 @@
 - Production selection handlers require an explicit exact typed registration snapshot; no constructor may synthesize authority.
 - No runtime session, gameplay input, protected-evidence mutation, registration, scheduler selection, PvP/player attack, premium action, or real-money action is authorized.
 - Stage 10 r1/r2/r3 planning revisions and legacy aliases are historical and non-authorizing; retained terminal disposition records remain authoritative.
-- The merge boundary is a separate inactive successor requiring explicit activation, final review approval, passing validation, and branch synchronization.
+- User continuation is recorded and branch synchronization passed. The structured merge successor remains inactive until PR #4 receives external approval.
+
+## Startup recovery correction
+- The exact post-reset VIP popup was recognized and dismissed with one live Close input; canonical Home was positively verified afterward.
+- Recruitment then exhausted its original 12-input route cap before safe exit. The local defect was corrected by granting one conditional recovery input only after confirmed exact recovery; popup-absent runs retain the 12-input cap.
+- Focused and shared safety profiles passed 274 tests with one expected skip. A later zero-input observation found no VIP popup, so no identical live retry was attempted.
