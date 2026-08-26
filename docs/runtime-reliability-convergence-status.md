@@ -2004,3 +2004,38 @@ occurrence. Phase 4 therefore closes truthfully as
 Phase 5 may be frozen independently. Zombie Lair Quick Join remains an ordinary
 PvE stamina/march activity, not Phase 7 combat; Phase 7 covers only PvP/player
 attack automation and remains unauthorized.
+
+## Stage 10 phase 5 Campaign AP blocked disposition
+
+Revision `runtime-reliability-stage-10-phase-5-campaign-ap-r1` selected
+`CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY` as the exact AP-regeneration
+representative. Candidate commits are `b46832d` (implementation) and
+`107d54b` (single-flow admission). The scheduler required a fresh
+`AP_REGENERATION` projection with observed balance at least 14 and selected
+only the Campaign flow with zero transport and a restart-safe occurrence key.
+
+The route atomically consumed registration before DevelopmentSession
+observation, retained the exact typed dispatch snapshot, counted both Home
+preparation and child-route inputs under the twelve-input ceiling, and required
+exact destination `1-15-9`, static cost 14, AP delta 14, one battle successor,
+no refill or forbidden action, and canonical Home. Pre-admission review found
+and closed two blockers: omitted pre-route input accounting and incorrect
+post-consumption registry reporting. Independent corrective recheck returned
+PASS for both. The admitted focused profile then passed 160 tests.
+
+The one admitted canary is retained at
+`.local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20260826T005216137990Z`.
+Its typed initial observation captured the native 800x1280 game frame, but the
+existing Campaign recognizer classified the current source as
+`CampaignScreen.UNKNOWN` before any input. Offline reclassification of the
+retained immediate-before frame reproduced `UNKNOWN`. Registration was
+consumed before observation; `input_count=0`, Campaign action count was zero,
+AP spend was zero, no refill occurred, ownership was released, and the final
+registry is `NOT_REGISTERED` with scheduler eligibility false.
+
+Parent classification is `product_state`: the selected candidate lacks current
+uninterrupted source-to-stage-to-result-to-Home evidence under the one allowed
+Phase 5 occurrence. Phase 5 therefore closes truthfully as
+`blocked_evidence_required`; it is not repeated or relabeled as accepted.
+Phase 6 Troop Training may be frozen independently. Phase 7 remains restricted
+to PvP/player-attack automation and remains unauthorized.

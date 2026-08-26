@@ -839,16 +839,17 @@ def _campaign_result_payload(
             "scheduler_enabled": False,
         }
     )
-    if not exact_ap_delta or not ledger_match:
-        payload["reason"] = "Campaign AP ledger does not equal configured cost"
-    elif not destination_match or not cost_match:
-        payload["reason"] = "Campaign stage or configured AP cost is not bound"
-    elif forbidden_action_seen:
-        payload["reason"] = "Campaign route emitted a forbidden action"
-    elif not result_successor:
-        payload["reason"] = "Campaign result successor is not positively recognized"
-    elif not terminal_home:
-        payload["reason"] = "Campaign terminal Home is not recognized"
+    if not payload.get("reason"):
+        if not exact_ap_delta or not ledger_match:
+            payload["reason"] = "Campaign AP ledger does not equal configured cost"
+        elif not destination_match or not cost_match:
+            payload["reason"] = "Campaign stage or configured AP cost is not bound"
+        elif forbidden_action_seen:
+            payload["reason"] = "Campaign route emitted a forbidden action"
+        elif not result_successor:
+            payload["reason"] = "Campaign result successor is not positively recognized"
+        elif not terminal_home:
+            payload["reason"] = "Campaign terminal Home is not recognized"
     return payload
 
 

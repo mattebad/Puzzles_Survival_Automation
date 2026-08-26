@@ -200,6 +200,7 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
         result = delivery._campaign_result_payload(
             {
                 "status": "completed",
+                "reason": "Campaign Home prep source was not recognized",
                 "terminal": "completed",
                 "navigation_only": False,
                 "terminal_runtime_state": "recognized_home",
@@ -220,6 +221,10 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
         self.assertEqual(result["status"], "effect_reconciliation_required")
         self.assertTrue(result["effect_reconciliation_required"])
         self.assertTrue(result["identical_retry_denied"])
+        self.assertEqual(
+            result["reason"],
+            "Campaign Home prep source was not recognized",
+        )
 
     def test_refill_marker_and_forged_registration_cannot_verify(self):
         with tempfile.TemporaryDirectory() as directory:
