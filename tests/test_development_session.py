@@ -21,6 +21,22 @@ from scripts.bluestacks_native_runtime import (
 )
 
 
+def disable_non_target_registrations(payload: dict, target_flow_id: str) -> None:
+    disabled = {
+        "production_handler": None,
+        "profile": None,
+        "supported_profiles": [],
+        "mode": "disabled",
+        "registration_status": "NOT_REGISTERED",
+        "scheduler_eligible": False,
+        "product_id": None,
+        "product_revision": None,
+    }
+    for flow_id in payload["flows"]:
+        if flow_id != target_flow_id:
+            payload["flows"][flow_id] = dict(disabled)
+
+
 def frame(label: str) -> CapturedNativeFrame:
     payload = label.encode()
     return CapturedNativeFrame(
@@ -804,6 +820,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             registry_payload = json.loads(
                 checked_in_registry.read_text(encoding="utf-8")
             )
+            disable_non_target_registrations(registry_payload, flow_id)
             registry_payload["flows"][flow_id] = {
                 "production_handler": registration.NOVA_HANDLER_ID,
                 "profile": registration.NOVA_PROFILE_ID,
@@ -994,6 +1011,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                 / "flow_delivery_disabled_production_registry.json"
             )
             payload = json.loads(checked_in.read_text(encoding="utf-8"))
+            disable_non_target_registrations(payload, flow_id)
             payload["flows"][flow_id] = {
                 "production_handler": registration.NOVA_HANDLER_ID,
                 "profile": registration.NOVA_PROFILE_ID,
@@ -1143,6 +1161,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                 / "flow_delivery_disabled_production_registry.json"
             )
             payload = json.loads(checked_in.read_text(encoding="utf-8"))
+            disable_non_target_registrations(payload, flow_id)
             payload["flows"][flow_id] = {
                 "production_handler": registration.NOVA_HANDLER_ID,
                 "profile": registration.NOVA_PROFILE_ID,
