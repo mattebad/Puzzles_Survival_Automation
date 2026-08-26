@@ -7542,3 +7542,104 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   contract/queue/registry wiring, focused tests, and authority records.
 - Completion criteria: one verified `1-20-9` Auto Battle AP spend with exact ledger and Home terminal,
   or a truthful blocked terminal with preserved evidence and diagnosis; no forbidden action, no push.
+
+
+### STAGE-11-FINAL-RECONCILIATION
+- Task ID: `STAGE-11-FINAL-RECONCILIATION`.
+- Title: Reconcile Stage 10 dispositions and freeze the merge boundary.
+- Status: Completed (2026-08-26; offline reconciliation and final validation completed).
+- Milestone: Runtime reliability convergence final reconciliation.
+- Dependencies: Stage 10 Phases 1-3 accepted and Phases 4-6 terminally blocked with retained evidence.
+- Blocked by: none.
+- Objective: close durable authority, schema, validation, and successor state without runtime access.
+- Established facts: all 24 production entries are disabled; Phases 4-5 used zero-input canaries and Phase 6 used no new attempt.
+- Direct implementation files: selector authority, governance validator/guard, indexing policy, handoff, backlog, status, manifests, and focused tests.
+- Shared dependencies: disabled production registry, DevelopmentSession, scheduler, gameplay contracts, and Git ancestry.
+- Transitive regression set: automation-service, Stage 10 adapters, DevelopmentSession, gameplay contracts, orchestrator, governance, and workflow guard.
+- Allowed changes: only r2 writable paths and per-commit allowed paths recorded in the Stage 11 r2 manifest.
+- Prohibited changes: runtime input, evidence mutation, registration, scheduler enablement, PvP/player attack, premium spend, force, history rewrite, or push.
+- Authorized runtime action: none; offline inspection and validation only.
+- Maximum transport inputs: zero.
+- Navigation-only recovery: forbidden.
+- Consequential action: forbidden.
+- Registration changes: none; all entries remain `NOT_REGISTERED`.
+- Scheduler changes: none; all entries remain ineligible.
+- Actions that must not be repeated: Phase 4, Phase 5, and Phase 6 live/canary execution.
+- Required source: retained manifests, exact typed registration snapshots, current registry, handoff, and focused test output.
+- Exact target semantics: zero active production authority and a terminal, internally consistent Stage 11 handoff.
+- Required local association: each disposition remains bound to its phase manifest, result, and immutable retained artifacts.
+- Negative controls: synthesized registration, cross-flow snapshot, active lease/runtime/agent, unresolved input, or enabled scheduler.
+- Coordinate space: not applicable.
+- Accepted signals: exact registry count, zero registrations, passing focused validators, full-SHA ancestry, and clean lifecycle relations.
+- Rejected weak signals: prose alone, transport success, missing evidence, literal pseudo-SHA tokens, or historical aliases.
+- Ambiguous-result behavior: fail closed, retain the exact blocker, and do not authorize a repeat or merge.
+- Zero-cost requirement: required; no runtime or product resource may be consumed.
+- Quantity limits: zero runtime sessions, inputs, registrations, scheduler selections, and protected-evidence mutations.
+- Resource consumption policy: offline CPU and repository reads only.
+- Premium or strategic restrictions: all gameplay, premium, purchase, PvP, and player-attack actions prohibited.
+- Active evidence manifest: none.
+- Required artifacts: retained Stage 10 manifests/results, Stage 11 r2 manifest, validation output, and Git review.
+- Immediate-before/immediate-post/result/journal: existing retained phase records only; no new runtime sequence or journal.
+- Additional task-specific artifacts: `docs/execution-manifests/runtime-reliability-stage-11-final-reconciliation-r2.md`.
+- Focused tests: selector authority, registry/scheduler, DevelopmentSession, Stage 10 adapters, governance, and workflow guard.
+- Integration tests: final automation-service, gameplay-contract, orchestrator, and authority-consistency profiles.
+- Transitive regression tests: exact touched-component profiles only.
+- Full-suite requirement: none; use the frozen final profile.
+- Validators: governance validator, registry validation, Python compilation, `git diff --check`, and final Git status/diff review.
+- Known baseline failures: none in touched components; any unrelated historical nontermination remains separately dispositioned.
+- Evidence requirement: NOT_APPLICABLE because Stage 11 is offline reconciliation and creates no new runtime evidence.
+- Valid blocked outcomes: validation defect, active authority, unresolved action, evidence mutation, or inconsistent durable disposition.
+- Blocked-result commit policy: preserve the exact finding without widening scope or authorizing runtime.
+- Commit policy: focused local commits on per-commit allowed paths; no push.
+- Expected focused commits: one reconciliation implementation commit and one terminal status commit.
+- Completion criteria: zero authority, exact terminal dispositions, passing final profile, terminal handoff, and inactive merge successor.
+
+### RUNTIME-RELIABILITY-MERGE-BOUNDARY
+- Task ID: `RUNTIME-RELIABILITY-MERGE-BOUNDARY`.
+- Title: Review and merge the runtime reliability convergence branch.
+- Status: Pending explicit activation and review approval.
+- Milestone: Runtime reliability convergence merge boundary.
+- Dependencies: `STAGE-11-FINAL-RECONCILIATION` completed and committed.
+- Blocked by: explicit activation, final review approval, and branch synchronization.
+- Objective: review the frozen convergence diff and merge without weakening safety invariants.
+- Established facts: Stage 11 leaves zero active authority and no runtime ownership.
+- Direct implementation files: none unless review identifies a separately authorized repair.
+- Shared dependencies: Git branch, remote synchronization, CI/review status, and terminal Stage 11 records.
+- Transitive regression set: Stage 11 final validation profile.
+- Allowed changes: merge metadata only after activation; any repair requires a new frozen manifest and per-commit allowed paths.
+- Prohibited changes: force push, history rewrite, hook bypass, protected-evidence staging, runtime input, registration, or scheduler enablement.
+- Authorized runtime action: none.
+- Maximum transport inputs: zero.
+- Navigation-only recovery: forbidden.
+- Consequential action: repository merge only after separate activation; no product action.
+- Registration changes: none.
+- Scheduler changes: none.
+- Actions that must not be repeated: all Stage 10 canaries and blocked phase attempts.
+- Required source: terminal Stage 11 commit, full branch diff, CI/review result, and remote synchronization status.
+- Exact target semantics: a reviewed non-force merge of the frozen branch.
+- Required local association: merge approval must identify this branch and its terminal Stage 11 commit.
+- Negative controls: stale branch, failing validation, active authority, unreviewed repair, or protected evidence in the index.
+- Coordinate space: not applicable.
+- Accepted signals: explicit activation, approved review, passing checks, synchronized branch, and unchanged zero-authority registry.
+- Rejected weak signals: local success alone, implied approval, stale CI, or unchecked remote divergence.
+- Ambiguous-result behavior: stop before merge and request exact evidence or authorization.
+- Zero-cost requirement: no product/runtime resource consumption.
+- Quantity limits: one non-force merge; zero gameplay inputs.
+- Resource consumption policy: repository and CI operations only.
+- Premium or strategic restrictions: all product actions prohibited.
+- Active evidence manifest: none.
+- Required artifacts: terminal commit, review/CI result, branch status, and merge result when authorized.
+- Immediate-before/immediate-post/result/journal: Git status before and merge result after; no runtime journal.
+- Additional task-specific artifacts: merge or pull-request metadata when activated.
+- Focused tests: Stage 11 final profile must remain green.
+- Integration tests: remote CI/review checks when available.
+- Transitive regression tests: none beyond the frozen profile unless a repair is authorized.
+- Full-suite requirement: only if review or CI policy explicitly requires it.
+- Validators: Git ancestry/status/diff, CI/review, governance, and zero-authority checks.
+- Known baseline failures: none accepted in touched components.
+- Evidence requirement: NOT_APPLICABLE because this is a repository merge boundary with no runtime evidence.
+- Valid blocked outcomes: absent approval, remote divergence, failing checks, active authority, or protected-evidence overlap.
+- Blocked-result commit policy: no merge and no repair without a separately frozen task.
+- Commit policy: no new code commit by default and no push until explicitly activated.
+- Expected focused commits: none.
+- Completion criteria: explicitly activated reviewed non-force merge with zero-authority invariants preserved.

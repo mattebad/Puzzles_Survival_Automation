@@ -50,12 +50,13 @@ def _concurrent_admission_worker(
     try:
         barrier.wait(timeout=10)
         with (
-            patch.object(guard, "_repo_head", return_value="fixture-head"),
+            patch.object(guard, "_repo_head", return_value="a" * 40),
             patch.object(
                 guard,
                 "_latest_handoff_commit",
-                return_value="fixture-head",
+                return_value="a" * 40,
             ),
+            patch.object(guard, "_commit_is_ancestor", return_value=True),
         ):
             result = guard.admit(
                 event,
@@ -612,14 +613,14 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
         )
         self.assertIn(state["current_task_id"], handoff)
         self.assertIn(state["next_task_id"], handoff)
-        self.assertEqual(state["next_task_activation_status"], "authorized_pending_freeze")
+        self.assertEqual(state["next_task_activation_status"], "awaiting_explicit_activation")
         self.assertEqual(state["active_task_or_flow"], "none")
         self.assertNotIn("actions_already_performed", handoff)
         # Historical Ruins/troop handoff ledgers live in Git history, not the compact volatile handoff.
 
 
 class AgenticWorkflowGuardTests(unittest.TestCase):
-    HEAD = "fixture-head"
+    HEAD = "a" * 40
     NOW = datetime(2026, 8, 17, 0, 0, 1, tzinfo=timezone.utc)
 
     def write_repo(self, directory: str, **overrides):
@@ -632,7 +633,7 @@ class AgenticWorkflowGuardTests(unittest.TestCase):
         )
         state = {
             "schema_version": 3,
-            "head_binding": "latest_commit_touches_handoff",
+            "head_binding": self.HEAD,
             "control_owner": "sol_parent",
             "control_parent_conversation_id": WORKFLOW_PARENT_CONVERSATION_ID,
             "stage_revision": "stage-1",
@@ -697,6 +698,11 @@ class AgenticWorkflowGuardTests(unittest.TestCase):
                 "_latest_handoff_commit",
                 return_value=self.HEAD,
             ),
+            patch.object(
+                workflow_guard,
+                "_commit_is_ancestor",
+                return_value=True,
+            ),
         ):
             return workflow_guard.admit(
                 event,
@@ -754,6 +760,11 @@ class AgenticWorkflowGuardTests(unittest.TestCase):
                     workflow_guard,
                     "_latest_handoff_commit",
                     return_value="older-head",
+                ),
+                patch.object(
+                    workflow_guard,
+                    "_commit_is_ancestor",
+                    return_value=True,
                 ),
             ):
                 result = workflow_guard.admit(

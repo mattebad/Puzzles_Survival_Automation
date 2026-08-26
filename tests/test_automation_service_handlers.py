@@ -15,9 +15,12 @@ from automation_service.handlers import (
     DisabledHandler,
     NovaPraiseSelectionHandler,
     RecruitmentMaintenanceSelectionHandler,
+    WorldNavigationSelectionHandler,
 )
 from automation_service.registry import (
     CAMPAIGN_FLOW_ID,
+    CAMPAIGN_HANDLER_ID,
+    CAMPAIGN_PHASE_MODE,
     CAMPAIGN_PRODUCT_ID,
     CAMPAIGN_PRODUCT_REVISION,
     CAMPAIGN_PROFILE_ID,
@@ -28,14 +31,72 @@ from automation_service.registry import (
     NOVA_PRODUCT_REVISION,
     NOVA_PROFILE_ID,
     RECRUITMENT_FLOW_ID,
+    RECRUITMENT_HANDLER_ID,
+    RECRUITMENT_PHASE_MODE,
     RECRUITMENT_PRODUCT_ID,
     RECRUITMENT_PRODUCT_REVISION,
     RECRUITMENT_PROFILE_ID,
     RegisteredDispatchSnapshot,
+    WORLD_FLOW_ID,
+    WORLD_HANDLER_ID,
+    WORLD_PHASE_MODE,
+    WORLD_PRODUCT_ID,
+    WORLD_PRODUCT_REVISION,
+    WORLD_PROFILE_ID,
 )
 
 
 class AutomationServiceHandlerTests(unittest.TestCase):
+    @staticmethod
+    def _snapshot(
+        flow_id: str,
+        product_id: str,
+        product_revision: str,
+        handler_id: str,
+        profile_id: str,
+        phase_mode: str,
+    ) -> RegisteredDispatchSnapshot:
+        return RegisteredDispatchSnapshot(
+            flow_id,
+            product_id,
+            product_revision,
+            handler_id,
+            profile_id,
+            phase_mode,
+            "REGISTERED",
+            True,
+        )
+
+    def _nova_snapshot(self) -> RegisteredDispatchSnapshot:
+        return self._snapshot(
+            NOVA_FLOW_ID,
+            NOVA_PRODUCT_ID,
+            NOVA_PRODUCT_REVISION,
+            NOVA_HANDLER_ID,
+            NOVA_PROFILE_ID,
+            NOVA_PHASE_MODE,
+        )
+
+    def _recruitment_snapshot(self) -> RegisteredDispatchSnapshot:
+        return self._snapshot(
+            RECRUITMENT_FLOW_ID,
+            RECRUITMENT_PRODUCT_ID,
+            RECRUITMENT_PRODUCT_REVISION,
+            RECRUITMENT_HANDLER_ID,
+            RECRUITMENT_PROFILE_ID,
+            RECRUITMENT_PHASE_MODE,
+        )
+
+    def _campaign_snapshot(self) -> RegisteredDispatchSnapshot:
+        return self._snapshot(
+            CAMPAIGN_FLOW_ID,
+            CAMPAIGN_PRODUCT_ID,
+            CAMPAIGN_PRODUCT_REVISION,
+            CAMPAIGN_HANDLER_ID,
+            CAMPAIGN_PROFILE_ID,
+            CAMPAIGN_PHASE_MODE,
+        )
+
     def _nova_facts(self, **overrides) -> SchedulerFacts:
         values = {
             "health_ok": True,
@@ -117,7 +178,7 @@ class AutomationServiceHandlerTests(unittest.TestCase):
         self.assertFalse(handler.eligibility(SchedulerFacts("a", "s", "r", 1.0)))
 
     def test_nova_handler_is_zero_transport_and_requires_parent_canary(self) -> None:
-        handler = NovaPraiseSelectionHandler()
+        handler = NovaPraiseSelectionHandler(self._nova_snapshot())
         descriptor = handler.describe()
         self.assertEqual(descriptor.flow_id, NOVA_FLOW_ID)
         self.assertEqual(descriptor.cadence, "daily_once_per_reset")
@@ -137,7 +198,7 @@ class AutomationServiceHandlerTests(unittest.TestCase):
     def test_nova_handler_fail_closes_product_owner_clock_reset_and_profile_mismatches(
         self,
     ) -> None:
-        handler = NovaPraiseSelectionHandler()
+        handler = NovaPraiseSelectionHandler(self._nova_snapshot())
         mismatches = (
             {"accepted_product": "world_map_navigation"},
             {"product_revision": "wrong-revision"},
@@ -177,7 +238,7 @@ class AutomationServiceHandlerTests(unittest.TestCase):
             NovaPraiseSelectionHandler(object())
 
     def test_recruitment_handler_requires_fresh_due_cooldown_projection(self) -> None:
-        handler = RecruitmentMaintenanceSelectionHandler()
+        handler = RecruitmentMaintenanceSelectionHandler(self._recruitment_snapshot())
         descriptor = handler.describe()
         self.assertEqual(descriptor.flow_id, RECRUITMENT_FLOW_ID)
         self.assertEqual(descriptor.cadence, "cooldown_pulse")
@@ -221,7 +282,7 @@ class AutomationServiceHandlerTests(unittest.TestCase):
         self.assertEqual(handler.snapshot.profile, RECRUITMENT_PROFILE_ID)
 
     def test_campaign_handler_requires_fresh_funded_ap_projection(self) -> None:
-        handler = CampaignApSelectionHandler()
+        handler = CampaignApSelectionHandler(self._campaign_snapshot())
         descriptor = handler.describe()
         self.assertEqual(descriptor.flow_id, CAMPAIGN_FLOW_ID)
         self.assertEqual(
@@ -263,6 +324,26 @@ class AutomationServiceHandlerTests(unittest.TestCase):
         wrong_profile = PerceptionEnvelope("capture", "home", "wrong-profile", "fresh")
         self.assertFalse(handler.eligibility(self._campaign_facts(), wrong_profile))
         self.assertEqual(handler.snapshot.profile, CAMPAIGN_PROFILE_ID)
+
+    def test_selection_handlers_require_exact_explicit_snapshots(self) -> None:
+        handlers = (
+            WorldNavigationSelectionHandler,
+            NovaPraiseSelectionHandler,
+            RecruitmentMaintenanceSelectionHandler,
+            CampaignApSelectionHandler,
+        )
+        for handler_type in handlers:
+            with self.subTest(handler=handler_type.__name__):
+                with self.assertRaises(TypeError):
+                    handler_type()
+
+        nova_snapshot = self._nova_snapshot()
+        with self.assertRaises(ValueError):
+            WorldNavigationSelectionHandler(nova_snapshot)
+        with self.assertRaises(ValueError):
+            RecruitmentMaintenanceSelectionHandler(nova_snapshot)
+        with self.assertRaises(ValueError):
+            CampaignApSelectionHandler(nova_snapshot)
 
 
 if __name__ == "__main__":

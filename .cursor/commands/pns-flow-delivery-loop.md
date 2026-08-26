@@ -25,9 +25,10 @@ Plan-execute-escalate PnS development loop.
    this loop.
 
 The checked-in `tasks/agentic_workflow_policy.json` defines the managed-turn,
-stage, checkpoint, and parent-conversation limits. On a safe terminal boundary
-emit exactly `PARENT_CONVERSATION_ROLLOVER_REQUIRED` and use the checked-in
-resume invocation:
+stage, checkpoint, and parent-conversation limits. The checked-in
+`tasks/flow_delivery_loop_policy.json` defines the counted-completion limit.
+On a safe terminal boundary emit exactly `PARENT_CONVERSATION_ROLLOVER_REQUIRED`
+and use the checked-in resume invocation:
 
 /loop Load and follow `.cursor/commands/pns-flow-delivery-loop.md` exactly.
 

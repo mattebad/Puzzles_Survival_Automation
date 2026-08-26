@@ -120,6 +120,22 @@ def _latest_handoff_commit(repo_root: Path) -> str:
         raise WorkflowGuardError("CURRENT_HANDOFF has no committed binding")
     return result.stdout.strip()
 
+def _commit_is_ancestor(repo_root: Path, commit: str, head: str) -> bool:
+    if not isinstance(commit, str) or len(commit) != 40:
+        return False
+    try:
+        int(commit, 16)
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", commit, head],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, ValueError):
+        return False
+    return result.returncode == 0
+
 
 def _parse_prompt(prompt: Any) -> dict[str, str]:
     if not isinstance(prompt, str) or not prompt.strip():
@@ -411,9 +427,12 @@ def admit(
             raise WorkflowGuardError(
                 "parent conversation ID disagrees with CURRENT_HANDOFF"
             )
-        if handoff["head_binding"] != "latest_commit_touches_handoff":
-            raise WorkflowGuardError("CURRENT_HANDOFF head binding is unsupported")
-        if _latest_handoff_commit(root) != _repo_head(root):
+        repo_head = _repo_head(root)
+        if not _commit_is_ancestor(root, handoff["head_binding"], repo_head):
+            raise WorkflowGuardError(
+                "CURRENT_HANDOFF head binding must be a full ancestor commit"
+            )
+        if _latest_handoff_commit(root) != repo_head:
             raise WorkflowGuardError(
                 "CURRENT_HANDOFF was not updated in the current Git head"
             )

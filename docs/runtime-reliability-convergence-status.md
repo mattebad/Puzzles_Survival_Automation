@@ -2067,3 +2067,13 @@ free-slot/tier/quantity/timer successor evidence, total-input accounting,
 forbidden premium/speedup/resource-box denial, and canonical Home, but this
 program cannot bypass the already-exhausted one-canary fence. Stage 11 final
 reconciliation may proceed.
+
+## Stage 11 final reconciliation — 2026-08-26
+
+Stage 11 completed offline under final manifest r3. Phases 1-3 remain accepted; Phase 4 and Phase 5 remain `blocked_evidence_required` after one zero-input product-state canary each; Phase 6 remains `blocked_evidence_required` without a new live attempt because 37 retained dispatch-bearing artifacts exceed the hard one-canary maximum. No phase was repeated.
+
+The checked-in disabled production registry contains 24 entries, zero registered entries, and zero scheduler-eligible entries. All four production selection handlers now require an explicit exact typed `RegisteredDispatchSnapshot`; missing, non-typed, and cross-flow snapshots fail closed. The historical `RECRUITMENT-BLUESTACKS-INTEGRATION` alias remains disabled and non-authorizing rather than becoming a transport flow.
+
+Final validation passed 275 tests across the automation-service profile (54), DevelopmentSession (23), Stage 10 adapters and scheduler pulse (28), gameplay/authority consistency (113), workflow/orchestrator guard (38), and governance contracts (19). The governance CLI also passed with only explicitly reported untouched legacy-backlog warnings. The full repository suite was not required by the frozen Stage 11 profile.
+
+Stage 11 used zero runtime sessions, zero gameplay inputs, zero production registrations, zero scheduler selections, zero protected-evidence mutations, and zero identical retries. The merge boundary is a separate inactive successor requiring explicit activation, final review approval, and branch synchronization; no push or merge occurred.

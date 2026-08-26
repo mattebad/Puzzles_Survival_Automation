@@ -24,6 +24,7 @@ CURRENT_TASK_STATES = {
     "pending",
     "in_progress",
     "blocked",
+    "blocked_evidence_required",
     "completed",
     "completed_offline",
 }
@@ -32,6 +33,7 @@ NEXT_TASK_ACTIVATION_STATES = {
     "dependency_blocked",
     "not_applicable",
     "ready",
+    "authorized_pending_freeze",
 }
 MANIFEST_STATUSES = {
     "PRESENT_VERIFIED",

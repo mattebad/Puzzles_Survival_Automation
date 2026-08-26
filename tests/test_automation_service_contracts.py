@@ -122,7 +122,11 @@ class AutomationServiceContractTests(unittest.TestCase):
             all(item.registration_status == "NOT_REGISTERED" for item in entries)
         )
         self.assertTrue(all(item.scheduler_eligible is False for item in entries))
-        self.assertEqual({item.flow_id for item in entries}, set(BLUESTACKS_FLOW_IDS))
+        registry_ids = {item.flow_id for item in entries}
+        self.assertEqual(
+            registry_ids,
+            set(BLUESTACKS_FLOW_IDS) | {"RECRUITMENT-BLUESTACKS-INTEGRATION"},
+        )
 
     def test_snapshot_allowlist_and_registry_cardinality_are_strict(self) -> None:
         snapshot = RegisteredDispatchSnapshot(

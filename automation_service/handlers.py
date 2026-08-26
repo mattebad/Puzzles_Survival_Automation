@@ -130,20 +130,11 @@ class WorldNavigationSelectionHandler:
 
     handler_id = WORLD_HANDLER_ID
 
-    def __init__(self, snapshot: RegisteredDispatchSnapshot | None = None) -> None:
-        if snapshot is None:
-            snapshot = RegisteredDispatchSnapshot(
-                flow_id=WORLD_FLOW_ID,
-                product_id=WORLD_PRODUCT_ID,
-                product_revision=WORLD_PRODUCT_REVISION,
-                production_handler=WORLD_HANDLER_ID,
-                profile=WORLD_PROFILE_ID,
-                mode=WORLD_PHASE_MODE,
-                registration_status="REGISTERED",
-                scheduler_eligible=True,
-            )
+    def __init__(self, snapshot: RegisteredDispatchSnapshot) -> None:
         if not isinstance(snapshot, RegisteredDispatchSnapshot):
             raise TypeError("World selection requires a typed registration snapshot")
+        if snapshot.flow_id != WORLD_FLOW_ID:
+            raise ValueError("World selection snapshot has the wrong flow identity")
         self._snapshot = snapshot
         self.plan_calls = 0
 
@@ -269,20 +260,11 @@ class NovaPraiseSelectionHandler:
 
     handler_id = NOVA_HANDLER_ID
 
-    def __init__(self, snapshot: RegisteredDispatchSnapshot | None = None) -> None:
-        if snapshot is None:
-            snapshot = RegisteredDispatchSnapshot(
-                flow_id=NOVA_FLOW_ID,
-                product_id=NOVA_PRODUCT_ID,
-                product_revision=NOVA_PRODUCT_REVISION,
-                production_handler=NOVA_HANDLER_ID,
-                profile=NOVA_PROFILE_ID,
-                mode=NOVA_PHASE_MODE,
-                registration_status="REGISTERED",
-                scheduler_eligible=True,
-            )
+    def __init__(self, snapshot: RegisteredDispatchSnapshot) -> None:
         if not isinstance(snapshot, RegisteredDispatchSnapshot):
             raise TypeError("Nova selection requires a typed registration snapshot")
+        if snapshot.flow_id != NOVA_FLOW_ID:
+            raise ValueError("Nova selection snapshot has the wrong flow identity")
         self._snapshot = snapshot
         self.plan_calls = 0
 
@@ -411,18 +393,7 @@ class RecruitmentMaintenanceSelectionHandler:
 
     handler_id = RECRUITMENT_HANDLER_ID
 
-    def __init__(self, snapshot: RegisteredDispatchSnapshot | None = None) -> None:
-        if snapshot is None:
-            snapshot = RegisteredDispatchSnapshot(
-                flow_id=RECRUITMENT_FLOW_ID,
-                product_id=RECRUITMENT_PRODUCT_ID,
-                product_revision=RECRUITMENT_PRODUCT_REVISION,
-                production_handler=RECRUITMENT_HANDLER_ID,
-                profile=RECRUITMENT_PROFILE_ID,
-                mode=RECRUITMENT_PHASE_MODE,
-                registration_status="REGISTERED",
-                scheduler_eligible=True,
-            )
+    def __init__(self, snapshot: RegisteredDispatchSnapshot) -> None:
         if not isinstance(snapshot, RegisteredDispatchSnapshot):
             raise TypeError(
                 "Recruitment selection requires a typed registration snapshot"
@@ -573,18 +544,7 @@ class CampaignApSelectionHandler:
     handler_id = CAMPAIGN_HANDLER_ID
     minimum_observed_ap = 14.0
 
-    def __init__(self, snapshot: RegisteredDispatchSnapshot | None = None) -> None:
-        if snapshot is None:
-            snapshot = RegisteredDispatchSnapshot(
-                flow_id=CAMPAIGN_FLOW_ID,
-                product_id=CAMPAIGN_PRODUCT_ID,
-                product_revision=CAMPAIGN_PRODUCT_REVISION,
-                production_handler=CAMPAIGN_HANDLER_ID,
-                profile=CAMPAIGN_PROFILE_ID,
-                mode=CAMPAIGN_PHASE_MODE,
-                registration_status="REGISTERED",
-                scheduler_eligible=True,
-            )
+    def __init__(self, snapshot: RegisteredDispatchSnapshot) -> None:
         if not isinstance(snapshot, RegisteredDispatchSnapshot):
             raise TypeError("Campaign AP selection requires a typed registration snapshot")
         if snapshot.flow_id != CAMPAIGN_FLOW_ID:
