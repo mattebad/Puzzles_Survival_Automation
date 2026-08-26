@@ -612,7 +612,7 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
         )
         self.assertIn(state["current_task_id"], handoff)
         self.assertIn(state["next_task_id"], handoff)
-        self.assertEqual(state["next_task_activation_status"], "awaiting_explicit_activation")
+        self.assertEqual(state["next_task_activation_status"], "authorized_pending_freeze")
         self.assertEqual(state["active_task_or_flow"], "none")
         self.assertNotIn("actions_already_performed", handoff)
         # Historical Ruins/troop handoff ledgers live in Git history, not the compact volatile handoff.

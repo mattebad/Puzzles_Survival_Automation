@@ -1967,3 +1967,40 @@ registration is NOT_REGISTERED, registered flows are empty, scheduler
 eligibility is false, the current-reset guard is completed, and no runtime
 operator remains. Sol accepts Phase 3. Phase 4 requires separate admission;
 phases 5-6 remain serially pending and Phase 7 combat remains unauthorized.
+
+
+## Stage 10 phase 4 Recruitment blocked disposition
+
+Revision `runtime-reliability-stage-10-phase-4-recruitment-r2` selected
+`RECRUITMENT-FREE-ATTEMPT-MAINTENANCE` as the exact cooldown representative.
+The implementation canonicalized the existing unified controller under the
+maintenance identity, added one strict cooldown-projected scheduler selector,
+atomically consumed registration before DevelopmentSession observation, and
+required the retained result and causal trace to contain the exact typed
+registration plus Basic/Intermediate/Advanced persistence with policy cooldowns
+600/86400/172800 seconds. The Daily Recruitment contract remains attribution
+and history, not a second executable controller.
+
+The focused profile passed 211 Recruitment, scheduler, service, conductor,
+authority-consistency, gameplay-contract, and DevelopmentSession tests. The
+checked-in disabled registry failed closed, and the admitted scheduler pulse
+selected only Recruitment with `transport_count=0`, exact product revision, a
+fresh due cooldown projection, and a restart-safe occurrence key. Candidate
+commits are `8499f01` (implementation) and `68fb344` (single-flow admission).
+
+The one admitted canary is retained at
+`.local-captures/development-sessions/RECRUITMENT-FREE-ATTEMPT-MAINTENANCE-20260826T003058364920Z`.
+Its typed initial observation captured the native 800x1280 game frame, but the
+existing route rejected the current source before any input because Home zoom
+normalization could not positively recognize Home. Registration was consumed
+before observation; `input_count=0`, recruitment transport count was zero,
+there was no recruit or unknown effect, ownership was released, and the final
+registry is `NOT_REGISTERED` with scheduler eligibility false.
+
+Parent classification is `product_state`: the selected candidate lacks current
+uninterrupted Home-to-three-tier-to-Home evidence under the one allowed Phase 4
+occurrence. Phase 4 therefore closes truthfully as
+`blocked_evidence_required`; it is not repeated or relabeled as accepted.
+Phase 5 may be frozen independently. Zombie Lair Quick Join remains an ordinary
+PvE stamina/march activity, not Phase 7 combat; Phase 7 covers only PvP/player
+attack automation and remains unauthorized.
