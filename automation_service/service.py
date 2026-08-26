@@ -14,6 +14,7 @@ from .adapters import (
 )
 from .contracts import PerceptionEnvelope, SchedulerFacts, ServiceMode
 from .handlers import (
+    CampaignApSelectionHandler,
     DisabledHandler,
     RecruitmentMaintenanceSelectionHandler,
     NovaPraiseSelectionHandler,
@@ -21,6 +22,7 @@ from .handlers import (
 )
 from .operations import HealthSnapshot, OperationsService
 from .registry import (
+    CAMPAIGN_FLOW_ID,
     DisabledProductionEntry,
     RegisteredDispatchSnapshot,
     NOVA_FLOW_ID,
@@ -48,7 +50,7 @@ class ServiceStatus:
 def registry_descriptor(entry: DisabledProductionEntry):
     """Compose a scheduler descriptor from one validated registry entry."""
 
-    from .contracts import FlowDescriptor
+    from .contracts import FlowDescriptor, RecurrenceClass, RecurrenceProjection
 
     registered = entry.registered
     if entry.flow_id == WORLD_FLOW_ID:
@@ -60,13 +62,26 @@ def registry_descriptor(entry: DisabledProductionEntry):
     elif entry.flow_id == RECRUITMENT_FLOW_ID:
         family = "recruitment"
         variant = "free_attempt_maintenance"
+    elif entry.flow_id == CAMPAIGN_FLOW_ID:
+        family = "campaign_ap"
+        variant = "one_auto_battle"
     else:
         family = "disabled"
         variant = "disabled"
-    cadence = (
-        "cooldown_pulse"
-        if entry.flow_id == RECRUITMENT_FLOW_ID and registered
-        else "daily_once_per_reset"
+    if entry.flow_id == RECRUITMENT_FLOW_ID and registered:
+        cadence = "cooldown_pulse"
+    elif entry.flow_id == CAMPAIGN_FLOW_ID and registered:
+        cadence = "ap_regeneration_pulse"
+    else:
+        cadence = "daily_once_per_reset"
+    recurrence = (
+        RecurrenceProjection(
+            RecurrenceClass.AP_REGENERATION,
+            observed_at_utc=0.0,
+            observed_balance=0.0,
+        )
+        if entry.flow_id == CAMPAIGN_FLOW_ID and registered
+        else None
     )
     return FlowDescriptor(
         flow_id=entry.flow_id,
@@ -74,12 +89,13 @@ def registry_descriptor(entry: DisabledProductionEntry):
         family=family if registered else "disabled",
         variant=variant if registered else "disabled",
         cadence=cadence,
-        reset_scoped=entry.flow_id != RECRUITMENT_FLOW_ID,
+        reset_scoped=entry.flow_id not in {RECRUITMENT_FLOW_ID, CAMPAIGN_FLOW_ID},
         priority=1 if registered else 100,
         scheduler_eligible=registered and entry.scheduler_eligible,
         accepted_product=entry.product_id if registered else False,
         product_revision=entry.product_revision if registered else None,
         registration_status=entry.registration_status,
+        recurrence=recurrence,
     )
 
 
@@ -110,6 +126,10 @@ def registry_scheduler_components(
             )
         elif entry.registered and entry.flow_id == RECRUITMENT_FLOW_ID:
             handlers[entry.flow_id] = RecruitmentMaintenanceSelectionHandler(
+                RegisteredDispatchSnapshot.from_entry(entry)
+            )
+        elif entry.registered and entry.flow_id == CAMPAIGN_FLOW_ID:
+            handlers[entry.flow_id] = CampaignApSelectionHandler(
                 RegisteredDispatchSnapshot.from_entry(entry)
             )
         else:

@@ -13,6 +13,15 @@ from unittest.mock import patch
 import scripts.flow_delivery_campaign_bluestacks as delivery
 import scripts.navigation_development_boundary as boundary
 import scripts.pnsctl as pnsctl
+from automation_service.registry import (
+    CAMPAIGN_FLOW_ID,
+    CAMPAIGN_HANDLER_ID,
+    CAMPAIGN_PHASE_MODE,
+    CAMPAIGN_PRODUCT_ID,
+    CAMPAIGN_PRODUCT_REVISION,
+    CAMPAIGN_PROFILE_ID,
+    RegisteredDispatchSnapshot,
+)
 from scripts.navigation_development_boundary import (
     DevelopmentInitialObservation,
     DevelopmentSession,
@@ -20,6 +29,18 @@ from scripts.navigation_development_boundary import (
 
 
 class CampaignFlowDeliveryTests(unittest.TestCase):
+    def _registration(self) -> RegisteredDispatchSnapshot:
+        return RegisteredDispatchSnapshot(
+            CAMPAIGN_FLOW_ID,
+            CAMPAIGN_PRODUCT_ID,
+            CAMPAIGN_PRODUCT_REVISION,
+            CAMPAIGN_HANDLER_ID,
+            CAMPAIGN_PROFILE_ID,
+            CAMPAIGN_PHASE_MODE,
+            "REGISTERED",
+            True,
+        )
+
     def _session(self, root: Path):
         digest = hashlib.sha256(b"campaign-initial").hexdigest()
         with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
@@ -109,12 +130,22 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
             session, initial = self._session(root)
             child = root / "outer" / "runtime" / "1-15-9-run"
             self._child_result(child)
+            prep = root / "outer" / "runtime" / "campaign-exit-to-home"
+            prep.mkdir()
+            (prep / "events.jsonl").write_text(
+                json.dumps(
+                    {"type": "command", "kind": "tap", "action": "RETURN_HOME"}
+                )
+                + "\n",
+                encoding="utf-8",
+            )
             lease = {
                 "owner": session.owner,
                 "development_session": session,
                 "initial_observation": initial,
                 "initial_frame_sha256": initial.frame_sha256,
                 "max_inputs": delivery.MAX_INPUTS,
+                "registration_snapshot": self._registration(),
             }
             process = SimpleNamespace(returncode=0, stdout="", stderr="")
             try:
@@ -127,12 +158,23 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
                     )
                 self.assertIs(initial, session.initial_observation)
                 self.assertEqual(result["status"], "completed")
-                self.assertEqual(result["input_count"], 3)
-                self.assertEqual(result["campaign_transport_count"], 3)
+                self.assertEqual(result["input_count"], 4)
+                self.assertEqual(result["campaign_transport_count"], 4)
                 self.assertEqual(result["campaign_action_count"], 1)
                 self.assertTrue(result["exact_ap_delta"])
                 self.assertTrue(result["result_successor_verified"])
                 self.assertTrue(result["terminal_home_verified"])
+                self.assertTrue(result["refill_forbidden_verified"])
+                self.assertEqual(result["production_registration"], "NOT_REGISTERED")
+                self.assertFalse(result["scheduler_enabled"])
+                self.assertEqual(
+                    result["registration_snapshot"],
+                    self._registration().to_mapping(),
+                )
+                self.assertEqual(
+                    result["causal_trace"]["registration_snapshot"],
+                    result["registration_snapshot"],
+                )
                 self.assertEqual(result["causal_trace_count"], 1)
                 self.assertTrue(result["causal_trace"]["read_only"])
                 self.assertFalse(result["causal_trace"]["input_authority"])
@@ -141,6 +183,16 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
                     {"result": result, "session_directory": str(child)}, {}, {}
                 )
                 self.assertEqual(verdict["status"], "verified")
+                forged = dict(result)
+                forged["registration_snapshot"] = dict(result["registration_snapshot"])
+                forged["registration_snapshot"]["flow_id"] = (
+                    "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
+                )
+                forged_verdict = delivery.verify_campaign_auto_battle_live(
+                    {"result": forged, "session_directory": str(child)}, {}, {}
+                )
+                self.assertEqual(forged_verdict["status"], "evidence_required")
+                self.assertFalse(forged_verdict["registration_verified"])
             finally:
                 session.__exit__(None, None, None)
 
@@ -163,10 +215,53 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
             maximum=delivery.MAX_INPUTS,
             destination="1-15-9",
             ap_cost=14,
+            registration_snapshot=self._registration().to_mapping(),
         )
         self.assertEqual(result["status"], "effect_reconciliation_required")
         self.assertTrue(result["effect_reconciliation_required"])
         self.assertTrue(result["identical_retry_denied"])
+
+    def test_refill_marker_and_forged_registration_cannot_verify(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "events.jsonl").write_text(
+                json.dumps(
+                    {"type": "command", "kind": "tap", "action": "AP_REFILL"}
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            result = delivery._campaign_result_payload(
+                {
+                    "status": "completed",
+                    "terminal": "completed",
+                    "navigation_only": False,
+                    "terminal_runtime_state": "recognized_home",
+                    "campaign_result": {
+                        "destination": "1-15-9",
+                        "ap_cost": 14,
+                        "ap_before": 120,
+                        "ap_after": 106,
+                        "battle_outcome": "victory",
+                        "progress": {"completed_runs": 1, "ap_spent": 14},
+                    },
+                },
+                session_directory=root,
+                input_count=1,
+                maximum=delivery.MAX_INPUTS,
+                destination="1-15-9",
+                ap_cost=14,
+                registration_snapshot=self._registration().to_mapping(),
+            )
+            self.assertFalse(result["refill_forbidden_verified"])
+            self.assertEqual(result["status"], "effect_reconciliation_required")
+
+    def test_live_route_rejects_missing_registration_before_session(self):
+        with self.assertRaisesRegex(pnsctl.OperatorError, "typed registration snapshot"):
+            delivery._run_campaign_auto_battle_continuous(
+                {},
+                {"max_inputs": delivery.MAX_INPUTS},
+            )
 
     def test_conduct_campaign_does_not_create_pre_observation_session(self):
         with tempfile.TemporaryDirectory() as directory:

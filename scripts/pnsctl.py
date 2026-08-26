@@ -61,6 +61,7 @@ NOVA_SUPERVISED_PULSE_SCENARIO_ID = "nova_praise_one_free_pulse"
 NOVA_SUPERVISED_PULSE_MAX_INPUTS = 8
 NOVA_SUPERVISED_PRAISE_MAX_INPUTS = 1
 RECRUITMENT_MAINTENANCE_FLOW_ID = "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
+CAMPAIGN_AP_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
 NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT = (
     BLUESTACKS_ARTIFACT_ROOT / NOVA_SUPERVISED_PULSE_FLOW_ID
 )
@@ -81,7 +82,7 @@ FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
 BLUESTACKS_FLOW_IDS = (
     "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
     "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
-    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+    CAMPAIGN_AP_FLOW_ID,
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
     "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
@@ -3541,6 +3542,7 @@ def development_session_run_flow(
             "WORLD-MAP-NAVIGATION-FOUNDATION",
             NOVA_SUPERVISED_PULSE_FLOW_ID,
             RECRUITMENT_MAINTENANCE_FLOW_ID,
+            CAMPAIGN_AP_FLOW_ID,
         }
         and live
         and not recovery_only
@@ -7097,6 +7099,18 @@ def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
                 next_eligible_at=getattr(args, "projection_next_eligible_at", None),
                 observed_at_utc=float(observed_at),
             )
+        elif (
+            registered is not None
+            and registered.flow_id == CAMPAIGN_AP_FLOW_ID
+            and observed_at is not None
+            and getattr(args, "projection_observed_balance", None) is not None
+        ):
+            projections[registered.flow_id] = RecurrenceProjection(
+                RecurrenceClass.AP_REGENERATION,
+                next_eligible_at=getattr(args, "projection_next_eligible_at", None),
+                observed_at_utc=float(observed_at),
+                observed_balance=float(args.projection_observed_balance),
+            )
         report = coordinator.pulse(
             SchedulerFacts(
                 args.account_id,
@@ -7845,6 +7859,9 @@ def parser() -> argparse.ArgumentParser:
     )
     scheduler_pulse.add_argument(
         "--projection-next-eligible-at", type=float, default=None
+    )
+    scheduler_pulse.add_argument(
+        "--projection-observed-balance", type=float, default=None
     )
     scheduler_pulse.add_argument(
         "--health-ok",

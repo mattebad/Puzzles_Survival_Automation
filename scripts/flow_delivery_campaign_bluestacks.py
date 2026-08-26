@@ -15,6 +15,11 @@ from scripts.flow_delivery_evidence import (
     FlowEvidenceIntegrityError,
     require_operator_evidence,
 )
+from automation_service.registry import (
+    CAMPAIGN_FLOW_ID,
+    RegisteredDispatchSnapshot,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
@@ -623,6 +628,21 @@ CAMPAIGN_DEFAULT_DESTINATION = "1-15-9"
 CAMPAIGN_STAGE_COSTS = {"1-20-9": 16, "1-15-9": 14, "2-2-9": 20}
 
 
+def _campaign_registration_snapshot(
+    lease: Mapping[str, Any],
+) -> RegisteredDispatchSnapshot:
+    snapshot = lease.get("registration_snapshot")
+    if not isinstance(snapshot, RegisteredDispatchSnapshot):
+        raise _pnsctl().OperatorError(
+            "Campaign AP requires a typed registration snapshot before observation"
+        )
+    if snapshot.flow_id != CAMPAIGN_FLOW_ID:
+        raise _pnsctl().OperatorError(
+            "Campaign AP registration snapshot has the wrong flow identity"
+        )
+    return snapshot
+
+
 def _campaign_maximum(lease: Mapping[str, Any]) -> int:
     try:
         maximum = int(lease.get("max_inputs", MAX_INPUTS))
@@ -724,6 +744,7 @@ def _campaign_result_payload(
     maximum: int,
     destination: str,
     ap_cost: int,
+    registration_snapshot: Mapping[str, Any],
 ) -> dict[str, Any]:
     campaign = route_result.get("campaign_result")
     campaign = campaign if isinstance(campaign, Mapping) else {}
@@ -751,6 +772,13 @@ def _campaign_result_payload(
         for row in _campaign_event_rows(session_directory)
         if row.get("type") == "command"
     )
+    refill_action_seen = any(
+        "refill" in str(row.get("action") or "").casefold()
+        or "refill" in str(row.get("target_identity") or "").casefold()
+        for row in _campaign_event_rows(session_directory)
+        if row.get("type") == "command"
+    )
+    refill_forbidden_verified = not refill_action_seen
     safe_action_policy = not forbidden_action_seen
     route_status = str(route_result.get("status") or "blocked")
     terminal_home = route_result.get("terminal_runtime_state") == "recognized_home"
@@ -768,6 +796,7 @@ def _campaign_result_payload(
         and cost_match
         and ledger_match
         and safe_action_policy
+        and refill_forbidden_verified
         and action_count == 1
     )
     reconciliation_required = bool(input_count and not completed)
@@ -801,9 +830,11 @@ def _campaign_result_payload(
             "terminal_home_verified": terminal_home,
             "forbidden_action_seen": forbidden_action_seen,
             "safe_action_policy": safe_action_policy,
+            "refill_forbidden_verified": refill_forbidden_verified,
             "proof_topology": "continuous",
             "effect_reconciliation_required": reconciliation_required,
             "identical_retry_denied": reconciliation_required,
+            "registration_snapshot": dict(registration_snapshot),
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
         }
@@ -826,6 +857,7 @@ def _campaign_causal_trace(
     *,
     result: Mapping[str, Any],
     initial_observation: Mapping[str, Any],
+    registration_snapshot: Mapping[str, Any],
 ) -> dict[str, Any]:
     rows = _campaign_event_rows(session)
     trace = {
@@ -837,6 +869,7 @@ def _campaign_causal_trace(
         "flow_id": AUTO_BATTLE_FLOW_ID,
         "invocation_id": str(initial_observation.get("invocation_id") or ""),
         "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
+        "registration_snapshot": dict(registration_snapshot),
         "stages": [
             "typed_initial_observation",
             "canonical_home_atlas_binding",
@@ -920,6 +953,8 @@ def _run_campaign_auto_battle_continuous(
     lease: Mapping[str, Any],
 ) -> str:
     del queue
+    registration = _campaign_registration_snapshot(lease)
+    registration_snapshot = registration.to_mapping()
     maximum = _campaign_maximum(lease)
     outer_session = _campaign_outer_session(lease)
     initial_observation = _campaign_initial_observation(lease, outer_session)
@@ -999,7 +1034,7 @@ def _run_campaign_auto_battle_continuous(
             "terminal_runtime_state": "safe_blocked_terminal",
             "campaign_result": {},
         }
-    input_count = _campaign_transport_count(child)
+    input_count = _campaign_transport_count(runtime_directory)
     if input_count > maximum:
         raise _pnsctl().OperatorError("Campaign AP exceeded max_inputs")
     payload = _campaign_result_payload(
@@ -1009,6 +1044,7 @@ def _run_campaign_auto_battle_continuous(
         maximum=maximum,
         destination=destination,
         ap_cost=ap_cost,
+        registration_snapshot=registration_snapshot,
     )
     if child != runtime_directory:
         source_path = outer_directory / "source.png"
@@ -1024,6 +1060,7 @@ def _run_campaign_auto_battle_continuous(
         child,
         result=payload,
         initial_observation=initial_observation,
+        registration_snapshot=registration_snapshot,
     )
     payload["initial_observation"] = initial_observation
     payload["initial_frame_sha256"] = initial_observation["frame_sha256"]
@@ -1127,7 +1164,8 @@ def verify_campaign_auto_battle_live(
             )
         except (OSError, ValueError):
             initial_ok = False
-    retained_transport = _campaign_transport_count(session)
+    transport_scope = session.parent if session.parent.name == "runtime" else session
+    retained_transport = _campaign_transport_count(transport_scope)
     trace = result.get("causal_trace")
     trace_path = session / str(result.get("causal_trace_path") or "causal-trace.json")
     trace_file_ok = False
@@ -1152,6 +1190,21 @@ def verify_campaign_auto_battle_live(
         and trace.get("transport_count") == retained_transport
         and trace.get("campaign_action_count") == result.get("campaign_action_count")
     )
+    registration_ok = False
+    try:
+        registration = RegisteredDispatchSnapshot.from_mapping(
+            result.get("registration_snapshot")
+        )
+        expected_registration = registration.to_mapping()
+        registration_ok = bool(
+            registration.flow_id == CAMPAIGN_FLOW_ID
+            and dict(result.get("registration_snapshot") or {})
+            == expected_registration
+            and isinstance(trace, Mapping)
+            and trace.get("registration_snapshot") == expected_registration
+        )
+    except (TypeError, ValueError):
+        registration_ok = False
     verified = bool(
         result.get("status") == "completed"
         and result.get("proof_topology") == "continuous"
@@ -1166,6 +1219,10 @@ def verify_campaign_auto_battle_live(
         and result.get("cost_match") is True
         and result.get("ledger_match") is True
         and result.get("safe_action_policy") is True
+        and result.get("refill_forbidden_verified") is True
+        and result.get("production_registration") == "NOT_REGISTERED"
+        and result.get("scheduler_enabled") is False
+        and registration_ok
         and result.get("terminal_home_verified") is True
         and result.get("effect_reconciliation_required") is False
         and result.get("identical_retry_denied") is False
@@ -1174,8 +1231,9 @@ def verify_campaign_auto_battle_live(
         "status": "verified" if verified else "evidence_required",
         "flow_id": AUTO_BATTLE_FLOW_ID,
         "session_directory": structure.get("session_directory"),
-        "production_registration": "NOT_REGISTERED",
-        "scheduler_enabled": False,
+        "production_registration": result.get("production_registration"),
+        "scheduler_enabled": result.get("scheduler_enabled"),
+        "registration_verified": registration_ok,
         "initial_observation_verified": initial_ok,
         "causal_trace_verified": trace_ok,
         "retained_transport_count": retained_transport,

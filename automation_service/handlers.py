@@ -9,11 +9,18 @@ from .contracts import (
     NormalizedOutcome,
     NormalizedResult,
     RecurrenceClass,
+    RecurrenceProjection,
     PerceptionEnvelope,
     SchedulerFacts,
     SemanticActionIntent,
 )
 from .registry import (
+    CAMPAIGN_FLOW_ID,
+    CAMPAIGN_HANDLER_ID,
+    CAMPAIGN_PHASE_MODE,
+    CAMPAIGN_PRODUCT_ID,
+    CAMPAIGN_PRODUCT_REVISION,
+    CAMPAIGN_PROFILE_ID,
     RegisteredDispatchSnapshot,
     NOVA_FLOW_ID,
     NOVA_HANDLER_ID,
@@ -560,9 +567,176 @@ class RecruitmentMaintenanceSelectionHandler:
         }
 
 
+class CampaignApSelectionHandler:
+    """Zero-transport selector for the Campaign AP canary."""
+
+    handler_id = CAMPAIGN_HANDLER_ID
+    minimum_observed_ap = 14.0
+
+    def __init__(self, snapshot: RegisteredDispatchSnapshot | None = None) -> None:
+        if snapshot is None:
+            snapshot = RegisteredDispatchSnapshot(
+                flow_id=CAMPAIGN_FLOW_ID,
+                product_id=CAMPAIGN_PRODUCT_ID,
+                product_revision=CAMPAIGN_PRODUCT_REVISION,
+                production_handler=CAMPAIGN_HANDLER_ID,
+                profile=CAMPAIGN_PROFILE_ID,
+                mode=CAMPAIGN_PHASE_MODE,
+                registration_status="REGISTERED",
+                scheduler_eligible=True,
+            )
+        if not isinstance(snapshot, RegisteredDispatchSnapshot):
+            raise TypeError("Campaign AP selection requires a typed registration snapshot")
+        if snapshot.flow_id != CAMPAIGN_FLOW_ID:
+            raise ValueError("Campaign AP selection snapshot has the wrong flow identity")
+        self._snapshot = snapshot
+        self.plan_calls = 0
+
+    @property
+    def snapshot(self) -> RegisteredDispatchSnapshot:
+        return self._snapshot
+
+    def describe(self) -> FlowDescriptor:
+        return FlowDescriptor(
+            flow_id=CAMPAIGN_FLOW_ID,
+            owner="automation_service",
+            family="campaign_ap",
+            variant="one_auto_battle",
+            cadence="ap_regeneration_pulse",
+            priority=1,
+            reset_scoped=False,
+            scheduler_eligible=True,
+            accepted_product=CAMPAIGN_PRODUCT_ID,
+            product_revision=CAMPAIGN_PRODUCT_REVISION,
+            registration_status="REGISTERED",
+            recurrence=RecurrenceProjection(
+                RecurrenceClass.AP_REGENERATION,
+                observed_at_utc=0.0,
+                observed_balance=0.0,
+            ),
+        )
+
+    def eligibility(
+        self,
+        facts: SchedulerFacts,
+        perception: PerceptionEnvelope | None = None,
+    ) -> bool:
+        descriptor = self.describe()
+        if facts.gate_failures(descriptor):
+            return False
+        if (
+            facts.accepted_product != CAMPAIGN_PRODUCT_ID
+            or facts.product_revision != CAMPAIGN_PRODUCT_REVISION
+            or facts.registration_status != "REGISTERED"
+            or facts.scheduler_eligible is not True
+            or facts.owner_available is not True
+            or facts.clock_ok is not True
+            or facts.clock_rollback is True
+            or facts.reset_agreement is not True
+        ):
+            return False
+        projection = facts.projections.get(CAMPAIGN_FLOW_ID)
+        if (
+            projection is None
+            or projection.recurrence_class is not RecurrenceClass.AP_REGENERATION
+            or projection.observed_at_utc is None
+            or projection.observed_balance is None
+            or projection.observed_balance < self.minimum_observed_ap
+            or projection.observed_at_utc > facts.now_utc_epoch
+            or facts.now_utc_epoch - projection.observed_at_utc
+            > facts.projection_freshness_seconds
+            or (
+                projection.next_eligible_at is not None
+                and projection.next_eligible_at > facts.now_utc_epoch
+            )
+        ):
+            return False
+        if perception is not None and perception.profile_id != CAMPAIGN_PROFILE_ID:
+            return False
+        return True
+
+    def revalidate(
+        self,
+        facts: SchedulerFacts,
+        perception: PerceptionEnvelope | None = None,
+    ) -> bool:
+        return self.eligibility(facts, perception)
+
+    def plan(
+        self,
+        facts: SchedulerFacts,
+        perception: PerceptionEnvelope | None = None,
+    ) -> NormalizedResult:
+        self.plan_calls += 1
+        if not self.eligibility(facts, perception):
+            return NormalizedResult(
+                NormalizedOutcome.BLOCKED,
+                "CAMPAIGN_AP_SELECTION_GATES_FAILED",
+                verified=False,
+                observed_progress={"transport_count": 0},
+            )
+        projection = facts.projections[CAMPAIGN_FLOW_ID]
+        snapshot = self._snapshot.to_mapping()
+        return NormalizedResult(
+            NormalizedOutcome.COMPLETE_FOR_RESET,
+            "CAMPAIGN_AP_PARENT_CANARY_REQUIRED",
+            verified=True,
+            observed_progress={
+                "transport_count": 0,
+                "accepted_product": CAMPAIGN_PRODUCT_ID,
+                "product_revision": CAMPAIGN_PRODUCT_REVISION,
+                "registration_status": "REGISTERED",
+                "scheduler_eligible": True,
+                "projection_observed_at_utc": projection.observed_at_utc,
+                "projection_observed_balance": projection.observed_balance,
+                "projection_next_eligible_at": projection.next_eligible_at,
+                "registration_snapshot": snapshot,
+                "dispatch_registration": dict(snapshot),
+            },
+        )
+
+    def reconcile(
+        self,
+        plan: SemanticActionIntent | Any,
+        perception: PerceptionEnvelope | None = None,
+    ) -> NormalizedResult:
+        if isinstance(plan, NormalizedResult):
+            return plan
+        return NormalizedResult(
+            NormalizedOutcome.BLOCKED,
+            "CAMPAIGN_AP_SELECTION_UNKNOWN_PLAN",
+            verified=False,
+            observed_progress={"transport_count": 0},
+        )
+
+    def recover(self, reason_code: str) -> NormalizedResult:
+        return NormalizedResult(
+            NormalizedOutcome.BLOCKED,
+            "CAMPAIGN_AP_SELECTION_RECOVERY_UNAVAILABLE",
+            verified=False,
+            observed_progress={"reason": reason_code, "transport_count": 0},
+        )
+
+    def summarize(self) -> Mapping[str, Any]:
+        return {
+            "flow_id": CAMPAIGN_FLOW_ID,
+            "handler_id": CAMPAIGN_HANDLER_ID,
+            "mode": CAMPAIGN_PHASE_MODE,
+            "product_id": CAMPAIGN_PRODUCT_ID,
+            "product_revision": CAMPAIGN_PRODUCT_REVISION,
+            "profile": CAMPAIGN_PROFILE_ID,
+            "registration_status": "REGISTERED",
+            "scheduler_eligible": True,
+            "transport_count": 0,
+            "plan_calls": self.plan_calls,
+            "registration_snapshot": self._snapshot.to_mapping(),
+        }
+
+
 # Stable concise aliases for callers that use either terminology.
 WorldSelectionHandler = WorldNavigationSelectionHandler
 WorldNavigationHandler = WorldNavigationSelectionHandler
 NovaSelectionHandler = NovaPraiseSelectionHandler
 NovaPraiseHandler = NovaPraiseSelectionHandler
 RecruitmentSelectionHandler = RecruitmentMaintenanceSelectionHandler
+CampaignSelectionHandler = CampaignApSelectionHandler

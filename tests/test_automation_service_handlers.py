@@ -11,11 +11,16 @@ from automation_service.contracts import (
     SchedulerFacts,
 )
 from automation_service.handlers import (
+    CampaignApSelectionHandler,
     DisabledHandler,
     NovaPraiseSelectionHandler,
     RecruitmentMaintenanceSelectionHandler,
 )
 from automation_service.registry import (
+    CAMPAIGN_FLOW_ID,
+    CAMPAIGN_PRODUCT_ID,
+    CAMPAIGN_PRODUCT_REVISION,
+    CAMPAIGN_PROFILE_ID,
     NOVA_FLOW_ID,
     NOVA_HANDLER_ID,
     NOVA_PHASE_MODE,
@@ -60,6 +65,28 @@ class AutomationServiceHandlerTests(unittest.TestCase):
                     RecurrenceClass.COOLDOWN,
                     next_eligible_at=90.0,
                     observed_at_utc=95.0,
+                )
+            },
+        }
+        values.update(overrides)
+        return SchedulerFacts("account", "server", "reset", 100.0, **values)
+
+    def _campaign_facts(self, **overrides) -> SchedulerFacts:
+        values = {
+            "health_ok": True,
+            "accepted_product": CAMPAIGN_PRODUCT_ID,
+            "product_revision": CAMPAIGN_PRODUCT_REVISION,
+            "registration_status": "REGISTERED",
+            "scheduler_eligible": True,
+            "owner_available": True,
+            "clock_ok": True,
+            "reset_agreement": True,
+            "projections": {
+                CAMPAIGN_FLOW_ID: RecurrenceProjection(
+                    RecurrenceClass.AP_REGENERATION,
+                    next_eligible_at=90.0,
+                    observed_at_utc=95.0,
+                    observed_balance=14.0,
                 )
             },
         }
@@ -192,6 +219,50 @@ class AutomationServiceHandlerTests(unittest.TestCase):
         wrong_profile = PerceptionEnvelope("capture", "home", "wrong-profile", "fresh")
         self.assertFalse(handler.eligibility(self._recruitment_facts(), wrong_profile))
         self.assertEqual(handler.snapshot.profile, RECRUITMENT_PROFILE_ID)
+
+    def test_campaign_handler_requires_fresh_funded_ap_projection(self) -> None:
+        handler = CampaignApSelectionHandler()
+        descriptor = handler.describe()
+        self.assertEqual(descriptor.flow_id, CAMPAIGN_FLOW_ID)
+        self.assertEqual(
+            descriptor.recurrence.recurrence_class,
+            RecurrenceClass.AP_REGENERATION,
+        )
+        self.assertFalse(descriptor.reset_scoped)
+        result = handler.plan(self._campaign_facts())
+        self.assertEqual(result.outcome, NormalizedOutcome.COMPLETE_FOR_RESET)
+        self.assertEqual(result.reason_code, "CAMPAIGN_AP_PARENT_CANARY_REQUIRED")
+        self.assertEqual(result.action_count, 0)
+        self.assertEqual(result.observed_progress["projection_observed_balance"], 14.0)
+
+        ineligible = (
+            {},
+            {
+                CAMPAIGN_FLOW_ID: RecurrenceProjection(
+                    RecurrenceClass.AP_REGENERATION,
+                    next_eligible_at=90.0,
+                    observed_at_utc=95.0,
+                    observed_balance=13.0,
+                )
+            },
+            {
+                CAMPAIGN_FLOW_ID: RecurrenceProjection(
+                    RecurrenceClass.STAMINA_REGENERATION,
+                    next_eligible_at=90.0,
+                    observed_at_utc=95.0,
+                    observed_balance=14.0,
+                )
+            },
+        )
+        for projections in ineligible:
+            with self.subTest(projections=projections):
+                self.assertFalse(
+                    handler.eligibility(self._campaign_facts(projections=projections))
+                )
+
+        wrong_profile = PerceptionEnvelope("capture", "home", "wrong-profile", "fresh")
+        self.assertFalse(handler.eligibility(self._campaign_facts(), wrong_profile))
+        self.assertEqual(handler.snapshot.profile, CAMPAIGN_PROFILE_ID)
 
 
 if __name__ == "__main__":

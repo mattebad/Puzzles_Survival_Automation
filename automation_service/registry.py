@@ -51,6 +51,17 @@ RECRUITMENT_SELECTION_HANDLER_ID = RECRUITMENT_HANDLER_ID
 RECRUITMENT_PROFILE = RECRUITMENT_PROFILE_ID
 RECRUITMENT_PRODUCT = RECRUITMENT_PRODUCT_ID
 RECRUITMENT_REVISION = RECRUITMENT_PRODUCT_REVISION
+CAMPAIGN_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
+CAMPAIGN_PRODUCT_ID = "campaign_ap"
+CAMPAIGN_PRODUCT_REVISION = "campaign_ap-v1"
+CAMPAIGN_HANDLER_ID = "campaign_ap_selection_handler"
+CAMPAIGN_PROFILE_ID = WORLD_PROFILE_ID
+CAMPAIGN_PHASE_MODE = "phase_canary"
+CAMPAIGN_SELECTION_HANDLER_ID = CAMPAIGN_HANDLER_ID
+CAMPAIGN_PROFILE = CAMPAIGN_PROFILE_ID
+CAMPAIGN_PRODUCT = CAMPAIGN_PRODUCT_ID
+CAMPAIGN_REVISION = CAMPAIGN_PRODUCT_REVISION
+
 
 _FIXED_BINDINGS = {
     WORLD_FLOW_ID: {
@@ -80,6 +91,16 @@ _FIXED_BINDINGS = {
         "production_handler": RECRUITMENT_HANDLER_ID,
         "profile": RECRUITMENT_PROFILE_ID,
         "mode": RECRUITMENT_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    CAMPAIGN_FLOW_ID: {
+        "flow_id": CAMPAIGN_FLOW_ID,
+        "product_id": CAMPAIGN_PRODUCT_ID,
+        "product_revision": CAMPAIGN_PRODUCT_REVISION,
+        "production_handler": CAMPAIGN_HANDLER_ID,
+        "profile": CAMPAIGN_PROFILE_ID,
+        "mode": CAMPAIGN_PHASE_MODE,
         "registration_status": "REGISTERED",
         "scheduler_eligible": True,
     },
@@ -450,6 +471,13 @@ def consume_recruitment_registration(
 
     return consume_registered_entry(RECRUITMENT_FLOW_ID, path=path)
 
+def consume_campaign_registration(
+    path: Path | None = None,
+) -> RegisteredDispatchSnapshot | None:
+    """Atomically consume the exact registered Campaign AP entry."""
+
+    return consume_registered_entry(CAMPAIGN_FLOW_ID, path=path)
+
 
 def world_registration_snapshot(
     path: Path | None = None,
@@ -506,6 +534,25 @@ def recruitment_registration_snapshot(
         else None
     )
 
+def campaign_registration_snapshot(
+    path: Path | None = None,
+) -> RegisteredDispatchSnapshot | None:
+    """Return the registered Campaign AP snapshot without consuming it."""
+
+    entry = next(
+        (
+            item
+            for item in load_disabled_registry(path)
+            if item.flow_id == CAMPAIGN_FLOW_ID
+        ),
+        None,
+    )
+    return (
+        RegisteredDispatchSnapshot.from_entry(entry)
+        if entry is not None and entry.registered
+        else None
+    )
+
 
 __all__ = [
     "DisabledProductionEntry",
@@ -542,13 +589,25 @@ __all__ = [
     "RECRUITMENT_PRODUCT",
     "RECRUITMENT_REVISION",
     "RECRUITMENT_PHASE_MODE",
+    "CAMPAIGN_FLOW_ID",
+    "CAMPAIGN_PRODUCT_ID",
+    "CAMPAIGN_PRODUCT_REVISION",
+    "CAMPAIGN_HANDLER_ID",
+    "CAMPAIGN_SELECTION_HANDLER_ID",
+    "CAMPAIGN_PROFILE_ID",
+    "CAMPAIGN_PROFILE",
+    "CAMPAIGN_PRODUCT",
+    "CAMPAIGN_REVISION",
+    "CAMPAIGN_PHASE_MODE",
     "consume_registered_entry",
     "consume_world_registration",
     "consume_nova_registration",
     "consume_recruitment_registration",
+    "consume_campaign_registration",
     "load_disabled_registry",
     "load_production_registry",
     "nova_registration_snapshot",
     "recruitment_registration_snapshot",
+    "campaign_registration_snapshot",
     "world_registration_snapshot",
 ]
