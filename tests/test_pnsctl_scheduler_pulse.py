@@ -20,6 +20,18 @@ def nova_registered_registry_payload() -> dict:
         / "flow_delivery_disabled_production_registry.json"
     )
     payload = json.loads(source.read_text(encoding="utf-8"))
+    for flow_id in payload["flows"]:
+        if flow_id != registration.NOVA_FLOW_ID:
+            payload["flows"][flow_id] = {
+                "mode": "disabled",
+                "product_id": None,
+                "product_revision": None,
+                "production_handler": None,
+                "profile": None,
+                "registration_status": "NOT_REGISTERED",
+                "scheduler_eligible": False,
+                "supported_profiles": [],
+            }
     payload["flows"][registration.NOVA_FLOW_ID] = {
         "mode": registration.NOVA_PHASE_MODE,
         "product_id": registration.NOVA_PRODUCT_ID,

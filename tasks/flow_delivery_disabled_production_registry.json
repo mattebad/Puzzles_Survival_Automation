@@ -151,14 +151,14 @@
       "supported_profiles": []
     },
     "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE": {
-      "mode": "disabled",
-      "product_id": null,
-      "product_revision": null,
-      "production_handler": null,
-      "profile": null,
-      "registration_status": "NOT_REGISTERED",
-      "scheduler_eligible": false,
-      "supported_profiles": []
+      "mode": "phase_canary",
+      "product_id": "noahs_tavern_recruitment",
+      "product_revision": "noahs_tavern_recruitment-v1",
+      "production_handler": "recruitment_maintenance_selection_handler",
+      "profile": "pns-bluestacks-5-p64-800x1280-v1",
+      "registration_status": "REGISTERED",
+      "scheduler_eligible": true,
+      "supported_profiles": ["pns-bluestacks-5-p64-800x1280-v1"]
     },
     "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION": {
       "mode": "disabled",
