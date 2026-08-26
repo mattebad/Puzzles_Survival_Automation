@@ -326,8 +326,26 @@ class StartupRecoveryTests(unittest.TestCase):
         )
 
     def test_scarlett_successor_semantics_do_not_depend_on_full_frame_hash_change(self) -> None:
+        class SameDigestPostRuntime(FakeRuntime):
+            probe: CapturedNativeFrame | None = None
+
+            def capture(self, label: str) -> CapturedNativeFrame:
+                captured = super().capture(label)
+                if label == "startup-recovery-probe":
+                    self.probe = captured
+                if label == "startup-recovery-scarlett-post":
+                    assert self.probe is not None
+                    return CapturedNativeFrame(
+                        self.probe.frame.copy(),
+                        self.probe.png,
+                        self.probe.sha256,
+                        captured.captured_monotonic,
+                        captured.path,
+                    )
+                return captured
+
         with tempfile.TemporaryDirectory() as directory:
-            runtime = FakeRuntime(Path(directory) / "runtime")
+            runtime = SameDigestPostRuntime(Path(directory) / "runtime")
             detail = self._scarlett_detail()
             successor = {
                 "recognized": False,
@@ -347,6 +365,8 @@ class StartupRecoveryTests(unittest.TestCase):
 
         self.assertEqual(result.status, "surface_dismissed_successor_captured")
         self.assertEqual(result.input_count, 1)
+        self.assertIsNotNone(runtime.probe)
+        self.assertEqual(result.after_sha256, runtime.probe.sha256)
         self.assertEqual(runtime.input_count, 1)
         self.assertEqual(runtime.reconciliations, ["confirmed"])
 
