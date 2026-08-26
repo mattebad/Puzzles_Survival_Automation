@@ -8,6 +8,7 @@ from .contracts import (
     FlowDescriptor,
     NormalizedOutcome,
     NormalizedResult,
+    RecurrenceClass,
     PerceptionEnvelope,
     SchedulerFacts,
     SemanticActionIntent,
@@ -20,6 +21,12 @@ from .registry import (
     NOVA_PRODUCT_ID,
     NOVA_PRODUCT_REVISION,
     NOVA_PROFILE_ID,
+    RECRUITMENT_FLOW_ID,
+    RECRUITMENT_HANDLER_ID,
+    RECRUITMENT_PHASE_MODE,
+    RECRUITMENT_PRODUCT_ID,
+    RECRUITMENT_PRODUCT_REVISION,
+    RECRUITMENT_PROFILE_ID,
     WORLD_FLOW_ID,
     WORLD_HANDLER_ID,
     WORLD_PHASE_MODE,
@@ -392,8 +399,170 @@ class NovaPraiseSelectionHandler:
         }
 
 
+class RecruitmentMaintenanceSelectionHandler:
+    """Zero-transport selector for the Recruitment cooldown canary."""
+
+    handler_id = RECRUITMENT_HANDLER_ID
+
+    def __init__(self, snapshot: RegisteredDispatchSnapshot | None = None) -> None:
+        if snapshot is None:
+            snapshot = RegisteredDispatchSnapshot(
+                flow_id=RECRUITMENT_FLOW_ID,
+                product_id=RECRUITMENT_PRODUCT_ID,
+                product_revision=RECRUITMENT_PRODUCT_REVISION,
+                production_handler=RECRUITMENT_HANDLER_ID,
+                profile=RECRUITMENT_PROFILE_ID,
+                mode=RECRUITMENT_PHASE_MODE,
+                registration_status="REGISTERED",
+                scheduler_eligible=True,
+            )
+        if not isinstance(snapshot, RegisteredDispatchSnapshot):
+            raise TypeError(
+                "Recruitment selection requires a typed registration snapshot"
+            )
+        if snapshot.flow_id != RECRUITMENT_FLOW_ID:
+            raise ValueError(
+                "Recruitment selection snapshot has the wrong flow identity"
+            )
+        self._snapshot = snapshot
+        self.plan_calls = 0
+
+    @property
+    def snapshot(self) -> RegisteredDispatchSnapshot:
+        return self._snapshot
+
+    def describe(self) -> FlowDescriptor:
+        return FlowDescriptor(
+            flow_id=RECRUITMENT_FLOW_ID,
+            owner="automation_service",
+            family="recruitment",
+            variant="free_attempt_maintenance",
+            cadence="cooldown_pulse",
+            priority=1,
+            reset_scoped=False,
+            scheduler_eligible=True,
+            accepted_product=RECRUITMENT_PRODUCT_ID,
+            product_revision=RECRUITMENT_PRODUCT_REVISION,
+            registration_status="REGISTERED",
+        )
+
+    def eligibility(
+        self,
+        facts: SchedulerFacts,
+        perception: PerceptionEnvelope | None = None,
+    ) -> bool:
+        descriptor = self.describe()
+        if facts.gate_failures(descriptor):
+            return False
+        if (
+            facts.accepted_product != RECRUITMENT_PRODUCT_ID
+            or facts.product_revision != RECRUITMENT_PRODUCT_REVISION
+            or facts.registration_status != "REGISTERED"
+            or facts.scheduler_eligible is not True
+            or facts.owner_available is not True
+            or facts.clock_ok is not True
+            or facts.clock_rollback is True
+            or facts.reset_agreement is not True
+        ):
+            return False
+        projection = facts.projections.get(RECRUITMENT_FLOW_ID)
+        if (
+            projection is None
+            or projection.recurrence_class is not RecurrenceClass.COOLDOWN
+            or projection.observed_at_utc is None
+            or projection.observed_at_utc > facts.now_utc_epoch
+            or facts.now_utc_epoch - projection.observed_at_utc
+            > facts.projection_freshness_seconds
+            or (
+                projection.next_eligible_at is not None
+                and projection.next_eligible_at > facts.now_utc_epoch
+            )
+        ):
+            return False
+        if perception is not None and perception.profile_id != RECRUITMENT_PROFILE_ID:
+            return False
+        return True
+
+    def revalidate(
+        self,
+        facts: SchedulerFacts,
+        perception: PerceptionEnvelope | None = None,
+    ) -> bool:
+        return self.eligibility(facts, perception)
+
+    def plan(
+        self,
+        facts: SchedulerFacts,
+        perception: PerceptionEnvelope | None = None,
+    ) -> NormalizedResult:
+        self.plan_calls += 1
+        if not self.eligibility(facts, perception):
+            return NormalizedResult(
+                NormalizedOutcome.BLOCKED,
+                "RECRUITMENT_MAINTENANCE_SELECTION_GATES_FAILED",
+                verified=False,
+                observed_progress={"transport_count": 0},
+            )
+        projection = facts.projections[RECRUITMENT_FLOW_ID]
+        snapshot = self._snapshot.to_mapping()
+        return NormalizedResult(
+            NormalizedOutcome.COMPLETE_FOR_RESET,
+            "RECRUITMENT_MAINTENANCE_PARENT_CANARY_REQUIRED",
+            verified=True,
+            observed_progress={
+                "transport_count": 0,
+                "accepted_product": RECRUITMENT_PRODUCT_ID,
+                "product_revision": RECRUITMENT_PRODUCT_REVISION,
+                "registration_status": "REGISTERED",
+                "scheduler_eligible": True,
+                "projection_observed_at_utc": projection.observed_at_utc,
+                "projection_next_eligible_at": projection.next_eligible_at,
+                "registration_snapshot": snapshot,
+                "dispatch_registration": dict(snapshot),
+            },
+        )
+
+    def reconcile(
+        self,
+        plan: SemanticActionIntent | Any,
+        perception: PerceptionEnvelope | None = None,
+    ) -> NormalizedResult:
+        if isinstance(plan, NormalizedResult):
+            return plan
+        return NormalizedResult(
+            NormalizedOutcome.BLOCKED,
+            "RECRUITMENT_MAINTENANCE_SELECTION_UNKNOWN_PLAN",
+            verified=False,
+            observed_progress={"transport_count": 0},
+        )
+
+    def recover(self, reason_code: str) -> NormalizedResult:
+        return NormalizedResult(
+            NormalizedOutcome.BLOCKED,
+            "RECRUITMENT_MAINTENANCE_SELECTION_RECOVERY_UNAVAILABLE",
+            verified=False,
+            observed_progress={"reason": reason_code, "transport_count": 0},
+        )
+
+    def summarize(self) -> Mapping[str, Any]:
+        return {
+            "flow_id": RECRUITMENT_FLOW_ID,
+            "handler_id": RECRUITMENT_HANDLER_ID,
+            "mode": RECRUITMENT_PHASE_MODE,
+            "product_id": RECRUITMENT_PRODUCT_ID,
+            "product_revision": RECRUITMENT_PRODUCT_REVISION,
+            "profile": RECRUITMENT_PROFILE_ID,
+            "registration_status": "REGISTERED",
+            "scheduler_eligible": True,
+            "transport_count": 0,
+            "plan_calls": self.plan_calls,
+            "registration_snapshot": self._snapshot.to_mapping(),
+        }
+
+
 # Stable concise aliases for callers that use either terminology.
 WorldSelectionHandler = WorldNavigationSelectionHandler
 WorldNavigationHandler = WorldNavigationSelectionHandler
 NovaSelectionHandler = NovaPraiseSelectionHandler
 NovaPraiseHandler = NovaPraiseSelectionHandler
+RecruitmentSelectionHandler = RecruitmentMaintenanceSelectionHandler

@@ -41,6 +41,16 @@ NOVA_SELECTION_HANDLER_ID = NOVA_HANDLER_ID
 NOVA_PROFILE = NOVA_PROFILE_ID
 NOVA_PRODUCT = NOVA_PRODUCT_ID
 NOVA_REVISION = NOVA_PRODUCT_REVISION
+RECRUITMENT_FLOW_ID = "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
+RECRUITMENT_PRODUCT_ID = "noahs_tavern_recruitment"
+RECRUITMENT_PRODUCT_REVISION = "noahs_tavern_recruitment-v1"
+RECRUITMENT_HANDLER_ID = "recruitment_maintenance_selection_handler"
+RECRUITMENT_PROFILE_ID = WORLD_PROFILE_ID
+RECRUITMENT_PHASE_MODE = "phase_canary"
+RECRUITMENT_SELECTION_HANDLER_ID = RECRUITMENT_HANDLER_ID
+RECRUITMENT_PROFILE = RECRUITMENT_PROFILE_ID
+RECRUITMENT_PRODUCT = RECRUITMENT_PRODUCT_ID
+RECRUITMENT_REVISION = RECRUITMENT_PRODUCT_REVISION
 
 _FIXED_BINDINGS = {
     WORLD_FLOW_ID: {
@@ -60,6 +70,16 @@ _FIXED_BINDINGS = {
         "production_handler": NOVA_HANDLER_ID,
         "profile": NOVA_PROFILE_ID,
         "mode": NOVA_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    RECRUITMENT_FLOW_ID: {
+        "flow_id": RECRUITMENT_FLOW_ID,
+        "product_id": RECRUITMENT_PRODUCT_ID,
+        "product_revision": RECRUITMENT_PRODUCT_REVISION,
+        "production_handler": RECRUITMENT_HANDLER_ID,
+        "profile": RECRUITMENT_PROFILE_ID,
+        "mode": RECRUITMENT_PHASE_MODE,
         "registration_status": "REGISTERED",
         "scheduler_eligible": True,
     },
@@ -126,15 +146,13 @@ class RegisteredDispatchSnapshot:
             or type(self.scheduler_eligible) is not bool
         ):
             raise ValueError(
-                "dispatch registration snapshot is not a fixed World or Nova binding"
+                "dispatch registration snapshot is not a fixed phase binding"
             )
 
     @classmethod
     def from_entry(cls, entry: DisabledProductionEntry) -> "RegisteredDispatchSnapshot":
         if not _entry_is_registered(entry):
-            raise ValueError(
-                "only an exact registered World or Nova entry can be dispatched"
-            )
+            raise ValueError("only an exact registered phase entry can be dispatched")
         return cls(
             flow_id=entry.flow_id,
             product_id=entry.product_id or "",
@@ -188,6 +206,8 @@ class RegisteredDispatchSnapshot:
     @property
     def handler_id(self) -> str:
         return self.production_handler
+
+
 _REGISTRY_LOCK = threading.RLock()
 
 
@@ -300,7 +320,7 @@ def _parse_entries(payload: Mapping[str, Any]) -> tuple[DisabledProductionEntry,
         if entry.registration_status == "REGISTERED":
             if not _entry_is_registered(entry):
                 raise ValueError(
-                    "only the exact World or Nova phase-canary registration is allowed"
+                    "only an exact fixed phase-canary registration is allowed"
                 )
         elif not _entry_is_disabled(entry):
             raise ValueError("all non-registered entries must remain fully disabled")
@@ -310,9 +330,7 @@ def _parse_entries(payload: Mapping[str, Any]) -> tuple[DisabledProductionEntry,
     if len(registered) > 1:
         raise ValueError("production registry permits at most one registered flow")
     if registered and not _entry_is_registered(registered[0]):
-        raise ValueError(
-            "registered production entry is not a fixed World or Nova binding"
-        )
+        raise ValueError("registered production entry is not a fixed phase binding")
     return tuple(sorted(entries, key=lambda item: item.flow_id))
 
 
@@ -377,6 +395,8 @@ def _write_payload_atomic(path: Path, payload: Mapping[str, Any]) -> None:
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     os.replace(temporary, path)
+
+
 def consume_registered_entry(
     flow_id: str = WORLD_FLOW_ID,
     *,
@@ -423,6 +443,14 @@ def consume_nova_registration(
     return consume_registered_entry(NOVA_FLOW_ID, path=path)
 
 
+def consume_recruitment_registration(
+    path: Path | None = None,
+) -> RegisteredDispatchSnapshot | None:
+    """Atomically consume the exact registered Recruitment maintenance entry."""
+
+    return consume_registered_entry(RECRUITMENT_FLOW_ID, path=path)
+
+
 def world_registration_snapshot(
     path: Path | None = None,
 ) -> RegisteredDispatchSnapshot | None:
@@ -449,10 +477,26 @@ def nova_registration_snapshot(
     """Return the exact registered Nova snapshot without consuming it."""
 
     entry = next(
+        (item for item in load_disabled_registry(path) if item.flow_id == NOVA_FLOW_ID),
+        None,
+    )
+    return (
+        RegisteredDispatchSnapshot.from_entry(entry)
+        if entry is not None and entry.registered
+        else None
+    )
+
+
+def recruitment_registration_snapshot(
+    path: Path | None = None,
+) -> RegisteredDispatchSnapshot | None:
+    """Return the registered Recruitment snapshot without consuming it."""
+
+    entry = next(
         (
             item
             for item in load_disabled_registry(path)
-            if item.flow_id == NOVA_FLOW_ID
+            if item.flow_id == RECRUITMENT_FLOW_ID
         ),
         None,
     )
@@ -488,11 +532,23 @@ __all__ = [
     "NOVA_PRODUCT",
     "NOVA_REVISION",
     "NOVA_PHASE_MODE",
+    "RECRUITMENT_FLOW_ID",
+    "RECRUITMENT_PRODUCT_ID",
+    "RECRUITMENT_PRODUCT_REVISION",
+    "RECRUITMENT_HANDLER_ID",
+    "RECRUITMENT_SELECTION_HANDLER_ID",
+    "RECRUITMENT_PROFILE_ID",
+    "RECRUITMENT_PROFILE",
+    "RECRUITMENT_PRODUCT",
+    "RECRUITMENT_REVISION",
+    "RECRUITMENT_PHASE_MODE",
     "consume_registered_entry",
     "consume_world_registration",
     "consume_nova_registration",
+    "consume_recruitment_registration",
     "load_disabled_registry",
     "load_production_registry",
     "nova_registration_snapshot",
+    "recruitment_registration_snapshot",
     "world_registration_snapshot",
 ]

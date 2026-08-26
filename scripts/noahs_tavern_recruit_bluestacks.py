@@ -1154,6 +1154,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             post_input_delay=getattr(args, "settle_seconds", 1.0),
         )
         result = route.run(max_steps=40)
+        final_state = controller.maintenance_controller.state
         payload = {
             "status": result.status,
             "reason": result.reason,
@@ -1165,6 +1166,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             "claim_dispatched": False,
             "transport_mode": "native_bluestacks_ordinary_development",
             "identity": identity.__dict__,
+            "maintenance_state": json.loads(final_state.to_json()),
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
             "evidence_events": str(runtime.events),

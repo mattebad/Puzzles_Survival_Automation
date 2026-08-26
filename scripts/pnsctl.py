@@ -60,6 +60,7 @@ NOVA_SUPERVISED_PULSE_FLOW_ID = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
 NOVA_SUPERVISED_PULSE_SCENARIO_ID = "nova_praise_one_free_pulse"
 NOVA_SUPERVISED_PULSE_MAX_INPUTS = 8
 NOVA_SUPERVISED_PRAISE_MAX_INPUTS = 1
+RECRUITMENT_MAINTENANCE_FLOW_ID = "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
 NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT = (
     BLUESTACKS_ARTIFACT_ROOT / NOVA_SUPERVISED_PULSE_FLOW_ID
 )
@@ -97,7 +98,7 @@ BLUESTACKS_FLOW_IDS = (
     "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
     "NANOWEAPON-BLUESTACKS-INTEGRATION",
-    "RECRUITMENT-BLUESTACKS-INTEGRATION",
+    RECRUITMENT_MAINTENANCE_FLOW_ID,
     "WORLD-MAP-NAVIGATION-FOUNDATION",
     "GATHERING-BLUESTACKS-INTEGRATION",
     "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
@@ -3539,6 +3540,7 @@ def development_session_run_flow(
         flow_id in {
             "WORLD-MAP-NAVIGATION-FOUNDATION",
             NOVA_SUPERVISED_PULSE_FLOW_ID,
+            RECRUITMENT_MAINTENANCE_FLOW_ID,
         }
         and live
         and not recovery_only
@@ -7047,7 +7049,11 @@ def automation_service_offline(args: argparse.Namespace) -> int:
 def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
     """Run exactly one fail-closed, zero-transport scheduler pulse."""
 
-    from automation_service.contracts import SchedulerFacts
+    from automation_service.contracts import (
+        RecurrenceClass,
+        RecurrenceProjection,
+        SchedulerFacts,
+    )
     from automation_service.service import registry_scheduler_components
     from safe_action_core import SafetyStore, SQLiteSchedulerInvocationRepository
 
@@ -7079,6 +7085,18 @@ def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
         )
         registered = next((entry for entry in entries if entry.registered), None)
         healthy = bool(getattr(args, "health_ok", False))
+        projections = {}
+        observed_at = getattr(args, "projection_observed_at_utc", None)
+        if (
+            registered is not None
+            and registered.flow_id == RECRUITMENT_MAINTENANCE_FLOW_ID
+            and observed_at is not None
+        ):
+            projections[registered.flow_id] = RecurrenceProjection(
+                RecurrenceClass.COOLDOWN,
+                next_eligible_at=getattr(args, "projection_next_eligible_at", None),
+                observed_at_utc=float(observed_at),
+            )
         report = coordinator.pulse(
             SchedulerFacts(
                 args.account_id,
@@ -7103,6 +7121,7 @@ def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
                 owner_available=healthy,
                 clock_ok=healthy,
                 reset_agreement=healthy,
+                projections=projections,
             )
         )
         candidate = None
@@ -7154,7 +7173,7 @@ _CONDUCT_DEFAULT_MAX_INPUTS = {
     "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": 10,
     "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": 10,
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": 24,
-    "RECRUITMENT-BLUESTACKS-INTEGRATION": 12,
+    RECRUITMENT_MAINTENANCE_FLOW_ID: 12,
     "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": 12,
     "TROOP-TRAINING-END-TO-END-CONSOLIDATION": 32,
 }
@@ -7173,7 +7192,7 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
     )
     if not 1 <= maximum <= 100:
         raise OperatorError("conduct max_inputs must be between 1 and 100")
-    if flow_id == "RECRUITMENT-BLUESTACKS-INTEGRATION" and maximum != 12:
+    if flow_id == RECRUITMENT_MAINTENANCE_FLOW_ID and maximum != 12:
         raise OperatorError(
             "Recruitment full-pass conduct requires exact max_inputs=12"
         )
@@ -7192,7 +7211,7 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
             "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
             "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
             "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
-            "RECRUITMENT-BLUESTACKS-INTEGRATION",
+            RECRUITMENT_MAINTENANCE_FLOW_ID,
             "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
             "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
         }
@@ -7284,7 +7303,7 @@ def _conductor_live_summary(
                 "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
                 "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
                 "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
-                "RECRUITMENT-BLUESTACKS-INTEGRATION",
+                RECRUITMENT_MAINTENANCE_FLOW_ID,
                 "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
                 "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
             }:
@@ -7481,7 +7500,7 @@ def conduct_flow(
         "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
         "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
         "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
-        "RECRUITMENT-BLUESTACKS-INTEGRATION",
+        RECRUITMENT_MAINTENANCE_FLOW_ID,
         "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
         "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
     }
@@ -7821,6 +7840,12 @@ def parser() -> argparse.ArgumentParser:
     scheduler_pulse.add_argument("--server-id", default="offline-server")
     scheduler_pulse.add_argument("--reset-id", default="offline-reset")
     scheduler_pulse.add_argument("--now-utc-epoch", type=float, default=None)
+    scheduler_pulse.add_argument(
+        "--projection-observed-at-utc", type=float, default=None
+    )
+    scheduler_pulse.add_argument(
+        "--projection-next-eligible-at", type=float, default=None
+    )
     scheduler_pulse.add_argument(
         "--health-ok",
         action="store_true",

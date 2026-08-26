@@ -150,6 +150,16 @@
       "scheduler_eligible": false,
       "supported_profiles": []
     },
+    "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
     "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION": {
       "mode": "disabled",
       "product_id": null,

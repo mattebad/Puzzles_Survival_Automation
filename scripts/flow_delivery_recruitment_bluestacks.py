@@ -12,7 +12,7 @@ from typing import Any, Mapping
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 
 
-FLOW_ID = "RECRUITMENT-BLUESTACKS-INTEGRATION"
+FLOW_ID = "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
 RUNNER_ID = "recruitment_bluestacks_runner"
 VALIDATOR_ID = "recruitment_bluestacks_evidence"
 RECOVERY_ID = "recruitment_bluestacks_recovery"
@@ -88,6 +88,56 @@ def _initial_observation(lease: Mapping[str, Any], session: Any) -> dict[str, An
     return value.to_mapping()
 
 
+def _registration_snapshot(lease: Mapping[str, Any]) -> dict[str, Any]:
+    from automation_service.registry import RegisteredDispatchSnapshot
+
+    value = lease.get("registration_snapshot")
+    if not isinstance(value, RegisteredDispatchSnapshot):
+        raise _pnsctl().OperatorError(
+            "Recruitment maintenance requires a typed phase registration snapshot"
+        )
+    if value.flow_id != FLOW_ID:
+        raise _pnsctl().OperatorError(
+            "Recruitment maintenance registration flow identity is invalid"
+        )
+    return value.to_mapping()
+
+
+def _maintenance_state_verified(result: Mapping[str, Any]) -> bool:
+    state = result.get("maintenance_state")
+    identity = result.get("identity")
+    if not isinstance(state, Mapping) or not isinstance(identity, Mapping):
+        return False
+    if (
+        state.get("schema") != "noahs-tavern-maintenance-v1"
+        or state.get("account_id") != identity.get("account_id")
+        or state.get("server_id") != identity.get("server_id")
+        or state.get("reset_id") != identity.get("reset_id")
+        or type(state.get("basic_daily_count")) is not int
+        or not 0 <= state["basic_daily_count"] <= 5
+    ):
+        return False
+    tiers = state.get("tiers")
+    expected = {
+        "Basic Recruit": (5, 600),
+        "Int. Recruit": (1, 86_400),
+        "Adv. Recruit": (1, 172_800),
+    }
+    if not isinstance(tiers, Mapping) or set(tiers) != set(expected):
+        return False
+    for tier, (maximum, cooldown) in expected.items():
+        persisted = tiers[tier]
+        if (
+            not isinstance(persisted, Mapping)
+            or type(persisted.get("attempts_remaining")) is not int
+            or not 0 <= persisted["attempts_remaining"] <= maximum
+            or persisted.get("cooldown_seconds") != cooldown
+            or persisted.get("last_outcome") in {None, "", "never_observed"}
+        ):
+            return False
+    return True
+
+
 def _read_events(session: Path) -> list[dict[str, Any]]:
     events = session / "events.jsonl"
     if not events.is_file() or events.is_symlink():
@@ -125,6 +175,7 @@ def _write_read_only_causal_trace(
     initial_observation: Mapping[str, Any],
     transport_count: int,
     recruitment_transport_count: int,
+    registration_snapshot: Mapping[str, Any],
 ) -> dict[str, Any]:
     events = _read_events(session)
     trace = {
@@ -136,6 +187,8 @@ def _write_read_only_causal_trace(
         "flow_id": FLOW_ID,
         "invocation_id": str(initial_observation.get("invocation_id") or ""),
         "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
+        "registration_snapshot": dict(registration_snapshot),
+        "maintenance_state": result.get("maintenance_state"),
         "stages": [
             "typed_initial_observation",
             "canonical_home_atlas_binding",
@@ -169,6 +222,7 @@ def _result_payload(
     input_count: int,
     recruitment_transport_count: int,
     maximum: int,
+    registration_snapshot: Mapping[str, Any],
 ) -> dict[str, Any]:
     route_status = str(route_result.get("status") or "blocked")
     action_count = int(
@@ -184,9 +238,7 @@ def _result_payload(
         and counts_match
         and action_count <= MAX_RECRUITMENT_ACTIONS
     )
-    reconciliation_required = bool(
-        recruitment_transport_count and not completed
-    )
+    reconciliation_required = bool(recruitment_transport_count and not completed)
     status = (
         "completed"
         if completed
@@ -210,6 +262,7 @@ def _result_payload(
             "proof_topology": "continuous",
             "effect_reconciliation_required": reconciliation_required,
             "identical_retry_denied": reconciliation_required,
+            "registration_snapshot": dict(registration_snapshot),
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
         }
@@ -311,6 +364,7 @@ def run_recruitment(
             sort_keys=True,
         )
 
+    registration_snapshot = _registration_snapshot(lease)
     outer_session = _outer_session(lease)
     initial_observation = _initial_observation(lease, outer_session)
     outer_directory = Path(outer_session.session_directory)
@@ -369,6 +423,7 @@ def run_recruitment(
             input_count=input_count,
             recruitment_transport_count=recruitment_count,
             maximum=maximum,
+            registration_snapshot=registration_snapshot,
         )
     except Exception as exc:
         child = runtime.session if runtime is not None else runtime_directory
@@ -384,6 +439,7 @@ def run_recruitment(
             input_count=input_count,
             recruitment_transport_count=recruitment_count,
             maximum=maximum,
+            registration_snapshot=registration_snapshot,
         )
 
     trace = _write_read_only_causal_trace(
@@ -392,6 +448,7 @@ def run_recruitment(
         initial_observation=initial_observation,
         transport_count=input_count,
         recruitment_transport_count=recruitment_count,
+        registration_snapshot=registration_snapshot,
     )
     payload["initial_observation"] = initial_observation
     payload["initial_frame_sha256"] = initial_observation["frame_sha256"]
@@ -402,9 +459,7 @@ def run_recruitment(
             input_count,
             source="runtime_session/events.jsonl",
         )
-        outer_session.remember_control(
-            "recruitment_transport_count", recruitment_count
-        )
+        outer_session.remember_control("recruitment_transport_count", recruitment_count)
         outer_session.remember_control(
             "recruitment_action_count", payload["recruitment_action_count"]
         )
@@ -449,6 +504,16 @@ def verify_recruitment(
             )
         except (OSError, ValueError):
             initial_ok = False
+    from automation_service.registry import RegisteredDispatchSnapshot
+
+    registration_ok = False
+    registration = result.get("registration_snapshot")
+    try:
+        snapshot = RegisteredDispatchSnapshot.from_mapping(registration)
+        registration_ok = snapshot.flow_id == FLOW_ID
+    except (TypeError, ValueError):
+        registration_ok = False
+    maintenance_state_ok = _maintenance_state_verified(result)
     retained_transport = _retained_transport_count(session)
     retained_recruitment = _recruitment_transport_count(session)
     trace = result.get("causal_trace")
@@ -472,13 +537,18 @@ def verify_recruitment(
         and trace.get("input_authority") is False
         and trace.get("proof_topology") == "continuous"
         and trace.get("initial_frame_sha256") == result.get("initial_frame_sha256")
+        and trace.get("registration_snapshot") == registration
+        and trace.get("maintenance_state") == result.get("maintenance_state")
         and trace.get("transport_count") == retained_transport
         and trace.get("recruitment_transport_count") == retained_recruitment
         and trace.get("recruitment_action_count")
         == result.get("recruitment_action_count")
     )
     verified = bool(
-        result.get("status") == "completed"
+        result.get("flow_id") == FLOW_ID
+        and registration_ok
+        and maintenance_state_ok
+        and result.get("status") == "completed"
         and result.get("proof_topology") == "continuous"
         and initial_ok
         and trace_ok
@@ -500,9 +570,13 @@ def verify_recruitment(
         "scheduler_enabled": False,
         "initial_observation_verified": initial_ok,
         "causal_trace_verified": trace_ok,
+        "registration_snapshot_verified": registration_ok,
+        "maintenance_state_verified": maintenance_state_ok,
         "retained_transport_count": retained_transport,
         "recruitment_transport_count": retained_recruitment,
-        "reason": None if verified else "Recruitment continuous route proof is incomplete",
+        "reason": None
+        if verified
+        else "Recruitment continuous route proof is incomplete",
     }
 
 

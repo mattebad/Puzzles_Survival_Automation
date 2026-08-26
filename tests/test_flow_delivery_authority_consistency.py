@@ -109,7 +109,7 @@ class AuthorityConsistencyTests(unittest.TestCase):
     def test_recruitment_registry_consequence_matches_queue_validation_profile(self) -> None:
         queue = _read(QUEUE)
         registry = _read(REGISTRY)
-        flow_id = "RECRUITMENT-BLUESTACKS-INTEGRATION"
+        flow_id = "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
         flow = {item["flow_id"]: item for item in queue["flows"]}[flow_id]
         registry_entry = registry["flows"][flow_id]
         self.assertEqual(registry_entry["consequence_class"], "consequential")

@@ -10,6 +10,15 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from automation_service.registry import (
+    RECRUITMENT_FLOW_ID,
+    RECRUITMENT_HANDLER_ID,
+    RECRUITMENT_PHASE_MODE,
+    RECRUITMENT_PRODUCT_ID,
+    RECRUITMENT_PRODUCT_REVISION,
+    RECRUITMENT_PROFILE_ID,
+    RegisteredDispatchSnapshot,
+)
 import scripts.flow_delivery_recruitment_bluestacks as delivery
 import scripts.navigation_development_boundary as boundary
 import scripts.pnsctl as pnsctl
@@ -20,13 +29,80 @@ from scripts.navigation_development_boundary import (
 
 
 class RecruitmentFlowDeliveryTests(unittest.TestCase):
+    def _registration(self) -> RegisteredDispatchSnapshot:
+        return RegisteredDispatchSnapshot(
+            flow_id=RECRUITMENT_FLOW_ID,
+            product_id=RECRUITMENT_PRODUCT_ID,
+            product_revision=RECRUITMENT_PRODUCT_REVISION,
+            production_handler=RECRUITMENT_HANDLER_ID,
+            profile=RECRUITMENT_PROFILE_ID,
+            mode=RECRUITMENT_PHASE_MODE,
+            registration_status="REGISTERED",
+            scheduler_eligible=True,
+        )
+
+    def _maintenance_state(self) -> dict:
+        return {
+            "schema": "noahs-tavern-maintenance-v1",
+            "account_id": "account",
+            "server_id": "server",
+            "reset_id": "reset",
+            "basic_daily_count": 1,
+            "revision": 3,
+            "tiers": {
+                "Basic Recruit": {
+                    "attempts_remaining": 4,
+                    "next_eligible_at": 700.0,
+                    "cooldown_seconds": 600,
+                    "last_outcome": "action_performed",
+                },
+                "Int. Recruit": {
+                    "attempts_remaining": 1,
+                    "next_eligible_at": 86_500.0,
+                    "cooldown_seconds": 86_400,
+                    "last_outcome": "deferred",
+                },
+                "Adv. Recruit": {
+                    "attempts_remaining": 1,
+                    "next_eligible_at": 172_900.0,
+                    "cooldown_seconds": 172_800,
+                    "last_outcome": "deferred",
+                },
+            },
+        }
+
     def _events(self, child: Path) -> None:
         events = [
-            {"type": "dispatch", "execute": True, "action_key": "noah:open:1", "target_identity": "home.building.noahs_tavern"},
-            {"type": "dispatch", "execute": True, "action_key": "noah:tier:INT:2", "target_identity": "NOAHS_TAVERN_TIER_INT"},
-            {"type": "dispatch", "execute": True, "action_key": "INT:frame:1:None", "target_identity": "noahs-tavern-daily-free"},
-            {"type": "dispatch", "execute": True, "action_key": "INT:frame:1:None:close", "target_identity": "noahs-tavern-result-close"},
-            {"type": "dispatch", "execute": True, "action_key": "noah-nav:safe-exit:3", "target_identity": "noahs-tavern-safe-exit"},
+            {
+                "type": "dispatch",
+                "execute": True,
+                "action_key": "noah:open:1",
+                "target_identity": "home.building.noahs_tavern",
+            },
+            {
+                "type": "dispatch",
+                "execute": True,
+                "action_key": "noah:tier:INT:2",
+                "target_identity": "NOAHS_TAVERN_TIER_INT",
+            },
+            {
+                "type": "dispatch",
+                "execute": True,
+                "action_key": "INT:frame:1:None",
+                "target_identity": "noahs-tavern-daily-free",
+            },
+            {
+                "type": "dispatch",
+                "execute": True,
+                "action_key": "INT:frame:1:None:close",
+                "target_identity": "noahs-tavern-result-close",
+            },
+            {
+                "type": "dispatch",
+                "execute": True,
+                "action_key": "noah-nav:safe-exit:3",
+                "target_identity": "noahs-tavern-safe-exit",
+            },
         ]
         (child / "events.jsonl").write_text(
             "".join(json.dumps(event) + "\n" for event in events),
@@ -82,7 +158,6 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
         with self.assertRaises(pnsctl.OperatorError):
             pnsctl._conduct_max_inputs(delivery.FLOW_ID, 8)
 
-
     def test_live_route_binds_exact_observation_trace_and_counts(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -99,6 +174,7 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
                 "account_id": "account",
                 "server_id": "server",
                 "reset_id": "reset",
+                "registration_snapshot": self._registration(),
             }
             route_result = {
                 "status": "completed",
@@ -107,6 +183,12 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
                 "session_directory": str(child),
                 "input_count": 5,
                 "terminal_home_verified": True,
+                "identity": {
+                    "account_id": "account",
+                    "server_id": "server",
+                    "reset_id": "reset",
+                },
+                "maintenance_state": self._maintenance_state(),
             }
             try:
                 with (
@@ -120,9 +202,7 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
                         return_value=json.dumps(route_result),
                     ),
                 ):
-                    result = json.loads(
-                        delivery.run_recruitment({}, lease, live=True)
-                    )
+                    result = json.loads(delivery.run_recruitment({}, lease, live=True))
                 self.assertIs(initial, session.initial_observation)
                 self.assertEqual(result["status"], "completed")
                 self.assertEqual(result["input_count"], 5)
@@ -137,6 +217,15 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
                     {"result": result, "session_directory": str(child)}, {}, {}
                 )
                 self.assertEqual(verdict["status"], "verified")
+                self.assertTrue(verdict["maintenance_state_verified"])
+                forged = json.loads(json.dumps(result))
+                forged["maintenance_state"]["tiers"]["Int. Recruit"][
+                    "cooldown_seconds"
+                ] = 600
+                forged_verdict = delivery.verify_recruitment(
+                    {"result": forged, "session_directory": str(child)}, {}, {}
+                )
+                self.assertEqual(forged_verdict["status"], "evidence_required")
             finally:
                 session.__exit__(None, None, None)
 
@@ -151,6 +240,7 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
             input_count=4,
             recruitment_transport_count=1,
             maximum=delivery.MAX_INPUTS,
+            registration_snapshot=self._registration().to_mapping(),
         )
         self.assertEqual(result["status"], "effect_reconciliation_required")
         self.assertTrue(result["effect_reconciliation_required"])

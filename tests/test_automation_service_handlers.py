@@ -5,10 +5,16 @@ import unittest
 from automation_service.contracts import (
     FlowDescriptor,
     NormalizedOutcome,
+    RecurrenceClass,
+    RecurrenceProjection,
     PerceptionEnvelope,
     SchedulerFacts,
 )
-from automation_service.handlers import DisabledHandler, NovaPraiseSelectionHandler
+from automation_service.handlers import (
+    DisabledHandler,
+    NovaPraiseSelectionHandler,
+    RecruitmentMaintenanceSelectionHandler,
+)
 from automation_service.registry import (
     NOVA_FLOW_ID,
     NOVA_HANDLER_ID,
@@ -16,6 +22,10 @@ from automation_service.registry import (
     NOVA_PRODUCT_ID,
     NOVA_PRODUCT_REVISION,
     NOVA_PROFILE_ID,
+    RECRUITMENT_FLOW_ID,
+    RECRUITMENT_PRODUCT_ID,
+    RECRUITMENT_PRODUCT_REVISION,
+    RECRUITMENT_PROFILE_ID,
     RegisteredDispatchSnapshot,
 )
 
@@ -31,6 +41,27 @@ class AutomationServiceHandlerTests(unittest.TestCase):
             "owner_available": True,
             "clock_ok": True,
             "reset_agreement": True,
+        }
+        values.update(overrides)
+        return SchedulerFacts("account", "server", "reset", 100.0, **values)
+
+    def _recruitment_facts(self, **overrides) -> SchedulerFacts:
+        values = {
+            "health_ok": True,
+            "accepted_product": RECRUITMENT_PRODUCT_ID,
+            "product_revision": RECRUITMENT_PRODUCT_REVISION,
+            "registration_status": "REGISTERED",
+            "scheduler_eligible": True,
+            "owner_available": True,
+            "clock_ok": True,
+            "reset_agreement": True,
+            "projections": {
+                RECRUITMENT_FLOW_ID: RecurrenceProjection(
+                    RecurrenceClass.COOLDOWN,
+                    next_eligible_at=90.0,
+                    observed_at_utc=95.0,
+                )
+            },
         }
         values.update(overrides)
         return SchedulerFacts("account", "server", "reset", 100.0, **values)
@@ -118,7 +149,50 @@ class AutomationServiceHandlerTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             NovaPraiseSelectionHandler(object())
 
+    def test_recruitment_handler_requires_fresh_due_cooldown_projection(self) -> None:
+        handler = RecruitmentMaintenanceSelectionHandler()
+        descriptor = handler.describe()
+        self.assertEqual(descriptor.flow_id, RECRUITMENT_FLOW_ID)
+        self.assertEqual(descriptor.cadence, "cooldown_pulse")
+        self.assertFalse(descriptor.reset_scoped)
+        result = handler.plan(self._recruitment_facts())
+        self.assertEqual(result.outcome, NormalizedOutcome.COMPLETE_FOR_RESET)
+        self.assertEqual(
+            result.reason_code,
+            "RECRUITMENT_MAINTENANCE_PARENT_CANARY_REQUIRED",
+        )
+        self.assertEqual(result.action_count, 0)
+        self.assertEqual(result.observed_progress["transport_count"], 0)
+
+        ineligible = (
+            {},
+            {
+                RECRUITMENT_FLOW_ID: RecurrenceProjection(
+                    RecurrenceClass.COOLDOWN,
+                    next_eligible_at=101.0,
+                    observed_at_utc=95.0,
+                )
+            },
+            {
+                RECRUITMENT_FLOW_ID: RecurrenceProjection(
+                    RecurrenceClass.TIMER,
+                    next_eligible_at=90.0,
+                    observed_at_utc=95.0,
+                )
+            },
+        )
+        for projections in ineligible:
+            with self.subTest(projections=projections):
+                self.assertFalse(
+                    handler.eligibility(
+                        self._recruitment_facts(projections=projections)
+                    )
+                )
+
+        wrong_profile = PerceptionEnvelope("capture", "home", "wrong-profile", "fresh")
+        self.assertFalse(handler.eligibility(self._recruitment_facts(), wrong_profile))
+        self.assertEqual(handler.snapshot.profile, RECRUITMENT_PROFILE_ID)
+
 
 if __name__ == "__main__":
     unittest.main()
-

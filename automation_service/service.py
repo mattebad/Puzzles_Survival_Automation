@@ -15,6 +15,7 @@ from .adapters import (
 from .contracts import PerceptionEnvelope, SchedulerFacts, ServiceMode
 from .handlers import (
     DisabledHandler,
+    RecruitmentMaintenanceSelectionHandler,
     NovaPraiseSelectionHandler,
     WorldNavigationSelectionHandler,
 )
@@ -23,6 +24,7 @@ from .registry import (
     DisabledProductionEntry,
     RegisteredDispatchSnapshot,
     NOVA_FLOW_ID,
+    RECRUITMENT_FLOW_ID,
     WORLD_FLOW_ID,
     load_disabled_registry,
 )
@@ -55,15 +57,24 @@ def registry_descriptor(entry: DisabledProductionEntry):
     elif entry.flow_id == NOVA_FLOW_ID:
         family = "nova_praise"
         variant = "supervised_one_free_pulse"
+    elif entry.flow_id == RECRUITMENT_FLOW_ID:
+        family = "recruitment"
+        variant = "free_attempt_maintenance"
     else:
         family = "disabled"
         variant = "disabled"
+    cadence = (
+        "cooldown_pulse"
+        if entry.flow_id == RECRUITMENT_FLOW_ID and registered
+        else "daily_once_per_reset"
+    )
     return FlowDescriptor(
         flow_id=entry.flow_id,
         owner="automation_service",
         family=family if registered else "disabled",
         variant=variant if registered else "disabled",
-        cadence="daily_once_per_reset",
+        cadence=cadence,
+        reset_scoped=entry.flow_id != RECRUITMENT_FLOW_ID,
         priority=1 if registered else 100,
         scheduler_eligible=registered and entry.scheduler_eligible,
         accepted_product=entry.product_id if registered else False,
@@ -97,6 +108,10 @@ def registry_scheduler_components(
             handlers[entry.flow_id] = NovaPraiseSelectionHandler(
                 RegisteredDispatchSnapshot.from_entry(entry)
             )
+        elif entry.registered and entry.flow_id == RECRUITMENT_FLOW_ID:
+            handlers[entry.flow_id] = RecruitmentMaintenanceSelectionHandler(
+                RegisteredDispatchSnapshot.from_entry(entry)
+            )
         else:
             handlers[entry.flow_id] = DisabledHandler(descriptor)
     # Keep authority and descriptors bound to the same validated registry
@@ -104,9 +119,7 @@ def registry_scheduler_components(
     # itself; replacing its private projection avoids a second, potentially
     # different registration authority when callers supply a registry path.
     activation_authority = DisabledProductionAuthority()
-    activation_authority._entries = {
-        entry.flow_id: entry for entry in entries
-    }
+    activation_authority._entries = {entry.flow_id: entry for entry in entries}
     coordinator = UtcPulseCoordinator(
         repository,
         descriptors,
