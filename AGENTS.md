@@ -345,6 +345,22 @@ In Code Mode, within each bounded stage, run independent, functions.exec-availab
 - Positively recognize the source, bind the exact target from a current raw 800×1280 frame,
   revalidate immediately before dispatch, and enforce full-frame bounds/overlay checks; generic
   rebinding is forbidden and transport success never proves semantic success.
+- Full-frame hashes are evidence-integrity and invocation-binding metadata only. Never use exact
+  full-frame hash equality as a live selector, recognition condition, or revalidation condition:
+  gameplay screens animate and legitimately change between captures.
+- Live visual authority comes from independently grounded, stable ROIs on the current native frame.
+  Re-detect and revalidate the semantic source ROI and exact target-control ROI immediately before
+  dispatch, using tolerances appropriate to the accepted selector. Exclude animated artwork,
+  particles, timers, rotating offers, and other dynamic pixels from selector authority.
+- Keep `evidence_hash` and `selector_binding` conceptually and structurally distinct. A retained
+  frame hash may prove which bytes were recorded for a session or invocation; it cannot prove that
+  a later frame is the same screen. Hash mismatch across live captures is expected unless the exact
+  hashed ROI is explicitly proven static; recognition failure must be based on the current stable
+  ROI evidence, not whole-frame inequality.
+- Every new or changed live visual selector must have an animation-variance positive test: at least
+  two native-size frames with different full-frame hashes and materially different pixels outside
+  the authoritative ROIs must both recognize from the same stable semantic/target ROI evidence.
+  Companion negatives must alter the stable source or target ROI and fail closed.
 - The only consequential action classes are real combat dispatch and real-money Cash Mall
   confirmation; Cash Mall confirmation is unsupported and must be rejected (navigating to or closing
   a payment surface must never confirm). Navigation, Zombie Lairs, zombie targeting, challenge setup,

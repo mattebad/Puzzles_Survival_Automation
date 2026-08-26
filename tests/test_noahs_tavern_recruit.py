@@ -135,19 +135,36 @@ class NoahContractTests(unittest.TestCase):
         self.assertEqual(allowance, 0)
         self.assertEqual(runtime.max_inputs, 12)
 
-    def test_confirmed_popup_unlocks_one_recovery_input(self):
-        runtime = SimpleNamespace(max_inputs=12)
+
+    def test_shared_preflow_fallback_honors_outer_route_reserve(self):
+        runtime = SimpleNamespace(max_inputs=11)
 
         allowance = _apply_startup_recovery_input_reserve(
             runtime,
             route_input_cap=12,
-            configured_input_cap=40,
-            recovery_status="recovered",
-            recovery_input_count=1,
+            configured_input_cap=11,
+            recovery_status="shared_pre_flow_startup_recovery",
+            recovery_input_count=0,
         )
 
-        self.assertEqual(allowance, 1)
-        self.assertEqual(runtime.max_inputs, 13)
+        self.assertEqual(allowance, 0)
+        self.assertEqual(runtime.max_inputs, 11)
+
+
+    def test_pnsctl_recovery_does_not_readd_route_input_allowance(self):
+        runtime = SimpleNamespace(max_inputs=11)
+
+        allowance = _apply_startup_recovery_input_reserve(
+            runtime,
+            route_input_cap=11,
+            configured_input_cap=11,
+            recovery_status="surface_dismissed_successor_captured",
+            recovery_input_count=1,
+            recovery_consumed_externally=True,
+        )
+
+        self.assertEqual(allowance, 0)
+        self.assertEqual(runtime.max_inputs, 11)
 
     def test_recovery_reserve_respects_configured_ceiling(self):
         runtime = SimpleNamespace(max_inputs=12)

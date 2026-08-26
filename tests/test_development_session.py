@@ -19,6 +19,7 @@ from scripts.bluestacks_native_runtime import (
     CapturedNativeFrame,
     LocalBlueStacksRuntime,
 )
+from scripts.startup_recovery import StartupRecoveryPlan
 
 
 def disable_non_target_registrations(payload: dict, target_flow_id: str) -> None:
@@ -716,6 +717,307 @@ class DevelopmentSessionTests(unittest.TestCase):
         missing_claim["result"]["ruins_result"]["newly_claimed_chests"] = []
         with self.assertRaisesRegex(pnsctl.OperatorError, "malformed or inconsistent"):
             ruins_delivery.verify_ruins_challenge_home_atlas(missing_claim, queue, {})
+
+    def test_pnsctl_shared_startup_recovery_preserves_split_ledger_and_post_frame(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            child = root / "child"
+            child.mkdir()
+            route_payload = {
+                "type": "dispatch",
+                "action_key": "route-action-1",
+                "target_identity": "route-target",
+                "source_sha256": "a" * 64,
+                "execute": True,
+            }
+            (child / "events.jsonl").write_text(
+                json.dumps(route_payload) + "\n", encoding="utf-8"
+            )
+
+            source = b"startup-source"
+            post = b"post-recovery-home"
+            observations = iter(
+                [
+                    (
+                        {
+                            "device_state": "device",
+                            "foreground_package": pnsctl.PACKAGE,
+                            "native_width": 800,
+                            "native_height": 1280,
+                            "frame_sha256": hashlib.sha256(source).hexdigest(),
+                        },
+                        source,
+                    ),
+                    (
+                        {
+                            "device_state": "device",
+                            "foreground_package": pnsctl.PACKAGE,
+                            "native_width": 800,
+                            "native_height": 1280,
+                            "frame_sha256": hashlib.sha256(post).hexdigest(),
+                        },
+                        post,
+                    ),
+                ]
+            )
+
+            plan = StartupRecoveryPlan(
+                "recovery_required",
+                "FLOW",
+                "SCARLETT_THREE_DAY_PACK",
+                "shared_startup_surface_recovery",
+                False,
+                "exact Scarlett startup surface requires shared recovery",
+                surface_kind="full_page",
+                frame_sha256=hashlib.sha256(source).hexdigest(),
+                recognition={"recognized": True},
+            )
+
+            def runner(queue, lease, *, live=True):
+                self.assertEqual(queue["active_flow_id"], "FLOW")
+                self.assertEqual(lease["route_max_inputs"], 2)
+                self.assertEqual(lease["startup_recovery_input_count"], 1)
+                self.assertEqual(lease["startup_recovery_result"]["input_count"], 1)
+                return json.dumps(
+                    {
+                        "status": "completed",
+                        "session_directory": str(child),
+                        "dispatch": live,
+                    }
+                )
+
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl, "BLUESTACKS_FLOW_IDS", ("FLOW",)
+            ), patch.object(
+                pnsctl,
+                "_load_bluestacks_flow_registry",
+                return_value={"FLOW": {"runner": "runner"}},
+            ), patch.dict(
+                pnsctl._BLUESTACKS_FLOW_RUNNERS, {"runner": runner}
+            ), patch.object(
+                pnsctl, "_development_runtime_observation", side_effect=observations
+            ), patch.object(
+                pnsctl,
+                "_run_shared_startup_recovery",
+                return_value={
+                    "status": "surface_dismissed_successor_captured",
+                    "input_count": 1,
+                    "recovery_input_count": 1,
+                    "route_input_count": 0,
+                    "total_input_count": 1,
+                },
+            ), patch(
+                "scripts.startup_recovery.classify_startup_frame",
+                return_value=plan,
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                result = json.loads(
+                    pnsctl.development_session_run_flow(
+                        "FLOW", live=True, yes=True, max_inputs=3
+                    )
+                )
+
+        self.assertEqual(result["input_count"], 2)
+        self.assertEqual(result["route_input_count"], 1)
+        self.assertEqual(result["recovery_input_count"], 1)
+        self.assertEqual(result["total_input_count"], 2)
+        self.assertEqual(result["initial_frame_sha256"], hashlib.sha256(post).hexdigest())
+
+    def test_pnsctl_full_budget_recovery_reports_retained_input_without_route(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = b"scarlett-source"
+            post = b"post-recovery-home"
+            observations = iter(
+                [
+                    (
+                        {
+                            "device_state": "device",
+                            "foreground_package": pnsctl.PACKAGE,
+                            "native_width": 800,
+                            "native_height": 1280,
+                            "frame_sha256": hashlib.sha256(source).hexdigest(),
+                        },
+                        source,
+                    ),
+                    (
+                        {
+                            "device_state": "device",
+                            "foreground_package": pnsctl.PACKAGE,
+                            "native_width": 800,
+                            "native_height": 1280,
+                            "frame_sha256": hashlib.sha256(post).hexdigest(),
+                        },
+                        post,
+                    ),
+                ]
+            )
+            route_calls: list[object] = []
+
+            def route(_queue, _lease, *, live=True):
+                route_calls.append(live)
+                raise AssertionError("route dispatch must be denied")
+
+            plan = StartupRecoveryPlan(
+                "recovery_required",
+                "FLOW",
+                "SCARLETT_THREE_DAY_PACK",
+                "shared_startup_surface_recovery",
+                False,
+                "exact Scarlett startup surface requires shared recovery",
+                surface_kind="full_page",
+                frame_sha256=hashlib.sha256(source).hexdigest(),
+                recognition={"recognized": True},
+            )
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl, "BLUESTACKS_FLOW_IDS", ("FLOW",)
+            ), patch.object(
+                pnsctl,
+                "_load_bluestacks_flow_registry",
+                return_value={"FLOW": {"runner": "runner"}},
+            ), patch.dict(
+                pnsctl._BLUESTACKS_FLOW_RUNNERS, {"runner": route}
+            ), patch.object(
+                pnsctl, "_development_runtime_observation", side_effect=observations
+            ), patch.object(
+                pnsctl,
+                "_run_shared_startup_recovery",
+                return_value={
+                    "status": "surface_dismissed_successor_captured",
+                    "reason": "positive_postcondition",
+                    "input_count": 1,
+                    "recovery_input_count": 1,
+                    "route_input_count": 0,
+                    "total_input_count": 1,
+                },
+            ), patch(
+                "scripts.startup_recovery.classify_startup_frame",
+                return_value=plan,
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                result = json.loads(
+                    pnsctl.development_session_run_flow(
+                        "FLOW", live=True, yes=True, max_inputs=1
+                    )
+                )
+
+            self.assertEqual(route_calls, [])
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(result["input_count"], 1)
+            self.assertEqual(result["recovery_input_count"], 1)
+            self.assertEqual(result["route_input_count"], 0)
+            self.assertEqual(result["total_input_count"], 1)
+            self.assertTrue(result["result"]["dispatch"])
+            self.assertFalse(result["result"]["route_dispatch"])
+            self.assertEqual(
+                result["result"]["completion_scope"],
+                "startup_recovery_only",
+            )
+            self.assertTrue(result["result"]["terminal_home_verified"])
+            summary = json.loads(
+                (Path(result["session_directory"]) / "summary.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(summary["status"], "completed")
+            self.assertEqual(summary["input_count"], 1)
+            self.assertNotIn("blocker", summary)
+            self.assertEqual(
+                summary["next_action"],
+                "startup recovery completed; route execution was intentionally not run",
+            )
+
+    def test_pnsctl_stops_on_unknown_commercial_successor_before_route(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = b"scarlett-source"
+            post = b"commercial-successor"
+            observation = lambda payload: {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": hashlib.sha256(payload).hexdigest(),
+            }
+            observed = iter(((observation(source), source), (observation(post), post)))
+            route_calls: list[object] = []
+
+            def route(_queue, _lease, *, live=True):
+                route_calls.append(live)
+                raise AssertionError("route dispatch must be denied")
+
+            plan = StartupRecoveryPlan(
+                "recovery_required",
+                "FLOW",
+                "SCARLETT_THREE_DAY_PACK",
+                "shared_startup_surface_recovery",
+                False,
+                "exact Scarlett startup surface requires shared recovery",
+                surface_kind="full_page",
+                frame_sha256=hashlib.sha256(source).hexdigest(),
+                recognition={"recognized": True},
+            )
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl, "BLUESTACKS_FLOW_IDS", ("FLOW",)
+            ), patch.object(
+                pnsctl,
+                "_load_bluestacks_flow_registry",
+                return_value={"FLOW": {"runner": "runner"}},
+            ), patch.dict(
+                pnsctl._BLUESTACKS_FLOW_RUNNERS, {"runner": route}
+            ), patch.object(
+                pnsctl, "_development_runtime_observation", side_effect=observed
+            ), patch.object(
+                pnsctl,
+                "_run_shared_startup_recovery",
+                return_value={
+                    "status": "evidence_required",
+                    "reason": "evidence_required_unknown_scarlett_successor",
+                    "input_count": 1,
+                    "recovery_input_count": 1,
+                    "route_input_count": 0,
+                    "total_input_count": 1,
+                },
+            ), patch(
+                "scripts.startup_recovery.classify_startup_frame",
+                return_value=plan,
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                result = json.loads(
+                    pnsctl.development_session_run_flow(
+                        "FLOW", live=True, yes=True, max_inputs=3
+                    )
+                )
+
+            self.assertEqual(route_calls, [])
+            self.assertEqual(result["status"], "evidence_required")
+            self.assertEqual(result["recovery_input_count"], 1)
+            self.assertEqual(result["route_input_count"], 0)
+            self.assertEqual(result["total_input_count"], 1)
+            summary = json.loads(
+                (Path(result["session_directory"]) / "summary.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(summary["status"], "evidence_required")
+            self.assertEqual(
+                summary["blocker"], "evidence_required_unknown_scarlett_successor"
+            )
 
     def test_pnsctl_flow_session_avoids_queue_and_preserves_checkpoint_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:

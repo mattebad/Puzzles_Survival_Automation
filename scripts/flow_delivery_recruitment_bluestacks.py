@@ -46,6 +46,93 @@ def _maximum(lease: Mapping[str, Any]) -> int:
         )
     return value
 
+def _route_maximum(lease: Mapping[str, Any], maximum: int) -> int:
+    try:
+        value = int(lease.get("route_max_inputs", maximum))
+    except (TypeError, ValueError) as exc:
+        raise _pnsctl().OperatorError(
+            "Recruitment development-session route_max_inputs must be an integer"
+        ) from exc
+    if not 1 <= value <= maximum:
+        raise _pnsctl().OperatorError(
+            "Recruitment route_max_inputs is outside the shared 12-input ceiling"
+        )
+    return value
+
+
+def _startup_recovery_context(
+    lease: Mapping[str, Any], *, maximum: int, route_maximum: int
+) -> tuple[dict[str, Any], int]:
+    recovery = lease.get("startup_recovery_result")
+    if recovery is None:
+        recovery = {
+            "status": "shared_pre_flow_startup_recovery",
+            "input_count": int(lease.get("startup_recovery_input_count") or 0),
+        }
+    if not isinstance(recovery, Mapping):
+        raise _pnsctl().OperatorError(
+            "Recruitment startup recovery result must be a mapping"
+        )
+    try:
+        reported_count = recovery.get("input_count")
+        declared_count = recovery.get("recovery_input_count")
+        recovery_count = int(
+            declared_count if declared_count is not None else reported_count or 0
+        )
+        if (
+            declared_count is not None
+            and reported_count is not None
+            and int(reported_count) != recovery_count
+        ):
+            raise _pnsctl().OperatorError(
+                "Recruitment startup recovery result reports conflicting input counts"
+            )
+        reported_route_count = recovery.get("route_input_count")
+        if reported_route_count is not None and int(reported_route_count) != 0:
+            raise _pnsctl().OperatorError(
+                "Recruitment startup recovery result reports route input usage"
+            )
+        reported_total_count = recovery.get("total_input_count")
+        if reported_total_count is not None and int(reported_total_count) != recovery_count:
+            raise _pnsctl().OperatorError(
+                "Recruitment startup recovery result total disagrees with its input count"
+            )
+    except (TypeError, ValueError) as exc:
+        raise _pnsctl().OperatorError(
+            "Recruitment startup recovery input_count must be an integer"
+        ) from exc
+    if recovery_count not in {0, 1} or recovery_count != maximum - route_maximum:
+        raise _pnsctl().OperatorError(
+            "Recruitment startup recovery and route input caps do not reconcile"
+        )
+    lease_count = lease.get("startup_recovery_input_count")
+    if lease_count is not None:
+        try:
+            if int(lease_count) != recovery_count:
+                raise _pnsctl().OperatorError(
+                    "Recruitment startup recovery count is inconsistent with its lease"
+                )
+        except (TypeError, ValueError) as exc:
+            raise _pnsctl().OperatorError(
+                "Recruitment startup_recovery_input_count must be an integer"
+            ) from exc
+    status = str(recovery.get("status") or "")
+    if recovery_count == 0 and status not in {
+        "not_present",
+        "shared_pre_flow_startup_recovery",
+    }:
+        raise _pnsctl().OperatorError(
+            f"Recruitment startup recovery is not clear: {status or 'unknown'}"
+        )
+    if recovery_count == 1 and status not in {
+        "recovered",
+        "surface_dismissed_successor_captured",
+    }:
+        raise _pnsctl().OperatorError(
+            f"Recruitment startup recovery is not route-admissible: {status or 'unknown'}"
+        )
+    return dict(recovery), recovery_count
+
 
 def _outer_session(lease: Mapping[str, Any]):
     from scripts.navigation_development_boundary import DevelopmentSession
@@ -202,6 +289,9 @@ def _write_read_only_causal_trace(
         ],
         "transport_count": transport_count,
         "recruitment_transport_count": recruitment_transport_count,
+        "recovery_input_count": int(result.get("recovery_input_count") or 0),
+        "route_input_count": int(result.get("route_input_count") or transport_count),
+        "total_input_count": int(result.get("total_input_count") or transport_count),
         "recruitment_action_count": int(result.get("recruitment_action_count") or 0),
         "event_count": len(events),
         "status": str(result.get("status") or "unknown"),
@@ -223,6 +313,9 @@ def _result_payload(
     recruitment_transport_count: int,
     maximum: int,
     registration_snapshot: Mapping[str, Any],
+    recovery_input_count: int = 0,
+    route_input_count: int | None = None,
+    route_maximum: int | None = None,
 ) -> dict[str, Any]:
     route_status = str(route_result.get("status") or "blocked")
     action_count = int(
@@ -230,6 +323,12 @@ def _result_payload(
         or route_result.get("actions_completed")
         or 0
     )
+    route_count = (
+        int(route_input_count)
+        if route_input_count is not None
+        else int(input_count) - int(recovery_input_count)
+    )
+    total_count = int(input_count)
     terminal_home = bool(route_result.get("terminal_home_verified") is True)
     counts_match = action_count == recruitment_transport_count
     completed = bool(
@@ -252,9 +351,17 @@ def _result_payload(
             "status": status,
             "flow_id": FLOW_ID,
             "session_directory": str(session_directory),
-            "input_count": input_count,
+            "input_count": total_count,
             "max_inputs": maximum,
-            "dispatch": input_count > 0,
+            "route_max_inputs": (
+                int(route_maximum)
+                if route_maximum is not None
+                else maximum - int(recovery_input_count)
+            ),
+            "dispatch": total_count > 0,
+            "recovery_input_count": int(recovery_input_count),
+            "route_input_count": route_count,
+            "total_input_count": total_count,
             "recruitment_transport_count": recruitment_transport_count,
             "recruitment_action_count": action_count,
             "recruitment_dispatch_count": action_count,
@@ -346,6 +453,10 @@ def run_recruitment(
 ) -> str:
     del queue
     maximum = _maximum(lease)
+    route_maximum = _route_maximum(lease, maximum)
+    startup_recovery, recovery_input_count = _startup_recovery_context(
+        lease, maximum=maximum, route_maximum=route_maximum
+    )
     if not live:
         return json.dumps(
             {
@@ -354,6 +465,10 @@ def run_recruitment(
                 "dispatch": False,
                 "input_count": 0,
                 "max_inputs": maximum,
+                "route_max_inputs": route_maximum,
+                "recovery_input_count": 0,
+                "route_input_count": 0,
+                "total_input_count": 0,
                 "recruitment_transport_count": 0,
                 "recruitment_action_count": 0,
                 "proof_topology": "continuous",
@@ -385,7 +500,9 @@ def run_recruitment(
             adb=pnsctl.BLUESTACKS_ADB,
             serial=pnsctl.BLUESTACKS_SERIAL,
             output_directory=runtime_directory,
-            max_inputs=maximum,
+            max_inputs=route_maximum,
+            startup_recovery=startup_recovery,
+            startup_recovery_consumed_externally=recovery_input_count == 1,
             settle_seconds=float(lease.get("settle_seconds", 1.0)),
             state_session=None,
         )
@@ -397,9 +514,37 @@ def run_recruitment(
         )
         child_text = str(route_result.get("session_directory") or runtime.session)
         child = Path(child_text)
-        input_count = _retained_transport_count(child)
+        retained_route_count = _retained_transport_count(child)
         recruitment_count = _recruitment_transport_count(child)
-        route_count = int(route_result.get("input_count") or 0)
+        route_count = int(route_result.get("input_count") or retained_route_count)
+        reported_route_count = route_result.get("route_input_count")
+        if reported_route_count is not None and int(reported_route_count) != route_count:
+            raise pnsctl.OperatorError(
+                "Recruitment route result count disagrees with its route accounting"
+            )
+        reported_recovery_count = route_result.get("recovery_input_count")
+        if reported_recovery_count is not None and int(reported_recovery_count) != recovery_input_count:
+            raise pnsctl.OperatorError(
+                "Recruitment route result recovery count disagrees with the shared recovery"
+            )
+        if route_count != retained_route_count:
+            raise pnsctl.OperatorError(
+                "Recruitment route count does not match retained native transports"
+            )
+        if route_count > route_maximum:
+            raise pnsctl.OperatorError("Recruitment exceeded route_max_inputs")
+        total_count = recovery_input_count + route_count
+        if total_count > maximum:
+            raise pnsctl.OperatorError("Recruitment exceeded max_inputs")
+        reported_total_count = route_result.get("total_input_count")
+        if reported_total_count is not None and int(reported_total_count) != total_count:
+            raise pnsctl.OperatorError(
+                "Recruitment route result total disagrees with split accounting"
+            )
+        if recruitment_count > MAX_RECRUITMENT_ACTIONS:
+            raise pnsctl.OperatorError(
+                "Recruitment exceeded the full-pass recruit-action ceiling"
+            )
         source_path = outer_directory / "source.png"
         if source_path.is_file():
             retained_initial = child / "frames" / "0000-initial-observation.png"
@@ -407,20 +552,13 @@ def run_recruitment(
             retained_initial.write_bytes(source_path.read_bytes())
             initial_observation = dict(initial_observation)
             initial_observation["frame_path"] = "frames/0000-initial-observation.png"
-        if route_count != input_count:
-            raise pnsctl.OperatorError(
-                "Recruitment route count does not match retained native transports"
-            )
-        if input_count > maximum:
-            raise pnsctl.OperatorError("Recruitment exceeded max_inputs")
-        if recruitment_count > MAX_RECRUITMENT_ACTIONS:
-            raise pnsctl.OperatorError(
-                "Recruitment exceeded the full-pass recruit-action ceiling"
-            )
         payload = _result_payload(
             route_result,
             session_directory=child,
-            input_count=input_count,
+            input_count=total_count,
+            recovery_input_count=recovery_input_count,
+            route_input_count=route_count,
+            route_maximum=route_maximum,
             recruitment_transport_count=recruitment_count,
             maximum=maximum,
             registration_snapshot=registration_snapshot,
@@ -443,8 +581,9 @@ def run_recruitment(
             if runtime is not None
             else runtime_directory
         )
-        input_count = _retained_transport_count(child)
+        route_count = _retained_transport_count(child)
         recruitment_count = _recruitment_transport_count(child)
+        total_count = recovery_input_count + route_count
         retained_failure = (
             json.loads(retained_result_path.read_text(encoding="utf-8"))
             if retained_result_path is not None
@@ -454,7 +593,7 @@ def run_recruitment(
             {
                 "status": (
                     "unresolved"
-                    if input_count
+                    if route_count
                     else str(retained_failure.get("status") or "blocked")
                 ),
                 "reason": str(
@@ -465,7 +604,10 @@ def run_recruitment(
                 "terminal_home_verified": False,
             },
             session_directory=child,
-            input_count=input_count,
+            input_count=total_count,
+            recovery_input_count=recovery_input_count,
+            route_input_count=route_count,
+            route_maximum=route_maximum,
             recruitment_transport_count=recruitment_count,
             maximum=maximum,
             registration_snapshot=registration_snapshot,
@@ -475,7 +617,7 @@ def run_recruitment(
         child,
         result=payload,
         initial_observation=initial_observation,
-        transport_count=input_count,
+        transport_count=route_count,
         recruitment_transport_count=recruitment_count,
         registration_snapshot=registration_snapshot,
     )
@@ -485,14 +627,17 @@ def run_recruitment(
     payload["causal_trace"] = trace
     if hasattr(outer_session, "adopt_retained_transport_count"):
         outer_session.adopt_retained_transport_count(
-            input_count,
-            source="runtime_session/events.jsonl",
+            total_count,
+            source="shared_recovery+runtime_session/events.jsonl",
         )
+        outer_session.remember_control("recovery_input_count", recovery_input_count)
+        outer_session.remember_control("route_input_count", route_count)
+        outer_session.remember_control("total_input_count", total_count)
         outer_session.remember_control("recruitment_transport_count", recruitment_count)
         outer_session.remember_control(
             "recruitment_action_count", payload["recruitment_action_count"]
         )
-    elif int(getattr(outer_session, "input_count", 0)) != input_count:
+    elif int(getattr(outer_session, "input_count", 0)) != total_count:
         raise _pnsctl().OperatorError(
             "Recruitment input count does not match retained transports"
         )
@@ -557,6 +702,27 @@ def verify_recruitment(
         )
     except (OSError, ValueError, json.JSONDecodeError):
         trace_file_ok = False
+    recovery_count = result.get("recovery_input_count")
+    route_count = result.get("route_input_count")
+    total_count = result.get("total_input_count")
+    accounting_ok = bool(
+        type(recovery_count) is int
+        and type(route_count) is int
+        and type(total_count) is int
+        and recovery_count >= 0
+        and route_count >= 0
+        and total_count == recovery_count + route_count
+        and result.get("input_count") == total_count
+    )
+    route_maximum = result.get("route_max_inputs")
+    route_ceiling_ok = bool(
+        type(route_count) is int
+        and type(route_maximum) is int
+        and route_maximum >= 1
+        and type(result.get("max_inputs")) is int
+        and route_maximum <= result.get("max_inputs")
+        and route_count <= route_maximum
+    )
     trace_ok = bool(
         isinstance(trace, Mapping)
         and trace_file_ok
@@ -569,6 +735,9 @@ def verify_recruitment(
         and trace.get("registration_snapshot") == registration
         and trace.get("maintenance_state") == result.get("maintenance_state")
         and trace.get("transport_count") == retained_transport
+        and trace.get("recovery_input_count") == recovery_count
+        and trace.get("route_input_count") == route_count
+        and trace.get("total_input_count") == total_count
         and trace.get("recruitment_transport_count") == retained_recruitment
         and trace.get("recruitment_action_count")
         == result.get("recruitment_action_count")
@@ -581,9 +750,11 @@ def verify_recruitment(
         and result.get("proof_topology") == "continuous"
         and initial_ok
         and trace_ok
-        and retained_transport == result.get("input_count")
+        and accounting_ok
+        and route_count == retained_transport
+        and route_ceiling_ok
         and type(result.get("max_inputs")) is int
-        and retained_transport <= result.get("max_inputs")
+        and total_count <= result.get("max_inputs")
         and retained_recruitment == result.get("recruitment_transport_count")
         and retained_recruitment == result.get("recruitment_action_count")
         and retained_recruitment <= MAX_RECRUITMENT_ACTIONS
@@ -602,6 +773,9 @@ def verify_recruitment(
         "registration_snapshot_verified": registration_ok,
         "maintenance_state_verified": maintenance_state_ok,
         "retained_transport_count": retained_transport,
+        "recovery_input_count": recovery_count,
+        "route_input_count": route_count,
+        "total_input_count": total_count,
         "recruitment_transport_count": retained_recruitment,
         "reason": None
         if verified

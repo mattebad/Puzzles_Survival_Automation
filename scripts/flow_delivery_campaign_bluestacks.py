@@ -113,6 +113,7 @@ def _ensure_home_surface_before_prep(
     *,
     task_id: str = FLOW_ID,
     recovery_scope: str | None = None,
+    startup_recovery: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Leave Campaign Story surfaces via bound Base/Exit controls before Home Atlas prep.
 
@@ -135,14 +136,16 @@ def _ensure_home_surface_before_prep(
         execute=True,
     )
     probe_stage = CampaignStage(1, 20, 9)
-    from scripts.startup_recovery import recover_known_startup_overlay
-    from tasks.home_nav_recognition import recognize_home_nav
-
-    startup_recovery = recover_known_startup_overlay(
-        runtime,
-        task_id=task_id,
-        recognize_successor=lambda frame: recognize_home_nav(frame).is_home,
-        recovery_scope=recovery_scope,
+    # Startup overlays are recovered once by pnsctl before the typed route
+    # observation. This route-owned helper only normalizes Campaign surfaces.
+    startup_recovery = dict(
+        startup_recovery
+        or {
+            "status": "shared_pre_flow_startup_recovery",
+            "flow_id": task_id,
+            "recovery_scope": recovery_scope,
+            "input_count": 0,
+        }
     )
     records: list[dict[str, object]] = []
 
@@ -166,7 +169,7 @@ def _ensure_home_surface_before_prep(
                         "reason": "home_base_recognized",
                         "records": records,
                         "session": str(runtime.session),
-                        "startup_recovery": startup_recovery.to_mapping(),
+                        "startup_recovery": startup_recovery,
                     },
                     indent=2,
                     sort_keys=True,
@@ -174,7 +177,7 @@ def _ensure_home_surface_before_prep(
                 + "\n",
                 encoding="utf-8",
             )
-            return startup_recovery.to_mapping()
+            return startup_recovery
 
         if screen == CampaignScreen.STAGE_DIALOG:
             close = _target_roi(recognition, "campaign-stage-dialog-close")
@@ -250,9 +253,13 @@ def _ensure_home_surface_before_prep(
     )
 
 
-def _prepare_canonical_home(session: Path) -> None:
+def _prepare_canonical_home(
+    session: Path,
+    *,
+    startup_recovery: Mapping[str, object] | None = None,
+) -> None:
     pnsctl = _pnsctl()
-    _ensure_home_surface_before_prep(session)
+    _ensure_home_surface_before_prep(session, startup_recovery=startup_recovery)
     atlas = REPO_ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
     # Viewport reference used by checked-in zoom-out / localize tooling.
     canonical_reference = atlas.parent / "tiles" / "viewport-001.png"
@@ -377,10 +384,19 @@ def _run_campaign_navigation_execution(
     handler = CampaignNavigationHandler(destination)
     if handler.describe().flow_id != FLOW_ID:
         raise pnsctl.OperatorError("automation-service Campaign handler identity mismatch")
+    try:
+        route_maximum = int(lease.get("route_max_inputs", lease.get("max_inputs", MAX_INPUTS)))
+    except (TypeError, ValueError) as exc:
+        raise pnsctl.OperatorError("Campaign navigation route_max_inputs must be an integer") from exc
+    if not 1 <= route_maximum <= MAX_INPUTS:
+        raise pnsctl.OperatorError("Campaign navigation route_max_inputs is outside the session ceiling")
     stamp = _utc_stamp()
     session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / flow_id / f"nav-{destination}-{stamp}"
     session.mkdir(parents=True, exist_ok=False)
-    _prepare_canonical_home(session)
+    _prepare_canonical_home(
+        session,
+        startup_recovery=lease.get("startup_recovery_result"),
+    )
     command = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "bluestacks_campaign_ap.py"),
@@ -396,6 +412,8 @@ def _run_campaign_navigation_execution(
         "16",
         "--max-runs",
         "1",
+        "--max-inputs",
+        str(route_maximum),
         "--navigation-only",
         "--execute",
         "--yes",
@@ -669,6 +687,19 @@ def _campaign_maximum(lease: Mapping[str, Any]) -> int:
         raise _pnsctl().OperatorError(
             "Campaign AP continuous session requires exact 12-input cap"
         )
+    route_maximum = lease.get("route_max_inputs")
+    if route_maximum is not None:
+        try:
+            route_maximum = int(route_maximum)
+        except (TypeError, ValueError) as exc:
+            raise _pnsctl().OperatorError(
+                "Campaign AP route_max_inputs must be an integer"
+            ) from exc
+        if not 1 <= route_maximum <= maximum:
+            raise _pnsctl().OperatorError(
+                "Campaign AP route_max_inputs is outside the shared session reserve"
+            )
+        maximum = route_maximum
     return maximum
 
 
@@ -896,6 +927,9 @@ def _campaign_causal_trace(
             "canonical_home_terminal",
         ],
         "transport_count": int(result.get("campaign_transport_count") or 0),
+        "route_input_count": int(result.get("route_input_count") or 0),
+        "recovery_input_count": int(result.get("recovery_input_count") or 0),
+        "total_input_count": int(result.get("total_input_count") or result.get("input_count") or 0),
         "campaign_action_count": int(result.get("campaign_action_count") or 0),
         "event_count": len(rows),
         "status": str(result.get("status") or "unknown"),
@@ -996,6 +1030,7 @@ def _run_campaign_auto_battle_continuous(
                 lease.get("reset_id")
                 or datetime.now(timezone.utc).date().isoformat()
             ),
+            startup_recovery=lease.get("startup_recovery_result"),
         )
         preparation_input_count = _campaign_transport_count(runtime_directory)
         remaining_inputs = maximum - preparation_input_count
@@ -1067,14 +1102,16 @@ def _run_campaign_auto_battle_continuous(
             "terminal_runtime_state": "safe_blocked_terminal",
             "campaign_result": {},
         }
-    input_count = _campaign_transport_count(runtime_directory)
-    if input_count > maximum:
+    route_input_count = _campaign_transport_count(runtime_directory)
+    recovery_input_count = int(lease.get("startup_recovery_input_count") or 0)
+    input_count = recovery_input_count + route_input_count
+    if input_count > int(lease.get("max_inputs", MAX_INPUTS)):
         raise _pnsctl().OperatorError("Campaign AP exceeded max_inputs")
     payload = _campaign_result_payload(
         route_result,
         session_directory=child,
         input_count=input_count,
-        maximum=maximum,
+        maximum=int(lease.get("max_inputs", MAX_INPUTS)),
         destination=destination,
         ap_cost=ap_cost,
         registration_snapshot=registration_snapshot,
@@ -1089,6 +1126,10 @@ def _run_campaign_auto_battle_continuous(
             initial_observation["frame_path"] = (
                 "frames/0000-initial-observation.png"
             )
+    payload["campaign_transport_count"] = route_input_count
+    payload["recovery_input_count"] = recovery_input_count
+    payload["route_input_count"] = route_input_count
+    payload["total_input_count"] = input_count
     trace = _campaign_causal_trace(
         child,
         result=payload,
@@ -1097,13 +1138,20 @@ def _run_campaign_auto_battle_continuous(
     )
     payload["initial_observation"] = initial_observation
     payload["initial_frame_sha256"] = initial_observation["frame_sha256"]
+    payload["campaign_transport_count"] = route_input_count
+    payload["recovery_input_count"] = recovery_input_count
+    payload["route_input_count"] = route_input_count
+    payload["total_input_count"] = input_count
     payload["causal_trace_count"] = 1
     payload["causal_trace"] = trace
     outer_session.adopt_retained_transport_count(
         input_count,
         source="runtime_session/events.jsonl",
     )
-    outer_session.remember_control("campaign_transport_count", input_count)
+    outer_session.remember_control("campaign_transport_count", route_input_count)
+    outer_session.remember_control("recovery_input_count", recovery_input_count)
+    outer_session.remember_control("route_input_count", route_input_count)
+    outer_session.remember_control("total_input_count", input_count)
     outer_session.remember_control(
         "campaign_action_count", payload["campaign_action_count"]
     )
@@ -1199,6 +1247,26 @@ def verify_campaign_auto_battle_live(
             initial_ok = False
     transport_scope = session.parent if session.parent.name == "runtime" else session
     retained_transport = _campaign_transport_count(transport_scope)
+    recovery_raw = result.get("recovery_input_count", 0)
+    route_raw = result.get("route_input_count", result.get("campaign_transport_count"))
+    total_raw = result.get("total_input_count", result.get("input_count"))
+    recovery_input_count = recovery_raw if type(recovery_raw) is int else -1
+    route_input_count = route_raw if type(route_raw) is int else -1
+    total_input_count = total_raw if type(total_raw) is int else -1
+    accounting_ok = bool(
+        type(recovery_raw) is int
+        and type(route_raw) is int
+        and type(total_raw) is int
+        and type(result.get("input_count")) is int
+        and type(result.get("campaign_transport_count")) is int
+        and recovery_input_count >= 0
+        and route_input_count >= 0
+        and total_input_count >= 0
+        and route_input_count == retained_transport
+        and total_input_count == recovery_input_count + route_input_count
+        and total_input_count == result.get("input_count")
+        and route_input_count == result.get("campaign_transport_count")
+    )
     trace = result.get("causal_trace")
     trace_path = session / str(result.get("causal_trace_path") or "causal-trace.json")
     trace_file_ok = False
@@ -1221,6 +1289,9 @@ def verify_campaign_auto_battle_live(
         and trace.get("proof_topology") == "continuous"
         and trace.get("initial_frame_sha256") == result.get("initial_frame_sha256")
         and trace.get("transport_count") == retained_transport
+        and trace.get("route_input_count", route_input_count) == route_input_count
+        and trace.get("recovery_input_count", recovery_input_count) == recovery_input_count
+        and trace.get("total_input_count", total_input_count) == total_input_count
         and trace.get("campaign_action_count") == result.get("campaign_action_count")
     )
     registration_ok = False
@@ -1243,10 +1314,9 @@ def verify_campaign_auto_battle_live(
         and result.get("proof_topology") == "continuous"
         and initial_ok
         and trace_ok
-        and retained_transport == result.get("input_count")
-        and retained_transport == result.get("campaign_transport_count")
+        and accounting_ok
         and type(result.get("max_inputs")) is int
-        and retained_transport <= result.get("max_inputs")
+        and total_input_count <= result.get("max_inputs")
         and result.get("campaign_action_count") == 1
         and result.get("destination_match") is True
         and result.get("cost_match") is True

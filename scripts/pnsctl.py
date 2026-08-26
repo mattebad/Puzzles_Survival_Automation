@@ -771,6 +771,46 @@ def _development_session_directory(invocation_id: str) -> Path:
     return DEVELOPMENT_SESSION_ROOT / safe
 
 
+def _run_shared_startup_recovery(
+    *,
+    flow_id: str,
+    task_id: str,
+    session_directory: Path,
+    max_inputs: int,
+    recovery_scope: str | None,
+    expected_source_sha256: str | None = None,
+    runtime_holder: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Recover the exact shared startup surface within the active flow boundary."""
+    from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+    from scripts.startup_recovery import recover_known_startup_overlay
+    from tasks.home_nav_recognition import recognize_home_nav
+
+    runtime = LocalBlueStacksRuntime.connect(
+        adb=str(BLUESTACKS_ADB),
+        serial=BLUESTACKS_SERIAL,
+        output_directory=session_directory / "startup-recovery",
+        workflow=f"{flow_id.lower()}-startup-recovery",
+        execute=True,
+    )
+    if runtime_holder is not None:
+        runtime_holder["runtime"] = runtime
+    runtime.max_inputs = min(runtime.max_inputs, max_inputs, 1)
+    result = recover_known_startup_overlay(
+        runtime,
+        task_id=task_id,
+        recognize_successor=lambda frame: bool(recognize_home_nav(frame).is_home),
+        recovery_scope=recovery_scope,
+        expected_source_sha256=expected_source_sha256,
+    )
+    payload = result.to_mapping()
+    payload["flow_id"] = flow_id
+    payload["recovery_input_count"] = int(result.input_count)
+    payload["route_input_count"] = 0
+    payload["total_input_count"] = int(result.input_count)
+    return payload
+
+
 def _compact_development_action_results(
     event_rows: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -3580,6 +3620,104 @@ def development_session_run_flow(
             observation, frame = _development_runtime_observation()
             observation = dict(observation)
             observation.setdefault("frame_sha256", hashlib.sha256(frame).hexdigest())
+            from scripts.startup_recovery import classify_startup_frame
+
+            startup_recovery_plan = classify_startup_frame(flow_id, frame)
+            session.remember_control(
+                "startup_recovery_plan",
+                startup_recovery_plan.to_mapping(),
+            )
+            startup_runtime_holder: dict[str, Any] = {}
+            startup_recovery_result: dict[str, Any] | None = None
+            startup_recovery_input_count = 0
+            startup_recovery_terminal_status: str | None = None
+            if startup_recovery_plan.status != "clear":
+                # Preserve the source before any recovery attempt. The route's
+                # source.png is written later from a post-recovery frame.
+                (session_directory / "startup-source.png").write_bytes(frame)
+                session.remember_control(
+                    "startup_source_sha256", hashlib.sha256(frame).hexdigest()
+                )
+            if (
+                live
+                and startup_recovery_plan.status == "recovery_required"
+                and startup_recovery_plan.recovery_owner
+                in {
+                    "shared_home_startup_recovery",
+                    "shared_startup_surface_recovery",
+                }
+            ):
+                startup_recovery_result = _run_shared_startup_recovery(
+                    flow_id=flow_id,
+                    task_id=str(task_id or flow_id),
+                    session_directory=session_directory,
+                    max_inputs=max_inputs,
+                    recovery_scope=runtime_scope,
+                    expected_source_sha256=str(observation["frame_sha256"]),
+                    runtime_holder=startup_runtime_holder,
+                )
+                startup_recovery_input_count = int(
+                    startup_recovery_result.get("recovery_input_count")
+                    or startup_recovery_result.get("input_count")
+                    or 0
+                )
+                recovery_status = str(startup_recovery_result.get("status") or "")
+                if recovery_status == "evidence_required" and startup_recovery_input_count == 1:
+                    startup_recovery_terminal_status = "evidence_required"
+                elif recovery_status not in {
+                    "surface_dismissed_successor_captured",
+                    "recovered",
+                } or startup_recovery_input_count != 1:
+                    session.blocker = str(
+                        startup_recovery_result.get("reason")
+                        or "shared startup recovery did not reconcile"
+                    )
+                    session.next_action = (
+                        "retain startup recovery evidence; identical retry is denied"
+                    )
+                    raise OperatorError(session.blocker)
+                session.remember_control(
+                    "startup_recovery_result", startup_recovery_result
+                )
+                session.remember_control(
+                    "recovery_input_count", startup_recovery_input_count
+                )
+                if startup_recovery_input_count >= max_inputs:
+                    session.blocker = None
+                    session.next_action = (
+                        "startup recovery completed; route execution was intentionally not run"
+                    )
+                    startup_recovery_terminal_status = "completed"
+                # The route initial observation is always captured after the final
+                # shared recovery input settles, never from the promotional source.
+                startup_runtime = startup_runtime_holder.get("runtime")
+                if startup_runtime is not None:
+                    post = startup_runtime.capture(
+                        "startup-recovery-route-initial-observation"
+                    )
+                    frame = post.png
+                    observation = {
+                        "device_state": "device",
+                        "foreground_package": PACKAGE,
+                        "native_width": BLUESTACKS_NATIVE_WIDTH,
+                        "native_height": BLUESTACKS_NATIVE_HEIGHT,
+                        "frame_sha256": post.sha256,
+                    }
+                else:
+                    observation, frame = _development_runtime_observation()
+                    observation = dict(observation)
+                    observation.setdefault("frame_sha256", hashlib.sha256(frame).hexdigest())
+            if live and startup_recovery_plan.status == "blocked":
+                (session_directory / "source.png").write_bytes(frame)
+                session.blocker = startup_recovery_plan.reason
+                session.next_action = (
+                    "retain the frame and repair exact startup recognition"
+                )
+                raise OperatorError(startup_recovery_plan.reason)
+            if startup_recovery_input_count:
+                os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = str(
+                    max_inputs - startup_recovery_input_count
+                )
             (session_directory / "source.png").write_bytes(frame)
             initial_observation = DevelopmentInitialObservation(
                 observation=observation,
@@ -3589,19 +3727,6 @@ def development_session_run_flow(
             )
             session.set_initial_observation(initial_observation)
             session.remember_control("initial_observation_bound", True)
-            from scripts.startup_recovery import classify_startup_frame
-
-            startup_recovery_plan = classify_startup_frame(flow_id, frame)
-            session.remember_control(
-                "startup_recovery_plan",
-                startup_recovery_plan.to_mapping(),
-            )
-            if live and startup_recovery_plan.status == "blocked":
-                session.blocker = startup_recovery_plan.reason
-                session.next_action = (
-                    "register an exact route-owned startup recovery before live input"
-                )
-                raise OperatorError(startup_recovery_plan.reason)
             for key, value in (
                 ("viewport_signature", None),
                 ("list_signature", None),
@@ -3612,6 +3737,17 @@ def development_session_run_flow(
                 ("pending_semantic_intent", None),
             ):
                 session.remember_control(key, value)
+            if startup_recovery_terminal_status is not None:
+                session.terminal_status = startup_recovery_terminal_status
+                if startup_recovery_terminal_status == "evidence_required":
+                    session.blocker = str(
+                        startup_recovery_result.get("reason")
+                        if startup_recovery_result is not None
+                        else "evidence_required_unknown_startup_successor"
+                    )
+                    session.next_action = (
+                        "retain startup recovery successor evidence; route dispatch is denied"
+                    )
             if flow_id == "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION" and live:
                 produced = _produce_resource_runtime_identity(
                     session=session,
@@ -3661,6 +3797,9 @@ def development_session_run_flow(
                     and flow_id == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
                 ),
                 "max_inputs": max_inputs,
+                "route_max_inputs": max_inputs - startup_recovery_input_count,
+                "startup_recovery_result": startup_recovery_result,
+                "startup_recovery_input_count": startup_recovery_input_count,
                 "nova_identity": nova_identity,
                 "nova_reset_id": (
                     nova_identity.reset_id if nova_identity is not None else None
@@ -3680,7 +3819,39 @@ def development_session_run_flow(
                     resource_runtime_components["runtime_factory"]
                 )
             runner = _BLUESTACKS_FLOW_RUNNERS[contract["runner"]]
-            if "live" in inspect.signature(runner).parameters:
+            if startup_recovery_terminal_status is not None:
+                recovery_session = startup_runtime_holder.get("runtime")
+                raw = json.dumps(
+                    {
+                        "status": startup_recovery_terminal_status,
+                        "flow_id": flow_id,
+                        "reason": str(
+                            session.blocker
+                            or "startup_recovery_completed_route_not_run"
+                        ),
+                        "dispatch": startup_recovery_input_count > 0,
+                        "completion_scope": "startup_recovery_only",
+                        "route_dispatch": False,
+                        "session_directory": "",
+                        "startup_recovery_session_directory": str(
+                            getattr(recovery_session, "session", "")
+                        ),
+                        "input_count": startup_recovery_input_count,
+                        "recovery_input_count": startup_recovery_input_count,
+                        "route_input_count": 0,
+                        "total_input_count": startup_recovery_input_count,
+                        "terminal_home_verified": bool(
+                            startup_recovery_terminal_status == "completed"
+                            and recovery_status
+                            in {
+                                "surface_dismissed_successor_captured",
+                                "recovered",
+                            }
+                        ),
+                    },
+                    sort_keys=True,
+                )
+            elif "live" in inspect.signature(runner).parameters:
                 raw = runner(queue_context, runtime_context, live=live)
             elif live:
                 raw = runner(queue_context, runtime_context)
@@ -3709,7 +3880,7 @@ def development_session_run_flow(
                             event_rows.append(row)
             retained_action_rows = _compact_development_action_results(event_rows)
             action_rows = list(session.actions) or retained_action_rows
-            retained_count = (
+            route_retained_count = (
                 _retained_transport_count(event_rows)
                 if transport_evidence_available
                 else int(session.input_count)
@@ -3720,21 +3891,22 @@ def development_session_run_flow(
                     raise OperatorError(
                         "Campaign AP route did not report retained transport accounting"
                     )
-                retained_count = campaign_retained
+                route_retained_count = campaign_retained
             if flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION" and live:
                 troop_retained = result.get("troop_training_transport_count")
                 if type(troop_retained) is not int or troop_retained < 0:
                     raise OperatorError(
                         "Troop Training route did not report retained transport accounting"
                     )
-                retained_count = troop_retained
+                route_retained_count = troop_retained
             if flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION":
                 ultimate_retained = result.get("retained_transport_count")
                 if type(ultimate_retained) is not int or ultimate_retained < 0:
                     raise OperatorError(
                         "Ultimate terminal route did not report retained transport accounting"
                     )
-                retained_count = ultimate_retained
+                route_retained_count = ultimate_retained
+            retained_count = startup_recovery_input_count + route_retained_count
             if retained_count > max_inputs:
                 raise OperatorError("development session exceeded its input limit")
             if session.input_count == 0 and retained_count:
@@ -3755,7 +3927,15 @@ def development_session_run_flow(
                     for row in action_rows:
                         handle.write(json.dumps(row, sort_keys=True) + "\n")
             result_status = str(result.get("status") or "unknown")
-            if result.get("effect_reconciliation_required") is True:
+            if result_status == "evidence_required":
+                session.terminal_status = "evidence_required"
+                session.blocker = str(
+                    result.get("reason") or "evidence_required"
+                )
+                session.next_action = (
+                    "retain startup recovery successor evidence; route dispatch is denied"
+                )
+            elif result.get("effect_reconciliation_required") is True:
                 session.terminal_status = "effect_reconciliation_required"
                 session.blocker = "effect_reconciliation_required"
                 session.next_action = (
@@ -3780,6 +3960,10 @@ def development_session_run_flow(
                 "session_directory": str(session_directory),
                 "runtime_session_directory": child_text,
                 "input_count": dispatch_count,
+                "recovery_input_count": startup_recovery_input_count,
+                "route_input_count": route_retained_count,
+                "total_input_count": dispatch_count,
+                "startup_recovery_result": startup_recovery_result,
                 "max_inputs": max_inputs,
                 "chest_continuation": str(chest_continuation)
                 if chest_continuation is not None

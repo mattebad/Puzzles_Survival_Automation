@@ -71,7 +71,7 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
             },
         }
 
-    def _events(self, child: Path) -> None:
+    def _events(self, child: Path, *, count: int = 5) -> None:
         events = [
             {
                 "type": "dispatch",
@@ -104,6 +104,15 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
                 "target_identity": "noahs-tavern-safe-exit",
             },
         ]
+        for ordinal in range(len(events) + 1, count + 1):
+            events.append(
+                {
+                    "type": "dispatch",
+                    "execute": True,
+                    "action_key": f"noah:route:{ordinal}",
+                    "target_identity": "noah-route-extra",
+                }
+            )
         (child / "events.jsonl").write_text(
             "".join(json.dumps(event) + "\n" for event in events),
             encoding="utf-8",
@@ -206,12 +215,18 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
                 self.assertIs(initial, session.initial_observation)
                 self.assertEqual(result["status"], "completed")
                 self.assertEqual(result["input_count"], 5)
+                self.assertEqual(result["recovery_input_count"], 0)
+                self.assertEqual(result["route_input_count"], 5)
+                self.assertEqual(result["total_input_count"], 5)
                 self.assertEqual(result["recruitment_transport_count"], 1)
                 self.assertEqual(result["recruitment_action_count"], 1)
                 self.assertEqual(result["causal_trace_count"], 1)
                 self.assertTrue(result["causal_trace"]["read_only"])
                 self.assertFalse(result["causal_trace"]["input_authority"])
                 self.assertEqual(result["causal_trace"]["transport_count"], 5)
+                self.assertEqual(result["causal_trace"]["recovery_input_count"], 0)
+                self.assertEqual(result["causal_trace"]["route_input_count"], 5)
+                self.assertEqual(result["causal_trace"]["total_input_count"], 5)
                 self.assertEqual(session.causal_trace, result["causal_trace"])
                 verdict = delivery.verify_recruitment(
                     {"result": result, "session_directory": str(child)}, {}, {}
@@ -226,6 +241,68 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
                     {"result": forged, "session_directory": str(child)}, {}, {}
                 )
                 self.assertEqual(forged_verdict["status"], "evidence_required")
+            finally:
+                session.__exit__(None, None, None)
+
+    def test_shared_recovery_uses_reduced_route_cap_and_reconciles_total(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session, initial = self._session(root)
+            child = root / "outer" / "runtime"
+            child.mkdir(parents=True)
+            self._events(child, count=11)
+            startup_recovery = {
+                "status": "surface_dismissed_successor_captured",
+                "input_count": 1,
+                "recovery_input_count": 1,
+            }
+            lease = {
+                "owner": session.owner,
+                "development_session": session,
+                "initial_observation": initial,
+                "initial_frame_sha256": initial.frame_sha256,
+                "max_inputs": delivery.MAX_INPUTS,
+                "route_max_inputs": 11,
+                "startup_recovery_input_count": 1,
+                "startup_recovery_result": startup_recovery,
+                "account_id": "account",
+                "server_id": "server",
+                "reset_id": "reset",
+                "registration_snapshot": self._registration(),
+            }
+            route_result = {
+                "status": "completed",
+                "reason": "verified_safe_return_home",
+                "actions_completed": 1,
+                "session_directory": str(child),
+                "input_count": 11,
+                "route_input_count": 11,
+                "recovery_input_count": 1,
+                "terminal_home_verified": True,
+                "maintenance_state": self._maintenance_state(),
+            }
+            try:
+                with (
+                    patch.object(
+                        delivery.LocalBlueStacksRuntime,
+                        "connect",
+                        return_value=SimpleNamespace(session=child),
+                    ),
+                    patch(
+                        "scripts.noahs_tavern_recruit_bluestacks.run_noahs_tavern_unified_recruitment",
+                        return_value=json.dumps(route_result),
+                    ) as run_route,
+                ):
+                    result = json.loads(delivery.run_recruitment({}, lease, live=True))
+                route_args = run_route.call_args.args[0]
+                self.assertEqual(route_args.max_inputs, 11)
+                self.assertEqual(route_args.startup_recovery, startup_recovery)
+                self.assertTrue(route_args.startup_recovery_consumed_externally)
+                self.assertEqual(result["recovery_input_count"], 1)
+                self.assertEqual(result["route_input_count"], 11)
+                self.assertEqual(result["total_input_count"], 12)
+                self.assertEqual(result["input_count"], 12)
+                self.assertEqual(session.input_count, 12)
             finally:
                 session.__exit__(None, None, None)
 
