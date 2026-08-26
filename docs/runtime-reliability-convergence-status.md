@@ -2039,3 +2039,31 @@ Phase 5 occurrence. Phase 5 therefore closes truthfully as
 `blocked_evidence_required`; it is not repeated or relabeled as accepted.
 Phase 6 Troop Training may be frozen independently. Phase 7 remains restricted
 to PvP/player-attack automation and remains unauthorized.
+
+## Stage 10 phase 6 Troop Training blocked disposition
+
+Revision `runtime-reliability-stage-10-phase-6-troop-training-r1` evaluated
+`TROOP-TRAINING-END-TO-END-CONSOLIDATION` as the queue-generation
+representative. The existing production adapter permits at most one
+dispatch-bearing canary through `MAX_DISPATCH_BEARING_CANARY_RUNS=1` and
+performs a fail-closed recursive audit of retained result and native event
+artifacts before route execution.
+
+The pre-freeze read-only audit returned 37 dispatch-bearing artifacts under
+`.local-captures/flow-delivery/TROOP-TRAINING-END-TO-END-CONSOLIDATION`.
+Those artifacts are immutable historical evidence. They were not deleted,
+archived away, reclassified, or ignored to manufacture eligibility. Seventeen
+focused entry tests and 33 gameplay-contract tests passed; broader flow and
+controller invocations emitted no failure but did not terminate inside the
+foreground validation window. The checked-in production registry remained
+fully disabled, no scheduler occurrence was selected, no DevelopmentSession or
+runtime owner was created, and Phase 6 issued zero native inputs and zero Train
+actions.
+
+Parent classification is `prior_canary_budget_exhausted`. Phase 6 closes
+truthfully as `blocked_evidence_required` without a new live attempt. A future
+promotion would still require fresh queue-generation identity, exact
+free-slot/tier/quantity/timer successor evidence, total-input accounting,
+forbidden premium/speedup/resource-box denial, and canonical Home, but this
+program cannot bypass the already-exhausted one-canary fence. Stage 11 final
+reconciliation may proceed.
