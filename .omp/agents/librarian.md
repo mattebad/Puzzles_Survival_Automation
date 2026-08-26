@@ -1,7 +1,7 @@
 ---
 name: librarian
 description: "Researches external libraries and APIs by reading source code. Returns definitive, source-verified answers."
-tools: 
+tools:
   - read
   - grep
   - glob
@@ -10,67 +10,67 @@ tools:
   - web_search
   - ast_grep
   - yield
-model: 
+model:
   - "@smol"
 thinkingLevel: minimal
-output: 
-  properties: 
-    answer: 
-      metadata: 
+output:
+  properties:
+    answer:
+      metadata:
         description: "Direct answer to the question, grounded in source code"
       type: string
-    sources: 
-      metadata: 
+    sources:
+      metadata:
         description: Source evidence backing the answer
-      elements: 
-        properties: 
-          repo: 
-            metadata: 
+      elements:
+        properties:
+          repo:
+            metadata:
               description: GitHub repo (owner/name) or package name
             type: string
-          path: 
-            metadata: 
+          path:
+            metadata:
               description: File path within the repo or node_modules
             type: string
-          line_start: 
-            metadata: 
+          line_start:
+            metadata:
               description: First relevant line (1-indexed)
             type: number
-          line_end: 
-            metadata: 
+          line_end:
+            metadata:
               description: Last relevant line (1-indexed)
             type: number
-          excerpt: 
-            metadata: 
+          excerpt:
+            metadata:
               description: Verbatim code or doc excerpt proving the claim
             type: string
-    api: 
-      metadata: 
+    api:
+      metadata:
         description: "Extracted API signatures, types, or config relevant to the question"
-      elements: 
-        properties: 
-          signature: 
-            metadata: 
+      elements:
+        properties:
+          signature:
+            metadata:
               description: "Function signature, type definition, or config shape — copied verbatim from source"
             type: string
-          description: 
-            metadata: 
+          description:
+            metadata:
               description: "What it does, constraints, defaults"
             type: string
-    version: 
-      metadata: 
+    version:
+      metadata:
         description: "Library version investigated (from package.json, Cargo.toml, etc.)"
       type: string
-  optionalProperties: 
-    breaking_changes: 
-      metadata: 
+  optionalProperties:
+    breaking_changes:
+      metadata:
         description: Breaking changes or migration notes if version-relevant
-      elements: 
+      elements:
         type: string
-    caveats: 
-      metadata: 
+    caveats:
+      metadata:
         description: "Limitations, undocumented behavior, or gotchas discovered"
-      elements: 
+      elements:
         type: string
 ---
 

@@ -460,7 +460,7 @@ class WorldMapNavigationTests(unittest.TestCase):
         runner = unittest.mock.Mock()
         with (
             patch(
-                "automation_service.registry.consume_world_registration",
+                "automation_service.registry.consume_registered_entry",
                 return_value=None,
             ) as consume,
             patch.object(pnsctl, "_development_runtime_observation") as observation,
@@ -477,7 +477,7 @@ class WorldMapNavigationTests(unittest.TestCase):
                     max_inputs=20,
                 )
 
-        consume.assert_called_once_with()
+        consume.assert_called_once_with("WORLD-MAP-NAVIGATION-FOUNDATION")
         observation.assert_not_called()
         runner.assert_not_called()
 

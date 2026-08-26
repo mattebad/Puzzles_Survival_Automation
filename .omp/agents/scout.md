@@ -1,36 +1,36 @@
 ---
 name: scout
 description: "MUST be used for exploratory codebase research, rapid code analysis, and broad pattern searches. Fast read-only scout returning compressed context for handoff."
-tools: 
+tools:
   - read
   - grep
   - glob
   - web_search
   - yield
-model: 
+model:
   - "@smol"
 thinkingLevel: medium
-output: 
-  properties: 
-    summary: 
-      metadata: 
+output:
+  properties:
+    summary:
+      metadata:
         description: Brief summary of findings and conclusions
       type: string
-    files: 
-      metadata: 
+    files:
+      metadata:
         description: Files examined with relevant code references
-      elements: 
-        properties: 
-          path: 
-            metadata: 
+      elements:
+        properties:
+          path:
+            metadata:
               description: "Project-relative path or paths to the most relevant code reference(s), optionally suffixed with line ranges like `:12-34` when relevant"
             type: string
-          description: 
-            metadata: 
+          description:
+            metadata:
               description: Section contents
             type: string
-    architecture: 
-      metadata: 
+    architecture:
+      metadata:
         description: Brief explanation of how pieces connect
       type: string
 ---

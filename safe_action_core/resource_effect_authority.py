@@ -4387,8 +4387,3 @@ __all__ = [
     "append_historical_block_resolution",
     "get_resource_transport_outcome",
 ]
-
-
-
-
-

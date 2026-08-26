@@ -1,7 +1,7 @@
 ---
 name: designer
 description: "UI/UX specialist for design implementation, review, visual refinement"
-model: 
+model:
   - "@designer"
 ---
 

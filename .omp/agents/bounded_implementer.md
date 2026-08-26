@@ -15,5 +15,3 @@ Execute only the bounded package assigned by the Sol parent.
 - Keep mutation serial. Do not spawn subagents.
 - Run the assigned focused validation and return changed paths, evidence, residual risks, and any parent decision required.
 - Stop on contradictory authority, invalid prerequisites, out-of-scope ownership, or a required cross-contract decision.
-
-
