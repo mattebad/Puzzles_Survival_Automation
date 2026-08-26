@@ -656,70 +656,32 @@ class NavigationDevelopmentBoundaryTests(unittest.TestCase):
             self.assertNotIn("transport_observed", audit_text)
             self.assertNotIn('"authorized": true', audit_text.lower())
 
-    def test_bluestacks_run_flow_live_acquires_shared_session_before_admission(self) -> None:
+    def test_bluestacks_run_flow_live_is_retired_before_runtime_or_state(self) -> None:
         import scripts.pnsctl as pnsctl
 
-        order: list[str] = []
-
-        class FakeSession:
-            def __init__(self, **kwargs):
-                order.append("session_init")
-
-            def __enter__(self):
-                order.append("session_enter")
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                order.append("session_exit")
-                return False
-
-        with patch.object(pnsctl, "BLUESTACKS_FLOW_IDS", ("FLOW-X",)):
-            with patch.object(
-                pnsctl,
-                "_load_bluestacks_flow_registry",
-                return_value={"FLOW-X": {"runner": "runner-x"}},
+        with tempfile.TemporaryDirectory() as directory:
+            artifact_root = Path(directory) / "artifacts"
+            with (
+                patch.object(pnsctl, "BLUESTACKS_FLOW_IDS", ("FLOW-X",)),
+                patch.object(pnsctl, "_load_bluestacks_flow_registry") as registry,
+                patch.object(pnsctl, "_load_flow_delivery_state") as state,
+                patch.object(pnsctl, "_development_runtime_observation") as observe,
+                patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", artifact_root),
+                patch.dict(
+                    pnsctl._BLUESTACKS_FLOW_RUNNERS,
+                    {"runner-x": lambda _queue, _lease: "unexpected"},
+                ),
             ):
-                with patch.dict(pnsctl._BLUESTACKS_FLOW_RUNNERS, {"runner-x": lambda q, l: "ok"}):
-                    with patch(
-                        "scripts.navigation_development_boundary.NavigationDevelopmentSession",
-                        FakeSession,
-                    ):
-                        with patch.object(
-                            pnsctl,
-                            "_load_flow_delivery_state",
-                            side_effect=lambda: (
-                                order.append("admission")
-                                or (
-                                    {
-                                        "active_flow_id": "FLOW-X",
-                                        "flows": [
-                                            {
-                                                "flow_id": "FLOW-X",
-                                                "last_completed_stage": "live_execution",
-                                            }
-                                        ],
-                                    },
-                                    {"workflow": "pns-flow-delivery"},
-                                )
-                            ),
-                        ):
-                            with tempfile.TemporaryDirectory() as directory, patch.object(
-                                pnsctl,
-                                "BLUESTACKS_ARTIFACT_ROOT",
-                                Path(directory),
-                            ), patch.object(
-                                pnsctl,
-                                "_development_runtime_observation",
-                                return_value=({"frame_sha256": "a" * 64}, b"png"),
-                            ):
-                                result = pnsctl.bluestacks_run_flow(
-                                    "FLOW-X", live=True
-                                )
-        self.assertEqual(result, "ok")
-        self.assertEqual(order[0], "session_init")
-        self.assertEqual(order[1], "session_enter")
-        self.assertIn("admission", order)
-        self.assertLess(order.index("session_enter"), order.index("admission"))
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError,
+                    "legacy bluestacks run-flow --live is retired",
+                ):
+                    pnsctl.bluestacks_run_flow("FLOW-X", live=True)
+
+            registry.assert_not_called()
+            state.assert_not_called()
+            observe.assert_not_called()
+            self.assertFalse(artifact_root.exists())
 
     def test_settle_successor_only_observes_and_preserves_typed_states(self) -> None:
         captures: list[str] = []

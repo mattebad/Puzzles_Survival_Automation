@@ -931,6 +931,10 @@ class DevelopmentSessionTests(unittest.TestCase):
             )
             self.assertEqual(summary["status"], "completed")
             self.assertEqual(summary["input_count"], 1)
+            self.assertTrue(result["terminal_home_verified"])
+            self.assertTrue(summary["terminal_home_verified"])
+            self.assertEqual(summary["control_memory"]["terminal_home_verified"], True)
+            self.assertTrue(summary["ownership_released"])
             self.assertNotIn("blocker", summary)
             self.assertEqual(
                 summary["next_action"],
@@ -1000,7 +1004,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             ):
                 result = json.loads(
                     pnsctl.development_session_run_flow(
-                        "FLOW", live=True, yes=True, max_inputs=3
+                        "FLOW", live=True, yes=True, max_inputs=1
                     )
                 )
 
@@ -1009,6 +1013,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             self.assertEqual(result["recovery_input_count"], 1)
             self.assertEqual(result["route_input_count"], 0)
             self.assertEqual(result["total_input_count"], 1)
+            self.assertFalse(result["result"]["terminal_home_verified"])
             summary = json.loads(
                 (Path(result["session_directory"]) / "summary.json").read_text(
                     encoding="utf-8"
@@ -1017,6 +1022,12 @@ class DevelopmentSessionTests(unittest.TestCase):
             self.assertEqual(summary["status"], "evidence_required")
             self.assertEqual(
                 summary["blocker"], "evidence_required_unknown_scarlett_successor"
+            )
+            self.assertFalse(result["terminal_home_verified"])
+            self.assertFalse(summary["terminal_home_verified"])
+            self.assertTrue(summary["ownership_released"])
+            self.assertFalse(
+                summary["control_memory"]["terminal_home_verified"]
             )
 
     def test_pnsctl_flow_session_avoids_queue_and_preserves_checkpoint_artifacts(self):

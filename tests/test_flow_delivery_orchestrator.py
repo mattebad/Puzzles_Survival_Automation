@@ -995,6 +995,24 @@ class BlueStacksOperatorContractTests(unittest.TestCase):
         state.assert_not_called()
         run.assert_not_called()
 
+    def test_run_flow_live_is_retired_before_observation_or_admission(self) -> None:
+        with (
+            patch("scripts.pnsctl._load_bluestacks_flow_registry") as registry,
+            patch("scripts.pnsctl._load_flow_delivery_state") as state,
+            patch("scripts.pnsctl._development_runtime_observation") as observe,
+        ):
+            with self.assertRaisesRegex(
+                pnsctl.OperatorError,
+                "legacy bluestacks run-flow --live is retired",
+            ):
+                pnsctl.bluestacks_run_flow(
+                    "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+                    live=True,
+                )
+        registry.assert_not_called()
+        state.assert_not_called()
+        observe.assert_not_called()
+
     def test_contract_fixes_private_serial_geometry_and_artifact_root(self) -> None:
         self.assertEqual(pnsctl.BLUESTACKS_SERIAL, "emulator-5554")
         self.assertEqual(

@@ -3631,6 +3631,7 @@ def development_session_run_flow(
             startup_recovery_result: dict[str, Any] | None = None
             startup_recovery_input_count = 0
             startup_recovery_terminal_status: str | None = None
+            startup_recovery_terminal_home_verified: bool | None = None
             if startup_recovery_plan.status != "clear":
                 # Preserve the source before any recovery attempt. The route's
                 # source.png is written later from a post-recovery frame.
@@ -3682,7 +3683,14 @@ def development_session_run_flow(
                 session.remember_control(
                     "recovery_input_count", startup_recovery_input_count
                 )
-                if startup_recovery_input_count >= max_inputs:
+                if (
+                    startup_recovery_input_count >= max_inputs
+                    and recovery_status
+                    in {
+                        "surface_dismissed_successor_captured",
+                        "recovered",
+                    }
+                ):
                     session.blocker = None
                     session.next_action = (
                         "startup recovery completed; route execution was intentionally not run"
@@ -3739,6 +3747,17 @@ def development_session_run_flow(
                 session.remember_control(key, value)
             if startup_recovery_terminal_status is not None:
                 session.terminal_status = startup_recovery_terminal_status
+                startup_recovery_terminal_home_verified = (
+                    startup_recovery_terminal_status == "completed"
+                    and recovery_status
+                    in {
+                        "surface_dismissed_successor_captured",
+                        "recovered",
+                    }
+                )
+                session.remember_control(
+                    "terminal_home_verified", startup_recovery_terminal_home_verified
+                )
                 if startup_recovery_terminal_status == "evidence_required":
                     session.blocker = str(
                         startup_recovery_result.get("reason")
@@ -3840,14 +3859,7 @@ def development_session_run_flow(
                         "recovery_input_count": startup_recovery_input_count,
                         "route_input_count": 0,
                         "total_input_count": startup_recovery_input_count,
-                        "terminal_home_verified": bool(
-                            startup_recovery_terminal_status == "completed"
-                            and recovery_status
-                            in {
-                                "surface_dismissed_successor_captured",
-                                "recovered",
-                            }
-                        ),
+                        "terminal_home_verified": startup_recovery_terminal_home_verified,
                     },
                     sort_keys=True,
                 )
@@ -3998,8 +4010,22 @@ def development_session_run_flow(
                 wrapper["receipt_id"] = delegated_receipt_payload["receipt_id"]
                 wrapper["receipt_digest"] = delegated_receipt_payload["receipt_digest"]
                 wrapper["evidence_result_identity"] = delegated_context.result_identity
+            if startup_recovery_terminal_home_verified is not None:
+                wrapper["terminal_home_verified"] = (
+                    startup_recovery_terminal_home_verified
+                )
             (session_directory / "result.json").write_text(
                 json.dumps(wrapper, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+        if startup_recovery_terminal_home_verified is not None:
+            summary_path = session_directory / "summary.json"
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            summary["terminal_home_verified"] = (
+                startup_recovery_terminal_home_verified
+            )
+            summary_path.write_text(
+                json.dumps(summary, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
             )
         if delegated_context is not None:
             if (
@@ -4203,77 +4229,36 @@ def bluestacks_dismiss_reload_overlay(
 def bluestacks_run_flow(flow_id: str, *, live: bool) -> str:
     if flow_id not in BLUESTACKS_FLOW_IDS:
         raise OperatorError("flow ID is not in the checked-in BlueStacks allowlist")
+    if live:
+        raise OperatorError(
+            "legacy bluestacks run-flow --live is retired; use development-session run-flow"
+        )
     contract = _load_bluestacks_flow_registry().get(flow_id)
     if contract is None or contract["runner"] not in _BLUESTACKS_FLOW_RUNNERS:
         raise OperatorError("FLOW_DELIVERY_RUNNER_UNAVAILABLE")
-    if not live:
-        if flow_id == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
-            queue, lease = _load_flow_delivery_state(require_runtime_held=False)
-            if queue["active_flow_id"] != flow_id:
-                raise OperatorError("only the active development flow may run")
-            if lease.get("active_stage") not in {
-                "focused_validation",
-                "live_preflight",
-            }:
-                raise OperatorError(
-                    "Ruins zero-transport replay requires focused validation or live preflight"
-                )
-            return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](
-                queue, lease, live=False
-            )
-        return json.dumps(
-            {
-                "status": "dry_run",
-                "flow_id": flow_id,
-                "runner": contract["runner"],
-                "dispatch": False,
-            },
-            sort_keys=True,
-        )
-    from scripts.navigation_development_boundary import NavigationDevelopmentSession
-
-    owner = f"pnsctl-bluestacks-run-flow:{flow_id}"
-    invocation_id = (
-        f"{flow_id}:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
-    )
-    with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
-        queue, lease = _load_flow_delivery_state()
+    if flow_id == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
+        queue, lease = _load_flow_delivery_state(require_runtime_held=False)
         if queue["active_flow_id"] != flow_id:
             raise OperatorError("only the active development flow may run")
-        flow = next(item for item in queue["flows"] if item["flow_id"] == flow_id)
-        if flow.get("last_completed_stage") != "live_execution":
+        if lease.get("active_stage") not in {
+            "focused_validation",
+            "live_preflight",
+        }:
             raise OperatorError(
-                "controller has not admitted the flow to live_execution"
+                "Ruins zero-transport replay requires focused validation or live preflight"
             )
-        from scripts.startup_recovery import classify_startup_frame
-
-        observation, frame_bytes = _development_runtime_observation()
-        startup_recovery_plan = classify_startup_frame(flow_id, frame_bytes)
-        startup_session = (
-            BLUESTACKS_ARTIFACT_ROOT
-            / flow_id
-            / f"startup-observation-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+        return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](
+            queue, lease, live=False
         )
-        startup_session.mkdir(parents=True, exist_ok=False)
-        (startup_session / "source.png").write_bytes(frame_bytes)
-        (startup_session / "startup-recovery-plan.json").write_text(
-            json.dumps(
-                {
-                    "observation": observation,
-                    "plan": startup_recovery_plan.to_mapping(),
-                },
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        if startup_recovery_plan.status == "blocked":
-            raise OperatorError(startup_recovery_plan.reason)
-        lease = dict(lease)
-        lease["startup_recovery_plan"] = startup_recovery_plan.to_mapping()
-        lease["startup_recovery_evidence"] = str(startup_session)
-        return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](queue, lease)
+    return json.dumps(
+        {
+            "status": "dry_run",
+            "flow_id": flow_id,
+            "runner": contract["runner"],
+            "dispatch": False,
+        },
+        sort_keys=True,
+    )
 
 
 def _session_relative_path(session: Path, value: Any, field: str) -> Path:
