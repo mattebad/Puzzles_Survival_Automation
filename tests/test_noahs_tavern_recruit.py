@@ -28,6 +28,7 @@ from tasks.noahs_tavern_recruit_runtime import NoahAction, NoahTavernRecruitRunt
 from tasks.noahs_tavern_recruit_vision import recognize_noahs_tavern_frame
 from scripts.noahs_tavern_recruit_bluestacks import (
     BlueStacksNoahsTavernRecruitAdapter,
+    _apply_startup_recovery_input_reserve,
     _atlas_canonical_home,
     _write_unified_result,
     recognize_home_zoom_source,
@@ -120,6 +121,49 @@ class NoahFixtures:
 
 
 class NoahContractTests(unittest.TestCase):
+    def test_popup_absent_preserves_twelve_input_route_cap(self):
+        runtime = SimpleNamespace(max_inputs=12)
+
+        allowance = _apply_startup_recovery_input_reserve(
+            runtime,
+            route_input_cap=12,
+            configured_input_cap=40,
+            recovery_status="not_present",
+            recovery_input_count=0,
+        )
+
+        self.assertEqual(allowance, 0)
+        self.assertEqual(runtime.max_inputs, 12)
+
+    def test_confirmed_popup_unlocks_one_recovery_input(self):
+        runtime = SimpleNamespace(max_inputs=12)
+
+        allowance = _apply_startup_recovery_input_reserve(
+            runtime,
+            route_input_cap=12,
+            configured_input_cap=40,
+            recovery_status="recovered",
+            recovery_input_count=1,
+        )
+
+        self.assertEqual(allowance, 1)
+        self.assertEqual(runtime.max_inputs, 13)
+
+    def test_recovery_reserve_respects_configured_ceiling(self):
+        runtime = SimpleNamespace(max_inputs=12)
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "cannot accommodate startup recovery",
+        ):
+            _apply_startup_recovery_input_reserve(
+                runtime,
+                route_input_cap=12,
+                configured_input_cap=12,
+                recovery_status="recovered",
+                recovery_input_count=1,
+            )
+
     def setUp(self):
         self.f = NoahFixtures()
 

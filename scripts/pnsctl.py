@@ -3589,6 +3589,19 @@ def development_session_run_flow(
             )
             session.set_initial_observation(initial_observation)
             session.remember_control("initial_observation_bound", True)
+            from scripts.startup_recovery import classify_startup_frame
+
+            startup_recovery_plan = classify_startup_frame(flow_id, frame)
+            session.remember_control(
+                "startup_recovery_plan",
+                startup_recovery_plan.to_mapping(),
+            )
+            if live and startup_recovery_plan.status == "blocked":
+                session.blocker = startup_recovery_plan.reason
+                session.next_action = (
+                    "register an exact route-owned startup recovery before live input"
+                )
+                raise OperatorError(startup_recovery_plan.reason)
             for key, value in (
                 ("viewport_signature", None),
                 ("list_signature", None),
@@ -3656,6 +3669,7 @@ def development_session_run_flow(
                 "initial_observation": initial_observation,
                 "initial_observation_payload": initial_observation.to_mapping(),
                 "initial_frame_sha256": initial_observation.frame_sha256,
+                "startup_recovery_plan": startup_recovery_plan.to_mapping(),
                 "registration_snapshot": registration_snapshot,
                 "session_control_memory": session.control_memory,
                 "resource_runtime_identity": resource_runtime_identity,
@@ -4047,6 +4061,34 @@ def bluestacks_run_flow(flow_id: str, *, live: bool) -> str:
             raise OperatorError(
                 "controller has not admitted the flow to live_execution"
             )
+        from scripts.startup_recovery import classify_startup_frame
+
+        observation, frame_bytes = _development_runtime_observation()
+        startup_recovery_plan = classify_startup_frame(flow_id, frame_bytes)
+        startup_session = (
+            BLUESTACKS_ARTIFACT_ROOT
+            / flow_id
+            / f"startup-observation-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+        )
+        startup_session.mkdir(parents=True, exist_ok=False)
+        (startup_session / "source.png").write_bytes(frame_bytes)
+        (startup_session / "startup-recovery-plan.json").write_text(
+            json.dumps(
+                {
+                    "observation": observation,
+                    "plan": startup_recovery_plan.to_mapping(),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        if startup_recovery_plan.status == "blocked":
+            raise OperatorError(startup_recovery_plan.reason)
+        lease = dict(lease)
+        lease["startup_recovery_plan"] = startup_recovery_plan.to_mapping()
+        lease["startup_recovery_evidence"] = str(startup_session)
         return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](queue, lease)
 
 

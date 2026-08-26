@@ -703,7 +703,18 @@ class NavigationDevelopmentBoundaryTests(unittest.TestCase):
                                 )
                             ),
                         ):
-                            result = pnsctl.bluestacks_run_flow("FLOW-X", live=True)
+                            with tempfile.TemporaryDirectory() as directory, patch.object(
+                                pnsctl,
+                                "BLUESTACKS_ARTIFACT_ROOT",
+                                Path(directory),
+                            ), patch.object(
+                                pnsctl,
+                                "_development_runtime_observation",
+                                return_value=({"frame_sha256": "a" * 64}, b"png"),
+                            ):
+                                result = pnsctl.bluestacks_run_flow(
+                                    "FLOW-X", live=True
+                                )
         self.assertEqual(result, "ok")
         self.assertEqual(order[0], "session_init")
         self.assertEqual(order[1], "session_enter")

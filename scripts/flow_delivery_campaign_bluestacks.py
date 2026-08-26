@@ -108,7 +108,12 @@ def _target_roi(recognition: object, identity: str) -> tuple[int, int, int, int]
     return None
 
 
-def _ensure_home_surface_before_prep(session: Path) -> None:
+def _ensure_home_surface_before_prep(
+    session: Path,
+    *,
+    task_id: str = FLOW_ID,
+    recovery_scope: str | None = None,
+) -> dict[str, object]:
     """Leave Campaign Story surfaces via bound Base/Exit controls before Home Atlas prep.
 
     Navigation-only canaries may end on the tier map. Zoom-out requires Home, so one
@@ -130,6 +135,15 @@ def _ensure_home_surface_before_prep(session: Path) -> None:
         execute=True,
     )
     probe_stage = CampaignStage(1, 20, 9)
+    from scripts.startup_recovery import recover_known_startup_overlay
+    from tasks.home_nav_recognition import recognize_home_nav
+
+    startup_recovery = recover_known_startup_overlay(
+        runtime,
+        task_id=task_id,
+        recognize_successor=lambda frame: recognize_home_nav(frame).is_home,
+        recovery_scope=recovery_scope,
+    )
     records: list[dict[str, object]] = []
 
     for ordinal in range(6):
@@ -152,6 +166,7 @@ def _ensure_home_surface_before_prep(session: Path) -> None:
                         "reason": "home_base_recognized",
                         "records": records,
                         "session": str(runtime.session),
+                        "startup_recovery": startup_recovery.to_mapping(),
                     },
                     indent=2,
                     sort_keys=True,
@@ -159,7 +174,7 @@ def _ensure_home_surface_before_prep(session: Path) -> None:
                 + "\n",
                 encoding="utf-8",
             )
-            return
+            return startup_recovery.to_mapping()
 
         if screen == CampaignScreen.STAGE_DIALOG:
             close = _target_roi(recognition, "campaign-stage-dialog-close")
@@ -971,9 +986,23 @@ def _run_campaign_auto_battle_continuous(
         )
     ap_cost = CAMPAIGN_STAGE_COSTS[destination]
     child = runtime_directory
+    startup_recovery: dict[str, object] | None = None
     try:
         pnsctl = _pnsctl()
-        _ensure_home_surface_before_prep(runtime_directory)
+        startup_recovery = _ensure_home_surface_before_prep(
+            runtime_directory,
+            task_id=AUTO_BATTLE_FLOW_ID,
+            recovery_scope=str(
+                lease.get("reset_id")
+                or datetime.now(timezone.utc).date().isoformat()
+            ),
+        )
+        preparation_input_count = _campaign_transport_count(runtime_directory)
+        remaining_inputs = maximum - preparation_input_count
+        if remaining_inputs < 1:
+            raise pnsctl.OperatorError(
+                "Campaign AP has no input budget remaining after startup preparation"
+            )
         command = [
             sys.executable,
             str(REPO_ROOT / "scripts" / "bluestacks_campaign_ap.py"),
@@ -989,6 +1018,8 @@ def _run_campaign_auto_battle_continuous(
             str(ap_cost),
             "--max-runs",
             "1",
+            "--max-inputs",
+            str(remaining_inputs),
             "--execute",
             "--yes",
             "--output-directory",
@@ -1021,6 +1052,7 @@ def _run_campaign_auto_battle_continuous(
             else "safe_blocked_terminal",
             "campaign_result": campaign_result,
             "operator_returncode": completed_process.returncode,
+            "startup_recovery": startup_recovery,
         }
         if not campaign_result:
             route_result["reason"] = (

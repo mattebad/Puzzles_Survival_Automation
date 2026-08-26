@@ -160,6 +160,7 @@ def _dispatch_home_atlas_campaign_entry(
     events: Path,
     execute: bool,
     maximum_pans: int = 4,
+    maximum_inputs: int = 12,
     post_input_delay: float = 1.0,
     atlas_path: Path = DEFAULT_HOME_ATLAS,
 ) -> dict[str, object]:
@@ -169,6 +170,7 @@ def _dispatch_home_atlas_campaign_entry(
     assert building_id == RUNTIME_CAMPAIGN_BUILDING_ID == campaign_home_atlas_building_id()
     entry_session = frames.parent / f"home-atlas-entry-{utc_stamp()}"
     runtime = LocalBlueStacksRuntime(runner, entry_session, execute=execute)
+    runtime.max_inputs = min(runtime.max_inputs, int(maximum_inputs))
     result = run_verified_campaign_home_atlas_entry(
         runtime,
         atlas_path=atlas_path,
@@ -201,6 +203,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ap-cost", required=True, type=int)
     parser.add_argument("--ap-budget", required=True, type=int)
     parser.add_argument("--max-runs", required=True, type=int)
+    parser.add_argument("--max-inputs", type=int, default=12)
     parser.add_argument("--initial-ap", type=int, help="resume-only verified AP before an in-flight battle")
     parser.add_argument("--battle-timeout", type=float, default=180)
     parser.add_argument("--poll-seconds", type=float, default=1)
@@ -221,6 +224,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--output-directory", type=Path, default=Path(".local-captures/campaign-ap-live"))
     args = parser.parse_args(argv)
+    if not 1 <= args.max_inputs <= 12:
+        parser.error("--max-inputs must be between 1 and 12")
 
     if not is_permitted_local_bluestacks_serial(args.serial):
         parser.error("serial is not a permitted local BlueStacks endpoint")
@@ -396,6 +401,10 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(command.wait_seconds or args.poll_seconds)
             continue
         if command.kind == "home_atlas_entry":
+            if navigation_inputs >= args.max_inputs:
+                raise RuntimeError(
+                    "Campaign AP input budget exhausted before Home Atlas entry"
+                )
             entry = _dispatch_home_atlas_campaign_entry(
                 runner=runner,
                 frames=frames,
@@ -403,6 +412,7 @@ def main(argv: list[str] | None = None) -> int:
                 execute=True,
                 post_input_delay=args.post_input_delay,
                 atlas_path=args.atlas,
+                maximum_inputs=args.max_inputs - navigation_inputs,
             )
             append_event(events, {"type": "home_atlas_entry_result", **entry})
             residual = entry.get("relocalization_residual_pixels")
@@ -424,8 +434,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps(result, sort_keys=True, default=str))
                 return 3
             navigation_inputs += 1 + len(entry.get("records", []))
+            if navigation_inputs > args.max_inputs:
+                raise RuntimeError("Campaign AP input budget exhausted during Home Atlas entry")
             controller.accept_dispatched(command)
             continue
+        if navigation_inputs >= args.max_inputs:
+            raise RuntimeError("Campaign AP input budget exhausted before dispatch")
         if command.kind == "tap":
             assert command.tap_point is not None
             runner.dispatch_tap(command.tap_point)

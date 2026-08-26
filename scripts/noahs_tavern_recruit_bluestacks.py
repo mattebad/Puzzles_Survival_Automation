@@ -70,6 +70,32 @@ def _write_unified_result(runtime: LocalBlueStacksRuntime, payload: dict[str, ob
     return json.dumps(payload, sort_keys=True, default=str)
 
 
+def _apply_startup_recovery_input_reserve(
+    runtime: LocalBlueStacksRuntime,
+    *,
+    route_input_cap: int,
+    configured_input_cap: int,
+    recovery_status: str,
+    recovery_input_count: int,
+) -> int:
+    """Add one input only after the exact startup recovery is confirmed."""
+
+    if recovery_status == "not_present" and recovery_input_count == 0:
+        runtime.max_inputs = route_input_cap
+        return 0
+    if recovery_status != "recovered" or recovery_input_count != 1:
+        raise RuntimeError(
+            "startup recovery did not prove an exact one-input reserve"
+        )
+    total_input_cap = route_input_cap + 1
+    if configured_input_cap < total_input_cap:
+        raise RuntimeError(
+            "configured development input ceiling cannot accommodate startup recovery"
+        )
+    runtime.max_inputs = total_input_cap
+    return 1
+
+
 def recognize_home_zoom_source(frame, *, home_classifier=None) -> tuple[bool, dict[str, object]]:
     """Recognize Home for bounded camera normalization without requiring Tavern OCR.
 
@@ -865,9 +891,45 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
         workflow="noahs-tavern-unified-recruitment",
         execute=True,
     )
-    runtime.max_inputs = min(runtime.max_inputs, int(getattr(args, "max_inputs", 12)))
-    if runtime.max_inputs < 12:
+    configured_input_cap = runtime.max_inputs
+    route_input_cap = int(getattr(args, "max_inputs", 12))
+    runtime.max_inputs = min(configured_input_cap, route_input_cap)
+    if runtime.max_inputs < route_input_cap or route_input_cap != 12:
         raise ValueError("unified recruitment requires a twelve-input total session cap")
+    from scripts.startup_recovery import recover_known_startup_overlay
+
+    try:
+        startup_recovery = recover_known_startup_overlay(
+            runtime,
+            task_id=MAINTENANCE_TASK_ID,
+            recognize_successor=lambda frame: recognize_home_zoom_source(frame)[0],
+            settle_seconds=float(getattr(args, "settle_seconds", 1.0)),
+            recovery_scope=identity.reset_id,
+        )
+    except Exception as exc:
+        _write_unified_result(
+            runtime,
+            {
+                "status": "unresolved" if runtime.input_count else "blocked",
+                "reason": f"{type(exc).__name__}: {exc}",
+                "failure_stage": "startup_recovery",
+                "actions_completed": 0,
+                "input_count": runtime.input_count,
+                "session_directory": str(runtime.session),
+                "terminal_home_verified": False,
+                "startup_recovery_evidence": str(
+                    runtime.session / "startup-recovery-result.json"
+                ),
+            },
+        )
+        raise
+    startup_recovery_input_allowance = _apply_startup_recovery_input_reserve(
+        runtime,
+        route_input_cap=route_input_cap,
+        configured_input_cap=configured_input_cap,
+        recovery_status=startup_recovery.status,
+        recovery_input_count=startup_recovery.input_count,
+    )
     zoom_records: list[dict[str, object]] = []
     atlas_path = NOAHS_TAVERN_HOME_ATLAS_PATH
     atlas = load_home_atlas(atlas_path)
@@ -1061,6 +1123,12 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                     "production_registration": "NOT_REGISTERED",
                     "scheduler_enabled": False,
                     "evidence_events": str(runtime.events),
+                    "startup_recovery": startup_recovery.to_mapping(),
+                    "route_input_cap": route_input_cap,
+                    "startup_recovery_input_allowance": (
+                        startup_recovery_input_allowance
+                    ),
+                    "total_input_cap": runtime.max_inputs,
                     "zoom_normalization": zoom_records,
                 },
             )
@@ -1088,6 +1156,12 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                 "production_registration": "NOT_REGISTERED",
                 "scheduler_enabled": False,
                 "evidence_events": str(runtime.events),
+                "startup_recovery": startup_recovery.to_mapping(),
+                "route_input_cap": route_input_cap,
+                "startup_recovery_input_allowance": (
+                    startup_recovery_input_allowance
+                ),
+                "total_input_cap": runtime.max_inputs,
                 "zoom_normalization": zoom_records,
             },
         )
@@ -1112,6 +1186,12 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                 "production_registration": "NOT_REGISTERED",
                 "scheduler_enabled": False,
                 "evidence_events": str(runtime.events),
+                "startup_recovery": startup_recovery.to_mapping(),
+                "route_input_cap": route_input_cap,
+                "startup_recovery_input_allowance": (
+                    startup_recovery_input_allowance
+                ),
+                "total_input_cap": runtime.max_inputs,
                 "zoom_normalization": zoom_records,
             },
         )
@@ -1170,6 +1250,12 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
             "evidence_events": str(runtime.events),
+            "startup_recovery": startup_recovery.to_mapping(),
+            "route_input_cap": route_input_cap,
+            "startup_recovery_input_allowance": (
+                startup_recovery_input_allowance
+            ),
+            "total_input_cap": runtime.max_inputs,
             "zoom_normalization": zoom_records,
             "atlas_binding_roi": list(binding),
             "atlas_immediate_before_sha256": atlas_probe.sha256,

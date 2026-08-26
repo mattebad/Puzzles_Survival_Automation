@@ -756,6 +756,13 @@ class DevelopmentSessionTests(unittest.TestCase):
             def runner(queue, lease, *, live=True):
                 self.assertEqual(queue, {"active_flow_id": "FLOW", "development_session": True})
                 self.assertEqual(lease["unresolved_action_state"], "not_applicable")
+                self.assertEqual(
+                    lease["startup_recovery_plan"]["status"],
+                    "unclassified",
+                )
+                self.assertFalse(
+                    lease["startup_recovery_plan"]["input_authority"],
+                )
                 return json.dumps(
                     {
                         "status": "blocked",
@@ -793,6 +800,10 @@ class DevelopmentSessionTests(unittest.TestCase):
                 (Path(result["session_directory"]) / "summary.json").read_text(encoding="utf-8")
             )
             self.assertTrue(summary["ownership_released"])
+            self.assertEqual(
+                summary["control_memory"]["startup_recovery_plan"]["status"],
+                "unclassified",
+            )
             self.assertIn("repair recognition or recovery", summary["next_action"])
             self.assertIn(str(child), summary["next_action"])
             action = json.loads(

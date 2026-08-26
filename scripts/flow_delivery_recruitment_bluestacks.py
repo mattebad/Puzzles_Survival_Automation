@@ -426,13 +426,42 @@ def run_recruitment(
             registration_snapshot=registration_snapshot,
         )
     except Exception as exc:
-        child = runtime.session if runtime is not None else runtime_directory
+        retained_results = [
+            path
+            for path in runtime_directory.rglob("unified-recruitment-result.json")
+            if path.is_file() and not path.is_symlink()
+        ]
+        retained_result_path = (
+            max(retained_results, key=lambda path: path.stat().st_mtime_ns)
+            if retained_results
+            else None
+        )
+        child = (
+            retained_result_path.parent
+            if retained_result_path is not None
+            else runtime.session
+            if runtime is not None
+            else runtime_directory
+        )
         input_count = _retained_transport_count(child)
         recruitment_count = _recruitment_transport_count(child)
+        retained_failure = (
+            json.loads(retained_result_path.read_text(encoding="utf-8"))
+            if retained_result_path is not None
+            else {}
+        )
         payload = _result_payload(
             {
-                "status": "unresolved" if recruitment_count else "blocked",
-                "reason": f"{type(exc).__name__}: {exc}",
+                "status": (
+                    "unresolved"
+                    if input_count
+                    else str(retained_failure.get("status") or "blocked")
+                ),
+                "reason": str(
+                    retained_failure.get("reason")
+                    or f"{type(exc).__name__}: {exc}"
+                ),
+                "failure_stage": retained_failure.get("failure_stage"),
                 "terminal_home_verified": False,
             },
             session_directory=child,
