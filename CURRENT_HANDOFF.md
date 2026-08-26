@@ -4,12 +4,12 @@
 {
   "schema_version": 3,
   "branch": "feature/runtime-reliability-convergence",
-  "head_binding": "0fe5186ea9211922c34f59bf3617f4e00177ae70",
+  "head_binding": "8b8e372606b9a1510d9130ec17252005591379c1",
   "last_product_candidate_head": "c23f9da5df402f162ea1d53c08fea3e0e016956a",
   "ahead_behind": {
     "source": "compute_from_git"
   },
-  "attributable_dirty_paths": [],
+  "attributable_dirty_paths": ["CURRENT_HANDOFF.md", "docs/runtime-reliability-convergence-status.md"],
   "task_start_worktree": {
     "tracked_dirty_paths": [],
     "protected_untracked_paths": []
@@ -31,7 +31,7 @@
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
   "latest_focused_validation_result": "Campaign r2 zero-input preflight: canonical Home 0.9849079, AP 120, exact flow selected with transport_count 0",
-  "latest_architecture_validation_result": "Stage A r2 governance, scoped validation, Terra review, and pushed integration remain accepted",
+  "latest_architecture_validation_result": "Terra confirmed the production hash-authority correction but returned NEEDS_FIX on regression evidence; capture-level same-digest proof was added in 8b8e372 and passes 18/18 startup tests",
   "latest_full_suite_result": "Not run; not required by Campaign r2 closure",
   "current_live_attempt_state": "blocked_evidence_required_before_input",
   "current_evidence_or_session_reference": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20260826T214745064655Z",
@@ -68,7 +68,7 @@
   },
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "stage-10-phase-5-reproof-20260826",
-  "deferred_independent_review": "Stage A r2 complete; PR #4 external approval remains pending",
+  "deferred_independent_review": "Terra recheck budget exhausted after NEEDS_FIX on test evidence; parent applied the exact requested capture-digest regression correction; external PR approval remains pending",
   "stage_7_ordered_plan": [
     "Stage A startup-surface recovery r2 accepted and pushed",
     "Stage B not_applicable for canonical Home successor",
@@ -102,7 +102,7 @@
 - The successful child ledger is recovery `1`, route `0`, total `1`. R2 corrects the outer DevelopmentSession to report `input_count=1`, close `completed` with `completion_scope=startup_recovery_only`, retain the post-recovery typed observation, and execute no route.
 - Retained success: `.local-captures/development-sessions/AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE-20260826T205944685287Z`; settled Home: `.local-captures/development-sessions/observe-20260826T210014287650Z`.
 - Full-frame hashes are provenance only; Scarlett selection/revalidation uses stable current-frame ROIs. Registration remains `NOT_REGISTERED`, the scheduler remains disabled, and no purchase, Confirm, real-money, Android Back, Campaign, or other route input occurred.
-- The outer-summary defect was classified `local_defect`. Terra found one hash-authority defect, the one consolidated correction removed digest equality from the semantic postcondition, and the corrected recheck passed.
+- The outer-summary defect was classified `local_defect`. Terra confirmed the production correction but its single recheck found that the regression equalized recognition metadata rather than the retained capture digest. Commit `8b8e372` now reuses the probe payload/SHA for the semantic non-Scarlett Home successor; the exact regression and all 18 startup tests pass. No second Terra recheck was run because the r2 budget allowed only one.
 
 ## Campaign AP r2 closure
 - Zero-input preflight: `.local-captures/development-sessions/observe-20260826T214533950614Z`; canonical Home correlation `0.9849079251289368`, visible AP `120/120`, no refill surface, native `800x1280`, zero input, no lifecycle state, and ownership released.
