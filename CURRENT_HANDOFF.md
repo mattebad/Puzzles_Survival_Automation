@@ -31,7 +31,7 @@
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
   "latest_focused_validation_result": "Startup recovery and shared safety profiles passed: 274 tests passed with 1 expected skip",
-  "latest_architecture_validation_result": "Governance validation and diff checks passed; branch is synchronized with main and mergeable",
+  "latest_architecture_validation_result": "Governance validation passed; git diff --check 6c75f342d654f25bac325fbe035f518ab2f938cb..HEAD passed after PR #4 P2 remediation",
   "latest_full_suite_result": "Not required by frozen Stage 11 profile",
   "current_live_attempt_state": "completed_recovery_then_local_budget_block",
   "current_evidence_or_session_reference": ".local-captures/flow-delivery/RECRUITMENT-FREE-ATTEMPT-MAINTENANCE/noahs-tavern-unified-recruitment-20260826T031443384877Z",
