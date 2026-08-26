@@ -4,8 +4,8 @@
 {
   "schema_version": 3,
   "branch": "feature/runtime-reliability-convergence",
-  "head_binding": "efd07fe150fe7a4785d32503ea7ff997b5ef32ac",
-  "last_product_candidate_head": "efd07fe150fe7a4785d32503ea7ff997b5ef32ac",
+  "head_binding": "c23f9da5df402f162ea1d53c08fea3e0e016956a",
+  "last_product_candidate_head": "c23f9da5df402f162ea1d53c08fea3e0e016956a",
   "ahead_behind": {
     "source": "compute_from_git"
   },
@@ -19,35 +19,35 @@
     ".local-reference/",
     "evidence/"
   ],
-  "current_task_id": "STAGE-11-FINAL-RECONCILIATION",
+  "current_task_id": "runtime-reliability-stage-10-phase-5-startup-surface-recovery-r2",
   "current_task_state": "completed",
-  "next_task_id": "RUNTIME-RELIABILITY-MERGE-BOUNDARY",
-  "next_task_activation_status": "awaiting_explicit_activation",
+  "next_task_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-R2",
+  "next_task_activation_status": "authorized_pending_freeze",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "complete",
+  "active_delivery_stage": "stage_a_r2_integration_accepted",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "Startup recovery and shared safety profiles passed: 274 tests passed with 1 expected skip",
-  "latest_architecture_validation_result": "Governance validation passed; git diff --check 6c75f342d654f25bac325fbe035f518ab2f938cb..HEAD passed after PR #4 P2 remediation",
-  "latest_full_suite_result": "Not required by frozen Stage 11 profile",
-  "current_live_attempt_state": "completed_recovery_then_local_budget_block",
-  "current_evidence_or_session_reference": ".local-captures/flow-delivery/RECRUITMENT-FREE-ATTEMPT-MAINTENANCE/noahs-tavern-unified-recruitment-20260826T031443384877Z",
-  "last_safe_completed_step": "Exact VIP popup recovery was confirmed live; the conditional recovery-input reserve was repaired, validated offline, and committed",
-  "exact_next_permitted_action": "Push the synchronized branch for external approval on PR #4; keep the merge successor inactive until approval.",
+  "latest_focused_validation_result": "Exact accounting 1/1; startup 18/18; DevelopmentSession 26/26; affected Campaign/Recruitment 40/40; shared-navigation 20/20",
+  "latest_architecture_validation_result": "Governance validation and git diff --check passed; Terra r2 review and corrected recheck passed",
+  "latest_full_suite_result": "Not run; prohibited by frozen r2 proportionate profile",
+  "current_live_attempt_state": "scarlett_recovery_completed_route_not_run",
+  "current_evidence_or_session_reference": ".local-captures/development-sessions/AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE-20260826T205944685287Z",
+  "last_safe_completed_step": "Stage A r2 was accepted and committed at c23f9da with truthful recovery-only outer accounting",
+  "exact_next_permitted_action": "Freeze Campaign AP r2 and run its zero-input preflight through pnsctl before any live admission",
   "current_blocker": "none",
-  "prohibited_repeated_action": "Do not repeat Stage 10 Phase 4, Phase 5, or Phase 6 canary execution.",
-  "stage_revision": "merge-boundary-r1",
-  "stage_type": "merge_boundary",
-  "product_precondition": "not_applicable",
+  "prohibited_repeated_action": "Do not issue further Scarlett input, restart to manufacture startup surfaces, or perform an identical recovery retry.",
+  "stage_revision": "runtime-reliability-stage-10-phase-5-startup-surface-recovery-r2",
+  "stage_type": "local_defect_repair",
+  "product_precondition": "proven_from_retained_successful_recovery",
   "failure_class": "local_defect_resolved",
   "budgets": {
-    "stage_revisions_used": 3,
-    "managed_turns_used": 0,
-    "live_attempts_used": 1,
-    "runtime_inputs_used": 12
+    "stage_revisions_used": 2,
+    "managed_turns_used": 2,
+    "live_attempts_used": 2,
+    "runtime_inputs_used": 2
   },
   "registration_and_scheduler": {
     "production_registration": "NOT_REGISTERED",
@@ -60,36 +60,35 @@
     "historical_journals": "retained_immutable"
   },
   "evidence": {
-    "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "Stage 11 is offline reconciliation and creates no new runtime evidence.",
+    "evidence_requirement": "PARTIAL",
+    "evidence_requirement_reason": "Stage B is not_applicable for the canonical Home successor; separate shop page/modal variants remain evidence_required until natural occurrence.",
     "active_evidence_manifest": null,
     "monitoring_issue": "none",
     "do_not_recursively_inspect_parent_evidence_tree": true
   },
   "control_owner": "sol_parent",
-  "control_parent_conversation_id": "runtime-reliability-convergence-20260826",
-  "deferred_independent_review": "PR #4 external approval pending",
+  "control_parent_conversation_id": "stage-10-phase-5-reproof-20260826",
+  "deferred_independent_review": "complete: gpt-5.6-terra-high PASS after one local_defect correction",
   "stage_7_ordered_plan": [
-    "Phases 1-3 accepted",
-    "Phases 4-5 blocked_evidence_required after zero-input canaries",
-    "Phase 6 blocked_evidence_required without a new attempt",
-    "Stage 11 offline reconciliation"
+    "Stage A startup-surface recovery r2 accepted",
+    "Stage B not_applicable for canonical Home successor",
+    "Campaign AP r2 zero-input preflight is next after push"
   ],
   "next_three_atomic_tasks": [
-    "Push the synchronized feature branch",
-    "Obtain external approval on PR #4",
-    "Activate and perform one reviewed non-force merge"
+    "Commit and push Stage A durable closure",
+    "Freeze Campaign AP r2 and run zero-input preflight",
+    "Run at most one exact funded Campaign canary if all admission gates pass"
   ],
-  "stage_start_utc": "2026-08-26T00:11:00Z",
-  "continuation_checkpoint_utc": "2026-08-26T04:22:00Z"
+  "stage_start_utc": "2026-08-26T17:59:59.546Z",
+  "continuation_checkpoint_utc": "2026-08-26T21:23:00Z"
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
 ## Durable Stage 10 disposition
 - Phases 1-3 are accepted and remain immutable.
 - Phase 4 is `blocked_evidence_required` (`product_state`): Home recognition failed before input; no repeat.
-- Phase 5 is `blocked_evidence_required` (`product_state`): the Campaign source classified `UNKNOWN` before input/AP spend/refill; no repeat.
-- Phase 6 is `blocked_evidence_required` (`prior_canary_budget_exhausted`): 37 retained dispatch-bearing artifacts exceed the one-canary maximum; no new attempt.
+- Phase 5 startup recovery Stage A r2 is accepted at `c23f9da`; the Campaign AP r2 canary has not started.
+- Stage B is `not_applicable` for the canonical Home successor. Separate startup shop page/modal variants remain `evidence_required` until natural native occurrence.
 
 ## Stage 11 boundary
 - All 24 checked-in production registry entries are `NOT_REGISTERED` and scheduler-ineligible.
@@ -99,6 +98,8 @@
 - User continuation is recorded and branch synchronization passed. The structured merge successor remains inactive until PR #4 receives external approval.
 
 ## Startup recovery correction
-- The exact post-reset VIP popup was recognized and dismissed with one live Close input; canonical Home was positively verified afterward.
-- Recruitment then exhausted its original 12-input route cap before safe exit. The local defect was corrected by granting one conditional recovery input only after confirmed exact recovery; popup-absent runs retain the 12-input cap.
-- Focused and shared safety profiles passed 274 tests with one expected skip. A later zero-input observation found no VIP popup, so no identical live retry was attempted.
+- Attempt 1 used the misbound ROI `(11,54,72,117)` and produced no observed effect. After investigation and separate user authorization, attempt 2 used the corrected visible in-game Back ROI `(39,0,168,61)` at `(103,30)`, dismissed Scarlett, and retained canonical Home (correlation approximately `0.9849`).
+- The successful child ledger is recovery `1`, route `0`, total `1`. R2 corrects the outer DevelopmentSession to report `input_count=1`, close `completed` with `completion_scope=startup_recovery_only`, retain the post-recovery typed observation, and execute no route.
+- Retained success: `.local-captures/development-sessions/AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE-20260826T205944685287Z`; settled Home: `.local-captures/development-sessions/observe-20260826T210014287650Z`.
+- Full-frame hashes are provenance only; Scarlett selection/revalidation uses stable current-frame ROIs. Registration remains `NOT_REGISTERED`, the scheduler remains disabled, and no purchase, Confirm, real-money, Android Back, Campaign, or other route input occurred.
+- The outer-summary defect was classified `local_defect`. Terra found one hash-authority defect, the one consolidated correction removed digest equality from the semantic postcondition, and the corrected recheck passed.
