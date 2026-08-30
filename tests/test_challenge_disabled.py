@@ -100,6 +100,18 @@ class DisabledChallengeContractTests(unittest.TestCase):
         self.assertEqual(row["promotion_state"], "DISABLED_POLICY")
         self.assertEqual(row["current_runtime_registration_status"], "NOT_REGISTERED")
         self.assertFalse(row["scheduler_eligibility"])
+        ownership = row["ownership_disposition"]
+        self.assertEqual(
+            ownership["catalog_owner"],
+            "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
+        )
+        self.assertEqual(
+            ownership["navigation_prerequisite_flow"],
+            "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+        )
+        self.assertIsNone(ownership["dispatch_authority"])
+        self.assertEqual(ownership["claim_authority"], "aggregate_daily_claim")
+        self.assertEqual(ownership["state"], "accepted_existing_blocked")
 
 
 if __name__ == "__main__":

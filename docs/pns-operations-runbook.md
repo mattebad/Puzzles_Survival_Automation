@@ -10,7 +10,8 @@ The active command families are:
 
 ```text
 python scripts/pnsctl.py bluestacks preflight
-python scripts/pnsctl.py bluestacks run-flow <flow-id> --live
+python scripts/pnsctl.py development-session run-flow <flow-id> --live --yes
+python scripts/pnsctl.py bluestacks run-flow <flow-id>  # offline/dry-run only
 python scripts/pnsctl.py bluestacks verify-flow <session-directory>
 python scripts/pnsctl.py bluestacks recover-home
 python scripts/pnsctl.py development-session observe
@@ -24,7 +25,12 @@ fix the private serial to `emulator-5554`, require native 800×1280 and package
 and retain structured evidence under `.local-captures/`. No arbitrary ADB,
 coordinate, tap, or swipe endpoint is exposed.
 
-`run-flow` fails closed until the active flow supplies its dedicated checked-in runner.
+`bluestacks run-flow --live` is a retired legacy entry and fails closed before runtime
+observation, flow-state loading, artifact creation, or route invocation. Supported live
+work uses `development-session run-flow`, whose outer `DevelopmentSession` owns startup
+recovery and route execution. The legacy `bluestacks run-flow` command remains available
+only for its required offline/dry-run behavior and still fails closed until the active flow
+supplies its dedicated checked-in runner.
 `verify-flow` validates the session's result, frames, events, ledger, capability audit, journal,
 runtime owner, and terminal state. `recover-home` delegates only to the existing
 Cultivation-Center-to-Home verified recovery and cannot issue Android Back from an unrecognized

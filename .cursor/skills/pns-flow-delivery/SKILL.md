@@ -72,3 +72,5 @@ The checked-in `tasks/agentic_workflow_policy.json` is the source of managed
 turn, stage, checkpoint, and parent-conversation limits. At a safe terminal
 boundary, stop with `PARENT_CONVERSATION_ROLLOVER_REQUIRED` and use the
 checked-in resume invocation. Do not begin another stage after rollover.
+The checked-in `tasks/flow_delivery_loop_policy.json` separately defines the
+counted-completion limit; do not hardcode a competing numeric maximum.

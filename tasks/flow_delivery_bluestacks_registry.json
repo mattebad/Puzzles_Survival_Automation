@@ -86,6 +86,12 @@
       "evidence_validator": "daily_resource_item_bluestacks_evidence",
       "recovery_handler": "daily_resource_item_bluestacks_recovery",
       "consequence_class": "consequential"
+    },
+    "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE": {
+      "runner": "recruitment_bluestacks_runner",
+      "evidence_validator": "recruitment_bluestacks_evidence",
+      "recovery_handler": "recruitment_bluestacks_recovery",
+      "consequence_class": "consequential"
     }
   }
 }

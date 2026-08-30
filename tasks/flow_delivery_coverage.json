@@ -22,7 +22,7 @@
       "evidence_classification": {
         "gameplay_mechanics_evidence": "none",
         "navigation_evidence": "none",
-        "offline_replay_evidence": "legacy Daily one-craft semantic replay retained; final Normal Craft, exact-parts, claim-first, and once-per-reset policy still requires reconciliation",
+        "offline_replay_evidence": "exact Normal Craft 100-NANO_PARTS, claim-first, one-start-per-reset, 43200-second pure adapter tests current; native route replay absent",
         "production_controller_positive_replay": "not_proven",
         "supervised_consequential_canary": "not_proven",
         "evidence_required": "native Normal Craft availability, 100-part state, completed-claim, 12-hour timer, same-reset defer, and canonical Home successor"

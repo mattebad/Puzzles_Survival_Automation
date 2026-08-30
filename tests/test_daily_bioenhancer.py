@@ -117,26 +117,33 @@ class DailyBioenhancerContractTests(unittest.TestCase):
             )
         )
 
-    def test_matrix_records_confirmed_same_day_daily_reconciliation(self):
+    def test_matrix_keeps_retained_bioenhancer_evidence_non_accepting(self):
         matrix = json.loads(MATRIX.read_text(encoding="utf-8"))
         row = next(
             item
             for item in matrix["objectives"]
             if item["objective_key"] == "bioenhancer_research"
         )
-        self.assertEqual(row["implementation_status"], "LIVE_VALIDATED")
-        self.assertEqual(row["live_validation_status"], "LIVE_VALIDATED")
-        self.assertEqual(row["promotion_state"], "SUPERVISED_VALIDATION")
-        self.assertEqual(row["authoritative_status"], "BIOENHANCER_SAME_DAY_END_TO_END_CONFIRMED")
-        self.assertEqual(row["execution_validation_status"], "VALIDATED")
-        self.assertEqual(row["daily_reconciliation_validation_status"], "VALIDATED")
-        self.assertEqual(row["research_action_status"], "BIOENHANCER_RESEARCH_CONFIRMED")
+        self.assertEqual(row["implementation_status"], "OFFLINE_CONTRACT_ONLY")
+        self.assertEqual(row["live_validation_status"], "EVIDENCE_MISSING")
+        self.assertEqual(row["promotion_state"], "EVIDENCE_GATED")
+        self.assertEqual(row["authoritative_status"], "BIOENHANCER_CURRENT_PROOF_REQUIRED")
+        self.assertEqual(row["execution_validation_status"], "OFFLINE_CONTRACT_VALIDATED_ONLY")
+        self.assertEqual(row["daily_reconciliation_validation_status"], "HISTORICAL_NON_ACCEPTING")
+        self.assertEqual(
+            row["research_action_status"],
+            "HISTORICAL_RESEARCH_RETAINED_NOT_CURRENT_ACCEPTANCE",
+        )
         self.assertEqual(
             row["daily_reconciliation_status"],
-            "BIOENHANCER_DAILY_RECONCILIATION_CONFIRMED_CLAIM_READY",
+            "CURRENT_DAILY_RECONCILIATION_EVIDENCE_REQUIRED",
         )
-        self.assertEqual(row["daily_reconciliation_outcome"], "DAILY_RESEARCH_ADVANCED_TO_1_OF_1_CLAIM_READY")
+        self.assertEqual(row["daily_reconciliation_outcome"], "NOT_CURRENTLY_PROVEN")
         self.assertEqual(row["consequential_dispatch_count"], 2)
+        self.assertEqual(
+            row["consequential_dispatch_count_scope"],
+            "retained_historical_evidence_only",
+        )
         self.assertEqual(row["research_10x_dispatch_count"], 0)
         self.assertEqual(row["lease_release_status"], "EXPIRED_BY_POLICY")
         self.assertEqual(row["claim_execution_status"], "NOT_PERFORMED")

@@ -24,6 +24,7 @@ FLOW_ID = "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
 # Queue authority permits one dispatch-bearing canary.  Recovery-only sessions
 # remain available after that canary, but never consume or reopen its budget.
 MAX_DISPATCH_BEARING_CANARY_RUNS = 1
+MAX_INPUTS = 32
 RUNNER_ID = "troop_training_consolidation_runner"
 VALIDATOR_ID = "troop_training_consolidation_evidence"
 RECOVERY_ID = "troop_training_consolidation_recovery"
@@ -44,16 +45,25 @@ def _stamp() -> str:
 def _session_max_inputs(lease: Mapping[str, Any]) -> int:
     value = lease.get("max_inputs")
     if value is None:
-        value = os.environ.get("PNS_DEVELOPMENT_MAX_INPUTS")
-    if value is None:
-        raise _pnsctl().OperatorError("development session max_inputs is required")
+        value = os.environ.get("PNS_DEVELOPMENT_MAX_INPUTS") or str(MAX_INPUTS)
     try:
         maximum = int(value)
     except (TypeError, ValueError) as exc:
         raise _pnsctl().OperatorError("development session max_inputs must be an integer") from exc
-    if not 1 <= maximum <= 100:
-        raise _pnsctl().OperatorError("development session max_inputs must be between 1 and 100")
-    return maximum
+    if maximum != MAX_INPUTS:
+        raise _pnsctl().OperatorError(
+            "Troop Training continuous session requires exact 32-input cap"
+        )
+    route_value = lease.get("route_max_inputs", maximum)
+    if type(route_value) is not int:
+        raise _pnsctl().OperatorError(
+            "Troop Training route_max_inputs must be an integer"
+        )
+    if route_value < 0 or route_value > maximum:
+        raise _pnsctl().OperatorError(
+            "Troop Training route_max_inputs is outside the shared 32-input ceiling"
+        )
+    return route_value
 
 
 def _result_line(stdout: str) -> dict[str, Any]:
@@ -94,6 +104,82 @@ def _read_event_rows(path: Path) -> list[dict[str, Any]]:
 
 def _dispatch_count(rows: list[Mapping[str, Any]]) -> int:
     return sum(1 for row in rows if row.get("type") == "dispatch")
+
+def _troop_outer_session(lease: Mapping[str, Any]):
+    from scripts.navigation_development_boundary import DevelopmentSession
+
+    session = lease.get("development_session")
+    if (
+        not isinstance(session, DevelopmentSession)
+        or session.is_active is not True
+        or str(session.owner) != f"pnsctl-development-session:{FLOW_ID}"
+        or not callable(getattr(session, "adopt_retained_transport_count", None))
+    ):
+        raise _pnsctl().OperatorError(
+            "Troop Training requires the active pnsctl-owned DevelopmentSession"
+        )
+    return session
+
+
+def _troop_initial_observation(
+    lease: Mapping[str, Any], session: Any
+) -> dict[str, Any]:
+    from scripts.navigation_development_boundary import DevelopmentInitialObservation
+
+    value = lease.get("initial_observation")
+    bound = session.initial_observation
+    if not isinstance(value, DevelopmentInitialObservation):
+        raise _pnsctl().OperatorError(
+            "Troop Training initial observation must be typed session evidence"
+        )
+    if not isinstance(bound, DevelopmentInitialObservation) or value is not bound:
+        raise _pnsctl().OperatorError(
+            "Troop Training initial observation is not exactly session-bound"
+        )
+    digest = str(value.frame_sha256 or "")
+    if (
+        not _HASH_RE.fullmatch(digest)
+        or digest != str(lease.get("initial_frame_sha256") or "")
+        or value.invocation_id != session.invocation_id
+    ):
+        raise _pnsctl().OperatorError(
+            "Troop Training initial observation hash or invocation binding is invalid"
+        )
+    return value.to_mapping()
+
+
+def _troop_causal_trace(
+    session: Path,
+    *,
+    result: Mapping[str, Any],
+    initial_observation: Mapping[str, Any],
+    event_count: int,
+) -> dict[str, Any]:
+    trace = {
+        "schema_version": 1,
+        "trace_count": 1,
+        "read_only": True,
+        "input_authority": False,
+        "proof_topology": "continuous",
+        "flow_id": FLOW_ID,
+        "invocation_id": str(initial_observation.get("invocation_id") or ""),
+        "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
+        "stages": [
+            "typed_initial_observation",
+            "troop_training_queue_authority",
+            "troop_training_route",
+            "queue_successor_or_bounded_recovery",
+            "canonical_home_terminal",
+        ],
+        "transport_count": int(result.get("troop_training_transport_count") or 0),
+        "event_count": event_count,
+        "status": str(result.get("status") or "unknown"),
+    }
+    (session / "causal-trace.json").write_text(
+        json.dumps(trace, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return trace
 
 
 def _prior_dispatch_bearing_runs(flow_root: Path) -> list[str]:
@@ -156,16 +242,9 @@ def run_troop_training_consolidation(
     maximum = _session_max_inputs(lease)
     recovery_only = bool(lease.get("troop_training_recovery_only"))
     flow_root = (pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID).resolve()
-    if live and not recovery_only:
-        prior_runs = _prior_dispatch_bearing_runs(flow_root)
-        if len(prior_runs) >= MAX_DISPATCH_BEARING_CANARY_RUNS:
-            raise pnsctl.OperatorError(
-                "Troop Training maximum-live-canary admission is exhausted by prior dispatch-bearing runs: "
-                + ", ".join(prior_runs[:MAX_DISPATCH_BEARING_CANARY_RUNS])
-            )
-    root = flow_root / f"run-{_stamp()}"
-    root.mkdir(parents=True, exist_ok=False)
     if not live:
+        root = flow_root / f"run-{_stamp()}"
+        root.mkdir(parents=True, exist_ok=False)
         return json.dumps(
             {
                 "status": "dry_run",
@@ -174,12 +253,27 @@ def run_troop_training_consolidation(
                 "dispatch_count": 0,
                 "max_inputs": maximum,
                 "session_directory": str(root),
+                "proof_topology": "continuous",
+                "causal_trace_count": 0,
                 "delegated_route": "scripts/troop_training_bluestacks.py",
                 "production_registration": "NOT_REGISTERED",
                 "scheduler_enabled": False,
             },
             sort_keys=True,
         )
+
+    outer_session = _troop_outer_session(lease)
+    initial_observation = _troop_initial_observation(lease, outer_session)
+    if not recovery_only:
+        prior_runs = _prior_dispatch_bearing_runs(flow_root)
+        if len(prior_runs) >= MAX_DISPATCH_BEARING_CANARY_RUNS:
+            raise pnsctl.OperatorError(
+                "Troop Training maximum-live-canary admission is exhausted by prior dispatch-bearing runs: "
+                + ", ".join(prior_runs[:MAX_DISPATCH_BEARING_CANARY_RUNS])
+            )
+    outer_directory = Path(outer_session.session_directory)
+    root = outer_directory / "runtime"
+    root.mkdir(parents=True, exist_ok=True)
     reset_identity = str(lease.get("troop_training_reset_identity") or "").strip()
     if not reset_identity:
         raise pnsctl.OperatorError("Troop Training reset identity is required")
@@ -218,10 +312,8 @@ def run_troop_training_consolidation(
     try:
         route = _result_line(completed.stdout or "")
     except pnsctl.OperatorError as exc:
-        # Preserve a machine-readable failure record even when the delegated
-        # CLI crashes before emitting its normal JSON route result.  Native
-        # stdout/stderr remain in their sibling files; this record is strictly
-        # diagnostic and can never authorize recovery or dispatch.
+        # Preserve a machine-readable failure record even when delegated CLI
+        # crashes before emitting normal JSON route result.
         failure = {
             "schema_version": 1,
             "flow_id": FLOW_ID,
@@ -250,8 +342,13 @@ def run_troop_training_consolidation(
             session = (REPO_ROOT / session).resolve()
         if not session.is_dir():
             raise pnsctl.OperatorError("Troop Training route session directory is unavailable")
-        frames = _native_frames(session)
         event_rows = _read_event_rows(session / "events.jsonl")
+        source_path = outer_directory / "source.png"
+        if source_path.is_file():
+            retained_initial = session / "frames" / "0000-initial-observation.png"
+            retained_initial.parent.mkdir(parents=True, exist_ok=True)
+            retained_initial.write_bytes(source_path.read_bytes())
+        frames = _native_frames(session)
     except (OSError, pnsctl.OperatorError) as exc:
         failure = {
             "schema_version": 1,
@@ -296,6 +393,9 @@ def run_troop_training_consolidation(
     else:
         delivery_status = "blocked"
         terminal_state = "recognized_home" if final_home else "blocked"
+    initial_mapping = dict(initial_observation)
+    if (session / "frames" / "0000-initial-observation.png").is_file():
+        initial_mapping["frame_path"] = "frames/0000-initial-observation.png"
     delivery = {
         "schema_version": 1,
         "flow_id": FLOW_ID,
@@ -303,7 +403,7 @@ def run_troop_training_consolidation(
         "serial": pnsctl.BLUESTACKS_SERIAL,
         "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
         "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
-        "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
+        "runtime_owner": str(lease.get("owner") or outer_session.owner),
         "reset_identity": reset_identity,
         "terminal_runtime_state": terminal_state,
         "actions": (
@@ -312,28 +412,49 @@ def run_troop_training_consolidation(
             else [{"troop_training": item} for item in route.get("training", [])]
         ),
         "frames": frames,
-        "required_artifacts": ["events_path"],
+        "required_artifacts": ["events_path", "causal_trace_path"],
         "events_path": "events.jsonl",
+        "causal_trace_path": "causal-trace.json",
+        "initial_observation": initial_mapping,
+        "initial_frame_sha256": initial_mapping["frame_sha256"],
         "ledger_path": None,
         "journal_path": None,
         "capability_audit_path": None,
         "artifact_contract": {
-            "required": ["frames", "events_path"],
+            "required": ["frames", "events_path", "causal_trace_path"],
             "optional": ["ledger_path", "journal_path", "capability_audit_path"],
-            "basis": "native development-session route emits frames and events; legacy bookkeeping is not required",
+            "basis": "native development-session route emits frames, events, and one read-only causal trace",
         },
         "dispatch": dispatch_count > 0,
         "dispatch_count": dispatch_count,
+        "troop_training_transport_count": dispatch_count,
         "max_inputs": maximum,
         "troop_training_result": route,
         "recovery_only": recovery_only,
         "operator_returncode": completed.returncode,
+        "proof_topology": "continuous",
         "production_registration": "NOT_REGISTERED",
         "scheduler_enabled": False,
     }
-    (session / "flow-delivery-result.json").write_text(
-        json.dumps(delivery, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    trace = _troop_causal_trace(
+        session,
+        result=delivery,
+        initial_observation=initial_mapping,
+        event_count=len(event_rows),
     )
+    delivery["causal_trace_count"] = 1
+    delivery["causal_trace"] = trace
+    (session / "flow-delivery-result.json").write_text(
+        json.dumps(delivery, indent=2, sort_keys=True, default=str) + "\n",
+        encoding="utf-8",
+    )
+    outer_session.adopt_retained_transport_count(
+        dispatch_count,
+        source="runtime_session/events.jsonl",
+    )
+    outer_session.remember_control("troop_training_transport_count", dispatch_count)
+    outer_session.remember_control("troop_training_recovery_only", recovery_only)
+    outer_session.set_causal_trace(trace)
     return json.dumps(
         {
             "status": delivery_status,
@@ -341,8 +462,14 @@ def run_troop_training_consolidation(
             "session_directory": str(session),
             "dispatch": dispatch_count > 0,
             "dispatch_count": dispatch_count,
+            "troop_training_transport_count": dispatch_count,
             "max_inputs": maximum,
             "recovery_only": recovery_only,
+            "proof_topology": "continuous",
+            "initial_observation": initial_mapping,
+            "initial_frame_sha256": initial_mapping["frame_sha256"],
+            "causal_trace_count": 1,
+            "causal_trace": trace,
         },
         sort_keys=True,
     )
@@ -400,8 +527,32 @@ def _verify_native_structure(
             raise _pnsctl().OperatorError("Troop Training frame evidence is missing")
         frame_hashes.add(hashlib.sha256(frame.read_bytes()).hexdigest())
     required = result.get("required_artifacts")
-    if required != ["events_path"]:
+    if required not in (["events_path"], ["events_path", "causal_trace_path"]):
         raise _pnsctl().OperatorError("Troop Training required artifact contract is invalid")
+    if required == ["events_path", "causal_trace_path"]:
+        trace_candidate = session / str(result.get("causal_trace_path") or "")
+        if trace_candidate.is_symlink():
+            raise _pnsctl().OperatorError("Troop Training causal trace is unsafe")
+        trace_path = trace_candidate.resolve()
+        try:
+            trace_path.relative_to(session)
+        except ValueError as exc:
+            raise _pnsctl().OperatorError("Troop Training causal trace escaped the session") from exc
+        if not trace_path.is_file():
+            raise _pnsctl().OperatorError("Troop Training causal trace is missing")
+        try:
+            trace = json.loads(trace_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise _pnsctl().OperatorError("Troop Training causal trace is unreadable") from exc
+        if (
+            trace != result.get("causal_trace")
+            or result.get("causal_trace_count") != 1
+            or trace.get("trace_count") != 1
+            or trace.get("read_only") is not True
+            or trace.get("input_authority") is not False
+            or trace.get("proof_topology") != "continuous"
+        ):
+            raise _pnsctl().OperatorError("Troop Training causal trace contract is invalid")
     events = session / str(result.get("events_path") or "")
     rows = _read_event_rows(events)
     if result.get("dispatch_count") != _dispatch_count(rows):

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Checked-in BlueStacks operator bindings for Campaign navigation-only delivery."""
+"""Checked-in BlueStacks operator bindings for Campaign delivery."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -14,6 +15,11 @@ from scripts.flow_delivery_evidence import (
     FlowEvidenceIntegrityError,
     require_operator_evidence,
 )
+from automation_service.registry import (
+    CAMPAIGN_FLOW_ID,
+    RegisteredDispatchSnapshot,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
@@ -102,7 +108,13 @@ def _target_roi(recognition: object, identity: str) -> tuple[int, int, int, int]
     return None
 
 
-def _ensure_home_surface_before_prep(session: Path) -> None:
+def _ensure_home_surface_before_prep(
+    session: Path,
+    *,
+    task_id: str = FLOW_ID,
+    recovery_scope: str | None = None,
+    startup_recovery: Mapping[str, object] | None = None,
+) -> dict[str, object]:
     """Leave Campaign Story surfaces via bound Base/Exit controls before Home Atlas prep.
 
     Navigation-only canaries may end on the tier map. Zoom-out requires Home, so one
@@ -124,6 +136,17 @@ def _ensure_home_surface_before_prep(session: Path) -> None:
         execute=True,
     )
     probe_stage = CampaignStage(1, 20, 9)
+    # Startup overlays are recovered once by pnsctl before the typed route
+    # observation. This route-owned helper only normalizes Campaign surfaces.
+    startup_recovery = dict(
+        startup_recovery
+        or {
+            "status": "shared_pre_flow_startup_recovery",
+            "flow_id": task_id,
+            "recovery_scope": recovery_scope,
+            "input_count": 0,
+        }
+    )
     records: list[dict[str, object]] = []
 
     for ordinal in range(6):
@@ -146,6 +169,7 @@ def _ensure_home_surface_before_prep(session: Path) -> None:
                         "reason": "home_base_recognized",
                         "records": records,
                         "session": str(runtime.session),
+                        "startup_recovery": startup_recovery,
                     },
                     indent=2,
                     sort_keys=True,
@@ -153,7 +177,7 @@ def _ensure_home_surface_before_prep(session: Path) -> None:
                 + "\n",
                 encoding="utf-8",
             )
-            return
+            return startup_recovery
 
         if screen == CampaignScreen.STAGE_DIALOG:
             close = _target_roi(recognition, "campaign-stage-dialog-close")
@@ -229,9 +253,13 @@ def _ensure_home_surface_before_prep(session: Path) -> None:
     )
 
 
-def _prepare_canonical_home(session: Path) -> None:
+def _prepare_canonical_home(
+    session: Path,
+    *,
+    startup_recovery: Mapping[str, object] | None = None,
+) -> None:
     pnsctl = _pnsctl()
-    _ensure_home_surface_before_prep(session)
+    _ensure_home_surface_before_prep(session, startup_recovery=startup_recovery)
     atlas = REPO_ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
     # Viewport reference used by checked-in zoom-out / localize tooling.
     canonical_reference = atlas.parent / "tiles" / "viewport-001.png"
@@ -356,10 +384,19 @@ def _run_campaign_navigation_execution(
     handler = CampaignNavigationHandler(destination)
     if handler.describe().flow_id != FLOW_ID:
         raise pnsctl.OperatorError("automation-service Campaign handler identity mismatch")
+    try:
+        route_maximum = int(lease.get("route_max_inputs", lease.get("max_inputs", MAX_INPUTS)))
+    except (TypeError, ValueError) as exc:
+        raise pnsctl.OperatorError("Campaign navigation route_max_inputs must be an integer") from exc
+    if not 1 <= route_maximum <= MAX_INPUTS:
+        raise pnsctl.OperatorError("Campaign navigation route_max_inputs is outside the session ceiling")
     stamp = _utc_stamp()
     session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / flow_id / f"nav-{destination}-{stamp}"
     session.mkdir(parents=True, exist_ok=False)
-    _prepare_canonical_home(session)
+    _prepare_canonical_home(
+        session,
+        startup_recovery=lease.get("startup_recovery_result"),
+    )
     command = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "bluestacks_campaign_ap.py"),
@@ -375,6 +412,8 @@ def _run_campaign_navigation_execution(
         "16",
         "--max-runs",
         "1",
+        "--max-inputs",
+        str(route_maximum),
         "--navigation-only",
         "--execute",
         "--yes",
@@ -617,101 +656,694 @@ def recover_campaign_navigation_proving_slice(
     return json.dumps(result, sort_keys=True)
 
 
-def run_campaign_auto_battle_live(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:
-    """Run the explicitly authorized consequential Campaign AP canary through the checked-in adapter."""
+MAX_INPUTS = 12
+CAMPAIGN_DEFAULT_DESTINATION = "1-15-9"
+CAMPAIGN_STAGE_COSTS = {"1-20-9": 16, "1-15-9": 14, "2-2-9": 20}
 
-    pnsctl = _pnsctl()
-    flow = next(item for item in queue["flows"] if item["flow_id"] == AUTO_BATTLE_FLOW_ID)
-    destination = "1-15-9"
-    costs = {"1-20-9": 16, "1-15-9": 14, "2-2-9": 20}
-    maximum_ap = 120
-    stamp = _utc_stamp()
-    session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / AUTO_BATTLE_FLOW_ID / f"auto-{destination}-{stamp}"
-    session.mkdir(parents=True, exist_ok=False)
-    # The accepted Home Atlas entry localizes and pans from the fresh native Home frame.
-    # Avoid redundant host zoom preparation here; it can surface Android recents before
-    # the operator captures its authoritative starting frame.
-    _ensure_home_surface_before_prep(session)
-    command = [
-        sys.executable,
-        str(REPO_ROOT / "scripts" / "bluestacks_campaign_ap.py"),
-        "--adb", str(pnsctl.BLUESTACKS_ADB),
-        "--serial", pnsctl.BLUESTACKS_SERIAL,
-        "--stage", destination,
-        "--ap-cost", str(costs[destination]),
-        "--ap-budget", str(costs[destination]),
-        "--max-runs", "1",
-        "--execute", "--yes",
-        "--output-directory", str(session),
-    ]
-    completed_process = subprocess.run(
-        command, cwd=REPO_ROOT, capture_output=True, text=True, check=False
+
+def _campaign_registration_snapshot(
+    lease: Mapping[str, Any],
+) -> RegisteredDispatchSnapshot:
+    snapshot = lease.get("registration_snapshot")
+    if not isinstance(snapshot, RegisteredDispatchSnapshot):
+        raise _pnsctl().OperatorError(
+            "Campaign AP requires a typed registration snapshot before observation"
+        )
+    if snapshot.flow_id != CAMPAIGN_FLOW_ID:
+        raise _pnsctl().OperatorError(
+            "Campaign AP registration snapshot has the wrong flow identity"
+        )
+    return snapshot
+
+
+def _campaign_maximum(lease: Mapping[str, Any]) -> int:
+    try:
+        maximum = int(lease.get("max_inputs", MAX_INPUTS))
+    except (TypeError, ValueError) as exc:
+        raise _pnsctl().OperatorError(
+            "Campaign AP development-session max_inputs must be an integer"
+        ) from exc
+    if maximum != MAX_INPUTS:
+        raise _pnsctl().OperatorError(
+            "Campaign AP continuous session requires exact 12-input cap"
+        )
+    route_maximum = lease.get("route_max_inputs")
+    if route_maximum is not None:
+        try:
+            route_maximum = int(route_maximum)
+        except (TypeError, ValueError) as exc:
+            raise _pnsctl().OperatorError(
+                "Campaign AP route_max_inputs must be an integer"
+            ) from exc
+        if not 1 <= route_maximum <= maximum:
+            raise _pnsctl().OperatorError(
+                "Campaign AP route_max_inputs is outside the shared session reserve"
+            )
+        maximum = route_maximum
+    return maximum
+
+
+def _campaign_outer_session(lease: Mapping[str, Any]):
+    from scripts.navigation_development_boundary import DevelopmentSession
+
+    session = lease.get("development_session")
+    if (
+        not isinstance(session, DevelopmentSession)
+        or session.is_active is not True
+        or str(session.owner) != f"pnsctl-development-session:{AUTO_BATTLE_FLOW_ID}"
+        or not callable(getattr(session, "adopt_retained_transport_count", None))
+    ):
+        raise _pnsctl().OperatorError(
+            "Campaign AP requires the active pnsctl-owned DevelopmentSession"
+        )
+    return session
+
+
+def _campaign_initial_observation(lease: Mapping[str, Any], session: Any) -> dict[str, Any]:
+    from scripts.navigation_development_boundary import DevelopmentInitialObservation
+
+    value = lease.get("initial_observation")
+    bound = session.initial_observation
+    if not isinstance(value, DevelopmentInitialObservation):
+        raise _pnsctl().OperatorError(
+            "Campaign AP initial observation must be typed session evidence"
+        )
+    if not isinstance(bound, DevelopmentInitialObservation) or value is not bound:
+        raise _pnsctl().OperatorError(
+            "Campaign AP initial observation is not exactly session-bound"
+        )
+    digest = str(value.frame_sha256 or "")
+    if (
+        len(digest) != 64
+        or digest != str(lease.get("initial_frame_sha256") or "")
+        or value.invocation_id != session.invocation_id
+    ):
+        raise _pnsctl().OperatorError(
+            "Campaign AP initial observation hash or invocation binding is invalid"
+        )
+    return value.to_mapping()
+
+
+def _campaign_event_rows(session: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for events_path in session.rglob("events.jsonl"):
+        if not events_path.is_file() or events_path.is_symlink():
+            continue
+        for line in events_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            value = json.loads(line)
+            if isinstance(value, dict):
+                rows.append(value)
+    return rows
+
+
+def _campaign_transport_count(session: Path) -> int:
+    return sum(
+        (
+            row.get("type") == "dispatch"
+            and row.get("execute") is not False
+        )
+        or (
+            row.get("type") == "command"
+            and row.get("kind") in {"tap", "swipe"}
+        )
+        for row in _campaign_event_rows(session)
     )
-    (session / "operator-stdout.log").write_text(completed_process.stdout or "", encoding="utf-8")
-    (session / "operator-stderr.log").write_text(completed_process.stderr or "", encoding="utf-8")
-    campaign_session = _resolve_campaign_operator_session(session, destination)
-    result_path = campaign_session / "result.json"
-    if not result_path.is_file():
-        raise pnsctl.OperatorError("Campaign Auto Battle result.json is missing")
-    campaign_result = json.loads(result_path.read_text(encoding="utf-8"))
-    ok = (
-        completed_process.returncode == 0
-        and campaign_result.get("status") == "completed"
-        and campaign_result.get("terminal") == "completed"
-        and campaign_result.get("navigation_only") is False
-        and campaign_result.get("battle_outcome") == "victory"
+
+
+def _campaign_action_count(campaign_result: Mapping[str, Any]) -> int:
+    progress = campaign_result.get("progress")
+    if not isinstance(progress, Mapping):
+        return 0
+    try:
+        return int(progress.get("completed_runs") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _campaign_result_payload(
+    route_result: Mapping[str, Any],
+    *,
+    session_directory: Path,
+    input_count: int,
+    maximum: int,
+    destination: str,
+    ap_cost: int,
+    registration_snapshot: Mapping[str, Any],
+) -> dict[str, Any]:
+    campaign = route_result.get("campaign_result")
+    campaign = campaign if isinstance(campaign, Mapping) else {}
+    ap_before = campaign.get("ap_before")
+    ap_after = campaign.get("ap_after")
+    try:
+        exact_ap_delta = (
+            type(ap_before) is int
+            and type(ap_after) is int
+            and ap_before - ap_after == ap_cost
+        )
+    except (TypeError, ValueError):
+        exact_ap_delta = False
+    progress = campaign.get("progress")
+    progress = progress if isinstance(progress, Mapping) else {}
+    destination_match = campaign.get("destination") == destination
+    cost_match = campaign.get("ap_cost") == ap_cost
+    ledger_match = progress.get("ap_spent") == ap_cost
+    forbidden_action_seen = any(
+        any(
+            marker in str(row.get("action") or "").casefold()
+            or marker in str(row.get("target_identity") or "").casefold()
+            for marker in ("sweep", "blitz", "auto_complete", "refill")
+        )
+        for row in _campaign_event_rows(session_directory)
+        if row.get("type") == "command"
     )
-    delivery = {
+    refill_action_seen = any(
+        "refill" in str(row.get("action") or "").casefold()
+        or "refill" in str(row.get("target_identity") or "").casefold()
+        for row in _campaign_event_rows(session_directory)
+        if row.get("type") == "command"
+    )
+    refill_forbidden_verified = not refill_action_seen
+    safe_action_policy = not forbidden_action_seen
+    route_status = str(route_result.get("status") or "blocked")
+    terminal_home = route_result.get("terminal_runtime_state") == "recognized_home"
+    outcome = campaign.get("battle_outcome")
+    result_successor = outcome in {"victory", "defeat"}
+    action_count = _campaign_action_count(campaign)
+    completed = bool(
+        route_status == "completed"
+        and route_result.get("terminal") == "completed"
+        and route_result.get("navigation_only") is False
+        and terminal_home
+        and exact_ap_delta
+        and result_successor
+        and destination_match
+        and cost_match
+        and ledger_match
+        and safe_action_policy
+        and refill_forbidden_verified
+        and action_count == 1
+    )
+    reconciliation_required = bool(input_count and not completed)
+    status = (
+        "completed"
+        if completed
+        else "effect_reconciliation_required"
+        if reconciliation_required
+        else "blocked"
+    )
+    payload = dict(route_result)
+    payload.update(
+        {
+            "status": status,
+            "flow_id": AUTO_BATTLE_FLOW_ID,
+            "session_directory": str(session_directory),
+            "input_count": input_count,
+            "max_inputs": maximum,
+            "dispatch": input_count > 0,
+            "campaign_transport_count": input_count,
+            "campaign_action_count": action_count,
+            "destination": destination,
+            "ap_cost": ap_cost,
+            "ap_before": ap_before,
+            "ap_after": ap_after,
+            "exact_ap_delta": exact_ap_delta,
+            "destination_match": destination_match,
+            "cost_match": cost_match,
+            "ledger_match": ledger_match,
+            "result_successor_verified": result_successor,
+            "terminal_home_verified": terminal_home,
+            "forbidden_action_seen": forbidden_action_seen,
+            "safe_action_policy": safe_action_policy,
+            "refill_forbidden_verified": refill_forbidden_verified,
+            "proof_topology": "continuous",
+            "effect_reconciliation_required": reconciliation_required,
+            "identical_retry_denied": reconciliation_required,
+            "registration_snapshot": dict(registration_snapshot),
+            "production_registration": "NOT_REGISTERED",
+            "scheduler_enabled": False,
+        }
+    )
+    if not payload.get("reason"):
+        if not exact_ap_delta or not ledger_match:
+            payload["reason"] = "Campaign AP ledger does not equal configured cost"
+        elif not destination_match or not cost_match:
+            payload["reason"] = "Campaign stage or configured AP cost is not bound"
+        elif forbidden_action_seen:
+            payload["reason"] = "Campaign route emitted a forbidden action"
+        elif not result_successor:
+            payload["reason"] = "Campaign result successor is not positively recognized"
+        elif not terminal_home:
+            payload["reason"] = "Campaign terminal Home is not recognized"
+    return payload
+
+
+def _campaign_causal_trace(
+    session: Path,
+    *,
+    result: Mapping[str, Any],
+    initial_observation: Mapping[str, Any],
+    registration_snapshot: Mapping[str, Any],
+) -> dict[str, Any]:
+    rows = _campaign_event_rows(session)
+    trace = {
+        "schema_version": 1,
+        "trace_count": 1,
+        "read_only": True,
+        "input_authority": False,
+        "proof_topology": "continuous",
+        "flow_id": AUTO_BATTLE_FLOW_ID,
+        "invocation_id": str(initial_observation.get("invocation_id") or ""),
+        "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
+        "registration_snapshot": dict(registration_snapshot),
+        "stages": [
+            "typed_initial_observation",
+            "canonical_home_atlas_binding",
+            "campaign_stage_cost_binding",
+            "campaign_auto_battle",
+            "exact_ap_ledger",
+            "battle_result_successor",
+            "canonical_home_terminal",
+        ],
+        "transport_count": int(result.get("campaign_transport_count") or 0),
+        "route_input_count": int(result.get("route_input_count") or 0),
+        "recovery_input_count": int(result.get("recovery_input_count") or 0),
+        "total_input_count": int(result.get("total_input_count") or result.get("input_count") or 0),
+        "campaign_action_count": int(result.get("campaign_action_count") or 0),
+        "event_count": len(rows),
+        "status": str(result.get("status") or "unknown"),
+        "effect_reconciliation_required": bool(
+            result.get("effect_reconciliation_required")
+        ),
+    }
+    (session / "causal-trace.json").write_text(
+        json.dumps(trace, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return trace
+
+
+def _write_campaign_delivery_result(
+    session: Path,
+    result: Mapping[str, Any],
+    *,
+    lease: Mapping[str, Any],
+    initial_observation: Mapping[str, Any],
+    causal_trace: Mapping[str, Any],
+) -> None:
+    session.mkdir(parents=True, exist_ok=True)
+    frames = (
+        sorted(
+            path.relative_to(session).as_posix()
+            for path in session.rglob("*.png")
+            if path.is_file() and not path.is_symlink()
+        )
+        if session.is_dir()
+        else []
+    )
+    payload = {
         "schema_version": 1,
         "flow_id": AUTO_BATTLE_FLOW_ID,
-        "status": "completed" if ok else "failed",
-        "serial": pnsctl.BLUESTACKS_SERIAL,
-        "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
-        "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
-        "runtime_owner": lease["owner"],
-        "terminal_runtime_state": "recognized_home" if ok else "safe_blocked_terminal",
-        "destination": destination,
-        "campaign_result": campaign_result,
-        "actions": [{"action_class": "campaign_ap_auto_battle", "destination": destination, "outcome": campaign_result.get("battle_outcome")}],
+        "status": result.get("status"),
+        "serial": _pnsctl().BLUESTACKS_SERIAL,
+        "native_width": _pnsctl().BLUESTACKS_NATIVE_WIDTH,
+        "native_height": _pnsctl().BLUESTACKS_NATIVE_HEIGHT,
+        "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
+        "terminal_runtime_state": (
+            "recognized_home"
+            if result.get("terminal_home_verified") is True
+            else "safe_blocked_terminal"
+        ),
+        "actions": [
+            {
+                "action_class": "campaign_ap_auto_battle",
+                "destination": result.get("destination"),
+                "outcome": result.get("battle_outcome"),
+            }
+        ],
+        "frames": frames,
+        "required_artifacts": ["events_path", "causal_trace_path"],
         "events_path": "events.jsonl",
-        "ledger_path": "ledger.jsonl",
-        "journal_path": "journal.jsonl",
-        "capability_audit_path": "capability-audit.jsonl",
-        "frames_directory": "frames",
-        "operator_returncode": completed_process.returncode,
+        "causal_trace_path": "causal-trace.json",
+        "initial_observation": dict(initial_observation),
+        "initial_frame_sha256": initial_observation.get("frame_sha256"),
+        "causal_trace_count": 1,
+        "causal_trace": dict(causal_trace),
+        **dict(result),
     }
-    (campaign_session / "flow-delivery-result.json").write_text(
-        json.dumps(delivery, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    (session / "flow-delivery-result.json").write_text(
+        json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n",
+        encoding="utf-8",
     )
-    if not ok:
-        raise pnsctl.OperatorError(
-            f"Campaign Auto Battle failed for {destination}: "
-            f"{campaign_result.get('reason') or completed_process.stderr or completed_process.stdout or 'unknown'}"
+
+
+def _run_campaign_auto_battle_continuous(
+    queue: Mapping[str, Any],
+    lease: Mapping[str, Any],
+) -> str:
+    del queue
+    registration = _campaign_registration_snapshot(lease)
+    registration_snapshot = registration.to_mapping()
+    maximum = _campaign_maximum(lease)
+    outer_session = _campaign_outer_session(lease)
+    initial_observation = _campaign_initial_observation(lease, outer_session)
+    outer_directory = Path(outer_session.session_directory)
+    runtime_directory = outer_directory / "runtime"
+    runtime_directory.mkdir(parents=True, exist_ok=True)
+    destination = str(
+        lease.get("campaign_stage") or CAMPAIGN_DEFAULT_DESTINATION
+    )
+    if destination not in CAMPAIGN_STAGE_COSTS:
+        raise _pnsctl().OperatorError(
+            f"Campaign AP destination is unsupported: {destination}"
         )
-    return json.dumps(
-        {"status": "completed", "flow_id": AUTO_BATTLE_FLOW_ID, "destination": destination, "session_directory": str(campaign_session), "dispatch": True, "ap_before": campaign_result.get("ap_before"), "ap_after": campaign_result.get("ap_after"), "battle_outcome": campaign_result.get("battle_outcome")},
-        sort_keys=True,
+    ap_cost = CAMPAIGN_STAGE_COSTS[destination]
+    child = runtime_directory
+    startup_recovery: dict[str, object] | None = None
+    try:
+        pnsctl = _pnsctl()
+        startup_recovery = _ensure_home_surface_before_prep(
+            runtime_directory,
+            task_id=AUTO_BATTLE_FLOW_ID,
+            recovery_scope=str(
+                lease.get("reset_id")
+                or datetime.now(timezone.utc).date().isoformat()
+            ),
+            startup_recovery=lease.get("startup_recovery_result"),
+        )
+        preparation_input_count = _campaign_transport_count(runtime_directory)
+        remaining_inputs = maximum - preparation_input_count
+        if remaining_inputs < 1:
+            raise pnsctl.OperatorError(
+                "Campaign AP has no input budget remaining after startup preparation"
+            )
+        command = [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "bluestacks_campaign_ap.py"),
+            "--adb",
+            str(pnsctl.BLUESTACKS_ADB),
+            "--serial",
+            pnsctl.BLUESTACKS_SERIAL,
+            "--stage",
+            destination,
+            "--ap-cost",
+            str(ap_cost),
+            "--ap-budget",
+            str(ap_cost),
+            "--max-runs",
+            "1",
+            "--max-inputs",
+            str(remaining_inputs),
+            "--execute",
+            "--yes",
+            "--output-directory",
+            str(runtime_directory),
+        ]
+        completed_process = subprocess.run(
+            command, cwd=REPO_ROOT, capture_output=True, text=True, check=False
+        )
+        (runtime_directory / "operator-stdout.log").write_text(
+            completed_process.stdout or "", encoding="utf-8"
+        )
+        (runtime_directory / "operator-stderr.log").write_text(
+            completed_process.stderr or "", encoding="utf-8"
+        )
+        child = _resolve_campaign_operator_session(runtime_directory, destination)
+        result_path = child / "result.json"
+        campaign_result = (
+            json.loads(result_path.read_text(encoding="utf-8"))
+            if result_path.is_file()
+            else {}
+        )
+        route_result = {
+            "status": "completed"
+            if completed_process.returncode == 0
+            else "blocked",
+            "terminal": campaign_result.get("terminal"),
+            "navigation_only": campaign_result.get("navigation_only"),
+            "terminal_runtime_state": "recognized_home"
+            if completed_process.returncode == 0
+            else "safe_blocked_terminal",
+            "campaign_result": campaign_result,
+            "operator_returncode": completed_process.returncode,
+            "startup_recovery": startup_recovery,
+        }
+        if not campaign_result:
+            route_result["reason"] = (
+                completed_process.stderr
+                or completed_process.stdout
+                or "Campaign Auto Battle result.json is missing"
+            )
+    except Exception as exc:
+        route_result = {
+            "status": "unresolved",
+            "reason": f"{type(exc).__name__}: {exc}",
+            "terminal_runtime_state": "safe_blocked_terminal",
+            "campaign_result": {},
+        }
+    route_input_count = _campaign_transport_count(runtime_directory)
+    recovery_input_count = int(lease.get("startup_recovery_input_count") or 0)
+    input_count = recovery_input_count + route_input_count
+    if input_count > int(lease.get("max_inputs", MAX_INPUTS)):
+        raise _pnsctl().OperatorError("Campaign AP exceeded max_inputs")
+    payload = _campaign_result_payload(
+        route_result,
+        session_directory=child,
+        input_count=input_count,
+        maximum=int(lease.get("max_inputs", MAX_INPUTS)),
+        destination=destination,
+        ap_cost=ap_cost,
+        registration_snapshot=registration_snapshot,
     )
+    if child != runtime_directory:
+        source_path = outer_directory / "source.png"
+        if source_path.is_file():
+            retained_initial = child / "frames" / "0000-initial-observation.png"
+            retained_initial.parent.mkdir(parents=True, exist_ok=True)
+            retained_initial.write_bytes(source_path.read_bytes())
+            initial_observation = dict(initial_observation)
+            initial_observation["frame_path"] = (
+                "frames/0000-initial-observation.png"
+            )
+    payload["campaign_transport_count"] = route_input_count
+    payload["recovery_input_count"] = recovery_input_count
+    payload["route_input_count"] = route_input_count
+    payload["total_input_count"] = input_count
+    trace = _campaign_causal_trace(
+        child,
+        result=payload,
+        initial_observation=initial_observation,
+        registration_snapshot=registration_snapshot,
+    )
+    payload["initial_observation"] = initial_observation
+    payload["initial_frame_sha256"] = initial_observation["frame_sha256"]
+    payload["campaign_transport_count"] = route_input_count
+    payload["recovery_input_count"] = recovery_input_count
+    payload["route_input_count"] = route_input_count
+    payload["total_input_count"] = input_count
+    payload["causal_trace_count"] = 1
+    payload["causal_trace"] = trace
+    outer_session.adopt_retained_transport_count(
+        input_count,
+        source="runtime_session/events.jsonl",
+    )
+    outer_session.remember_control("campaign_transport_count", route_input_count)
+    outer_session.remember_control("recovery_input_count", recovery_input_count)
+    outer_session.remember_control("route_input_count", route_input_count)
+    outer_session.remember_control("total_input_count", input_count)
+    outer_session.remember_control(
+        "campaign_action_count", payload["campaign_action_count"]
+    )
+    outer_session.set_causal_trace(trace)
+    _write_campaign_delivery_result(
+        child,
+        payload,
+        lease=lease,
+        initial_observation=initial_observation,
+        causal_trace=trace,
+    )
+    return json.dumps(payload, sort_keys=True, default=str)
+
+
+def run_campaign_auto_battle_live(
+    queue: Mapping[str, Any],
+    lease: Mapping[str, Any],
+    *,
+    live: bool = True,
+) -> str:
+    if not live:
+        return json.dumps(
+            {
+                "status": "dry_run",
+                "flow_id": AUTO_BATTLE_FLOW_ID,
+                "dispatch": False,
+                "input_count": 0,
+                "max_inputs": MAX_INPUTS,
+                "proof_topology": "continuous",
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+            },
+            sort_keys=True,
+        )
+    if "development_session" not in lease:
+        raise _pnsctl().OperatorError(
+            "Campaign AP requires the active pnsctl-owned DevelopmentSession"
+        )
+    return _run_campaign_auto_battle_continuous(queue, lease)
 
 
 def verify_campaign_auto_battle_live(
     structure: Mapping[str, Any], queue: Mapping[str, Any], lease: Mapping[str, Any]
 ) -> dict[str, Any]:
     del queue, lease
-    result = structure["result"]
+    result = structure.get("result")
+    if not isinstance(result, Mapping):
+        raise _pnsctl().OperatorError("Campaign Auto Battle delivery result is missing")
     if result.get("flow_id") != AUTO_BATTLE_FLOW_ID:
         raise _pnsctl().OperatorError("Campaign Auto Battle evidence belongs to another flow")
-    campaign = result.get("campaign_result") or {}
-    if campaign.get("status") != "completed" or campaign.get("terminal") != "completed":
-        raise _pnsctl().OperatorError("Campaign Auto Battle evidence is not a completed terminal")
-    if campaign.get("navigation_only") is not False or campaign.get("battle_outcome") not in {"victory", "defeat"}:
-        raise _pnsctl().OperatorError("Campaign Auto Battle consequence/result contract failed")
-    progress = campaign.get("progress") or {}
-    if progress.get("ap_spent") != campaign.get("ap_cost"):
-        raise _pnsctl().OperatorError("Campaign AP ledger does not equal configured cost")
-    if result.get("terminal_runtime_state") != "recognized_home":
-        raise _pnsctl().OperatorError("Campaign Auto Battle did not return to recognized Home")
-    return {"status": "verified", "flow_id": AUTO_BATTLE_FLOW_ID, "destination": result.get("destination"), "session_directory": structure["session_directory"], "ap_before": campaign.get("ap_before"), "ap_after": campaign.get("ap_after"), "battle_outcome": campaign.get("battle_outcome"), "terminal_runtime_state": result["terminal_runtime_state"]}
+    session = Path(str(structure.get("session_directory") or ""))
+    campaign = result.get("campaign_result")
+    if not isinstance(campaign, Mapping):
+        raise _pnsctl().OperatorError("Campaign Auto Battle campaign result is missing")
+    if (
+        campaign.get("status") != "completed"
+        or campaign.get("terminal") != "completed"
+        or campaign.get("navigation_only") is not False
+        or campaign.get("battle_outcome") not in {"victory", "defeat"}
+    ):
+        raise _pnsctl().OperatorError(
+            "Campaign Auto Battle consequence/result contract failed"
+        )
+    destination = result.get("destination")
+    ap_cost = result.get("ap_cost")
+    progress = campaign.get("progress")
+    progress = progress if isinstance(progress, Mapping) else {}
+    ledger_ok = (
+        campaign.get("destination") == destination
+        and campaign.get("ap_cost") == ap_cost
+        and progress.get("ap_spent") == ap_cost
+        and result.get("exact_ap_delta") is True
+    )
+    if not ledger_ok:
+        raise _pnsctl().OperatorError(
+            "Campaign AP ledger or configured stage does not match authority"
+        )
+    initial = result.get("initial_observation")
+    initial_ok = False
+    if isinstance(initial, Mapping):
+        frame_path = session / str(initial.get("frame_path") or "")
+        try:
+            frame_path.resolve().relative_to(session.resolve())
+            initial_ok = (
+                frame_path.is_file()
+                and not frame_path.is_symlink()
+                and hashlib.sha256(frame_path.read_bytes()).hexdigest()
+                == initial.get("frame_sha256")
+                == result.get("initial_frame_sha256")
+                and bool(initial.get("invocation_id"))
+            )
+        except (OSError, ValueError):
+            initial_ok = False
+    transport_scope = session.parent if session.parent.name == "runtime" else session
+    retained_transport = _campaign_transport_count(transport_scope)
+    recovery_raw = result.get("recovery_input_count", 0)
+    route_raw = result.get("route_input_count", result.get("campaign_transport_count"))
+    total_raw = result.get("total_input_count", result.get("input_count"))
+    recovery_input_count = recovery_raw if type(recovery_raw) is int else -1
+    route_input_count = route_raw if type(route_raw) is int else -1
+    total_input_count = total_raw if type(total_raw) is int else -1
+    accounting_ok = bool(
+        type(recovery_raw) is int
+        and type(route_raw) is int
+        and type(total_raw) is int
+        and type(result.get("input_count")) is int
+        and type(result.get("campaign_transport_count")) is int
+        and recovery_input_count >= 0
+        and route_input_count >= 0
+        and total_input_count >= 0
+        and route_input_count == retained_transport
+        and total_input_count == recovery_input_count + route_input_count
+        and total_input_count == result.get("input_count")
+        and route_input_count == result.get("campaign_transport_count")
+    )
+    trace = result.get("causal_trace")
+    trace_path = session / str(result.get("causal_trace_path") or "causal-trace.json")
+    trace_file_ok = False
+    try:
+        trace_path.resolve().relative_to(session.resolve())
+        trace_file_ok = (
+            trace_path.is_file()
+            and not trace_path.is_symlink()
+            and json.loads(trace_path.read_text(encoding="utf-8")) == trace
+        )
+    except (OSError, ValueError, json.JSONDecodeError):
+        trace_file_ok = False
+    trace_ok = bool(
+        isinstance(trace, Mapping)
+        and trace_file_ok
+        and result.get("causal_trace_count") == 1
+        and trace.get("trace_count") == 1
+        and trace.get("read_only") is True
+        and trace.get("input_authority") is False
+        and trace.get("proof_topology") == "continuous"
+        and trace.get("initial_frame_sha256") == result.get("initial_frame_sha256")
+        and trace.get("transport_count") == retained_transport
+        and trace.get("route_input_count", route_input_count) == route_input_count
+        and trace.get("recovery_input_count", recovery_input_count) == recovery_input_count
+        and trace.get("total_input_count", total_input_count) == total_input_count
+        and trace.get("campaign_action_count") == result.get("campaign_action_count")
+    )
+    registration_ok = False
+    try:
+        registration = RegisteredDispatchSnapshot.from_mapping(
+            result.get("registration_snapshot")
+        )
+        expected_registration = registration.to_mapping()
+        registration_ok = bool(
+            registration.flow_id == CAMPAIGN_FLOW_ID
+            and dict(result.get("registration_snapshot") or {})
+            == expected_registration
+            and isinstance(trace, Mapping)
+            and trace.get("registration_snapshot") == expected_registration
+        )
+    except (TypeError, ValueError):
+        registration_ok = False
+    verified = bool(
+        result.get("status") == "completed"
+        and result.get("proof_topology") == "continuous"
+        and initial_ok
+        and trace_ok
+        and accounting_ok
+        and type(result.get("max_inputs")) is int
+        and total_input_count <= result.get("max_inputs")
+        and result.get("campaign_action_count") == 1
+        and result.get("destination_match") is True
+        and result.get("cost_match") is True
+        and result.get("ledger_match") is True
+        and result.get("safe_action_policy") is True
+        and result.get("refill_forbidden_verified") is True
+        and result.get("production_registration") == "NOT_REGISTERED"
+        and result.get("scheduler_enabled") is False
+        and registration_ok
+        and result.get("terminal_home_verified") is True
+        and result.get("effect_reconciliation_required") is False
+        and result.get("identical_retry_denied") is False
+    )
+    return {
+        "status": "verified" if verified else "evidence_required",
+        "flow_id": AUTO_BATTLE_FLOW_ID,
+        "session_directory": structure.get("session_directory"),
+        "production_registration": result.get("production_registration"),
+        "scheduler_enabled": result.get("scheduler_enabled"),
+        "registration_verified": registration_ok,
+        "initial_observation_verified": initial_ok,
+        "causal_trace_verified": trace_ok,
+        "retained_transport_count": retained_transport,
+        "campaign_transport_count": result.get("campaign_transport_count"),
+        "campaign_action_count": result.get("campaign_action_count"),
+        "reason": None if verified else "Campaign continuous route proof is incomplete",
+    }
 
 
 def recover_campaign_auto_battle_live(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:

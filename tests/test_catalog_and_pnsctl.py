@@ -9,6 +9,7 @@ from unittest.mock import patch
 from scripts import pnsctl
 from tasks.catalog import CATALOG_PATH, catalog_summary, load_catalog, objective_for_text
 from tasks.daily_quest import AllianceHelpHandler, AllianceHelpObservation
+MATRIX_PATH = Path(__file__).resolve().parents[1] / "tasks" / "daily_quest_execution_matrix.json"
 
 
 class CatalogTests(unittest.TestCase):
@@ -26,12 +27,143 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(by_key["buy_box"].implementation_status, "DISABLED_POLICY")
         self.assertEqual(by_key["gather_wood"].consequence_class, "spend_or_strategic")
 
+    def test_box_purchase_decision_remains_blocked_without_authorization(self):
+        matrix = json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
+        row = next(item for item in matrix["objectives"] if item["objective_key"] == "buy_box")
+        self.assertEqual(row["implementation_status"], "DISABLED_POLICY")
+        self.assertEqual(row["promotion_state"], "DISABLED_POLICY")
+        self.assertIn("no product authorization", row["resource_policy"])
+        self.assertIn("no purchase dispatch", row["action_transaction_boundary"])
+        self.assertIn("explicit product authorization remains absent", row["required_product_or_policy_decisions"])
+    def test_every_catalog_objective_has_one_durable_disposition(self):
+        matrix = json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
+        reconciliation = matrix["portfolio_reconciliation"]
+        owners = {
+            item["objective_key"]: item["owner_task_id"]
+            for item in reconciliation["catalog_objective_ownership"]
+        }
+        dispositions = reconciliation["catalog_disposition"]
+        self.assertEqual(set(dispositions), set(owners))
+        allowed = {
+            "defer_not_current_portfolio",
+            "defer_explicit",
+            "retain_existing_owner",
+            "retain_owner_blocked",
+            "retain_observation_only",
+        }
+        for key, owner in owners.items():
+            with self.subTest(objective=key):
+                self.assertEqual(dispositions[key]["owner_task_id"], owner)
+                self.assertIn(dispositions[key]["disposition"], allowed)
+                self.assertIsNone(dispositions[key]["dispatch_authority"])
+    def test_legacy_retirement_keeps_replacements_non_authorizing(self):
+        matrix = json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
+        retirement = matrix["portfolio_reconciliation"]["legacy_retirement"]
+        self.assertEqual(retirement["status"], "accepted_offline")
+        self.assertEqual(retirement["registration_state"], "NOT_REGISTERED")
+        self.assertFalse(retirement["scheduler_eligibility"])
+        entries = {item["legacy_id"]: item for item in retirement["entries"]}
+        self.assertEqual(
+            set(entries),
+            {
+                "PERSONAL-MIGHT-PRAISE-BLISS-PILOT",
+                "personal_might_daily_claim",
+                "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
+                "scripts/daily_claim_canary.py",
+            },
+        )
+        for entry in entries.values():
+            self.assertFalse(entry["runtime_authority"])
+            self.assertTrue(entry["replacement"])
+
     def test_loader_rejects_row_without_selected_daily_provenance(self):
         raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
         raw["objectives"][0]["evidence_provenance"] = "planning-document.md"
         with patch("tasks.catalog._load_raw", return_value=raw):
             with self.assertRaisesRegex(ValueError, "selected-Daily provenance"):
                 load_catalog()
+
+    def test_catalog_names_aggregate_claim_as_sole_ordinary_owner(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        owner = raw["claim_ownership"]["ordinary_claim"]
+        self.assertEqual(owner["product_record_id"], "aggregate_daily_claim")
+        self.assertEqual(
+            owner["execution_flow_id"],
+            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+        )
+        self.assertTrue(owner["sole_owner"])
+        self.assertEqual(owner["registration_state"], "NOT_REGISTERED")
+        self.assertFalse(owner["scheduler_eligibility"])
+
+    def test_catalog_praise_references_nova_without_selected_daily_prerequisite(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        objective = next(
+            item for item in raw["objectives"] if item["objective_key"] == "personal_might_praise"
+        )
+        self.assertEqual(objective["product_record_id"], "nova_praise")
+        self.assertFalse(objective["selected_daily_prerequisite"])
+
+    def test_catalog_bioenhancer_references_direct_record_without_selected_daily_prerequisite(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        objective = next(
+            item
+            for item in raw["objectives"]
+            if item["objective_key"] == "bioenhancer_research"
+        )
+        self.assertEqual(objective["product_record_id"], "bioenhancer_research")
+        self.assertFalse(objective["selected_daily_prerequisite"])
+
+    def test_catalog_recruitment_maps_only_basic_five_objective_to_direct_record(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        objective = next(
+            item
+            for item in raw["objectives"]
+            if item["objective_key"] == "recruit_noahs_tavern"
+        )
+        self.assertEqual(objective["product_record_id"], "noahs_tavern_recruitment")
+        self.assertFalse(objective["selected_daily_prerequisite"])
+        self.assertEqual(objective["progress_format"], "current/5")
+        self.assertEqual(objective["claim_support"], "ordinary_row_only")
+
+    def test_catalog_campaign_ap_references_direct_record_without_selected_daily_prerequisite(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        objective = next(
+            item for item in raw["objectives"] if item["objective_key"] == "consume_ap"
+        )
+        self.assertEqual(objective["product_record_id"], "campaign_ap")
+        self.assertFalse(objective["selected_daily_prerequisite"])
+        self.assertEqual(objective["progress_format"], "current/20")
+        self.assertEqual(objective["claim_support"], "ordinary_row_only")
+    def test_catalog_maps_all_troop_training_rows_without_selected_daily_prerequisite(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        objectives = {
+            item["objective_key"]: item
+            for item in raw["objectives"]
+            if item["objective_key"] in {"train_fighter", "train_vehicle", "train_shooter", "train_rider"}
+        }
+        self.assertEqual(
+            set(objectives),
+            {"train_fighter", "train_vehicle", "train_shooter", "train_rider"},
+        )
+        for objective in objectives.values():
+            with self.subTest(objective=objective["objective_key"]):
+                self.assertEqual(objective["product_record_id"], "troop_training")
+                self.assertFalse(objective["selected_daily_prerequisite"])
+                self.assertEqual(objective["claim_support"], "ordinary_row_only")
+
+    def test_catalog_separates_milestone_claim_from_ordinary_row_claim(self):
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        ordinary = raw["claim_ownership"]["ordinary_claim"]
+        milestone = raw["claim_ownership"]["milestone_claim"]
+        self.assertEqual(milestone["product_record_id"], "activity_milestone_claim")
+        self.assertEqual(
+            milestone["execution_flow_id"],
+            "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
+        )
+        self.assertTrue(milestone["sole_owner"])
+        self.assertEqual(milestone["ordinary_claim_owner"], ordinary["product_record_id"])
+        self.assertEqual(milestone["registration_state"], "NOT_REGISTERED")
+        self.assertFalse(milestone["scheduler_eligibility"])
 
 
 class OperatorCliTests(unittest.TestCase):

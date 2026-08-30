@@ -2,6 +2,25 @@
 **/*conversation-transcript*.md
 **/*agent-transcript*.md
 
+# Raw and local evidence is retained but excluded from broad indexing.
+.local-captures/**
+.local-reference/**
+evidence/**/*.png
+evidence/**/*.jpg
+evidence/**/*.jpeg
+evidence/**/*.webp
+evidence/**/*.sqlite
+evidence/**/*.sqlite3
+evidence/**/*.db
+evidence/**/raw/**
+evidence/**/duplicate-frame*/
+evidence/**/duplicates/**
+evidence/**/transfer/**
+evidence/**/remote-cache/**
+evidence/**/*.zip
+evidence/**/*.zip.*
+evidence/**/*transcript*.md
+
 # Don't index SpecStory auto-save files, but allow explicit context inclusion via @ references
 .specstory/**
 # Local orchestration, caches, archives, and IDE/local noise for broad indexing.

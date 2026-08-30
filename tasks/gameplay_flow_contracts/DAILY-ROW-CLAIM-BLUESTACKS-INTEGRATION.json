@@ -1,7 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "flow_id": "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-  "product_purpose": "One-tap aggregate Daily Claim on the selected Daily screen.",
+  "product_purpose": "One ordinary free non-milestone Claim on the selected Daily surface, bound to the current row and returned to canonical Home.",
   "trigger_cadence_type": "daily_once",
   "reset_scope": "daily_reset",
   "required_starting_context": [
@@ -10,33 +10,133 @@
   ],
   "shared_primitive_dependencies": [],
   "recognized_states": [
-    "selected_daily_claim_available",
-    "aggregate_claim_complete",
+    "home_ready",
+    "daily_surface_ready",
+    "ordinary_claimable_row_bound",
+    "ordinary_claim_dispatched",
+    "points_control_successor_verified",
+    "effect_reconciliation_required",
+    "home_canonical",
+    "blocked",
     "evidence_required"
   ],
-  "state_transitions": [
+  "transition_contracts": [
     {
-      "from": "selected_daily_claim_available",
-      "to": "aggregate_claim_complete",
-      "via": "one ordinary Claim tap",
-      "notes": "One tap claims all available completed Daily quests."
+      "transition_id": "open-selected-daily",
+      "from": "home_ready",
+      "to": "daily_surface_ready",
+      "planner": "scripts/flow_delivery_daily_row_claim_bluestacks.py",
+      "permitted_input": "current-frame-bound Daily navigation",
+      "postconditions": [
+        "fresh verified Home source",
+        "positively recognized selected Daily surface"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-claim-route-verification"
     },
     {
-      "from": "aggregate_claim_complete",
-      "to": "home_ready",
-      "via": "bounded Back navigation",
-      "notes": "A successful Daily Claim flow always returns to and positively verifies Base/Home before terminal completion."
+      "transition_id": "bind-ordinary-claim-row",
+      "from": "daily_surface_ready",
+      "to": "ordinary_claimable_row_bound",
+      "planner": "scripts/flow_delivery_daily_row_claim_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "current native 800x1280 selected-Daily frame inspected before motion",
+        "exact row-local ordinary non-milestone Claim control bound",
+        "row is free and claimable with no clipping, contradiction, non-claimable state, or stale binding"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-claim-route-verification"
+    },
+    {
+      "transition_id": "dispatch-one-ordinary-claim",
+      "from": "ordinary_claimable_row_bound",
+      "to": "ordinary_claim_dispatched",
+      "planner": "scripts/flow_delivery_daily_row_claim_bluestacks.py",
+      "permitted_input": "current-frame-bound ordinary free non-milestone Claim tap",
+      "postconditions": [
+        "exactly one Claim transport is dispatched",
+        "transport success is retained as transport evidence only",
+        "no identical retry is authorized"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-claim-route-verification"
+    },
+    {
+      "transition_id": "verify-points-and-controls",
+      "from": "ordinary_claim_dispatched",
+      "to": "points_control_successor_verified",
+      "planner": "scripts/flow_delivery_daily_row_claim_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "positive Daily points delta is verified",
+        "all ordinary Claim controls are cleared",
+        "Claim dispatch is not treated as reward or points proof"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-claim-semantic-successor"
+    },
+    {
+      "transition_id": "reconcile-unknown-claim-effect",
+      "from": "ordinary_claim_dispatched",
+      "to": "effect_reconciliation_required",
+      "planner": "scripts/flow_delivery_daily_row_claim_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "dispatch-bearing unknown successor is retained as reconciliation-required",
+        "no reward, points, or Claim-control success is inferred from transport",
+        "identical Claim retry remains denied"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-claim-effect-reconciliation"
+    },
+    {
+      "transition_id": "return-canonical-home",
+      "from": "points_control_successor_verified",
+      "to": "home_canonical",
+      "planner": "scripts/flow_delivery_daily_row_claim_bluestacks.py",
+      "permitted_input": "current-frame-bound bounded Back navigation",
+      "postconditions": [
+        "same selected Daily and reset identity remain bound before exit",
+        "canonical Home is positively recognized as terminal"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-claim-semantic-successor"
     }
   ],
   "permitted_inputs": [
-    "one current-frame-bound ordinary Claim tap",
-    "bounded Back navigation from selected Daily to verified Base/Home"
+    "current-frame-bound Daily navigation",
+    "current-frame-bound ordinary free non-milestone Claim tap",
+    "current-frame-bound bounded Back navigation",
+    "observe-only Claim effect reconciliation"
   ],
   "local_postconditions": [
-    "Daily points increased",
-    "ordinary Claim controls cleared",
-    "same selected Daily and reset identity before exit",
-    "Base/Home positively recognized after bounded Back navigation"
+    "one typed current observation is bound to the flow-owned execution",
+    "selected Daily surface and exact row-local Claim target are current-frame bound",
+    "exactly one ordinary Claim transport is accounted",
+    "positive points/control successor is verified before semantic success",
+    "canonical Home is verified before terminal completion"
   ],
   "consequential_action_class": "ordinary_development",
   "cost_quantity_requirements": {
@@ -44,37 +144,123 @@
     "maximum_cost": 0,
     "quantity": 1,
     "resource_or_currency": null,
-    "notes": "Ordinary free Claim only; milestone controls are excluded."
+    "notes": "Exactly one ordinary free non-milestone Claim dispatch; milestone, non-claimable, cost-bearing, unknown, or contradictory rows are rejected."
   },
   "completion_identity": "daily-row-claim-bluestacks-integration:home-complete",
   "terminal_outcomes": [
     "complete_for_reset",
     "deferred",
-    "blocked"
+    "blocked",
+    "manual_required"
   ],
-  "cooldown_deferred_behavior": "evidence_required",
-  "bounded_recovery_behavior": "evidence_required",
+  "cooldown_deferred_behavior": "If selected Daily, row claimability, cost, target, or reset identity is unknown, non-claimable, clipped, contradictory, or stale, dispatch zero input and report evidence_required.",
+  "bounded_recovery_behavior": "A dispatch-bearing unknown successor becomes effect_reconciliation_required; it vetoes DONE, denies identical retry, and follows bounded CONTINUE to STEP_BACK to ESCALATE convergence.",
   "evidence_requirements": [
     "current native Home to selected-Daily navigation recognition",
     "current native 800x1280 selected-Daily source and immediate-before frame",
-    "ordinary free non-milestone Claim-control proof",
-    "one-tap accounting",
-    "points increase and ordinary Claim-control exhaustion",
-    "post-Claim bounded Back transport and positive Base/Home successor"
+    "ordinary free non-milestone Claim-control proof with row-local target binding",
+    "one Claim transport count and one read-only non-authoritative causal trace",
+    "positive points increase and ordinary Claim-control exhaustion",
+    "post-Claim bounded Back transport and positive canonical Home successor",
+    "retained BlueStacks Claim proof remains composite across the historical sessions and is not relabeled continuous"
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "daily-claim-route-verification",
+      "status": "satisfied",
+      "blocks": [
+        "open-selected-daily",
+        "bind-ordinary-claim-row",
+        "dispatch-one-ordinary-claim"
+      ],
+      "required_evidence": [
+        "retained current-frame selected-Daily source and ordinary Claim target proof"
+      ],
+      "permitted_inputs": []
+    },
+    {
+      "gate_id": "daily-claim-semantic-successor",
+      "status": "satisfied",
+      "blocks": [
+        "verify-points-and-controls",
+        "return-canonical-home"
+      ],
+      "required_evidence": [
+        "positive points delta, ordinary Claim-control exhaustion, and canonical Home terminal"
+      ],
+      "permitted_inputs": []
+    },
+    {
+      "gate_id": "daily-claim-effect-reconciliation",
+      "status": "evidence_required",
+      "blocks": [
+        "reconcile-unknown-claim-effect"
+      ],
+      "required_evidence": [
+        "observe-only reconciliation of a dispatch-bearing unknown Claim successor"
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "product_policy_refs": [
+    {
+      "policy_id": "aggregate-daily-claim",
+      "source": "tasks/product_authority.py"
+    }
   ],
   "replay_fixture_requirements": [
     {
       "fixture_id": "aggregate_claim_contract",
       "status": "synthetic_policy_ok",
       "path": "tests/test_daily_row_claim_bluestacks.py",
-      "notes": "Objective identity and fixed point deltas are not authorization inputs."
+      "notes": "Objective identity and fixed point deltas are not authorization inputs; retained semantic proof is composite."
     }
   ],
-  "live_validation_scenarios": [
+  "scenarios": [
     {
-      "id": "selected-daily-aggregate-claim",
+      "scenario_id": "selected-daily-aggregate-claim",
       "mode": "consequential_supervised",
-      "notes": "End-to-end behavior validated 2026-08-17 on local BlueStacks through the canonical receipt-bound route. Claim receipt c2ddc2ea-60b4-404a-a7b3-784ffaff9d08 increased points 20 to 25 and cleared ordinary Claim controls. Return receipt d4a6822b-a486-44a9-a2b7-4b71a0f5265c then started from positively recognized selected Daily, dispatched exactly one Back with no Claim/resource/combat input, and verified template Home at correlation 0.9613733291625977. Ownership released after both sessions."
+      "start_state": "home_ready",
+      "terminal_state": "home_canonical",
+      "permitted_inputs": [
+        "current-frame-bound Daily navigation",
+        "current-frame-bound ordinary free non-milestone Claim tap",
+        "current-frame-bound bounded Back navigation"
+      ],
+      "forbidden_inputs": [
+        "observe-only Claim effect reconciliation"
+      ],
+      "required_transitions": [
+        "open-selected-daily",
+        "bind-ordinary-claim-row",
+        "dispatch-one-ordinary-claim",
+        "verify-points-and-controls",
+        "return-canonical-home"
+      ],
+      "evidence_gate_ids": [
+        "daily-claim-route-verification",
+        "daily-claim-semantic-successor"
+      ],
+      "notes": "Retained receipts c2ddc2ea-60b4-404a-a7b3-784ffaff9d08 and d4a6822b-a486-44a9-a2b7-4b71a0f5265c prove semantic Claim and canonical Home across composite sessions; this contract does not authorize a live canary."
+    },
+    {
+      "scenario_id": "selected-daily-aggregate-claim-unknown-successor",
+      "mode": "observe_only",
+      "start_state": "ordinary_claim_dispatched",
+      "terminal_state": "effect_reconciliation_required",
+      "permitted_inputs": [
+        "observe-only Claim effect reconciliation"
+      ],
+      "forbidden_inputs": [
+        "current-frame-bound ordinary free non-milestone Claim tap"
+      ],
+      "required_transitions": [
+        "reconcile-unknown-claim-effect"
+      ],
+      "evidence_gate_ids": [
+        "daily-claim-effect-reconciliation"
+      ],
+      "notes": "Unknown effect remains unresolved and cannot authorize an identical Claim retry."
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -84,8 +270,44 @@
     "account_selection_or_switching",
     "credential_entry",
     "ambiguous_account_or_server_identity",
-    "blocking_unknown_modal"
+    "blocking_unknown_modal",
+    "milestone Claim",
+    "non-claimable Claim row",
+    "cost-bearing Claim",
+    "clipped Claim row",
+    "unknown or contradictory row",
+    "stale row binding",
+    "real-money confirmation",
+    "identical Claim retry"
   ],
   "implementation_status": "live_validated",
-  "proof_state": "current"
+  "proof_state": "current",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "current",
+  "production_eligible": false,
+  "registration_state": "disabled",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
+    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
+    "product_record_id": "aggregate_daily_claim",
+    "product_record_revision": "aggregate_daily_claim-v1",
+    "product_record_digest": "560ae8fbf83cebbfdfc06efe3860e5b0c089045fb511fe17d33d5586a409fb41",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_READY",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_READY",
+      "HOME_CANONICAL"
+    ]
+  }
 }

@@ -18,26 +18,27 @@ class FlowDeliveryWorkflowPolicyTests(unittest.TestCase):
         )
 
     def test_route_and_parent_integration_guardrails_are_project_local(self) -> None:
+        normalized_agents = " ".join(self.agents.split())
         for marker in (
-            "| Substantive live gameplay-flow development | Heavy; parent orchestration with `executor_luna`",
-            "Promote Medium to Heavy",
-            "second materially distinct live failure",
+            "| Routine live flow delivery / lean reproof of an already-contracted flow | Medium via `pnsctl conduct`",
+            "Promote to Heavy only for architecture, safety-boundary, cross-contract redesign, or `diminishing_returns` STEP_BACK",
+            "| New architecture, safety-boundary, or cross-contract redesign | Heavy; Sol control-plane with bounded Luna + Terra",
             "One initial live failure alone",
             "the parent performs the integration review and owns the final integration decision",
-            "one coherent pre-canary integration acceptance",
+            "The Sol parent owns architecture and one coherent pre-canary integration acceptance",
             "one parent integration gate",
             "do not automatically spawn a child `executor_sol`",
             "no child Sol review is automatic",
         ):
             with self.subTest(marker=marker):
-                self.assertIn(marker, self.agents)
+                self.assertIn(marker, normalized_agents)
         self.assertNotIn(
             "exactly one coherent pre-canary `executor_sol` integration gate",
-            self.agents,
+            normalized_agents,
         )
         self.assertNotIn(
             "must trigger a dedicated `executor_sol` integration review",
-            self.agents,
+            normalized_agents,
         )
 
     def test_compact_ladder_and_manual_full_rule_are_explicit(self) -> None:
@@ -58,6 +59,29 @@ class FlowDeliveryWorkflowPolicyTests(unittest.TestCase):
         self.assertIn("--manual", self.policy)
         self.assertNotIn("Sol gate", self.policy)
         self.assertIn("do not create a second validation framework", self.agents.lower())
+
+    def test_explicit_solo_route_overrides_ceremony_not_safety(self) -> None:
+        normalized_agents = " ".join(self.agents.split())
+        normalized_policy = " ".join(self.policy.split())
+        for marker in (
+            "Recognized `Solo` route override",
+            "`Route: Solo`",
+            "One named agent serially owns planning, architecture, implementation",
+            "overrides Light/Medium/Heavy role choreography",
+            "never silently substitute another model",
+            "review as pending rather than claiming it occurred",
+            "hard safety/manual/user-decision blockers still stop",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, normalized_agents)
+        for marker in (
+            "explicitly selected `Solo` route",
+            "does not waive this validation ladder",
+            "closure records it as pending",
+            "Absent an explicit `Solo` selection",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, normalized_policy)
 
     def test_runtime_phases_keep_current_bluestacks_and_future_bliss_distinct(self) -> None:
         normalized = " ".join(self.agents.split())

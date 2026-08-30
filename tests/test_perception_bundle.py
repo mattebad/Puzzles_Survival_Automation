@@ -30,6 +30,9 @@ from tasks.perception_bundle import (
     NativeFrameIdentity,
     PerceptionBundleError,
     SemanticValidity,
+    ModalSurfaceClass,
+    RecoveryBehavior,
+    classify_source_context_modal,
     TransportFreshness,
     assert_semantic_valid,
     assert_transport_fresh,
@@ -670,6 +673,40 @@ class PerceptionBundleTests(unittest.TestCase):
         )
         self.assertEqual(live.capture_kind, "live")
         self.assertFalse(identity.same_capture_event(live))
+
+    def test_contextual_modal_recovery_is_source_bound_and_never_confirm(self):
+        result = classify_source_context_modal(
+            source_context="shop-list",
+            successor_context="shop-list",
+            surface_identity="known-contextual-surface",
+            surface_class=ModalSurfaceClass.CONTEXTUAL_MODAL,
+            recovery_behavior=RecoveryBehavior.DISMISS_CONTEXTUAL,
+            dismiss_target_identity="close-contextual-surface",
+            recognized=True,
+            confidence=0.9,
+            supporting_evidence=("typed source context",),
+        )
+        self.assertTrue(result.allows_dismissal)
+        self.assertEqual(result.context, "shop-list")
+        self.assertFalse(result.confirm_authorized)
+
+    def test_unknown_or_contradictory_modal_fails_closed(self):
+        unknown = classify_source_context_modal(
+            source_context="list",
+            surface_class="not-a-known-class",
+            recovery_behavior="dismiss_contextual",
+            recognized=True,
+        )
+        contradictory = classify_source_context_modal(
+            source_context="list",
+            surface_class=ModalSurfaceClass.CONTRADICTORY,
+            recognized=True,
+            contradictory=True,
+        )
+        self.assertFalse(unknown.recognized)
+        self.assertFalse(unknown.allows_recovery)
+        self.assertTrue(contradictory.contradictory)
+        self.assertFalse(contradictory.confirm_authorized)
 
 
 if __name__ == "__main__":

@@ -264,7 +264,7 @@
     }
   ],
   "evidence_requirements": [
-    "The retained 2026-07-16 Computer Use session is valid gameplay and mechanics evidence for free variants, observed cooldowns, result handling, mixed-tier Daily progress, and Home return.",
+    "The retained 2026-07-16 Computer Use session is valid gameplay and mechanics evidence for free variants, observed cooldowns, result handling, mixed-tier objective progression, and Home return.",
     "The retained semantic record is not raw hash-bound screenshot evidence, a consequential journal, a manifest, or a production-controller attempt record.",
     "A production-controller positive replay of five Basic free recruits across exact availability windows with terminal canonical Home remains required before any live promotion.",
     "A later supervised consequential canary remains required; registration and scheduler promotion are separately prohibited."
@@ -373,6 +373,31 @@
   "offline_proof_state": "current",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "evidence_required",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
+    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
+    "product_record_id": "noahs_tavern_recruitment",
+    "product_record_revision": "noahs_tavern_recruitment-v1",
+    "product_record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_LOCALIZED",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_READY",
+      "HOME_LOCALIZED",
+      "HOME_CANONICAL"
+    ],
+    "selected_daily_prerequisite": false
+  },
   "registration_state": "disabled",
   "production_eligible": false
 }

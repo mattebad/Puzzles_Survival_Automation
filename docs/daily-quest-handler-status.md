@@ -182,22 +182,22 @@ and Zombie Lair Home maintenance identities remain evidence-gated as detailed ab
 `gather_wood`, `gather_steel`, `gather_gas`, `enhance_gear`, `enhance_chip`, and
 `enhance_module` retain their existing evidence gates and are not changed by this reconciliation.
 
-## Bioenhancer research confirmed; Daily Claim reconciliation pending
+## Bioenhancer historical evidence retained; current proof required
 
-`bioenhancer_research` has one terminally confirmed supervised transaction:
-`bioenhancer-free-1784069057`. Its journal proves one transport call from Bioenhancer Research
-to the Free Research 1x target, zero cost, quantity one, a positive research/cooldown
-postcondition, and no Research 10x or Claim input. The action is therefore
-`BIOENHANCER_RESEARCH_CONFIRMED` / `LIVE_VALIDATED` under supervised validation, not globally
-evidence-gated.
+`bioenhancer_research` has retained historical transaction artifacts, including
+`bioenhancer-free-1784069057`. Those artifacts remain immutable historical evidence only. The
+current schema-2 gameplay contract is `evidence_required`, production-ineligible, and
+registration-disabled; the retained action is not rebound to the current Stage 8 contract or
+HEAD.
 
-Daily reconciliation remains independent and pending. After the transaction's
-`daily-2026-07-14` game day had reset, the selected Daily screen was positively recognized and
-the exact Bioenhancer row was observed at `0/1`; no same-day Claim-ready row can be asserted from
-that post-reset viewport. Claim execution remains `NOT_PERFORMED`; registration and scheduler
-eligibility remain unchanged. Canonical evidence:
-`evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json`,
-`actions-bioenhancer-free-1784069057.sqlite3`, and the retained bounded Daily scroll frames.
+The current admissible route remains one zero-cost Free Research 1x with a positive research/
+cooldown successor, current reset identity, one continuous flow-owned DevelopmentSession,
+canonical Home, and separate Claim ownership. No new observation or input is authorized in Stage
+8. Current production-controller replay and current Daily reconciliation remain
+`EVIDENCE_REQUIRED`.
+
+The historical journal, action count, and retained Daily frames remain preserved as evidence
+metadata. They do not authorize research dispatch or Claim execution.
 
 ## Evidence acquired, collection policy-gated
 

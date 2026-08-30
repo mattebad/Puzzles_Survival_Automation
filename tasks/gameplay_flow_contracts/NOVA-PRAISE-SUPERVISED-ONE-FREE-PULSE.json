@@ -477,6 +477,30 @@
   "offline_proof_state": "current",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "current",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
+    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
+    "product_record_id": "nova_praise",
+    "product_record_revision": "nova_praise-v1",
+    "product_record_digest": "959fe8201ce0250dcab494dc65f930cf52c753b1ac5833d22bcb3a1abea2b2ae",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_LOCALIZED",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_READY",
+      "HOME_LOCALIZED",
+      "HOME_CANONICAL"
+    ]
+  },
   "registration_state": "disabled",
   "production_eligible": false
 }

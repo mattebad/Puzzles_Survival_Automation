@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 import unittest
 
+from jsonschema import Draft202012Validator
+
 from scripts import pnsctl
 from tasks.gameplay_flow_contracts import (
     CONTRACTS_DIR,
@@ -18,6 +20,7 @@ from tasks.gameplay_flow_contracts import (
     validate_flow_contract,
 )
 from tasks.home_context import HOME_NAVIGATION_PRIMITIVES_DIGEST
+from tasks.product_authority import AUTHORITY_REVISION
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,6 +56,130 @@ class GameplayFlowContractTests(unittest.TestCase):
                 self.assertEqual(contract["proof_state"], "current")
             self.assertNotEqual(contract["implementation_status"], "scheduler_eligible")
 
+    def test_ruins_shop_purchase_contract_is_observation_only_and_blocked(self):
+        contract = load_flow_contract("RUINS-SHOP-PURCHASE-EVIDENCE-GATE")
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(contract["product_policy_refs"][0]["policy_id"], "ruins-shop-purchase-policy")
+        self.assertEqual(contract["permitted_inputs"], [])
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 15)
+        self.assertEqual(
+            contract["cost_quantity_requirements"]["resource_or_currency"],
+            "RUINS_COINS",
+        )
+        self.assertEqual(contract["implementation_status"], "contract_only")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        scenario = contract["scenarios"][0]
+        self.assertEqual(scenario["mode"], "blocked_until_evidence")
+        self.assertEqual(scenario["permitted_inputs"], [])
+        self.assertEqual(contract["product_authority_binding"]["product_record_id"], "ruins_shop_purchase")
+
+    def test_rare_earth_shop_contract_is_observation_only_and_unknown_cost_fails_closed(self):
+        contract = load_flow_contract("RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE")
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(contract["product_policy_refs"][0]["policy_id"], "rare-earth-shop-purchase-policy")
+        self.assertEqual(contract["permitted_inputs"], [])
+        self.assertIsNone(contract["cost_quantity_requirements"]["maximum_cost"])
+        self.assertEqual(
+            contract["cost_quantity_requirements"]["resource_or_currency"],
+            "UNKNOWN_CURRENT_CURRENCY",
+        )
+        self.assertEqual(contract["implementation_status"], "contract_only")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        scenario = contract["scenarios"][0]
+        self.assertEqual(scenario["mode"], "blocked_until_evidence")
+        self.assertEqual(scenario["permitted_inputs"], [])
+        self.assertEqual(contract["product_authority_binding"]["product_record_id"], "rare_earth_shop_purchase")
+    def test_alliance_shop_contract_is_observation_only_and_unknown_offer_fails_closed(self):
+        contract = load_flow_contract("ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE")
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(
+            contract["product_policy_refs"][0]["policy_id"],
+            "alliance-shop-purchase-policy",
+        )
+        self.assertEqual(contract["permitted_inputs"], [])
+        self.assertIsNone(contract["cost_quantity_requirements"]["maximum_cost"])
+        self.assertEqual(
+            contract["cost_quantity_requirements"]["resource_or_currency"],
+            "UNKNOWN_CURRENT_JOY_COIN_OR_ALLIANCE_COIN",
+        )
+        self.assertEqual(contract["implementation_status"], "contract_only")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        scenario = contract["scenarios"][0]
+        self.assertEqual(scenario["mode"], "blocked_until_evidence")
+        self.assertEqual(scenario["permitted_inputs"], [])
+        self.assertEqual(
+            contract["product_authority_binding"]["product_record_id"],
+            "alliance_shop_purchase",
+        )
+
+    def test_hero_upgrade_contract_is_observation_only_and_wali_semantics_fail_closed(self):
+        contract = load_flow_contract("HERO-UPGRADE-EVIDENCE-GATE")
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(
+            contract["product_policy_refs"][0]["policy_id"],
+            "hero-upgrade-policy",
+        )
+        self.assertEqual(contract["permitted_inputs"], [])
+        requirements = contract["cost_quantity_requirements"]
+        self.assertIsNone(requirements["maximum_cost"])
+        self.assertEqual(
+            requirements["resource_or_currency"],
+            "STANDARD_HERO_MATERIAL_FIRST",
+        )
+        self.assertTrue(requirements["standard_material_first"])
+        exception = requirements["diamond_reset_exception"]
+        self.assertTrue(exception["allowed"])
+        self.assertEqual(exception["amount"], 150)
+        self.assertTrue(exception["only_when_needed"])
+        self.assertEqual(exception["maximum_per_reset"], 1)
+        self.assertEqual(contract["implementation_status"], "contract_only")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        unsupported = " ".join(contract["unsupported_or_manual_only_states"]).casefold()
+        self.assertIn("upgrade dispatch before native evidence", unsupported)
+        self.assertIn("unbounded diamond spend", unsupported)
+        self.assertNotIn("material spend", unsupported)
+        scenario = contract["scenarios"][0]
+        self.assertEqual(scenario["mode"], "blocked_until_evidence")
+        self.assertEqual(scenario["permitted_inputs"], [])
+        self.assertEqual(
+            contract["product_authority_binding"]["product_record_id"],
+            "hero_upgrade",
+        )
+
+    def test_hero_duel_contract_is_observation_only_and_pvp_fails_closed(self):
+        contract = load_flow_contract("HERO-DUEL-EVIDENCE-GATE")
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(
+            contract["product_policy_refs"][0]["policy_id"],
+            "hero-duel-policy",
+        )
+        self.assertEqual(contract["permitted_inputs"], [])
+        self.assertIsNone(contract["cost_quantity_requirements"]["maximum_cost"])
+        self.assertEqual(
+            contract["cost_quantity_requirements"]["resource_or_currency"],
+            "NO_PVP_RESOURCE_SPEND",
+        )
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertEqual(contract["implementation_status"], "contract_only")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        scenario = contract["scenarios"][0]
+        self.assertEqual(scenario["mode"], "blocked_until_evidence")
+        self.assertEqual(scenario["permitted_inputs"], [])
+        self.assertEqual(
+            contract["product_authority_binding"]["product_record_id"],
+            "hero_duel",
+        )
+
     def test_ultimate_challenge_is_blocked_by_evidence_not_policy(self):
         contract = load_flow_contract("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION")
         scenario = next(
@@ -62,6 +189,39 @@ class GameplayFlowContractTests(unittest.TestCase):
         )
         self.assertEqual(scenario["mode"], "blocked_until_evidence")
         self.assertEqual(scenario["permitted_inputs"], [])
+        proof_notes = " ".join(contract["evidence_requirements"]).casefold()
+        self.assertIn("composite", proof_notes)
+        self.assertIn("continuous terminal-reconciliation", proof_notes)
+
+    def test_bioenhancer_contract_is_free_only_and_historical_evidence_non_accepting(self):
+        contract = load_flow_contract(
+            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"
+        )
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(
+            contract["product_authority_binding"]["product_record_id"],
+            "bioenhancer_research",
+        )
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertTrue(contract["cost_quantity_requirements"]["free_only"])
+        dispatch = next(
+            item
+            for item in contract["transition_contracts"]
+            if item["transition_id"] == "dispatch-free-research"
+        )
+        self.assertIn("cooldown successor", " ".join(dispatch["postconditions"]).casefold())
+        self.assertIn("count text alone", " ".join(dispatch["postconditions"]).casefold())
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["replay_fixture_proof_state"], "evidence_required")
+        scenario = contract["scenarios"][0]
+        self.assertEqual(scenario["mode"], "blocked_until_evidence")
+        self.assertEqual(scenario["permitted_inputs"], [])
+        evidence = " ".join(contract["evidence_requirements"]).casefold()
+        self.assertIn("historical bliss", evidence)
+        self.assertIn("non-accepting", evidence)
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["registration_state"], "disabled")
 
     def test_nova_contract_separates_live_proof_from_production_eligibility(self):
         nova = load_flow_contract("NOVA-PRAISE-HOME-ATLAS-MIGRATION")
@@ -139,6 +299,158 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertIn("one ap per 360 seconds", joined)
         self.assertIn("maximum ap 120", joined)
 
+
+    def test_campaign_ap_contract_binds_typed_record_and_preserves_disabled_state(self):
+        contract = load_flow_contract("CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "campaign_ap")
+        self.assertEqual(binding["product_record_revision"], "campaign_ap-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 20)
+        self.assertEqual(contract["cost_quantity_requirements"]["resource_or_currency"], "CAMPAIGN_AP")
+        self.assertEqual(contract["implementation_status"], "reference_implemented")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["registration_state"], "disabled")
+
+    def test_troop_training_contract_binds_four_type_product_record_and_stays_disabled(self):
+        contract = load_flow_contract("TROOP-TRAINING-END-TO-END-CONSOLIDATION")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "troop_training")
+        self.assertEqual(binding["product_record_revision"], "troop_training-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["proof_state"], "evidence_required")
+
+    def test_world_navigation_contract_binds_typed_record_and_stays_navigation_only(self):
+        contract = load_flow_contract("WORLD-MAP-NAVIGATION-FOUNDATION")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "world_map_navigation")
+        self.assertEqual(binding["product_record_revision"], "world_map_navigation-v1")
+        self.assertEqual(binding["home_authority"], "HOME_READY")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(contract["consequential_action_class"], "none")
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["proof_state"], "evidence_required")
+    def test_vip_points_popup_contract_binds_bounded_helper_and_stays_disabled(self):
+        contract = load_flow_contract("VIP-GET-PTS-POPUP-DISMISSAL")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "vip_points_popup_dismissal")
+        self.assertEqual(binding["product_record_revision"], "vip_points_popup_dismissal-v1")
+        self.assertEqual(binding["home_authority"], "HOME_READY")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(contract["consequential_action_class"], "vip_popup_dismissal_candidate_observation")
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["permitted_inputs"], [])
+        self.assertEqual(contract["scenarios"][0]["permitted_inputs"], [])
+
+    def test_gathering_contract_binds_direct_timer_variants_and_stays_evidence_gated(self):
+        contract = load_flow_contract("GATHERING-BLUESTACKS-INTEGRATION")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(contract["trigger_cadence_type"], "evidence_gated")
+        self.assertEqual(contract["reset_scope"], "pulse_and_march_slot_timer")
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "gathering_resources")
+        self.assertEqual(binding["product_record_revision"], "gathering_resources-v2")
+        self.assertEqual(binding["home_authority"], "HOME_READY")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(contract["consequential_action_class"], "gathering_march")
+        self.assertIsNone(contract["cost_quantity_requirements"]["maximum_cost"])
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertIn("select_food", contract["scenarios"][0]["forbidden_inputs"])
+        self.assertIn("dispatch_attack", contract["scenarios"][0]["forbidden_inputs"])
+        self.assertIn("retry_identical_dispatch", contract["scenarios"][0]["forbidden_inputs"])
+
+    def test_zombie_lair_contracts_bind_one_record_and_stay_disabled(self):
+        for flow_id in (
+            "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
+            "ZOMBIE-LAIR-HOME-MAINTENANCE",
+        ):
+            contract = load_flow_contract(flow_id)
+            binding = contract["product_authority_binding"]
+            with self.subTest(flow_id=flow_id):
+                self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+                self.assertEqual(binding["product_record_id"], "zombie_lair")
+                self.assertEqual(binding["product_record_revision"], "zombie_lair-v1")
+                self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+                self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+                self.assertFalse(binding["selected_daily_prerequisite"])
+                self.assertEqual(contract["registration_state"], "disabled")
+                self.assertFalse(contract["production_eligible"])
+                self.assertEqual(contract["proof_state"], "evidence_required")
+    def test_nanoweapon_contract_binds_exact_normal_craft_and_stays_disabled(self):
+        contract = load_flow_contract("NANOWEAPON-BLUESTACKS-INTEGRATION")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "nanoweapon_normal_craft")
+        self.assertEqual(binding["product_record_revision"], "nanoweapon_normal_craft-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(
+            contract["consequential_action_class"],
+            "consume_exact_nanoparts_and_start_one_timed_craft",
+        )
+        self.assertFalse(contract["cost_quantity_requirements"]["free_only"])
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 100)
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertEqual(
+            contract["cost_quantity_requirements"]["resource_or_currency"],
+            "NANO_PARTS",
+        )
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["scenarios"][0]["mode"], "blocked_until_policy")
+        self.assertEqual(contract["scenarios"][0]["permitted_inputs"], [])
+
+    def test_nano_material_contract_binds_zero_resource_batch_and_stays_disabled(self):
+        contract = load_flow_contract("NANO-MATERIAL-PRODUCTION-MAINTENANCE")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "nano_material_production")
+        self.assertEqual(binding["product_record_revision"], "nano_material_production-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(
+            contract["consequential_action_class"],
+            "zero_resource_claim_and_timed_maintenance_start",
+        )
+        self.assertTrue(contract["cost_quantity_requirements"]["free_only"])
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["proof_state"], "not_implemented")
+        self.assertEqual(contract["scenarios"][0]["mode"], "blocked_until_policy")
+        self.assertEqual(contract["scenarios"][0]["permitted_inputs"], [])
+
     def test_daily_and_maintenance_contract_identities_are_separate(self):
         pairs = (
             ("NANOWEAPON-BLUESTACKS-INTEGRATION", "NANO-MATERIAL-PRODUCTION-MAINTENANCE"),
@@ -153,6 +465,24 @@ class GameplayFlowContractTests(unittest.TestCase):
             self.assertEqual(maintenance["registration_state"], "disabled")
             self.assertFalse(daily["production_eligible"])
             self.assertFalse(maintenance["production_eligible"])
+
+    def test_recruitment_contracts_bind_one_r8_record_and_remain_evidence_gated(self):
+        for flow_id in (
+            "RECRUITMENT-BLUESTACKS-INTEGRATION",
+            "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+        ):
+            contract = load_flow_contract(flow_id)
+            binding = contract["product_authority_binding"]
+            with self.subTest(flow_id=flow_id):
+                self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+                self.assertEqual(binding["product_record_id"], "noahs_tavern_recruitment")
+                self.assertEqual(binding["product_record_revision"], "noahs_tavern_recruitment-v1")
+                self.assertEqual(binding["platform"], "bluestacks")
+                self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+                self.assertFalse(binding["selected_daily_prerequisite"])
+                self.assertEqual(contract["proof_state"], "evidence_required")
+                self.assertFalse(contract["production_eligible"])
+                self.assertEqual(contract["registration_state"], "disabled")
 
     def test_exact_policy_quantities_cooldowns_and_home_terminals(self):
         nano_daily = json.dumps(load_flow_contract("NANOWEAPON-BLUESTACKS-INTEGRATION"))
@@ -194,11 +524,148 @@ class GameplayFlowContractTests(unittest.TestCase):
     def test_schema_file_exists(self):
         self.assertTrue((CONTRACTS_DIR / "schema.json").is_file())
 
+    def test_published_schema_accepts_all_representative_contracts(self):
+        schema = json.loads(
+            (CONTRACTS_DIR / "schema.json").read_text(encoding="utf-8")
+        )
+        validator = Draft202012Validator(schema)
+        representative_ids = (
+            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+            "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
+            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+            "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+            "RECRUITMENT-BLUESTACKS-INTEGRATION",
+            "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+        )
+        for flow_id in representative_ids:
+            contract = load_flow_contract(flow_id)
+            with self.subTest(flow_id=flow_id):
+                self.assertEqual(list(validator.iter_errors(contract)), [])
+
+    def test_nova_praise_contract_is_bound_free_only_and_registration_disabled(self):
+        contract = load_flow_contract("NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE")
+        self.assertEqual(contract["product_authority_binding"]["product_record_id"], "nova_praise")
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertTrue(contract["cost_quantity_requirements"]["free_only"])
+        route = contract["transition_contracts"]
+        praise = next(item for item in route if item["transition_id"] == "dispatch_one_free_praise")
+        self.assertEqual(praise["permitted_input"], "exactly_one_free_praise_when_authorized")
+        self.assertIn("attempts_remaining_decremented_by_one", praise["postconditions"])
+        self.assertIn("cooldown_consistent_with_fixed_300_second_policy_after_capture_delay", praise["postconditions"])
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+
+    def test_daily_claim_contract_is_aggregate_row_local_and_fail_closed(self):
+        contract = load_flow_contract("DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION")
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(contract["trigger_cadence_type"], "daily_once")
+        self.assertEqual(contract["reset_scope"], "daily_reset")
+        self.assertEqual(
+            contract["product_authority_binding"]["product_record_id"],
+            "aggregate_daily_claim",
+        )
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertTrue(contract["cost_quantity_requirements"]["free_only"])
+        self.assertEqual(
+            contract["transition_contracts"][2]["permitted_input"],
+            "current-frame-bound ordinary free non-milestone Claim tap",
+        )
+        self.assertIn(
+            "reconcile-unknown-claim-effect",
+            {item["transition_id"] for item in contract["transition_contracts"]},
+        )
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertTrue(
+            any(
+                item["scenario_id"] == "selected-daily-aggregate-claim-unknown-successor"
+                and "current-frame-bound ordinary free non-milestone Claim tap"
+                in item["forbidden_inputs"]
+                for item in contract["scenarios"]
+            )
+        )
+        self.assertIn("non-claimable Claim row", contract["unsupported_or_manual_only_states"])
+        self.assertIn("non-claimable", contract["cooldown_deferred_behavior"])
+
+    def test_daily_milestone_contract_is_separate_free_chest_route_and_evidence_gated(self):
+        contract = load_flow_contract("DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(contract["required_starting_context"], ["home_canonical"])
+        self.assertEqual(binding["product_record_id"], "activity_milestone_claim")
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_revision"], "activity_milestone_claim-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertTrue(contract["cost_quantity_requirements"]["free_only"])
+        self.assertEqual(contract["implementation_status"], "contract_only")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["registration_state"], "disabled")
+        transitions = {item["transition_id"]: item for item in contract["transition_contracts"]}
+        self.assertEqual(
+            transitions["dispatch-milestone"]["permitted_input"],
+            "exactly_one_zero_cost_ready_milestone_chest_claim",
+        )
+        self.assertIn(
+            "same milestone opened/claimed successor or positive bound points successor is required",
+            transitions["dispatch-milestone"]["postconditions"],
+        )
+        self.assertIn(
+            "effect_reconciliation_required",
+            contract["unsupported_or_manual_only_states"],
+        )
+        self.assertIn("current native bluestacks", " ".join(contract["evidence_requirements"]).casefold())
+
+    def test_enhancement_family_sequence_reaches_each_ordered_category(self):
+        contract = load_flow_contract(
+            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+        )
+        transitions = {
+            item["transition_id"]: item
+            for item in contract["transition_contracts"]
+        }
+        advance = transitions["advance-to-next-category"]
+        self.assertEqual(
+            (advance["from"], advance["to"], advance["permitted_input"]),
+            ("SETTLED_SUCCESSOR_RECONCILED", "COMMANDER_INFO_RECOGNIZED", None),
+        )
+        required = contract["scenarios"][0]["required_transitions"]
+        self.assertEqual(required.count("advance-to-next-category"), 2)
+        settled_positions = [
+            index
+            for index, transition_id in enumerate(required)
+            if transition_id == "settle-same-item-successor"
+        ]
+        self.assertEqual(len(settled_positions), 3)
+        self.assertEqual(
+            [required[index + 1] for index in settled_positions[:2]],
+            ["advance-to-next-category", "advance-to-next-category"],
+        )
+        self.assertEqual(required[settled_positions[-1] + 1], "return-canonical-home")
+        self.assertEqual(
+            transitions["quantity-selection-use"]["permitted_input"],
+            "one_quantity_selection_use",
+        )
+        self.assertEqual(
+            transitions["use-one-enhancer"]["permitted_input"],
+            "one_consuming_confirm",
+        )
+
     def test_daily_resource_item_contract_is_exact_and_not_eligible(self):
         contract = load_flow_contract(
             "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
         )
-        self.assertEqual(contract["schema_version"], 1)
+        self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(contract["implementation_status"], "reference_implemented")
         self.assertEqual(contract["proof_state"], "evidence_required")
         self.assertEqual(contract["required_starting_context"], ["home_ready"])
@@ -212,7 +679,7 @@ class GameplayFlowContractTests(unittest.TestCase):
             1,
         )
         self.assertEqual(
-            [transition["from"] for transition in contract["state_transitions"]],
+            [transition["from"] for transition in contract["transition_contracts"]],
             [
                 "home_ready",
                 "bag",
@@ -232,12 +699,29 @@ class GameplayFlowContractTests(unittest.TestCase):
             contract["cost_quantity_requirements"]["quantity"],
             1,
         )
-        self.assertIn("1K Food", contract["cost_quantity_requirements"]["resource_or_currency"])
+        self.assertFalse(contract["cost_quantity_requirements"]["free_only"])
+        self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 1)
+        self.assertIn(
+            "1K Food",
+            contract["cost_quantity_requirements"]["resource_or_currency"],
+        )
         self.assertIn("second confirmation", " ".join(contract["unsupported_or_manual_only_states"]))
         self.assertIn("In bulk", " ".join(contract["unsupported_or_manual_only_states"]))
         self.assertIn(
             "daily-resource-item:use-1k-food",
             contract["completion_identity"],
+        )
+        self.assertEqual(
+            contract["product_authority_binding"]["binding_type"],
+            "typed_product_record",
+        )
+        self.assertEqual(
+            contract["product_authority_binding"]["home_authority"],
+            "HOME_READY",
+        )
+        self.assertEqual(
+            contract["product_authority_binding"]["terminal_home_authority"],
+            "HOME_CANONICAL",
         )
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])

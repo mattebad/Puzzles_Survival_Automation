@@ -801,8 +801,18 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
                 before = kwargs["capture"]("before")
                 kwargs["dispatch"](before)
                 after = kwargs["capture"]("after")
-                kwargs["recognize"](after)
-                return SimpleNamespace(status="completed")
+                state = kwargs["recognize"](after)
+                if (
+                    str(state).casefold() == "unknown"
+                    and kwargs.get("settled_successor") is not None
+                ):
+                    after = kwargs["settled_successor"]()
+                    state = kwargs["recognize"](after)
+                return SimpleNamespace(
+                    status="completed"
+                    if str(state).casefold() != "unknown"
+                    else "unknown"
+                )
 
         session = Session()
         runtime = Runtime(session)
@@ -835,7 +845,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             route, "resource_list_content_signature", side_effect=signature
         ), patch.object(
             route, "bind_resource_list_swipe", side_effect=binding
-        ), patch.object(route.time, "sleep"):
+        ), patch.object(route.time, "sleep", return_value=None):
             result = route.run_daily_resource_item(runtime, session)
 
         self.assertEqual(result["status"], "evidence_required")
@@ -854,6 +864,119 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
                 ],
             ],
         )
+
+    def test_swipe_ignores_mid_animation_item_until_settled(self):
+        not_food = route.ResourceItemRecognition(
+            route.RESOURCE_ITEM_STATE,
+            False,
+            item_name="1K Food",
+        )
+        ready_food = route.ResourceItemRecognition(
+            route.RESOURCE_ITEM_STATE,
+            True,
+            target_identity=route.ITEM_TARGET_IDENTITY,
+            target_roi=(0, 735, 800, 975),
+            item_name="1K Food",
+            owned_quantity=10,
+            quantity=1,
+            use_roi=(577, 833, 768, 897),
+            inventory_quantity=10,
+            food_resource=100,
+            visual_evidence={
+                "item_card": {
+                    "proven": True,
+                    "source": "visual-horizontal-separators",
+                    "bounds": (0, 735, 800, 975),
+                },
+                "card_ownership_proven": True,
+                "use_count": 1,
+                "quantity_source": "ordinary-use-implied-one",
+            },
+            quantity_source="ordinary-use-implied-one",
+            single_use_semantics_proven=True,
+        )
+
+        class Runtime:
+            frame_max_age_seconds = 30
+
+            def __init__(self):
+                self.state = 0
+
+            def capture(self, label):
+                if label.endswith("-settled"):
+                    self.state = 2
+                image = _blank_frame()
+                image[0, 0, 0] = self.state
+                return CapturedNativeFrame(
+                    frame=image,
+                    png=b"",
+                    sha256=f"{self.state:064x}",
+                    captured_monotonic=time.monotonic(),
+                    path=Path.cwd() / f"{label}.png",
+                )
+
+            def swipe(self, _source, **_kwargs):
+                self.state = 1
+
+        class Session:
+            def run_action(self, **kwargs):
+                before = kwargs["capture"]("before")
+                kwargs["dispatch"](before)
+                immediate = kwargs["capture"]("after")
+                state = kwargs["recognize"](immediate)
+                self.assert_unknown = state
+                settled = kwargs["settled_successor"]()
+                state = kwargs["recognize"](settled)
+                return SimpleNamespace(
+                    status="completed"
+                    if str(state).casefold() != "unknown"
+                    else "unknown"
+                )
+
+        runtime = Runtime()
+        session = Session()
+
+        def signature(frame, *, ocr=None):
+            del ocr
+            state = int(frame[0, 0, 0])
+            return ((f"row-{state}", state, 0, state + 1, 1),)
+
+        def item(frame, *, ocr=None):
+            del ocr
+            return ready_food if int(frame[0, 0, 0]) == 1 else not_food
+
+        binding = route.ResourceListSwipeBinding(
+            lane=(360, 560, 432, 1177),
+            start=(396, 1176),
+            end=(396, 560),
+            content_roi=(0, 200, 800, 1200),
+            use_rois=((577, 833, 768, 897),),
+            bulk_rois=(),
+            signature=(("row-0", 0, 0, 1, 1),),
+        )
+        with patch.object(
+            route, "recognize_resources_screen", return_value=SimpleNamespace(recognized=True)
+        ), patch.object(
+            route, "recognize_food_item_in_resources", side_effect=item
+        ), patch.object(
+            route, "resource_list_content_signature", side_effect=signature
+        ), patch.object(
+            route, "bind_resource_list_swipe", return_value=binding
+        ), patch.object(route.time, "sleep", return_value=None):
+            action, _before, after, settled_item, holder = route._swipe_list_action(
+                runtime,
+                session,
+                ordinal=1,
+                before_signature=binding.signature,
+                ocr=None,
+            )
+
+        self.assertEqual(session.assert_unknown, "UNKNOWN")
+        self.assertEqual(int(after.frame[0, 0, 0]), 2)
+        self.assertTrue(route.resource_item_authorizeable(holder["immediate_post_item"]))
+        self.assertFalse(route.resource_item_authorizeable(settled_item))
+        self.assertTrue(holder["progressed"])
+        self.assertEqual(action.status, "completed")
 
     def test_route_selects_resources_tab_when_bag_opens_on_other_category(self):
         frame = CapturedNativeFrame(

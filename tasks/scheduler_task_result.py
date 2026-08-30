@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from enum import Enum
+import math
 from typing import Any, Mapping, Optional
-
 
 class SchedulerTaskOutcome(str, Enum):
     ACTION_PERFORMED = "action_performed"
@@ -18,7 +18,9 @@ class SchedulerTaskOutcome(str, Enum):
     ALREADY_COMPLETE = "already_complete"
     BLOCKED = "blocked"
     MANUAL_REQUIRED = "manual_required"
-
+    RECONCILIATION_REQUIRED = "reconciliation_required"
+    UNRESOLVED = "unresolved"
+    UNKNOWN = "unknown"
 
 @dataclass(frozen=True)
 class SchedulerIdentity:
@@ -38,6 +40,63 @@ class SchedulerIdentity:
     def composite_key(self) -> str:
         return f"{self.account_id}|{self.server_id}|{self.reset_id}|{self.task_id}"
 
+@dataclass(frozen=True)
+class SchedulerOccurrence:
+    """One reset/recurrence occurrence persisted by the scheduler repository."""
+
+    identity: SchedulerIdentity
+    occurrence_key: str
+    recurrence_class: str
+    repeat_ordinal: int = 0
+    status: str = "ELIGIBLE"
+    revision: int = 0
+    next_eligible_at: float | None = None
+    projection_json: str = "{}"
+    claim_id: str | None = None
+    claim_token: str | None = None
+    last_reason_code: str = ""
+    pulse_token: str | None = None
+    action_count_total: int = 0
+    unresolved_action: bool = False
+    evidence_refs_json: str = "[]"
+
+    def __post_init__(self) -> None:
+        if not self.occurrence_key.strip() or not self.recurrence_class.strip():
+            raise ValueError("scheduler occurrence requires key and recurrence class")
+        if self.repeat_ordinal < 0 or self.revision < 0 or self.action_count_total < 0:
+            raise ValueError("scheduler occurrence counters cannot be negative")
+        if self.status not in {
+            "ELIGIBLE",
+            "CLAIMED",
+            "DEFERRED",
+            "COMPLETED",
+            "BLOCKED",
+            "MANUAL_REQUIRED",
+            "RECONCILIATION_REQUIRED",
+        }:
+            raise ValueError("invalid scheduler occurrence status")
+
+    @property
+    def occurrence_id(self) -> str:
+        """Stable opaque occurrence identifier exposed without a second authority."""
+        return self.occurrence_key
+
+
+@dataclass(frozen=True)
+class SchedulerOccurrenceClaim:
+    occurrence: SchedulerOccurrence
+    claim_id: str
+    claim_token: str
+    claimed_at: float
+
+    @property
+    def identity(self) -> SchedulerIdentity:
+        return self.occurrence.identity
+
+    @property
+    def occurrence_key(self) -> str:
+        return self.occurrence.occurrence_key
+
 
 @dataclass(frozen=True)
 class SchedulerAwareTaskResult:
@@ -55,14 +114,34 @@ class SchedulerAwareTaskResult:
     dispatched_actions: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.action_count < 0:
+        if not self.reason_code.strip():
+            raise ValueError("scheduler result requires a reason code")
+        if type(self.action_count) is not int or self.action_count < 0:
             raise ValueError("action_count cannot be negative")
         if self.outcome is SchedulerTaskOutcome.ACTION_PERFORMED and self.action_count < 1:
             raise ValueError("action_performed requires action_count >= 1")
-        if self.outcome is SchedulerTaskOutcome.DEFERRED and self.next_eligible_at is None:
-            raise ValueError("deferred requires next_eligible_at")
+        if self.outcome is SchedulerTaskOutcome.DEFERRED and (
+            self.next_eligible_at is None
+            or not isinstance(self.next_eligible_at, (int, float))
+            or not math.isfinite(float(self.next_eligible_at))
+            or self.next_eligible_at < 0
+        ):
+            raise ValueError("deferred requires a finite non-negative UTC deadline")
+        if self.next_eligible_at is not None and (
+            not isinstance(self.next_eligible_at, (int, float))
+            or not math.isfinite(float(self.next_eligible_at))
+            or self.next_eligible_at < 0
+        ):
+            raise ValueError("next_eligible_at must be a finite non-negative UTC epoch")
         if self.dispatched_actions and not self.intended_actions:
             raise ValueError("dispatched actions require intended actions")
+        if self.outcome in {
+            SchedulerTaskOutcome.RECONCILIATION_REQUIRED,
+            SchedulerTaskOutcome.UNRESOLVED,
+            SchedulerTaskOutcome.UNKNOWN,
+        }:
+            object.__setattr__(self, "unresolved_action", True)
+
 
     def to_mapping(self) -> dict[str, Any]:
         return {
@@ -106,7 +185,17 @@ class SchedulerAwareTaskResult:
     def manual_required(cls, identity: SchedulerIdentity, reason_code: str, **kwargs: Any) -> "SchedulerAwareTaskResult":
         return cls(SchedulerTaskOutcome.MANUAL_REQUIRED, reason_code, identity, **kwargs)
 
-
+    @classmethod
+    def reconciliation_required(
+        cls, identity: SchedulerIdentity, reason_code: str, **kwargs: Any
+    ) -> "SchedulerAwareTaskResult":
+        kwargs["unresolved_action"] = True
+        return cls(
+            SchedulerTaskOutcome.RECONCILIATION_REQUIRED,
+            reason_code,
+            identity,
+            **kwargs,
+        )
 @dataclass(frozen=True)
 class SchedulerInvocationState:
     identity: SchedulerIdentity
@@ -120,8 +209,8 @@ class SchedulerInvocationState:
     evidence_refs_json: str = "[]"
 
     def __post_init__(self) -> None:
-        if self.revision < 0:
-            raise ValueError("revision cannot be negative")
+        if self.revision < 0 or self.action_count_total < 0:
+            raise ValueError("scheduler invocation counters cannot be negative")
         if self.status not in {
             "pending",
             "deferred",
@@ -130,5 +219,12 @@ class SchedulerInvocationState:
             "blocked",
             "manual_required",
             "unresolved",
+            "reconciliation_required",
         }:
             raise ValueError("invalid scheduler invocation status")
+        if self.next_eligible_at is not None and (
+            not isinstance(self.next_eligible_at, (int, float))
+            or not math.isfinite(float(self.next_eligible_at))
+            or self.next_eligible_at < 0
+        ):
+            raise ValueError("scheduler invocation deadline must be a UTC epoch")

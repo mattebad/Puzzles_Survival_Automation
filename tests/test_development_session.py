@@ -14,10 +14,28 @@ import numpy as np
 from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
 from scripts import flow_delivery_ruins_challenge_bluestacks as ruins_delivery
+from automation_service import registry as registration
 from scripts.bluestacks_native_runtime import (
     CapturedNativeFrame,
     LocalBlueStacksRuntime,
 )
+from scripts.startup_recovery import StartupRecoveryPlan
+
+
+def disable_non_target_registrations(payload: dict, target_flow_id: str) -> None:
+    disabled = {
+        "production_handler": None,
+        "profile": None,
+        "supported_profiles": [],
+        "mode": "disabled",
+        "registration_status": "NOT_REGISTERED",
+        "scheduler_eligible": False,
+        "product_id": None,
+        "product_revision": None,
+    }
+    for flow_id in payload["flows"]:
+        if flow_id != target_flow_id:
+            payload["flows"][flow_id] = dict(disabled)
 
 
 def frame(label: str) -> CapturedNativeFrame:
@@ -54,6 +72,51 @@ class FakeRunner:
 
 
 class DevelopmentSessionTests(unittest.TestCase):
+    def test_continuous_session_binds_initial_memory_and_effect_unknown_reconciliation(self):
+        initial_payload = b"initial-observation"
+        initial_hash = hashlib.sha256(initial_payload).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with boundary.DevelopmentSession(
+                    owner="continuous-owner",
+                    invocation_id="continuous-1",
+                    session_directory=root / "session",
+                    max_inputs=1,
+                ) as session:
+                    typed = session.set_initial_observation(
+                        {
+                            "frame_sha256": initial_hash,
+                            "native_width": 800,
+                            "native_height": 1280,
+                        }
+                    )
+                    self.assertIsInstance(typed, boundary.DevelopmentInitialObservation)
+                    session.remember_control("direction", "forward")
+                    with self.assertRaisesRegex(
+                        boundary.DevelopmentSessionError, "nested DevelopmentSession"
+                    ):
+                        with boundary.DevelopmentSession(
+                            owner="nested-owner",
+                            invocation_id="nested-1",
+                            session_directory=root / "nested",
+                            max_inputs=1,
+                        ):
+                            pass
+                    result = session.run_action(
+                        action_class="owned_item_non_idempotent",
+                        label="effect-unknown",
+                        capture=lambda label: frame(label),
+                        dispatch=lambda _source: None,
+                        recognize=lambda _source: "unknown",
+                    )
+                    self.assertEqual(result.status, "effect_reconciliation_required")
+                    self.assertEqual(session.input_count, 1)
+            summary = json.loads((root / "session" / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["initial_frame_sha256"], initial_hash)
+            self.assertEqual(summary["control_memory"]["direction"], "forward")
+            self.assertIn("effect reconciliation", summary["next_action"])
+
     def test_malformed_ruins_continuation_is_rejected_before_runtime_acquisition(self):
         with tempfile.TemporaryDirectory() as directory:
             checkpoint = Path(directory) / "checkpoint.json"
@@ -213,6 +276,171 @@ class DevelopmentSessionTests(unittest.TestCase):
             self.assertEqual(summary["action_count"], 0)
             self.assertFalse((root / "session" / "actions.jsonl").exists())
             self.assertFalse((root / "session" / "journal.jsonl").exists())
+
+    def test_pnsctl_zero_input_observation_releases_ownership_without_actions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            png = b"ordinary-observation"
+            observation = {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": hashlib.sha256(png).hexdigest(),
+            }
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl,
+                "_development_runtime_observation",
+                return_value=(observation, png),
+            ) as observe, patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                result = json.loads(pnsctl.development_session_observe(max_inputs=0))
+
+            self.assertEqual(result["status"], "observed")
+            self.assertEqual(result["input_count"], 0)
+            self.assertFalse(result["lifecycle_state_created"])
+            self.assertTrue(result["ownership_released"])
+            observe.assert_called_once_with()
+            session_directory = Path(result["session_directory"])
+            summary = json.loads(
+                (session_directory / "summary.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(summary["input_count"], 0)
+            self.assertEqual(summary["action_count"], 0)
+            self.assertFalse(summary["lifecycle_state_created"])
+            self.assertTrue(summary["ownership_released"])
+            self.assertFalse((session_directory / "actions.jsonl").exists())
+            self.assertFalse((session_directory / "journal.jsonl").exists())
+
+    def test_pnsctl_negative_observation_rejects_before_session_acquisition(self):
+        with patch.object(pnsctl, "_development_runtime_observation") as observe, patch.object(
+            boundary, "DevelopmentSession"
+        ) as session:
+            with self.assertRaisesRegex(
+                pnsctl.OperatorError, "ordinary observation requires max_inputs >= 0"
+            ):
+                pnsctl.development_session_observe(max_inputs=-1)
+        observe.assert_not_called()
+        session.assert_not_called()
+
+    def test_pnsctl_observation_release_failure_cannot_return_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            png = b"ordinary-observation"
+            observation = {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": hashlib.sha256(png).hexdigest(),
+            }
+            created = {}
+
+            class UnreleasedSession:
+                def __init__(self, **kwargs):
+                    self.session_directory = Path(kwargs["session_directory"])
+                    lock = type("Lock", (), {"held": True})()
+                    self._ownership = type(
+                        "Ownership", (), {"lock": lock}
+                    )()
+                    self.terminal_status = None
+                    created["session"] = self
+
+                def __enter__(self):
+                    self.session_directory.mkdir(parents=True, exist_ok=True)
+                    return self
+
+                def __exit__(self, *_args):
+                    return None
+
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl,
+                "_development_runtime_observation",
+                return_value=(observation, png),
+            ), patch.object(boundary, "DevelopmentSession", UnreleasedSession):
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "ownership release is unproven"
+                ):
+                    pnsctl.development_session_observe(max_inputs=0)
+
+            self.assertEqual(created["session"].terminal_status, "evidence_required")
+            result = json.loads(
+                (created["session"].session_directory / "result.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            summary = json.loads(
+                (created["session"].session_directory / "summary.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            for artifact in (result, summary):
+                self.assertEqual(artifact["status"], "evidence_required")
+                self.assertEqual(artifact["input_count"], 0)
+                self.assertFalse(artifact["lifecycle_state_created"])
+                self.assertFalse(artifact["ownership_released"])
+            self.assertIn("ownership release is unproven", result["error"])
+            self.assertIn("ownership release is unproven", summary["blocker"])
+
+    def test_pnsctl_observation_checkpoint_mutation_cannot_return_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint = root / "checkpoint.json"
+            checkpoint.write_text("before", encoding="utf-8")
+            png = b"ordinary-observation"
+            observation = {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": hashlib.sha256(png).hexdigest(),
+            }
+
+            def observe_and_mutate():
+                checkpoint.write_text("after", encoding="utf-8")
+                return observation, png
+
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", (checkpoint,)
+            ), patch.object(
+                pnsctl,
+                "_development_runtime_observation",
+                side_effect=observe_and_mutate,
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "mutated a persistent checkpoint artifact"
+                ):
+                    pnsctl.development_session_observe(max_inputs=0)
+
+            session_directories = tuple((root / "sessions").iterdir())
+            self.assertEqual(len(session_directories), 1)
+            session_directory = session_directories[0]
+            result = json.loads(
+                (session_directory / "result.json").read_text(encoding="utf-8")
+            )
+            summary = json.loads(
+                (session_directory / "summary.json").read_text(encoding="utf-8")
+            )
+            for artifact in (result, summary):
+                self.assertEqual(artifact["status"], "evidence_required")
+                self.assertEqual(artifact["input_count"], 0)
+                self.assertFalse(artifact["lifecycle_state_created"])
+                self.assertTrue(artifact["ownership_released"])
+            self.assertIn("mutated a persistent checkpoint artifact", result["error"])
+            self.assertIn("mutated a persistent checkpoint artifact", summary["blocker"])
 
     def test_home_zoom_does_not_require_atlas_localization(self):
         captures = iter((frame("zoom-before"), frame("zoom-after")))
@@ -490,6 +718,318 @@ class DevelopmentSessionTests(unittest.TestCase):
         with self.assertRaisesRegex(pnsctl.OperatorError, "malformed or inconsistent"):
             ruins_delivery.verify_ruins_challenge_home_atlas(missing_claim, queue, {})
 
+    def test_pnsctl_shared_startup_recovery_preserves_split_ledger_and_post_frame(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            child = root / "child"
+            child.mkdir()
+            route_payload = {
+                "type": "dispatch",
+                "action_key": "route-action-1",
+                "target_identity": "route-target",
+                "source_sha256": "a" * 64,
+                "execute": True,
+            }
+            (child / "events.jsonl").write_text(
+                json.dumps(route_payload) + "\n", encoding="utf-8"
+            )
+
+            source = b"startup-source"
+            post = b"post-recovery-home"
+            observations = iter(
+                [
+                    (
+                        {
+                            "device_state": "device",
+                            "foreground_package": pnsctl.PACKAGE,
+                            "native_width": 800,
+                            "native_height": 1280,
+                            "frame_sha256": hashlib.sha256(source).hexdigest(),
+                        },
+                        source,
+                    ),
+                    (
+                        {
+                            "device_state": "device",
+                            "foreground_package": pnsctl.PACKAGE,
+                            "native_width": 800,
+                            "native_height": 1280,
+                            "frame_sha256": hashlib.sha256(post).hexdigest(),
+                        },
+                        post,
+                    ),
+                ]
+            )
+
+            plan = StartupRecoveryPlan(
+                "recovery_required",
+                "FLOW",
+                "SCARLETT_THREE_DAY_PACK",
+                "shared_startup_surface_recovery",
+                False,
+                "exact Scarlett startup surface requires shared recovery",
+                surface_kind="full_page",
+                frame_sha256=hashlib.sha256(source).hexdigest(),
+                recognition={"recognized": True},
+            )
+
+            def runner(queue, lease, *, live=True):
+                self.assertEqual(queue["active_flow_id"], "FLOW")
+                self.assertEqual(lease["route_max_inputs"], 2)
+                self.assertEqual(lease["startup_recovery_input_count"], 1)
+                self.assertEqual(lease["startup_recovery_result"]["input_count"], 1)
+                return json.dumps(
+                    {
+                        "status": "completed",
+                        "session_directory": str(child),
+                        "dispatch": live,
+                    }
+                )
+
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl, "BLUESTACKS_FLOW_IDS", ("FLOW",)
+            ), patch.object(
+                pnsctl,
+                "_load_bluestacks_flow_registry",
+                return_value={"FLOW": {"runner": "runner"}},
+            ), patch.dict(
+                pnsctl._BLUESTACKS_FLOW_RUNNERS, {"runner": runner}
+            ), patch.object(
+                pnsctl, "_development_runtime_observation", side_effect=observations
+            ), patch.object(
+                pnsctl,
+                "_run_shared_startup_recovery",
+                return_value={
+                    "status": "surface_dismissed_successor_captured",
+                    "input_count": 1,
+                    "recovery_input_count": 1,
+                    "route_input_count": 0,
+                    "total_input_count": 1,
+                },
+            ), patch(
+                "scripts.startup_recovery.classify_startup_frame",
+                return_value=plan,
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                result = json.loads(
+                    pnsctl.development_session_run_flow(
+                        "FLOW", live=True, yes=True, max_inputs=3
+                    )
+                )
+
+        self.assertEqual(result["input_count"], 2)
+        self.assertEqual(result["route_input_count"], 1)
+        self.assertEqual(result["recovery_input_count"], 1)
+        self.assertEqual(result["total_input_count"], 2)
+        self.assertEqual(result["initial_frame_sha256"], hashlib.sha256(post).hexdigest())
+
+    def test_pnsctl_full_budget_recovery_reports_retained_input_without_route(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = b"scarlett-source"
+            post = b"post-recovery-home"
+            observations = iter(
+                [
+                    (
+                        {
+                            "device_state": "device",
+                            "foreground_package": pnsctl.PACKAGE,
+                            "native_width": 800,
+                            "native_height": 1280,
+                            "frame_sha256": hashlib.sha256(source).hexdigest(),
+                        },
+                        source,
+                    ),
+                    (
+                        {
+                            "device_state": "device",
+                            "foreground_package": pnsctl.PACKAGE,
+                            "native_width": 800,
+                            "native_height": 1280,
+                            "frame_sha256": hashlib.sha256(post).hexdigest(),
+                        },
+                        post,
+                    ),
+                ]
+            )
+            route_calls: list[object] = []
+
+            def route(_queue, _lease, *, live=True):
+                route_calls.append(live)
+                raise AssertionError("route dispatch must be denied")
+
+            plan = StartupRecoveryPlan(
+                "recovery_required",
+                "FLOW",
+                "SCARLETT_THREE_DAY_PACK",
+                "shared_startup_surface_recovery",
+                False,
+                "exact Scarlett startup surface requires shared recovery",
+                surface_kind="full_page",
+                frame_sha256=hashlib.sha256(source).hexdigest(),
+                recognition={"recognized": True},
+            )
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl, "BLUESTACKS_FLOW_IDS", ("FLOW",)
+            ), patch.object(
+                pnsctl,
+                "_load_bluestacks_flow_registry",
+                return_value={"FLOW": {"runner": "runner"}},
+            ), patch.dict(
+                pnsctl._BLUESTACKS_FLOW_RUNNERS, {"runner": route}
+            ), patch.object(
+                pnsctl, "_development_runtime_observation", side_effect=observations
+            ), patch.object(
+                pnsctl,
+                "_run_shared_startup_recovery",
+                return_value={
+                    "status": "surface_dismissed_successor_captured",
+                    "reason": "positive_postcondition",
+                    "input_count": 1,
+                    "recovery_input_count": 1,
+                    "route_input_count": 0,
+                    "total_input_count": 1,
+                },
+            ), patch(
+                "scripts.startup_recovery.classify_startup_frame",
+                return_value=plan,
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                result = json.loads(
+                    pnsctl.development_session_run_flow(
+                        "FLOW", live=True, yes=True, max_inputs=1
+                    )
+                )
+
+            self.assertEqual(route_calls, [])
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(result["input_count"], 1)
+            self.assertEqual(result["recovery_input_count"], 1)
+            self.assertEqual(result["route_input_count"], 0)
+            self.assertEqual(result["total_input_count"], 1)
+            self.assertTrue(result["result"]["dispatch"])
+            self.assertFalse(result["result"]["route_dispatch"])
+            self.assertEqual(
+                result["result"]["completion_scope"],
+                "startup_recovery_only",
+            )
+            self.assertTrue(result["result"]["terminal_home_verified"])
+            summary = json.loads(
+                (Path(result["session_directory"]) / "summary.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(summary["status"], "completed")
+            self.assertEqual(summary["input_count"], 1)
+            self.assertTrue(result["terminal_home_verified"])
+            self.assertTrue(summary["terminal_home_verified"])
+            self.assertEqual(summary["control_memory"]["terminal_home_verified"], True)
+            self.assertTrue(summary["ownership_released"])
+            self.assertNotIn("blocker", summary)
+            self.assertEqual(
+                summary["next_action"],
+                "startup recovery completed; route execution was intentionally not run",
+            )
+
+    def test_pnsctl_stops_on_unknown_commercial_successor_before_route(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = b"scarlett-source"
+            post = b"commercial-successor"
+            observation = lambda payload: {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": hashlib.sha256(payload).hexdigest(),
+            }
+            observed = iter(((observation(source), source), (observation(post), post)))
+            route_calls: list[object] = []
+
+            def route(_queue, _lease, *, live=True):
+                route_calls.append(live)
+                raise AssertionError("route dispatch must be denied")
+
+            plan = StartupRecoveryPlan(
+                "recovery_required",
+                "FLOW",
+                "SCARLETT_THREE_DAY_PACK",
+                "shared_startup_surface_recovery",
+                False,
+                "exact Scarlett startup surface requires shared recovery",
+                surface_kind="full_page",
+                frame_sha256=hashlib.sha256(source).hexdigest(),
+                recognition={"recognized": True},
+            )
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl, "BLUESTACKS_FLOW_IDS", ("FLOW",)
+            ), patch.object(
+                pnsctl,
+                "_load_bluestacks_flow_registry",
+                return_value={"FLOW": {"runner": "runner"}},
+            ), patch.dict(
+                pnsctl._BLUESTACKS_FLOW_RUNNERS, {"runner": route}
+            ), patch.object(
+                pnsctl, "_development_runtime_observation", side_effect=observed
+            ), patch.object(
+                pnsctl,
+                "_run_shared_startup_recovery",
+                return_value={
+                    "status": "evidence_required",
+                    "reason": "evidence_required_unknown_scarlett_successor",
+                    "input_count": 1,
+                    "recovery_input_count": 1,
+                    "route_input_count": 0,
+                    "total_input_count": 1,
+                },
+            ), patch(
+                "scripts.startup_recovery.classify_startup_frame",
+                return_value=plan,
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                result = json.loads(
+                    pnsctl.development_session_run_flow(
+                        "FLOW", live=True, yes=True, max_inputs=1
+                    )
+                )
+
+            self.assertEqual(route_calls, [])
+            self.assertEqual(result["status"], "evidence_required")
+            self.assertEqual(result["recovery_input_count"], 1)
+            self.assertEqual(result["route_input_count"], 0)
+            self.assertEqual(result["total_input_count"], 1)
+            self.assertFalse(result["result"]["terminal_home_verified"])
+            summary = json.loads(
+                (Path(result["session_directory"]) / "summary.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(summary["status"], "evidence_required")
+            self.assertEqual(
+                summary["blocker"], "evidence_required_unknown_scarlett_successor"
+            )
+            self.assertFalse(result["terminal_home_verified"])
+            self.assertFalse(summary["terminal_home_verified"])
+            self.assertTrue(summary["ownership_released"])
+            self.assertFalse(
+                summary["control_memory"]["terminal_home_verified"]
+            )
+
     def test_pnsctl_flow_session_avoids_queue_and_preserves_checkpoint_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -529,6 +1069,13 @@ class DevelopmentSessionTests(unittest.TestCase):
             def runner(queue, lease, *, live=True):
                 self.assertEqual(queue, {"active_flow_id": "FLOW", "development_session": True})
                 self.assertEqual(lease["unresolved_action_state"], "not_applicable")
+                self.assertEqual(
+                    lease["startup_recovery_plan"]["status"],
+                    "unclassified",
+                )
+                self.assertFalse(
+                    lease["startup_recovery_plan"]["input_authority"],
+                )
                 return json.dumps(
                     {
                         "status": "blocked",
@@ -566,6 +1113,10 @@ class DevelopmentSessionTests(unittest.TestCase):
                 (Path(result["session_directory"]) / "summary.json").read_text(encoding="utf-8")
             )
             self.assertTrue(summary["ownership_released"])
+            self.assertEqual(
+                summary["control_memory"]["startup_recovery_plan"]["status"],
+                "unclassified",
+            )
             self.assertIn("repair recognition or recovery", summary["next_action"])
             self.assertIn(str(child), summary["next_action"])
             action = json.loads(
@@ -577,6 +1128,683 @@ class DevelopmentSessionTests(unittest.TestCase):
             self.assertEqual(action["before_sha256"], "a" * 64)
             self.assertEqual(action["after_sha256"], "b" * 64)
             self.assertEqual(action["status"], "post_captured")
+
+    def test_nova_live_admission_consumes_registration_before_runtime_and_rejects_repeat(
+        self,
+    ):
+        flow_id = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            registry_path = root / "registry.json"
+            checked_in_registry = (
+                Path(__file__).resolve().parents[1]
+                / "tasks"
+                / "flow_delivery_disabled_production_registry.json"
+            )
+            registry_payload = json.loads(
+                checked_in_registry.read_text(encoding="utf-8")
+            )
+            disable_non_target_registrations(registry_payload, flow_id)
+            registry_payload["flows"][flow_id] = {
+                "production_handler": registration.NOVA_HANDLER_ID,
+                "profile": registration.NOVA_PROFILE_ID,
+                "supported_profiles": [registration.NOVA_PROFILE_ID],
+                "mode": registration.NOVA_PHASE_MODE,
+                "registration_status": "REGISTERED",
+                "scheduler_eligible": True,
+                "product_id": registration.NOVA_PRODUCT_ID,
+                "product_revision": registration.NOVA_PRODUCT_REVISION,
+            }
+            registry_path.write_text(json.dumps(registry_payload), encoding="utf-8")
+            runtime_scope = "local-bluestacks-primary-login-slot-v1"
+            account_id = "primary-account"
+            server_id = "primary-server"
+            reset_id = "game-day-2026-08-25"
+            identity_evidence = root / "identity-evidence.json"
+            identity_evidence.write_text(
+                json.dumps(
+                    {
+                        "account_id": account_id,
+                        "server_id": server_id,
+                        "reset_id": reset_id,
+                        "assurance": "supervised_navigation_binding",
+                        "evidence_refs": ["primary-login-screen", "current-reset"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            observed_lease = {}
+
+            def runner(queue, lease, *, live=True):
+                observed_lease.update(lease)
+                self.assertTrue(live)
+                self.assertIsInstance(
+                    lease["registration_snapshot"],
+                    registration.RegisteredDispatchSnapshot,
+                )
+                return json.dumps(
+                    {
+                        "status": "blocked",
+                        "flow_id": flow_id,
+                        "dispatch": False,
+                    }
+                )
+
+            png = b"nova-admission"
+            observation = {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": hashlib.sha256(png).hexdigest(),
+            }
+            with patch.object(
+                registration, "REGISTRY_PATH", registry_path
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl, "BLUESTACKS_FLOW_IDS", (flow_id,)
+            ), patch.object(
+                pnsctl,
+                "_load_bluestacks_flow_registry",
+                return_value={flow_id: {"runner": "nova-runner"}},
+            ), patch.dict(
+                pnsctl._BLUESTACKS_FLOW_RUNNERS,
+                {"nova-runner": runner},
+            ), patch.object(
+                pnsctl,
+                "_development_runtime_observation",
+                return_value=(observation, png),
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                first = json.loads(
+                    pnsctl.development_session_run_flow(
+                        flow_id,
+                        live=True,
+                        yes=True,
+                        max_inputs=8,
+                        runtime_scope=runtime_scope,
+                        account_id=account_id,
+                        server_id=server_id,
+                        reset_id=reset_id,
+                        identity_evidence=identity_evidence,
+                    )
+                )
+                self.assertEqual(first["status"], "blocked")
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "not registered"
+                ):
+                    pnsctl.development_session_run_flow(
+                        flow_id,
+                        live=True,
+                        yes=True,
+                        max_inputs=8,
+                        runtime_scope=runtime_scope,
+                        account_id=account_id,
+                        server_id=server_id,
+                        reset_id=reset_id,
+                        identity_evidence=identity_evidence,
+                    )
+            self.assertIn("registration_snapshot", observed_lease)
+            self.assertFalse(
+                any(
+                    entry.registered
+                    for entry in registration.load_disabled_registry(registry_path)
+                )
+            )
+
+    def test_ultimate_session_adopts_adapter_verified_nested_transport_count(self) -> None:
+        flow_id = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            child = root / "runtime-child"
+            child.mkdir()
+            (child / "events.jsonl").write_text(
+                json.dumps({"type": "post_flee_home_route", "flow_id": flow_id})
+                + "\n",
+                encoding="utf-8",
+            )
+
+            def runner(queue, lease, *, live=True):
+                self.assertEqual(
+                    queue,
+                    {"active_flow_id": flow_id, "development_session": True},
+                )
+                self.assertTrue(lease["development_session"].is_active)
+                return json.dumps(
+                    {
+                        "status": "completed",
+                        "flow_id": flow_id,
+                        "session_directory": str(child),
+                        "dispatch": live,
+                        "retained_transport_count": 2,
+                        "proof_topology": "composite",
+                        "terminal_reconciliation_topology": "continuous",
+                        "causal_trace_count": 1,
+                    }
+                )
+
+            png = b"ultimate-typed-initial"
+            observation = {
+                "device_state": "device",
+                "foreground_package": pnsctl.PACKAGE,
+                "native_width": 800,
+                "native_height": 1280,
+                "frame_sha256": hashlib.sha256(png).hexdigest(),
+            }
+            with patch.object(
+                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
+            ), patch.object(
+                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
+            ), patch.object(
+                pnsctl, "BLUESTACKS_FLOW_IDS", (flow_id,)
+            ), patch.object(
+                pnsctl,
+                "_load_bluestacks_flow_registry",
+                return_value={flow_id: {"runner": "ultimate-runner"}},
+            ), patch.dict(
+                pnsctl._BLUESTACKS_FLOW_RUNNERS,
+                {"ultimate-runner": runner},
+            ), patch.object(
+                pnsctl,
+                "_development_runtime_observation",
+                return_value=(observation, png),
+            ), patch.object(
+                boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"
+            ):
+                result = json.loads(
+                    pnsctl.development_session_run_flow(
+                        flow_id, live=True, yes=True, max_inputs=16
+                    )
+                )
+            self.assertEqual(result["input_count"], 2)
+            self.assertEqual(result["proof_topology"], "composite")
+            self.assertTrue(result["persistent_checkpoint_artifacts_unchanged"])
+
+    def test_direct_nova_praise_consumes_before_session_and_rejects_repeat(self) -> None:
+        flow_id = registration.NOVA_FLOW_ID
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            registry_path = root / "registry.json"
+            checked_in = (
+                Path(__file__).resolve().parents[1]
+                / "tasks"
+                / "flow_delivery_disabled_production_registry.json"
+            )
+            payload = json.loads(checked_in.read_text(encoding="utf-8"))
+            disable_non_target_registrations(payload, flow_id)
+            payload["flows"][flow_id] = {
+                "production_handler": registration.NOVA_HANDLER_ID,
+                "profile": registration.NOVA_PROFILE_ID,
+                "supported_profiles": [registration.NOVA_PROFILE_ID],
+                "mode": registration.NOVA_PHASE_MODE,
+                "registration_status": "REGISTERED",
+                "scheduler_eligible": True,
+                "product_id": registration.NOVA_PRODUCT_ID,
+                "product_revision": registration.NOVA_PRODUCT_REVISION,
+            }
+            registry_path.write_text(json.dumps(payload), encoding="utf-8")
+            identity_evidence = root / "identity.json"
+            identity_evidence.write_text(
+                json.dumps(
+                    {
+                        "account_id": "acct-1",
+                        "server_id": "server-1",
+                        "reset_id": "game-day-2026-08-25",
+                        "assurance": "supervised_navigation_binding",
+                        "evidence_refs": ["current-frame"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = pnsctl.parser().parse_args(
+                [
+                    "nova-praise-pulse",
+                    "--live",
+                    "--yes",
+                    "--supervised-live-opt-in",
+                    "--scenario",
+                    "nova_praise_one_free_pulse",
+                    "--runtime-scope",
+                    "bluestacks-dev-primary",
+                    "--account-id",
+                    "acct-1",
+                    "--server-id",
+                    "server-1",
+                    "--reset-id",
+                    "game-day-2026-08-25",
+                    "--identity-evidence",
+                    str(identity_evidence),
+                ]
+            )
+            events: list[str] = []
+
+            def registry_consumed() -> None:
+                self.assertFalse(
+                    any(
+                        entry.registered
+                        for entry in registration.load_disabled_registry(registry_path)
+                    )
+                )
+
+            class FakeSession:
+                def __init__(self, **_kwargs):
+                    events.append("session_init")
+                    registry_consumed()
+
+                def __enter__(self):
+                    events.append("session_enter")
+                    return self
+
+                def __exit__(self, *_args):
+                    events.append("session_exit")
+
+            def runner(route_args, _identity):
+                events.append("runner")
+                self.assertIsInstance(
+                    route_args.registration_snapshot,
+                    registration.RegisteredDispatchSnapshot,
+                )
+                self.assertFalse(
+                    any(
+                        entry.registered
+                        for entry in registration.load_disabled_registry(registry_path)
+                    )
+                )
+                return json.dumps(
+                    {
+                        "status": "blocked",
+                        "reason": "recognition_needed",
+                        "navigation_input_count": 0,
+                        "praise_transport_calls": 0,
+                        "session_directory": "",
+                    }
+                )
+
+            def guard(*_args, **_kwargs):
+                events.append("guard")
+                self.assertFalse(
+                    any(
+                        entry.registered
+                        for entry in registration.load_disabled_registry(registry_path)
+                    )
+                )
+
+            args.output_directory = root / "output"
+            args.action_database = root / "actions.sqlite3"
+            with (
+                patch.object(registration, "REGISTRY_PATH", registry_path),
+                patch.object(pnsctl, "REPO_ROOT", root),
+                patch.object(pnsctl, "NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT", root / "output"),
+                patch.object(pnsctl, "NOVA_SUPERVISED_ACTION_DATABASE", root / "actions.sqlite3"),
+                patch.object(boundary, "NavigationDevelopmentSession", FakeSession),
+                patch.object(pnsctl, "_create_nova_supervised_invocation_guard", side_effect=guard),
+                patch.object(pnsctl, "_finalize_nova_supervised_invocation_guard"),
+                patch(
+                    "scripts.nova_praise_bluestacks.run_nova_praise_one_free_pulse",
+                    side_effect=runner,
+                ),
+                patch(
+                    "subprocess.run",
+                    return_value=CompletedProcess(
+                        ["git", "rev-parse", "HEAD"],
+                        0,
+                        stdout="a" * 40 + "\n",
+                    ),
+                ),
+            ):
+                args.output_directory = pnsctl.NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT
+                args.action_database = pnsctl.NOVA_SUPERVISED_ACTION_DATABASE
+                first = json.loads(pnsctl.nova_praise_pulse_live(args))
+                self.assertEqual(first["status"], "blocked")
+                self.assertEqual(events, ["guard", "session_init", "session_enter", "runner", "session_exit"])
+                with self.assertRaisesRegex(pnsctl.OperatorError, "not registered"):
+                    pnsctl.nova_praise_pulse_live(args)
+            self.assertFalse(
+                any(
+                    entry.registered
+                    for entry in registration.load_disabled_registry(registry_path)
+                )
+            )
+
+
+    def test_direct_nova_praise_persists_dispatch_evidence_in_all_artifacts(self) -> None:
+        flow_id = registration.NOVA_FLOW_ID
+        from safe_action_core import SafetyStore
+        from tasks.nova_praise_pulse import NOVA_TASK_ID
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            registry_path = root / "registry.json"
+            checked_in = (
+                Path(__file__).resolve().parents[1]
+                / "tasks"
+                / "flow_delivery_disabled_production_registry.json"
+            )
+            payload = json.loads(checked_in.read_text(encoding="utf-8"))
+            disable_non_target_registrations(payload, flow_id)
+            payload["flows"][flow_id] = {
+                "production_handler": registration.NOVA_HANDLER_ID,
+                "profile": registration.NOVA_PROFILE_ID,
+                "supported_profiles": [registration.NOVA_PROFILE_ID],
+                "mode": registration.NOVA_PHASE_MODE,
+                "registration_status": "REGISTERED",
+                "scheduler_eligible": True,
+                "product_id": registration.NOVA_PRODUCT_ID,
+                "product_revision": registration.NOVA_PRODUCT_REVISION,
+            }
+            registry_path.write_text(json.dumps(payload), encoding="utf-8")
+            identity_evidence = root / "identity.json"
+            identity_evidence.write_text(
+                json.dumps(
+                    {
+                        "account_id": "acct-1",
+                        "server_id": "server-1",
+                        "reset_id": "game-day-2026-08-25",
+                        "assurance": "supervised_navigation_binding",
+                        "evidence_refs": ["current-frame"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = (
+                root
+                / ".local-captures"
+                / "flow-delivery"
+                / pnsctl.NOVA_SUPERVISED_PULSE_FLOW_ID
+            )
+            session = output / "nova-praise-one-free-pulse-20260825T000000000000Z"
+            action_database = root / ".local-orchestrator" / "bluestacks-actions.sqlite3"
+            args = pnsctl.parser().parse_args(
+                [
+                    "nova-praise-pulse",
+                    "--live",
+                    "--yes",
+                    "--supervised-live-opt-in",
+                    "--scenario",
+                    "nova_praise_one_free_pulse",
+                    "--runtime-scope",
+                    "bluestacks-dev-primary",
+                    "--account-id",
+                    "acct-1",
+                    "--server-id",
+                    "server-1",
+                    "--reset-id",
+                    "game-day-2026-08-25",
+                    "--identity-evidence",
+                    str(identity_evidence),
+                ]
+            )
+            observed_snapshot: dict[str, object] = {}
+
+            def runner(route_args, _identity):
+                self.assertIsInstance(
+                    route_args.registration_snapshot,
+                    registration.RegisteredDispatchSnapshot,
+                )
+                self.assertFalse(
+                    any(
+                        entry.registered
+                        for entry in registration.load_disabled_registry(registry_path)
+                    )
+                )
+                observed_snapshot.update(route_args.registration_snapshot.to_mapping())
+                session.mkdir(parents=True)
+                (session / "frame.png").write_bytes(b"native-frame")
+                (session / "events.jsonl").write_text(
+                    "\n".join(
+                        [
+                            json.dumps({"type": "navigation", "action": "open_lab"}),
+                            json.dumps(
+                                {
+                                    "type": "dispatch",
+                                    "consequential": True,
+                                    "action_key": "nova-praise:key",
+                                }
+                            ),
+                        ]
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                (session / "ledger.jsonl").write_text(
+                    json.dumps({"action": "navigation", "authorized": True}) + "\n",
+                    encoding="utf-8",
+                )
+                (session / "journal.jsonl").write_text(
+                    json.dumps(
+                        {
+                            "scenario_id": pnsctl.NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                            "action_id": "nova-action",
+                            "action_key": "nova-praise:key",
+                            "journal_status": "confirmed",
+                            "attempts_before": 6,
+                            "attempts_after": 5,
+                            "cooldown_seconds": 300,
+                            "terminal_home_verified": True,
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                runner_result = {
+                    "schema_version": 1,
+                    "flow_id": flow_id,
+                    "scenario_id": pnsctl.NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                    "status": "completed",
+                    "reason": "confirmed_praise_and_verified_safe_return_home",
+                    "session_directory": str(session),
+                    "navigation_input_count": 4,
+                    "praise_transport_calls": 1,
+                    "attempts_before": 6,
+                    "attempts_after": 5,
+                    "cooldown_seconds": 300,
+                    "action_id": "nova-action",
+                    "action_key": "nova-praise:key",
+                    "journal_status": "confirmed",
+                    "terminal_home_verified": True,
+                    "evidence_refs": ["frame.png"],
+                    "action_database": str(action_database),
+                    "production_registration": "NOT_REGISTERED",
+                    "scheduler_enabled": False,
+                    "runner_marker": "preserved",
+                }
+                (session / "result.json").write_text(
+                    json.dumps(runner_result, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                return json.dumps(runner_result)
+
+            action_database.parent.mkdir(parents=True)
+            store = SafetyStore(action_database)
+            try:
+                store.connection.execute(
+                    """
+                    INSERT INTO actions (
+                        action_id, action_key, task_id, semantic_action, source_state,
+                        target_identity, target_roi_json, source_frame_sha256,
+                        source_frame_captured_at, runtime_profile_id, game_day_id,
+                        expected_postcondition, consequence, cost_type, cost_amount,
+                        quantity, consequential, policy_request_json, policy_decision,
+                        policy_reason, prepared_at, input_attempt_at, transport_result_json,
+                        reconciliation_result_json, evidence_refs_json, final_status,
+                        final_reason, updated_at
+                    ) VALUES (
+                        ?, ?, ?, 'praise', 'nova_lab', 'nova', '[]', 'abc', 1.0,
+                        'profile', ?, 'decrement', 'praise', 'none', 0, 1, 1, '{}',
+                        'allow', 'ok', 1.0, 2.0, '{}', '{}', '[]', 'confirmed', 'ok', 3.0
+                    )
+                    """,
+                    ("nova-action", "nova-praise:key", NOVA_TASK_ID, "game-day-2026-08-25"),
+                )
+                store.connection.commit()
+            finally:
+                store.close()
+
+            args.output_directory = output
+            args.action_database = action_database
+            with (
+                patch.object(registration, "REGISTRY_PATH", registry_path),
+                patch.object(pnsctl, "REPO_ROOT", root),
+                patch.object(pnsctl, "NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT", output),
+                patch.object(pnsctl, "NOVA_SUPERVISED_ACTION_DATABASE", action_database),
+                patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"),
+                patch.object(pnsctl, "_create_nova_supervised_invocation_guard"),
+                patch.object(pnsctl, "_bind_nova_supervised_invocation_guard_session"),
+                patch.object(pnsctl, "_finalize_nova_supervised_invocation_guard"),
+                patch(
+                    "scripts.nova_praise_bluestacks.run_nova_praise_one_free_pulse",
+                    side_effect=runner,
+                ),
+                patch(
+                    "subprocess.run",
+                    return_value=CompletedProcess(
+                        ["git", "rev-parse", "HEAD"],
+                        0,
+                        stdout="a" * 40 + "\n",
+                    ),
+                ),
+            ):
+                result = json.loads(pnsctl.nova_praise_pulse_live(args))
+                self.assertEqual(result["runner_marker"], "preserved")
+                self.assertEqual(result["production_registration"], "REGISTERED")
+                result_path = session / "result.json"
+                delivery_path = session / "flow-delivery-result.json"
+                trace_path = session / "causal-trace.json"
+                retained = json.loads(result_path.read_text(encoding="utf-8"))
+                delivery = json.loads(delivery_path.read_text(encoding="utf-8"))
+                trace = json.loads(trace_path.read_text(encoding="utf-8"))
+                for artifact in (retained, delivery, trace):
+                    self.assertEqual(artifact["registration_snapshot"], observed_snapshot)
+                    self.assertEqual(artifact["dispatch_registration"], observed_snapshot)
+                    self.assertFalse(artifact["scheduler_enabled"])
+                self.assertEqual(retained["runner_marker"], "preserved")
+                self.assertEqual(retained["causal_trace"], trace)
+                self.assertEqual(delivery["causal_trace"], trace)
+                mutated_trace = dict(trace)
+                mutated_trace["proof_topology"] = "forged"
+                trace_path.write_text(
+                    json.dumps(mutated_trace, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "causal trace objects disagree"
+                ):
+                    pnsctl.bluestacks_verify_flow(session)
+                trace_path.write_text(
+                    json.dumps(trace, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                for field, forged_value in (("read_only", 1), ("input_authority", 0)):
+                    typed_trace = dict(trace)
+                    typed_trace[field] = forged_value
+                    trace_path.write_text(
+                        json.dumps(typed_trace, indent=2, sort_keys=True) + "\n",
+                        encoding="utf-8",
+                    )
+                    with self.assertRaisesRegex(
+                        pnsctl.OperatorError, "causal trace objects disagree"
+                    ):
+                        pnsctl.bluestacks_verify_flow(session)
+                trace_path.write_text(
+                    json.dumps(trace, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                self.assertEqual(json.loads(pnsctl.bluestacks_verify_flow(session))["status"], "verified")
+                trace_path.unlink()
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "causal-trace.json is required"
+                ):
+                    pnsctl.bluestacks_verify_flow(session)
+                trace_path.write_text(
+                    json.dumps(trace, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+
+                forged_trace = dict(trace)
+                forged_trace["dispatch_registration"] = {
+                    **forged_trace["dispatch_registration"],
+                    "product_id": "forged-product",
+                }
+                trace_path.write_text(
+                    json.dumps(forged_trace, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "forged|disagree"
+                ):
+                    pnsctl.bluestacks_verify_flow(session)
+
+                trace_path.write_text(
+                    json.dumps(trace, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+
+                forged = dict(delivery)
+                forged["dispatch_registration"] = {
+                    **forged["dispatch_registration"],
+                    "product_id": "forged-product",
+                }
+                delivery_path.write_text(
+                    json.dumps(forged, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "forged|disagree"
+                ):
+                    pnsctl.bluestacks_verify_flow(session)
+
+            self.assertFalse(
+                any(
+                    entry.registered
+                    for entry in registration.load_disabled_registry(registry_path)
+                )
+            )
+
+
+class GenericFlowStructureTests(unittest.TestCase):
+    def test_reconciliation_terminal_accepts_declared_causal_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / ".local-captures" / "campaign-reconciliation"
+            session.mkdir(parents=True)
+            (session / "frame.png").write_bytes(b"native-frame")
+            (session / "events.jsonl").write_text("{}\n", encoding="utf-8")
+            (session / "causal-trace.json").write_text("{}\n", encoding="utf-8")
+            result = {
+                "schema_version": 1,
+                "flow_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+                "status": "effect_reconciliation_required",
+                "effect_reconciliation_required": True,
+                "serial": pnsctl.BLUESTACKS_SERIAL,
+                "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
+                "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
+                "runtime_owner": "pnsctl-development-session:test",
+                "terminal_runtime_state": "safe_blocked_terminal",
+                "actions": [],
+                "frames": ["frame.png"],
+                "required_artifacts": ["events_path", "causal_trace_path"],
+                "events_path": "events.jsonl",
+                "causal_trace_path": "causal-trace.json",
+            }
+            result_path = session / "flow-delivery-result.json"
+            result_path.write_text(json.dumps(result), encoding="utf-8")
+
+            with patch.object(pnsctl, "REPO_ROOT", root):
+                verified = pnsctl._verify_flow_structure(session)
+                self.assertEqual(
+                    verified["artifacts"]["causal_trace_path"],
+                    "causal-trace.json",
+                )
+                result["effect_reconciliation_required"] = False
+                result_path.write_text(json.dumps(result), encoding="utf-8")
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "not terminally completed"
+                ):
+                    pnsctl._verify_flow_structure(session)
 
 
 if __name__ == "__main__":

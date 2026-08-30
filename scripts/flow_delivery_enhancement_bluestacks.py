@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 from typing import Any, Mapping
 
 import cv2
@@ -430,14 +431,84 @@ def _native_frames(session: Path) -> list[str]:
 
 
 def _outer_session(lease: Mapping[str, Any]) -> Any:
+    from scripts.navigation_development_boundary import DevelopmentSession
+
     session = lease.get("development_session")
     if (
-        session is None
+        not isinstance(session, DevelopmentSession)
+        or session.is_active is not True
+        or str(session.owner) != f"pnsctl-development-session:{FLOW_ID}"
         or not callable(getattr(session, "run_action", None))
         or not callable(getattr(session, "observe", None))
     ):
         raise _pnsctl().OperatorError("Enhancement flow requires the pnsctl-owned DevelopmentSession")
     return session
+
+
+def _initial_observation(lease: Mapping[str, Any], session: Any) -> dict[str, Any]:
+    from scripts.navigation_development_boundary import DevelopmentInitialObservation
+
+    value = lease.get("initial_observation")
+    bound = session.initial_observation
+    if not isinstance(value, DevelopmentInitialObservation):
+        raise _pnsctl().OperatorError(
+            "Enhancement initial observation must be typed session evidence"
+        )
+    if not isinstance(bound, DevelopmentInitialObservation) or value is not bound:
+        raise _pnsctl().OperatorError(
+            "Enhancement initial observation is not exactly session-bound"
+        )
+    digest = str(value.frame_sha256 or "")
+    if (
+        not _HASH_RE.fullmatch(digest)
+        or digest != str(lease.get("initial_frame_sha256") or "")
+        or value.invocation_id != session.invocation_id
+    ):
+        raise _pnsctl().OperatorError(
+            "Enhancement initial observation hash or invocation binding is invalid"
+        )
+    return value.to_mapping()
+
+
+def _write_read_only_causal_trace(
+    session: Path,
+    *,
+    result: Mapping[str, Any],
+    initial_observation: Mapping[str, Any],
+) -> dict[str, Any]:
+    rows = _read_event_rows(session / "events.jsonl")
+    dispatches = _dispatch_rows(rows)
+    resource_dispatches = _resource_dispatch_rows(rows)
+    trace = {
+        "schema_version": 1,
+        "trace_count": 1,
+        "read_only": True,
+        "input_authority": False,
+        "stages": [
+            "observation",
+            "commander_navigation",
+            "exact_variant_binding",
+            "quantity_use_selection",
+            "consuming_confirm",
+            "same_item_successor",
+            "terminal_home",
+        ],
+        "proof_topology": str(result.get("proof_topology") or "composite"),
+        "flow_id": FLOW_ID,
+        "invocation_id": str(initial_observation.get("invocation_id") or ""),
+        "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
+        "transport_count": len(dispatches),
+        "resource_affecting_dispatch_count": len(resource_dispatches),
+        "event_count": len(rows),
+        "status": str(result.get("status") or "unknown"),
+        "effect_reconciliation_required": bool(
+            result.get("effect_reconciliation_required")
+        ),
+    }
+    (session / "causal-trace.json").write_text(
+        json.dumps(trace, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return trace
 
 
 def _load_family_progress(flow_root: Path) -> dict[str, dict[str, Any]]:
@@ -699,9 +770,6 @@ def run_enhancement_family(
     flow_root = (pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID).resolve()
     reservations: dict[str, Path] = {}
     completed_categories: dict[str, dict[str, Any]] = {}
-    if live and not recovery_only:
-        reservations = _ensure_family_reservations(flow_root)
-        completed_categories = _load_family_progress(flow_root)
     root = flow_root / f"run-{variant}-{_stamp()}"
     if not live:
         return json.dumps(
@@ -718,7 +786,14 @@ def run_enhancement_family(
             },
             sort_keys=True,
         )
+    outer_session = _outer_session(lease)
+    initial_observation = _initial_observation(lease, outer_session)
     reset_identity = str(lease.get("enhancement_reset_identity") or "").strip()
+    if not recovery_only and not reset_identity:
+        raise pnsctl.OperatorError("Enhancement reset identity is required")
+    if not recovery_only:
+        reservations = _ensure_family_reservations(flow_root)
+        completed_categories = _load_family_progress(flow_root)
     if recovery_only:
         progress_path = flow_root / "family-progress.json"
         if progress_path.is_file() and not progress_path.is_symlink():
@@ -739,7 +814,6 @@ def run_enhancement_family(
                 pass
     if not reset_identity:
         raise pnsctl.OperatorError("Enhancement reset identity is required")
-    outer_session = _outer_session(lease)
     outer_directory = Path(outer_session.session_directory)
     runtime: LocalBlueStacksRuntime | None = None
     runtime_session = outer_directory
@@ -755,6 +829,12 @@ def run_enhancement_family(
             execute=True,
         )
         runtime_session = runtime.session
+        source_path = outer_directory / "source.png"
+        if source_path.is_file():
+            retained_initial = runtime_session / "frames" / "0000-initial-observation.png"
+            retained_initial.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source_path, retained_initial)
+            initial_observation["frame_path"] = "frames/0000-initial-observation.png"
         from scripts.enhancement_bluestacks import EnhancementIntegratedRoute, run_recovery
 
         route = (
@@ -849,6 +929,18 @@ def run_enhancement_family(
         if route_status in {"unresolved", "evidence_required", "manual_required"}
         else "blocked"
     )
+    uninterrupted_family = bool(
+        delivery_status == "completed"
+        and not recovery_only
+        and not completed_categories
+        and len(resource_dispatches) == MAX_TOTAL_DISPATCH_BEARING_CANARY_RUNS
+    )
+    proof_topology = "continuous" if uninterrupted_family else "composite"
+    effect_reconciliation_required = bool(
+        resource_dispatches and delivery_status != "completed"
+    )
+    if effect_reconciliation_required:
+        delivery_status = "effect_reconciliation_required"
     delivery = {
         "schema_version": 1,
         "flow_id": FLOW_ID,
@@ -871,9 +963,33 @@ def run_enhancement_family(
         "max_inputs": maximum,
         "resource_affecting_dispatch_count": len(resource_dispatches),
         "enhancement_result": route,
+        "proof_topology": proof_topology,
+        "initial_observation": initial_observation,
+        "initial_frame_sha256": initial_observation["frame_sha256"],
+        "causal_trace_count": 1,
+        "effect_reconciliation_required": effect_reconciliation_required,
         "production_registration": "NOT_REGISTERED",
         "scheduler_enabled": False,
     }
+    trace = _write_read_only_causal_trace(
+        runtime_session,
+        result=delivery,
+        initial_observation=initial_observation,
+    )
+    delivery["causal_trace"] = trace
+    outer_session.set_causal_trace(trace)
+    outer_session.remember_control("enhancement_route_status", delivery_status)
+    outer_session.remember_control(
+        "target_history",
+        [
+            str(row.get("label") or row.get("action_key") or "")
+            for row in outer_session.actions
+        ],
+    )
+    outer_session.remember_control(
+        "recovery_result",
+        "verified_home" if delivery_status == "completed" else route.get("reason"),
+    )
     (runtime_session / "flow-delivery-result.json").write_text(
         json.dumps(delivery, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
@@ -889,6 +1005,9 @@ def run_enhancement_family(
             "dispatch": bool(dispatches),
             "dispatch_count": len(dispatches),
             "input_count": input_count,
+            "proof_topology": proof_topology,
+            "causal_trace_count": 1,
+            "effect_reconciliation_required": effect_reconciliation_required,
         },
         sort_keys=True,
     )
@@ -1166,6 +1285,55 @@ def verify_enhancement_family(
     route = result.get("enhancement_result")
     if not isinstance(route, Mapping):
         return {"status": "evidence_required", "flow_id": FLOW_ID, "reason": "route semantics missing"}
+    initial = result.get("initial_observation")
+    trace = result.get("causal_trace")
+    initial_ok = False
+    if isinstance(initial, Mapping):
+        digest = str(initial.get("frame_sha256") or "")
+        frame_path = str(initial.get("frame_path") or "")
+        try:
+            retained_initial = _retained_path(
+                session, frame_path, "initial observation"
+            )
+            initial_ok = bool(
+                _HASH_RE.fullmatch(digest)
+                and retained_initial.is_file()
+                and _decode_native(retained_initial) == digest
+                and digest == result.get("initial_frame_sha256")
+                and str(initial.get("invocation_id") or "")
+            )
+        except Exception:
+            initial_ok = False
+    dispatch_count = len(_dispatch_rows(rows))
+    resource_count = len(_resource_dispatch_rows(rows))
+    trace_ok = bool(
+        result.get("causal_trace_count") == 1
+        and isinstance(trace, Mapping)
+        and trace.get("trace_count") == 1
+        and trace.get("read_only") is True
+        and trace.get("input_authority") is False
+        and trace.get("flow_id") == FLOW_ID
+        and trace.get("proof_topology") == result.get("proof_topology")
+        and trace.get("initial_frame_sha256") == result.get("initial_frame_sha256")
+        and trace.get("transport_count") == dispatch_count
+        and trace.get("resource_affecting_dispatch_count") == resource_count
+    )
+    if (
+        not initial_ok
+        or not trace_ok
+        or result.get("proof_topology") != "continuous"
+        or result.get("effect_reconciliation_required") is not False
+    ):
+        return {
+            "status": "evidence_required",
+            "flow_id": FLOW_ID,
+            "variant": result["variant"],
+            "session_directory": str(session),
+            "initial_observation_verified": initial_ok,
+            "causal_trace_verified": trace_ok,
+            "proof_topology": result.get("proof_topology"),
+            "transport_accounting_verified": dispatch_count == result.get("dispatch_count"),
+        }
     if result["status"] != "completed":
         return {
             "status": "evidence_required",
@@ -1225,6 +1393,10 @@ def verify_enhancement_family(
         "item_identity": before.selected_item_identity,
         "postcondition_verified": True,
         "independent_rerecognition": True,
+        "initial_observation_verified": initial_ok,
+        "causal_trace_verified": trace_ok,
+        "transport_accounting_verified": True,
+        "proof_topology": "continuous",
         "production_registration": "NOT_REGISTERED",
         "scheduler_enabled": False,
     }

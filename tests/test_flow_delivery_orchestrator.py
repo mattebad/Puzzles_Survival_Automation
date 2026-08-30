@@ -50,12 +50,13 @@ def _concurrent_admission_worker(
     try:
         barrier.wait(timeout=10)
         with (
-            patch.object(guard, "_repo_head", return_value="fixture-head"),
+            patch.object(guard, "_repo_head", return_value="a" * 40),
             patch.object(
                 guard,
                 "_latest_handoff_commit",
-                return_value="fixture-head",
+                return_value="a" * 40,
             ),
+            patch.object(guard, "_commit_is_ancestor", return_value=True),
         ):
             result = guard.admit(
                 event,
@@ -224,6 +225,7 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
             "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
             "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
             "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
             "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
             "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
@@ -236,6 +238,14 @@ class FlowDeliveryQueueTests(unittest.TestCase):
             "GATHERING-BLUESTACKS-INTEGRATION",
             "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
             "ZOMBIE-LAIR-HOME-MAINTENANCE",
+            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+            "RUINS-SHOP-PURCHASE-EVIDENCE-GATE",
+            "RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE",
+            "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE",
+            "HERO-UPGRADE-EVIDENCE-GATE",
+            "HERO-DUEL-EVIDENCE-GATE",
+            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+            "VIP-GET-PTS-POPUP-DISMISSAL",
         ]
         self.assertEqual([item["flow_id"] for item in self.queue["flows"]], expected)
         counts = {
@@ -244,8 +254,8 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         }
         self.assertIn(counts["active"], (0, 1))
         self.assertEqual(counts["ready"] + counts["active"], 0)
-        self.assertEqual(counts["blocked"], 7)
-        self.assertEqual(counts["completed"], 18)
+        self.assertEqual(counts["blocked"], 15)
+        self.assertEqual(counts["completed"], 19)
         self.assertEqual(counts["needs_product_decision"], 0)
 
     def test_campaign_destinations_are_exact_and_legacy_pan_is_recorded(self) -> None:
@@ -602,13 +612,15 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
             .strip()
         )
         self.assertIn(state["current_task_id"], handoff)
-        self.assertIn(state["first_ready_flow"], handoff)
+        self.assertIn(state["next_task_id"], handoff)
+        self.assertEqual(state["next_task_activation_status"], "awaiting_explicit_activation")
+        self.assertEqual(state["active_task_or_flow"], "none")
         self.assertNotIn("actions_already_performed", handoff)
         # Historical Ruins/troop handoff ledgers live in Git history, not the compact volatile handoff.
 
 
 class AgenticWorkflowGuardTests(unittest.TestCase):
-    HEAD = "fixture-head"
+    HEAD = "a" * 40
     NOW = datetime(2026, 8, 17, 0, 0, 1, tzinfo=timezone.utc)
 
     def write_repo(self, directory: str, **overrides):
@@ -621,7 +633,7 @@ class AgenticWorkflowGuardTests(unittest.TestCase):
         )
         state = {
             "schema_version": 3,
-            "head_binding": "latest_commit_touches_handoff",
+            "head_binding": self.HEAD,
             "control_owner": "sol_parent",
             "control_parent_conversation_id": WORKFLOW_PARENT_CONVERSATION_ID,
             "stage_revision": "stage-1",
@@ -686,6 +698,11 @@ class AgenticWorkflowGuardTests(unittest.TestCase):
                 "_latest_handoff_commit",
                 return_value=self.HEAD,
             ),
+            patch.object(
+                workflow_guard,
+                "_commit_is_ancestor",
+                return_value=True,
+            ),
         ):
             return workflow_guard.admit(
                 event,
@@ -743,6 +760,11 @@ class AgenticWorkflowGuardTests(unittest.TestCase):
                     workflow_guard,
                     "_latest_handoff_commit",
                     return_value="older-head",
+                ),
+                patch.object(
+                    workflow_guard,
+                    "_commit_is_ancestor",
+                    return_value=True,
                 ),
             ):
                 result = workflow_guard.admit(
@@ -972,6 +994,24 @@ class BlueStacksOperatorContractTests(unittest.TestCase):
         self.assertFalse(payload["dispatch"])
         state.assert_not_called()
         run.assert_not_called()
+
+    def test_run_flow_live_is_retired_before_observation_or_admission(self) -> None:
+        with (
+            patch("scripts.pnsctl._load_bluestacks_flow_registry") as registry,
+            patch("scripts.pnsctl._load_flow_delivery_state") as state,
+            patch("scripts.pnsctl._development_runtime_observation") as observe,
+        ):
+            with self.assertRaisesRegex(
+                pnsctl.OperatorError,
+                "legacy bluestacks run-flow --live is retired",
+            ):
+                pnsctl.bluestacks_run_flow(
+                    "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+                    live=True,
+                )
+        registry.assert_not_called()
+        state.assert_not_called()
+        observe.assert_not_called()
 
     def test_contract_fixes_private_serial_geometry_and_artifact_root(self) -> None:
         self.assertEqual(pnsctl.BLUESTACKS_SERIAL, "emulator-5554")

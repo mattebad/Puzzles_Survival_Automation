@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import argparse
 from contextlib import nullcontext
-from datetime import datetime, timezone
+from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
 import hashlib
 import inspect
 import json
@@ -22,7 +23,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -41,6 +42,9 @@ BLUESTACKS_NATIVE_WIDTH = 800
 BLUESTACKS_NATIVE_HEIGHT = 1280
 BLUESTACKS_ARTIFACT_ROOT = REPO_ROOT / ".local-captures" / "flow-delivery"
 DEVELOPMENT_SESSION_ROOT = REPO_ROOT / ".local-captures" / "development-sessions"
+RESOURCE_PRIMARY_LOGIN_SLOT_VERSION = "primary-login-slot-v1"
+RESOURCE_AUTHORIZATION_FRESHNESS_SECONDS = 600.0
+RESOURCE_RESET_INTERVAL_SECONDS = 24 * 60 * 60
 DEVELOPMENT_CHECKPOINT_PATHS = (
     REPO_ROOT / "BACKLOG.md",
     REPO_ROOT / "tasks" / "flow_delivery_queue.json",
@@ -56,14 +60,20 @@ NOVA_SUPERVISED_PULSE_FLOW_ID = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
 NOVA_SUPERVISED_PULSE_SCENARIO_ID = "nova_praise_one_free_pulse"
 NOVA_SUPERVISED_PULSE_MAX_INPUTS = 8
 NOVA_SUPERVISED_PRAISE_MAX_INPUTS = 1
+RECRUITMENT_MAINTENANCE_FLOW_ID = "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
+CAMPAIGN_AP_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
 NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT = (
     BLUESTACKS_ARTIFACT_ROOT / NOVA_SUPERVISED_PULSE_FLOW_ID
 )
 NOVA_SUPERVISED_ACTION_DATABASE = (
     REPO_ROOT / ".local-orchestrator" / "bluestacks-actions.sqlite3"
 )
-NOVA_SUPERVISED_GUARD_ARCHIVE_DIR = REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-archive"
-NOVA_SUPERVISED_GUARD_RECEIPT_DIR = REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-receipts"
+NOVA_SUPERVISED_GUARD_ARCHIVE_DIR = (
+    REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-archive"
+)
+NOVA_SUPERVISED_GUARD_RECEIPT_DIR = (
+    REPO_ROOT / ".local-orchestrator" / "nova-supervised-guard-receipts"
+)
 FLOW_DELIVERY_QUEUE = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 FLOW_DELIVERY_LEASE = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
 FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
@@ -72,7 +82,7 @@ FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
 BLUESTACKS_FLOW_IDS = (
     "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
     "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
-    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+    CAMPAIGN_AP_FLOW_ID,
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
     "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
@@ -89,7 +99,7 @@ BLUESTACKS_FLOW_IDS = (
     "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
     "NANOWEAPON-BLUESTACKS-INTEGRATION",
-    "RECRUITMENT-BLUESTACKS-INTEGRATION",
+    RECRUITMENT_MAINTENANCE_FLOW_ID,
     "WORLD-MAP-NAVIGATION-FOUNDATION",
     "GATHERING-BLUESTACKS-INTEGRATION",
     "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
@@ -189,6 +199,15 @@ def _register_checked_in_bluestacks_handlers() -> None:
             register as register_supply_depot,
         )
     try:
+        from scripts.flow_delivery_recruitment_bluestacks import (
+            register as register_recruitment,
+        )
+    except ImportError:
+        from flow_delivery_recruitment_bluestacks import (
+            register as register_recruitment,
+        )
+
+    try:
         from scripts.flow_delivery_daily_resource_item_bluestacks import (
             register as register_daily_resource_item,
         )
@@ -257,6 +276,11 @@ def _register_checked_in_bluestacks_handlers() -> None:
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,
     )
+    register_recruitment(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
 
 
 _register_checked_in_bluestacks_handlers()
@@ -264,6 +288,20 @@ _register_checked_in_bluestacks_handlers()
 
 class OperatorError(RuntimeError):
     pass
+
+
+def _resource_fixed_runtime_binding():
+    """Derive Resource's fixed slot identity from checked-in runtime constants."""
+
+    from scripts.daily_row_claim_bluestacks import BLUESTACKS_RUNTIME_PROFILE_ID
+    from tasks.runtime_identity import derive_fixed_runtime_binding
+
+    return derive_fixed_runtime_binding(
+        serial=BLUESTACKS_SERIAL,
+        runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
+        package_id=PACKAGE,
+        login_slot_version=RESOURCE_PRIMARY_LOGIN_SLOT_VERSION,
+    )
 
 
 _NOVA_RESET_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -292,9 +330,7 @@ def _nova_supervised_guard_path(reset_id: object) -> Path:
     if os.path.islink(configured_root):
         raise OperatorError("Nova supervised guard root must not be a symlink")
     orchestrator = configured_root.resolve()
-    path = orchestrator / (
-        f"nova-praise-one-free-pulse-{selected_reset}.guard.json"
-    )
+    path = orchestrator / (f"nova-praise-one-free-pulse-{selected_reset}.guard.json")
     if path.parent != orchestrator or os.path.islink(path):
         raise OperatorError("Nova supervised guard path is unsafe")
     return path
@@ -338,7 +374,9 @@ def _infer_single_nova_reset_id() -> str:
     root = (REPO_ROOT / ".local-orchestrator").resolve()
     candidates = sorted(root.glob("nova-praise-one-free-pulse-*.guard.json"))
     if len(candidates) != 1:
-        raise OperatorError("Nova guard reset_id is required when multiple guards exist")
+        raise OperatorError(
+            "Nova guard reset_id is required when multiple guards exist"
+        )
     payload_path = candidates[0]
     match = re.fullmatch(
         r"nova-praise-one-free-pulse-(?P<reset>[A-Za-z0-9][A-Za-z0-9_.-]{0,127})\.guard\.json",
@@ -733,6 +771,46 @@ def _development_session_directory(invocation_id: str) -> Path:
     return DEVELOPMENT_SESSION_ROOT / safe
 
 
+def _run_shared_startup_recovery(
+    *,
+    flow_id: str,
+    task_id: str,
+    session_directory: Path,
+    max_inputs: int,
+    recovery_scope: str | None,
+    expected_source_sha256: str | None = None,
+    runtime_holder: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Recover the exact shared startup surface within the active flow boundary."""
+    from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+    from scripts.startup_recovery import recover_known_startup_overlay
+    from tasks.home_nav_recognition import recognize_home_nav
+
+    runtime = LocalBlueStacksRuntime.connect(
+        adb=str(BLUESTACKS_ADB),
+        serial=BLUESTACKS_SERIAL,
+        output_directory=session_directory / "startup-recovery",
+        workflow=f"{flow_id.lower()}-startup-recovery",
+        execute=True,
+    )
+    if runtime_holder is not None:
+        runtime_holder["runtime"] = runtime
+    runtime.max_inputs = min(runtime.max_inputs, max_inputs, 1)
+    result = recover_known_startup_overlay(
+        runtime,
+        task_id=task_id,
+        recognize_successor=lambda frame: bool(recognize_home_nav(frame).is_home),
+        recovery_scope=recovery_scope,
+        expected_source_sha256=expected_source_sha256,
+    )
+    payload = result.to_mapping()
+    payload["flow_id"] = flow_id
+    payload["recovery_input_count"] = int(result.input_count)
+    payload["route_input_count"] = 0
+    payload["total_input_count"] = int(result.input_count)
+    return payload
+
+
 def _compact_development_action_results(
     event_rows: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -764,6 +842,29 @@ def _compact_development_action_results(
     if pending is not None:
         actions.append(pending)
     return actions
+
+
+def _retained_transport_count(event_rows: Sequence[Mapping[str, Any]]) -> int:
+    """Count only retained, executable transport rows once.
+
+    Semantic/planning/capture rows are observability and never contribute to the
+    session's authoritative input count.
+    """
+
+    seen: set[str] = set()
+    count = 0
+    for row in event_rows:
+        if row.get("type") != "dispatch" or row.get("execute") is False:
+            continue
+        identity = str(
+            row.get("action_key")
+            or f"{row.get('source_sha256', '')}:{row.get('target_identity', '')}:{count}"
+        )
+        if identity in seen:
+            raise OperatorError("duplicate retained transport is not countable")
+        seen.add(identity)
+        count += 1
+    return count
 
 
 def _consume_delegated_receipt(
@@ -938,7 +1039,9 @@ def _validate_delegated_observation_artifacts(
         if payload.get("status") != "observed":
             raise OperatorError(f"delegated observation {label} status is not observed")
         if payload.get("input_count") != 0:
-            raise OperatorError(f"delegated observation {label} input count is not zero")
+            raise OperatorError(
+                f"delegated observation {label} input count is not zero"
+            )
         if payload.get("dispatch") is not False:
             raise OperatorError(f"delegated observation {label} dispatch is not false")
         if payload.get("ownership_released") is not True:
@@ -1084,7 +1187,9 @@ def _validate_daily_row_recon_receipt(receipt: Mapping[str, Any]) -> None:
                 )
             continue
         if receipt.get(field) != value:
-            raise OperatorError(f"daily row reconnaissance receipt {field} is not frozen")
+            raise OperatorError(
+                f"daily row reconnaissance receipt {field} is not frozen"
+            )
     expected_bindings = [
         {
             "action_identity": identity,
@@ -1098,15 +1203,21 @@ def _validate_daily_row_recon_receipt(receipt: Mapping[str, Any]) -> None:
         )
     ]
     if receipt.get("action_bindings") != expected_bindings:
-        raise OperatorError("daily row reconnaissance receipt action bindings are not frozen")
+        raise OperatorError(
+            "daily row reconnaissance receipt action bindings are not frozen"
+        )
     binding = receipt.get("evidence_result_binding")
-    if not isinstance(binding, Mapping) or binding.get("result_identity") != DAILY_ROW_RECON_RESULT_IDENTITY:
+    if (
+        not isinstance(binding, Mapping)
+        or binding.get("result_identity") != DAILY_ROW_RECON_RESULT_IDENTITY
+    ):
         raise OperatorError("daily row reconnaissance result identity is not frozen")
     command = receipt.get("command_argv")
     if (
         not isinstance(command, list)
         or len(command) != 16
-        or command[:3] != [
+        or command[:3]
+        != [
             "development-session",
             "daily-row-reconnaissance",
             "--max-inputs",
@@ -1130,11 +1241,15 @@ def _daily_recon_artifact_path(session_directory: Path, value: object) -> Path:
     if not isinstance(value, str) or not value.strip():
         raise OperatorError("daily row reconnaissance artifact path is missing")
     candidate = Path(value)
-    resolved = (candidate if candidate.is_absolute() else session_directory / candidate).resolve()
+    resolved = (
+        candidate if candidate.is_absolute() else session_directory / candidate
+    ).resolve()
     try:
         resolved.relative_to(session_directory.resolve())
     except ValueError as exc:
-        raise OperatorError("daily row reconnaissance artifact escaped its session") from exc
+        raise OperatorError(
+            "daily row reconnaissance artifact escaped its session"
+        ) from exc
     if resolved.is_symlink() or not resolved.is_file():
         raise OperatorError("daily row reconnaissance artifact is missing or unsafe")
     return resolved
@@ -1161,15 +1276,21 @@ def _validate_daily_recon_artifacts(
     )
     frames = payload.get("frames")
     if not isinstance(frames, Mapping) or not required_frames <= set(frames):
-        raise OperatorError("daily row reconnaissance required native frames are missing")
+        raise OperatorError(
+            "daily row reconnaissance required native frames are missing"
+        )
 
     def validate_frame(name: str, reference: object) -> None:
         if not isinstance(reference, Mapping):
-            raise OperatorError(f"daily row reconnaissance frame reference is malformed: {name}")
+            raise OperatorError(
+                f"daily row reconnaissance frame reference is malformed: {name}"
+            )
         path = _daily_recon_artifact_path(session_directory, reference.get("path"))
         declared_hash = reference.get("sha256")
         if not isinstance(declared_hash, str):
-            raise OperatorError(f"daily row reconnaissance frame hash is missing: {name}")
+            raise OperatorError(
+                f"daily row reconnaissance frame hash is missing: {name}"
+            )
         raw = path.read_bytes()
         actual_hash = hashlib.sha256(raw).hexdigest()
         if actual_hash != declared_hash:
@@ -1189,7 +1310,9 @@ def _validate_daily_recon_artifacts(
         if not isinstance(poll, Mapping):
             raise OperatorError(f"daily row reconnaissance poll is malformed: {index}")
         if poll.get("action_identity") not in spec["action_identities"]:
-            raise OperatorError("daily row reconnaissance poll action identity is invalid")
+            raise OperatorError(
+                "daily row reconnaissance poll action identity is invalid"
+            )
         if not isinstance(poll.get("recognition"), Mapping):
             raise OperatorError("daily row reconnaissance poll semantics are missing")
         validate_frame(
@@ -1212,18 +1335,27 @@ def _validate_daily_recon_artifacts(
         or row.get("requested_action") != "navigation"
         for row in actions
     ):
-        raise OperatorError("daily row reconnaissance action records are not completed navigation")
+        raise OperatorError(
+            "daily row reconnaissance action records are not completed navigation"
+        )
     if payload.get("input_count") != spec["max_inputs"]:
         raise OperatorError("daily row reconnaissance input count is not frozen")
-    if payload.get("resource_affecting_inputs") != 0 or payload.get("combat_confirmations") != 0:
+    if (
+        payload.get("resource_affecting_inputs") != 0
+        or payload.get("combat_confirmations") != 0
+    ):
         raise OperatorError("daily row reconnaissance contains a forbidden budget")
     terminal = payload.get("recognitions", {}).get("daily_terminal")
     if not isinstance(terminal, Mapping) or terminal.get("state") != "DAILY_SELECTED":
-        raise OperatorError("daily row reconnaissance terminal semantics are not selected Daily")
+        raise OperatorError(
+            "daily row reconnaissance terminal semantics are not selected Daily"
+        )
     source = payload.get("recognitions", {}).get("source")
     expected_source = "HOME" if variant == DAILY_ROW_RECON_VARIANT else "QUEST"
     if not isinstance(source, Mapping) or source.get("state") != expected_source:
-        raise OperatorError("daily row reconnaissance source semantics are not variant-bound")
+        raise OperatorError(
+            "daily row reconnaissance source semantics are not variant-bound"
+        )
     events_path = _daily_recon_artifact_path(
         session_directory,
         payload.get("runtime_events_path"),
@@ -1235,12 +1367,15 @@ def _validate_daily_recon_artifacts(
     ]
     dispatches = [row for row in event_rows if row.get("type") == "dispatch"]
     if len(dispatches) != spec["max_inputs"]:
-        raise OperatorError("daily row reconnaissance event log dispatch count is not frozen")
+        raise OperatorError(
+            "daily row reconnaissance event log dispatch count is not frozen"
+        )
     if [
-        row.get("action_key") or row.get("target_identity")
-        for row in dispatches
+        row.get("action_key") or row.get("target_identity") for row in dispatches
     ] != list(spec["action_identities"]):
-        raise OperatorError("daily row reconnaissance event action identity order is invalid")
+        raise OperatorError(
+            "daily row reconnaissance event action identity order is invalid"
+        )
 
 
 def _write_daily_recon_artifacts(
@@ -1320,9 +1455,13 @@ def development_session_daily_row_reconnaissance(
             f"daily row reconnaissance requires --max-inputs {spec['max_inputs']}"
         )
     if any(value is None for value in expected_bindings[1:]):
-        raise OperatorError("daily row reconnaissance requires complete receipt bindings")
+        raise OperatorError(
+            "daily row reconnaissance requires complete receipt bindings"
+        )
     if task_id != DAILY_ROW_RECON_TASK_ID or flow_id != DAILY_ROW_RECON_FLOW_ID:
-        raise OperatorError("daily row reconnaissance task or flow binding is not frozen")
+        raise OperatorError(
+            "daily row reconnaissance task or flow binding is not frozen"
+        )
     if scenario != DAILY_ROW_RECON_SCENARIO:
         raise OperatorError("daily row reconnaissance scenario is not frozen")
     if command_argv is None:
@@ -1403,7 +1542,9 @@ def development_session_daily_row_reconnaissance(
                 runtime_relative = runtime_session.resolve().relative_to(
                     session_directory.resolve()
                 )
-                payload["runtime_session_directory"] = str(runtime_relative).replace("\\", "/")
+                payload["runtime_session_directory"] = str(runtime_relative).replace(
+                    "\\", "/"
+                )
             except (OSError, ValueError):
                 payload["runtime_session_directory"] = str(runtime_session)
             payload["runtime_events_path"] = str(
@@ -1440,7 +1581,9 @@ def development_session_daily_row_reconnaissance(
 
         ownership_released = _delegated_observation_ownership_released(session)
         if not ownership_released:
-            raise OperatorError("daily row reconnaissance ownership release is unproven")
+            raise OperatorError(
+                "daily row reconnaissance ownership release is unproven"
+            )
         checkpoint_after = _checkpoint_hashes()
         if checkpoint_after != checkpoint_before:
             route_result = {
@@ -1492,9 +1635,7 @@ DAILY_ROW_CLAIM_DISMISS_VIP_VARIANT = "aggregate-claim-dismiss-vip"
 DAILY_ROW_CLAIM_PREPARE_RESULT_IDENTITY = "daily-claim:prepare:aggregate"
 DAILY_ROW_CLAIM_CANARY_RESULT_IDENTITY = "daily-claim:canary:aggregate"
 DAILY_ROW_CLAIM_RETURN_HOME_RESULT_IDENTITY = "daily-claim:return-home:verified"
-DAILY_ROW_CLAIM_DISMISS_VIP_RESULT_IDENTITY = (
-    "daily-row-claim:popup-dismiss:vip-points"
-)
+DAILY_ROW_CLAIM_DISMISS_VIP_RESULT_IDENTITY = "daily-row-claim:popup-dismiss:vip-points"
 DAILY_ROW_CLAIM_PREPARE_ACTION_IDENTITY = "daily-row-prepare-observation"
 DAILY_ROW_CLAIM_ACTION_IDENTITY = "daily-claim:aggregate"
 DAILY_ROW_CLAIM_RETURN_HOME_ACTION_IDENTITY = "daily-return-home"
@@ -1602,7 +1743,10 @@ def _validate_daily_row_claim_receipt(
     if receipt.get("action_bindings") != expected_bindings:
         raise OperatorError("daily row Claim receipt action bindings are not frozen")
     binding = receipt.get("evidence_result_binding")
-    if not isinstance(binding, Mapping) or binding.get("result_identity") != spec["result_identity"]:
+    if (
+        not isinstance(binding, Mapping)
+        or binding.get("result_identity") != spec["result_identity"]
+    ):
         raise OperatorError("daily row Claim result identity is not frozen")
     command = receipt.get("command_argv")
     expected_prefix = [
@@ -1730,10 +1874,7 @@ def _validate_daily_row_claim_artifacts(
         if not isinstance(visual, Mapping):
             return False
         template = visual.get("template_home")
-        return (
-            isinstance(template, Mapping)
-            and template.get("recognized") is True
-        )
+        return isinstance(template, Mapping) and template.get("recognized") is True
 
     frames = payload.get("frames")
     if not isinstance(frames, Mapping) or "source" not in frames:
@@ -1775,7 +1916,11 @@ def _validate_daily_row_claim_artifacts(
         if any(claim.get(field) is None for field in required_reset_fields):
             raise OperatorError("Daily row Claim reset deadline evidence is missing")
         annotated = (session_directory / str(claim["annotated_source"])).resolve()
-        if annotated.is_symlink() or not annotated.is_file() or annotated.stat().st_size == 0:
+        if (
+            annotated.is_symlink()
+            or not annotated.is_file()
+            or annotated.stat().st_size == 0
+        ):
             raise OperatorError("Daily row Claim annotated prepare overlay is unsafe")
     elif mode == "canary":
         actions = payload.get("actions")
@@ -1805,15 +1950,23 @@ def _validate_daily_row_claim_artifacts(
             for row in actions
             if isinstance(row, Mapping)
         ] != expected_actions:
-            raise OperatorError("Daily row Claim canary action identity order is invalid")
+            raise OperatorError(
+                "Daily row Claim canary action identity order is invalid"
+            )
         if any(
             not isinstance(row, Mapping) or row.get("status") != "completed"
             for row in actions
         ):
-            raise OperatorError("Daily row Claim canary action records are not completed")
+            raise OperatorError(
+                "Daily row Claim canary action records are not completed"
+            )
         claim = payload.get("claim")
-        if not isinstance(claim, Mapping) or not claim.get("annotated_immediate_before"):
-            raise OperatorError("Daily row Claim annotated immediate-before overlay is missing")
+        if not isinstance(claim, Mapping) or not claim.get(
+            "annotated_immediate_before"
+        ):
+            raise OperatorError(
+                "Daily row Claim annotated immediate-before overlay is missing"
+            )
         required_reset_fields = (
             "reset_timer",
             "reset_timer_seconds",
@@ -1824,13 +1977,23 @@ def _validate_daily_row_claim_artifacts(
         )
         if any(claim.get(field) is None for field in required_reset_fields):
             raise OperatorError("Daily row Claim reset deadline evidence is missing")
-        annotated = (session_directory / str(claim["annotated_immediate_before"])).resolve()
+        annotated = (
+            session_directory / str(claim["annotated_immediate_before"])
+        ).resolve()
         try:
             annotated.relative_to(session_directory.resolve())
         except ValueError as exc:
-            raise OperatorError("Daily row Claim annotated overlay escaped the session") from exc
-        if annotated.is_symlink() or not annotated.is_file() or annotated.stat().st_size == 0:
-            raise OperatorError("Daily row Claim annotated immediate-before overlay is unsafe")
+            raise OperatorError(
+                "Daily row Claim annotated overlay escaped the session"
+            ) from exc
+        if (
+            annotated.is_symlink()
+            or not annotated.is_file()
+            or annotated.stat().st_size == 0
+        ):
+            raise OperatorError(
+                "Daily row Claim annotated immediate-before overlay is unsafe"
+            )
         recognitions = payload.get("recognitions")
         if not isinstance(recognitions, Mapping):
             raise OperatorError("Daily row Claim recognitions are missing")
@@ -1841,9 +2004,7 @@ def _validate_daily_row_claim_artifacts(
                 or recognition.get("state") != "DAILY_SELECTED"
                 or recognition.get("successor_proven") is not True
             ):
-                raise OperatorError(
-                    f"Daily row Claim {name} is not selected Daily"
-                )
+                raise OperatorError(f"Daily row Claim {name} is not selected Daily")
         final_home = recognitions.get("return_home_final")
         if (
             not isinstance(final_home, Mapping)
@@ -1898,9 +2059,7 @@ def _validate_daily_row_claim_artifacts(
                 or recognition.get("state") != "DAILY_SELECTED"
                 or recognition.get("successor_proven") is not True
             ):
-                raise OperatorError(
-                    f"Daily return-home {name} is not selected Daily"
-                )
+                raise OperatorError(f"Daily return-home {name} is not selected Daily")
         final_home = recognitions.get("return_home_final")
         if (
             not isinstance(final_home, Mapping)
@@ -1990,6 +2149,8 @@ def _validate_daily_row_claim_artifacts(
             or successor.get("unblurred") is not True
         ):
             raise OperatorError("Daily VIP popup successor is not selected Daily")
+
+
 def development_session_daily_row_claim(
     *,
     mode: str,
@@ -2108,7 +2269,9 @@ def development_session_daily_row_claim(
         if runtime is not None:
             runtime_session = Path(runtime.session)
             try:
-                relative = runtime_session.resolve().relative_to(session_directory.resolve())
+                relative = runtime_session.resolve().relative_to(
+                    session_directory.resolve()
+                )
                 runtime_relative = str(relative).replace("\\", "/")
             except (OSError, ValueError):
                 runtime_relative = str(runtime_session)
@@ -2198,7 +2361,11 @@ def development_session_daily_row_claim(
         else:
             os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = previous_limit
         ownership_released = not bool(
-            getattr(getattr(getattr(session, "_ownership", None), "lock", None), "held", True)
+            getattr(
+                getattr(getattr(session, "_ownership", None), "lock", None),
+                "held",
+                True,
+            )
         )
         failure = base_payload(
             "evidence_required",
@@ -2236,10 +2403,14 @@ def development_session_observe(
 
     if delegated_receipt is not None:
         if max_inputs != 0:
-            raise OperatorError("delegated reconnaissance observation requires max_inputs=0")
+            raise OperatorError(
+                "delegated reconnaissance observation requires max_inputs=0"
+            )
         values = (agent_identity, task_id, flow_id, scenario, variant, command_argv)
         if any(value is None for value in values):
-            raise OperatorError("delegated observation requires complete receipt bindings")
+            raise OperatorError(
+                "delegated observation requires complete receipt bindings"
+            )
         _controller, receipt, context = _consume_delegated_receipt(
             delegated_receipt,
             command_argv=command_argv,
@@ -2289,9 +2460,13 @@ def development_session_observe(
                     )
             ownership_released = _delegated_observation_ownership_released(session)
             if not ownership_released:
-                raise OperatorError("delegated observation ownership release is unproven")
+                raise OperatorError(
+                    "delegated observation ownership release is unproven"
+                )
             if _checkpoint_hashes() != before:
-                raise OperatorError("delegated observation mutated a checkpoint artifact")
+                raise OperatorError(
+                    "delegated observation mutated a checkpoint artifact"
+                )
             result["ownership_released"] = True
             (session_directory / "result.json").write_text(
                 json.dumps(result, indent=2, sort_keys=True) + "\n",
@@ -2341,40 +2516,867 @@ def development_session_observe(
                     receipt=receipt,
                     result_identity=context.result_identity,
                     error=f"{type(exc).__name__}: {exc}",
-                    ownership_released=_delegated_observation_ownership_released(session),
+                    ownership_released=_delegated_observation_ownership_released(
+                        session
+                    ),
                 )
             except BaseException as artifact_error:
                 raise exc from artifact_error
             raise
         return json.dumps(persisted_result, sort_keys=True)
-    if max_inputs < 1:
-        raise OperatorError("ordinary observation requires max_inputs >= 1")
+    if max_inputs < 0:
+        raise OperatorError("ordinary observation requires max_inputs >= 0")
     invocation_id = f"observe-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
     session_directory = _development_session_directory(invocation_id)
     before = _checkpoint_hashes()
+    session: Any | None = None
+    observation: Mapping[str, Any] | None = None
+    result: dict[str, Any] = {
+        "status": "evidence_required",
+        "session_directory": str(session_directory),
+        "observation": None,
+        "input_count": 0,
+        "dispatch": False,
+        "lifecycle_state_created": False,
+        "ownership_released": False,
+    }
+
+    def persist_terminal_artifacts(
+        status: str,
+        *,
+        ownership_released: bool,
+        blocker: str | None = None,
+    ) -> dict[str, Any]:
+        artifact = {
+            **result,
+            "status": status,
+            "observation": observation,
+            "input_count": 0,
+            "lifecycle_state_created": False,
+            "ownership_released": ownership_released,
+        }
+        if blocker:
+            artifact["error"] = blocker
+        summary: dict[str, Any] = {}
+        summary_path = session_directory / "summary.json"
+        if summary_path.is_file() and not summary_path.is_symlink():
+            try:
+                prior = json.loads(summary_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                prior = {}
+            if isinstance(prior, dict):
+                summary.update(prior)
+        summary.update(
+            {
+                "status": status,
+                "input_count": 0,
+                "action_count": 0,
+                "dispatch": False,
+                "ownership_released": ownership_released,
+                "lifecycle_state_created": False,
+            }
+        )
+        if blocker:
+            summary["blocker"] = blocker
+            summary["next_action"] = "repair the reported observation evidence failure"
+        (session_directory / "result.json").write_text(
+            json.dumps(artifact, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        summary_path.write_text(
+            json.dumps(summary, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return artifact
+
     with DevelopmentSession(
         owner="pnsctl-development-observe",
         invocation_id=invocation_id,
         session_directory=session_directory,
         max_inputs=max_inputs,
-    ):
+        allow_zero_inputs=(max_inputs == 0),
+    ) as active_session:
+        session = active_session
+        active_session.terminal_status = "evidence_required"
         observation, frame = _development_runtime_observation()
         (session_directory / "observe.png").write_bytes(frame)
-        if _checkpoint_hashes() != before:
-            raise OperatorError(
-                "ordinary observation mutated a persistent checkpoint artifact"
-            )
-        result = {
-            "status": "observed",
-            "session_directory": str(session_directory),
-            "observation": observation,
-            "input_count": 0,
-            "lifecycle_state_created": False,
-        }
-        (session_directory / "result.json").write_text(
-            json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        result["observation"] = observation
+    ownership_released = _delegated_observation_ownership_released(session)
+    checkpoint_unchanged = _checkpoint_hashes() == before
+    blocker: str | None = None
+    if not ownership_released:
+        blocker = "ordinary observation ownership release is unproven"
+    elif not checkpoint_unchanged:
+        blocker = "ordinary observation mutated a persistent checkpoint artifact"
+    if blocker is not None:
+        persist_terminal_artifacts(
+            "evidence_required",
+            ownership_released=ownership_released,
+            blocker=blocker,
         )
+        raise OperatorError(blocker)
+    if session is not None:
+        session.terminal_status = "observed"
+    result = persist_terminal_artifacts(
+        "observed",
+        ownership_released=True,
+    )
     return json.dumps(result, sort_keys=True)
+
+
+def _resource_identity_timestamp(value: object, label: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise OperatorError(f"{label} is required")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError) as exc:
+        raise OperatorError(f"{label} is invalid") from exc
+    if parsed.tzinfo is None:
+        raise OperatorError(f"{label} must be UTC")
+    parsed = parsed.astimezone(timezone.utc)
+    canonical = parsed.isoformat().replace("+00:00", "Z")
+    if value != canonical:
+        raise OperatorError(f"{label} is not an exact UTC timestamp")
+    return parsed
+
+
+def _resource_wall_clock(
+    wall_clock: Callable[[], datetime] | None = None,
+) -> datetime:
+    value = datetime.now(timezone.utc) if wall_clock is None else wall_clock()
+    if (
+        not isinstance(value, datetime)
+        or value.tzinfo is None
+        or value.utcoffset() is None
+    ):
+        raise OperatorError(
+            "Resource authorization wall clock must be timezone-aware UTC"
+        )
+    try:
+        return value.astimezone(timezone.utc)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise OperatorError(
+            "Resource authorization wall clock must be timezone-aware UTC"
+        ) from exc
+
+
+def _load_resource_daily_reset_authority() -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load the checked-in product authority before deriving Resource reset bounds."""
+
+    from tasks.product_authority import (
+        ProductAuthorityError,
+        get_daily_reset_policy,
+        load_product_authority,
+    )
+
+    try:
+        authority = load_product_authority()
+        policy = get_daily_reset_policy(authority)
+    except ProductAuthorityError as exc:
+        raise OperatorError(
+            "Resource product authority or static UTC reset policy is invalid"
+        ) from exc
+    return authority, policy
+
+
+def _resource_deadline_evidence(
+    payload: Mapping[str, Any],
+) -> tuple[str, datetime]:
+    """Validate the static UTC reset payload without consulting runtime visuals."""
+
+    from tasks.runtime_identity import derive_static_utc_reset
+
+    authority, reset_policy = _load_resource_daily_reset_authority()
+    if not isinstance(payload, Mapping):
+        raise OperatorError("Resource static reset payload is malformed")
+    deadline_identity = payload.get(
+        "reset_identity_id",
+        payload.get("deadline_identity", payload.get("reset_deadline_identity")),
+    )
+    normalized = payload.get(
+        "reset_deadline_utc",
+        payload.get("normalized_deadline_utc"),
+    )
+    start_value = payload.get("reset_start_utc")
+    if not isinstance(deadline_identity, str) or not deadline_identity.strip():
+        raise OperatorError("Resource reset deadline identity is missing")
+    if not isinstance(normalized, str) or not normalized.strip():
+        raise OperatorError("Resource reset deadline is missing")
+    if not isinstance(start_value, str) or not start_value.strip():
+        raise OperatorError("Resource reset start is missing")
+    deadline = _resource_identity_timestamp(normalized, "Resource reset deadline")
+    start = _resource_identity_timestamp(start_value, "Resource reset start")
+    if (
+        deadline_identity != f"reset-deadline:{normalized}"
+        or deadline != start + timedelta(days=1)
+        or start.hour != 0
+        or start.minute != 0
+        or start.second != 0
+        or start.microsecond != 0
+        or payload.get("recurrence_class") != "daily_reset"
+        or payload.get("recurrence_interval_seconds")
+        != reset_policy["interval_seconds"]
+        or payload.get("recurrence_interval_hours") != 24
+        or payload.get("reset_timezone") != reset_policy["timezone"]
+        or payload.get("reset_time") != reset_policy["reset_time"]
+        or payload.get("product_authority_revision") != authority["authority_revision"]
+        or payload.get("product_authority_digest") != authority["authority_digest"]
+        or payload.get("product_policy_id") != reset_policy["policy_id"]
+        or payload.get("reset_policy_id") != reset_policy["policy_id"]
+        or payload.get("assurance") != "fixed_runtime_binding_static_utc_reset"
+        or payload.get("identity_semantics")
+        != "fixed_runtime_binding_plus_static_utc_reset"
+    ):
+        raise OperatorError("Resource reset payload is not the static UTC daily rule")
+    evaluated_value = payload.get("_evaluated_utc", payload.get("evaluated_utc"))
+    if evaluated_value is not None:
+        evaluated = _resource_identity_timestamp(
+            evaluated_value,
+            "Resource reset evaluation timestamp",
+        )
+        try:
+            expected = derive_static_utc_reset(evaluated)
+        except ValueError as exc:
+            raise OperatorError(
+                "Resource reset evaluation timestamp is invalid"
+            ) from exc
+        if (
+            expected.reset_identity_id != deadline_identity
+            or expected.reset_start_utc != start
+            or expected.reset_deadline_utc != deadline
+        ):
+            raise OperatorError(
+                "Resource reset payload does not match its UTC wall-clock sample"
+            )
+    return deadline_identity, deadline
+
+
+def _produce_resource_runtime_identity(
+    *,
+    session: Any,
+    wall_clock: Callable[[], datetime] | None = None,
+    return_deadline_evidence: bool = False,
+):
+    """Produce Resource identity inside the already-entered DevelopmentSession."""
+
+    from tasks.runtime_identity import (
+        RuntimeIdentityAssurance,
+        derive_resource_runtime_identity,
+        derive_static_utc_reset,
+    )
+
+    if session is None:
+        raise OperatorError("Resource production identity requires the current session")
+    owner = str(getattr(session, "owner", "") or "")
+    invocation_id = str(getattr(session, "invocation_id", "") or "")
+    if not owner or not invocation_id:
+        raise OperatorError(
+            "Resource production identity requires the current session binding"
+        )
+    binding = _resource_fixed_runtime_binding()
+    evaluated = _resource_wall_clock(wall_clock)
+    authority, reset_policy = _load_resource_daily_reset_authority()
+    try:
+        window = derive_static_utc_reset(evaluated)
+        identity = derive_resource_runtime_identity(
+            binding,
+            evaluated,
+            authorization_freshness_seconds=RESOURCE_AUTHORIZATION_FRESHNESS_SECONDS,
+            evidence_refs=(
+                "identity-source:fixed-runtime-binding",
+                "identity-source:static-utc-midnight-reset",
+                f"product-authority-revision:{authority['authority_revision']}",
+                f"product-authority-digest:{authority['authority_digest']}",
+                f"product-policy-id:{reset_policy['policy_id']}",
+                f"session-owner:{owner}",
+                f"session-invocation:{invocation_id}",
+            ),
+        )
+    except (TypeError, ValueError) as exc:
+        raise OperatorError(f"Resource production identity denied: {exc}") from exc
+    deadline_payload: dict[str, Any] = {
+        "reset_identity_id": window.reset_identity_id,
+        "deadline_identity": window.reset_identity_id,
+        "reset_deadline_identity": window.reset_identity_id,
+        "reset_start_utc": window.reset_start_text,
+        "reset_deadline_utc": window.reset_deadline_text,
+        "normalized_deadline_utc": window.reset_deadline_text,
+        "evaluated_utc": window.evaluated_utc.isoformat().replace("+00:00", "Z"),
+        "_evaluated_utc": window.evaluated_utc.isoformat().replace("+00:00", "Z"),
+        "authorization_expires_utc": identity.expires_utc,
+        "recurrence_class": "daily_reset",
+        "recurrence_interval_seconds": reset_policy["interval_seconds"],
+        "recurrence_interval_hours": 24,
+        "reset_timezone": reset_policy["timezone"],
+        "reset_time": reset_policy["reset_time"],
+        "product_authority_revision": authority["authority_revision"],
+        "product_authority_digest": authority["authority_digest"],
+        "product_policy_id": reset_policy["policy_id"],
+        "reset_policy_id": reset_policy["policy_id"],
+        "assurance": identity.assurance.value,
+        "identity_semantics": "fixed_runtime_binding_plus_static_utc_reset",
+        "runtime_scope": binding.runtime_scope,
+        "account_id": binding.account_id,
+        "server_id": binding.server_id,
+    }
+    if (
+        identity.assurance
+        is not RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET
+    ):
+        raise OperatorError("Resource identity assurance is not static UTC")
+    _resource_deadline_evidence(deadline_payload)
+    if return_deadline_evidence:
+        return identity, deadline_payload
+    return identity
+
+
+def _inspect_admitted_resource_store(path: Path, *, fixed_canonical: bool) -> None:
+    """Read the store schema without allowing SQLite to create or migrate it."""
+
+    if fixed_canonical:
+        from scripts.navigation_development_boundary import (
+            CANONICAL_ACTION_STORE_PATH,
+            require_fixed_orchestrator_path,
+        )
+
+        path = require_fixed_orchestrator_path(
+            path,
+            CANONICAL_ACTION_STORE_PATH,
+            "canonical Resource SafetyStore",
+        )
+    if path.is_symlink() or not path.is_file():
+        raise OperatorError("canonical Resource SafetyStore v4 is not already admitted")
+    try:
+        connection = sqlite3.connect(
+            path.resolve().as_uri() + "?mode=ro",
+            uri=True,
+            timeout=0,
+        )
+    except sqlite3.Error as exc:
+        raise OperatorError(
+            "canonical Resource SafetyStore cannot be inspected read-only"
+        ) from exc
+    try:
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA query_only=ON")
+        version_row = connection.execute(
+            "SELECT version FROM schema_version WHERE singleton=1"
+        ).fetchone()
+        if version_row is None or int(version_row["version"]) != 4:
+            raise OperatorError(
+                "canonical Resource SafetyStore must already be schema v4; migration is disabled"
+            )
+        tables = {
+            str(row["name"])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        required = {
+            "actions",
+            "controller_lease",
+            "resource_reset_identities",
+            "resource_occurrences",
+            "resource_attempts",
+            "resource_attempt_claims",
+            "resource_reservations",
+            "resource_transport_facts",
+            "resource_transport_outcomes",
+            "resource_live_effects",
+        }
+        if not required.issubset(tables):
+            raise OperatorError(
+                "canonical Resource SafetyStore v4 is incomplete; migration is disabled"
+            )
+    except sqlite3.Error as exc:
+        raise OperatorError(
+            "canonical Resource SafetyStore schema is unreadable"
+        ) from exc
+    finally:
+        connection.close()
+
+
+def _open_admitted_resource_store(
+    *,
+    store_path: Path | None = None,
+    store_factory: Callable[[Path], Any] | None = None,
+) -> Any:
+    """Open v4 only after a read-only schema admission check.
+
+    ``store_factory`` and a non-canonical path are private offline-test seams.
+    The production call uses the fixed canonical path and the real SafetyStore.
+    """
+
+    from safe_action_core import SafetyStore
+    from safe_action_core.store import SchemaVersionError
+    from scripts.navigation_development_boundary import CANONICAL_ACTION_STORE_PATH
+
+    injected = store_factory is not None
+    path = (
+        Path(store_path)
+        if store_path is not None
+        else Path(CANONICAL_ACTION_STORE_PATH)
+    )
+    _inspect_admitted_resource_store(path, fixed_canonical=not injected)
+    factory = store_factory or SafetyStore
+    try:
+        store = factory(path)
+    except (OSError, SchemaVersionError) as exc:
+        raise OperatorError(
+            "canonical Resource SafetyStore v4 could not be opened"
+        ) from exc
+    if getattr(store, "schema_version", None) != 4:
+        try:
+            store.close()
+        except BaseException:
+            pass
+        raise OperatorError("canonical Resource SafetyStore must already be schema v4")
+    return store
+
+
+def _resource_reset_identity(
+    verified_identity: Any,
+    deadline_payload: Mapping[str, Any],
+) -> Any:
+    """Bind one Resource reset to the exact static UTC midnight interval."""
+
+    from safe_action_core.resource_effect_authority import ResourceResetIdentity
+    from tasks.runtime_identity import (
+        RuntimeIdentityAssurance,
+        VerifiedRuntimeIdentity,
+    )
+
+    if type(verified_identity) is not VerifiedRuntimeIdentity:
+        raise OperatorError("Resource runtime identity is missing or not verified")
+    if (
+        verified_identity.assurance
+        is not RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET
+    ):
+        raise OperatorError(
+            "Resource runtime identity is not FIXED_RUNTIME_BINDING_STATIC_UTC_RESET"
+        )
+    deadline_identity, deadline = _resource_deadline_evidence(deadline_payload)
+    reset_start = _resource_identity_timestamp(
+        str(getattr(verified_identity, "reset_start_utc", "") or ""),
+        "Resource runtime identity reset_start_utc",
+    )
+    identity_deadline = _resource_identity_timestamp(
+        str(getattr(verified_identity, "reset_deadline_utc", "") or ""),
+        "Resource runtime identity reset_deadline_utc",
+    )
+    if (
+        verified_identity.reset_id != deadline_identity
+        or identity_deadline != deadline
+        or deadline_payload.get("reset_start_utc")
+        != reset_start.isoformat().replace("+00:00", "Z")
+    ):
+        raise OperatorError(
+            "Resource runtime identity does not match the static UTC reset"
+        )
+    if not verified_identity.observed_utc or not verified_identity.expires_utc:
+        raise OperatorError(
+            "Resource runtime identity freshness evidence is incomplete"
+        )
+    observed = _resource_identity_timestamp(
+        verified_identity.observed_utc,
+        "Resource runtime identity observed_utc",
+    )
+    expires = _resource_identity_timestamp(
+        verified_identity.expires_utc,
+        "Resource runtime identity expires_utc",
+    )
+    evaluated_value = deadline_payload.get("_evaluated_utc")
+    if evaluated_value is None:
+        evaluated = datetime.now(timezone.utc)
+    else:
+        evaluated = _resource_identity_timestamp(
+            evaluated_value,
+            "Resource identity evaluation timestamp",
+        )
+    if observed > evaluated or expires <= evaluated or expires <= observed:
+        raise OperatorError("Resource runtime identity is stale")
+    if evaluated >= deadline:
+        raise OperatorError("Resource reset deadline has been reached")
+    if reset_start + timedelta(days=1) != deadline or evaluated < reset_start:
+        raise OperatorError("Resource reset is not the active static UTC window")
+    evidence_refs = tuple(
+        dict.fromkeys(
+            (
+                *tuple(verified_identity.evidence_refs),
+                deadline_identity,
+            )
+        )
+    )
+    return ResourceResetIdentity(
+        reset_identity_id=deadline_identity,
+        account_id=verified_identity.account_id,
+        server_id=verified_identity.server_id,
+        runtime_scope=verified_identity.runtime_scope,
+        reset_start_utc=(deadline - timedelta(days=1))
+        .isoformat()
+        .replace("+00:00", "Z"),
+        reset_deadline_utc=deadline.isoformat().replace("+00:00", "Z"),
+        assurance=RuntimeIdentityAssurance.FIXED_RUNTIME_BINDING_STATIC_UTC_RESET.value,
+        observed_at=max(0.0, observed.timestamp()),
+        expires_at=expires.timestamp(),
+        evidence_refs=evidence_refs,
+    )
+
+
+def _build_resource_runtime_components(
+    *,
+    session: Any,
+    verified_identity: Any,
+    deadline_payload: Mapping[str, Any],
+    store_path: Path | None = None,
+    store_factory: Callable[[Path], Any] | None = None,
+    wall_clock: Callable[[], datetime] | None = None,
+) -> dict[str, Any]:
+    """Construct the production Resource authority inside the held session."""
+
+    from safe_action_core.models import (
+        ActionClass,
+        ActionIntent,
+        Observation,
+        PolicyRequest,
+    )
+    from safe_action_core.policy import ACTIVE_RUNTIME_PROFILE_ID, CentralPolicy
+    from safe_action_core.resource_effect_authority import (
+        PreparedResourceAuthorization,
+        ResourceEffectAuthority,
+        ResourceOccurrenceIdentity,
+        ResourceReservationSpec,
+        RESOURCE_FLOW_ID,
+        RESOURCE_OBJECTIVE_ACTION_ID,
+        RESOURCE_PRODUCT_POLICY_REVISION,
+        RESOURCE_RECURRENCE_CLASS,
+        RESOURCE_RECURRENCE_POLICY_REVISION,
+        RESOURCE_TARGET_VARIANT,
+    )
+    from scripts.flow_delivery_daily_resource_item_bluestacks import (
+        ResourceAuthorizationWindow,
+        ResourceAuthorizationWindowError,
+    )
+    from scripts.navigation_development_boundary import DevelopmentSessionError
+
+    if not hasattr(session, "runtime_input_lock"):
+        raise OperatorError(
+            "pnsctl DevelopmentSession cannot expose its held runtime lock"
+        )
+    try:
+        runtime_lock = session.runtime_input_lock
+    except DevelopmentSessionError as exc:
+        raise OperatorError(
+            "Resource authority requires the entered pnsctl DevelopmentSession"
+        ) from exc
+    owner = str(getattr(session, "owner", "") or "")
+    invocation_id = str(getattr(session, "invocation_id", "") or "")
+    if not owner or not invocation_id:
+        raise OperatorError(
+            "Resource authority requires the exact pnsctl owner and invocation"
+        )
+    runtime_lock.assert_held(owner, invocation_id)
+    reset_identity = _resource_reset_identity(verified_identity, deadline_payload)
+    authorization_window = ResourceAuthorizationWindow(
+        reset_deadline_utc=_resource_identity_timestamp(
+            reset_identity.reset_deadline_utc,
+            "Resource reset deadline",
+        ),
+        authorization_expires_utc=_resource_identity_timestamp(
+            verified_identity.expires_utc,
+            "Resource authorization expiry",
+        ),
+    )
+    try:
+        authorization_window.require_current(
+            ResourceAuthorizationWindow.sample_current_utc(wall_clock)
+        )
+    except ResourceAuthorizationWindowError as exc:
+        raise OperatorError(
+            "Resource authorization window denied before Resource SafetyStore open"
+        ) from exc
+    store = _open_admitted_resource_store(
+        store_path=store_path,
+        store_factory=store_factory,
+    )
+    authority = None
+    controller_lease: Mapping[str, Any] | None = None
+    try:
+        authority = ResourceEffectAuthority(store)
+        now = time.monotonic()
+        controller_lease = authority.acquire_resource_controller_lease(
+            owner_id=owner,
+            now=now,
+            ttl_seconds=600.0,
+            mode="execute",
+            runtime_invocation_id=invocation_id,
+            block_keys={
+                "account_id": reset_identity.account_id,
+                "server_id": reset_identity.server_id,
+                "reset_identity_id": reset_identity.reset_identity_id,
+            },
+        )
+        policy = CentralPolicy(supervised_tasks={RESOURCE_FLOW_ID})
+        preparation_used = False
+
+        def prepare_resource_effect(
+            source: Any,
+            target_roi: tuple[int, int, int, int],
+            requested_action_key: str,
+        ) -> PreparedResourceAuthorization:
+            nonlocal preparation_used
+            if preparation_used:
+                raise OperatorError("Resource preparation callback is one-shot")
+            preparation_used = True
+            from scripts.bluestacks_native_runtime import CapturedNativeFrame
+
+            if type(source) is not CapturedNativeFrame:
+                raise OperatorError(
+                    "Resource preparation requires the captured immediate-before frame"
+                )
+            if requested_action_key != "daily-resource-item:use-1k-food":
+                raise OperatorError(
+                    "Resource preparation action key is not the exact Use seam"
+                )
+            runtime_lock.assert_held(owner, invocation_id)
+            now = time.monotonic()
+            authority.ensure_static_utc_reset_identity(reset_identity)
+            occurrence = authority.create_resource_occurrence(
+                ResourceOccurrenceIdentity(
+                    reset_identity.account_id,
+                    reset_identity.server_id,
+                    RESOURCE_FLOW_ID,
+                    reset_identity.reset_identity_id,
+                    product_policy_revision=RESOURCE_PRODUCT_POLICY_REVISION,
+                    recurrence_policy_revision=RESOURCE_RECURRENCE_POLICY_REVISION,
+                    recurrence_class=RESOURCE_RECURRENCE_CLASS,
+                    objective_action_id=RESOURCE_OBJECTIVE_ACTION_ID,
+                    target_variant=RESOURCE_TARGET_VARIANT,
+                ),
+                now=now,
+            )
+            occurrence_id = str(occurrence["occurrence_id"])
+            hypothesis_digest = hashlib.sha256(
+                json.dumps(
+                    {
+                        "source_sha256": source.sha256,
+                        "target_roi": tuple(target_roi),
+                        "target_identity": "daily-resource-item:use-1k-food",
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            claim = authority.claim_resource_attempt(
+                occurrence_id,
+                owner,
+                expected_revision=int(occurrence["state_revision"]),
+                now=now,
+                hypothesis_digest=hypothesis_digest,
+            )
+            if claim.state != "ACTIVE" or not claim.can_dispatch:
+                raise OperatorError(
+                    "Resource occurrence did not grant one dispatch claim"
+                )
+            context = authority.occurrence_context(occurrence_id)
+            controller_token = str(
+                controller_lease.get("controller_token")
+                or controller_lease.get("lease_token")
+                or ""
+            )
+            controller_generation = int(
+                controller_lease.get(
+                    "controller_generation",
+                    controller_lease.get("generation", 0),
+                )
+            )
+            authorization_generation = authority.next_resource_authorization_generation(
+                context
+            )
+            reservation_spec = ResourceReservationSpec(
+                authorization_generation=authorization_generation,
+                immediate_before_sha256=source.sha256,
+                runtime_invocation_id=invocation_id,
+                controller_token=controller_token,
+                controller_generation=controller_generation,
+            )
+            fence = authority.resource_dispatch_fence(
+                context,
+                claim,
+                controller_lease,
+                reservation_spec,
+            )
+            height, width = source.frame.shape[:2]
+            observation = Observation(
+                frame_sha256=source.sha256,
+                capture_completed_monotonic=float(source.captured_monotonic),
+                runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
+                width=int(width),
+                height=int(height),
+                valid_png=source.png[:8] == b"\x89PNG\r\n\x1a\n",
+                corrupt=False,
+                black=not bool(source.frame.any()),
+                source_state="RESOURCES_1K_FOOD_READY",
+                overlay_state="none",
+                target_identity="daily-resource-item:use-1k-food",
+                target_roi=tuple(target_roi),
+                recognized=True,
+                control_class="USE",
+                consequence="ordinary_non_idempotent_resource_item_use",
+                cost_type="owned_inventory_item",
+                cost_amount=1,
+                quantity=1,
+                expected_postcondition="RESOURCES_1K_FOOD_USED",
+                evidence_refs=(
+                    *tuple(verified_identity.evidence_refs),
+                    f"frame:{source.sha256}",
+                ),
+                package_foreground=True,
+            )
+            action_key = authority.resource_action_key(
+                context, authorization_generation
+            )
+            action_id = (
+                "resource-action:v1:"
+                + hashlib.sha256(
+                    json.dumps(
+                        {
+                            "action_key": action_key,
+                            "context": context.as_dict(),
+                        },
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                ).hexdigest()
+            )
+            intent = ActionIntent(
+                action_id=action_id,
+                action_key=action_key,
+                task_id=RESOURCE_FLOW_ID,
+                semantic_action="USE_RESOURCE_ITEM",
+                source_state="RESOURCES_1K_FOOD_READY",
+                target_identity="daily-resource-item:use-1k-food",
+                target_roi=tuple(target_roi),
+                source_frame_sha256=source.sha256,
+                source_frame_captured_at=float(source.captured_monotonic),
+                runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
+                game_day_id=reset_identity.reset_identity_id,
+                expected_postcondition="RESOURCES_1K_FOOD_USED",
+                consequence="ordinary_non_idempotent_resource_item_use",
+                cost_type="owned_inventory_item",
+                cost_amount=1,
+                quantity=1,
+                evidence_refs=observation.evidence_refs,
+                consequential=False,
+                action_class=ActionClass.OWNED_ITEM_NON_IDEMPOTENT,
+                action_kind="USE_RESOURCE_ITEM",
+                subject="1k_food",
+                resource_or_currency="1k_food",
+                maximum_cost=1,
+                free_only=False,
+                semantic_preconditions=("exact_owned_1k_food", "single_use"),
+                semantic_postconditions=("RESOURCES_1K_FOOD_USED",),
+                resource_authorization_context=context,
+            )
+            duplicate = (
+                store.connection.execute(
+                    "SELECT 1 FROM actions WHERE action_key=?",
+                    (action_key,),
+                ).fetchone()
+                is not None
+            )
+            request = PolicyRequest(
+                action_id=action_id,
+                action_key=action_key,
+                task_id=RESOURCE_FLOW_ID,
+                task_mode="supervised_validation",
+                semantic_action="USE_RESOURCE_ITEM",
+                expected_runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
+                observation=observation,
+                monotonic_now=now,
+                observation_max_age_seconds=30.0,
+                dispatch_max_age_seconds=30.0,
+                lease_owner=owner,
+                lease_valid=True,
+                unresolved_action=False,
+                duplicate_action_key=duplicate,
+                game_day_id=reset_identity.reset_identity_id,
+                policy_phase="pre_dispatch",
+                action_class=ActionClass.OWNED_ITEM_NON_IDEMPOTENT,
+                action_kind="USE_RESOURCE_ITEM",
+                subject="1k_food",
+                resource_or_currency="1k_food",
+                maximum_cost=1,
+                free_only=False,
+                semantic_preconditions=("exact_owned_1k_food", "single_use"),
+                semantic_postconditions=("RESOURCES_1K_FOOD_USED",),
+                runtime_session_id=invocation_id,
+                resource_authorization_context=context,
+                effect_dispatch_fence=fence,
+            )
+            issued = policy.issue_capability(request)
+            if not issued.authorized or issued.capability is None:
+                raise OperatorError(f"Resource capability denied: {issued.reason_code}")
+            prepared = authority.prepare_resource_effect_action(
+                context,
+                claim,
+                claim,
+                controller_lease,
+                intent,
+                issued.policy_result,
+                reservation_spec,
+                now=now,
+            )
+            if prepared.fence != fence:
+                raise OperatorError(
+                    "Resource preparation fence changed during atomic preparation"
+                )
+            return PreparedResourceAuthorization(
+                prepared=prepared,
+                request=request,
+                capability=issued.capability,
+            )
+
+        def runtime_factory(inner: Any) -> Any:
+            from scripts.flow_delivery_daily_resource_item_bluestacks import (
+                AuthorizedResourceItemRuntime,
+            )
+
+            return AuthorizedResourceItemRuntime(
+                inner,
+                authority=authority,
+                controller_lease=controller_lease,
+                runtime_lock=runtime_lock,
+                policy=policy,
+                prepare=prepare_resource_effect,
+                now=time.monotonic,
+                authorization_window=authorization_window,
+                wall_clock=wall_clock,
+            )
+
+        return {
+            "runtime_factory": runtime_factory,
+            "authority": authority,
+            "store": store,
+            "controller_lease": controller_lease,
+            "authorization_window": authorization_window,
+        }
+    except BaseException:
+        if authority is not None and controller_lease is not None:
+            try:
+                authority.release_resource_controller_lease(
+                    owner,
+                    str(
+                        controller_lease.get("controller_token")
+                        or controller_lease.get("lease_token")
+                        or ""
+                    ),
+                    time.monotonic(),
+                )
+            except BaseException:
+                pass
+        store.close()
+        raise
 
 
 def development_session_run_flow(
@@ -2400,10 +3402,16 @@ def development_session_run_flow(
     reset_id: str | None = None,
     identity_evidence: Path | None = None,
     command_argv: Sequence[str] | None = None,
+    _resource_store_path: Path | None = None,
+    _resource_store_factory: Callable[[Path], Any] | None = None,
+    _resource_wall_clock: Callable[[], datetime] | None = None,
 ) -> str:
     """Run a complete registered flow without queue, lease, replay, or preflight ceremony."""
 
-    from scripts.navigation_development_boundary import DevelopmentSession
+    from scripts.navigation_development_boundary import (
+        DevelopmentInitialObservation,
+        DevelopmentSession,
+    )
     from scripts.navigation_development_boundary import delegated_runtime_context
 
     if search_entry_only:
@@ -2424,16 +3432,18 @@ def development_session_run_flow(
         values = (agent_identity, task_id, scenario, variant, command_argv)
         if any(value is None for value in values):
             raise OperatorError("delegated canary requires complete receipt bindings")
-        _controller, delegated_receipt_payload, delegated_context = _consume_delegated_receipt(
-            delegated_receipt,
-            command_argv=command_argv,
-            agent_identity=str(agent_identity),
-            task_id=str(task_id),
-            flow_id=flow_id,
-            receipt_class="canary",
-            scenario=str(scenario),
-            variant=str(variant),
-            max_inputs=max_inputs,
+        _controller, delegated_receipt_payload, delegated_context = (
+            _consume_delegated_receipt(
+                delegated_receipt,
+                command_argv=command_argv,
+                agent_identity=str(agent_identity),
+                task_id=str(task_id),
+                flow_id=flow_id,
+                receipt_class="canary",
+                scenario=str(scenario),
+                variant=str(variant),
+                max_inputs=max_inputs,
+            )
         )
         delegated_scope = delegated_runtime_context(delegated_context)
 
@@ -2443,6 +3453,9 @@ def development_session_run_flow(
     ruins_runtime_profile_id: str | None = None
     troop_training_reset_identity: str | None = None
     enhancement_reset_identity: str | None = None
+    resource_runtime_identity = None
+    resource_deadline_evidence: dict[str, Any] | None = None
+    resource_runtime_components: dict[str, Any] | None = None
 
     if chest_continuation is not None:
         chest_continuation = Path(chest_continuation)
@@ -2470,8 +3483,7 @@ def development_session_run_flow(
         )
         if missing:
             raise OperatorError(
-                "Nova development-session identity is incomplete: "
-                + ", ".join(missing)
+                "Nova development-session identity is incomplete: " + ", ".join(missing)
             )
         _validate_nova_reset_id(nova_identity.reset_id)
     if live and not yes:
@@ -2564,6 +3576,30 @@ def development_session_run_flow(
             raise OperatorError(
                 f"Ruins chest continuation rejected: {exc.reason}"
             ) from exc
+    registration_snapshot = None
+    if (
+        flow_id in {
+            "WORLD-MAP-NAVIGATION-FOUNDATION",
+            NOVA_SUPERVISED_PULSE_FLOW_ID,
+            RECRUITMENT_MAINTENANCE_FLOW_ID,
+            CAMPAIGN_AP_FLOW_ID,
+        }
+        and live
+        and not recovery_only
+        and not search_entry_only
+    ):
+        from automation_service.registry import consume_registered_entry
+
+        try:
+            registration_snapshot = consume_registered_entry(flow_id)
+        except ValueError as exc:
+            raise OperatorError(
+                f"{flow_id} phase registration is invalid"
+            ) from exc
+        if registration_snapshot is None:
+            raise OperatorError(
+                f"{flow_id} full route is not registered for a phase canary"
+            )
     invocation_id = (
         f"{flow_id}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
     )
@@ -2582,7 +3618,170 @@ def development_session_run_flow(
             max_inputs=max_inputs,
         ) as session:
             observation, frame = _development_runtime_observation()
+            observation = dict(observation)
+            observation.setdefault("frame_sha256", hashlib.sha256(frame).hexdigest())
+            from scripts.startup_recovery import classify_startup_frame
+
+            startup_recovery_plan = classify_startup_frame(flow_id, frame)
+            session.remember_control(
+                "startup_recovery_plan",
+                startup_recovery_plan.to_mapping(),
+            )
+            startup_runtime_holder: dict[str, Any] = {}
+            startup_recovery_result: dict[str, Any] | None = None
+            startup_recovery_input_count = 0
+            startup_recovery_terminal_status: str | None = None
+            startup_recovery_terminal_home_verified: bool | None = None
+            if startup_recovery_plan.status != "clear":
+                # Preserve the source before any recovery attempt. The route's
+                # source.png is written later from a post-recovery frame.
+                (session_directory / "startup-source.png").write_bytes(frame)
+                session.remember_control(
+                    "startup_source_sha256", hashlib.sha256(frame).hexdigest()
+                )
+            if (
+                live
+                and startup_recovery_plan.status == "recovery_required"
+                and startup_recovery_plan.recovery_owner
+                in {
+                    "shared_home_startup_recovery",
+                    "shared_startup_surface_recovery",
+                }
+            ):
+                startup_recovery_result = _run_shared_startup_recovery(
+                    flow_id=flow_id,
+                    task_id=str(task_id or flow_id),
+                    session_directory=session_directory,
+                    max_inputs=max_inputs,
+                    recovery_scope=runtime_scope,
+                    expected_source_sha256=str(observation["frame_sha256"]),
+                    runtime_holder=startup_runtime_holder,
+                )
+                startup_recovery_input_count = int(
+                    startup_recovery_result.get("recovery_input_count")
+                    or startup_recovery_result.get("input_count")
+                    or 0
+                )
+                recovery_status = str(startup_recovery_result.get("status") or "")
+                if recovery_status == "evidence_required" and startup_recovery_input_count == 1:
+                    startup_recovery_terminal_status = "evidence_required"
+                elif recovery_status not in {
+                    "surface_dismissed_successor_captured",
+                    "recovered",
+                } or startup_recovery_input_count != 1:
+                    session.blocker = str(
+                        startup_recovery_result.get("reason")
+                        or "shared startup recovery did not reconcile"
+                    )
+                    session.next_action = (
+                        "retain startup recovery evidence; identical retry is denied"
+                    )
+                    raise OperatorError(session.blocker)
+                session.remember_control(
+                    "startup_recovery_result", startup_recovery_result
+                )
+                session.remember_control(
+                    "recovery_input_count", startup_recovery_input_count
+                )
+                if (
+                    startup_recovery_input_count >= max_inputs
+                    and recovery_status
+                    in {
+                        "surface_dismissed_successor_captured",
+                        "recovered",
+                    }
+                ):
+                    session.blocker = None
+                    session.next_action = (
+                        "startup recovery completed; route execution was intentionally not run"
+                    )
+                    startup_recovery_terminal_status = "completed"
+                # The route initial observation is always captured after the final
+                # shared recovery input settles, never from the promotional source.
+                startup_runtime = startup_runtime_holder.get("runtime")
+                if startup_runtime is not None:
+                    post = startup_runtime.capture(
+                        "startup-recovery-route-initial-observation"
+                    )
+                    frame = post.png
+                    observation = {
+                        "device_state": "device",
+                        "foreground_package": PACKAGE,
+                        "native_width": BLUESTACKS_NATIVE_WIDTH,
+                        "native_height": BLUESTACKS_NATIVE_HEIGHT,
+                        "frame_sha256": post.sha256,
+                    }
+                else:
+                    observation, frame = _development_runtime_observation()
+                    observation = dict(observation)
+                    observation.setdefault("frame_sha256", hashlib.sha256(frame).hexdigest())
+            if live and startup_recovery_plan.status == "blocked":
+                (session_directory / "source.png").write_bytes(frame)
+                session.blocker = startup_recovery_plan.reason
+                session.next_action = (
+                    "retain the frame and repair exact startup recognition"
+                )
+                raise OperatorError(startup_recovery_plan.reason)
+            if startup_recovery_input_count:
+                os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = str(
+                    max_inputs - startup_recovery_input_count
+                )
             (session_directory / "source.png").write_bytes(frame)
+            initial_observation = DevelopmentInitialObservation(
+                observation=observation,
+                frame_sha256=str(observation.get("frame_sha256") or ""),
+                frame_path="source.png",
+                invocation_id=invocation_id,
+            )
+            session.set_initial_observation(initial_observation)
+            session.remember_control("initial_observation_bound", True)
+            for key, value in (
+                ("viewport_signature", None),
+                ("list_signature", None),
+                ("direction", None),
+                ("target_history", []),
+                ("settle_history", []),
+                ("recovery_result", None),
+                ("pending_semantic_intent", None),
+            ):
+                session.remember_control(key, value)
+            if startup_recovery_terminal_status is not None:
+                session.terminal_status = startup_recovery_terminal_status
+                startup_recovery_terminal_home_verified = (
+                    startup_recovery_terminal_status == "completed"
+                    and recovery_status
+                    in {
+                        "surface_dismissed_successor_captured",
+                        "recovered",
+                    }
+                )
+                session.remember_control(
+                    "terminal_home_verified", startup_recovery_terminal_home_verified
+                )
+                if startup_recovery_terminal_status == "evidence_required":
+                    session.blocker = str(
+                        startup_recovery_result.get("reason")
+                        if startup_recovery_result is not None
+                        else "evidence_required_unknown_startup_successor"
+                    )
+                    session.next_action = (
+                        "retain startup recovery successor evidence; route dispatch is denied"
+                    )
+            if flow_id == "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION" and live:
+                produced = _produce_resource_runtime_identity(
+                    session=session,
+                    wall_clock=_resource_wall_clock,
+                    return_deadline_evidence=True,
+                )
+                resource_runtime_identity, resource_deadline_evidence = produced
+                resource_runtime_components = _build_resource_runtime_components(
+                    session=session,
+                    verified_identity=resource_runtime_identity,
+                    deadline_payload=resource_deadline_evidence,
+                    store_path=_resource_store_path,
+                    store_factory=_resource_store_factory,
+                    wall_clock=_resource_wall_clock,
+                )
             queue_context = {
                 "active_flow_id": flow_id,
                 "development_session": True,
@@ -2617,14 +3816,54 @@ def development_session_run_flow(
                     and flow_id == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
                 ),
                 "max_inputs": max_inputs,
+                "route_max_inputs": max_inputs - startup_recovery_input_count,
+                "startup_recovery_result": startup_recovery_result,
+                "startup_recovery_input_count": startup_recovery_input_count,
                 "nova_identity": nova_identity,
                 "nova_reset_id": (
                     nova_identity.reset_id if nova_identity is not None else None
                 ),
                 "development_session": session,
+                "initial_observation": initial_observation,
+                "initial_observation_payload": initial_observation.to_mapping(),
+                "initial_frame_sha256": initial_observation.frame_sha256,
+                "startup_recovery_plan": startup_recovery_plan.to_mapping(),
+                "registration_snapshot": registration_snapshot,
+                "session_control_memory": session.control_memory,
+                "resource_runtime_identity": resource_runtime_identity,
+                "resource_deadline_evidence": resource_deadline_evidence,
             }
+            if resource_runtime_components is not None:
+                runtime_context["resource_runtime_factory"] = (
+                    resource_runtime_components["runtime_factory"]
+                )
             runner = _BLUESTACKS_FLOW_RUNNERS[contract["runner"]]
-            if "live" in inspect.signature(runner).parameters:
+            if startup_recovery_terminal_status is not None:
+                recovery_session = startup_runtime_holder.get("runtime")
+                raw = json.dumps(
+                    {
+                        "status": startup_recovery_terminal_status,
+                        "flow_id": flow_id,
+                        "reason": str(
+                            session.blocker
+                            or "startup_recovery_completed_route_not_run"
+                        ),
+                        "dispatch": startup_recovery_input_count > 0,
+                        "completion_scope": "startup_recovery_only",
+                        "route_dispatch": False,
+                        "session_directory": "",
+                        "startup_recovery_session_directory": str(
+                            getattr(recovery_session, "session", "")
+                        ),
+                        "input_count": startup_recovery_input_count,
+                        "recovery_input_count": startup_recovery_input_count,
+                        "route_input_count": 0,
+                        "total_input_count": startup_recovery_input_count,
+                        "terminal_home_verified": startup_recovery_terminal_home_verified,
+                    },
+                    sort_keys=True,
+                )
+            elif "live" in inspect.signature(runner).parameters:
                 raw = runner(queue_context, runtime_context, live=live)
             elif live:
                 raw = runner(queue_context, runtime_context)
@@ -2642,18 +3881,56 @@ def development_session_run_flow(
             child_text = str(result.get("session_directory") or "")
             child = Path(child_text) if child_text else None
             event_rows: list[dict[str, Any]] = []
+            transport_evidence_available = False
             if child is not None and child.is_dir():
                 events = child / "events.jsonl"
                 if events.is_file():
+                    transport_evidence_available = True
                     for line in events.read_text(encoding="utf-8").splitlines():
                         row = json.loads(line) if line.strip() else {}
                         if row:
                             event_rows.append(row)
-            action_rows = _compact_development_action_results(event_rows)
-            dispatch_count = len(action_rows)
-            if dispatch_count > max_inputs:
+            retained_action_rows = _compact_development_action_results(event_rows)
+            action_rows = list(session.actions) or retained_action_rows
+            route_retained_count = (
+                _retained_transport_count(event_rows)
+                if transport_evidence_available
+                else int(session.input_count)
+            )
+            if flow_id == "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY":
+                campaign_retained = result.get("campaign_transport_count")
+                if type(campaign_retained) is not int or campaign_retained < 0:
+                    raise OperatorError(
+                        "Campaign AP route did not report retained transport accounting"
+                    )
+                route_retained_count = campaign_retained
+            if flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION" and live:
+                troop_retained = result.get("troop_training_transport_count")
+                if type(troop_retained) is not int or troop_retained < 0:
+                    raise OperatorError(
+                        "Troop Training route did not report retained transport accounting"
+                    )
+                route_retained_count = troop_retained
+            if flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION":
+                ultimate_retained = result.get("retained_transport_count")
+                if type(ultimate_retained) is not int or ultimate_retained < 0:
+                    raise OperatorError(
+                        "Ultimate terminal route did not report retained transport accounting"
+                    )
+                route_retained_count = ultimate_retained
+            retained_count = startup_recovery_input_count + route_retained_count
+            if retained_count > max_inputs:
                 raise OperatorError("development session exceeded its input limit")
-            session.input_count = dispatch_count
+            if session.input_count == 0 and retained_count:
+                session.adopt_retained_transport_count(
+                    retained_count,
+                    source="runtime_session/events.jsonl",
+                )
+            elif session.input_count != retained_count:
+                raise OperatorError(
+                    "development session input count does not match retained transports"
+                )
+            dispatch_count = session.input_count
             session.actions = action_rows
             if action_rows:
                 with (session_directory / "actions.jsonl").open(
@@ -2662,7 +3939,21 @@ def development_session_run_flow(
                     for row in action_rows:
                         handle.write(json.dumps(row, sort_keys=True) + "\n")
             result_status = str(result.get("status") or "unknown")
-            if result_status not in {"completed", "dry_run", "observed"}:
+            if result_status == "evidence_required":
+                session.terminal_status = "evidence_required"
+                session.blocker = str(
+                    result.get("reason") or "evidence_required"
+                )
+                session.next_action = (
+                    "retain startup recovery successor evidence; route dispatch is denied"
+                )
+            elif result.get("effect_reconciliation_required") is True:
+                session.terminal_status = "effect_reconciliation_required"
+                session.blocker = "effect_reconciliation_required"
+                session.next_action = (
+                    "observe-only effect reconciliation; identical retry is denied"
+                )
+            elif result_status not in {"completed", "dry_run", "observed"}:
                 session.terminal_status = "blocked"
                 session.blocker = str(
                     result.get("reason") or "development result is not terminal"
@@ -2681,11 +3972,36 @@ def development_session_run_flow(
                 "session_directory": str(session_directory),
                 "runtime_session_directory": child_text,
                 "input_count": dispatch_count,
+                "recovery_input_count": startup_recovery_input_count,
+                "route_input_count": route_retained_count,
+                "total_input_count": dispatch_count,
+                "startup_recovery_result": startup_recovery_result,
                 "max_inputs": max_inputs,
                 "chest_continuation": str(chest_continuation)
                 if chest_continuation is not None
                 else None,
                 "runtime_observation": observation,
+                "initial_observation": initial_observation.to_mapping(),
+                "initial_frame_sha256": initial_observation.frame_sha256,
+                "proof_topology": str(
+                    result.get(
+                        "proof_topology",
+                        "continuous"
+                        if flow_id
+                        in {
+                            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+                            "WORLD-MAP-NAVIGATION-FOUNDATION",
+                            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                            "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+                            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+                            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+                            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+                            "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+                        }
+                        else "composite",
+                    )
+                ),
+                "causal_trace_count": int(result.get("causal_trace_count") or 0),
                 "lifecycle_state_created": False,
                 "persistent_checkpoint_artifacts_unchanged": True,
                 "result": result,
@@ -2694,8 +4010,22 @@ def development_session_run_flow(
                 wrapper["receipt_id"] = delegated_receipt_payload["receipt_id"]
                 wrapper["receipt_digest"] = delegated_receipt_payload["receipt_digest"]
                 wrapper["evidence_result_identity"] = delegated_context.result_identity
+            if startup_recovery_terminal_home_verified is not None:
+                wrapper["terminal_home_verified"] = (
+                    startup_recovery_terminal_home_verified
+                )
             (session_directory / "result.json").write_text(
                 json.dumps(wrapper, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+        if startup_recovery_terminal_home_verified is not None:
+            summary_path = session_directory / "summary.json"
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            summary["terminal_home_verified"] = (
+                startup_recovery_terminal_home_verified
+            )
+            summary_path.write_text(
+                json.dumps(summary, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
             )
         if delegated_context is not None:
             if (
@@ -2704,9 +4034,14 @@ def development_session_run_flow(
                 or not (session_directory / "summary.json").is_file()
                 or session._ownership.lock.held
             ):
-                raise OperatorError("delegated flow evidence or ownership release is unproven")
+                raise OperatorError(
+                    "delegated flow evidence or ownership release is unproven"
+                )
             terminal_status = str(result.get("status") or "evidence_required")
-            if terminal_status not in delegated_receipt_payload["permitted_terminal_states"]:
+            if (
+                terminal_status
+                not in delegated_receipt_payload["permitted_terminal_states"]
+            ):
                 terminal_status = "evidence_required"
             delegated_context.record_terminal(status=terminal_status, payload=wrapper)
     except BaseException as exc:
@@ -2726,8 +4061,25 @@ def development_session_run_flow(
             os.environ.pop("PNS_DEVELOPMENT_MAX_INPUTS", None)
         else:
             os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = previous_limit
-        if delegated_context is not None:
-            delegated_scope.__exit__(None, None, None)
+        try:
+            if resource_runtime_components is not None:
+                authority = resource_runtime_components["authority"]
+                controller = resource_runtime_components["controller_lease"]
+                try:
+                    authority.release_resource_controller_lease(
+                        owner,
+                        str(
+                            controller.get("controller_token")
+                            or controller.get("lease_token")
+                            or ""
+                        ),
+                        time.monotonic(),
+                    )
+                finally:
+                    resource_runtime_components["store"].close()
+        finally:
+            if delegated_context is not None:
+                delegated_scope.__exit__(None, None, None)
     return json.dumps(wrapper, sort_keys=True)
 
 
@@ -2877,49 +4229,36 @@ def bluestacks_dismiss_reload_overlay(
 def bluestacks_run_flow(flow_id: str, *, live: bool) -> str:
     if flow_id not in BLUESTACKS_FLOW_IDS:
         raise OperatorError("flow ID is not in the checked-in BlueStacks allowlist")
+    if live:
+        raise OperatorError(
+            "legacy bluestacks run-flow --live is retired; use development-session run-flow"
+        )
     contract = _load_bluestacks_flow_registry().get(flow_id)
     if contract is None or contract["runner"] not in _BLUESTACKS_FLOW_RUNNERS:
         raise OperatorError("FLOW_DELIVERY_RUNNER_UNAVAILABLE")
-    if not live:
-        if flow_id == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
-            queue, lease = _load_flow_delivery_state(require_runtime_held=False)
-            if queue["active_flow_id"] != flow_id:
-                raise OperatorError("only the active development flow may run")
-            if lease.get("active_stage") not in {
-                "focused_validation",
-                "live_preflight",
-            }:
-                raise OperatorError(
-                    "Ruins zero-transport replay requires focused validation or live preflight"
-                )
-            return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](
-                queue, lease, live=False
-            )
-        return json.dumps(
-            {
-                "status": "dry_run",
-                "flow_id": flow_id,
-                "runner": contract["runner"],
-                "dispatch": False,
-            },
-            sort_keys=True,
-        )
-    from scripts.navigation_development_boundary import NavigationDevelopmentSession
-
-    owner = f"pnsctl-bluestacks-run-flow:{flow_id}"
-    invocation_id = (
-        f"{flow_id}:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
-    )
-    with NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id):
-        queue, lease = _load_flow_delivery_state()
+    if flow_id == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
+        queue, lease = _load_flow_delivery_state(require_runtime_held=False)
         if queue["active_flow_id"] != flow_id:
             raise OperatorError("only the active development flow may run")
-        flow = next(item for item in queue["flows"] if item["flow_id"] == flow_id)
-        if flow.get("last_completed_stage") != "live_execution":
+        if lease.get("active_stage") not in {
+            "focused_validation",
+            "live_preflight",
+        }:
             raise OperatorError(
-                "controller has not admitted the flow to live_execution"
+                "Ruins zero-transport replay requires focused validation or live preflight"
             )
-        return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](queue, lease)
+        return _BLUESTACKS_FLOW_RUNNERS[contract["runner"]](
+            queue, lease, live=False
+        )
+    return json.dumps(
+        {
+            "status": "dry_run",
+            "flow_id": flow_id,
+            "runner": contract["runner"],
+            "dispatch": False,
+        },
+        sort_keys=True,
+    )
 
 
 def _session_relative_path(session: Path, value: Any, field: str) -> Path:
@@ -2995,13 +4334,66 @@ def _session_evidence_file(
     return resolved
 
 
+def _canonicalize_nova_supervised_dispatch_evidence(
+    route_result: Mapping[str, Any],
+    registration_snapshot: Mapping[str, Any],
+    *,
+    session_directory: str | Path | None = None,
+) -> dict[str, Any]:
+    """Bind one typed dispatch snapshot to all retained Nova evidence."""
+
+    payload = dict(route_result)
+    snapshot = dict(registration_snapshot)
+    payload["registration_snapshot"] = dict(snapshot)
+    payload["dispatch_registration"] = dict(snapshot)
+    existing_trace = payload.get("causal_trace")
+    if not isinstance(existing_trace, Mapping) and session_directory:
+        trace_path = Path(session_directory) / "causal-trace.json"
+        if os.path.islink(trace_path):
+            raise OperatorError("causal-trace.json must not be a symlink")
+        if trace_path.is_file():
+            try:
+                existing_trace = json.loads(trace_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                raise OperatorError("causal-trace.json is unreadable") from exc
+            if not isinstance(existing_trace, Mapping):
+                raise OperatorError("causal-trace.json must be an object")
+    if isinstance(existing_trace, Mapping):
+        trace = dict(existing_trace)
+    else:
+        trace = {
+            "schema_version": 1,
+            "trace_count": 1,
+            "read_only": True,
+            "input_authority": False,
+            "stages": [
+                "observation",
+                "home_atlas_navigation",
+                "praise_intent",
+                "current_frame_target_binding",
+                "transport",
+                "attempts_cooldown_successor",
+                "terminal_home",
+            ],
+            "proof_topology": "continuous",
+            "flow_id": NOVA_SUPERVISED_PULSE_FLOW_ID,
+        }
+    trace["registration_snapshot"] = dict(snapshot)
+    trace["dispatch_registration"] = dict(snapshot)
+    trace["scheduler_enabled"] = False
+    payload["causal_trace"] = trace
+    if type(payload.get("causal_trace_count")) is not int or payload["causal_trace_count"] < 1:
+        payload["causal_trace_count"] = 1
+    return payload
+
+
 def _persist_nova_session_result(
     session_directory: str | Path,
     updates: Mapping[str, Any],
     *,
     candidate_commit: str | None = None,
 ) -> dict[str, Any]:
-    """Merge authoritative accounting into the session result.json on disk."""
+    """Merge authoritative accounting into every retained Nova session artifact."""
 
     session = Path(session_directory)
     allowed_root = (REPO_ROOT / ".local-captures").resolve()
@@ -3040,6 +4432,34 @@ def _persist_nova_session_result(
     payload["candidate_commit"] = commit
     path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+    causal_trace = payload.get("causal_trace")
+    if isinstance(causal_trace, Mapping):
+        trace_path = resolved_session / "causal-trace.json"
+        if os.path.islink(trace_path):
+            raise OperatorError("causal-trace.json must not be a symlink")
+        trace_path.write_text(
+            json.dumps(dict(causal_trace), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    delivery_path = resolved_session / "flow-delivery-result.json"
+    if os.path.islink(delivery_path):
+        raise OperatorError("flow-delivery-result.json must not be a symlink")
+    delivery = dict(payload)
+    delivery.setdefault("schema_version", 1)
+    delivery.setdefault("flow_id", NOVA_SUPERVISED_PULSE_FLOW_ID)
+    delivery.setdefault("scenario_id", NOVA_SUPERVISED_PULSE_SCENARIO_ID)
+    if isinstance(payload.get("registration_snapshot"), Mapping):
+        delivery["registration_snapshot"] = dict(payload["registration_snapshot"])
+    if isinstance(payload.get("dispatch_registration"), Mapping):
+        delivery["dispatch_registration"] = dict(payload["dispatch_registration"])
+    if isinstance(causal_trace, Mapping):
+        delivery["causal_trace"] = dict(causal_trace)
+    delivery_path.write_text(
+        json.dumps(delivery, indent=2, sort_keys=True, default=str) + "\n",
+        encoding="utf-8",
     )
     return payload
 
@@ -4237,10 +5657,7 @@ def reconcile_nova_supervised_invocation_guard_proven_no_effect(
     archive_dir = _nova_supervised_guard_archive_dir()
     receipt_dir.mkdir(parents=True, exist_ok=True)
     archive_dir.mkdir(parents=True, exist_ok=True)
-    receipt_path = (
-        receipt_dir
-        / f"proven-no-effect-{stamp}-{receipt_digest[:16]}.json"
-    )
+    receipt_path = receipt_dir / f"proven-no-effect-{stamp}-{receipt_digest[:16]}.json"
     archive_path = (
         archive_dir
         / f"nova-praise-one-free-pulse-{selected_reset}.guard.{stamp}.{guard_sha256[:16]}.json"
@@ -4298,7 +5715,9 @@ def _require_nova_supervised_reset(args: argparse.Namespace, identity) -> None:
     selected = _validate_nova_reset_id(getattr(args, "reset_id", None))
     verified = _validate_nova_reset_id(getattr(identity, "reset_id", None))
     if selected != verified:
-        raise OperatorError("supervised pulse reset_id does not match verified identity")
+        raise OperatorError(
+            "supervised pulse reset_id does not match verified identity"
+        )
 
 
 def _verify_nova_supervised_one_free_pulse_session(
@@ -4335,6 +5754,97 @@ def _verify_nova_supervised_one_free_pulse_session(
         raise OperatorError("result.json is required") from exc
     if not isinstance(result, dict):
         raise OperatorError("result.json must be an object")
+    delivery_result = result
+    delivery_result_path = session / "flow-delivery-result.json"
+    if delivery_result_path.is_symlink() or not delivery_result_path.is_file():
+        raise OperatorError("flow-delivery-result.json is required")
+    try:
+        delivery_result = json.loads(
+            delivery_result_path.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("flow-delivery-result.json is required") from exc
+    if not isinstance(delivery_result, dict):
+        raise OperatorError("flow-delivery-result.json must be an object")
+    causal_trace_path = session / "causal-trace.json"
+    if causal_trace_path.is_symlink() or not causal_trace_path.is_file():
+        raise OperatorError("causal-trace.json is required")
+    try:
+        causal_trace = json.loads(
+            causal_trace_path.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise OperatorError("causal-trace.json is required") from exc
+    if not isinstance(causal_trace, dict):
+        raise OperatorError("causal-trace.json must be an object")
+    if delivery_result.get("flow_id") != NOVA_SUPERVISED_PULSE_FLOW_ID:
+        raise OperatorError("flow-delivery result flow_id is not the supervised Praise flow")
+    from automation_service.registry import RegisteredDispatchSnapshot
+
+    def _registration_aliases(payload: Mapping[str, Any], label: str) -> dict[str, Any]:
+        aliases = (
+            payload.get("registration_snapshot"),
+            payload.get("dispatch_registration"),
+        )
+        if any(value is None for value in aliases):
+            raise OperatorError(f"{label} registration snapshot aliases are missing")
+        try:
+            snapshots = [RegisteredDispatchSnapshot.from_mapping(value) for value in aliases]
+        except (TypeError, ValueError, KeyError) as exc:
+            raise OperatorError(f"{label} registration snapshot is forged or partial") from exc
+        if any(snapshot != snapshots[0] for snapshot in snapshots[1:]):
+            raise OperatorError(f"{label} registration snapshot aliases disagree")
+        return snapshots[0].to_mapping()
+
+    if (
+        result.get("production_registration") != "REGISTERED"
+        or result.get("scheduler_enabled") is not False
+        or delivery_result.get("production_registration") != "REGISTERED"
+        or delivery_result.get("scheduler_enabled") is not False
+    ):
+        raise OperatorError("Nova retained production registration evidence is invalid")
+    result_snapshot = _registration_aliases(result, "result")
+    delivery_snapshot = _registration_aliases(delivery_result, "delivery result")
+    causal_snapshot = _registration_aliases(causal_trace, "causal trace")
+    if result_snapshot != delivery_snapshot or causal_snapshot != result_snapshot:
+        raise OperatorError("Nova result and causal trace registration evidence disagree")
+    result_trace = result.get("causal_trace")
+    delivery_trace = delivery_result.get("causal_trace")
+    if not isinstance(result_trace, Mapping) or not isinstance(delivery_trace, Mapping):
+        raise OperatorError("Nova causal trace registration evidence is missing")
+    if (
+        result_trace.get("scheduler_enabled") is not False
+        or delivery_trace.get("scheduler_enabled") is not False
+        or causal_trace.get("scheduler_enabled") is not False
+    ):
+        raise OperatorError("Nova causal trace scheduler evidence is invalid")
+    trace_snapshot = _registration_aliases(result_trace, "result causal trace")
+    delivery_trace_snapshot = _registration_aliases(
+        delivery_trace, "delivery causal trace"
+    )
+    if (
+        trace_snapshot != result_snapshot
+        or delivery_trace_snapshot != result_snapshot
+        or causal_snapshot != result_snapshot
+    ):
+        raise OperatorError("Nova result and causal trace registration evidence disagree")
+    def _canonical_json(value: Any) -> str:
+        try:
+            return json.dumps(
+                value,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+        except (TypeError, ValueError) as exc:
+            raise OperatorError("Nova causal trace objects are not valid JSON") from exc
+
+    causal_trace_json = _canonical_json(causal_trace)
+    if (
+        causal_trace_json != _canonical_json(result_trace)
+        or causal_trace_json != _canonical_json(delivery_trace)
+    ):
+        raise OperatorError("Nova causal trace objects disagree")
     if result.get("schema_version") != 1:
         raise OperatorError("unsupported result schema_version")
     if result.get("flow_id") != NOVA_SUPERVISED_PULSE_FLOW_ID:
@@ -4371,10 +5881,10 @@ def _verify_nova_supervised_one_free_pulse_session(
         raise OperatorError("journal_status must be confirmed")
     if result.get("terminal_home_verified") is not True:
         raise OperatorError("terminal Home was not verified")
-    if result.get("production_registration") != "NOT_REGISTERED":
-        raise OperatorError("production registration must remain NOT_REGISTERED")
+    if result.get("production_registration") != "REGISTERED":
+        raise OperatorError("production registration must be REGISTERED at dispatch")
     if result.get("scheduler_enabled") is not False:
-        raise OperatorError("scheduler must remain disabled")
+        raise OperatorError("scheduler execution must remain disabled at dispatch")
     candidate = result.get("candidate_commit")
     scenario_record = result.get("scenario_record")
     if not isinstance(candidate, str) or not candidate.strip():
@@ -4503,8 +6013,11 @@ def _verify_nova_supervised_one_free_pulse_session(
         "attempts_before": before,
         "attempts_after": after,
         "cooldown_seconds": cooldown,
+        "registration_snapshot": result_snapshot,
+        "dispatch_registration": result_snapshot,
+        "production_registration": result.get("production_registration"),
+        "scheduler_enabled": result.get("scheduler_enabled"),
     }
-
 
 def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
     session = session_directory.resolve()
@@ -4528,17 +6041,11 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
     ):
         raise OperatorError("unsupported flow-delivery result identity")
     result_status = result.get("status")
-    if result_status != "completed":
-        if result.get("flow_id") not in {
-            "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
-            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
-            "WORLD-MAP-NAVIGATION-FOUNDATION",
-        } or result_status not in {
-            "blocked",
-            "unresolved",
-            "manual_required",
-        }:
-            raise OperatorError("flow result is not terminally completed")
+    allowed_statuses = {"completed", "blocked", "unresolved", "manual_required"}
+    if result.get("effect_reconciliation_required") is True:
+        allowed_statuses.add("effect_reconciliation_required")
+    if result_status not in allowed_statuses:
+        raise OperatorError("flow result is not terminally completed")
     if result.get("serial") != BLUESTACKS_SERIAL:
         raise OperatorError("flow result used an unapproved serial")
     if (result.get("native_width"), result.get("native_height")) != (
@@ -4570,6 +6077,7 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
     )
     artifact_fields = (
         "events_path",
+        "causal_trace_path",
         "ledger_path",
         "capability_audit_path",
         "journal_path",
@@ -4665,8 +6173,10 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
                 "attempts_after": structure["attempts_after"],
                 "cooldown_seconds": structure["cooldown_seconds"],
                 "artifacts": structure["artifacts"],
-                "production_registration": "NOT_REGISTERED",
-                "scheduler_enabled": False,
+                "registration_snapshot": structure["registration_snapshot"],
+                "dispatch_registration": structure["dispatch_registration"],
+                "production_registration": structure["production_registration"],
+                "scheduler_enabled": structure["scheduler_enabled"],
             },
             sort_keys=True,
         )
@@ -4747,7 +6257,7 @@ def bluestacks_recover_home() -> str:
             "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
             live=True,
             yes=True,
-            max_inputs=4,
+            max_inputs=32,
             recovery_only=True,
         )
     if lease.get("active_stage") not in {
@@ -5061,7 +6571,28 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                 },
                 sort_keys=True,
             )
+        from automation_service.registry import (
+            RegisteredDispatchSnapshot,
+            consume_nova_registration,
+        )
+        try:
+            registration_snapshot = consume_nova_registration()
+        except ValueError as exc:
+            raise OperatorError(
+                "Nova phase registration is invalid"
+            ) from exc
+        if registration_snapshot is None:
+            raise OperatorError(
+                "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE phase registration is not registered"
+            )
+        if not isinstance(registration_snapshot, RegisteredDispatchSnapshot):
+            raise OperatorError(
+                "Nova phase registration did not produce a typed dispatch snapshot"
+            )
+
         from scripts.navigation_development_boundary import NavigationDevelopmentSession
+        args.registration_snapshot = registration_snapshot
+        registration_mapping = registration_snapshot.to_mapping()
 
         _create_nova_supervised_invocation_guard(
             candidate_commit=candidate_commit,
@@ -5109,23 +6640,33 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                     }
                     result_status = "blocked"
                     guard_terminal = "failed"
+                    route_result["registration_snapshot"] = dict(registration_mapping)
+                    route_result["dispatch_registration"] = dict(registration_mapping)
                     return json.dumps(route_result, sort_keys=True)
 
                 route_result = json.loads(runner(args, identity))
                 runner_returned = True
-                navigation_count = int(route_result.get("navigation_input_count", 0))
-                praise_calls = int(route_result.get("praise_transport_calls", 0))
-                status = str(route_result.get("status") or "blocked")
+                if not isinstance(route_result, dict):
+                    raise OperatorError("Nova supervised runner must return an object")
                 session = str(route_result.get("session_directory") or "")
-                result_status = status
-                route_result["candidate_commit"] = candidate_commit
-                route_result["reset_id"] = selected_reset_id
                 if session:
                     _bind_nova_supervised_invocation_guard_session(
                         session,
                         reset_id=selected_reset_id,
                     )
-                    route_result["session_directory"] = str(Path(session).resolve())
+                    session = str(Path(session).resolve())
+                    route_result["session_directory"] = session
+                route_result = _canonicalize_nova_supervised_dispatch_evidence(
+                    route_result,
+                    registration_mapping,
+                    session_directory=session or None,
+                )
+                navigation_count = int(route_result.get("navigation_input_count", 0))
+                praise_calls = int(route_result.get("praise_transport_calls", 0))
+                status = str(route_result.get("status") or "blocked")
+                result_status = status
+                route_result["candidate_commit"] = candidate_commit
+                route_result["reset_id"] = selected_reset_id
                 completed_facts = _supervised_pulse_completed_facts_ok(route_result)
                 if status == "completed" and completed_facts:
                     record = SupervisedNovaPulseScenarioAttemptRecord(
@@ -5227,20 +6768,23 @@ def nova_praise_pulse_live(args: argparse.Namespace) -> str:
                     guard_terminal = "blocked"
                 route_result["scenario_record"] = record.to_mapping()
                 route_result["candidate_commit"] = candidate_commit
-                route_result["production_registration"] = "NOT_REGISTERED"
+                route_result["production_registration"] = "REGISTERED"
                 route_result["scheduler_enabled"] = False
                 if session:
+                    persistence_updates = {
+                        "scenario_record": route_result["scenario_record"],
+                        "candidate_commit": candidate_commit,
+                        "session_directory": str(Path(session).resolve()),
+                        "production_registration": "REGISTERED",
+                        "scheduler_enabled": False,
+                        "registration_snapshot": route_result["registration_snapshot"],
+                        "dispatch_registration": route_result["dispatch_registration"],
+                        "causal_trace": route_result["causal_trace"],
+                        "causal_trace_count": route_result["causal_trace_count"],
+                    }
                     persisted = _persist_nova_session_result(
                         session,
-                        {
-                            "scenario_record": route_result["scenario_record"],
-                            "candidate_commit": candidate_commit,
-                            "session_directory": str(Path(session).resolve()),
-                            "production_registration": "NOT_REGISTERED",
-                            "scheduler_enabled": False,
-                            "status": route_result.get("status"),
-                            "reason": route_result.get("reason"),
-                        },
+                        persistence_updates,
                         candidate_commit=candidate_commit,
                     )
                     route_result["action_database"] = persisted.get(
@@ -5700,6 +7244,137 @@ def automation_service_offline(args: argparse.Namespace) -> int:
     return automation_main(argv)
 
 
+def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
+    """Run exactly one fail-closed, zero-transport scheduler pulse."""
+
+    from automation_service.contracts import (
+        RecurrenceClass,
+        RecurrenceProjection,
+        SchedulerFacts,
+    )
+    from automation_service.service import registry_scheduler_components
+    from safe_action_core import SafetyStore, SQLiteSchedulerInvocationRepository
+
+    if args.state_path is None:
+        print(
+            json.dumps(
+                {
+                    "status": "disabled",
+                    "command": "scheduler-pulse",
+                    "reason": "STATE_PATH_REQUIRED_FOR_OFFLINE_PERSISTENCE",
+                    "transport_count": 0,
+                    "production_registration": "NOT_REGISTERED",
+                    "scheduler_eligible": False,
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+    store = SafetyStore(Path(args.state_path))
+    try:
+        repository = SQLiteSchedulerInvocationRepository(store)
+        entries, _descriptors, _handlers, coordinator = registry_scheduler_components(
+            repository
+        )
+        now = (
+            float(args.now_utc_epoch)
+            if args.now_utc_epoch is not None
+            else datetime.now(timezone.utc).timestamp()
+        )
+        registered = next((entry for entry in entries if entry.registered), None)
+        healthy = bool(getattr(args, "health_ok", False))
+        projections = {}
+        observed_at = getattr(args, "projection_observed_at_utc", None)
+        if (
+            registered is not None
+            and registered.flow_id == RECRUITMENT_MAINTENANCE_FLOW_ID
+            and observed_at is not None
+        ):
+            projections[registered.flow_id] = RecurrenceProjection(
+                RecurrenceClass.COOLDOWN,
+                next_eligible_at=getattr(args, "projection_next_eligible_at", None),
+                observed_at_utc=float(observed_at),
+            )
+        elif (
+            registered is not None
+            and registered.flow_id == CAMPAIGN_AP_FLOW_ID
+            and observed_at is not None
+            and getattr(args, "projection_observed_balance", None) is not None
+        ):
+            projections[registered.flow_id] = RecurrenceProjection(
+                RecurrenceClass.AP_REGENERATION,
+                next_eligible_at=getattr(args, "projection_next_eligible_at", None),
+                observed_at_utc=float(observed_at),
+                observed_balance=float(args.projection_observed_balance),
+            )
+        report = coordinator.pulse(
+            SchedulerFacts(
+                args.account_id,
+                args.server_id,
+                args.reset_id,
+                now,
+                health_ok=healthy,
+                accepted_product=registered.product_id
+                if registered is not None
+                else False,
+                product_revision=registered.product_revision
+                if registered is not None
+                else None,
+                registration_status=(
+                    registered.registration_status
+                    if registered is not None
+                    else "NOT_REGISTERED"
+                ),
+                scheduler_eligible=bool(
+                    registered is not None and registered.scheduler_eligible
+                ),
+                owner_available=healthy,
+                clock_ok=healthy,
+                reset_agreement=healthy,
+                projections=projections,
+            )
+        )
+        candidate = None
+        if report.candidate is not None:
+            candidate = {
+                "flow_id": report.candidate.descriptor.flow_id,
+                "identity": asdict(report.candidate.identity),
+                "occurrence_key": report.candidate.occurrence_key,
+            }
+        result = report.result.to_mapping() if report.result is not None else None
+        print(
+            json.dumps(
+                {
+                    "status": "selected" if candidate is not None else "disabled",
+                    "command": "scheduler-pulse",
+                    "reason": report.reason_code,
+                    "candidate": candidate,
+                    "result": result,
+                    "transport_count": 0,
+                    "production_registration": "REGISTERED"
+                    if registered is not None
+                    else "NOT_REGISTERED",
+                    "scheduler_eligible": bool(
+                        registered is not None and registered.scheduler_eligible
+                    ),
+                    "accepted_product": registered.product_id
+                    if registered is not None
+                    else False,
+                    "product_revision": registered.product_revision
+                    if registered is not None
+                    else None,
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+    finally:
+        store.close()
+
+
+scheduler_pulse_offline = automation_service_scheduler_pulse_offline
+
+
 _CONDUCT_DEFAULT_MAX_INPUTS = {
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": 16,
     "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": 8,
@@ -5708,6 +7383,9 @@ _CONDUCT_DEFAULT_MAX_INPUTS = {
     "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": 10,
     "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": 10,
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": 24,
+    RECRUITMENT_MAINTENANCE_FLOW_ID: 12,
+    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": 12,
+    "TROOP-TRAINING-END-TO-END-CONSOLIDATION": 32,
 }
 _CONDUCT_KNOWLEDGE_PATHS = (
     REPO_ROOT / "AGENTS.md",
@@ -5724,6 +7402,36 @@ def _conduct_max_inputs(flow_id: str, requested: int | None) -> int:
     )
     if not 1 <= maximum <= 100:
         raise OperatorError("conduct max_inputs must be between 1 and 100")
+    if flow_id == RECRUITMENT_MAINTENANCE_FLOW_ID and maximum != 12:
+        raise OperatorError(
+            "Recruitment full-pass conduct requires exact max_inputs=12"
+        )
+    if flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION" and maximum != 32:
+        raise OperatorError(
+            "Troop Training continuous conduct requires exact max_inputs=32"
+        )
+    if (
+        flow_id
+        in {
+            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+            "WORLD-MAP-NAVIGATION-FOUNDATION",
+            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+            "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+            RECRUITMENT_MAINTENANCE_FLOW_ID,
+            "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+            "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+        }
+        and requested is not None
+        and maximum == 1
+    ):
+        raise OperatorError(
+            "continuous-session conduct acceptance requires a multi-input ceiling; "
+            "use direct development-session diagnostics for one-input evidence"
+        )
     return maximum
 
 
@@ -5790,11 +7498,68 @@ def _conductor_live_summary(
         try:
             _session, retained = _retained_flow_result(Path(runtime_session))
             if retained.get("flow_id") != flow_id:
-                raise OperatorError("retained flow identity does not match conduct flow")
+                raise OperatorError(
+                    "retained flow identity does not match conduct flow"
+                )
             summary = {
                 "status": retained.get("status", run_payload.get("status", "unknown")),
                 "result": retained,
             }
+            if flow_id in {
+                "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+                "WORLD-MAP-NAVIGATION-FOUNDATION",
+                "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+                "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+                "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+                "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+                "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+                RECRUITMENT_MAINTENANCE_FLOW_ID,
+                "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+                "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+            }:
+                if retained.get("proof_topology") != "continuous":
+                    summary.update(
+                        {
+                            "status": "evidence_required",
+                            "reason": "continuous proof topology is required for migrated conduct",
+                        }
+                    )
+                elif retained.get("causal_trace_count") != 1:
+                    summary.update(
+                        {
+                            "status": "evidence_required",
+                            "reason": "exactly one causal trace is required for migrated conduct",
+                        }
+                    )
+            elif flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION":
+                if retained.get("proof_topology") != "composite":
+                    summary.update(
+                        {
+                            "status": "evidence_required",
+                            "reason": "Ultimate retained Flee proof must remain composite",
+                        }
+                    )
+                elif retained.get("terminal_reconciliation_topology") != "continuous":
+                    summary.update(
+                        {
+                            "status": "evidence_required",
+                            "reason": "Ultimate terminal reconciliation must be continuous",
+                        }
+                    )
+                elif retained.get("new_flee_transport_count") != 0:
+                    summary.update(
+                        {
+                            "status": "evidence_required",
+                            "reason": "Ultimate terminal reconciliation must perform zero new Flee actions",
+                        }
+                    )
+                elif retained.get("causal_trace_count") != 1:
+                    summary.update(
+                        {
+                            "status": "evidence_required",
+                            "reason": "exactly one causal trace is required for Ultimate terminal reconciliation",
+                        }
+                    )
         except OperatorError as exc:
             summary = {
                 "status": "evidence_required",
@@ -5808,9 +7573,7 @@ def _conductor_live_summary(
         "done",
     }:
         try:
-            verification = json.loads(
-                bluestacks_verify_flow(Path(runtime_session))
-            )
+            verification = json.loads(bluestacks_verify_flow(Path(runtime_session)))
         except (OperatorError, OSError, ValueError, json.JSONDecodeError) as exc:
             verification = {
                 "status": "evidence_required",
@@ -5849,7 +7612,8 @@ def conduct_flow(
 
     Dry-run by default: validates framing, prints the plan, and writes/updates the
     conductor-owned per-flow state file. Live execution requires ``--live --yes`` and
-    goes through development-session observe + run-flow (never bypasses pnsctl).
+    uses one thin development-session run-flow invocation for migrated routes
+    (never bypasses pnsctl).
     """
 
     from tasks.flow_conductor import (
@@ -5936,30 +7700,39 @@ def conduct_flow(
 
     if not yes:
         raise OperatorError("live conduct requires --yes")
-
-    observe_output = development_session_observe(
-        max_inputs=1,
-        flow_id=flow_id,
-        command_argv=[
-            "development-session",
-            "observe",
-            "--flow-id",
-            flow_id,
-            "--max-inputs",
-            "1",
-        ],
-    )
-    run_output = development_session_run_flow(
-        flow_id,
-        live=True,
-        yes=True,
-        max_inputs=maximum,
-        runtime_scope=runtime_scope,
-        account_id=account_id,
-        server_id=server_id,
-        reset_id=reset_id,
-        identity_evidence=identity_evidence,
-        command_argv=[
+    resource_flow = flow_id == "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
+    continuous_session_flow = flow_id in {
+        "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+        "WORLD-MAP-NAVIGATION-FOUNDATION",
+        "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
+        "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+        "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+        "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+        "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+        "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+        RECRUITMENT_MAINTENANCE_FLOW_ID,
+        "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+        "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+    }
+    observe_output: str | None = None
+    if not continuous_session_flow:
+        observe_output = development_session_observe(
+            max_inputs=1,
+            flow_id=flow_id,
+            command_argv=[
+                "development-session",
+                "observe",
+                "--flow-id",
+                flow_id,
+                "--max-inputs",
+                "1",
+            ],
+        )
+    run_kwargs: dict[str, Any] = {
+        "live": True,
+        "yes": True,
+        "max_inputs": maximum,
+        "command_argv": [
             "development-session",
             "run-flow",
             flow_id,
@@ -5968,11 +7741,27 @@ def conduct_flow(
             "--max-inputs",
             str(maximum),
         ],
-    )
-    run_payload = json.loads(run_output) if run_output.strip().startswith("{") else {
-        "status": "unknown",
-        "raw": run_output,
     }
+    if not resource_flow:
+        run_kwargs["identity_evidence"] = identity_evidence
+    if not resource_flow:
+        run_kwargs.update(
+            {
+                "runtime_scope": runtime_scope,
+                "account_id": account_id,
+                "server_id": server_id,
+                "reset_id": reset_id,
+            }
+        )
+    run_output = development_session_run_flow(flow_id, **run_kwargs)
+    run_payload = (
+        json.loads(run_output)
+        if run_output.strip().startswith("{")
+        else {
+            "status": "unknown",
+            "raw": run_output,
+        }
+    )
     classification_summary, verification = _conductor_live_summary(
         flow_id,
         run_payload if isinstance(run_payload, dict) else {"status": "unknown"},
@@ -5992,9 +7781,11 @@ def conduct_flow(
             "blocker": state.last_blocker,
             "flow_id": flow_id,
             "state_path": str(path),
-            "observe": json.loads(observe_output)
-            if observe_output.strip().startswith("{")
-            else observe_output,
+            "observe": (
+                json.loads(observe_output)
+                if observe_output is not None and observe_output.strip().startswith("{")
+                else observe_output
+            ),
             "run": run_payload,
             "verification": verification,
             "plan": plan,
@@ -6249,6 +8040,29 @@ def parser() -> argparse.ArgumentParser:
     automation_health = automation_sub.add_parser("health")
     automation_health.add_argument(
         "--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled"
+    )
+    scheduler_pulse = automation_sub.add_parser(
+        "pulse",
+        help="one offline UTC scheduler pulse; never starts runtime or transport",
+    )
+    scheduler_pulse.add_argument("--state-path", type=Path, default=None)
+    scheduler_pulse.add_argument("--account-id", default="offline-account")
+    scheduler_pulse.add_argument("--server-id", default="offline-server")
+    scheduler_pulse.add_argument("--reset-id", default="offline-reset")
+    scheduler_pulse.add_argument("--now-utc-epoch", type=float, default=None)
+    scheduler_pulse.add_argument(
+        "--projection-observed-at-utc", type=float, default=None
+    )
+    scheduler_pulse.add_argument(
+        "--projection-next-eligible-at", type=float, default=None
+    )
+    scheduler_pulse.add_argument(
+        "--projection-observed-balance", type=float, default=None
+    )
+    scheduler_pulse.add_argument(
+        "--health-ok",
+        action="store_true",
+        help="admit the healthy offline selection gates; never starts runtime",
     )
     campaign_plan = automation_sub.add_parser("campaign-plan")
     campaign_plan.add_argument("--destination", default="1-20-9")
@@ -6527,6 +8341,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 2
     if args.command == "automation-service":
         try:
+            if args.automation_service_command == "pulse":
+                return automation_service_scheduler_pulse_offline(args)
             return automation_service_offline(args)
         except (OperatorError, OSError, RuntimeError, ValueError) as exc:
             print("pnsctl: " + str(exc), file=sys.stderr)

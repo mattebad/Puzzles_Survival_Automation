@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from typing import Any, Mapping
@@ -35,6 +36,12 @@ UC_RECOVERY_HANDLER_ID = "ultimate_challenge_navigation_only_recovery"
 UC_DAILY_RUNNER_ID = "ultimate_challenge_daily_runner"
 UC_DAILY_EVIDENCE_VALIDATOR_ID = "ultimate_challenge_daily_evidence"
 UC_DAILY_RECOVERY_HANDLER_ID = "ultimate_challenge_daily_recovery"
+TERMINAL_RECONCILIATION_TOPOLOGY = "continuous"
+RETAINED_FLEE_PROOF_TOPOLOGY = "composite"
+RETAINED_EFFECT_EVIDENCE_REFS = (
+    "tasks/flow_delivery_queue.json#ultimate-attempt-13",
+    "tasks/flow_delivery_queue.json#ultimate-attempt-14",
+)
 
 
 def _utc_stamp() -> str:
@@ -245,7 +252,16 @@ def _ultimate_runtime_context(
             raise _pnsctl().OperatorError(
                 "Ultimate Challenge development session max_inputs must be exactly 16"
             )
-        return None, MAX_TOTAL_INPUTS
+        route_maximum = lease.get("route_max_inputs", maximum)
+        if (
+            type(route_maximum) is not int
+            or route_maximum < 0
+            or route_maximum > maximum
+        ):
+            raise _pnsctl().OperatorError(
+                "Ultimate Challenge route_max_inputs must be within the shared 16-input ceiling"
+            )
+        return None, route_maximum
 
     if lease.get("runtime_ownership_state") != "held":
         raise _pnsctl().OperatorError(
@@ -267,6 +283,116 @@ def _ultimate_runtime_context(
     return flow, MAX_TOTAL_INPUTS
 
 
+def _terminal_development_session(lease: Mapping[str, Any]) -> tuple[Any, dict[str, Any]]:
+    """Require the exact active session and its identity-bound initial frame."""
+
+    from scripts.navigation_development_boundary import (
+        DevelopmentInitialObservation,
+        DevelopmentSession,
+    )
+
+    session = lease.get("development_session")
+    if (
+        not isinstance(session, DevelopmentSession)
+        or session.is_active is not True
+        or str(session.owner) != f"pnsctl-development-session:{FLOW_ID}"
+        or not callable(getattr(session, "run_action", None))
+    ):
+        raise _pnsctl().OperatorError(
+            "Ultimate terminal reconciliation requires the active pnsctl-owned DevelopmentSession"
+        )
+    value = lease.get("initial_observation")
+    bound = session.initial_observation
+    if not isinstance(value, DevelopmentInitialObservation):
+        raise _pnsctl().OperatorError(
+            "Ultimate terminal initial observation must be typed session evidence"
+        )
+    if not isinstance(bound, DevelopmentInitialObservation) or value is not bound:
+        raise _pnsctl().OperatorError(
+            "Ultimate terminal initial observation is not exactly session-bound"
+        )
+    digest = str(value.frame_sha256 or "")
+    if (
+        len(digest) != 64
+        or digest != str(lease.get("initial_frame_sha256") or "")
+        or value.invocation_id != session.invocation_id
+    ):
+        raise _pnsctl().OperatorError(
+            "Ultimate terminal initial observation hash or invocation binding is invalid"
+        )
+    return session, value.to_mapping()
+
+
+def _read_events(session: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for path in (session / "events.jsonl", session / "runtime" / "events.jsonl"):
+        if not path.is_file():
+            continue
+        for line in path.read_text(encoding="utf-8").splitlines():
+            row = json.loads(line) if line.strip() else {}
+            if isinstance(row, dict) and row:
+                rows.append(row)
+    return rows
+
+
+def _retained_transport_count(session: Path) -> int:
+    return sum(
+        row.get("type") == "dispatch" and row.get("execute") is not False
+        for row in _read_events(session)
+    )
+
+
+def _retained_flee_transport_count(session: Path) -> int:
+    return sum(
+        row.get("type") == "dispatch"
+        and row.get("execute") is not False
+        and (
+            row.get("target_identity") == "tap_flee"
+            or str(row.get("action_key") or "").startswith("tap_flee")
+        )
+        for row in _read_events(session)
+    )
+
+
+def _write_terminal_causal_trace(
+    session: Path,
+    *,
+    initial_observation: Mapping[str, Any],
+    transport_count: int,
+    terminal: str,
+    home_verified: bool,
+) -> dict[str, Any]:
+    trace = {
+        "schema_version": 1,
+        "trace_count": 1,
+        "read_only": True,
+        "input_authority": False,
+        "flow_id": FLOW_ID,
+        "invocation_id": str(initial_observation.get("invocation_id") or ""),
+        "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
+        "stages": [
+            "typed_initial_observation",
+            "retained_flee_effect_state",
+            "ultimate_main_recognition",
+            "ultimate_to_campaign_successor",
+            "measured_campaign_exit",
+            "canonical_home_terminal",
+        ],
+        "proof_topology": RETAINED_FLEE_PROOF_TOPOLOGY,
+        "terminal_reconciliation_topology": TERMINAL_RECONCILIATION_TOPOLOGY,
+        "transport_count": transport_count,
+        "new_flee_transport_count": 0,
+        "semantic_effect_state": "retained_flee_confirmed",
+        "retained_effect_evidence_refs": list(RETAINED_EFFECT_EVIDENCE_REFS),
+        "terminal": terminal,
+        "canonical_home_verified": home_verified,
+    }
+    (session / "causal-trace.json").write_text(
+        json.dumps(trace, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return trace
+
+
 def run_ultimate_challenge_daily(
     queue: Mapping[str, Any], lease: Mapping[str, Any]
 ) -> str:
@@ -274,6 +400,11 @@ def run_ultimate_challenge_daily(
 
     pnsctl = _pnsctl()
     flow, maximum = _ultimate_runtime_context(queue, lease)
+    migrated_session = queue.get("development_session") is True
+    outer_session = None
+    initial_observation: dict[str, Any] | None = None
+    if migrated_session:
+        outer_session, initial_observation = _terminal_development_session(lease)
     stamp = _utc_stamp()
     session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"daily-{stamp}"
     session.mkdir(parents=True, exist_ok=False)
@@ -282,7 +413,7 @@ def run_ultimate_challenge_daily(
     command = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "bluestacks_ultimate_challenge.py"),
-        "--daily",
+        "--post-flee-home-only" if migrated_session else "--daily",
         "--adb", str(pnsctl.BLUESTACKS_ADB),
         "--serial", pnsctl.BLUESTACKS_SERIAL,
         "--execute", "--yes",
@@ -303,13 +434,28 @@ def run_ultimate_challenge_daily(
     terminal = uc_result.get("terminal")
     home_verified, home_path = _verified_home_evidence(uc_session, uc_result)
     input_count = uc_result.get("input_count")
+    permitted_terminals = (
+        {TERMINAL_COMPLETE_FOR_RESET}
+        if migrated_session
+        else {TERMINAL_COMPLETE_FOR_RESET, "already_completed"}
+    )
     ok = (
         completed.returncode == 0
-        and terminal in {"complete_for_reset", "already_completed"}
+        and terminal in permitted_terminals
         and home_verified
         and type(input_count) is int
         and 0 <= input_count <= maximum
     )
+    retained_transport = _retained_transport_count(uc_session)
+    retained_flee = _retained_flee_transport_count(uc_session)
+    if migrated_session and retained_flee != 0:
+        raise pnsctl.OperatorError(
+            "Ultimate terminal reconciliation attempted a forbidden new Flee"
+        )
+    if migrated_session and retained_transport != input_count:
+        raise pnsctl.OperatorError(
+            "Ultimate terminal retained transports do not match route accounting"
+        )
     if terminal == TERMINAL_COMPLETE_FOR_RESET and ok:
         if not home_verified:
             raise pnsctl.OperatorError(
@@ -326,6 +472,31 @@ def run_ultimate_challenge_daily(
             raise pnsctl.OperatorError(
                 f"Ultimate Challenge reset-window persistence failed: {exc}"
             ) from exc
+    trace = None
+    if migrated_session and initial_observation is not None and outer_session is not None:
+        source = Path(outer_session.session_directory) / "source.png"
+        retained_initial = uc_session / "frames" / "0000-initial-observation.png"
+        if not source.is_file():
+            raise pnsctl.OperatorError(
+                "Ultimate terminal session initial frame is not retained"
+            )
+        retained_initial.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, retained_initial)
+        initial_observation["frame_path"] = "frames/0000-initial-observation.png"
+        trace = _write_terminal_causal_trace(
+            uc_session,
+            initial_observation=initial_observation,
+            transport_count=retained_transport,
+            terminal=str(terminal or "blocked"),
+            home_verified=home_verified,
+        )
+        outer_session.set_causal_trace(trace)
+        outer_session.remember_control("ultimate_semantic_effect_state", "retained_flee_confirmed")
+        outer_session.remember_control(
+            "ultimate_terminal_reconciliation",
+            "canonical_home_verified" if ok else "evidence_required",
+        )
+    reconciliation_required = bool(migrated_session and retained_transport and not ok)
     delivery = {
         "schema_version": 1,
         "flow_id": FLOW_ID,
@@ -336,14 +507,31 @@ def run_ultimate_challenge_daily(
         "runtime_owner": lease["owner"],
         "terminal_runtime_state": "recognized_home" if home_verified else "safe_blocked_terminal",
         "ultimate_challenge_result": uc_result,
-        "actions": [{"action_class": "zero_resource_flee", "path": "home_to_ultimate_challenge_flee_home", "outcome": terminal}],
+        "actions": [
+            {
+                "action_class": (
+                    "terminal_reconciliation"
+                    if migrated_session
+                    else "zero_resource_flee"
+                ),
+                "path": (
+                    "retained_flee_ultimate_to_campaign_measured_exit_home"
+                    if migrated_session
+                    else "home_to_ultimate_challenge_flee_home"
+                ),
+                "outcome": terminal,
+            }
+        ],
         "events_path": "events.jsonl",
+        "transport_events_path": "runtime/events.jsonl",
         "ledger_path": "ledger.jsonl",
         "capability_audit_path": "capability-audit.jsonl",
         "journal_path": "journal.jsonl",
         "frames": frame_names,
         "operator_returncode": completed.returncode,
         "input_count": input_count,
+        "dispatch_count": retained_transport,
+        "new_flee_transport_count": retained_flee,
         "attempt_budget": (
             flow.get("maximum_live_attempts") if flow is not None else None
         ),
@@ -357,11 +545,50 @@ def run_ultimate_challenge_daily(
         "verified_home_path": str(home_path.relative_to(uc_session)).replace("\\", "/")
         if home_path is not None
         else None,
+        "semantic_effect_state": "retained_flee_confirmed" if migrated_session else None,
+        "semantic_effect_verified": migrated_session,
+        "retained_effect_evidence_refs": (
+            list(RETAINED_EFFECT_EVIDENCE_REFS) if migrated_session else []
+        ),
+        "terminal_completion_verified": ok,
+        "proof_topology": RETAINED_FLEE_PROOF_TOPOLOGY if migrated_session else "composite",
+        "terminal_reconciliation_topology": (
+            TERMINAL_RECONCILIATION_TOPOLOGY if migrated_session else None
+        ),
+        "initial_observation": initial_observation,
+        "initial_frame_sha256": (
+            str(initial_observation.get("frame_sha256") or "")
+            if initial_observation is not None
+            else ""
+        ),
+        "causal_trace_count": 1 if trace is not None else 0,
+        "causal_trace": trace,
+        "effect_reconciliation_required": reconciliation_required,
+        "production_registration": "NOT_REGISTERED",
+        "scheduler_enabled": False,
     }
+    if reconciliation_required:
+        delivery["status"] = "effect_reconciliation_required"
     (uc_session / "flow-delivery-result.json").write_text(json.dumps(delivery, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    if not ok:
+    if not ok and not reconciliation_required:
         raise pnsctl.OperatorError("Ultimate Challenge Daily failed: " + str(uc_result.get("reason") or completed.stderr or completed.stdout or "unknown"))
-    return json.dumps({"status": "completed", "flow_id": FLOW_ID, "terminal": terminal, "session_directory": str(uc_session), "dispatch": True}, sort_keys=True)
+    return json.dumps(
+        {
+            "status": delivery["status"],
+            "flow_id": FLOW_ID,
+            "terminal": terminal,
+            "session_directory": str(uc_session),
+            "dispatch": retained_transport > 0,
+            "proof_topology": delivery["proof_topology"],
+            "terminal_reconciliation_topology": delivery[
+                "terminal_reconciliation_topology"
+            ],
+            "causal_trace_count": delivery["causal_trace_count"],
+            "effect_reconciliation_required": reconciliation_required,
+            "retained_transport_count": retained_transport,
+        },
+        sort_keys=True,
+    )
 
 
 def verify_ultimate_challenge_navigation_only(
@@ -453,12 +680,87 @@ def verify_ultimate_challenge_daily(
         raise pnsctl.OperatorError("Ultimate Challenge aggregate input count exceeds 16 or is missing")
     if result.get("terminal_runtime_state") != "recognized_home":
         raise pnsctl.OperatorError("Ultimate Challenge terminal runtime state is unsafe")
-    flow = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
-    maximum = int(flow.get("maximum_live_attempts") or 0)
-    used = int(flow.get("live_attempt_count") or 0)
-    if maximum <= 0 or used > maximum:
-        raise pnsctl.OperatorError("Ultimate Challenge attempt accounting exceeds its configured ceiling")
-    return {"status": "verified", "flow_id": FLOW_ID, "terminal": uc.get("terminal"), "session_directory": structure["session_directory"], "actions": result.get("actions", []), "terminal_runtime_state": result["terminal_runtime_state"], "verified_home_path": str(home_path.relative_to(session_directory.resolve())).replace("\\", "/")}
+    initial = result.get("initial_observation")
+    trace = result.get("causal_trace")
+    initial_ok = False
+    if isinstance(initial, Mapping):
+        digest = str(initial.get("frame_sha256") or "")
+        try:
+            retained = pnsctl._session_relative_path(
+                session_directory,
+                str(initial.get("frame_path") or ""),
+                "initial_observation.frame_path",
+            )
+            initial_ok = bool(
+                len(digest) == 64
+                and retained.is_file()
+                and hashlib.sha256(retained.read_bytes()).hexdigest() == digest
+                and digest == str(result.get("initial_frame_sha256") or "")
+                and str(initial.get("invocation_id") or "")
+            )
+        except Exception:
+            initial_ok = False
+    retained_transport = _retained_transport_count(session_directory)
+    retained_flee = _retained_flee_transport_count(session_directory)
+    transport_ok = bool(
+        retained_transport == result.get("input_count")
+        and retained_transport == result.get("dispatch_count")
+        and 2 <= retained_transport <= MAX_TOTAL_INPUTS
+        and retained_flee == result.get("new_flee_transport_count") == 0
+    )
+    trace_ok = bool(
+        result.get("proof_topology") == RETAINED_FLEE_PROOF_TOPOLOGY
+        and result.get("terminal_reconciliation_topology")
+        == TERMINAL_RECONCILIATION_TOPOLOGY
+        and result.get("causal_trace_count") == 1
+        and isinstance(trace, Mapping)
+        and trace.get("trace_count") == 1
+        and trace.get("read_only") is True
+        and trace.get("input_authority") is False
+        and trace.get("proof_topology") == RETAINED_FLEE_PROOF_TOPOLOGY
+        and trace.get("terminal_reconciliation_topology")
+        == TERMINAL_RECONCILIATION_TOPOLOGY
+        and trace.get("initial_frame_sha256") == result.get("initial_frame_sha256")
+        and trace.get("transport_count") == retained_transport
+        and trace.get("new_flee_transport_count") == 0
+    )
+    semantic_effect_ok = bool(
+        result.get("semantic_effect_state") == "retained_flee_confirmed"
+        and result.get("semantic_effect_verified") is True
+        and result.get("retained_effect_evidence_refs")
+        == list(RETAINED_EFFECT_EVIDENCE_REFS)
+        and result.get("terminal_completion_verified") is True
+    )
+    verified = bool(
+        result.get("status") == "completed"
+        and result.get("effect_reconciliation_required") is False
+        and initial_ok
+        and transport_ok
+        and trace_ok
+        and semantic_effect_ok
+        and result.get("production_registration") == "NOT_REGISTERED"
+        and result.get("scheduler_enabled") is False
+    )
+    return {
+        "status": "verified" if verified else "evidence_required",
+        "flow_id": FLOW_ID,
+        "terminal": uc.get("terminal"),
+        "session_directory": structure["session_directory"],
+        "actions": result.get("actions", []),
+        "terminal_runtime_state": result["terminal_runtime_state"],
+        "verified_home_path": str(home_path.relative_to(session_directory.resolve())).replace("\\", "/"),
+        "initial_observation_verified": initial_ok,
+        "transport_accounting_verified": transport_ok,
+        "zero_new_flee_verified": retained_flee == 0,
+        "causal_trace_verified": trace_ok,
+        "semantic_effect_verified": semantic_effect_ok,
+        "retained_effect_evidence_refs": list(RETAINED_EFFECT_EVIDENCE_REFS),
+        "terminal_completion_verified": result.get("terminal_completion_verified") is True,
+        "proof_topology": RETAINED_FLEE_PROOF_TOPOLOGY,
+        "terminal_reconciliation_topology": TERMINAL_RECONCILIATION_TOPOLOGY,
+        "production_registration": "NOT_REGISTERED",
+        "scheduler_enabled": False,
+    }
 
 
 def recover_ultimate_challenge_daily(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:

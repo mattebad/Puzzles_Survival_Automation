@@ -1,0 +1,46 @@
+{
+  "annotated_fixture": "scarlett-three-day-pack-annotated.png",
+  "annotated_fixture_sha256": "306371f1d034941cb32e0739f35d470f60ced710ad09b64134a8545d8352d0d2",
+  "expected_successor": "retained_successor_required",
+  "forbidden_purchase_rois": [
+    [
+      78,
+      111,
+      800,
+      1280
+    ],
+    [
+      556,
+      1110,
+      800,
+      1280
+    ]
+  ],
+  "max_inputs": 1,
+  "native_geometry": [
+    800,
+    1280
+  ],
+  "payment_region_intersects_safe_target": false,
+  "positive_fixture": "scarlett-three-day-pack-positive.png",
+  "positive_fixture_sha256": "f828bfa09af4d8085d69d432d471ede67f7bc5562a43a5fc58454ff3bd3ecbdc",
+  "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+  "safe_exit_roi": [
+    39,
+    0,
+    168,
+    61
+  ],
+  "safe_exit_target_identity": "scarlett-three-day-pack-in-game-back",
+  "schema_version": 2,
+  "source_evidence_path": ".local-captures/development-sessions/observe-20260826T175959000083Z/observe.png",
+  "source_evidence_sha256": "f828bfa09af4d8085d69d432d471ede67f7bc5562a43a5fc58454ff3bd3ecbdc",
+  "surface_identity": "SCARLETT_THREE_DAY_PACK",
+  "surface_kind": "full_page",
+  "animation_positive_fixture": "scarlett-three-day-pack-animation-positive.png",
+  "animation_positive_fixture_sha256": "cc7692e6a059163d2f1ecf897d21b58a8f61b71198082dc8e9c4f362a4cf6a99",
+  "animation_source_evidence_path": ".local-captures/development-sessions/observe-20260826T195348160446Z/observe.png",
+  "animation_source_evidence_sha256": "cc7692e6a059163d2f1ecf897d21b58a8f61b71198082dc8e9c4f362a4cf6a99",
+  "recognition_binding": "stable_local_title_safe_back_and_surface_identity_rois",
+  "full_frame_hash_is_recognition_authority": false
+}

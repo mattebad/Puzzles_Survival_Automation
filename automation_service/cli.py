@@ -82,10 +82,14 @@ def _database_probe(path: Path) -> bool:
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 ).fetchall()
             }
-            return quick_check == ("ok",) and {
-                "controller_lease",
-                "scheduler_invocation_state",
-            } <= tables
+            return (
+                quick_check == ("ok",)
+                and {
+                    "controller_lease",
+                    "scheduler_invocation_state",
+                }
+                <= tables
+            )
         finally:
             connection.close()
     except sqlite3.Error:
@@ -99,7 +103,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     except SystemExit as exc:
         return int(exc.code)
     if args.mode == "supervised" and args.adapter != "bluestacks":
-        print("supervised mode requires the executor-bound BlueStacks adapter", file=sys.stderr)
+        print(
+            "supervised mode requires the executor-bound BlueStacks adapter",
+            file=sys.stderr,
+        )
         return 2
     adapter = _adapter(args.adapter)
     state_path = args.state_path
@@ -111,14 +118,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     registry = load_disabled_registry()
     if args.command == "status":
+        registered_flows = [entry.flow_id for entry in registry if entry.registered]
         payload = {
             "schema": "automation-service-status-v1",
             "mode": args.mode,
             "adapter": args.adapter,
-            "registration_status": "NOT_REGISTERED",
-            "scheduler_eligible": False,
-            "registered_flows": [],
-            "disabled_flows": [entry.flow_id for entry in registry],
+            "registration_status": (
+                "REGISTERED" if registered_flows else "NOT_REGISTERED"
+            ),
+            "scheduler_eligible": any(entry.scheduler_eligible for entry in registry),
+            "registered_flows": registered_flows,
+            "disabled_flows": [
+                entry.flow_id for entry in registry if not entry.registered
+            ],
         }
         print(json.dumps(payload, sort_keys=True))
         return 0
@@ -171,4 +183,3 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

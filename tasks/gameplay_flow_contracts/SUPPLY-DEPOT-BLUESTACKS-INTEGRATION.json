@@ -1,10 +1,12 @@
 {
   "schema_version": 2,
   "flow_id": "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
-  "product_purpose": "From canonical Home, enter Supply Depot, exhaust every currently displayed zero-cost attempt with one bounded Food hold, prove Free disappeared at zero attempts, and return Home.",
+  "product_purpose": "Navigation-only proof of Supply Depot Free-target semantics; no action attribution or Daily completion is claimed.",
   "trigger_cadence_type": "daily_once",
   "reset_scope": "current_observed_attempt_inventory",
-  "required_starting_context": ["home_localized"],
+  "required_starting_context": [
+    "home_localized"
+  ],
   "shared_primitive_dependencies": [
     {
       "primitive_id": "home_navigation_primitives",
@@ -16,8 +18,7 @@
     "home_localized",
     "supply_depot_radial",
     "supply_depot",
-    "free_attempts_available",
-    "free_attempts_exhausted",
+    "free_target_visible",
     "home_returned",
     "blocked",
     "manual_required",
@@ -30,30 +31,44 @@
       "to": "supply_depot",
       "planner": "Home Atlas plus current-frame Supply Depot binders",
       "permitted_input": "bounded pan, building tap, Claim Supply radial tap",
-      "postconditions": ["exact Supply Depot screen recognized"],
-      "terminal_outcomes": ["blocked", "manual_required"]
+      "postconditions": [
+        "exact Supply Depot screen recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "supply-depot-native-navigation"
     },
     {
-      "transition_id": "exhaust_free_attempts",
-      "from": "free_attempts_available",
-      "to": "free_attempts_exhausted",
-      "planner": "SupplyDepotHoldConfig",
-      "permitted_input": "one zero-distance long press on exact free Food control",
+      "transition_id": "bind-free-target-evidence",
+      "from": "supply_depot",
+      "to": "free_target_visible",
+      "planner": "Supply Depot current-frame Free-target binder",
+      "permitted_input": null,
       "postconditions": [
-        "observed Daily free attempts become zero",
-        "all four Free controls disappear",
-        "no diamond-cost control is dispatched"
+        "zero-cost Free target is positively identified"
       ],
-      "terminal_outcomes": ["blocked"]
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "supply-depot-native-navigation"
     },
     {
       "transition_id": "return_home",
-      "from": "supply_depot",
+      "from": "free_target_visible",
       "to": "home_returned",
       "planner": "current-frame facility Back-arrow binder",
       "permitted_input": "visible facility Back arrow",
-      "postconditions": ["Home positively recognized"],
-      "terminal_outcomes": ["blocked"]
+      "postconditions": [
+        "typed Home authority positively recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "supply-depot-native-navigation"
     }
   ],
   "permitted_inputs": [
@@ -61,35 +76,49 @@
     "bounded Home pan",
     "Supply Depot building tap",
     "Claim Supply radial tap",
-    "one zero-distance long press on exact free Food control",
-    "one bounded free Food hold",
     "visible facility Back arrow",
     "visible Supply Depot Back arrow"
   ],
   "local_postconditions": [
-    "free attempt count is zero",
-    "Free controls are absent",
+    "Free target evidence is retained without dispatching a paid control",
     "terminal Home is verified"
   ],
-  "consequential_action_class": "ordinary_development",
+  "consequential_action_class": "ordinary_development_navigation_only",
   "cost_quantity_requirements": {
     "free_only": true,
     "maximum_cost": 0,
-    "quantity": "all currently observed free attempts",
+    "quantity": "not-dispatched-navigation-only",
     "resource_or_currency": null,
-    "notes": "Attempt count is building-dependent; never hard-code Daily 5/5 as the collection count."
+    "notes": "This contract preserves Free-target evidence only; no action attribution or Daily completion is claimed."
   },
-  "completion_identity": "supply-depot:all-observed-free-attempts-exhausted",
-  "terminal_outcomes": ["complete_for_reset", "blocked", "manual_required"],
-  "cooldown_deferred_behavior": "An already exhausted current reset is idempotent and still requires Home return.",
+  "completion_identity": "supply-depot:navigation-free-target-evidence-only",
+  "terminal_outcomes": [
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "A current reset with no Free target remains evidence-required; no action attribution is inferred.",
   "bounded_recovery_behavior": "Unknown results fail closed. Use only the current-frame facility Back arrow; Android Back and paid controls are prohibited.",
   "evidence_requirements": [
-    "fresh native 800x1280 source and immediate-before frames",
-    "observed attempts before and exact zero after",
-    "all Free controls absent after the hold",
-    "terminal Home proof"
+    "fresh native 800x1280 source and immediate-before navigation frames",
+    "positively bound zero-cost Free target evidence",
+    "terminal Home proof",
+    "no action or Daily completion attribution is inferred from this evidence"
   ],
-  "evidence_gates": [],
+  "evidence_gates": [
+    {
+      "gate_id": "supply-depot-native-navigation",
+      "status": "evidence_required",
+      "blocks": [
+        "enter_supply_depot",
+        "bind-free-target-evidence",
+        "return_home"
+      ],
+      "required_evidence": [
+        "BlueStacks Supply Depot navigation and current-frame Free-target evidence"
+      ],
+      "permitted_inputs": []
+    }
+  ],
   "product_policy_refs": [
     {
       "policy_id": "supply-depot-zero-cost-only",
@@ -110,23 +139,28 @@
   ],
   "scenarios": [
     {
-      "scenario_id": "all-current-free-attempts",
-      "mode": "consequential_supervised",
+      "scenario_id": "supply-depot-navigation-free-target-evidence",
+      "mode": "blocked_until_evidence",
       "start_state": "home_localized",
       "terminal_state": "home_returned",
       "permitted_inputs": [
         "bounded pan, building tap, Claim Supply radial tap",
-        "one zero-distance long press on exact free Food control",
+        "visible facility Back arrow"
+      ],
+      "forbidden_inputs": [
+        "bounded Home pan",
+        "Supply Depot building tap",
+        "Claim Supply radial tap",
         "visible Supply Depot Back arrow"
       ],
-      "forbidden_inputs": [],
       "required_transitions": [
         "enter_supply_depot",
-        "exhaust_free_attempts",
+        "bind-free-target-evidence",
         "return_home"
       ],
-      "evidence_gate_ids": [],
-      "notes": "One bounded hold maximum; no paid control."
+      "evidence_gate_ids": [
+        "supply-depot-native-navigation"
+      ]
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -137,10 +171,36 @@
     "captcha",
     "tutorial",
     "account_selection_or_switching",
-    "credential_entry"
+    "credential_entry",
+    "action_attribution_not_claimed_by_this_contract",
+    "daily_completion_attribution_not_claimed"
   ],
   "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
   "production_eligible": false,
-  "registration_state": "disabled"
+  "registration_state": "disabled",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
+    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
+    "product_record_id": "supply_depot",
+    "product_record_revision": "supply_depot-v1",
+    "product_record_digest": "667ff4961534fa5f667e7875b937f9b14e771f03a33e99698b8c43b2e8da80f2",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_LOCALIZED",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_READY",
+      "HOME_LOCALIZED",
+      "HOME_CANONICAL"
+    ]
+  }
 }

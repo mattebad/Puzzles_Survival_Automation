@@ -1,0 +1,186 @@
+{
+  "schema_version": 2,
+  "flow_id": "HERO-DUEL-EVIDENCE-GATE",
+  "product_purpose": "Observe one bounded Hero Duel participation candidate without authorizing PvP entry, lineup change, combat, or resource spend.",
+  "trigger_cadence_type": "evidence_gated",
+  "reset_scope": "up to three candidates per reset after explicit product decision",
+  "required_starting_context": [
+    "home_canonical"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_canonical",
+    "hero_duel",
+    "participation_observation",
+    "blocked"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "observe_hero_duel_route",
+      "from": "home_canonical",
+      "to": "hero_duel",
+      "planner": "HeroDuelEvidenceGate",
+      "permitted_input": null,
+      "postconditions": [
+        "Hero Duel route remains an offline observation contract",
+        "no navigation or PvP input is authorized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "hero_duel_replay"
+    },
+    {
+      "transition_id": "observe_hero_duel_candidate",
+      "from": "hero_duel",
+      "to": "participation_observation",
+      "planner": "HeroDuelEvidenceGate",
+      "permitted_input": null,
+      "postconditions": [
+        "current event, active state, free opponent, Join control, and attempts are recognized",
+        "participation successor and completion progress evidence are captured"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "hero_duel_replay"
+    },
+    {
+      "transition_id": "return_canonical_home",
+      "from": "participation_observation",
+      "to": "home_canonical",
+      "planner": "HeroDuelEvidenceGate",
+      "permitted_input": null,
+      "postconditions": [
+        "canonical Home remains the required terminal state"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "hero_duel_replay"
+    }
+  ],
+  "permitted_inputs": [],
+  "consequential_action_class": "hero_duel_candidate_observation",
+  "cost_quantity_requirements": {
+    "free_only": false,
+    "maximum_cost": null,
+    "quantity": 1,
+    "resource_or_currency": "NO_PVP_RESOURCE_SPEND",
+    "notes": "Current event, free-opponent state, attempts, and participation result are unresolved; no PvP entry, lineup change, combat, or resource spend is authorized."
+  },
+  "completion_identity": "hero-duel:candidate:observed",
+  "terminal_outcomes": [
+    "deferred",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "Keep candidate dormant until product allowlist and native Hero Duel evidence are current; never schedule or register this flow.",
+  "bounded_recovery_behavior": "Stop on unknown event, opponent, attempts, Join state, combat, loss consequence, completion progress, or terminal Home state; preserve blocked disposition.",
+  "evidence_requirements": [
+    "Current native Hero Duel event, active state, free opponent, Join control, and attempts are missing.",
+    "Current participation result, completion successor, and bounded three-candidate progress evidence are missing.",
+    "Canonical Home return and production-controller route/session proof are missing."
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "hero_duel_replay",
+      "status": "evidence_required",
+      "blocks": [
+        "observe_hero_duel_route",
+        "observe_hero_duel_candidate",
+        "return_canonical_home"
+      ],
+      "required_evidence": [
+        "hash-bound native Hero Duel event corpus",
+        "production-controller positive route/session replay"
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "hero_duel_production",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [],
+      "required_transitions": [
+        "observe_hero_duel_route",
+        "observe_hero_duel_candidate",
+        "return_canonical_home"
+      ],
+      "evidence_gate_ids": [
+        "hero_duel_replay"
+      ]
+    }
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "hero_duel_native_event",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Synthetic disabled-PvP arithmetic does not establish current event, free opponent, Join state, attempts, or participation authorization."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "Join",
+    "PvP entry",
+    "combat dispatch",
+    "lineup change",
+    "attack",
+    "loss consequence",
+    "premium opponent",
+    "unknown event",
+    "ambiguous event",
+    "inactive event",
+    "unknown opponent",
+    "unknown attempts",
+    "insufficient attempts",
+    "registration",
+    "scheduler"
+  ],
+  "implementation_status": "contract_only",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "product_policy_refs": [
+    {
+      "policy_id": "hero-duel-policy",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
+  "registration_state": "disabled",
+  "production_eligible": false,
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
+    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
+    "product_record_id": "hero_duel",
+    "product_record_revision": "hero_duel-v1",
+    "product_record_digest": "1548299f91f76c377167b8a0bef74c62d241886c3198753eb5dd65cb3c9efc12",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ],
+    "selected_daily_prerequisite": false
+  }
+}

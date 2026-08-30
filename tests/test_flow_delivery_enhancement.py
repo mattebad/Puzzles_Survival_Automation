@@ -11,6 +11,12 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
+import scripts.flow_delivery_enhancement_bluestacks as delivery
+import scripts.navigation_development_boundary as boundary
+from scripts.navigation_development_boundary import (
+    DevelopmentInitialObservation,
+    DevelopmentSession,
+)
 from scripts.enhancement_bluestacks import (
     CATEGORY_TAB_BOXES,
     GEAR_RED_STAR_ARMOR_ROI,
@@ -25,8 +31,10 @@ from scripts.flow_delivery_enhancement_bluestacks import (
     MAX_DISPATCH_BEARING_CANARY_RUNS_PER_CATEGORY,
     _continuation_reservation,
     _decode_native,
+    _initial_observation,
     _load_family_progress,
     _persist_unresolved_dispatch,
+    _outer_session,
     _retained_path,
     _reserve,
     run_enhancement_family,
@@ -305,6 +313,16 @@ def _family_verifier_structure(session: Path) -> dict[str, object]:
             "SAFE_TERMINAL_RECOGNIZED",
         ],
     }
+    trace = {
+        "trace_count": 1,
+        "read_only": True,
+        "input_authority": False,
+        "flow_id": FLOW_ID,
+        "proof_topology": "continuous",
+        "initial_frame_sha256": source_hash,
+        "transport_count": 3,
+        "resource_affecting_dispatch_count": 3,
+    }
     result = {
         "schema_version": 1,
         "flow_id": FLOW_ID,
@@ -326,8 +344,19 @@ def _family_verifier_structure(session: Path) -> dict[str, object]:
         "required_artifacts": ["events_path"],
         "events_path": "events.jsonl",
         "dispatch_count": 3,
+        "input_count": 3,
         "resource_affecting_dispatch_count": 3,
         "enhancement_result": route,
+        "proof_topology": "continuous",
+        "initial_observation": {
+            "frame_sha256": source_hash,
+            "frame_path": frames[0],
+            "invocation_id": "enhancement-fixture",
+        },
+        "initial_frame_sha256": source_hash,
+        "causal_trace_count": 1,
+        "causal_trace": trace,
+        "effect_reconciliation_required": False,
         "production_registration": "NOT_REGISTERED",
         "scheduler_enabled": False,
     }
@@ -451,6 +480,63 @@ class FakeSession:
 
 
 class DirectCommanderRouteTests(unittest.TestCase):
+    def test_adapter_requires_real_active_session_and_exact_initial_observation(self):
+        fabricated = SimpleNamespace(
+            owner=f"pnsctl-development-session:{FLOW_ID}",
+            is_active=True,
+            run_action=lambda **_kwargs: None,
+            observe=lambda **_kwargs: None,
+        )
+        with self.assertRaises(pnsctl.OperatorError):
+            _outer_session({"development_session": fabricated})
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                with DevelopmentSession(
+                    owner=f"pnsctl-development-session:{FLOW_ID}",
+                    invocation_id="enhancement-bound",
+                    session_directory=root / "outer",
+                    max_inputs=24,
+                ) as session:
+                    digest = hashlib.sha256(b"initial").hexdigest()
+                    initial = DevelopmentInitialObservation(
+                        {"frame_sha256": digest},
+                        digest,
+                        invocation_id=session.invocation_id,
+                    )
+                    session.set_initial_observation(initial)
+                    lease = {
+                        "development_session": session,
+                        "initial_observation": initial,
+                        "initial_frame_sha256": digest,
+                    }
+                    self.assertIs(_outer_session(lease), session)
+                    self.assertEqual(_initial_observation(lease, session)["frame_sha256"], digest)
+                    mismatched = dict(lease)
+                    mismatched["initial_observation"] = DevelopmentInitialObservation(
+                        {"frame_sha256": digest},
+                        digest,
+                        invocation_id=session.invocation_id,
+                    )
+                    with self.assertRaises(pnsctl.OperatorError):
+                        _initial_observation(mismatched, session)
+
+    def test_invalid_session_blocks_before_reservation_or_runtime_connection(self):
+        lease = {
+            "enhancement_variant": "gear",
+            "enhancement_reset_identity": "local-day",
+            "max_inputs": 24,
+            "development_session": object(),
+        }
+        with (
+            patch.object(delivery, "_ensure_family_reservations") as reserve,
+            patch.object(delivery.LocalBlueStacksRuntime, "connect") as connect,
+        ):
+            with self.assertRaises(pnsctl.OperatorError):
+                run_enhancement_family({}, lease, live=True)
+        reserve.assert_not_called()
+        connect.assert_not_called()
+
     def test_delayed_commander_entry_settles_after_home_immediate_post(self):
         with tempfile.TemporaryDirectory() as folder:
             runtime = FakeRuntime(
@@ -1099,6 +1185,25 @@ class ContractAndReservationTests(unittest.TestCase):
                 verified = verify_enhancement_family(structure, {}, {})
         self.assertEqual(verified["status"], "evidence_required")
         self.assertEqual(verified["reason"], "independent semantic re-recognition unavailable")
+
+    def test_completed_composite_or_missing_trace_remains_evidence_required(self):
+        with tempfile.TemporaryDirectory() as folder:
+            structure = _family_verifier_structure(Path(folder))
+            retained_path = Path(structure["session_directory"]) / "flow-delivery-result.json"
+            original = json.loads(json.dumps(structure["result"]))
+            for mutation in (
+                {"proof_topology": "composite"},
+                {"causal_trace_count": 0, "causal_trace": None},
+            ):
+                retained = json.loads(json.dumps(original))
+                retained.update(mutation)
+                retained_path.write_text(
+                    json.dumps(retained, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                structure["result"] = retained
+                verdict = verify_enhancement_family(structure, {}, {})
+                self.assertEqual(verdict["status"], "evidence_required")
 
     def test_family_runner_and_verifier_reject_stale_single_variant_shape(self):
         dry_run = json.loads(

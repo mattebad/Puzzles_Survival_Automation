@@ -1772,14 +1772,23 @@ def _tap_action(
                 f"{target_identity} was not bound from the immediate-before frame"
             )
         _fresh(before, runtime)
-        runtime.tap(
-            before,
-            target_identity=target_identity,
-            target_roi=target,
-            action_key=action_key,
-            action_class=action_class,
-            consequential=consequential,
-        )
+        navigation_tap = getattr(runtime, "tap_navigation", None)
+        if action_class == "navigation" and callable(navigation_tap):
+            navigation_tap(
+                before,
+                target_identity=target_identity,
+                target_roi=target,
+                action_key=action_key,
+            )
+        else:
+            runtime.tap(
+                before,
+                target_identity=target_identity,
+                target_roi=target,
+                action_key=action_key,
+                action_class=action_class,
+                consequential=consequential,
+            )
 
     def successor(after: CapturedNativeFrame) -> str:
         nonlocal terminal_frame, terminal_recognition
@@ -1795,6 +1804,82 @@ def _tap_action(
         dispatch=dispatch,
         recognize=successor,
         consequence_class="consequential" if consequential else "navigation_only",
+        settled_successor=settled_successor,
+    )
+    return action, before_frame, terminal_frame, terminal_recognition
+
+
+def _resource_use_action(
+    runtime: RuntimeLike,
+    session: SessionLike,
+    *,
+    label: str,
+    action_key: str,
+    bind: Callable[[np.ndarray], NativeBox | None],
+    recognize: Callable[[np.ndarray], Any],
+    settled_successor: Callable[[], CapturedNativeFrame] | None = None,
+) -> tuple[Any, CapturedNativeFrame | None, CapturedNativeFrame | None, Any | None]:
+    """Run exactly one fenced Resource Use action.
+
+    A production LocalBlueStacksRuntime must expose the narrow prepared seam.
+    Test doubles from the offline route suite may retain the legacy injected
+    tap shape; the native runtime itself rejects that shape unconditionally.
+    """
+
+    before_frame: CapturedNativeFrame | None = None
+    terminal_frame: CapturedNativeFrame | None = None
+    terminal_recognition: Any | None = None
+
+    def capture(action_label: str) -> CapturedNativeFrame:
+        return runtime.capture(action_label)
+
+    def dispatch(before: CapturedNativeFrame) -> None:
+        nonlocal before_frame
+        before_frame = before
+        target = bind(before.frame)
+        if target is None:
+            raise DailyResourceItemRecognitionError(
+                "1K Food Use was not bound from the immediate-before frame"
+            )
+        _fresh(before, runtime)
+        prepared_dispatch = getattr(runtime, "dispatch_one_food_use", None)
+        if callable(prepared_dispatch):
+            prepared_dispatch(
+                before,
+                target_roi=target,
+                action_key=action_key,
+            )
+            return
+        if isinstance(runtime, LocalBlueStacksRuntime):
+            raise DailyResourceItemRecognitionError(
+                "production Resource runtime lacks the prepared Use seam"
+            )
+        # Offline fakes are not transport authority.  This compatibility branch
+        # keeps existing route-unit tests focused on recognition and successor
+        # semantics; the checked-in native runtime cannot enter it.
+        runtime.tap(
+            before,
+            target_identity=USE_TARGET_IDENTITY,
+            target_roi=target,
+            action_key=action_key,
+            action_class="resource_item_use",
+            consequential=False,
+        )
+
+    def successor(after: CapturedNativeFrame) -> str:
+        nonlocal terminal_frame, terminal_recognition
+        terminal_frame = after
+        terminal_recognition = recognize(after.frame)
+        record = _record(terminal_recognition)
+        return str(record.get("state") or "UNKNOWN") if record.get("recognized") else "UNKNOWN"
+
+    action = session.run_action(
+        action_class="owned_item_non_idempotent",
+        label=label,
+        capture=capture,
+        dispatch=dispatch,
+        recognize=successor,
+        consequence_class="ordinary_non_idempotent_resource_item_use",
         settled_successor=settled_successor,
     )
     return action, before_frame, terminal_frame, terminal_recognition
@@ -1847,6 +1932,7 @@ def _swipe_list_action(
                 "resource-list swipe source is not current-frame bound"
             )
         holder["before_signature"] = binding.signature
+        holder["swipe_dispatched"] = True
         _fresh(before, runtime)
         runtime.swipe(
             before,
@@ -1858,13 +1944,23 @@ def _swipe_list_action(
 
     def recognize(after: CapturedNativeFrame) -> str:
         nonlocal after_frame, after_recognition
-        after_frame = after
         if holder.get("already_ready") is True:
+            after_frame = after
             after_recognition = holder.get("item")
             return "RESOURCES_LIST_PROGRESS"
         resources = recognize_resources_screen(after.frame, ocr=ocr)
         signature = resource_list_content_signature(after.frame, ocr=ocr)
         item = recognize_food_item_in_resources(after.frame, ocr=ocr)
+        if holder.get("swipe_dispatched") is True and holder.get("immediate_post_seen") is not True:
+            # A swipe's immediate post-frame can be mid-animation or elastic
+            # overscroll. Retain it as diagnostic evidence, but force
+            # DevelopmentSession to capture and judge the settled successor.
+            holder["immediate_post_seen"] = True
+            holder["immediate_post_frame"] = after
+            holder["immediate_post_signature"] = signature
+            holder["immediate_post_item"] = item
+            return "UNKNOWN"
+        after_frame = after
         holder.update(
             {
                 "resources": resources,
@@ -2084,8 +2180,11 @@ def _run_route(
             )
             if before is not None:
                 frames[f"scroll-{ordinal:02d}-immediate-before"] = before
+            immediate_post = holder.get("immediate_post_frame")
+            if isinstance(immediate_post, CapturedNativeFrame):
+                frames[f"scroll-{ordinal:02d}-immediate-post"] = immediate_post
             if after is not None:
-                frames[f"scroll-{ordinal:02d}-immediate-post"] = after
+                frames[f"scroll-{ordinal:02d}-settled"] = after
             after_signature = holder.get("signature")
             effective_before_signature = holder.get("before_signature")
             recognitions[f"scroll-{ordinal:02d}"] = {
@@ -2100,6 +2199,8 @@ def _run_route(
                 "use_rois": binding.use_rois,
                 "bulk_rois": binding.bulk_rois,
                 "item": _record(item_after),
+                "immediate_post_item": _record(holder.get("immediate_post_item")),
+                "immediate_post_signature": holder.get("immediate_post_signature"),
                 "already_ready": holder.get("already_ready") is True,
             }
             if holder.get("already_ready") is True:
@@ -2192,16 +2293,13 @@ def _run_route(
             reason="resource_delta_not_proven",
         )
 
-    _, use_before, use_post, use_successor = _tap_action(
+    _, use_before, use_post, use_successor = _resource_use_action(
         runtime,
         session,
         label=ITEM_USE_ACTION_KEY,
-        target_identity=USE_TARGET_IDENTITY,
         action_key=ITEM_USE_ACTION_KEY,
         bind=bind_use,
         recognize=recognize_use_successor,
-        action_class="resource_item_use",
-        consequential=True,
         settled_successor=lambda: (
             time.sleep(1.0) or runtime.capture("daily-resource-item-use-settled")
         ),

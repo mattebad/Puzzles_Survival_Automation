@@ -20,7 +20,11 @@ from .models import (
     CAPABILITY_FORGERY,
     CAPABILITY_ISSUED,
     CAPABILITY_PRE_DISPATCH_PHASE_REQUIRED,
+    CAPABILITY_EFFECT_FENCE_REQUIRED,
+    CAPABILITY_RESOURCE_CONTEXT_REQUIRED,
     CAPABILITY_RETIRED_NO_DISPATCH,
+    ResourceAuthorizationContext,
+    EffectDispatchFence,
     CAPABILITY_RUNTIME_SESSION_REQUIRED,
     CAPABILITY_SCHEMA_INVALID,
     CAPABILITY_TIMING_INVALID,
@@ -52,6 +56,14 @@ from .promotional import (
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_SIZE = (800, 1280)
 ACTIVE_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+RESOURCE_FLOW_ID = "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
+RESOURCE_PRODUCT_POLICY_REVISION = "use_resource_item-v1"
+RESOURCE_RECURRENCE_POLICY_REVISION = "daily_reset-v1"
+RESOURCE_SEMANTIC_ACTION = "USE_RESOURCE_ITEM"
+RESOURCE_CONSEQUENCE = "ordinary_non_idempotent_resource_item_use"
+RESOURCE_TARGET_IDENTITY = "daily-resource-item:use-1k-food"
+RESOURCE_COST_TYPE = "owned_inventory_item"
+RESOURCE_VARIANT = "1k_food"
 # Supervised authorization is task-owned.  Retired legacy flows must not
 # remain enabled implicitly; active callers provide their reviewed task set.
 DEFAULT_SUPERVISED_TASKS = frozenset()
@@ -132,6 +144,24 @@ def _request_schema_valid(request: object) -> bool:
         if not _exact_string(request.game_day_id, optional=True):
             return False
         if not _exact_string(request.runtime_session_id, optional=True):
+            return False
+        if request.resource_authorization_context is not None and type(
+            request.resource_authorization_context
+        ) is not ResourceAuthorizationContext:
+            return False
+        if request.effect_dispatch_fence is not None and type(
+            request.effect_dispatch_fence
+        ) is not EffectDispatchFence:
+            return False
+        if request.action_class is ActionClass.OWNED_ITEM_NON_IDEMPOTENT and (
+            type(request.resource_authorization_context) is not ResourceAuthorizationContext
+            or type(request.effect_dispatch_fence) is not EffectDispatchFence
+        ):
+            return False
+        if request.action_class is not ActionClass.OWNED_ITEM_NON_IDEMPOTENT and (
+            request.resource_authorization_context is not None
+            or request.effect_dispatch_fence is not None
+        ):
             return False
         if not all(
             _exact_string(value, optional=True)
@@ -280,6 +310,12 @@ class CentralPolicy:
         try:
             decision, code, reason = self._decide(request)
             request_snapshot = snapshot(request)
+            if isinstance(request_snapshot, dict) and isinstance(
+                request.resource_authorization_context, ResourceAuthorizationContext
+            ):
+                request_snapshot["resource_authorization_context_digest"] = (
+                    request.resource_authorization_context.digest()
+                )
         except (AttributeError, TypeError, ValueError):
             return self._schema_policy_result(request)
         return PolicyResult(
@@ -843,6 +879,8 @@ class CentralPolicy:
             return deny, "INVALID_PERCEPTION_BINDING", "critical ROI bindings are missing or malformed"
         if req.action_class == ActionClass.SPEND_OR_STRATEGIC:
             return deny, "SPEND_OR_STRATEGIC_DISABLED", "spend and strategic actions remain disabled"
+        if req.action_class is ActionClass.OWNED_ITEM_NON_IDEMPOTENT:
+            return self._decide_resource_item(req)
         if req.semantic_action == SAFE_PROMOTIONAL_BACK:
             return self._decide_promotional_back(req)
         if not obs.recognized or not obs.source_state or obs.source_state == "UNKNOWN":
@@ -935,6 +973,56 @@ class CentralPolicy:
         if obs.consequence not in ALLOWED_R1_CONSEQUENCES:
             return deny, "CONSEQUENCE_DENIED", "the consequence is not allowlisted for supervised zero-cost R1"
         return PolicyDecision.AUTHORIZE, "AUTHORIZED_ZERO_COST_R1", "all supervised zero-cost R1 guards passed"
+
+    @staticmethod
+    def _decide_resource_item(req: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
+        """Authorize only the exact owned one-item Resource exception."""
+
+        deny = PolicyDecision.DENY
+        obs = req.observation
+        context = req.resource_authorization_context
+        fence = req.effect_dispatch_fence
+        if type(context) is not ResourceAuthorizationContext:
+            return deny, CAPABILITY_RESOURCE_CONTEXT_REQUIRED, "complete Resource authorization context is required"
+        if type(fence) is not EffectDispatchFence:
+            return deny, CAPABILITY_EFFECT_FENCE_REQUIRED, "durable Resource dispatch fence is required"
+        if (
+            req.semantic_action != RESOURCE_SEMANTIC_ACTION
+            or context.flow_id != RESOURCE_FLOW_ID
+            or context.recurrence_class != "daily_reset"
+            or context.objective_action_id != "use_resource_item"
+            or context.target_variant != RESOURCE_VARIANT
+            or context.effect_ordinal != 1
+            or context.quantity != 1
+            or context.product_policy_revision != RESOURCE_PRODUCT_POLICY_REVISION
+            or context.recurrence_policy_revision != RESOURCE_RECURRENCE_POLICY_REVISION
+            or req.game_day_id != context.reset_identity_id
+            or fence.occurrence_id != context.occurrence_id
+        ):
+            return deny, "RESOURCE_AUTHORIZATION_CONTEXT_MISMATCH", "Resource identity or policy revision is not exact"
+        if (
+            obs.source_state != "RESOURCES_1K_FOOD_READY"
+            or obs.target_identity != RESOURCE_TARGET_IDENTITY
+            or obs.control_class not in {"USE", "RESOURCE_USE"}
+            or obs.consequence != RESOURCE_CONSEQUENCE
+            or obs.expected_postcondition != "RESOURCES_1K_FOOD_USED"
+            or obs.cost_type != RESOURCE_COST_TYPE
+            or obs.cost_amount != 1
+            or obs.quantity != 1
+            or req.resource_or_currency != "1k_food"
+            or req.maximum_cost != 1
+            or req.free_only is not False
+        ):
+            return deny, "RESOURCE_ACTION_NOT_EXACT", "only one owned 1K Food Use is authorized"
+        if obs.os_surface or obs.hard_stop_detected or not obs.package_foreground:
+            return PolicyDecision.GLOBAL_INPUT_LOCK, "RESOURCE_HARD_STOP", "runtime foreground safety is not proven"
+        if obs.forbidden_region_intersects_target or obs.clipped or obs.ambiguous:
+            return deny, "RESOURCE_TARGET_AMBIGUOUS", "Resource target is clipped, ambiguous, or intersects a forbidden region"
+        return (
+            PolicyDecision.AUTHORIZE,
+            "AUTHORIZED_RESOURCE_ITEM",
+            "exact owned one-item Resource authority and current-frame guards passed",
+        )
 
     @staticmethod
     def _decide_promotional_back(req: PolicyRequest) -> Tuple[PolicyDecision, str, str]:

@@ -122,6 +122,16 @@ class NativeRuntimePort(Protocol):
         continuation_of: str | None = None,
     ) -> None: ...
 
+    def dispatch_prepared_resource_item_use(
+        self,
+        source: CapturedNativeFrame,
+        *,
+        target_identity: str,
+        target_roi: NativeBox,
+        action_key: str,
+        transport_intent_token: object,
+    ): ...
+
     def swipe(
         self,
         source: CapturedNativeFrame,
@@ -364,6 +374,10 @@ class LocalBlueStacksRuntime:
         consequential: bool = False,
         continuation_of: str | None = None,
     ) -> None:
+        if action_class == "resource_item_use" or target_identity == "daily-resource-item:use-1k-food":
+            raise RuntimeError(
+                "Resource Use requires a prepared durable Resource effect fence"
+            )
         point = box_center(target_roi)
         self._authorize_dispatch(
             source,
@@ -390,6 +404,59 @@ class LocalBlueStacksRuntime:
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
         self._dispatch_transport(action_key, lambda: self.runner.dispatch_tap(point))
+
+    def dispatch_prepared_resource_item_use(
+        self,
+        source: CapturedNativeFrame,
+        *,
+        target_identity: str,
+        target_roi: NativeBox,
+        action_key: str,
+        transport_intent_token: object,
+    ):
+        """Dispatch the sole Resource Use seam after durable intent consumption."""
+
+        from safe_action_core.models import TransportResult
+        from safe_action_core.resource_effect_authority import ResourceTransportIntentToken
+
+        if type(transport_intent_token) is not ResourceTransportIntentToken:
+            raise RuntimeError("opaque Resource transport-intent token is required")
+        if not transport_intent_token.consumed:
+            raise RuntimeError("Resource transport intent must be consumed before adapter dispatch")
+        if (
+            target_identity != "daily-resource-item:use-1k-food"
+            or not action_key
+            or transport_intent_token.reservation_id == ""
+        ):
+            raise RuntimeError("Resource Use target or prepared intent is not exact")
+        point = box_center(target_roi)
+        self._authorize_dispatch(
+            source,
+            action_key=action_key,
+            target_identity=target_identity,
+            target_roi=target_roi,
+            consequential=False,
+            continuation_of=None,
+            action_class="owned_item_non_idempotent",
+        )
+        self._event(
+            "dispatch",
+            {
+                "action_key": action_key,
+                "target_identity": target_identity,
+                "target_roi": target_roi,
+                "point": point,
+                "source_sha256": source.sha256,
+                "action_class": "owned_item_non_idempotent",
+                "consequential": False,
+                "resource_transport_intent": True,
+                "execute": self.execute,
+            },
+        )
+        if not self.execute:
+            raise RuntimeError("runtime is dry-run; Resource input was not dispatched")
+        self._dispatch_transport(action_key, lambda: self.runner.dispatch_tap(point))
+        return TransportResult(True, "DISPATCHED")
 
     def swipe(
         self,

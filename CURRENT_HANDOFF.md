@@ -1,63 +1,118 @@
+# Current handoff
+
 <!-- CURRENT_HANDOFF_STATE_BEGIN -->
 {
   "schema_version": 3,
-  "branch": "feature/daily-resource-item",
-  "head_binding": "origin_main_f8ebfaa_plus_uncommitted_daily_resource_item_completed",
-  "last_product_candidate_head": "f8ebfaadab706b1048a20bd16a209bebdd66056c",
-  "ahead_behind": {"source": "compute_from_git"},
-  "attributable_dirty_paths": [
-    "CURRENT_HANDOFF.md",
-    ".cursor/plans/daily_scheduler_promotion_1572d57c.plan.md",
-    "scripts/daily_resource_item_bluestacks.py",
-    "scripts/flow_delivery_daily_resource_item_bluestacks.py",
-    "scripts/pnsctl.py",
-    "tasks/flow_delivery_queue.json",
-    "tasks/gameplay_flow_contracts/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION.json",
-    "tests/test_daily_resource_item_bluestacks.py",
-    "tests/test_flow_delivery_daily_resource_item_bluestacks.py"
+  "branch": "feature/runtime-reliability-convergence",
+  "head_binding": "961d2b8adc9391a13e23fcfd967c43e21e755602",
+  "last_product_candidate_head": "961d2b8adc9391a13e23fcfd967c43e21e755602",
+  "ahead_behind": {
+    "source": "compute_from_git"
+  },
+  "attributable_dirty_paths": [],
+  "task_start_worktree": {
+    "tracked_dirty_paths": [],
+    "protected_untracked_paths": []
+  },
+  "protected_user_owned_paths": [
+    ".local-captures/",
+    ".local-reference/",
+    "evidence/"
   ],
-  "task_start_worktree": {"tracked_dirty_paths": [], "protected_untracked_paths": [".local-captures/", ".local-orchestrator/"]},
-  "protected_user_owned_paths": [".local-reference/", ".local-captures/", ".local-tools/", "evidence/"],
-  "current_task_id": "daily-resource-item",
-  "current_task_state": "completed_live_accepted",
-  "next_task_id": "daily-milestone-claim",
-  "next_task_activation_status": "awaiting_explicit_selection",
+  "current_task_id": "runtime-reliability-stage-10-phase-5-campaign-ap-r2",
+  "current_task_state": "blocked_evidence_required",
+  "next_task_id": "RUNTIME-RELIABILITY-MERGE-BOUNDARY",
+  "next_task_activation_status": "awaiting_explicit_activation",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "daily_resource_item_done",
+  "active_delivery_stage": "complete",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "24 focused daily-resource-item delivery tests passed after short-scroll/owned-count fixes.",
-  "latest_full_suite_result": "Manual opt-in only; not run.",
-  "current_live_attempt_state": "accepted: Home → Bag → exact 1K Food Use → owned 129680→129679 → verified Home in 3 inputs",
-  "current_evidence_or_session_reference": ".local-captures/development-sessions/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z",
-  "last_safe_completed_step": "Conduct DONE with resource_delta_verified and terminal_home_verified. Plan todo daily-resource-item marked completed. Registration remains NOT_REGISTERED.",
-  "exact_next_permitted_action": "Stop. Do not start daily-milestone-claim unless the user explicitly selects it.",
-  "current_blocker": null,
-  "prohibited_repeated_action": "Do not re-use another 1K Food for this completed task, enable scheduling, commit, or push unless the user asks.",
+  "latest_focused_validation_result": "PR 4 audit repair: 5/5 exact regressions and 246/246 focused package tests passed with 2 skips; git diff --check passed",
+  "latest_architecture_validation_result": "Solo GPT-5.6 Sol Medium self-review completed at 961d2b8; independent review of this final audit repair remains pending",
+  "latest_full_suite_result": "Not run; full repository discovery remains manual-only and was not required for the focused PR repair",
+  "current_live_attempt_state": "blocked_evidence_required_before_input",
+  "current_evidence_or_session_reference": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20260826T214745064655Z",
+  "last_safe_completed_step": "Offline PR 4 audit repair 961d2b8 closed four safety and evidence-contract defects without runtime input",
+  "exact_next_permitted_action": "Obtain independent approval on the pushed PR 4 head; do not repeat Campaign r2 or merge without approval",
+  "current_blocker": "LOCALIZATION_NOT_RECOGNIZED before Campaign Home Atlas entry",
+  "prohibited_repeated_action": "Do not retry Campaign r2, issue further Scarlett input, manufacture startup surfaces, or merge PR #4.",
+  "stage_revision": "runtime-reliability-stage-10-phase-5-campaign-ap-r2",
+  "stage_type": "live_canary_reproof",
+  "product_precondition": "funded_and_exact",
+  "failure_class": "local_defect",
+  "budgets": {
+    "stage_revisions_used": 2,
+    "managed_turns_used": 0,
+    "live_attempts_used": 1,
+    "runtime_inputs_used": 0
+  },
+  "registration_and_scheduler": {
+    "production_registration": "NOT_REGISTERED",
+    "scheduler_enabled": false,
+    "active_runtime": "none"
+  },
+  "journals_and_lease": {
+    "development_lease_status": "absent",
+    "active_prepared_input_sent_unresolved_action_ids": [],
+    "historical_journals": "retained_immutable"
+  },
+  "evidence": {
+    "evidence_requirement": "EVIDENCE_REQUIRED",
+    "evidence_requirement_reason": "Campaign Home Atlas localization failed before input; the retained zero-input session is the terminal r2 evidence.",
+    "active_evidence_manifest": null,
+    "monitoring_issue": "none",
+    "do_not_recursively_inspect_parent_evidence_tree": true
+  },
   "control_owner": "sol_parent",
-  "control_parent_conversation_id": "not recorded",
-  "stage_revision": "daily-resource-item-live-accepted",
-  "stage_type": "completed",
-  "product_precondition": "verified_home",
-  "failure_class": null,
-  "budgets": {"item_use_dispatches_accepted": 1},
-  "registration_and_scheduler": {"production_registration": "NOT_REGISTERED", "scheduler_enabled": false, "active_runtime": "local BlueStacks only"},
-  "journals_and_lease": {"development_lease_status": "absent", "active_prepared_input_sent_unresolved_action_ids": [], "historical_journals": "immutable and non-authorizing"},
-  "evidence": {"evidence_requirement": "LIVE_ACCEPTED", "do_not_recursively_inspect_parent_evidence_tree": true}
+  "control_parent_conversation_id": "stage-10-phase-5-reproof-20260826",
+  "deferred_independent_review": "The historical Terra recheck budget remained exhausted; the final Solo audit repair at 961d2b8 is self-reviewed and focused-tested but still requires independent PR approval",
+  "stage_7_ordered_plan": [
+    "Stage A startup-surface recovery r2 accepted and pushed",
+    "Stage B not_applicable for canonical Home successor",
+    "Campaign AP r2 blocked_evidence_required before input"
+  ],
+  "next_three_atomic_tasks": [
+    "Obtain independent review of the final pushed PR 4 head, including product candidate 961d2b8",
+    "Merge PR 4 only if that review approves the complete head",
+    "Preserve Campaign r2 blocked_evidence_required without an identical retry"
+  ],
+  "stage_start_utc": "2026-08-26T21:43:00Z",
+  "continuation_checkpoint_utc": "2026-08-26T21:23:00Z"
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
-# Current handoff
+## Durable Stage 10 disposition
+- Phases 1-3 are accepted and remain immutable.
+- Phase 4 is `blocked_evidence_required` (`product_state`): Home recognition failed before input; no repeat.
+- Phase 5 startup recovery Stage A r2 is accepted and pushed. Campaign AP r2 closed `blocked_evidence_required` before input because Home Atlas localization returned `LOCALIZATION_NOT_RECOGNIZED`; no retry is authorized.
+- Stage B is `not_applicable` for the canonical Home successor. Separate startup shop page/modal variants remain `evidence_required` until natural native occurrence.
 
-`daily-resource-item` is live-accepted and complete. Do not start
-`daily-milestone-claim` unless explicitly selected.
+## Stage 11 boundary
+- All 24 checked-in production registry entries are `NOT_REGISTERED` and scheduler-ineligible.
+- Production selection handlers require an explicit exact typed registration snapshot; no constructor may synthesize authority.
+- No runtime session, gameplay input, protected-evidence mutation, registration, scheduler selection, PvP/player attack, premium action, or real-money action is authorized.
+- Stage 10 r1/r2/r3 planning revisions and legacy aliases are historical and non-authorizing; retained terminal disposition records remain authoritative.
+- User continuation is recorded and branch synchronization passed. The structured merge successor remains inactive until PR #4 receives external approval.
 
-Accepted live session:
-`.local-captures/development-sessions/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z`
+## Startup recovery correction
+- Attempt 1 used the misbound ROI `(11,54,72,117)` and produced no observed effect. After investigation and separate user authorization, attempt 2 used the corrected visible in-game Back ROI `(39,0,168,61)` at `(103,30)`, dismissed Scarlett, and retained canonical Home (correlation approximately `0.9849`).
+- The successful child ledger is recovery `1`, route `0`, total `1`. R2 corrects the outer DevelopmentSession to report `input_count=1`, close `completed` with `completion_scope=startup_recovery_only`, retain the post-recovery typed observation, and execute no route.
+- Retained success: `.local-captures/development-sessions/AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE-20260826T205944685287Z`; settled Home: `.local-captures/development-sessions/observe-20260826T210014287650Z`.
+- Full-frame hashes are provenance only; Scarlett selection/revalidation uses stable current-frame ROIs. Registration remains `NOT_REGISTERED`, the scheduler remains disabled, and no purchase, Confirm, real-money, Android Back, Campaign, or other route input occurred.
+- The outer-summary defect was classified `local_defect`. Terra confirmed the production correction but its single recheck found that the regression equalized recognition metadata rather than the retained capture digest. Commit `8b8e372` now reuses the probe payload/SHA for the semantic non-Scarlett Home successor; the exact regression and all 18 startup tests pass. No second Terra recheck was run because the r2 budget allowed only one.
 
-Proof: Bag open → one exact `1K Food` Use → owned `129680 → 129679` →
-verified Home in 3 inputs. Focused tests: 24 passed. Not registered /
-scheduler disabled. Uncommitted work remains local.
+## Campaign AP r2 closure
+- Zero-input preflight: `.local-captures/development-sessions/observe-20260826T214533950614Z`; canonical Home correlation `0.9849079251289368`, visible AP `120/120`, no refill surface, native `800x1280`, zero input, no lifecycle state, and ownership released.
+- The offline scheduler pulse selected only `CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY` with product `campaign_ap-v1`, exact fixed registration, fresh observed balance `120`, and `transport_count=0`.
+- The one authorized occurrence is `.local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20260826T214745064655Z`. Registration was consumed before runtime; Home Atlas localization then failed closed with `LOCALIZATION_NOT_RECOGNIZED` before any route input.
+- Terminal accounting is recovery `0`, route `0`, total `0`, Campaign action count `0`, AP spend `0`, no refill or forbidden action, ownership released, final registration `NOT_REGISTERED`, and scheduler disabled.
+- Disposition is `blocked_evidence_required` (`local_defect`). No identical retry, repair, additional observation, or gameplay input is authorized under r2.
+
+## PR 4 final audit repair
+- Commit `961d2b8` closes four confirmed offline defects: generic retained-evidence verification now accepts declared causal traces and truthful reconciliation-required terminals; Ultimate Challenge and Troop Training receive only the shared post-recovery route budget; VIP startup recovery releases its safety lease on every post-acquisition exit; and capability-consumption exceptions finalize durable Resource transport intent as `TRANSPORT_UNKNOWN` without invoking the adapter.
+- Exact regressions pass 5/5. Focused package validation passes 246/246 with 2 skips across startup recovery, DevelopmentSession, Campaign, Recruitment, shared navigation boundary, Ultimate Challenge, Troop Training, Resource authority, and Daily Resource delivery. `git diff --check` and governance validation pass.
+- The untouched legacy `tests.test_navigation_runner` module still has six baseline `PROFILE_MISMATCH` fixture failures. Five lifecycle-mutation cases in `tests.test_governance_validation` remain baseline failures because they assert completed-state relations while the authoritative Campaign task truthfully remains `blocked_evidence_required`.
+- No live runtime, ADB input, registration, scheduler, retained evidence, or Campaign r2 state was changed. The repair was performed Solo with GPT-5.6 Sol Medium and has not been represented as independent acceptance; external review of the final pushed head remains required before merge.

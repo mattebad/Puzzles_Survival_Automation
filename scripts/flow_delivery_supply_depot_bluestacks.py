@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
+import shutil
 from typing import Any, Mapping
 
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
@@ -43,33 +45,113 @@ def _maximum(lease: Mapping[str, Any]) -> int:
 
 
 def _outer_session(lease: Mapping[str, Any]):
+    from scripts.navigation_development_boundary import DevelopmentSession
+
     session = lease.get("development_session")
-    if session is None or not callable(getattr(session, "run_action", None)):
+    if (
+        not isinstance(session, DevelopmentSession)
+        or session.is_active is not True
+        or str(session.owner) != f"pnsctl-development-session:{FLOW_ID}"
+        or not callable(getattr(session, "run_action", None))
+    ):
         raise _pnsctl().OperatorError(
-            "Supply Depot requires the pnsctl-owned DevelopmentSession"
+            "Supply Depot requires the active pnsctl-owned DevelopmentSession"
         )
     return session
 
 
-def _hold_calls(session: Path) -> int:
+def _initial_observation(lease: Mapping[str, Any], session: Any) -> dict[str, Any]:
+    from scripts.navigation_development_boundary import DevelopmentInitialObservation
+
+    value = lease.get("initial_observation")
+    bound = session.initial_observation
+    if not isinstance(value, DevelopmentInitialObservation):
+        raise _pnsctl().OperatorError(
+            "Supply Depot initial observation must be typed session evidence"
+        )
+    if not isinstance(bound, DevelopmentInitialObservation) or value is not bound:
+        raise _pnsctl().OperatorError(
+            "Supply Depot initial observation is not exactly session-bound"
+        )
+    digest = str(value.frame_sha256 or "")
+    if (
+        len(digest) != 64
+        or digest != str(lease.get("initial_frame_sha256") or "")
+        or value.invocation_id != session.invocation_id
+    ):
+        raise _pnsctl().OperatorError(
+            "Supply Depot initial observation hash or invocation binding is invalid"
+        )
+    return value.to_mapping()
+
+
+def _read_events(session: Path) -> list[dict[str, Any]]:
     events = session / "events.jsonl"
     if not events.is_file():
-        return 0
-    count = 0
+        return []
+    rows: list[dict[str, Any]] = []
     for line in events.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        row = json.loads(line)
-        if (
-            isinstance(row, Mapping)
-            and row.get("type") == "dispatch"
+        row = json.loads(line) if line.strip() else {}
+        if isinstance(row, dict) and row:
+            rows.append(row)
+    return rows
+
+
+def _retained_transport_count(session: Path) -> int:
+    return sum(
+        row.get("type") == "dispatch" and row.get("execute") is not False
+        for row in _read_events(session)
+    )
+
+
+def _hold_calls(session: Path) -> int:
+    return sum(
+        row.get("type") == "dispatch"
             and row.get("execute") is not False
             and str(row.get("action_key") or "").startswith(
                 "supply-depot-free-hold:"
             )
-        ):
-            count += 1
-    return count
+        for row in _read_events(session)
+    )
+
+
+def _write_read_only_causal_trace(
+    session: Path,
+    *,
+    result: Mapping[str, Any],
+    initial_observation: Mapping[str, Any],
+) -> dict[str, Any]:
+    events = _read_events(session)
+    trace = {
+        "schema_version": 1,
+        "trace_count": 1,
+        "read_only": True,
+        "input_authority": False,
+        "proof_topology": "continuous",
+        "flow_id": FLOW_ID,
+        "invocation_id": str(initial_observation.get("invocation_id") or ""),
+        "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
+        "stages": [
+            "typed_initial_observation",
+            "inspect_current_frame",
+            "supply_depot_navigation",
+            "current_frame_free_target_binding",
+            "bounded_free_hold",
+            "free_disappeared_successor",
+            "terminal_home",
+        ],
+        "transport_count": _retained_transport_count(session),
+        "hold_transport_calls": _hold_calls(session),
+        "event_count": len(events),
+        "status": str(result.get("status") or "unknown"),
+        "effect_reconciliation_required": bool(
+            result.get("effect_reconciliation_required")
+        ),
+    }
+    (session / "causal-trace.json").write_text(
+        json.dumps(trace, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return trace
 
 
 def _payload(
@@ -86,12 +168,13 @@ def _payload(
         and result.get("free_attempts_after") == 0
         and hold_calls <= MAX_HOLD_TRANSPORT_CALLS
     )
+    reconciliation_required = bool(hold_calls and not completed)
     return {
         **dict(result),
         "status": "completed"
         if completed
-        else "unresolved"
-        if hold_calls
+        else "effect_reconciliation_required"
+        if reconciliation_required
         else "blocked",
         "flow_id": FLOW_ID,
         "session_directory": str(session_directory),
@@ -99,6 +182,8 @@ def _payload(
         "max_inputs": maximum,
         "hold_transport_calls": hold_calls,
         "dispatch": input_count > 0,
+        "effect_reconciliation_required": reconciliation_required,
+        "identical_retry_denied": reconciliation_required,
         "production_registration": "NOT_REGISTERED",
         "scheduler_enabled": False,
     }
@@ -143,6 +228,7 @@ def _write_delivery_result(
         "frames": frames,
         "required_artifacts": ["events_path"],
         "events_path": "events.jsonl",
+        "causal_trace_path": "causal-trace.json",
         **dict(result),
     }
     (session / "flow-delivery-result.json").write_text(
@@ -174,6 +260,7 @@ def run_supply_depot(
         )
 
     outer = _outer_session(lease)
+    initial_observation = _initial_observation(lease, outer)
     outer_directory = Path(outer.session_directory)
     runtime: LocalBlueStacksRuntime | None = None
     runtime_directory = outer_directory
@@ -196,7 +283,11 @@ def run_supply_depot(
             settle_seconds=float(lease.get("settle_seconds", 1.5)),
         )
         hold_calls = _hold_calls(runtime_directory)
-        input_count = int(getattr(outer, "input_count", 0))
+        input_count = _retained_transport_count(runtime_directory)
+        if int(getattr(outer, "input_count", 0)) != input_count:
+            raise pnsctl.OperatorError(
+                "Supply Depot session input count does not match retained transports"
+            )
         if input_count > maximum:
             raise pnsctl.OperatorError("Supply Depot exceeded max_inputs")
         if hold_calls > MAX_HOLD_TRANSPORT_CALLS:
@@ -210,7 +301,7 @@ def run_supply_depot(
         )
     except Exception as exc:
         hold_calls = _hold_calls(runtime_directory)
-        input_count = int(getattr(outer, "input_count", 0))
+        input_count = _retained_transport_count(runtime_directory)
         payload = _payload(
             {
                 "status": "unresolved" if hold_calls else "blocked",
@@ -223,6 +314,23 @@ def run_supply_depot(
             hold_calls=hold_calls,
             maximum=maximum,
         )
+    source_path = outer_directory / "source.png"
+    if source_path.is_file():
+        retained_initial = runtime_directory / "frames" / "0000-initial-observation.png"
+        retained_initial.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source_path, retained_initial)
+        initial_observation["frame_path"] = "frames/0000-initial-observation.png"
+    payload["proof_topology"] = "continuous"
+    payload["initial_observation"] = initial_observation
+    payload["initial_frame_sha256"] = initial_observation["frame_sha256"]
+    trace = _write_read_only_causal_trace(
+        runtime_directory,
+        result=payload,
+        initial_observation=initial_observation,
+    )
+    payload["causal_trace_count"] = 1
+    payload["causal_trace"] = trace
+    outer.set_causal_trace(trace)
     _write_delivery_result(runtime_directory, payload, lease=lease)
     return json.dumps(payload, sort_keys=True, default=str)
 
@@ -236,11 +344,62 @@ def verify_supply_depot(
     result = structure.get("result")
     if not isinstance(result, Mapping):
         raise _pnsctl().OperatorError("Supply Depot delivery result is missing")
+    session = Path(str(structure.get("session_directory") or ""))
+    initial = result.get("initial_observation")
+    trace = result.get("causal_trace")
+    initial_ok = False
+    if isinstance(initial, Mapping):
+        frame_path = session / str(initial.get("frame_path") or "")
+        try:
+            frame_path.resolve().relative_to(session.resolve())
+            initial_ok = (
+                frame_path.is_file()
+                and not frame_path.is_symlink()
+                and hashlib.sha256(frame_path.read_bytes()).hexdigest()
+                == initial.get("frame_sha256")
+                == result.get("initial_frame_sha256")
+                and bool(initial.get("invocation_id"))
+            )
+        except (OSError, ValueError):
+            initial_ok = False
+    retained_transport = _retained_transport_count(session)
+    retained_holds = _hold_calls(session)
+    trace_file_ok = False
+    trace_path = session / str(result.get("causal_trace_path") or "")
+    try:
+        trace_path.resolve().relative_to(session.resolve())
+        trace_file_ok = (
+            trace_path.is_file()
+            and not trace_path.is_symlink()
+            and json.loads(trace_path.read_text(encoding="utf-8")) == trace
+        )
+    except (OSError, ValueError, json.JSONDecodeError):
+        trace_file_ok = False
+    trace_ok = (
+        isinstance(trace, Mapping)
+        and trace_file_ok
+        and result.get("causal_trace_count") == 1
+        and trace.get("trace_count") == 1
+        and trace.get("read_only") is True
+        and trace.get("input_authority") is False
+        and trace.get("proof_topology") == "continuous"
+        and trace.get("initial_frame_sha256") == result.get("initial_frame_sha256")
+        and trace.get("transport_count") == retained_transport
+        and trace.get("hold_transport_calls") == retained_holds
+    )
     verified = bool(
         result.get("status") == "completed"
+        and result.get("proof_topology") == "continuous"
+        and initial_ok
+        and trace_ok
+        and retained_transport == result.get("input_count")
+        and type(result.get("max_inputs")) is int
+        and retained_transport <= result.get("max_inputs")
         and result.get("free_attempts_after") == 0
         and result.get("terminal_home_verified") is True
-        and int(result.get("hold_transport_calls") or 0) <= 1
+        and retained_holds == result.get("hold_transport_calls")
+        and retained_holds <= MAX_HOLD_TRANSPORT_CALLS
+        and result.get("effect_reconciliation_required") is False
     )
     return {
         "status": "verified" if verified else "evidence_required",
@@ -248,6 +407,11 @@ def verify_supply_depot(
         "session_directory": structure.get("session_directory"),
         "production_registration": "NOT_REGISTERED",
         "scheduler_enabled": False,
+        "initial_observation_verified": initial_ok,
+        "causal_trace_verified": trace_ok,
+        "retained_transport_count": retained_transport,
+        "hold_transport_calls": retained_holds,
+        "reason": None if verified else "Supply Depot continuous route proof is incomplete",
     }
 
 

@@ -70,6 +70,53 @@ def _write_unified_result(runtime: LocalBlueStacksRuntime, payload: dict[str, ob
     return json.dumps(payload, sort_keys=True, default=str)
 
 
+def _apply_startup_recovery_input_reserve(
+    runtime: LocalBlueStacksRuntime,
+    *,
+    route_input_cap: int,
+    configured_input_cap: int,
+    recovery_status: str,
+    recovery_input_count: int,
+    recovery_consumed_externally: bool = False,
+) -> int:
+    """Bound the route cap without re-adding a pnsctl-consumed recovery input."""
+
+    if recovery_consumed_externally:
+        if recovery_status in {
+            "not_present",
+            "shared_pre_flow_startup_recovery",
+        } and recovery_input_count == 0:
+            runtime.max_inputs = min(route_input_cap, configured_input_cap)
+            return 0
+        if recovery_status not in {"recovered", "surface_dismissed_successor_captured"} or recovery_input_count != 1:
+            raise RuntimeError(
+                "external startup recovery did not prove an exact one-input reserve"
+            )
+        if configured_input_cap < route_input_cap:
+            raise RuntimeError(
+                "configured development input ceiling is below the reduced route cap"
+            )
+        runtime.max_inputs = route_input_cap
+        return 0
+    if recovery_status in {
+        "not_present",
+        "shared_pre_flow_startup_recovery",
+    } and recovery_input_count == 0:
+        runtime.max_inputs = min(route_input_cap, configured_input_cap)
+        return 0
+    if recovery_status not in {"recovered", "surface_dismissed_successor_captured"} or recovery_input_count != 1:
+        raise RuntimeError(
+            "startup recovery did not prove an exact one-input reserve"
+        )
+    total_input_cap = route_input_cap + 1
+    if configured_input_cap < total_input_cap:
+        raise RuntimeError(
+            "configured development input ceiling cannot accommodate startup recovery"
+        )
+    runtime.max_inputs = total_input_cap
+    return 1
+
+
 def recognize_home_zoom_source(frame, *, home_classifier=None) -> tuple[bool, dict[str, object]]:
     """Recognize Home for bounded camera normalization without requiring Tavern OCR.
 
@@ -865,9 +912,32 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
         workflow="noahs-tavern-unified-recruitment",
         execute=True,
     )
-    runtime.max_inputs = min(runtime.max_inputs, int(getattr(args, "max_inputs", 12)))
-    if runtime.max_inputs < 12:
-        raise ValueError("unified recruitment requires a twelve-input total session cap")
+    configured_input_cap = runtime.max_inputs
+    route_input_cap = int(getattr(args, "max_inputs", 12))
+    runtime.max_inputs = min(configured_input_cap, route_input_cap)
+    startup_recovery = dict(
+        getattr(args, "startup_recovery", None)
+        or {"status": "shared_pre_flow_startup_recovery", "input_count": 0}
+    )
+    startup_recovery_input_allowance = _apply_startup_recovery_input_reserve(
+        runtime,
+        route_input_cap=route_input_cap,
+        configured_input_cap=configured_input_cap,
+        recovery_status=str(startup_recovery.get("status") or ""),
+        recovery_input_count=int(
+            startup_recovery.get("recovery_input_count")
+            if startup_recovery.get("recovery_input_count") is not None
+            else startup_recovery.get("input_count") or 0
+        ),
+        recovery_consumed_externally=bool(
+            getattr(args, "startup_recovery_consumed_externally", False)
+            or (
+                "recovery_input_count" in startup_recovery
+                and "route_input_count" in startup_recovery
+                and "total_input_count" in startup_recovery
+            )
+        ),
+    )
     zoom_records: list[dict[str, object]] = []
     atlas_path = NOAHS_TAVERN_HOME_ATLAS_PATH
     atlas = load_home_atlas(atlas_path)
@@ -1061,6 +1131,12 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                     "production_registration": "NOT_REGISTERED",
                     "scheduler_enabled": False,
                     "evidence_events": str(runtime.events),
+                    "startup_recovery": startup_recovery,
+                    "route_input_cap": route_input_cap,
+                    "startup_recovery_input_allowance": (
+                        startup_recovery_input_allowance
+                    ),
+                    "total_input_cap": runtime.max_inputs,
                     "zoom_normalization": zoom_records,
                 },
             )
@@ -1088,6 +1164,12 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                 "production_registration": "NOT_REGISTERED",
                 "scheduler_enabled": False,
                 "evidence_events": str(runtime.events),
+                "startup_recovery": startup_recovery,
+                "route_input_cap": route_input_cap,
+                "startup_recovery_input_allowance": (
+                    startup_recovery_input_allowance
+                ),
+                "total_input_cap": runtime.max_inputs,
                 "zoom_normalization": zoom_records,
             },
         )
@@ -1112,6 +1194,12 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                 "production_registration": "NOT_REGISTERED",
                 "scheduler_enabled": False,
                 "evidence_events": str(runtime.events),
+                "startup_recovery": startup_recovery,
+                "route_input_cap": route_input_cap,
+                "startup_recovery_input_allowance": (
+                    startup_recovery_input_allowance
+                ),
+                "total_input_cap": runtime.max_inputs,
                 "zoom_normalization": zoom_records,
             },
         )
@@ -1121,7 +1209,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
     cv2.putText(annotated, NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID, (x0, max(30, y0 - 12)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
     cv2.imwrite(str(annotated_path), annotated)
     zoom_records.append({"atlas_probe_sha256": atlas_probe.sha256, "atlas_binding_roi": list(binding), "annotated_frame": str(annotated_path)})
-    runtime.max_inputs = min(runtime.max_inputs, runtime.input_count + 10)
+    runtime.max_inputs = min(configured_input_cap, route_input_cap)
     store = SafetyStore(runtime.session / "maintenance-state.sqlite3")
     repository = SQLiteSchedulerInvocationRepository(store)
     try:
@@ -1154,20 +1242,33 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             post_input_delay=getattr(args, "settle_seconds", 1.0),
         )
         result = route.run(max_steps=40)
+        final_state = controller.maintenance_controller.state
+        recovery_input_count = int(startup_recovery.get("input_count") or 0)
+        route_input_count = runtime.input_count
         payload = {
             "status": result.status,
             "reason": result.reason,
             "actions_completed": result.actions_completed,
             "session_directory": str(runtime.session),
-            "input_count": runtime.input_count,
+            "input_count": route_input_count,
+            "recovery_input_count": recovery_input_count,
+            "route_input_count": route_input_count,
+            "total_input_count": recovery_input_count + route_input_count,
             "terminal_home_verified": result.status == "completed" and result.reason == "verified_safe_return_home",
             "recruitment_dispatch_count": result.actions_completed,
             "claim_dispatched": False,
             "transport_mode": "native_bluestacks_ordinary_development",
             "identity": identity.__dict__,
+            "maintenance_state": json.loads(final_state.to_json()),
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
             "evidence_events": str(runtime.events),
+            "startup_recovery": startup_recovery,
+            "route_input_cap": route_input_cap,
+            "startup_recovery_input_allowance": (
+                startup_recovery_input_allowance
+            ),
+            "total_input_cap": runtime.max_inputs,
             "zoom_normalization": zoom_records,
             "atlas_binding_roi": list(binding),
             "atlas_immediate_before_sha256": atlas_probe.sha256,

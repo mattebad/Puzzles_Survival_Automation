@@ -1,9 +1,9 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
   "product_purpose": "Consume exactly one owned 1K Food item from canonical Home.",
-  "trigger_cadence_type": "evidence_gated",
-  "reset_scope": "not_required",
+  "trigger_cadence_type": "daily_once",
+  "reset_scope": "daily_reset",
   "required_starting_context": [
     "home_ready"
   ],
@@ -12,54 +12,122 @@
     "home_ready",
     "bag",
     "resources",
+    "resource_list_progress",
     "1k_food_ready",
     "1k_food_used",
     "resource_delta_verified",
     "home_verified",
     "evidence_required"
   ],
-  "state_transitions": [
+  "transition_contracts": [
     {
+      "transition_id": "resource-home-to-bag",
       "from": "home_ready",
       "to": "bag",
-      "via": "one current-frame-bound visible Bag control",
-      "notes": "The source is a fresh native verified Home frame."
+      "planner": "scripts/daily_resource_item_bluestacks.py",
+      "permitted_input": "current-frame-bound visible Bag navigation",
+      "postconditions": [
+        "fresh verified Home source",
+        "positively recognized Bag successor"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "resource-item-native-semantics"
     },
     {
+      "transition_id": "resource-bag-to-resources",
       "from": "bag",
       "to": "resources",
-      "via": "settled selected Resource & Speedup successor, with one optional current-frame-bound category tab tap when another Bag tab is current",
-      "notes": "Skip the tab tap when Resource & Speedup is already visually selected; Android Back is not used."
+      "planner": "scripts/daily_resource_item_bluestacks.py",
+      "permitted_input": "optional current-frame-bound Resource & Speedup category tab when another Bag tab is selected",
+      "postconditions": [
+        "settled Resource & Speedup successor"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "resource-item-native-semantics"
     },
     {
+      "transition_id": "resource-scroll-to-progress",
       "from": "resources",
       "to": "resource_list_progress",
-      "via": "zero to six current-frame-bound content-aware forward or reverse swipes in a central list-content lane",
-      "notes": "Forward reveals lower rows; reverse reveals upper rows when lower-resource or larger Food markers are visible. Each swipe must change the stable list/OCR signature; stall, repeat, or unknown stops before another swipe."
+      "planner": "scripts/daily_resource_item_bluestacks.py",
+      "permitted_input": "current-frame-bound content-aware forward/reverse Resource list scrolling, at most six progressing swipes",
+      "postconditions": [
+        "each list signature materially progresses"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "resource-item-native-semantics"
     },
     {
+      "transition_id": "resource-bind-1k-food",
       "from": "resource_list_progress",
       "to": "1k_food_ready",
-      "via": "fresh exact 1K Food row and measured-card ownership recognition after each scroll",
-      "notes": "AP, Stamina, premium, bulk selection, and unidentified targets are rejected."
+      "planner": "scripts/daily_resource_item_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "exact owned 1K Food and quantity-one binding"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "resource-item-native-semantics"
     },
     {
+      "transition_id": "resource-use-one",
       "from": "1k_food_ready",
       "to": "1k_food_used",
-      "via": "one current-frame-bound Use control at quantity one",
-      "notes": "A second Use, confirmation, or quantity action fails closed."
+      "planner": "scripts/daily_resource_item_bluestacks.py",
+      "permitted_input": "one current-frame-bound 1K Food Use at quantity one",
+      "postconditions": [
+        "exactly one owned-item Use dispatch"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "resource-item-native-semantics"
     },
     {
+      "transition_id": "resource-reconcile-delta",
       "from": "1k_food_used",
       "to": "resource_delta_verified",
-      "via": "exact owned-count decrement of one for the measured 1K Food item",
-      "notes": "Transport success alone is not completion; Food-resource increase is not accepted as substitute proof."
+      "planner": "scripts/daily_resource_item_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "owned 1K Food decrement of one"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "resource-item-native-successor"
     },
     {
+      "transition_id": "resource-return-home",
       "from": "resource_delta_verified",
       "to": "home_verified",
-      "via": "one current-frame-bound visible Home control",
-      "notes": "Unknown return controls fail closed."
+      "planner": "scripts/daily_resource_item_bluestacks.py",
+      "permitted_input": "current-frame-bound visible Home return",
+      "postconditions": [
+        "HOME_CANONICAL terminal authority recognized"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "resource-item-native-successor"
     }
   ],
   "permitted_inputs": [
@@ -88,13 +156,13 @@
     "owned 1K Food count decreases by exactly one",
     "verified Home is the terminal state"
   ],
-  "consequential_action_class": "daily_resource_item_use",
+  "consequential_action_class": "owned_item_non_idempotent",
   "cost_quantity_requirements": {
-    "free_only": true,
-    "maximum_cost": 0,
+    "free_only": false,
+    "maximum_cost": 1,
     "quantity": 1,
-    "resource_or_currency": "1K Food",
-    "notes": "One owned 1K Food item only; no premium substitution, recovery item, bulk action, or second confirmation."
+    "resource_or_currency": "owned 1K Food item",
+    "notes": "One owned 1K Food item is consumed; it is not a free or zero-cost action."
   },
   "completion_identity": "daily-resource-item:use-1k-food:home-complete",
   "terminal_outcomes": [
@@ -111,6 +179,41 @@
     "immediate-post exact owned-count decrement of one",
     "verified Home terminal evidence"
   ],
+  "evidence_gates": [
+    {
+      "gate_id": "resource-item-native-semantics",
+      "status": "evidence_required",
+      "blocks": [
+        "resource-home-to-bag",
+        "resource-bag-to-resources",
+        "resource-scroll-to-progress",
+        "resource-bind-1k-food",
+        "resource-use-one"
+      ],
+      "required_evidence": [
+        "native BlueStacks direct Bag route and exact owned 1K Food binding"
+      ],
+      "permitted_inputs": []
+    },
+    {
+      "gate_id": "resource-item-native-successor",
+      "status": "evidence_required",
+      "blocks": [
+        "resource-reconcile-delta",
+        "resource-return-home"
+      ],
+      "required_evidence": [
+        "owned-count decrement of one and canonical Home terminal"
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "product_policy_refs": [
+    {
+      "policy_id": "use-resource-item-direct-route",
+      "source": "tasks/product_authority.py"
+    }
+  ],
   "replay_fixture_requirements": [
     {
       "fixture_id": "daily_resource_item_use_sequence",
@@ -119,13 +222,34 @@
       "notes": "Native consequential evidence is not fabricated by offline tests."
     }
   ],
-  "live_validation_scenarios": [
+  "scenarios": [
     {
-      "id": "daily-resource-item-use-1k-food",
+      "scenario_id": "daily-resource-item-direct-route",
       "mode": "consequential_supervised",
-      "maximum_inputs": 10,
-      "maximum_resource_list_swipes": 6,
-      "notes": "Optional Resources-tab select, at most six progressing list swipes, and one supervised item-consumption event; scheduler eligibility remains disabled."
+      "start_state": "home_ready",
+      "terminal_state": "home_verified",
+      "permitted_inputs": [
+        "current-frame-bound visible Bag navigation",
+        "optional current-frame-bound Resource & Speedup category tab when another Bag tab is selected",
+        "settled current Resource & Speedup Bag successor",
+        "current-frame-bound content-aware forward/reverse Resource list scrolling, at most six progressing swipes",
+        "one current-frame-bound 1K Food Use at quantity one",
+        "current-frame-bound visible Home return"
+      ],
+      "forbidden_inputs": [],
+      "required_transitions": [
+        "resource-home-to-bag",
+        "resource-bag-to-resources",
+        "resource-scroll-to-progress",
+        "resource-bind-1k-food",
+        "resource-use-one",
+        "resource-reconcile-delta",
+        "resource-return-home"
+      ],
+      "evidence_gate_ids": [
+        "resource-item-native-semantics",
+        "resource-item-native-successor"
+      ]
     }
   ],
   "unsupported_or_manual_only_states": [
@@ -151,5 +275,28 @@
   "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
   "production_eligible": false,
-  "registration_state": "disabled"
+  "registration_state": "disabled",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
+    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
+    "product_record_id": "use_resource_item",
+    "product_record_revision": "use_resource_item-v1",
+    "product_record_digest": "ce28b70ba87f73f0df72322f070ca8e9d06dcba970fab9d2697e36c9643b53e8",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_READY",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_READY",
+      "HOME_CANONICAL"
+    ]
+  }
 }

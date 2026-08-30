@@ -1,7 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "flow_id": "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
-  "product_purpose": "From localized Home, perform exactly one currently available zero-cost Bioenhancer Free Research 1x action, prove its cooldown successor, and return to positively recognized Home.",
+  "product_purpose": "From direct Home, perform exactly one currently available zero-cost Bioenhancer Free Research 1x action, prove its cooldown successor, and return to positively recognized Home.",
   "trigger_cadence_type": "cooldown_pulse",
   "reset_scope": "free_research_cooldown",
   "required_starting_context": [
@@ -12,47 +12,133 @@
       "primitive_id": "home_navigation_primitives",
       "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
       "required": true
+    },
+    {
+      "primitive_id": "native_bluestacks_capture_and_session_boundary",
+      "version_digest_field": "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "required": true
     }
   ],
   "recognized_states": [
+    "home_ready",
     "home_localized",
+    "home_canonical",
     "research_lab_bound",
     "research_lab_radial",
     "bioenhancer_free_research",
     "free_research_postcondition",
+    "deferred",
+    "unknown_fail_closed",
     "home_returned",
-    "evidence_required"
+    "blocked",
+    "manual_required"
   ],
-  "state_transitions": [
+  "transition_contracts": [
     {
+      "transition_id": "bind-research-lab",
       "from": "home_localized",
       "to": "research_lab_bound",
-      "via": "bounded Home pan and current-frame Research Lab binding",
-      "notes": "At most six measured-progress pans are permitted before the route fails closed."
+      "planner": "BioenhancerFreeResearchNavigation",
+      "permitted_input": "bounded measured-progress Home pan",
+      "postconditions": [
+        "fresh native frame and current-frame Research Lab binding",
+        "measured progress before every bounded pan"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
+      "transition_id": "open-research-radial",
       "from": "research_lab_bound",
       "to": "research_lab_radial",
-      "via": "current-frame Research Lab tap",
-      "notes": "The Research radial successor must be positively recognized."
+      "planner": "BioenhancerFreeResearchNavigation",
+      "permitted_input": "current-frame Research Lab tap",
+      "postconditions": [
+        "Research radial successor positively recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
+      "transition_id": "bind-free-research",
       "from": "research_lab_radial",
       "to": "bioenhancer_free_research",
-      "via": "current-frame Research radial tap",
-      "notes": "The Free Research 1x control must be freshly bound."
+      "planner": "BioenhancerFreeResearchTargetBinding",
+      "permitted_input": "current-frame Research radial tap",
+      "postconditions": [
+        "exact Free Research 1x target is freshly bound",
+        "paid and 10x controls are rejected"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
+      "transition_id": "defer-cooldown",
+      "from": "bioenhancer_free_research",
+      "to": "deferred",
+      "planner": "BioenhancerFreeResearchDefer",
+      "permitted_input": null,
+      "postconditions": [
+        "visible cooldown or absent Free control is retained without dispatch"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
+    },
+    {
+      "transition_id": "dispatch-free-research",
       "from": "bioenhancer_free_research",
       "to": "free_research_postcondition",
-      "via": "exactly one zero-cost Free Research 1x tap",
-      "notes": "Completion requires a visible Free cooldown timer; count text alone is insufficient."
+      "planner": "BioenhancerFreeResearchActionBoundary",
+      "permitted_input": "exactly one zero-cost Free Research 1x tap",
+      "postconditions": [
+        "exactly one free research transport call",
+        "positive Free cooldown successor is visible",
+        "count text alone does not prove success",
+        "dispatch is not semantic success proof"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "bioenhancer_native_replay"
     },
     {
+      "transition_id": "return-canonical-home",
       "from": "free_research_postcondition",
       "to": "home_returned",
-      "via": "at most two bounded Android Back actions",
-      "notes": "Completion remains blocked until native Home is positively recognized."
+      "planner": "BioenhancerFreeResearchRecovery",
+      "permitted_input": "at_most_two_bounded_back_actions",
+      "postconditions": [
+        "canonical Home positively recognized",
+        "no unknown overlay remains"
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "block-unknown",
+      "from": "unknown_fail_closed",
+      "to": "blocked",
+      "planner": "fail_closed_without_input",
+      "permitted_input": null,
+      "postconditions": [
+        "no research transport is dispatched",
+        "identical retry is denied"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
     }
   ],
   "permitted_inputs": [
@@ -60,12 +146,7 @@
     "current-frame Research Lab tap",
     "current-frame Research radial tap",
     "exactly one zero-cost Free Research 1x tap",
-    "at most two bounded Android Back actions"
-  ],
-  "local_postconditions": [
-    "exactly one free research transport call",
-    "Free cooldown timer positively recognized",
-    "terminal Home positively recognized"
+    "at_most_two_bounded_back_actions"
   ],
   "consequential_action_class": "zero_cost_consequential_free_research",
   "cost_quantity_requirements": {
@@ -78,36 +159,88 @@
   "completion_identity": "bioenhancer-free-research:one-free-action-home-complete",
   "terminal_outcomes": [
     "action_performed",
+    "deferred",
     "complete_for_reset",
+    "already_complete",
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "A visible cooldown or absent free control permits no research dispatch and remains blocked until a later eligible observation.",
-  "bounded_recovery_behavior": "Unknown results fail closed. Recovery performs no research action; at most two bounded Back actions may be used to prove Home.",
+  "cooldown_deferred_behavior": "A visible cooldown or absent free control permits no research dispatch and remains deferred until a later eligible observation.",
+  "bounded_recovery_behavior": "Unknown results fail closed. Recovery performs no research action; at most two bounded Back actions may be used to prove canonical Home. An unresolved dispatch denies identical retry.",
+  "product_policy_refs": [
+    {
+      "policy_id": "bioenhancer-free-research",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "premium-spending",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "unknown-consequence",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
   "evidence_requirements": [
-    "fresh native 800x1280 source and immediate-before frames",
-    "current-frame Research Lab, radial, and Free Research bindings",
-    "exactly one free-research transport call",
-    "post-dispatch Free cooldown timer proof",
-    "terminal native Home proof"
+    "Retained July Bioenhancer transaction and pre-dispatch provenance are immutable historical Bliss-platform evidence only and are non-accepting for current BlueStacks proof.",
+    "Current native BlueStacks uninterrupted source, immediate-before, Free cooldown successor, and canonical Home evidence remain required.",
+    "No current BlueStacks research input occurred in this product-record migration; registration and scheduling remain separately disabled.",
+    "Aggregate Claim remains the sole Claim and point owner; Bioenhancer completion attribution does not authorize a Claim input."
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "bioenhancer_native_replay",
+      "status": "evidence_required",
+      "blocks": [
+        "dispatch-free-research",
+        "bioenhancer-research-production"
+      ],
+      "required_evidence": [
+        "current native BlueStacks 800x1280 source and immediate-before Free Research 1x binding",
+        "positive Free cooldown successor and canonical Home terminal proof",
+        "production-controller replay with exact one-action and no-identical-retry accounting"
+      ],
+      "permitted_inputs": []
+    }
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "bioenhancer_free_research_contract",
-      "status": "synthetic_policy_ok",
-      "path": "tests/test_flow_delivery_bioenhancer_bluestacks.py",
-      "notes": "Focused tests prove bounds and postcondition policy but do not substitute for retained native evidence."
+      "fixture_id": "historical_bioenhancer_free_research_bliss",
+      "status": "required_evidence",
+      "path": "evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json",
+      "notes": "Retained one-free transaction is platform-scoped historical evidence and is non-accepting for current BlueStacks proof."
+    },
+    {
+      "fixture_id": "current_bluestacks_uninterrupted_free_research",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Current native uninterrupted source, cooldown successor, and canonical Home are still required; do not repeat a research action merely to relabel historical proof."
     }
   ],
-  "live_validation_scenarios": [
+  "scenarios": [
     {
-      "id": "one-free-bioenhancer-research",
-      "mode": "consequential_supervised",
-      "notes": "The checked-in pnsctl adapter owns the bounded development session; production registration and scheduling remain disabled."
+      "scenario_id": "bioenhancer-research-production",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_localized",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "bounded measured-progress Home pan",
+        "current-frame Research Lab tap",
+        "current-frame Research radial tap",
+        "exactly one zero-cost Free Research 1x tap",
+        "at_most_two_bounded_back_actions"
+      ],
+      "required_transitions": [],
+      "evidence_gate_ids": [
+        "bioenhancer_native_replay"
+      ],
+      "notes": "The one-free policy is typed and validated offline, but current BlueStacks uninterrupted proof is evidence_required."
     }
   ],
   "unsupported_or_manual_only_states": [
     "paid_or_nonfree_research",
+    "Research 10x",
     "unbound_research_lab",
     "ambiguous_free_research_control",
     "unknown_postcondition",
@@ -120,6 +253,34 @@
   ],
   "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
-  "production_eligible": false,
-  "registration_state": "disabled"
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
+    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
+    "product_record_id": "bioenhancer_research",
+    "product_record_revision": "bioenhancer_research-v1",
+    "product_record_digest": "5f36370751b2ff5071c0f42fbe15a28a3c628b28aa1ecf588337f5d32cb61207",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_LOCALIZED",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_READY",
+      "HOME_LOCALIZED",
+      "HOME_CANONICAL"
+    ],
+    "selected_daily_prerequisite": false
+  },
+  "registration_state": "disabled",
+  "production_eligible": false
 }

@@ -29,6 +29,18 @@ class LeanWorkflowTests(unittest.TestCase):
                 flow["status"] = "ready"
                 flow["last_completed_stage"] = None
                 flow["blocked_reason"] = ""
+        if not any(flow.get("status") == "ready" for flow in payload["flows"]):
+            fixture_flow = next(
+                flow
+                for flow in payload["flows"]
+                if flow["flow_id"] == "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
+            )
+            fixture_flow["status"] = "ready"
+            fixture_flow["last_completed_stage"] = None
+            fixture_flow["last_commit"] = None
+            fixture_flow["blocked_reason"] = ""
+            fixture_flow["live_attempt_count"] = 0
+            fixture_flow["live_attempts"] = []
         queue.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         policy.write_bytes(POLICY.read_bytes())
         controller = control.FlowDeliveryController(
@@ -332,9 +344,8 @@ class LeanWorkflowTests(unittest.TestCase):
             completed = controller.complete(owner="parent", commit=valid)
             self.assertEqual(completed["status"], "completed")
 
-    def test_removed_routing_artifacts_are_not_part_of_the_workflow(self) -> None:
+    def test_retired_routing_artifacts_are_absent_and_runtime_is_idle(self) -> None:
         removed = (
-            ROOT / ".cursor" / "hooks.json",
             ROOT / ".cursor" / "hooks" / "pns_flow_subagent_guard.py",
             ROOT / ".cursor" / "rules" / "pns-flow-delivery-subagents.mdc",
             ROOT / "tasks" / "flow_delivery_subagent_routing_policy.json",
@@ -351,7 +362,7 @@ class LeanWorkflowTests(unittest.TestCase):
             .split("<!-- CURRENT_HANDOFF_STATE_END -->", 1)[0]
             .strip()
         )
-        self.assertEqual(lease["runtime_ownership_state"], "released")
+        self.assertEqual(lease["runtime_ownership_state"], "none")
 
 
 class RuntimeBoundaryTests(unittest.TestCase):
@@ -404,7 +415,19 @@ class RuntimeBoundaryTests(unittest.TestCase):
         with patch(
             "scripts.pnsctl._load_flow_delivery_state",
             return_value=(queue, {"active_stage": "evidence_review"}),
-        ), patch("scripts.pnsctl._load_bluestacks_flow_registry", return_value={}):
+        ), patch(
+            "scripts.pnsctl._retained_flow_result",
+            return_value=(
+                Path(".local-captures/fixture-session"),
+                {"flow_id": queue["active_flow_id"]},
+            ),
+        ), patch(
+            "scripts.pnsctl._verify_flow_structure",
+            return_value={"result": {"flow_id": queue["active_flow_id"]}},
+        ), patch(
+            "scripts.pnsctl._load_bluestacks_flow_registry",
+            return_value={},
+        ):
             with self.assertRaisesRegex(
                 pnsctl.OperatorError,
                 "FLOW_EVIDENCE_VALIDATOR_UNAVAILABLE",

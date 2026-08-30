@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "registry_kind": "flow_delivery_product_policy",
   "purpose": "Record product decisions used by the development-flow queue. This registry does not authorize runtime input by itself.",
   "status_vocabulary": [
@@ -195,11 +195,12 @@
       "policy_id": "gathering-resource-node-march-policy",
       "scope": "gathering.resource_and_march",
       "status": "explicitly_approved",
-      "decision": "Bind Food, Wood, Steel, and Gas in Search and select exact level 5. Reveal Gas only through one bounded left swipe and rebind it from the immediate current frame. Bind only an independently proven free level-5 tile, require one free march slot, use the default formation, and dispatch one known-free Food proving march before independent Wood, Steel, and Gas canaries. Never override an existing march or occupied target.",
+      "decision": "Gathering is a direct Home-to-World flow: open Search, select the requested Wood, Steel, or Gas category, select exact level 5, bind one current-frame free node, verify one free march slot and default formation, and dispatch one bounded march with outbound and return timing. Reveal Gas only through one bounded left swipe and rebind it from the immediate current frame. Food is a proving slice only; Wood, Steel, and Gas Daily progress is observed separately and never creates a selected-Daily prerequisite.",
       "source": "explicit_user_direction_2026-08-16",
       "registration_status": "NOT_REGISTERED",
       "scheduler_eligibility": false,
-      "daily_catalog_boundary": "Food is a proving slice only and gains no Daily objective ownership without current selected-Daily admission"
+      "selected_daily_prerequisite": false,
+      "daily_catalog_boundary": "Food is a proving slice only; Wood, Steel, and Gas progress is separately observed and gains no selected-Daily route authority"
     },
     {
       "policy_id": "troop-training-resource-policy",
@@ -239,6 +240,81 @@
       "paid_recruitment_allowed": false,
       "terminal_state": "home_canonical",
       "source": "explicit_user_direction_2026-07-23"
+    },
+    {
+      "policy_id": "hero-duel-policy",
+      "scope": "hero_duel.daily",
+      "status": "prohibited",
+      "decision": "Do not authorize Hero Duel entry. PvP entry, lineup changes, combat, and loss or participation consequences remain prohibited; current event, free-opponent, Join, attempts, successor, and canonical Home evidence are unresolved.",
+      "candidate_event": "unknown_current_hero_duel_event",
+      "candidate_attempts_remaining": null,
+      "daily_completion_target": 3,
+      "pvp_entry_allowed": false,
+      "terminal_state": "home_canonical",
+      "source": "execution_matrix_and_explicit_user_direction"
+    },
+    {
+      "policy_id": "hero-upgrade-policy",
+      "scope": "hero_upgrade.daily",
+      "status": "explicitly_approved",
+      "decision": "Hero Upgrade product semantics are approved for exactly three Wali upgrades per reset. Use standard hero material first. One 150-diamond reset exception is allowed only when needed, at most once per reset. Exact Wali identity, selected state, level, standard-material amount, balance, semantic successor, progress, and canonical Home evidence are required before any runtime admission; current native evidence and route implementation remain missing, so dispatch stays disabled.",
+      "candidate_hero": "Wali",
+      "candidate_material": "standard_hero_material",
+      "candidate_amount": null,
+      "diamond_reset_exception": {
+        "allowed": true,
+        "amount": 150,
+        "unit": "DIAMONDS",
+        "only_when_needed": true,
+        "maximum_per_reset": 1
+      },
+      "daily_completion_target": 3,
+      "upgrade_dispatch_allowed": false,
+      "evidence_state": "evidence_required",
+      "runtime_admission": "disabled_until_native_evidence_and_route_admission",
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligibility": false,
+      "terminal_state": "home_canonical",
+      "source": "execution_matrix_and_explicit_user_direction"
+    },
+    {
+      "policy_id": "alliance-shop-purchase-policy",
+      "scope": "alliance_shop.purchase",
+      "status": "unresolved_user_decision",
+      "decision": "Do not authorize an Alliance Shop purchase. Current Joy Coin offer/cost/availability and Alliance-coin fallback identities, costs, balances, successor, and canonical Home evidence remain unresolved; no Buy dispatch is permitted.",
+      "candidate_item": "unknown_current_alliance_shop_item",
+      "candidate_currency": "unknown_current_joy_coin_or_alliance_coin",
+      "candidate_cost": null,
+      "quantity": 1,
+      "purchase_dispatch_allowed": false,
+      "terminal_state": "home_canonical",
+      "source": "flow_delivery_queue:alliance-shop-purchase"
+    },
+    {
+      "policy_id": "rare-earth-shop-purchase-policy",
+      "scope": "rare_earth_shop.purchase",
+      "status": "unresolved_user_decision",
+      "decision": "Do not authorize a Rare Earth Shop purchase. The queue requires one current three-star item with exact cost, currency, balance, quantity, successor, and canonical Home evidence; current item and cost identity remain unresolved and no Buy dispatch is permitted.",
+      "candidate_item": "unknown_current_three_star_item",
+      "candidate_currency": "unknown_current_currency",
+      "candidate_cost": null,
+      "quantity": 1,
+      "purchase_dispatch_allowed": false,
+      "terminal_state": "home_canonical",
+      "source": "flow_delivery_queue:rare-earth-shop-purchase"
+    },
+    {
+      "policy_id": "ruins-shop-purchase-policy",
+      "scope": "ruins_shop.purchase",
+      "status": "unresolved_user_decision",
+      "decision": "Do not authorize a Ruins Shop purchase. The queue candidate is one three-star Chip material for 15 RUINS_COINS, but current item identity, balance, quantity, currency delta, successor, and canonical Home evidence are missing; no Buy dispatch is permitted.",
+      "candidate_item": "three_star_chip_material",
+      "candidate_currency": "RUINS_COINS",
+      "candidate_cost": 15,
+      "quantity": 1,
+      "purchase_dispatch_allowed": false,
+      "terminal_state": "home_canonical",
+      "source": "flow_delivery_queue:ruins-shop-purchase"
     },
     {
       "policy_id": "nanoweapon-material-policy",
@@ -336,6 +412,2061 @@
       "status": "prohibited",
       "decision": "Unknown cost, target, stage, level, resource, material, or consequence fails closed.",
       "source": "explicit_user_direction"
+    },
+    {
+      "policy_id": "vip-popup-helper",
+      "scope": "vip_points_popup.dismissal",
+      "status": "navigation_only_validation",
+      "decision": "One fresh exact VIP Get Pts popup may be recognized and closed once only after bounded dismissal and a settled source-context successor; resource, currency, march, stamina, AP, combat, registration, and scheduler behavior remain out of scope.",
+      "source": "explicit_user_direction_and_native_popup_policy"
+    },
+    {
+      "policy_id": "daily-reset-static-utc-midnight",
+      "scope": "global.daily_reset",
+      "status": "explicitly_approved",
+      "decision": "Daily reset is exactly 00:00:00 UTC every 86400 seconds.",
+      "timezone": "UTC",
+      "reset_time": "00:00:00",
+      "interval_seconds": 86400,
+      "source": "explicit_user_direction_2026-08-20"
     }
-  ]
+  ],
+  "authority_revision": "flow-delivery-product-authority-v2-r12",
+  "product_records": [
+    {
+      "record_id": "use_resource_item",
+      "record_type": "resource_item",
+      "purpose": "Use exactly one owned 1K Food item through the direct Bag resource route.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_CANONICAL"
+        ],
+        "target": "BAG",
+        "route": [
+          "BAG",
+          "RESOURCES"
+        ]
+      },
+      "objective": "use_resource_item",
+      "action": "use_one_owned_1k_food",
+      "target": {
+        "kind": "resource_item",
+        "item_name": "1K Food",
+        "variant": "1K Food",
+        "owned": true
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "owned_inventory_item",
+          "amount": 1,
+          "unit": "1K Food",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "owned_inventory_delta": -1,
+        "resource_delta_is_not_a_substitute": true
+      },
+      "forbidden_actions": [
+        "Daily navigation",
+        "selected-Daily prerequisite",
+        "bulk use",
+        "AP or Stamina recovery substitution",
+        "premium substitution",
+        "unknown item",
+        "second Use",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "The direct item transaction does not require Daily navigation or selected-Daily admission."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:use-resource-item-direct-route",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-1k-food-transaction",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "use_resource_item-v1",
+      "record_digest": "ce28b70ba87f73f0df72322f070ca8e9d06dcba970fab9d2697e36c9643b53e8"
+    },
+    {
+      "record_id": "enhancement_family",
+      "record_type": "enhancement_family",
+      "purpose": "Enhance one exact equipped Gear, Chip, and Module variant independently.",
+      "recurrence": "independent_one_per_variant",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "COMMANDER",
+        "route": [
+          "COMMANDER",
+          "CATEGORY",
+          "ENHANCE"
+        ]
+      },
+      "objective": "enhance_one_exact_variant",
+      "action": "enhance_each_independent_variant",
+      "target": {
+        "kind": "enhancement_family",
+        "variants": [
+          "Gear",
+          "Chip",
+          "Module"
+        ],
+        "independent": true
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "owned_inventory_material",
+          "amount": 1,
+          "unit": "one_star_material",
+          "free_only": false
+        }
+      },
+      "actions": [
+        {
+          "action_id": "quantity_selection_use",
+          "control": "Use",
+          "quantity": 1,
+          "consumes_material": false,
+          "owns_material_decrement": false
+        },
+        {
+          "action_id": "consuming_confirm",
+          "control": "Confirm",
+          "quantity": 1,
+          "consumes_material": true,
+          "owns_material_decrement": true
+        }
+      ],
+      "semantic_effect": {
+        "successor_requirement": "same exact variant settles after the consuming Confirm",
+        "material_delta_owner": "consuming_confirm",
+        "evidence_boundary": "composite successor evidence remains required"
+      },
+      "forbidden_actions": [
+        "Auto Select",
+        "higher-star material",
+        "premium currency",
+        "unknown material",
+        "real-money confirmation",
+        "Promote",
+        "Modify",
+        "Replace",
+        "Unequip",
+        "Inherit",
+        "identical retry"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Enhancement is an independent resource-affecting product action, not a selected-Daily route."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:enhancement-use-confirm-separation",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-enhancement-family",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "enhancement_family-v1",
+      "record_digest": "a03673be99435a70811467c8d989d380c24a7a824035b906ae865e34ecece095"
+    },
+    {
+      "record_id": "supply_depot",
+      "record_type": "supply_depot",
+      "purpose": "Use only zero-cost Free Supply Depot controls until Free disappears.",
+      "recurrence": "current_observed_attempt_inventory",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_LOCALIZED",
+          "HOME_CANONICAL"
+        ],
+        "target": "SUPPLY_DEPOT",
+        "route": [
+          "SUPPLY_DEPOT"
+        ]
+      },
+      "objective": "supply_depot_free_only",
+      "action": "collect_zero_cost_free_only_until_free_disappears",
+      "target": {
+        "kind": "supply_depot",
+        "free_control": "Free",
+        "paid_control": "diamond"
+      },
+      "quantity_cost": {
+        "quantity": "currently_observed_free_attempts",
+        "cost": {
+          "kind": "zero_cost_free_control",
+          "amount": 0,
+          "unit": "Free",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "free_disappears_required": true,
+        "paid_collection": false,
+        "daily_ownership": "none",
+        "completion_claim": "none"
+      },
+      "forbidden_actions": [
+        "paid control",
+        "diamond control",
+        "real-money confirmation",
+        "unknown cost",
+        "Daily 5/5 completion claim"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Navigation and Free-target evidence do not claim collection or Daily 5/5 completion."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:supply-depot-free-only-boundary",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-supply-depot-free-target",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "supply_depot-v1",
+      "record_digest": "667ff4961534fa5f667e7875b937f9b14e771f03a33e99698b8c43b2e8da80f2"
+    },
+    {
+      "record_id": "aggregate_daily_claim",
+      "record_type": "aggregate_daily_claim",
+      "purpose": "Claim exactly one ordinary free non-milestone row-local Claim control on selected Daily.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_CANONICAL"
+        ],
+        "target": "DAILY",
+        "route": [
+          "DAILY"
+        ]
+      },
+      "objective": "aggregate_daily_claim",
+      "action": "claim_one_ordinary_row_local_control",
+      "target": {
+        "kind": "ordinary_daily_claim",
+        "selected_daily": true,
+        "row_local": true,
+        "milestone": false,
+        "control": "Claim"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_cost_claim",
+          "amount": 0,
+          "unit": "Claim",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "positive_points_delta_required": true,
+        "ordinary_claim_controls_cleared_required": true,
+        "dispatch_is_not_success_proof": true,
+        "objective_identity_not_authorization_input": true
+      },
+      "forbidden_actions": [
+        "milestone Claim",
+        "non-claimable Claim row",
+        "cost-bearing Claim",
+        "clipped Claim row",
+        "unknown Claim row",
+        "contradictory Claim row",
+        "stale Claim target",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": "aggregate_daily_claim",
+        "point_credit_trigger": "positive_points_delta_and_ordinary_claim_controls_cleared",
+        "selected_daily_prerequisite": true,
+        "notes": "The aggregate Claim record alone owns ordinary selected-Daily Claim controls; direct-action records cannot require selected Daily."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:aggregate-daily-claim-row-local-free-control",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-selected-daily-aggregate-claim",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "aggregate_daily_claim-v1",
+      "record_digest": "560ae8fbf83cebbfdfc06efe3860e5b0c089045fb511fe17d33d5586a409fb41"
+    },
+    {
+      "record_id": "activity_milestone_claim",
+      "record_type": "activity_milestone_claim",
+      "purpose": "Claim exactly one currently ready, fully visible, zero-cost Activity Milestone chest per daily reset occurrence.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "QUEST",
+        "route": [
+          "QUEST",
+          "ACTIVITY_MILESTONES"
+        ]
+      },
+      "objective": "activity_milestone_claim_one_ready_chest",
+      "action": "claim_one_activity_milestone_chest",
+      "target": {
+        "kind": "activity_milestone_chest",
+        "eligibility": "one_current_ready_free_milestone_per_reset",
+        "panel": "ACTIVITY_MILESTONES",
+        "control": "MILESTONE_CHEST",
+        "quantity": 1,
+        "reset_bound": true,
+        "fully_visible": true
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_cost_milestone_claim",
+          "amount": 0,
+          "unit": "MILESTONE_CHEST",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "same_milestone_successor_required": true,
+        "positive_bound_points_successor_allowed": true,
+        "dispatch_is_not_success_proof": true,
+        "success_requires": "same_milestone_opened_or_positive_bound_points_successor",
+        "terminal_home_separate": true,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "not-ready milestone",
+        "already-claimed milestone",
+        "clipped milestone chest",
+        "cost-bearing milestone chest",
+        "unknown milestone control",
+        "contradictory milestone state",
+        "stale milestone target",
+        "ordinary Claim control",
+        "real-money confirmation",
+        "identical retry"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true,
+        "same_milestone_successor_required_before_return": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Activity Milestone is a separate support reward surface; aggregate Daily Claim remains the sole ordinary row Claim and point owner."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:daily-milestone-ready-chest-separation",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-daily-activity-milestone-chest",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "activity_milestone_claim-v1",
+      "record_digest": "fc39004cd8e4727fc5fed56cc656d2b1790908a1e57e0b82bc65493b1bf5a638"
+    },
+    {
+      "record_id": "nova_praise",
+      "record_type": "nova_praise",
+      "purpose": "Dispatch one eligible zero-cost Nova Praise pulse from the native Home-to-Nova route.",
+      "recurrence": "cooldown_pulse",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_LOCALIZED",
+          "HOME_CANONICAL"
+        ],
+        "target": "RESEARCH_LAB",
+        "route": [
+          "RESEARCH_LAB",
+          "NOVA_LAB"
+        ]
+      },
+      "objective": "nova_praise_one_free_pulse",
+      "action": "dispatch_one_free_praise",
+      "target": {
+        "kind": "nova_praise",
+        "eligibility": "one_free_attempt_available",
+        "control": "Praise",
+        "quantity": 1
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_cost_praise",
+          "amount": 0,
+          "unit": "Praise",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "attempts_before": "X",
+        "attempts_after": "X-1",
+        "cooldown_seconds": 300,
+        "cooldown_policy": "fixed_300_seconds_after_capture_delay",
+        "paid_fallback": false,
+        "identical_retry": false,
+        "dispatch_is_not_success_proof": true,
+        "success_requires": "attempt_decrement_and_cooldown_successor"
+      },
+      "forbidden_actions": [
+        "paid fallback",
+        "premium currency",
+        "unknown eligibility",
+        "contradictory attempt state",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Nova Praise is a direct action and does not require, own, or attribute selected Daily progress."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:nova-one-free-praise-attempt-cooldown-2026-07-22",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-nova-praise-attempt-and-home-return",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "nova_praise-v1",
+      "record_digest": "959fe8201ce0250dcab494dc65f930cf52c753b1ac5833d22bcb3a1abea2b2ae"
+    },
+    {
+      "record_id": "ultimate_challenge",
+      "record_type": "ultimate_challenge",
+      "purpose": "Complete one verified zero-cost Ultimate Challenge Flee per game-day reset.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "CAMPAIGN",
+        "route": [
+          "CAMPAIGN",
+          "ULTIMATE_CHALLENGE"
+        ]
+      },
+      "objective": "ultimate_challenge_one_free_flee",
+      "action": "complete_one_free_ultimate_flee",
+      "target": {
+        "kind": "ultimate_challenge",
+        "eligibility": "once_per_verified_reset",
+        "control": "Flee",
+        "quantity": 1,
+        "reset_bound": true
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_cost_ultimate_flee",
+          "amount": 0,
+          "unit": "Flee",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "flee_ceiling": 1,
+        "resource_delta": 0,
+        "resource_delta_is_zero": true,
+        "dispatch_is_not_success_proof": true,
+        "success_requires": "verified_flee_successor",
+        "terminal_home_separate": true,
+        "repeated_flee": false,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Auto Battle",
+        "second Flee",
+        "repeated Flee",
+        "Campaign AP execution",
+        "Campaign AP spend",
+        "AP spend",
+        "Stamina spend",
+        "currency spend",
+        "item spend",
+        "unknown Challenge action",
+        "unknown cost",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Ultimate Challenge is a direct reset-bound flow, not Campaign AP and not selected Daily ownership."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:ultimate-one-free-flee-per-reset",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-ultimate-flee-and-home-recovery",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "ultimate_challenge-v1",
+      "record_digest": "8ce40a2975bf07b34d41751a45a16281ab303ce2071370fd878e5e7c63a3b609"
+    },
+    {
+      "record_id": "bioenhancer_research",
+      "record_type": "bioenhancer_research",
+      "purpose": "Perform exactly one currently available zero-cost Bioenhancer Free Research 1x action from the direct Home route.",
+      "recurrence": "cooldown_pulse",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_LOCALIZED",
+          "HOME_CANONICAL"
+        ],
+        "target": "RESEARCH_LAB",
+        "route": [
+          "RESEARCH_LAB",
+          "BIOENHANCER"
+        ]
+      },
+      "objective": "bioenhancer_research_one_free_pulse",
+      "action": "dispatch_one_free_bioenhancer_research",
+      "target": {
+        "kind": "bioenhancer_research",
+        "eligibility": "one_free_attempt_available",
+        "control": "Free Research 1x",
+        "quantity": 1
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_cost_free_bioenhancer_research",
+          "amount": 0,
+          "unit": "Free Research 1x",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "cooldown_successor_required": true,
+        "count_text_not_sufficient": true,
+        "dispatch_is_not_success_proof": true,
+        "success_requires": "positive_free_cooldown_successor",
+        "paid_fallback": false,
+        "ten_x_fallback": false,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "paid research",
+        "Research 10x",
+        "unknown cost",
+        "unknown control",
+        "contradictory research state",
+        "stale target",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Bioenhancer is a direct product action; aggregate Daily Claim remains the sole Claim and point owner."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:bioenhancer-one-free-research-pulse",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-bioenhancer-free-research-cooldown",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "bioenhancer_research-v1",
+      "record_digest": "5f36370751b2ff5071c0f42fbe15a28a3c628b28aa1ecf588337f5d32cb61207"
+    },
+    {
+      "record_id": "troop_training",
+      "record_type": "troop_training",
+      "purpose": "Maintain one configured Troop Training queue or reset-bounded daily pass across four independently configured troop types.",
+      "recurrence": "queue_slot_and_daily_reset",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "TRAINING_FACILITIES",
+        "route": [
+          "TRAINING_FACILITIES"
+        ]
+      },
+      "objective": "troop_training_queue_or_daily_pass",
+      "action": "dispatch_one_configured_troop_training_action",
+      "target": {
+        "kind": "troop_training",
+        "facility_entry": "one_canonical_home_atlas_training_route",
+        "known_resources": [
+          "food",
+          "wood",
+          "steel",
+          "gas"
+        ],
+        "per_type_contract": {
+          "fighter": {
+            "enabled": true,
+            "target_tier": 8,
+            "quantity_mode": "current_max",
+            "training_policy": "continuous",
+            "allow_resource_boxes": true
+          },
+          "vehicle": {
+            "enabled": true,
+            "target_tier": 1,
+            "quantity_mode": "current_max",
+            "training_policy": "continuous",
+            "allow_resource_boxes": true
+          },
+          "shooter": {
+            "enabled": true,
+            "target_tier": 8,
+            "quantity": 250,
+            "quantity_mode": "fixed",
+            "training_policy": "once_daily",
+            "allow_resource_boxes": false
+          },
+          "rider": {
+            "enabled": true,
+            "target_tier": 1,
+            "quantity": 250,
+            "quantity_mode": "fixed",
+            "training_policy": "once_daily",
+            "allow_resource_boxes": false
+          }
+        }
+      },
+      "quantity_cost": {
+        "quantity": "per_type_configured",
+        "cost": {
+          "kind": "known_base_resources",
+          "amount": "per_type_configured",
+          "unit": "Food/Wood/Steel/Gas",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "queue_slot_effect": true,
+        "active_queue_successor_required": true,
+        "positive_timer_spatial_association_required": true,
+        "current_max_numeric_reconciliation_required": true,
+        "fixed_quantity_exact_required": true,
+        "known_resources_required": true,
+        "resource_box_policy_bound": true,
+        "once_daily_reset_identity_bound": true,
+        "continuous_policy_repeats_when_slot_available": true,
+        "dispatch_is_not_success_proof": true,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Train Now",
+        "premium",
+        "speedup",
+        "Cash Mall",
+        "Shooter or Rider resource boxes",
+        "unknown tier",
+        "unknown quantity",
+        "unknown resource",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Troop Training is a direct queue or reset-bounded action; aggregate Daily Claim remains the sole ordinary row Claim owner."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:troop-training-four-type-policy",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-troop-training-queue-and-timer",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "troop_training-v1",
+      "record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537"
+    },
+    {
+      "record_id": "hero_duel",
+      "record_type": "hero_duel",
+      "purpose": "Record an unresolved, evidence-gated Hero Duel participation candidate without authorizing PvP entry, lineup change, combat, or resource spend.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "HERO_DUEL",
+        "route": [
+          "HERO_DUEL"
+        ]
+      },
+      "objective": "join_hero_duel",
+      "action": "observe_one_hero_duel_candidate",
+      "target": {
+        "kind": "hero_duel",
+        "event_identity": "unknown_current_hero_duel_event",
+        "event_active": null,
+        "target_identity": "HERO_DUEL_JOIN",
+        "candidate_attempts_remaining": null,
+        "daily_progress_before": 0,
+        "daily_completion_target": 3,
+        "policy_status": "prohibited",
+        "pvp_entry_allowed": false,
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "prohibited_pvp_cost",
+          "amount": null,
+          "unit": "NO_PVP_RESOURCE_SPEND",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "exact_event_evidence_required": true,
+        "event_active_evidence_required": true,
+        "free_opponent_evidence_required": true,
+        "join_control_evidence_required": true,
+        "attempts_remaining_evidence_required": true,
+        "participation_successor_required": true,
+        "daily_progress_successor_required": true,
+        "daily_progress_maximum": 3,
+        "pvp_entry_allowed": false,
+        "combat_dispatch_allowed": false,
+        "lineup_change_allowed": false,
+        "canonical_home_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "none",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Join",
+        "PvP entry",
+        "combat dispatch",
+        "lineup change",
+        "attack",
+        "loss consequence",
+        "premium opponent",
+        "unknown event",
+        "ambiguous event",
+        "inactive event",
+        "unknown opponent",
+        "ambiguous opponent",
+        "unknown attempts",
+        "insufficient attempts",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Hero Duel candidate owns no Daily Claim or points; aggregate_daily_claim remains the sole ordinary Claim owner."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:hero-duel-pvp-prohibited-until-approved",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-hero-duel-surface",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "hero_duel-v1",
+      "record_digest": "1548299f91f76c377167b8a0bef74c62d241886c3198753eb5dd65cb3c9efc12"
+    },
+    {
+      "record_id": "hero_upgrade",
+      "record_type": "hero_upgrade",
+      "purpose": "Record approved three-per-reset Wali Hero Upgrade semantics while keeping runtime dispatch disabled until native evidence and route admission.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "HERO",
+        "route": [
+          "HERO"
+        ]
+      },
+      "objective": "upgrade_hero",
+      "action": "observe_one_hero_upgrade_candidate",
+      "target": {
+        "kind": "hero_upgrade",
+        "hero_identity": "Wali",
+        "hero_selected": true,
+        "current_level": null,
+        "target_level": null,
+        "target_identity": "HERO_UPGRADE",
+        "candidate_material": "standard_hero_material",
+        "candidate_amount": null,
+        "candidate_balance": null,
+        "daily_progress_before": 0,
+        "daily_completion_target": 3,
+        "policy_status": "explicitly_approved",
+        "upgrade_dispatch_allowed": false,
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "standard_hero_material_first",
+          "amount": null,
+          "unit": "STANDARD_HERO_MATERIAL",
+          "free_only": false
+        },
+        "diamond_reset_exception": {
+          "allowed": true,
+          "amount": 150,
+          "unit": "DIAMONDS",
+          "only_when_needed": true,
+          "maximum_per_reset": 1
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "exact_hero_evidence_required": true,
+        "exact_level_evidence_required": true,
+        "exact_material_evidence_required": true,
+        "exact_cost_evidence_required": true,
+        "balance_evidence_required": true,
+        "level_successor_required": true,
+        "daily_progress_successor_required": true,
+        "daily_progress_maximum": 3,
+        "standard_material_first": true,
+        "diamond_reset_exception_allowed": true,
+        "diamond_reset_exception_amount": 150,
+        "diamond_reset_exception_only_when_needed": true,
+        "diamond_reset_exception_maximum_per_reset": 1,
+        "upgrade_dispatch_allowed": false,
+        "native_evidence_required": true,
+        "material_delta_required_for_upgrade_proof": true,
+        "hero_level_delta_required_for_upgrade_proof": true,
+        "canonical_home_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "none",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Upgrade dispatch before native evidence and route admission",
+        "premium material",
+        "premium currency outside the 150-diamond reset exception",
+        "unknown hero",
+        "ambiguous hero",
+        "unknown level",
+        "ambiguous level",
+        "unknown material",
+        "ambiguous material",
+        "unknown cost",
+        "ambiguous cost",
+        "insufficient material balance",
+        "unbounded diamond spend",
+        "diamond reset without need",
+        "diamond reset above 150",
+        "repeated 150-diamond reset exception",
+        "daily progress greater than three",
+        "hero level delta without material delta",
+        "material delta without hero level successor",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Hero Upgrade product semantics own three Wali upgrades per reset; aggregate_daily_claim remains the sole ordinary Claim owner."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:hero-upgrades-wali-three-per-reset",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-hero-upgrade-surface",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "hero_upgrade-v2",
+      "record_digest": "3eaddcecb4a075404bfc1ccfbcc8a55ba09bd167a89604646878a12f9822306f"
+    },
+    {
+      "record_id": "alliance_shop_purchase",
+      "record_type": "alliance_shop_purchase",
+      "purpose": "Record an unresolved, evidence-gated Alliance Shop purchase candidate without authorizing currency spend or Buy dispatch.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "ALLIANCE_SHOP",
+        "route": [
+          "ALLIANCE_SHOP"
+        ]
+      },
+      "objective": "alliance_shop_purchase",
+      "action": "observe_one_alliance_shop_purchase_candidate",
+      "target": {
+        "kind": "alliance_shop_purchase",
+        "shop": "ALLIANCE_SHOP",
+        "candidate_item": "unknown_current_alliance_shop_item",
+        "candidate_currency": "unknown_current_joy_coin_or_alliance_coin",
+        "candidate_cost": null,
+        "quantity": 1,
+        "policy_status": "unresolved_user_decision",
+        "purchase_dispatch_allowed": false,
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "unresolved_currency_cost",
+          "amount": null,
+          "unit": "UNKNOWN_CURRENT_JOY_COIN_OR_ALLIANCE_COIN",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "offer_observation_successor_required": true,
+        "exact_item_evidence_required": true,
+        "exact_currency_evidence_required": true,
+        "exact_cost_evidence_required": true,
+        "balance_evidence_required": true,
+        "quantity_one_required": true,
+        "purchase_dispatch_allowed": false,
+        "currency_delta_required_for_purchase_proof": true,
+        "item_delta_required_for_purchase_proof": true,
+        "canonical_home_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "none",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Buy",
+        "purchase dispatch",
+        "currency spend",
+        "premium offer",
+        "unknown item",
+        "ambiguous item",
+        "unknown currency",
+        "ambiguous currency",
+        "unknown cost",
+        "ambiguous cost",
+        "insufficient balance",
+        "quantity greater than one",
+        "currency delta without item successor",
+        "item successor without currency delta",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Alliance Shop candidate remains unresolved and owns no Daily Claim or points."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:alliance-shop-no-dispatch-until-allowlist",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-alliance-shop-offer-surface",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "alliance_shop_purchase-v1",
+      "record_digest": "98c96f0ffc299f9fe2be981ced97e8ff3a387f00562b7799902d4cb2f96e8bef"
+    },
+    {
+      "record_id": "rare_earth_shop_purchase",
+      "record_type": "rare_earth_shop_purchase",
+      "purpose": "Record an unresolved, evidence-gated Rare Earth Shop purchase candidate without authorizing currency spend or Buy dispatch.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "RARE_EARTH_SHOP",
+        "route": [
+          "RARE_EARTH_SHOP"
+        ]
+      },
+      "objective": "rare_earth_shop_purchase",
+      "action": "observe_one_rare_earth_shop_purchase_candidate",
+      "target": {
+        "kind": "rare_earth_shop_purchase",
+        "shop": "RARE_EARTH_SHOP",
+        "candidate_item": "unknown_current_three_star_item",
+        "candidate_rarity": "3_STAR",
+        "candidate_currency": "unknown_current_currency",
+        "candidate_cost": null,
+        "quantity": 1,
+        "policy_status": "unresolved_user_decision",
+        "purchase_dispatch_allowed": false,
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "unresolved_currency_cost",
+          "amount": null,
+          "unit": "UNKNOWN_CURRENT_CURRENCY",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "offer_observation_successor_required": true,
+        "exact_item_evidence_required": true,
+        "exact_cost_evidence_required": true,
+        "balance_evidence_required": true,
+        "quantity_one_required": true,
+        "purchase_dispatch_allowed": false,
+        "currency_delta_required_for_purchase_proof": true,
+        "item_delta_required_for_purchase_proof": true,
+        "canonical_home_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "none",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Buy",
+        "purchase dispatch",
+        "currency spend",
+        "premium offer",
+        "unknown item",
+        "ambiguous item",
+        "unknown cost",
+        "ambiguous cost",
+        "unknown currency",
+        "insufficient balance",
+        "quantity greater than one",
+        "currency delta without item successor",
+        "item successor without currency delta",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Rare Earth Shop candidate remains unresolved and owns no Daily Claim or points."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:rare-earth-shop-no-dispatch-until-allowlist",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-rare-earth-shop-offer-surface",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "rare_earth_shop_purchase-v1",
+      "record_digest": "47c28608b0b5e9471ad7c912e6f0fafca3d64aff49d1c1f34c4ebb3a22911904"
+    },
+    {
+      "record_id": "ruins_shop_purchase",
+      "record_type": "ruins_shop_purchase",
+      "purpose": "Record an unresolved, evidence-gated Ruins Shop purchase candidate without authorizing currency spend or Buy dispatch.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "RUINS_SHOP",
+        "route": [
+          "RUINS_SHOP"
+        ]
+      },
+      "objective": "ruins_shop_purchase",
+      "action": "observe_one_ruins_shop_purchase_candidate",
+      "target": {
+        "kind": "ruins_shop_purchase",
+        "shop": "RUINS_SHOP",
+        "candidate_item": "three_star_chip_material",
+        "candidate_currency": "RUINS_COINS",
+        "candidate_cost": 15,
+        "quantity": 1,
+        "policy_status": "unresolved_user_decision",
+        "purchase_dispatch_allowed": false,
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "candidate_currency_cost",
+          "amount": 15,
+          "unit": "RUINS_COINS",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "offer_observation_successor_required": true,
+        "exact_cost_evidence_required": true,
+        "balance_evidence_required": true,
+        "purchase_dispatch_allowed": false,
+        "currency_delta_required_for_purchase_proof": true,
+        "daily_progress_successor_required_for_purchase_proof": true,
+        "canonical_home_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "none",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Buy",
+        "purchase dispatch",
+        "currency spend",
+        "premium offer",
+        "unknown item",
+        "ambiguous item",
+        "unknown cost",
+        "ambiguous cost",
+        "insufficient balance",
+        "quantity greater than one",
+        "currency delta without item successor",
+        "item successor without currency delta",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Ruins Shop candidate remains unresolved and owns no Daily Claim or points."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:ruins-shop-no-dispatch-until-allowlist",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-ruins-shop-offer-surface",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "ruins_shop_purchase-v1",
+      "record_digest": "eadc1a6c93de0c64d9ad5a3143a99a6834cfcba5bbfd0dea964698b86dd42222"
+    },
+    {
+      "record_id": "nanoweapon_normal_craft",
+      "record_type": "nanoweapon_normal_craft",
+      "purpose": "Authorize one once-per-reset Normal Craft Nanoweapon action with exact nano-part and timer boundaries.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "NANOWEAPON",
+        "route": [
+          "GEAR_FACTORY",
+          "NANOWEAPON",
+          "NORMAL_CRAFT"
+        ]
+      },
+      "objective": "nanoweapon_daily_craft",
+      "action": "start_one_normal_nanoweapon_craft",
+      "target": {
+        "kind": "nanoweapon_normal_craft",
+        "craft_mode": "NORMAL_CRAFT",
+        "completed_claim_on_entry": true,
+        "parts_required": 100,
+        "parts_unit": "NANO_PARTS",
+        "maximum_active_crafts": 1,
+        "maximum_starts_per_reset": 1,
+        "craft_duration_seconds": 43200,
+        "exclusive_craft_allowed": false,
+        "rotating_display_selection_allowed": false,
+        "insufficient_parts_defer": true,
+        "disabled_craft_defer": true,
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "exact_material",
+          "amount": 100,
+          "unit": "NANO_PARTS",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "completed_claim_successor_required": true,
+        "exact_parts_consumption_required": true,
+        "single_active_craft_required": true,
+        "single_start_per_reset_required": true,
+        "exact_duration_required": true,
+        "craft_successor_required": true,
+        "daily_objective_successor_required": true,
+        "no_currency_box_or_item_input": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "none",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Material Production",
+        "Inherit",
+        "Exclusive Craft",
+        "rotating weapon display selection",
+        "unknown recipe",
+        "ambiguous recipe",
+        "insufficient nano parts",
+        "disabled Craft control",
+        "multiple active crafts",
+        "second craft in reset",
+        "currency",
+        "resource box",
+        "item",
+        "unknown craft result",
+        "ambiguous craft result",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "The bound contract carries selected Daily row identity; this direct product record owns no aggregate Daily Claim."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:nanoweapon-material-policy",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-nanoweapon-normal-craft",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "nanoweapon_normal_craft-v1",
+      "record_digest": "8f925c4e7156c65c8ef026f23074b6f691bb823233d1b12ba613661411ec8254"
+    },
+    {
+      "record_id": "nano_material_production",
+      "record_type": "nano_material_production",
+      "purpose": "Authorize independent zero-resource Nano Material Production maintenance with one exact six-hour batch.",
+      "recurrence": "cooldown_pulse",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "NANOWEAPON",
+        "route": [
+          "NANOWEAPON",
+          "MATERIAL_PRODUCTION"
+        ]
+      },
+      "objective": "nano_material_production_maintenance",
+      "action": "maintain_one_nano_material_production",
+      "target": {
+        "kind": "nano_material_production",
+        "tab": "MATERIAL_PRODUCTION",
+        "maximum_active_productions": 1,
+        "production_duration_seconds": 21600,
+        "completed_claim_allowed": true,
+        "idle_start_allowed": true,
+        "active_due_time_refresh_allowed": true,
+        "base_resource_cost": 0,
+        "boxes_allowed": false,
+        "currency_cost": 0,
+        "item_cost": 0,
+        "daily_craft_ownership": "separate_nanoweapon_product",
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_resource_maintenance",
+          "amount": 0,
+          "unit": "resource_or_currency",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "completed_claim_successor_allowed": true,
+        "idle_start_successor_allowed": true,
+        "active_due_time_successor_required": true,
+        "single_active_production_required": true,
+        "exact_duration_required": true,
+        "zero_resource_cost_required": true,
+        "canonical_home_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "none",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "base resource",
+        "resource box",
+        "currency",
+        "item",
+        "Normal Craft",
+        "Exclusive Craft",
+        "Daily nanoweapon craft",
+        "multiple active productions",
+        "wrong duration",
+        "unknown production state",
+        "ambiguous production state",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Nano Material Production is independent maintenance and owns no Daily objective or ordinary Claim."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:nano-material-production-maintenance",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-nanoweapon-material-production",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "nano_material_production-v1",
+      "record_digest": "49fe5e4486ea94482a076df2e0332640d74f6be8ef240bb509c29c8ee40198a2"
+    },
+    {
+      "record_id": "zombie_lair",
+      "record_type": "zombie_lair",
+      "purpose": "Authorize notification-driven Zombie Lair maintenance with bounded eligible joins and separate first-join Daily ownership.",
+      "recurrence": "home_notification_pulse",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "ZOMBIE_LAIR",
+        "route": [
+          "ZOMBIE_LAIR"
+        ]
+      },
+      "objective": "zombie_lair_quick_join",
+      "action": "join_one_eligible_zombie_lair",
+      "target": {
+        "kind": "zombie_lair",
+        "minimum_level": 30,
+        "maximum_level": 55,
+        "join_control": "QUICK_JOIN",
+        "stamina_per_join": 28,
+        "maximum_join_count": "min(eligible_count, floor(current_stamina/28))",
+        "formation": "quick_join_configured_formation",
+        "daily_completion_owner": "first_successful_eligible_join_per_reset",
+        "maintenance_owner": "home_notification_pulse",
+        "static_daily_row": "forbidden",
+        "level_60": "forbidden",
+        "stamina_refill": "forbidden",
+        "safe_terminal": [
+          "HOME_CANONICAL",
+          "SAFE_HOME_EQUIVALENT"
+        ]
+      },
+      "quantity_cost": {
+        "quantity": "bounded_eligible_joins",
+        "cost": {
+          "kind": "fixed_stamina_per_join",
+          "amount": 28,
+          "unit": "STAMINA",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "eligible_level_range_required": true,
+        "quick_join_identity_required": true,
+        "stamina_delta_required": true,
+        "daily_completion_successor_required": true,
+        "maintenance_successor_required": true,
+        "no_refill_required": true,
+        "no_level_60_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_ownership": "first_successful_eligible_join_per_reset",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "static Daily row launch",
+        "level 60",
+        "unknown level",
+        "ambiguous level",
+        "unknown stamina cost",
+        "stamina refill",
+        "item refill",
+        "currency refill",
+        "wrong formation",
+        "unknown successor",
+        "ambiguous successor",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": "first_successful_eligible_join_per_reset",
+        "point_credit_trigger": "first_successful_eligible_join_per_reset",
+        "selected_daily_prerequisite": false,
+        "notes": "The first successful eligible maintenance join owns Zombie Lair Daily completion; later Home notification pulses remain maintenance-owned."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:zombie-lair-level-stamina-march",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-home-zombie-lair-notification",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "zombie_lair-v1",
+      "record_digest": "e9a6c9b34e504fcd779138fdb872331a80a3c1f7b5384cd5ee0b10c5b0de7dab"
+    },
+    {
+      "record_id": "gathering_resources",
+      "record_type": "gathering_resources",
+      "purpose": "Authorize direct Home-to-World Wood, Steel, and Gas level-5 gathering with pulse, march-slot, timer, and current-frame safety semantics.",
+      "recurrence": "pulse_march_slot_timer",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY"
+        ],
+        "target": "WORLD",
+        "route": [
+          "WORLD",
+          "SEARCH",
+          "RESOURCE_CATEGORY",
+          "LEVEL_5_NODE",
+          "MARCH"
+        ]
+      },
+      "objective": "gather_resource_variant",
+      "action": "dispatch_one_gathering_march",
+      "target": {
+        "kind": "gathering_resource_node",
+        "supported_variants": [
+          "WOOD",
+          "STEEL",
+          "GAS"
+        ],
+        "level": 5,
+        "search_control": "WORLD_SEARCH",
+        "category_control": "RESOURCE_CATEGORY",
+        "gas_reveal": "one_bounded_left_swipe",
+        "node_binding": "current_frame_only",
+        "occupancy": "free_only",
+        "march_slot": "one_free_slot",
+        "formation": "default",
+        "source_daily_row_required": false,
+        "food_authority": "forbidden"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "no_resource_or_currency_cost",
+          "amount": 0,
+          "unit": "resource_or_currency",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "requested_variant_identity_required": true,
+        "level_5_node_identity_required": true,
+        "free_occupancy_successor_required": true,
+        "march_identity_successor_required": true,
+        "free_march_slot_required": true,
+        "default_formation_required": true,
+        "outbound_timer_successor_required": true,
+        "return_timer_successor_required": true,
+        "terminal_home_successor_required": true,
+        "resource_progress_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "daily_progress_ownership": "separate_catalog_reconciliation",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Food",
+        "unknown resource",
+        "ambiguous resource",
+        "wrong level",
+        "non-level-5 node",
+        "occupied node",
+        "already-targeted node",
+        "existing march override",
+        "no free march slot",
+        "non-default formation",
+        "stale node frame",
+        "Gas without bounded left swipe",
+        "attack",
+        "combat",
+        "unknown target",
+        "ambiguous popup",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Wood, Steel, and Gas catalog progress is reconciled separately from ordinary Claim ownership; Food is not an admitted gathering variant."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:gathering-resource-node-march-policy",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-search-level5-node-and-march",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "gathering_resources-v2",
+      "record_digest": "5c65405bc13a7df05d1e4f3a01f8719b0dc3fc564f0f10b9aae13b1664f4143b"
+    },
+    {
+      "record_id": "world_map_navigation",
+      "record_type": "world_map_navigation",
+      "purpose": "Validate one HUD Home-ready to World Search to Home navigation round trip without gameplay dispatch.",
+      "recurrence": "navigation_session",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY"
+        ],
+        "target": "WORLD",
+        "route": [
+          "WORLD",
+          "SEARCH",
+          "WORLD",
+          "HOME"
+        ]
+      },
+      "objective": "world_map_navigation_round_trip",
+      "action": "navigate_world_search_round_trip",
+      "target": {
+        "kind": "world_map_navigation",
+        "home_to_world_control": "HOME_TO_WORLD",
+        "search_control": "WORLD_SEARCH",
+        "world_to_home_control": "WORLD_TO_HOME",
+        "atlas_authority": "out_of_scope",
+        "march_authority": "forbidden"
+      },
+      "quantity_cost": {
+        "quantity": 0,
+        "cost": {
+          "kind": "none",
+          "amount": 0,
+          "unit": "none",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "navigation_only": true,
+        "world_successor_required": true,
+        "search_successor_required": true,
+        "home_successor_required": true,
+        "popup_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "no_resource_input": true,
+        "no_march_input": true,
+        "no_attack_input": true,
+        "no_stamina_input": true,
+        "no_ap_input": true,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "resource node selection",
+        "march",
+        "attack",
+        "stamina",
+        "AP",
+        "currency",
+        "combat",
+        "unknown target",
+        "ambiguous popup",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "World navigation is a non-Daily navigation foundation; it grants no Daily progress and authorizes no gameplay action."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:world-map-navigation-only",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-world-hud-search-controls",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "world_map_navigation-v1",
+      "record_digest": "c9dfe10930bc432630388d5edaabcdc294c8925a1d8c2e24d7b1255be07b5418"
+    },
+    {
+      "record_id": "vip_points_popup_dismissal",
+      "record_type": "vip_points_popup_dismissal",
+      "purpose": "Validate one allowlisted VIP Get Pts popup dismissal without resource or combat behavior.",
+      "recurrence": "navigation_session",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_LOCALIZED",
+          "HOME_CANONICAL"
+        ],
+        "target": "HOME",
+        "route": [
+          "VIP_POINTS_POPUP"
+        ]
+      },
+      "objective": "vip_points_popup_dismissal",
+      "action": "dismiss_one_allowlisted_vip_points_popup",
+      "target": {
+        "kind": "vip_points_popup",
+        "popup_identity": "VIP_POINTS_GET_PTS",
+        "close_control": "RESET_POPUP_CLOSE",
+        "eligibility": "fresh_current_frame_allowlisted_popup",
+        "maximum_inputs": 1,
+        "successor": "recognized_source_context_without_popup"
+      },
+      "quantity_cost": {
+        "quantity": 0,
+        "cost": {
+          "kind": "none",
+          "amount": 0,
+          "unit": "none",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "navigation_only": true,
+        "popup_absent_successor_required": true,
+        "source_context_successor_required": true,
+        "bounded_single_close": true,
+        "no_resource_input": true,
+        "no_march_input": true,
+        "no_attack_input": true,
+        "no_stamina_input": true,
+        "no_ap_input": true,
+        "no_currency_input": true,
+        "dispatch_is_not_success_proof": true,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "unknown popup",
+        "ambiguous popup",
+        "generic close",
+        "multiple popup inputs",
+        "resource input",
+        "march input",
+        "attack input",
+        "stamina input",
+        "AP input",
+        "currency input",
+        "combat",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "VIP popup dismissal is navigation-only shared prerequisite and never owns Daily progress or claim credit."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:vip-get-points-popup-dismissal",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-vip-get-points-popup",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "vip_points_popup_dismissal-v1",
+      "record_digest": "8a404595f42795568e9fa469a9e5b91f3dce6a542e70218f7956ab338d5b4a60"
+    },
+    {
+      "record_id": "campaign_ap",
+      "record_type": "campaign_ap",
+      "purpose": "Run bounded Campaign AP Auto Battle on an approved configured Story stage while AP covers its verified cost.",
+      "recurrence": "pulse_driven_ap_recovery",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "CAMPAIGN",
+        "route": [
+          "CAMPAIGN",
+          "STORY",
+          "CONFIGURED_STAGE"
+        ]
+      },
+      "objective": "campaign_ap_auto_battle",
+      "action": "dispatch_campaign_ap_auto_battle",
+      "target": {
+        "kind": "campaign_ap",
+        "eligibility": "current_ap_covers_configured_stage_cost",
+        "control": "Auto Battle",
+        "quantity": 1,
+        "supported_story_destinations": [
+          "1-20-9",
+          "1-15-9",
+          "2-2-9"
+        ],
+        "stage_costs": {
+          "1-15-9": 14,
+          "1-20-9": 16,
+          "2-2-9": 20
+        },
+        "maximum_ap": 120,
+        "refill_allowed": false,
+        "execution_mode": "auto_battle"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "owned_campaign_ap",
+          "amount": "configured_stage_cost",
+          "unit": "AP",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "maximum_ap": 120,
+        "regeneration_seconds_per_ap": 360,
+        "exact_stage_cost_required": true,
+        "exact_ap_delta_required": true,
+        "result_successor_required": true,
+        "repeat_while_affordable": true,
+        "no_refill": true,
+        "dispatch_is_not_success_proof": true,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Sweep",
+        "Blitz",
+        "Auto Complete",
+        "AP refill",
+        "unknown stage",
+        "unknown cost",
+        "Ultimate Challenge",
+        "identical retry",
+        "real-money confirmation"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Campaign AP owns direct AP execution only; aggregate Daily Claim remains the sole ordinary row Claim owner."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:campaign-ap-budget-and-auto-battle",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-campaign-ap-stage-and-result",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "campaign_ap-v1",
+      "record_digest": "e8a41e45fb42d473145cd16c3c5914287a6f4eac58359cc363963b0d63a84362"
+    },
+    {
+      "record_id": "noahs_tavern_recruitment",
+      "record_type": "noahs_tavern_recruitment",
+      "purpose": "Maintain the Recruitment Daily Basic-five objective and independent zero-cost Basic, Intermediate, and Advanced single-recruit windows from Noah's Tavern.",
+      "recurrence": "daily_reset_and_independent_cooldown_pulse",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_READY",
+          "HOME_LOCALIZED",
+          "HOME_CANONICAL"
+        ],
+        "target": "NOAHS_TAVERN",
+        "route": [
+          "NOAHS_TAVERN"
+        ]
+      },
+      "objective": "noahs_tavern_recruitment",
+      "action": "dispatch_one_free_recruitment_single",
+      "target": {
+        "kind": "noahs_tavern_recruitment",
+        "eligibility": "one_current_tier_free_single_available",
+        "control": "Free single",
+        "quantity": 1,
+        "tier_selection_required": true,
+        "tiers": {
+          "basic": {
+            "free_attempts_per_reset": 5,
+            "cooldown_seconds": 600,
+            "owns_daily_completion": true
+          },
+          "intermediate": {
+            "free_attempts_per_window": 1,
+            "cooldown_seconds": 86400,
+            "owns_daily_completion": false
+          },
+          "advanced": {
+            "free_attempts_per_window": 1,
+            "cooldown_seconds": 172800,
+            "owns_daily_completion": false
+          }
+        }
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "zero_cost_free_recruitment_single",
+          "amount": 0,
+          "unit": "Free single",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "basic_daily_ceiling": 5,
+        "basic_cooldown_seconds": 600,
+        "intermediate_cooldown_seconds": 86400,
+        "advanced_cooldown_seconds": 172800,
+        "reset_bound_basic_progress": true,
+        "independent_tier_cooldowns": true,
+        "tier_state_persisted": true,
+        "current_tier_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "success_requires": "positive_same_tier_recruit_result_and_free_attempt_successor",
+        "paid_fallback": false,
+        "premium_fallback": false,
+        "item_backed_fallback": false,
+        "ten_x_fallback": false,
+        "identical_retry": false,
+        "basic_owns_daily_completion": true,
+        "intermediate_owns_daily_completion": false,
+        "advanced_owns_daily_completion": false
+      },
+      "forbidden_actions": [
+        "paid recruitment",
+        "premium recruitment",
+        "item-backed recruitment",
+        "Recruitment 10x",
+        "ambiguous cost",
+        "unknown control",
+        "contradictory recruitment state",
+        "stale target",
+        "identical retry",
+        "real-money confirmation",
+        "Intermediate Daily completion",
+        "Advanced Daily completion"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": "five_basic_free_singles_per_reset",
+        "point_credit_trigger": "five_basic_recruit_successors",
+        "selected_daily_prerequisite": false,
+        "notes": "Only Basic free singles own the Recruitment Daily objective; Intermediate and Advanced maintenance remain independent and never claim Daily completion or points."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:recruitment-basic-five-and-three-tier-maintenance",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-noahs-tavern-free-single-tiers",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "noahs_tavern_recruitment-v1",
+      "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
+    }
+  ],
+  "authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3"
 }

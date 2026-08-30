@@ -3,11 +3,74 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
+import shutil
 import subprocess
 from types import SimpleNamespace
 from typing import Any, Mapping
+from automation_service.registry import (
+    NOVA_FLOW_ID,
+    NOVA_HANDLER_ID,
+    NOVA_PHASE_MODE,
+    NOVA_PRODUCT_ID,
+    NOVA_PRODUCT_REVISION,
+    NOVA_PROFILE_ID,
+    RegisteredDispatchSnapshot,
+)
+
+
+_REGISTRATION_FIELDS = frozenset(
+    {
+        "flow_id",
+        "product_id",
+        "product_revision",
+        "production_handler",
+        "profile",
+        "mode",
+        "registration_status",
+        "scheduler_eligible",
+    }
+)
+
+
+def _validated_registration_snapshot(
+    value: object,
+    *,
+    require_typed: bool = False,
+) -> dict[str, Any]:
+    """Rehydrate only the exact consumed Nova registration snapshot."""
+
+    if require_typed and not isinstance(value, RegisteredDispatchSnapshot):
+        raise _pnsctl().OperatorError(
+            "Nova live execution requires the atomically consumed registration snapshot"
+        )
+    try:
+        snapshot = (
+            value
+            if isinstance(value, RegisteredDispatchSnapshot)
+            else RegisteredDispatchSnapshot.from_mapping(value)  # type: ignore[arg-type]
+        )
+        mapping = snapshot.to_mapping()
+    except (TypeError, ValueError, KeyError) as exc:
+        raise _pnsctl().OperatorError(
+            "Nova dispatch registration snapshot is incomplete or invalid"
+        ) from exc
+    if set(mapping) != _REGISTRATION_FIELDS or mapping != {
+        "flow_id": NOVA_FLOW_ID,
+        "product_id": NOVA_PRODUCT_ID,
+        "product_revision": NOVA_PRODUCT_REVISION,
+        "production_handler": NOVA_HANDLER_ID,
+        "profile": NOVA_PROFILE_ID,
+        "mode": NOVA_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    }:
+        raise _pnsctl().OperatorError(
+            "Nova dispatch registration snapshot is not the fixed Nova binding"
+        )
+    return mapping
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -62,6 +125,121 @@ def _identity(lease: Mapping[str, Any]) -> Any:
             "Nova development-session reset_id does not match verified identity"
         )
     return identity
+
+
+def _outer_session(lease: Mapping[str, Any]) -> Any:
+    from scripts.navigation_development_boundary import DevelopmentSession
+
+    session = lease.get("development_session")
+    if (
+        not isinstance(session, DevelopmentSession)
+        or session.is_active is not True
+        or str(session.owner) != f"pnsctl-development-session:{FLOW_ID}"
+        or not callable(getattr(session, "run_action", None))
+    ):
+        raise _pnsctl().OperatorError(
+            "Nova Praise requires the active pnsctl-owned DevelopmentSession"
+        )
+    return session
+
+
+def _initial_observation(lease: Mapping[str, Any], session: Any) -> dict[str, Any]:
+    from scripts.navigation_development_boundary import DevelopmentInitialObservation
+
+    value = lease.get("initial_observation")
+    bound = session.initial_observation
+    if not isinstance(value, DevelopmentInitialObservation):
+        raise _pnsctl().OperatorError(
+            "Nova Praise initial observation must be typed session evidence"
+        )
+    if not isinstance(bound, DevelopmentInitialObservation) or value is not bound:
+        raise _pnsctl().OperatorError(
+            "Nova Praise initial observation is not exactly session-bound"
+        )
+    digest = str(value.frame_sha256 or "")
+    if (
+        len(digest) != 64
+        or digest != str(lease.get("initial_frame_sha256") or "")
+        or value.invocation_id != session.invocation_id
+    ):
+        raise _pnsctl().OperatorError(
+            "Nova Praise initial observation hash or invocation binding is invalid"
+        )
+    return value.to_mapping()
+
+
+def _read_events(session: Path) -> list[dict[str, Any]]:
+    events = session / "events.jsonl"
+    if not events.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in events.read_text(encoding="utf-8").splitlines():
+        row = json.loads(line) if line.strip() else {}
+        if isinstance(row, dict) and row:
+            rows.append(row)
+    return rows
+
+
+def _retained_transport_count(session: Path) -> int:
+    return sum(
+        row.get("type") == "dispatch" and row.get("execute") is not False
+        for row in _read_events(session)
+    )
+
+
+def _retained_praise_count(session: Path, action_key: str) -> int:
+    return sum(
+        row.get("type") == "dispatch"
+        and row.get("execute") is not False
+        and row.get("consequential") is True
+        and row.get("action_key") == action_key
+        for row in _read_events(session)
+    )
+
+
+def _write_read_only_causal_trace(
+    session: Path,
+    *,
+    flow_result: Mapping[str, Any],
+    initial_observation: Mapping[str, Any],
+    registration_snapshot: object | None = None,
+) -> dict[str, Any]:
+    events = _read_events(session)
+    trace = {
+        "schema_version": 1,
+        "trace_count": 1,
+        "read_only": True,
+        "input_authority": False,
+        "stages": [
+            "observation",
+            "home_atlas_navigation",
+            "praise_intent",
+            "current_frame_target_binding",
+            "transport",
+            "attempts_cooldown_successor",
+            "terminal_home",
+        ],
+        "proof_topology": "continuous",
+        "flow_id": FLOW_ID,
+        "scheduler_enabled": False,
+        "invocation_id": str(initial_observation.get("invocation_id") or ""),
+        "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
+        "transport_count": _retained_transport_count(session),
+        "praise_transport_calls": int(flow_result.get("praise_transport_calls") or 0),
+        "event_count": len(events),
+        "status": str(flow_result.get("status") or "unknown"),
+        "effect_reconciliation_required": bool(
+            flow_result.get("effect_reconciliation_required")
+        ),
+    }
+    if registration_snapshot is not None:
+        snapshot = _validated_registration_snapshot(registration_snapshot)
+        trace["registration_snapshot"] = snapshot
+        trace["dispatch_registration"] = dict(snapshot)
+    (session / "causal-trace.json").write_text(
+        json.dumps(trace, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return trace
 
 
 def _candidate_commit() -> str:
@@ -146,6 +324,9 @@ def _write_delivery_result(
         raise _pnsctl().OperatorError(
             "Nova Praise development-session produced no native frame evidence"
         )
+    snapshot = None
+    if result.get("production_registration") == "REGISTERED":
+        snapshot = _validated_registration_snapshot(result.get("registration_snapshot"))
     payload = {
         "schema_version": 1,
         "flow_id": FLOW_ID,
@@ -186,10 +367,30 @@ def _write_delivery_result(
         + int(result.get("praise_transport_calls") or 0),
         "max_inputs": maximum,
         "praise_transport_calls": int(result.get("praise_transport_calls") or 0),
+        "attempts_before": result.get("attempts_before"),
+        "attempts_after": result.get("attempts_after"),
+        "cooldown_seconds": result.get("cooldown_seconds"),
+        "action_id": result.get("action_id"),
+        "action_key": result.get("action_key"),
+        "journal_status": result.get("journal_status"),
+        "terminal_home_verified": result.get("terminal_home_verified") is True,
+        "proof_topology": str(result.get("proof_topology") or "continuous"),
+        "initial_observation": result.get("initial_observation"),
+        "initial_frame_sha256": str(result.get("initial_frame_sha256") or ""),
+        "causal_trace_count": int(result.get("causal_trace_count") or 1),
+        "causal_trace": result.get("causal_trace"),
+        "effect_reconciliation_required": bool(
+            result.get("effect_reconciliation_required")
+        ),
         "candidate_commit": candidate_commit,
-        "production_registration": "NOT_REGISTERED",
+        "production_registration": result.get(
+            "production_registration", "NOT_REGISTERED"
+        ),
         "scheduler_enabled": False,
     }
+    if snapshot is not None:
+        payload["registration_snapshot"] = dict(snapshot)
+        payload["dispatch_registration"] = dict(snapshot)
     (session / "flow-delivery-result.json").write_text(
         json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
@@ -224,6 +425,11 @@ def run_nova_praise_supervised_one_free_pulse(
             sort_keys=True,
         )
 
+    registration_snapshot = _validated_registration_snapshot(
+        lease.get("registration_snapshot"), require_typed=True
+    )
+    outer_session = _outer_session(lease)
+    initial_observation = _initial_observation(lease, outer_session)
     candidate_commit = _candidate_commit()
     reset_id = pnsctl._validate_nova_reset_id(identity.reset_id)
     pnsctl._create_nova_supervised_invocation_guard(
@@ -261,6 +467,13 @@ def run_nova_praise_supervised_one_free_pulse(
             )
         navigation = int(result.get("navigation_input_count") or 0)
         praise = int(result.get("praise_transport_calls") or 0)
+        runtime_session = Path(session) if session else Path(outer_session.session_directory)
+        source_path = Path(outer_session.session_directory) / "source.png"
+        if session and source_path.is_file():
+            retained_initial = runtime_session / "frames" / "0000-initial-observation.png"
+            retained_initial.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source_path, retained_initial)
+            initial_observation["frame_path"] = "frames/0000-initial-observation.png"
         if navigation + praise > maximum:
             raise pnsctl.OperatorError(
                 "Nova development-session exceeded its max_inputs ceiling"
@@ -269,18 +482,70 @@ def run_nova_praise_supervised_one_free_pulse(
             raise pnsctl.OperatorError(
                 "Nova development-session exceeded its one-Praise ceiling"
             )
+        retained_transport = _retained_transport_count(runtime_session)
+        action_key = str(result.get("action_key") or "")
+        retained_praise = _retained_praise_count(runtime_session, action_key)
+        if retained_transport != navigation + praise:
+            raise pnsctl.OperatorError(
+                "Nova retained transport count does not match route accounting"
+            )
+        if retained_praise != praise:
+            raise pnsctl.OperatorError(
+                "Nova retained Praise dispatch count does not match route accounting"
+            )
+        semantic_success = bool(
+            result.get("status") == "completed"
+            and praise == MAX_PRAISE
+            and pnsctl._supervised_pulse_completed_facts_ok(result)
+        )
+        if praise and not semantic_success:
+            result["status"] = "effect_reconciliation_required"
+            result["effect_reconciliation_required"] = True
+            result["reason"] = str(
+                result.get("reason") or "praise_effect_requires_reconciliation"
+            )
+        else:
+            result["effect_reconciliation_required"] = False
         result["flow_id"] = FLOW_ID
         result["scenario_id"] = SCENARIO_ID
         result["reset_id"] = reset_id
         result["candidate_commit"] = candidate_commit
         result["max_inputs"] = maximum
-        result["production_registration"] = "NOT_REGISTERED"
+        result["production_registration"] = "REGISTERED"
         result["scheduler_enabled"] = False
+        result["registration_snapshot"] = dict(registration_snapshot)
+        result["dispatch_registration"] = dict(registration_snapshot)
+        result["proof_topology"] = "continuous"
+        result["initial_observation"] = initial_observation
+        result["initial_frame_sha256"] = initial_observation["frame_sha256"]
         if session:
             result["scenario_record"] = _scenario_record(
                 result,
                 candidate_commit=candidate_commit,
                 session=session,
+            )
+            trace = _write_read_only_causal_trace(
+                runtime_session,
+                flow_result=result,
+                initial_observation=initial_observation,
+                registration_snapshot=registration_snapshot,
+            )
+            result["causal_trace_count"] = 1
+            result["causal_trace"] = trace
+            outer_session.set_causal_trace(trace)
+            outer_session.remember_control("nova_praise_route_status", result.get("status"))
+            outer_session.remember_control(
+                "target_history",
+                [
+                    str(row.get("label") or row.get("action_key") or "")
+                    for row in outer_session.actions
+                ],
+            )
+            outer_session.remember_control(
+                "recovery_result",
+                "verified_home"
+                if result.get("status") == "completed"
+                else result.get("reason"),
             )
             persisted = pnsctl._persist_nova_session_result(
                 session,
@@ -295,11 +560,8 @@ def run_nova_praise_supervised_one_free_pulse(
                 maximum=maximum,
                 candidate_commit=candidate_commit,
             )
-        if (
-            result.get("status") == "completed"
-            and result.get("praise_transport_calls") == MAX_PRAISE
-            and pnsctl._supervised_pulse_completed_facts_ok(result)
-        ):
+        result_status = str(result.get("status") or "blocked")
+        if semantic_success:
             terminal_status = "completed"
         elif int(result.get("praise_transport_calls") or 0) > 0:
             terminal_status = "unresolved"
@@ -319,6 +581,35 @@ def run_nova_praise_supervised_one_free_pulse(
         )
 
 
+def _registration_evidence_valid(
+    result: Mapping[str, Any], trace: object
+) -> tuple[bool, dict[str, Any] | None]:
+    if result.get("production_registration") != "REGISTERED":
+        return False, None
+    if (
+        result.get("scheduler_enabled") is not False
+        or not isinstance(trace, Mapping)
+        or trace.get("scheduler_enabled") is not False
+    ):
+        return False, None
+    aliases = (
+        result.get("registration_snapshot"),
+        result.get("dispatch_registration"),
+        trace.get("registration_snapshot"),
+        trace.get("dispatch_registration"),
+    )
+    if any(value is None for value in aliases):
+        return False, None
+    try:
+        snapshots = [_validated_registration_snapshot(value) for value in aliases]
+    except (_pnsctl().OperatorError, TypeError, ValueError, KeyError):
+        return False, None
+    first = snapshots[0]
+    if any(snapshot != first for snapshot in snapshots[1:]):
+        return False, None
+    return True, first
+
+
 def verify_nova_praise_supervised_one_free_pulse(
     structure: Mapping[str, Any],
     queue: Mapping[str, Any],
@@ -328,12 +619,95 @@ def verify_nova_praise_supervised_one_free_pulse(
     result = structure.get("result")
     if not isinstance(result, Mapping):
         raise _pnsctl().OperatorError("Nova delivery result is missing")
+    session = Path(str(structure.get("session_directory") or ""))
+    initial = result.get("initial_observation")
+    trace = result.get("causal_trace")
+    registration_ok, registration_snapshot = _registration_evidence_valid(
+        result, trace
+    )
+    initial_ok = False
+    if isinstance(initial, Mapping):
+        digest = str(initial.get("frame_sha256") or "")
+        frame_path = str(initial.get("frame_path") or "")
+        try:
+            retained = _pnsctl()._session_relative_path(
+                session, frame_path, "initial_observation.frame_path"
+            )
+            initial_ok = bool(
+                len(digest) == 64
+                and retained.is_file()
+                and hashlib.sha256(retained.read_bytes()).hexdigest() == digest
+                and digest == str(result.get("initial_frame_sha256") or "")
+                and str(initial.get("invocation_id") or "")
+            )
+        except Exception:
+            initial_ok = False
+    retained_transport = _retained_transport_count(session)
+    action_key = str(result.get("action_key") or "")
+    retained_praise = _retained_praise_count(session, action_key)
+    before = result.get("attempts_before")
+    after = result.get("attempts_after")
+    cooldown = result.get("cooldown_seconds")
+    from tasks.nova_praise import (
+        NOVA_COOLDOWN_MINIMUM_ACCEPTABLE_SECONDS,
+        NOVA_POLICY_COOLDOWN_SECONDS,
+    )
+
+    semantic_successor = bool(
+        type(before) is int
+        and type(after) is int
+        and before > 0
+        and after == before - 1
+        and type(cooldown) is int
+        and NOVA_COOLDOWN_MINIMUM_ACCEPTABLE_SECONDS
+        <= cooldown
+        <= NOVA_POLICY_COOLDOWN_SECONDS
+        and result.get("journal_status") == "confirmed"
+        and result.get("terminal_home_verified") is True
+    )
+    trace_ok = bool(
+        result.get("proof_topology") == "continuous"
+        and result.get("causal_trace_count") == 1
+        and isinstance(trace, Mapping)
+        and trace.get("trace_count") == 1
+        and trace.get("read_only") is True
+        and trace.get("input_authority") is False
+        and trace.get("scheduler_enabled") is False
+        and trace.get("proof_topology") == "continuous"
+        and trace.get("initial_frame_sha256") == result.get("initial_frame_sha256")
+        and trace.get("transport_count") == retained_transport
+        and trace.get("praise_transport_calls") == retained_praise
+        and registration_ok
+    )
+    transport_ok = bool(
+        retained_transport == result.get("input_count")
+        and retained_transport == result.get("dispatch_count")
+        and retained_praise == result.get("praise_transport_calls") == MAX_PRAISE
+        and retained_transport <= int(result.get("max_inputs") or 0)
+    )
+    verified = bool(
+        result.get("status") == "completed"
+        and result.get("effect_reconciliation_required") is False
+        and initial_ok
+        and trace_ok
+        and transport_ok
+        and semantic_successor
+        and registration_ok
+    )
     return {
-        "status": "verified" if result.get("status") == "completed" else "evidence_required",
+        "status": "verified" if verified else "evidence_required",
         "flow_id": FLOW_ID,
         "session_directory": structure.get("session_directory"),
-        "production_registration": "NOT_REGISTERED",
-        "scheduler_enabled": False,
+        "initial_observation_verified": initial_ok,
+        "transport_accounting_verified": transport_ok,
+        "causal_trace_verified": trace_ok,
+        "semantic_successor_verified": semantic_successor,
+        "registration_verified": registration_ok,
+        "registration_snapshot": registration_snapshot,
+        "production_registration": (
+            "REGISTERED" if registration_ok else result.get("production_registration")
+        ),
+        "scheduler_enabled": result.get("scheduler_enabled"),
     }
 
 

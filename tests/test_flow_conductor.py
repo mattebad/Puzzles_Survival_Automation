@@ -22,6 +22,190 @@ from tasks.gameplay_flow_contracts import FlowContractError, load_flow_contract
 
 
 class FlowConductorTests(unittest.TestCase):
+    def test_nested_external_blockers_precede_done_and_reconciliation(self) -> None:
+        cases = (
+            {
+                "status": "completed",
+                "evidence_verified": True,
+                "result": {
+                    "status": "manual_required",
+                    "reason": "nested account state requires operator",
+                    "effect_reconciliation_required": True,
+                },
+            },
+            {
+                "status": "manual_required",
+                "reason": "outer manual state",
+                "result": {
+                    "status": "completed",
+                    "evidence_verified": True,
+                },
+            },
+            {
+                "status": "completed",
+                "evidence_verified": True,
+                "result": {
+                    "route_result": {
+                        "canary": {
+                            "status": "external_block",
+                            "next_action": "nested external recovery required",
+                        }
+                    }
+                },
+            },
+        )
+        expected_reasons = (
+            "nested account state requires operator",
+            "outer manual state",
+            "nested external recovery required",
+        )
+        state = load_state("FLOW-NESTED-EXTERNAL-BLOCK")
+        for summary, expected in zip(cases, expected_reasons):
+            with self.subTest(expected=expected):
+                decision, reason = classify_summary(summary, state=state)
+                self.assertEqual(decision, ConductorDecision.EXTERNAL_BLOCK)
+                self.assertEqual(reason, expected)
+
+    def test_same_layer_status_and_terminal_external_blockers_both_checked(self) -> None:
+        cases = (
+            (
+                {
+                    "status": "completed",
+                    "terminal": "manual_required",
+                    "reason": "operator must intervene",
+                    "evidence_verified": True,
+                },
+                "operator must intervene",
+            ),
+            (
+                {
+                    "status": "manual_required",
+                    "terminal": "completed",
+                    "reason": "manual account state",
+                    "evidence_verified": True,
+                },
+                "manual account state",
+            ),
+            (
+                {
+                    "status": "completed",
+                    "terminal": "manual_required",
+                    "evidence_verified": True,
+                },
+                "manual_required",
+            ),
+            (
+                {
+                    "status": "completed",
+                    "terminal": "manual_required",
+                    "reason": "ordinary reconciliation is pending",
+                    "evidence_verified": True,
+                },
+                "manual_required",
+            ),
+            (
+                {
+                    "status": "completed",
+                    "evidence_verified": True,
+                    "route_result": {
+                        "status": "completed",
+                        "terminal": "manual_required",
+                        "next_action": "operator recovery required",
+                    },
+                },
+                "operator recovery required",
+            ),
+        )
+        state = load_state("FLOW-SAME-LAYER-EXTERNAL-BLOCK")
+        for summary, expected in cases:
+            with self.subTest(expected=expected):
+                decision, reason = classify_summary(summary, state=state)
+                self.assertEqual(decision, ConductorDecision.EXTERNAL_BLOCK)
+                self.assertEqual(reason, expected)
+
+    def test_structured_external_blockers_require_exact_normalized_tokens(self) -> None:
+        state = load_state("FLOW-EXACT-STRUCTURED-EXTERNAL-BLOCK")
+        for key in ("status", "terminal"):
+            with self.subTest(key=key):
+                decision, _ = classify_summary(
+                    {key: "failed_manual_required_parse"},
+                    state=state,
+                )
+                self.assertNotEqual(decision, ConductorDecision.EXTERNAL_BLOCK)
+
+        for key, value in (
+            ("status", " manual_required "),
+            ("terminal", "MANUAL_ONLY_STATE"),
+        ):
+            with self.subTest(key=key, value=value):
+                decision, reason = classify_summary({key: value}, state=state)
+                self.assertEqual(decision, ConductorDecision.EXTERNAL_BLOCK)
+                self.assertEqual(reason, value.strip().casefold())
+
+    def test_effect_reconciliation_never_becomes_done(self) -> None:
+        state = load_state("DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION")
+        decision, reason = classify_summary(
+            {
+                "status": "completed",
+                "evidence_verified": True,
+                "effect_reconciliation_required": True,
+            },
+            state=state,
+        )
+        self.assertNotEqual(decision, ConductorDecision.DONE)
+        self.assertEqual(reason, "effect_reconciliation_required")
+
+    def test_effect_reconciliation_repeats_converge_without_done(self) -> None:
+        state = load_state("FLOW-EFFECT-RECONCILIATION")
+        summary = {
+            "status": "completed",
+            "evidence_verified": True,
+            "effect_reconciliation_required": True,
+        }
+        state = record_iteration(state, summary=summary)
+        self.assertEqual(state.last_decision, ConductorDecision.CONTINUE.value)
+        self.assertEqual(state.last_blocker, "effect_reconciliation_required")
+        self.assertEqual(state.iterations_since_progress, 1)
+        state = record_iteration(state, summary=summary)
+        self.assertEqual(state.last_decision, ConductorDecision.STEP_BACK.value)
+        self.assertEqual(state.step_backs_spent, 1)
+        state = record_iteration(state, summary=summary)
+        self.assertEqual(state.last_decision, ConductorDecision.ESCALATE.value)
+        self.assertNotEqual(state.last_decision, ConductorDecision.DONE.value)
+
+    def test_nested_reconciliation_progress_resets_without_proving_effect(self) -> None:
+        state = load_state("FLOW-NESTED-EFFECT-RECONCILIATION")
+        state.iterations_since_progress = 2
+        state = record_iteration(
+            state,
+            summary={
+                "status": "completed",
+                "evidence_verified": True,
+                "result": {
+                    "reconciliation_status": "effect_reconciliation_required",
+                },
+            },
+            milestone="COMMANDER_RECOGNIZED",
+        )
+        self.assertEqual(state.last_decision, ConductorDecision.CONTINUE.value)
+        self.assertEqual(state.last_blocker, "effect_reconciliation_required")
+        self.assertEqual(state.furthest_milestone, "COMMANDER_RECOGNIZED")
+        self.assertEqual(state.iterations_since_progress, 0)
+        self.assertNotEqual(state.last_decision, ConductorDecision.DONE.value)
+
+    def test_reconciliation_preserves_external_blocker(self) -> None:
+        state = load_state("FLOW-EFFECT-EXTERNAL-BLOCK")
+        decision, reason = classify_summary(
+            {
+                "status": "blocked",
+                "blocker": "manual_only_state",
+                "result": {"effect_reconciliation_required": True},
+            },
+            state=state,
+        )
+        self.assertEqual(decision, ConductorDecision.EXTERNAL_BLOCK)
+        self.assertEqual(reason, "manual_only_state")
+
     def test_framing_incomplete_blocks_continue(self) -> None:
         state = load_state("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION")
         state = apply_framing(
@@ -54,6 +238,34 @@ class FlowConductorTests(unittest.TestCase):
             state=state,
         )
         self.assertEqual(manual_required, ConductorDecision.EXTERNAL_BLOCK)
+
+    def test_failed_local_operator_repair_converges_normally(self) -> None:
+        summary = {
+            "status": "failed",
+            "next_action": "repair the local operator error",
+        }
+        state = load_state("FLOW-LOCAL-OPERATOR-REPAIR")
+
+        state = record_iteration(state, summary=summary)
+        self.assertEqual(state.last_decision, ConductorDecision.CONTINUE.value)
+        self.assertNotEqual(state.last_decision, ConductorDecision.EXTERNAL_BLOCK.value)
+
+        state = record_iteration(state, summary=summary)
+        self.assertEqual(state.last_decision, ConductorDecision.STEP_BACK.value)
+        state = record_iteration(state, summary=summary)
+        self.assertEqual(state.last_decision, ConductorDecision.ESCALATE.value)
+
+    def test_operator_error_text_does_not_create_external_block(self) -> None:
+        state = load_state("FLOW-OPERATOR-ERROR-TEXT")
+        decision, reason = classify_summary(
+            {
+                "status": "failed",
+                "reason": "OperatorError: local route repair failed",
+            },
+            state=state,
+        )
+        self.assertEqual(decision, ConductorDecision.CONTINUE)
+        self.assertEqual(reason, "operatorerror: local route repair failed")
 
     def test_completed_execution_requires_verified_evidence_for_done(self) -> None:
         state = load_state("FLOW-VERIFY")
@@ -158,6 +370,8 @@ class FlowConductorTests(unittest.TestCase):
             "status": "completed",
             "terminal_home_verified": True,
             "dispatch": True,
+            "proof_topology": "continuous",
+            "causal_trace_count": 1,
         }
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -221,6 +435,8 @@ class FlowConductorTests(unittest.TestCase):
             "status": "completed",
             "terminal_home_verified": True,
             "dispatch": True,
+            "proof_topology": "continuous",
+            "causal_trace_count": 1,
         }
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -232,11 +448,7 @@ class FlowConductorTests(unittest.TestCase):
                         "consequential_action_class": "ordinary_resource_use",
                     },
                 ),
-                patch.object(
-                    pnsctl,
-                    "development_session_observe",
-                    return_value=json.dumps({"status": "observed"}),
-                ),
+                patch.object(pnsctl, "development_session_observe") as observe,
                 patch.object(
                     pnsctl,
                     "development_session_run_flow",
@@ -268,10 +480,371 @@ class FlowConductorTests(unittest.TestCase):
                         state_root=root,
                     )
                 )
+            observe.assert_not_called()
             self.assertEqual(result["decision"], ConductorDecision.DONE.value)
             completed_state = load_state(flow_id, root=root)
             self.assertEqual(completed_state.status, "done")
             self.assertEqual(completed_state.evidence_refs, ["retained"])
+
+    def test_daily_claim_conduct_uses_one_run_session_without_pre_observe(self) -> None:
+        flow_id = "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
+        retained = {
+            "schema_version": 1,
+            "flow_id": flow_id,
+            "status": "completed",
+            "proof_topology": "continuous",
+            "causal_trace_count": 1,
+            "terminal_home_verified": True,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with (
+                patch(
+                    "tasks.gameplay_flow_contracts.load_flow_contract",
+                    return_value={
+                        "flow_id": flow_id,
+                        "consequential_action_class": "ordinary_development",
+                    },
+                ),
+                patch.object(pnsctl, "development_session_observe") as observe,
+                patch.object(
+                    pnsctl,
+                    "development_session_run_flow",
+                    return_value=json.dumps(
+                        {
+                            "status": "completed",
+                            "runtime_session_directory": "retained",
+                        }
+                    ),
+                ) as run_flow,
+                patch.object(
+                    pnsctl,
+                    "_retained_flow_result",
+                    return_value=(Path("retained"), retained),
+                ),
+                patch.object(
+                    pnsctl,
+                    "bluestacks_verify_flow",
+                    return_value=json.dumps(
+                        {"status": "verified", "flow_id": flow_id}
+                    ),
+                ),
+            ):
+                result = json.loads(
+                    pnsctl.conduct_flow(
+                        flow_id,
+                        live=True,
+                        yes=True,
+                        state_root=root,
+                    )
+                )
+            observe.assert_not_called()
+            run_flow.assert_called_once()
+            self.assertIsNone(result["observe"])
+            self.assertEqual(result["decision"], ConductorDecision.DONE.value)
+
+    def test_nova_conduct_uses_one_run_session_without_pre_observe(self) -> None:
+        flow_id = "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
+        retained = {
+            "schema_version": 1,
+            "flow_id": flow_id,
+            "status": "completed",
+            "proof_topology": "continuous",
+            "causal_trace_count": 1,
+            "terminal_home_verified": True,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with (
+                patch(
+                    "tasks.gameplay_flow_contracts.load_flow_contract",
+                    return_value={
+                        "flow_id": flow_id,
+                        "consequential_action_class": "ordinary_development",
+                    },
+                ),
+                patch.object(pnsctl, "development_session_observe") as observe,
+                patch.object(
+                    pnsctl,
+                    "development_session_run_flow",
+                    return_value=json.dumps(
+                        {
+                            "status": "completed",
+                            "runtime_session_directory": "retained",
+                        }
+                    ),
+                ) as run_flow,
+                patch.object(
+                    pnsctl,
+                    "_retained_flow_result",
+                    return_value=(Path("retained"), retained),
+                ),
+                patch.object(
+                    pnsctl,
+                    "bluestacks_verify_flow",
+                    return_value=json.dumps({"status": "verified", "flow_id": flow_id}),
+                ),
+            ):
+                result = json.loads(
+                    pnsctl.conduct_flow(
+                        flow_id,
+                        live=True,
+                        yes=True,
+                        state_root=root,
+                        runtime_scope="bluestacks-dev-primary",
+                        account_id="acct-1",
+                        server_id="server-1",
+                        reset_id="game-day-2026-08-18",
+                        identity_evidence=Path("identity.json"),
+                    )
+                )
+            observe.assert_not_called()
+            run_flow.assert_called_once()
+            self.assertIsNone(result["observe"])
+            self.assertEqual(result["decision"], ConductorDecision.DONE.value)
+
+    def test_enhancement_conduct_uses_one_run_session_without_pre_observe(self) -> None:
+        flow_id = "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+        retained = {
+            "schema_version": 1,
+            "flow_id": flow_id,
+            "status": "completed",
+            "proof_topology": "continuous",
+            "causal_trace_count": 1,
+            "terminal_recognized": True,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with (
+                patch(
+                    "tasks.gameplay_flow_contracts.load_flow_contract",
+                    return_value={
+                        "flow_id": flow_id,
+                        "consequential_action_class": "ordinary_development",
+                    },
+                ),
+                patch.object(pnsctl, "development_session_observe") as observe,
+                patch.object(
+                    pnsctl,
+                    "development_session_run_flow",
+                    return_value=json.dumps(
+                        {
+                            "status": "completed",
+                            "runtime_session_directory": "retained",
+                        }
+                    ),
+                ) as run_flow,
+                patch.object(
+                    pnsctl,
+                    "_retained_flow_result",
+                    return_value=(Path("retained"), retained),
+                ),
+                patch.object(
+                    pnsctl,
+                    "bluestacks_verify_flow",
+                    return_value=json.dumps({"status": "verified", "flow_id": flow_id}),
+                ),
+            ):
+                result = json.loads(
+                    pnsctl.conduct_flow(
+                        flow_id,
+                        live=True,
+                        yes=True,
+                        state_root=root,
+                        runtime_scope="bluestacks-dev-primary",
+                        account_id="acct-1",
+                        server_id="server-1",
+                        reset_id="game-day-2026-08-18",
+                        identity_evidence=Path("identity.json"),
+                    )
+                )
+            observe.assert_not_called()
+            run_flow.assert_called_once()
+            self.assertIsNone(result["observe"])
+            self.assertEqual(result["decision"], ConductorDecision.DONE.value)
+
+    def test_bioenhancer_conduct_uses_one_session_and_checked_route_gate(self) -> None:
+        flow_id = "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"
+        retained = {
+            "schema_version": 1,
+            "flow_id": flow_id,
+            "status": "completed",
+            "proof_topology": "continuous",
+            "causal_trace_count": 1,
+            "terminal_home_verified": True,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with (
+                patch(
+                    "tasks.gameplay_flow_contracts.load_flow_contract",
+                    return_value={
+                        "flow_id": flow_id,
+                        "consequential_action_class": "ordinary_zero_cost_research",
+                    },
+                ),
+                patch.object(pnsctl, "development_session_observe") as observe,
+                patch.object(
+                    pnsctl,
+                    "development_session_run_flow",
+                    return_value=json.dumps(
+                        {
+                            "status": "completed",
+                            "runtime_session_directory": "retained",
+                        }
+                    ),
+                ) as run_flow,
+                patch.object(
+                    pnsctl,
+                    "_retained_flow_result",
+                    return_value=(Path("retained"), retained),
+                ),
+                patch.object(
+                    pnsctl,
+                    "bluestacks_verify_flow",
+                    return_value=json.dumps({"status": "verified", "flow_id": flow_id}),
+                ) as verify,
+            ):
+                result = json.loads(
+                    pnsctl.conduct_flow(
+                        flow_id,
+                        live=True,
+                        yes=True,
+                        state_root=root,
+                    )
+                )
+            observe.assert_not_called()
+            run_flow.assert_called_once()
+            verify.assert_called_once_with(Path("retained"))
+            self.assertIsNone(result["observe"])
+            self.assertEqual(result["decision"], ConductorDecision.DONE.value)
+
+        for mutation in (
+            {"proof_topology": "composite"},
+            {"causal_trace_count": 0},
+        ):
+            with self.subTest(mutation=mutation), patch.object(
+                pnsctl,
+                "_retained_flow_result",
+                return_value=(Path("retained"), {**retained, **mutation}),
+            ), patch.object(pnsctl, "bluestacks_verify_flow") as verify:
+                summary, verification = pnsctl._conductor_live_summary(
+                    flow_id,
+                    {"status": "completed", "runtime_session_directory": "retained"},
+                )
+            self.assertEqual(summary["status"], "evidence_required")
+            self.assertIsNone(verification)
+            verify.assert_not_called()
+
+        with patch.object(
+            pnsctl,
+            "_retained_flow_result",
+            return_value=(
+                Path("retained"),
+                {
+                    **retained,
+                    "status": "effect_reconciliation_required",
+                    "effect_reconciliation_required": True,
+                },
+            ),
+        ), patch.object(pnsctl, "bluestacks_verify_flow") as verify:
+            summary, verification = pnsctl._conductor_live_summary(
+                flow_id,
+                {"status": "effect_reconciliation_required", "runtime_session_directory": "retained"},
+            )
+        self.assertEqual(summary["status"], "effect_reconciliation_required")
+        self.assertIsNone(verification)
+        verify.assert_not_called()
+
+    def test_ultimate_terminal_conduct_uses_one_session_and_preserves_composite_proof(
+        self,
+    ) -> None:
+        flow_id = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+        retained = {
+            "schema_version": 1,
+            "flow_id": flow_id,
+            "status": "completed",
+            "proof_topology": "composite",
+            "terminal_reconciliation_topology": "continuous",
+            "new_flee_transport_count": 0,
+            "causal_trace_count": 1,
+            "terminal_completion_verified": True,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with (
+                patch(
+                    "tasks.gameplay_flow_contracts.load_flow_contract",
+                    return_value={
+                        "flow_id": flow_id,
+                        "consequential_action_class": "ultimate_challenge_zero_resource_flee",
+                    },
+                ),
+                patch.object(pnsctl, "development_session_observe") as observe,
+                patch.object(
+                    pnsctl,
+                    "development_session_run_flow",
+                    return_value=json.dumps(
+                        {
+                            "status": "completed",
+                            "runtime_session_directory": "retained",
+                        }
+                    ),
+                ) as run_flow,
+                patch.object(
+                    pnsctl,
+                    "_retained_flow_result",
+                    return_value=(Path("retained"), retained),
+                ),
+                patch.object(
+                    pnsctl,
+                    "bluestacks_verify_flow",
+                    return_value=json.dumps({"status": "verified", "flow_id": flow_id}),
+                ),
+            ):
+                result = json.loads(
+                    pnsctl.conduct_flow(
+                        flow_id,
+                        live=True,
+                        yes=True,
+                        state_root=root,
+                    )
+                )
+            observe.assert_not_called()
+            run_flow.assert_called_once()
+            self.assertIsNone(result["observe"])
+            self.assertEqual(result["decision"], ConductorDecision.DONE.value)
+
+    def test_ultimate_terminal_done_is_vetoed_by_new_flee_or_false_topology(self) -> None:
+        flow_id = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+        base = {
+            "schema_version": 1,
+            "flow_id": flow_id,
+            "status": "completed",
+            "proof_topology": "composite",
+            "terminal_reconciliation_topology": "continuous",
+            "new_flee_transport_count": 0,
+            "causal_trace_count": 1,
+        }
+        for mutation in (
+            {"new_flee_transport_count": 1},
+            {"proof_topology": "continuous"},
+            {"terminal_reconciliation_topology": "composite"},
+        ):
+            retained = {**base, **mutation}
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                with patch.object(
+                    pnsctl,
+                    "_retained_flow_result",
+                    return_value=(Path("retained"), retained),
+                ), patch.object(pnsctl, "bluestacks_verify_flow") as verify:
+                    summary, verification = pnsctl._conductor_live_summary(
+                        flow_id,
+                        {"status": "completed", "runtime_session_directory": "retained"},
+                    )
+                self.assertEqual(summary["status"], "evidence_required")
+                self.assertIsNone(verification)
+                verify.assert_not_called()
 
     def test_framing_is_derived_from_bound_handlers_and_policy(self) -> None:
         flow_id = "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
@@ -359,6 +932,10 @@ class FlowConductorTests(unittest.TestCase):
             ),
             3,
         )
+        with self.assertRaises(pnsctl.OperatorError):
+            pnsctl._conduct_max_inputs(
+                "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION", 1
+            )
 
     def test_operational_verification_rejects_missing_retained_result(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

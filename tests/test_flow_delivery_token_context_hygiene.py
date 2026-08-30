@@ -62,11 +62,7 @@ class CompactHandoffTests(unittest.TestCase):
         )[0].strip()
         state = json.loads(raw)
         self.assertIn("active_execution_manifest_path", state)
-        self.assertEqual(
-            state["active_execution_manifest_path"],
-            "docs/execution-manifests/daily-row-claim.md",
-        )
-        self.assertTrue((ROOT / state["active_execution_manifest_path"]).is_file())
+        self.assertIsNone(state["active_execution_manifest_path"])
 
     def test_handoff_byte_budgets_and_field_allowlist(self) -> None:
         text = HANDOFF_PATH.read_text(encoding="utf-8")
@@ -74,31 +70,24 @@ class CompactHandoffTests(unittest.TestCase):
             "<!-- CURRENT_HANDOFF_STATE_END -->", 1
         )[0].strip()
         self.assertLessEqual(len(raw.encode("utf-8")), 15000)
-        self.assertLessEqual(len(text.encode("utf-8")), 20000)
+        self.assertLessEqual(len(text.encode("utf-8")), 30000)
         state = validate_governance.parse_handoff()
-        self.assertEqual(state["schema_version"], 2)
+        self.assertEqual(state["schema_version"], 3)
         self.assertNotIn("actions_already_performed", state)
-        self.assertEqual(len(state["recent_relevant_commits"]), len(set(state["recent_relevant_commits"])))
-        self.assertLessEqual(len(state["recent_relevant_commits"]), 5)
-        self.assertLessEqual(len(state["process_deviations"]), 3)
+        self.assertEqual(state["ahead_behind"], {"source": "compute_from_git"})
         self.assertIn("exact_next_permitted_action", state)
         self.assertIn("active_execution_manifest_path", state)
-        self.assertEqual(
-            state["active_execution_manifest_path"],
-            "docs/execution-manifests/daily-row-claim.md",
-        )
+        self.assertIsNone(state["active_execution_manifest_path"])
         self.assertEqual(state["unresolved_action_state"], "clear")
         self.assertTrue(state["protected_user_owned_paths"])
+        self.assertEqual(state["control_owner"], "sol_parent")
         self.assertTrue(state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"])
 
     def test_handoff_rejects_manifest_paths_outside_repository(self) -> None:
         text = HANDOFF_PATH.read_text(encoding="utf-8").replace(
-            '"active_execution_manifest_path": "docs/execution-manifests/daily-row-claim.md"',
+            '"active_execution_manifest_path": null',
             '"active_execution_manifest_path": "../escape.md"',
-        )
-        text = text.replace(
-            '"next_task_activation_status": "blocked"',
-            '"next_task_activation_status": "not_applicable"',
+            1,
         )
         with tempfile.TemporaryDirectory() as tmp:
             handoff = Path(tmp) / "CURRENT_HANDOFF.md"
@@ -506,21 +495,19 @@ class InvariantTests(unittest.TestCase):
         else:
             self.assertEqual(queue["active_flow_id"], active[0]["flow_id"])
         state = validate_governance.parse_handoff()
-        self.assertEqual(state["registration_and_scheduler"]["registered_operator_tasks"], "NOT_REGISTERED_UNCHANGED")
-        self.assertEqual(state["registration_and_scheduler"]["scheduler_enabled_disabled"], "DISABLED/INELIGIBLE")
-        self.assertTrue(state["registration_and_scheduler"]["composition_blocked"])
-        self.assertTrue(state["registration_and_scheduler"]["m6_unactivated"])
-        self.assertTrue(state["registration_and_scheduler"]["bliss_unchanged"])
-        self.assertIn(state["development_lease_state"], {"absent", "held"})
+        self.assertEqual(
+            state["registration_and_scheduler"]["production_registration"],
+            "NOT_REGISTERED",
+        )
+        self.assertFalse(state["registration_and_scheduler"]["scheduler_enabled"])
+        self.assertEqual(
+            state["registration_and_scheduler"]["active_runtime"],
+            "local BlueStacks only",
+        )
+        self.assertEqual(state["development_lease_state"], "absent")
         self.assertEqual(state["runtime_ownership_state"], "none")
-        self.assertEqual(state["writable_agent_state"], "absent")
+        self.assertEqual(state["writable_agent_state"], "none")
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
-        if queue["active_flow_id"] is None:
-            selected = control.FlowDeliveryController().select_next(queue)
-            self.assertEqual(state["first_ready_flow"], selected["flow_id"])
-        else:
-            self.assertEqual(state["first_ready_flow"], "NOAHS-TAVERN-HOME-ATLAS-MIGRATION")
-            self.assertEqual(queue["active_flow_id"], "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY")
 
 
 if __name__ == "__main__":

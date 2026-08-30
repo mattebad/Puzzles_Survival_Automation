@@ -4,41 +4,328 @@
   "product_purpose": "Notification-driven Home maintenance that Quick Joins eligible Zombie Lairs within current stamina.",
   "trigger_cadence_type": "eligibility_pulse",
   "reset_scope": "continuous_stamina_recovery",
-  "required_starting_context": ["home_canonical"],
-  "shared_primitive_dependencies": [{"primitive_id": "home_navigation_primitives", "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST", "required": true}],
-  "recognized_states": ["home_canonical", "notification_panel", "eligible_lairs", "quick_join", "join_confirmed", "no_eligible_lair", "insufficient_stamina", "refill_prompt", "maintenance_pass_complete", "safe_home_equivalent", "blocked"],
-  "transition_contracts": [
-    {"transition_id": "inspect_notifications", "from": "home_canonical", "to": "notification_panel", "planner": "ZombieLairHomeMaintenance", "permitted_input": "open_lair_notification", "postconditions": ["current Home lair notification panel recognized"], "terminal_outcomes": ["blocked"]},
-    {"transition_id": "plan_eligible_joins", "from": "notification_panel", "to": "eligible_lairs", "planner": "ZombieLairHomeMaintenance", "permitted_input": null, "postconditions": ["levels restricted to 30-55", "join count equals min(eligible count, floor(stamina/28))"], "terminal_outcomes": ["blocked"]},
-    {"transition_id": "defer_no_eligible_lair", "from": "notification_panel", "to": "no_eligible_lair", "planner": "ZombieLairHomeMaintenance", "permitted_input": null, "postconditions": ["no eligible level 30-55 notification exists", "no transport dispatched", "defer remains pending until Home"], "terminal_outcomes": []},
-    {"transition_id": "defer_insufficient_stamina", "from": "notification_panel", "to": "insufficient_stamina", "planner": "ZombieLairHomeMaintenance", "permitted_input": null, "postconditions": ["displayed stamina is below 28", "recovery due time to 28 is persisted", "continuous pulsing is disabled", "defer remains pending until Home"], "terminal_outcomes": []},
-    {"transition_id": "quick_join_one", "from": "eligible_lairs", "to": "join_confirmed", "planner": "ZombieLairHomeMaintenance", "permitted_input": "quick_join", "postconditions": ["exactly one eligible lair joined", "expected stamina decremented by 28", "configured formation used", "success remains pending until Home"], "terminal_outcomes": ["blocked"], "evidence_gate_id": "zombie_home_replay"},
-    {"transition_id": "continue_bounded_join_loop", "from": "join_confirmed", "to": "eligible_lairs", "planner": "ZombieLairHomeMaintenance", "permitted_input": null, "postconditions": ["another eligible lair remains", "expected stamina remains at least 28", "total joins do not exceed min(initial eligible count, floor(initial stamina/28))"], "terminal_outcomes": ["blocked"], "evidence_gate_id": "zombie_home_replay"},
-    {"transition_id": "recognize_refill_prompt", "from": "eligible_lairs", "to": "refill_prompt", "planner": "ZombieLairHomeMaintenance", "permitted_input": null, "postconditions": ["stamina refill prompt positively recognized", "no refill consumed", "defer remains pending until safe Home-equivalent"], "terminal_outcomes": [], "evidence_gate_id": "zombie_home_replay"},
-    {"transition_id": "cancel_refill", "from": "refill_prompt", "to": "safe_home_equivalent", "planner": "ZombieLairHomeMaintenance", "permitted_input": "cancel_refill", "postconditions": ["no item currency or stamina refill consumed", "safe Home-equivalent recognized"], "terminal_outcomes": ["deferred", "blocked"], "evidence_gate_id": "zombie_home_replay"},
-    {"transition_id": "finish_join_pass", "from": "join_confirmed", "to": "maintenance_pass_complete", "planner": "ZombieLairHomeMaintenance", "permitted_input": null, "postconditions": ["no further stamina-budgeted eligible join remains", "success remains pending until Home"], "terminal_outcomes": []},
-    {"transition_id": "return_home_after_join", "from": "maintenance_pass_complete", "to": "home_canonical", "planner": "ZombieLairHomeMaintenance", "permitted_input": "return_canonical_home", "postconditions": ["canonical Home recognized"], "terminal_outcomes": ["action_performed", "blocked"]},
-    {"transition_id": "return_home_no_lair", "from": "no_eligible_lair", "to": "home_canonical", "planner": "ZombieLairHomeMaintenance", "permitted_input": "return_canonical_home", "postconditions": ["canonical Home recognized after no-op"], "terminal_outcomes": ["deferred", "blocked"]},
-    {"transition_id": "return_home_insufficient_stamina", "from": "insufficient_stamina", "to": "home_canonical", "planner": "ZombieLairHomeMaintenance", "permitted_input": "return_canonical_home", "postconditions": ["canonical Home recognized after recovery defer"], "terminal_outcomes": ["deferred", "blocked"]}
+  "required_starting_context": [
+    "home_canonical"
   ],
-  "permitted_inputs": ["open_lair_notification", "quick_join", "cancel_refill", "return_canonical_home"],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_canonical",
+    "notification_panel",
+    "eligible_lairs",
+    "quick_join",
+    "join_confirmed",
+    "no_eligible_lair",
+    "insufficient_stamina",
+    "refill_prompt",
+    "maintenance_pass_complete",
+    "safe_home_equivalent",
+    "blocked"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "inspect_notifications",
+      "from": "home_canonical",
+      "to": "notification_panel",
+      "planner": "ZombieLairHomeMaintenance",
+      "permitted_input": "open_lair_notification",
+      "postconditions": [
+        "current Home lair notification panel recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "plan_eligible_joins",
+      "from": "notification_panel",
+      "to": "eligible_lairs",
+      "planner": "ZombieLairHomeMaintenance",
+      "permitted_input": null,
+      "postconditions": [
+        "levels restricted to 30-55",
+        "join count equals min(eligible count, floor(stamina/28))"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "defer_no_eligible_lair",
+      "from": "notification_panel",
+      "to": "no_eligible_lair",
+      "planner": "ZombieLairHomeMaintenance",
+      "permitted_input": null,
+      "postconditions": [
+        "no eligible level 30-55 notification exists",
+        "no transport dispatched",
+        "defer remains pending until Home"
+      ],
+      "terminal_outcomes": []
+    },
+    {
+      "transition_id": "defer_insufficient_stamina",
+      "from": "notification_panel",
+      "to": "insufficient_stamina",
+      "planner": "ZombieLairHomeMaintenance",
+      "permitted_input": null,
+      "postconditions": [
+        "displayed stamina is below 28",
+        "recovery due time to 28 is persisted",
+        "continuous pulsing is disabled",
+        "defer remains pending until Home"
+      ],
+      "terminal_outcomes": []
+    },
+    {
+      "transition_id": "quick_join_one",
+      "from": "eligible_lairs",
+      "to": "join_confirmed",
+      "planner": "ZombieLairHomeMaintenance",
+      "permitted_input": "quick_join",
+      "postconditions": [
+        "exactly one eligible lair joined",
+        "expected stamina decremented by 28",
+        "configured formation used",
+        "success remains pending until Home"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "zombie_home_replay"
+    },
+    {
+      "transition_id": "continue_bounded_join_loop",
+      "from": "join_confirmed",
+      "to": "eligible_lairs",
+      "planner": "ZombieLairHomeMaintenance",
+      "permitted_input": null,
+      "postconditions": [
+        "another eligible lair remains",
+        "expected stamina remains at least 28",
+        "total joins do not exceed min(initial eligible count, floor(initial stamina/28))"
+      ],
+      "terminal_outcomes": [
+        "blocked"
+      ],
+      "evidence_gate_id": "zombie_home_replay"
+    },
+    {
+      "transition_id": "recognize_refill_prompt",
+      "from": "eligible_lairs",
+      "to": "refill_prompt",
+      "planner": "ZombieLairHomeMaintenance",
+      "permitted_input": null,
+      "postconditions": [
+        "stamina refill prompt positively recognized",
+        "no refill consumed",
+        "defer remains pending until safe Home-equivalent"
+      ],
+      "terminal_outcomes": [],
+      "evidence_gate_id": "zombie_home_replay"
+    },
+    {
+      "transition_id": "cancel_refill",
+      "from": "refill_prompt",
+      "to": "safe_home_equivalent",
+      "planner": "ZombieLairHomeMaintenance",
+      "permitted_input": "cancel_refill",
+      "postconditions": [
+        "no item currency or stamina refill consumed",
+        "safe Home-equivalent recognized"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ],
+      "evidence_gate_id": "zombie_home_replay"
+    },
+    {
+      "transition_id": "finish_join_pass",
+      "from": "join_confirmed",
+      "to": "maintenance_pass_complete",
+      "planner": "ZombieLairHomeMaintenance",
+      "permitted_input": null,
+      "postconditions": [
+        "no further stamina-budgeted eligible join remains",
+        "success remains pending until Home"
+      ],
+      "terminal_outcomes": []
+    },
+    {
+      "transition_id": "return_home_after_join",
+      "from": "maintenance_pass_complete",
+      "to": "home_canonical",
+      "planner": "ZombieLairHomeMaintenance",
+      "permitted_input": "return_canonical_home",
+      "postconditions": [
+        "canonical Home recognized"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "return_home_no_lair",
+      "from": "no_eligible_lair",
+      "to": "home_canonical",
+      "planner": "ZombieLairHomeMaintenance",
+      "permitted_input": "return_canonical_home",
+      "postconditions": [
+        "canonical Home recognized after no-op"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "return_home_insufficient_stamina",
+      "from": "insufficient_stamina",
+      "to": "home_canonical",
+      "planner": "ZombieLairHomeMaintenance",
+      "permitted_input": "return_canonical_home",
+      "postconditions": [
+        "canonical Home recognized after recovery defer"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ]
+    }
+  ],
+  "permitted_inputs": [
+    "open_lair_notification",
+    "quick_join",
+    "cancel_refill",
+    "return_canonical_home"
+  ],
   "consequential_action_class": "zombie_lair_quick_join_stamina_spend",
-  "cost_quantity_requirements": {"free_only": false, "maximum_cost": 28, "quantity": null, "resource_or_currency": "STAMINA", "notes": "Each join costs exactly 28; total joins are bounded by eligible count and displayed stamina."},
+  "cost_quantity_requirements": {
+    "free_only": false,
+    "maximum_cost": 28,
+    "quantity": null,
+    "resource_or_currency": "STAMINA",
+    "notes": "Each join costs exactly 28; total joins are bounded by eligible count and displayed stamina."
+  },
   "completion_identity": "zombie-lair:home-maintenance:pass",
-  "terminal_outcomes": ["action_performed", "deferred", "complete_for_reset", "already_complete", "blocked", "manual_required"],
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "complete_for_reset",
+    "already_complete",
+    "blocked",
+    "manual_required"
+  ],
   "cooldown_deferred_behavior": "No eligible notification is normal. Below 28 stamina, persist expected recovery to 28 and do not continuously pulse; maintenance remains eligible after Daily completion.",
   "bounded_recovery_behavior": "Cancel a refill prompt without consuming anything; stop on unknown level, cost, result, formation, or successor; return canonical Home or a positively recognized safe Home-equivalent.",
-  "product_policy_refs": [{"policy_id": "zombie-lair-level-stamina-march", "source": "tasks/flow_delivery_product_policy.json"}, {"policy_id": "zombie-lair-level-60", "source": "tasks/flow_delivery_product_policy.json"}],
-  "evidence_requirements": ["Existing World single-join code and synthetic fixtures do not prove Home notification maintenance.", "Native notification, level 30-55, exact 28 stamina, Quick Join, refill cancellation, multi-lair, defer, and Home evidence is required.", "Production-controller positive replay and later supervised canary remain required."],
-  "evidence_gates": [{"gate_id": "zombie_home_replay", "status": "evidence_required", "blocks": ["quick_join_one", "cancel_refill", "zombie_home_production"], "required_evidence": ["hash-bound native selector corpus and production-controller positive replay"], "permitted_inputs": []}],
-  "replay_fixture_requirements": [{"fixture_id": "zombie_home_notification_pass", "status": "required_evidence", "path": null, "notes": "No native Home maintenance fixture exists."}, {"fixture_id": "zombie_policy_negatives", "status": "synthetic_policy_ok", "path": null, "notes": "Synthetic negatives may cover level 60, refills, and insufficient stamina only."}],
-  "scenarios": [{"scenario_id": "zombie_home_production", "mode": "blocked_until_policy", "start_state": "home_canonical", "terminal_state": "blocked", "permitted_inputs": [], "forbidden_inputs": ["open_lair_notification", "quick_join", "cancel_refill", "return_canonical_home"], "required_transitions": [], "evidence_gate_ids": ["zombie_home_replay"], "notes": "Policy approved; evidence, registration, scheduling, and live authorization absent. Level 60 and stamina refill inputs are unsupported and prohibited."}],
-  "unsupported_or_manual_only_states": ["level_60", "unknown_level_or_cost", "stamina_refill", "troop_composition_policy", "login", "captcha", "tutorial"],
+  "product_policy_refs": [
+    {
+      "policy_id": "zombie-lair-level-stamina-march",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "zombie-lair-level-60",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
+  "evidence_requirements": [
+    "Existing World single-join code and synthetic fixtures do not prove Home notification maintenance.",
+    "Native notification, level 30-55, exact 28 stamina, Quick Join, refill cancellation, multi-lair, defer, and Home evidence is required.",
+    "Production-controller positive replay and later supervised canary remain required."
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "zombie_home_replay",
+      "status": "evidence_required",
+      "blocks": [
+        "quick_join_one",
+        "cancel_refill",
+        "zombie_home_production"
+      ],
+      "required_evidence": [
+        "hash-bound native selector corpus and production-controller positive replay"
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "zombie_home_notification_pass",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "No native Home maintenance fixture exists."
+    },
+    {
+      "fixture_id": "zombie_policy_negatives",
+      "status": "synthetic_policy_ok",
+      "path": null,
+      "notes": "Synthetic negatives may cover level 60, refills, and insufficient stamina only."
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "zombie_home_production",
+      "mode": "blocked_until_policy",
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "open_lair_notification",
+        "quick_join",
+        "cancel_refill",
+        "return_canonical_home"
+      ],
+      "required_transitions": [],
+      "evidence_gate_ids": [
+        "zombie_home_replay"
+      ],
+      "notes": "Policy approved; evidence, registration, scheduling, and live authorization absent. Level 60 and stamina refill inputs are unsupported and prohibited."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "level_60",
+    "unknown_level_or_cost",
+    "stamina_refill",
+    "troop_composition_policy",
+    "login",
+    "captcha",
+    "tutorial"
+  ],
   "implementation_status": "contract_only",
   "proof_state": "evidence_required",
   "offline_proof_state": "not_implemented",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "evidence_required",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
+    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
+    "product_record_id": "zombie_lair",
+    "product_record_revision": "zombie_lair-v1",
+    "product_record_digest": "e9a6c9b34e504fcd779138fdb872331a80a3c1f7b5384cd5ee0b10c5b0de7dab",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ],
+    "selected_daily_prerequisite": false
+  },
   "registration_state": "disabled",
   "production_eligible": false
 }

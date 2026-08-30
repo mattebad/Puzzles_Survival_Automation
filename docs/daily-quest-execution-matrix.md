@@ -120,13 +120,15 @@ disabled.
 
 `DQ-FLOW-BIOENHANCER` uses `tasks/bioenhancer.py` plus
 `tasks/daily_bioenhancer.py` for one free Bioenhancer research replay bound to
-`bioenhancer_research`. Navigation evidence now proves the selected row, direct Daily Go →
-Bioenhancer Research successor, and immediate-frame Free Research 1x target
-`[94,1133,345,1216]`; the separate Research 10x target is rejected. The flow is
-`PRE_DISPATCH_READY` but remains matrix `EVIDENCE_GATED`: no research input occurred, positive
-research/Daily 0→1 result is missing, current game-day identity is not independently observable,
-and no registration or scheduler eligibility is enabled. See
-`evidence/sessions/20260714-daily-flow-acquisition/bioenhancer-free-pre-dispatch.json`.
+`bioenhancer_research`. Retained historical evidence includes the selected row, direct Daily Go,
+and a historical Free Research 1x transaction, but the current schema-2 contract remains
+`evidence_required`; that evidence is not rebound to the current Stage 8 contract or HEAD.
+Current accepted BlueStacks production-controller, continuous-session, cooldown/result, reset
+identity, canonical Home, and current Daily reconciliation proof remain required. No registration
+or scheduler eligibility is enabled.
+
+The retained transaction count and historical manifest remain immutable evidence metadata only;
+they do not authorize a current research dispatch or Claim.
 
 `DQ-FLOW-NANOWEAPON` retains `tasks/nanoweapon.py` plus `tasks/daily_nanoweapon.py` as legacy
 one-craft replay support. The final Daily contract uses Normal Craft only, claims a completed weapon
@@ -203,7 +205,7 @@ objective is unregistered and scheduler-ineligible.
 | `rare_earth_shop_purchase` | purchases / Rare Earth Shop | `daily_go_to_rare_earth_shop` | disabled | disabled | none | DQ-FLOW-PURCHASES |
 | `alliance_shop_purchase` | purchases / Alliance Shop | `daily_go_to_alliance_shop` | disabled | disabled | none | DQ-FLOW-PURCHASES |
 | `speedup_using_items` | speedups / 180 minutes | `daily_go_to_speedup` | disabled | disabled | none | DQ-FLOW-SPEEDUP |
-| `bioenhancer_research` | bioenhancer / one free | `daily_go_to_bioenhancer` | pre-dispatch ready | evidence-gated | none | DQ-FLOW-BIOENHANCER |
+| `bioenhancer_research` | bioenhancer / one free | `daily_go_to_bioenhancer` | historical evidence retained; current proof required | evidence-gated | none | DQ-FLOW-BIOENHANCER |
 | `craft_nanoweapon` | nanoweapon / one Normal Craft per reset | `daily_go_to_nanoweapon` | legacy offline support | evidence-gated | none | DQ-FLOW-NANOWEAPON |
 | `personal_might_praise` | personal_might_praise / completion attribution | `completion_attribution_only` | completion attribution only | retired | none (retired) | DQ-FLOW-PERSONAL-MIGHT-PRAISE |
 | `enhance_chip` | enhancement / Chip | `daily_go_to_chip` | offline contract | evidence-gated | none | DQ-FLOW-ENHANCE-CHIP |

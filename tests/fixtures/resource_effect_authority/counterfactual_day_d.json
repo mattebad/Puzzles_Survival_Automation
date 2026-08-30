@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "fixture_kind": "resource_effect_authority_counterfactual",
+  "historical_facts_are_read_only": true,
+  "day_d": {
+    "reset_identity_id": "counterfactual-reset-D",
+    "account_id": "counterfactual-account",
+    "server_id": "counterfactual-server",
+    "runtime_scope": "counterfactual",
+    "reset_start_utc": "2026-08-19T00:00:00Z",
+    "reset_deadline_utc": "2026-08-20T00:00:00Z"
+  },
+  "day_d_plus_1": {
+    "reset_identity_id": "counterfactual-reset-D-plus-1",
+    "account_id": "counterfactual-account",
+    "server_id": "counterfactual-server",
+    "runtime_scope": "counterfactual",
+    "reset_start_utc": "2026-08-20T00:00:01Z",
+    "reset_deadline_utc": "2026-08-21T00:00:00Z"
+  },
+  "expected": {
+    "first_day_d_effect": "CONFIRMED",
+    "second_day_d_reservation": "DENIED_BEFORE_TRANSPORT",
+    "day_d_plus_1_occurrence": "ELIGIBLE",
+    "historical_effect_rows_before_after": "unchanged"
+  }
+}

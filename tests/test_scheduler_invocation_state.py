@@ -1,14 +1,19 @@
 """Focused tests for account/server/reset/task scheduler invocation persistence."""
 
-from __future__ import annotations
-
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 
 from safe_action_core import CURRENT_SCHEMA_VERSION, SafetyStore, SQLiteSchedulerInvocationRepository
+from safe_action_core.scheduler_invocation_state import ProjectionInvalidatedError
+from automation_service.contracts import RecurrenceClass, RecurrenceProjection
 from tasks.nova_praise_pulse import NOVA_TASK_ID
-from tasks.scheduler_task_result import SchedulerAwareTaskResult, SchedulerIdentity
+from tasks.scheduler_task_result import (
+    SchedulerAwareTaskResult,
+    SchedulerIdentity,
+    SchedulerTaskOutcome,
+)
 
 
 class SchedulerInvocationStateTests(unittest.TestCase):
@@ -60,6 +65,227 @@ class SchedulerInvocationStateTests(unittest.TestCase):
             self.assertFalse(repo.is_eligible(day1, 999.0))
             self.assertTrue(repo.is_eligible(day2, 11.0))
             store.close()
+
+    def test_clock_rollback_preserves_high_water_mark_until_fresh_recovery(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            identity = SchedulerIdentity("acct", "srv", "reset", "__clock__")
+            projection_identity = SchedulerIdentity("acct", "srv", "reset", "task")
+            projection = RecurrenceProjection(
+                RecurrenceClass.QUEUE_GENERATION,
+                observed_at_utc=100.0,
+                generation="g1",
+            )
+            store = SafetyStore(path)
+            try:
+                repo = SQLiteSchedulerInvocationRepository(store)
+                self.assertTrue(repo.observe_clock(identity, 100.0))
+                repo.save_projection(projection_identity, "projection", projection, 100.0)
+                self.assertFalse(repo.observe_clock(identity, 90.0))
+                self.assertEqual(
+                    store.connection.execute(
+                        "SELECT last_utc_epoch FROM scheduler_clock_state "
+                        "WHERE account_id=? AND server_id=? AND reset_id=?",
+                        ("acct", "srv", "reset"),
+                    ).fetchone()["last_utc_epoch"],
+                    100.0,
+                )
+                self.assertFalse(repo.observe_clock(identity, 91.0))
+                self.assertIsNone(repo.get_projection("projection"))
+            finally:
+                store.close()
+
+            reopened = SafetyStore(path)
+            try:
+                restored = SQLiteSchedulerInvocationRepository(reopened)
+                self.assertFalse(restored.observe_clock(identity, 91.0))
+                self.assertTrue(restored.observe_clock(identity, 100.0))
+                restored.save_projection(
+                    projection_identity,
+                    "projection",
+                    RecurrenceProjection(
+                        RecurrenceClass.QUEUE_GENERATION,
+                        observed_at_utc=100.0,
+                        generation="g2",
+                    ),
+                    100.0,
+                )
+                self.assertTrue(restored.projection_is_valid("projection", 100.0, 300.0))
+            finally:
+                reopened.close()
+    def test_populated_legacy_v4_invocation_check_upgrades_in_place(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            store = SafetyStore(path)
+            store.connection.execute("ALTER TABLE scheduler_invocation_state RENAME TO scheduler_invocation_state_legacy")
+            store.connection.execute(
+                """CREATE TABLE scheduler_invocation_state (
+                account_id TEXT NOT NULL,
+                server_id TEXT NOT NULL,
+                reset_id TEXT NOT NULL,
+                task_id TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('pending','deferred','complete_for_reset','already_complete','blocked','manual_required','unresolved')),
+                next_eligible_at REAL,
+                revision INTEGER NOT NULL,
+                last_reason_code TEXT NOT NULL,
+                observed_progress_json TEXT NOT NULL,
+                action_count_total INTEGER NOT NULL,
+                unresolved_action INTEGER NOT NULL,
+                evidence_refs_json TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY (account_id,server_id,reset_id,task_id)
+                )"""
+            )
+            store.connection.execute(
+                """INSERT INTO scheduler_invocation_state VALUES
+                ('acct','srv','reset','task','deferred',200.0,1,'WAIT','{}',0,0,'[]',100.0)"""
+            )
+            store.connection.execute("DROP TABLE scheduler_invocation_state_legacy")
+            store.close()
+            reopened = SafetyStore(path)
+            try:
+                self.assertEqual(reopened.schema_version, 4)
+                restored = SQLiteSchedulerInvocationRepository(reopened).get(
+                    SchedulerIdentity("acct", "srv", "reset", "task")
+                )
+                self.assertIsNotNone(restored)
+                self.assertEqual(restored.status, "deferred")
+                self.assertEqual(restored.next_eligible_at, 200.0)
+            finally:
+                reopened.close()
+
+
+    def test_same_pulse_deferred_occurrence_is_durable_fence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = SafetyStore(Path(folder) / "state.sqlite3")
+            try:
+                repo = SQLiteSchedulerInvocationRepository(store)
+                identity = SchedulerIdentity("acct", "srv", "reset", "task")
+                claim = repo.claim_occurrence(identity, 100.0, pulse_token="pulse-100")
+                self.assertIsNotNone(claim)
+                repo.finalize_claim(
+                    claim,
+                    SchedulerAwareTaskResult.deferred(identity, "WAIT", 100.0),
+                    100.0,
+                )
+                self.assertIsNone(repo.claim_occurrence(identity, 100.0, pulse_token="pulse-100"))
+                self.assertIsNotNone(repo.claim_occurrence(identity, 101.0, pulse_token="pulse-101"))
+            finally:
+                store.close()
+
+    def test_two_sqlite_connections_claim_one_occurrence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            initial_store = SafetyStore(path)
+            initial_store.close()
+            barrier = threading.Barrier(2)
+            claims = []
+            errors = []
+
+            def attempt():
+                store = SafetyStore(path)
+                try:
+                    barrier.wait()
+                    claim = SQLiteSchedulerInvocationRepository(store).claim_occurrence(
+                        SchedulerIdentity("acct", "srv", "reset", "task"),
+                        100.0,
+                        pulse_token="pulse-100",
+                    )
+                    claims.append(claim)
+                except Exception as exc:
+                    errors.append(exc)
+                finally:
+                    store.close()
+
+            threads = [
+                threading.Thread(target=attempt),
+                threading.Thread(target=attempt),
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+            self.assertEqual(errors, [])
+            self.assertEqual(sum(claim is not None for claim in claims), 1)
+
+    def test_stale_projection_cannot_restore_invalidated_observation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = SafetyStore(Path(folder) / "state.sqlite3")
+            try:
+                repo = SQLiteSchedulerInvocationRepository(store)
+                identity = SchedulerIdentity("acct", "srv", "reset", "task")
+                projection = RecurrenceProjection(
+                    RecurrenceClass.QUEUE_GENERATION,
+                    observed_at_utc=100.0,
+                    generation="g1",
+                )
+                repo.save_projection(identity, "projection", projection, 100.0)
+                repo.invalidate_projections(identity, 101.0)
+                store.close()
+                reopened = SafetyStore(Path(folder) / "state.sqlite3")
+                try:
+                    restored = SQLiteSchedulerInvocationRepository(reopened)
+                    self.assertFalse(restored.projection_is_valid("projection", 101.0, 300.0))
+                    with self.assertRaises(ProjectionInvalidatedError):
+                        restored.save_projection(identity, "projection", projection, 100.0)
+                    with self.assertRaises(ProjectionInvalidatedError):
+                        restored.save_projection(identity, "projection", {"generation": "stale"}, 101.0)
+                    with self.assertRaises(ValueError):
+                        restored.save_projection(identity, "projection", {"generation": "undated"}, 102.0)
+                    with self.assertRaises(ValueError):
+                        restored.save_projection(identity, "projection", projection, None)
+                    restored.save_projection(
+                        identity,
+                        "projection",
+                        RecurrenceProjection(
+                            RecurrenceClass.QUEUE_GENERATION,
+                            observed_at_utc=102.0,
+                            generation="g2",
+                        ),
+                        102.0,
+                    )
+                    self.assertTrue(restored.projection_is_valid("projection", 102.0, 300.0))
+                finally:
+                    reopened.close()
+            finally:
+                pass
+
+    def test_reset_disagreement_invalidates_declared_and_observed_projections(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = SafetyStore(Path(folder) / "state.sqlite3")
+            try:
+                repo = SQLiteSchedulerInvocationRepository(store)
+                declared = SchedulerIdentity("acct", "srv", "declared", "task")
+                observed = SchedulerIdentity("acct", "srv", "observed", "task")
+                projection = RecurrenceProjection(
+                    RecurrenceClass.QUEUE_GENERATION,
+                    observed_at_utc=100.0,
+                    generation="g1",
+                )
+                repo.save_projection(declared, "declared-projection", projection, 100.0)
+                repo.save_projection(observed, "observed-projection", projection, 100.0)
+                repo.record_reset_disagreement("acct", "srv", "declared", "observed", 101.0)
+                self.assertIsNone(repo.get_projection("declared-projection"))
+                self.assertIsNone(repo.get_projection("observed-projection"))
+            finally:
+                store.close()
+
+    def test_orphan_reconciliation_accepts_only_verified_positive_completion(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = SafetyStore(Path(folder) / "state.sqlite3")
+            try:
+                repo = SQLiteSchedulerInvocationRepository(store)
+                identity = SchedulerIdentity("acct", "srv", "reset", "task")
+                claim = repo.claim_occurrence(identity, 100.0, pulse_token="pulse-100")
+                self.assertIsNotNone(claim)
+                deferred = SchedulerAwareTaskResult.deferred(identity, "WAIT", 200.0)
+                state = repo.reconcile_orphan_claim(claim.claim_id, deferred, 101.0)
+                self.assertEqual(state.status, "reconciliation_required")
+                self.assertTrue(state.unresolved_action)
+                self.assertEqual(repo.get_occurrence(claim.occurrence_key).status, "RECONCILIATION_REQUIRED")
+            finally:
+                store.close()
+
 
     def test_v2_database_migrates_forward(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -134,7 +360,7 @@ class SchedulerInvocationStateTests(unittest.TestCase):
             conn.close()
             store = SafetyStore(path)
             try:
-                self.assertEqual(store.schema_version, 3)
+                self.assertEqual(store.schema_version, CURRENT_SCHEMA_VERSION)
                 repo = SQLiteSchedulerInvocationRepository(store)
                 identity = SchedulerIdentity("a", "b", "c", NOVA_TASK_ID)
                 repo.apply_result(SchedulerAwareTaskResult.deferred(identity, "WAIT", 50.0), 1.0)

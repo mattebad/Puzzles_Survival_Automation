@@ -1,0 +1,81 @@
+{
+  "schema_name": "enhancement_transition_replay",
+  "schema_version": 1,
+  "consumer": "Enhancement",
+  "flow_id": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+  "dispatch_policy": "replay_never_dispatches_input",
+  "proof_state": "replayable",
+  "source_record": {
+    "path": ".local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/flow-delivery-result.json",
+    "sha256": "bc36407fb2ede1d202d4b18ced544192c4fcb8125af3943e8364f1fb109dde0b"
+  },
+  "event_log": {
+    "path": ".local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/events.jsonl",
+    "sha256": "4a78a4a648f15ecd171b0ec2bbdc220d9659e982ecdfce0db37ae0648e7fc07b"
+  },
+  "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+  "native_dimensions": [800, 1280],
+  "provenance": "retained_result_and_event_log",
+  "observations": [
+    {
+      "phase": "immediate_post",
+      "event_label": "leave-completed-module-enhancement-immediate-post",
+      "semantic_state": "transitioning",
+      "frame_sha256": "1bd6a28ba8680f17ac4bfc13c8a32661389fcc92ab51f9357b9a0e3b2389bb92",
+      "evidence_ref": "frames/0003-leave-completed-module-enhancement-immediate-post.png",
+      "typed_observation": {
+        "consumer": "Enhancement",
+        "variant": "module",
+        "screen_state": "COMMANDER_INFO",
+        "recognized": false,
+        "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+        "native_dimensions": [800, 1280]
+      }
+    },
+    {
+      "phase": "first_settled",
+      "event_label": "leave-completed-module-enhancement-settled",
+      "semantic_state": "requested_tab_settled",
+      "frame_sha256": "434f4ebb55b8606824247a727229c79accddfb2f243d528328b253726eac6c5b",
+      "evidence_ref": "frames/0004-leave-completed-module-enhancement-settled.png",
+      "typed_observation": {
+        "consumer": "Enhancement",
+        "variant": "module",
+        "screen_state": "COMMANDER_INFO",
+        "recognized": true,
+        "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+        "native_dimensions": [800, 1280]
+      }
+    },
+    {
+      "phase": "settled_confirmation",
+      "event_label": "commander-to-home-terminal-immediate-before",
+      "semantic_state": "requested_tab_settled",
+      "frame_sha256": "434f4ebb55b8606824247a727229c79accddfb2f243d528328b253726eac6c5b",
+      "evidence_ref": "frames/0005-commander-to-home-terminal-immediate-before.png",
+      "typed_observation": {
+        "consumer": "Enhancement",
+        "variant": "module",
+        "screen_state": "COMMANDER_INFO",
+        "recognized": true,
+        "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+        "native_dimensions": [800, 1280]
+      }
+    },
+    {
+      "phase": "terminal_settled",
+      "event_label": "commander-to-home-terminal-settled",
+      "semantic_state": "recognized_safe_terminal",
+      "frame_sha256": "f1814d91384522e0f2c67c1796d13a7838f5081ad2e016887b78b9b597bdf2ea",
+      "evidence_ref": "frames/0007-commander-to-home-terminal-settled.png",
+      "typed_observation": {
+        "consumer": "Enhancement",
+        "variant": "module",
+        "screen_state": "HOME",
+        "recognized": true,
+        "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+        "native_dimensions": [800, 1280]
+      }
+    }
+  ]
+}

@@ -72,9 +72,10 @@
       {
         "task_id": "daily-milestone-claim",
         "execution_flow_id": "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
-        "queue_record_state": "existing_blocked",
+        "queue_record_state": "blocked_evidence_required",
         "depends_on": [],
-        "blocker": "separate ready-chest identity and semantic successor evidence"
+        "blocker": "Evidence owner: Sol parent. No current BlueStacks-native ready milestone chest, same-milestone successor, or canonical-Home corpus exists; the retained Bliss/synthetic fixture is diagnostic and non-authorizing."
+
       },
       {
         "task_id": "use-resource-item",
@@ -115,21 +116,21 @@
       },
       {
         "task_id": "alliance-shop-purchase",
-        "execution_flow_id": null,
+        "execution_flow_id": "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE",
         "queue_record_state": "staged_non_executable",
         "depends_on": ["shared_shop_navigation_receipt_primitives"],
-        "blocker": "current Joy Coin and Alliance-coin fallback identities, costs, balances, and successors are missing"
+        "blocker": "current Joy Coin offer/cost/availability, Alliance-coin fallback item/cost/balance, successors, and canonical Home evidence are missing"
       },
       {
         "task_id": "ruins-shop-purchase",
-        "execution_flow_id": null,
+        "execution_flow_id": "RUINS-SHOP-PURCHASE-EVIDENCE-GATE",
         "queue_record_state": "staged_non_executable",
         "depends_on": ["shared_shop_navigation_receipt_primitives"],
         "blocker": "current three-star Chip material, 15-coin price, balance, quantity, and successor evidence are missing"
       },
       {
         "task_id": "rare-earth-shop-purchase",
-        "execution_flow_id": null,
+        "execution_flow_id": "RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE",
         "queue_record_state": "staged_non_executable",
         "depends_on": ["shared_shop_navigation_receipt_primitives"],
         "blocker": "exact current item label/cost and balance-backed successor evidence are missing"
@@ -150,17 +151,17 @@
       },
       {
         "task_id": "hero-upgrade",
-        "execution_flow_id": null,
+        "execution_flow_id": "HERO-UPGRADE-EVIDENCE-GATE",
         "queue_record_state": "staged_non_executable",
         "depends_on": [],
-        "blocker": "Wally/reset/reorder native evidence and product-specific implementation are missing"
+        "blocker": "current Wally identity, selected-hero level/material/cost/balance successors, reset/reorder state, and canonical Home evidence are missing"
       },
       {
         "task_id": "hero-duel",
-        "execution_flow_id": null,
+        "execution_flow_id": "HERO-DUEL-EVIDENCE-GATE",
         "queue_record_state": "staged_non_executable",
         "depends_on": [],
-        "blocker": "free-opponent/popup/exit/loss native evidence and three-dispatch implementation are missing"
+        "blocker": "current Hero Duel event, free opponent, Join state, attempts, participation successor, loss/Exit safety, and canonical Home evidence are missing"
       },
       {
         "task_id": "enhancement-gear-native-proof",
@@ -3136,6 +3137,44 @@
       }
     },
     {
+      "flow_id": "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+      "title": "Migrate Supply Depot continuous session with evidence gate",
+      "kind": "continuous_session_migration",
+      "priority": 125,
+      "status": "blocked",
+      "backlog_task_id": "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/flow_delivery_supply_depot_bluestacks.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/gameplay_flow_contracts/SUPPLY-DEPOT-BLUESTACKS-INTEGRATION.json"
+      ],
+      "navigation_model": "canonical_home_to_supply_depot_free_exhaustion_and_canonical_home",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized by this correction; current uninterrupted Free-exhaustion through all Free controls, positive successor, and canonical Home proof remain required.",
+      "consequence_policy": "Offline continuous-session migration is accepted. Paid, diamond, ambiguous, stale, unknown, and identical-retry collection actions remain prohibited; transport or a hold alone does not prove collection; no Daily 5/5 attribution is inferred.",
+      "product_policy_status": "supervised_consequential_validation",
+      "registration_state": "NOT_REGISTERED",
+      "production_eligible": false,
+      "scheduler_eligibility": false,
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_validation_receipt_digest": "21d2184ba75969cdd7e1f75101eddde3f1edf69d1344255eb9564a236b0ca036",
+      "architecture_validation_receipt_digest": "ff47b92baf60b59dcc859bf0fca1232ad0047717aab8fb25fb6f501ea4f06a0d",
+      "focused_tests": [
+        "tests/test_flow_delivery_supply_depot_bluestacks.py",
+        "tests/test_flow_delivery_authority_consistency.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Offline continuous-session migration is accepted, but current uninterrupted Free-exhaustion plus canonical-Home proof remains evidence_required; no live attempt is authorized by this correction.",
+      "next_concrete_action": "Remain evidence_required; use the existing Supply Depot runner, validator, and recovery handler only after separate authorization for current uninterrupted Free-exhaustion plus canonical-Home proof; keep collection, registration, and scheduling disabled.",
+      "last_completed_stage": "focused_validation",
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/SUPPLY-DEPOT-BLUESTACKS-INTEGRATION"
+    },
+    {
       "flow_id": "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
       "title": "Retire the legacy Supply Depot adapter beside the canonical route",
       "kind": "legacy_adapter_retirement",
@@ -3293,6 +3332,7 @@
       "kind": "consequential_integration",
       "priority": 80,
       "status": "blocked",
+
       "backlog_task_id": "DQ-CLAIM-MILESTONE",
       "dependencies": [],
       "implementation_entrypoints": [
@@ -3315,9 +3355,9 @@
       "performance_metrics_required": [
         "claim_binding_latency_seconds"
       ],
-      "blocked_reason": "Fresh BlueStacks ready-milestone target and positive postcondition evidence are missing.",
-      "next_concrete_action": "Acquire separately authorized navigation-only milestone evidence before implementation or dispatch.",
-      "last_completed_stage": null,
+      "blocked_reason": "Evidence owner: Sol parent. Fresh BlueStacks-native ready-milestone target, positive same-milestone successor, and canonical-Home evidence are missing; no implementation or dispatch is admissible.",
+      "next_concrete_action": "Obtain separately authorized zero-input/navigation-only BlueStacks-native milestone evidence; only after a ready chest and positive successor are proven may a new atomic route-integration task be selected.",
+      "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION"
     },
@@ -3461,8 +3501,8 @@
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
-      "blocked_reason": "Policy is closed and pure offline craft code exists, but it has stale generic recipe semantics and lacks native selectors, claim/parts/timer/Home replay, and a supervised canary.",
-      "next_concrete_action": "After Nano Material Production, reconcile the existing pure contract to exact 100-part Normal Craft semantics and acquire native replay evidence before any canary.",
+      "blocked_reason": "Offline Normal Craft policy and adapter/session semantics are reconciled to exact 100 NANO_PARTS, one start per reset, one active craft, 43200 seconds, claim-first, and canonical Home; native selectors, route replay, production replay, and supervised canary remain missing.",
+      "next_concrete_action": "Keep Nanoweapon route/session migration blocked offline pending native Gear Factory/Nanoweapon/Normal Craft/claim/timer/Home evidence; do not dispatch a craft, add an adapter, register, schedule, or use runtime input. Advance to Ruins Shop product authority only.",
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/NANOWEAPON-BLUESTACKS-INTEGRATION"
@@ -3492,8 +3532,8 @@
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
-      "blocked_reason": "No Material Production implementation, native selector corpus, production replay, or supervised canary exists.",
-      "next_concrete_action": "Implement the zero-resource six-hour Material Production state machine and offline replay after Recruitment maintenance.",
+      "blocked_reason": "No Material Production recognizer, controller, persistence, native selector corpus, production replay, or supervised canary exists; typed product authority is accepted offline but route/session migration cannot begin.",
+      "next_concrete_action": "Keep Nano Material route/session migration dispositioned blocked offline; do not add an adapter, synthetic selector, no-op runner, registration, scheduler, or runtime input. Advance to Nanoweapon product authority only.",
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/NANO-MATERIAL-PRODUCTION-MAINTENANCE"
@@ -3518,7 +3558,7 @@
       "requires_bluestacks_live": true,
       "live_validation_scope": "Completed supervised native development validation across the unified three-tab pass and five cooldown-separated Basic windows. Each pnsctl session remained bounded; diagnostics were repaired before materially changed continuation.",
       "consequence_policy": "Recruitment is ordinary development interaction with no consequential lifecycle. Basic alone owns five reset-scoped free singles, one per 600-second window; Int. and Advanced never own Daily completion. Paid, 10x, item-backed, or ambiguous recruitment is prohibited; Claim remains separate.",
-      "product_policy_status": "explicitly_approved",
+      "product_policy_status": "supervised_consequential_validation",
       "maximum_live_attempts": 6,
       "live_attempt_count": 5,
       "live_attempts": [
@@ -3651,7 +3691,7 @@
       "requires_bluestacks_live": true,
       "live_validation_scope": "Completed supervised native development validation across the unified three-tab pass and five cooldown-separated Basic windows. Each pnsctl session remained bounded; diagnostics were repaired before materially changed continuation.",
       "consequence_policy": "One pass inspects Basic, Int., and Advanced independently and uses at most one currently eligible zero-cost single per tab. Basic owns reset-scoped five-count/600-second windows; Int./Advanced persist independent 86400/172800-second deadline floats through the existing SQLite scheduler invocation seam, with rollover resetting Basic ownership only. Restart-safe absolute wall-clock deadline modernization remains future scheduler architecture work. Paid, 10x, item-backed, ambiguous recruitment, and Claim are prohibited; return canonical Home even when deferred.",
-      "product_policy_status": "explicitly_approved",
+      "product_policy_status": "supervised_consequential_validation",
       "maximum_live_attempts": 6,
       "live_attempt_count": 5,
       "live_attempts": [
@@ -4129,6 +4169,7 @@
       "live_attempt_count": 1,
       "live_attempts": [
         {
+          "ordinal": 1,
           "session_directory": ".local-captures/development-sessions/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z",
           "status": "completed",
           "input_count": 3,
@@ -4138,10 +4179,10 @@
         }
       ],
       "focused_tests": [
-        "tests.test_daily_resource_item_bluestacks",
-        "tests.test_flow_delivery_daily_resource_item_bluestacks",
-        "tests.test_gameplay_flow_contracts",
-        "tests.test_flow_delivery_validation_profiles"
+        "tests/test_daily_resource_item_bluestacks.py",
+        "tests/test_flow_delivery_daily_resource_item_bluestacks.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_flow_delivery_validation_profiles.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -4150,7 +4191,7 @@
       ],
       "blocked_reason": "",
       "next_concrete_action": "Do not start daily-milestone-claim until explicitly selected. daily-resource-item live acceptance is complete; registration remains NOT_REGISTERED.",
-      "last_completed_stage": "live_accepted_home_bag_use_home",
+      "last_completed_stage": "completed",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
       "acceptance_criteria": [
@@ -4215,6 +4256,260 @@
         "scheduler_eligibility": "disabled",
         "claim_action": "not_authorized"
       }
+    },
+    {
+      "flow_id": "RUINS-SHOP-PURCHASE-EVIDENCE-GATE",
+      "title": "Record Ruins Shop purchase authority and evidence gate",
+      "kind": "shop_purchase_evidence_gate",
+      "priority": 170,
+      "status": "blocked",
+      "backlog_task_id": "ruins-shop-purchase",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/purchases_disabled.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/RUINS-SHOP-PURCHASE-EVIDENCE-GATE.json",
+        "tasks/daily_quest_execution_matrix.json"
+      ],
+      "navigation_model": "canonical_home_to_ruins_shop_observation_and_home_disposition",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; current three-star Chip identity, 15 RUINS_COINS cost, balance, quantity, deltas, successor, and canonical Home evidence are required before any route/session input.",
+      "consequence_policy": "Purchase dispatch and currency spend remain prohibited while product status is unresolved_user_decision; synthetic arithmetic is non-authorizing.",
+      "product_policy_status": "unresolved_user_decision",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_purchases_disabled.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Current native Ruins Shop target, three-star Chip material, 15-coin price, balance, quantity, item/currency deltas, successor, and Home route/session evidence are missing.",
+      "next_concrete_action": "Resolve product allowlist and acquire lean native Ruins Shop offer plus canonical-Home route/session evidence; keep purchase dispatch disabled.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/RUINS-SHOP-PURCHASE-EVIDENCE-GATE"
+    },
+    {
+      "flow_id": "RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE",
+      "title": "Record Rare Earth Shop purchase authority and evidence gate",
+      "kind": "shop_purchase_evidence_gate",
+      "priority": 171,
+      "status": "blocked",
+      "backlog_task_id": "rare-earth-shop-purchase",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/purchases_disabled.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE.json",
+        "tasks/daily_quest_execution_matrix.json"
+      ],
+      "navigation_model": "canonical_home_to_rare_earth_shop_observation_and_home_disposition",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; current three-star item label, currency identity, exact cost, balance, quantity, deltas, successor, and canonical Home evidence are required before any route/session input.",
+      "consequence_policy": "Purchase dispatch and currency spend remain prohibited while product status is unresolved_user_decision; unknown item or cost fails closed.",
+      "product_policy_status": "unresolved_user_decision",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_purchases_disabled.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Current native Rare Earth Shop target, three-star item label, currency, exact cost, balance, quantity, item/currency deltas, successor, and Home route/session evidence are missing.",
+      "next_concrete_action": "Resolve exact item/currency allowlist and acquire lean native Rare Earth Shop offer plus canonical-Home route/session evidence; keep purchase dispatch disabled.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE"
+    },
+    {
+      "flow_id": "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE",
+      "title": "Record Alliance Shop purchase authority and evidence gate",
+      "kind": "shop_purchase_evidence_gate",
+      "priority": 172,
+      "status": "blocked",
+      "backlog_task_id": "alliance-shop-purchase",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/purchases_disabled.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE.json",
+        "tasks/daily_quest_execution_matrix.json"
+      ],
+      "navigation_model": "canonical_home_to_alliance_shop_observation_and_home_disposition",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; current Joy Coin offer, availability, currency, exact cost, Alliance-coin fallback item and cost, balance, quantity, deltas, successor, and canonical Home evidence are required before any route/session input.",
+      "consequence_policy": "Purchase dispatch and currency spend remain prohibited while product status is unresolved_user_decision; unknown offer, fallback, item, currency, or cost fails closed.",
+      "product_policy_status": "unresolved_user_decision",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_purchases_disabled.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Current native Alliance Shop target, Joy Coin offer and availability, currency, exact cost, Alliance-coin fallback item and cost, balance, quantity, item/currency deltas, successor, and Home route/session evidence are missing.",
+      "next_concrete_action": "Resolve Joy Coin and Alliance-coin fallback allowlist, then acquire lean native Alliance Shop offer plus canonical-Home route/session evidence; keep purchase dispatch disabled.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE"
+    },
+    {
+      "flow_id": "HERO-UPGRADE-EVIDENCE-GATE",
+      "title": "Record Hero Upgrade authority and evidence gate",
+      "kind": "hero_upgrade_evidence_gate",
+      "priority": 173,
+      "status": "blocked",
+      "backlog_task_id": "hero-upgrade",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/hero_upgrade_disabled.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/HERO-UPGRADE-EVIDENCE-GATE.json",
+        "tasks/daily_quest_execution_matrix.json"
+      ],
+      "navigation_model": "canonical_home_to_hero_upgrade_observation_and_home_disposition",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; current Wally identity, selected Hero state, exact level/material/amount/balance, one-level successor, daily progress, and canonical Home evidence are required before any route/session input.",
+      "consequence_policy": "Upgrade dispatch and material spend remain prohibited under global upgrade policy; synthetic arithmetic is non-authorizing.",
+      "product_policy_status": "prohibited",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_hero_upgrade_disabled.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Current native Hero surface, Wally identity, level transition, material amount/balance, daily successor, and Home route/session evidence are missing.",
+      "next_concrete_action": "Resolve Hero Upgrade product allowlist and acquire lean native Hero surface plus canonical-Home route/session evidence; keep Upgrade dispatch disabled.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/HERO-UPGRADE-EVIDENCE-GATE"
+    },
+    {
+      "flow_id": "HERO-DUEL-EVIDENCE-GATE",
+      "title": "Record Hero Duel authority and evidence gate",
+      "kind": "hero_duel_evidence_gate",
+      "priority": 174,
+      "status": "blocked",
+      "backlog_task_id": "hero-duel",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "tasks/hero_duel_disabled.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/HERO-DUEL-EVIDENCE-GATE.json",
+        "tasks/daily_quest_execution_matrix.json"
+      ],
+      "navigation_model": "canonical_home_to_hero_duel_observation_and_home_disposition",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; current Hero Duel event, active state, free opponent, Join control, attempts, participation successor, loss/Exit safety, and canonical Home evidence are required before any route/session input.",
+      "consequence_policy": "PvP entry, lineup change, combat, loss consequence, and resource spend remain prohibited; synthetic arithmetic is non-authorizing.",
+      "product_policy_status": "prohibited",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_hero_duel_disabled.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Current native Hero Duel event, free opponent, Join state, attempts, participation result, loss/Exit safety, and Home route/session evidence are missing.",
+      "next_concrete_action": "Resolve Hero Duel PvP policy and acquire lean native event plus canonical-Home route/session evidence; keep PvP entry disabled.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/HERO-DUEL-EVIDENCE-GATE"
+    },
+    {
+      "flow_id": "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+      "title": "Validate one zero-cost Bioenhancer Free Research 1x action",
+      "kind": "direct_free_research_integration",
+      "priority": 125,
+      "status": "blocked",
+      "backlog_task_id": "DQ-FLOW-BIOENHANCER",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/flow_delivery_bioenhancer_bluestacks.py",
+        "scripts/bioenhancer_free_research_canary.py",
+        "tasks/bioenhancer.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/gameplay_flow_contracts/BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION.json"
+      ],
+      "navigation_model": "direct_home_to_research_lab_to_bioenhancer_to_home",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; current native Research Lab, Bioenhancer, Free Research 1x, cooldown successor, and canonical Home evidence are required before any research input.",
+      "consequence_policy": "Existing development runner owns exactly one current-frame zero-cost Free Research 1x action. Paid, 10x, unknown, stale, contradictory, and identical-retry research remain prohibited. Aggregate Claim remains the sole Claim owner.",
+      "product_policy_status": "supervised_consequential_validation",
+      "registration_state": "NOT_REGISTERED",
+      "production_eligible": false,
+      "scheduler_eligibility": false,
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_flow_delivery_bioenhancer_bluestacks.py",
+        "tests/test_bioenhancer.py",
+        "tests/test_daily_bioenhancer.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "Current BlueStacks native Free Research 1x identity, immediate-before frame, positive cooldown successor, and canonical Home route/session proof are missing; retained Bliss evidence is non-accepting.",
+      "next_concrete_action": "Use the existing Bioenhancer development runner only after a bounded evidence review; keep registration, scheduling, and research dispatch disabled.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"
+    },
+    {
+      "flow_id": "VIP-GET-PTS-POPUP-DISMISSAL",
+      "title": "Record VIP Get Pts popup helper authority and evidence gate",
+      "kind": "vip_popup_helper_evidence_gate",
+      "priority": 175,
+      "status": "blocked",
+      "backlog_task_id": "vip-get-points-popup-dismissal",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/bluestacks_popup_recognition.py",
+        "tasks/profile.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/VIP-GET-PTS-POPUP-DISMISSAL.json"
+      ],
+      "navigation_model": "typed_vip_get_pts_popup_observation_and_bounded_dismissal_disposition",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized; one fresh exact VIP Get Pts popup, native Close target, bounded dismissal, settled source-context successor, and canonical Home route/session evidence are required before any safe popup input.",
+      "consequence_policy": "One allowlisted popup close remains navigation-only and evidence-gated; resource, currency, march, stamina, AP, combat, registration, and scheduler behavior remain prohibited.",
+      "product_policy_status": "navigation_only_validation",
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_vip_points_popup.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "safe_popup_input_count",
+        "popup_successor_settle_latency_seconds"
+      ],
+      "blocked_reason": "Fresh native VIP_POINTS_GET_PTS identity, Close target, bounded dismissal, settled successor, and canonical Home route/session proof are missing.",
+      "next_concrete_action": "Acquire one lean native VIP Get Pts popup and settled successor corpus; keep popup input disabled until evidence review.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/VIP-GET-PTS-POPUP-DISMISSAL"
     }
   ]
 }

@@ -8,6 +8,7 @@ import fnmatch
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -19,12 +20,20 @@ BACKLOG_PATH = ROOT / "BACKLOG.md"
 MANIFEST_PATH = ROOT / "evidence" / "current-evidence-manifest.json"
 INDEXING_IGNORE_PATH = ROOT / ".cursorindexingignore"
 
-CURRENT_TASK_STATES = {"pending", "in_progress", "blocked", "completed"}
+CURRENT_TASK_STATES = {
+    "pending",
+    "in_progress",
+    "blocked",
+    "blocked_evidence_required",
+    "completed",
+    "completed_offline",
+}
 NEXT_TASK_ACTIVATION_STATES = {
-    "ready",
-    "contract_migration_required",
+    "awaiting_explicit_activation",
     "dependency_blocked",
     "not_applicable",
+    "ready",
+    "authorized_pending_freeze",
 }
 MANIFEST_STATUSES = {
     "PRESENT_VERIFIED",
@@ -36,18 +45,20 @@ MANIFEST_STATUSES = {
     "NOT_APPLICABLE",
 }
 
-HANDOFF_SCHEMA_VERSION = 2
+
+
+HANDOFF_SCHEMA_VERSION = 3
 HANDOFF_STRUCTURED_MAX_BYTES = 15000
-HANDOFF_TOTAL_MAX_BYTES = 20000
-HANDOFF_MAX_RECENT_COMMITS = 5
-HANDOFF_MAX_PROCESS_DEVIATIONS = 3
+HANDOFF_TOTAL_MAX_BYTES = 30000
 
 HANDOFF_REQUIRED_KEYS = {
     "schema_version",
     "branch",
-    "head",
+    "head_binding",
+    "last_product_candidate_head",
     "ahead_behind",
     "attributable_dirty_paths",
+    "task_start_worktree",
     "protected_user_owned_paths",
     "current_task_id",
     "current_task_state",
@@ -56,14 +67,12 @@ HANDOFF_REQUIRED_KEYS = {
     "active_task_or_flow",
     "active_delivery_stage",
     "active_execution_manifest_path",
-    "queue_counts",
-    "first_ready_flow",
-    "next_ready_flow",
     "development_lease_state",
     "runtime_ownership_state",
     "writable_agent_state",
     "unresolved_action_state",
     "latest_focused_validation_result",
+    "latest_architecture_validation_result",
     "latest_full_suite_result",
     "current_live_attempt_state",
     "current_evidence_or_session_reference",
@@ -71,11 +80,19 @@ HANDOFF_REQUIRED_KEYS = {
     "exact_next_permitted_action",
     "current_blocker",
     "prohibited_repeated_action",
-    "recent_relevant_commits",
-    "process_deviations",
+    "stage_revision",
+    "stage_type",
+    "product_precondition",
+    "failure_class",
+    "budgets",
     "registration_and_scheduler",
     "journals_and_lease",
     "evidence",
+    "control_owner",
+    "control_parent_conversation_id",
+    "deferred_independent_review",
+    "stage_7_ordered_plan",
+    "next_three_atomic_tasks",
 }
 
 HANDOFF_FORBIDDEN_KEYS = {
@@ -94,34 +111,31 @@ HANDOFF_FORBIDDEN_KEYS = {
 
 HANDOFF_NESTED_KEYS = {
     "ahead_behind": {
-        "ahead",
-        "behind",
+        "source",
     },
-    "queue_counts": {
-        "ready",
-        "active",
-        "blocked",
-        "completed",
-        "needs_product_decision",
+    "task_start_worktree": {
+        "tracked_dirty_paths",
+        "protected_untracked_paths",
+    },
+    "budgets": {
+        "stage_revisions_used",
+        "managed_turns_used",
+        "live_attempts_used",
+        "runtime_inputs_used",
     },
     "registration_and_scheduler": {
-        "registered_operator_tasks",
-        "scheduler_enabled_disabled",
-        "scheduler_eligible_flows",
-        "composition_blocked",
-        "m6_unactivated",
-        "bliss_unchanged",
+        "production_registration",
+        "scheduler_enabled",
+        "active_runtime",
     },
     "journals_and_lease": {
-        "development_lease_path",
         "development_lease_status",
         "active_prepared_input_sent_unresolved_action_ids",
-        "historical_unresolved_classification",
+        "historical_journals",
     },
     "evidence": {
         "evidence_requirement",
-        "evidence_requirement_reason",
-        "active_evidence_manifest",
+        "monitoring_issue",
         "do_not_recursively_inspect_parent_evidence_tree",
     },
 }
@@ -311,23 +325,161 @@ def parse_handoff(path: Path = HANDOFF_PATH) -> Dict[str, Any]:
         "unresolved_action_state"
     ].strip():
         raise GovernanceValidationError("unresolved_action_state must be non-empty")
-    if not isinstance(state["protected_user_owned_paths"], list):
-        raise GovernanceValidationError("protected_user_owned_paths must be a list")
-    commits = state["recent_relevant_commits"]
-    if not isinstance(commits, list) or len(commits) > HANDOFF_MAX_RECENT_COMMITS:
-        raise GovernanceValidationError(
-            f"recent_relevant_commits must be a list of at most {HANDOFF_MAX_RECENT_COMMITS}"
-        )
-    if len(commits) != len(set(commits)):
-        raise GovernanceValidationError("recent_relevant_commits must not contain duplicates")
-    deviations = state["process_deviations"]
-    if not isinstance(deviations, list) or len(deviations) > HANDOFF_MAX_PROCESS_DEVIATIONS:
-        raise GovernanceValidationError(
-            f"process_deviations must be a list of at most {HANDOFF_MAX_PROCESS_DEVIATIONS}"
-        )
+    for name in (
+        "attributable_dirty_paths",
+        "protected_user_owned_paths",
+        "stage_7_ordered_plan",
+        "next_three_atomic_tasks",
+    ):
+        value = state[name]
+        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            raise GovernanceValidationError(f"{name} must be a list of strings")
+    for name in ("tracked_dirty_paths", "protected_untracked_paths"):
+        value = state["task_start_worktree"][name]
+        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            raise GovernanceValidationError(
+                f"task_start_worktree.{name} must be a list of strings"
+            )
+    for name in ("head_binding", "last_product_candidate_head"):
+        if not re.fullmatch(r"[0-9a-f]{40}", str(state[name])):
+            raise GovernanceValidationError(f"{name} must be a full Git SHA")
+    if state["ahead_behind"]["source"] != "compute_from_git":
+        raise GovernanceValidationError("ahead_behind source must be compute_from_git")
+    if len(state["next_three_atomic_tasks"]) != 3:
+        raise GovernanceValidationError("next_three_atomic_tasks must contain exactly three tasks")
+    for name, value in state["budgets"].items():
+        if type(value) is not int or value < 0:
+            raise GovernanceValidationError(f"budget {name} must be a nonnegative integer")
+    registration = state["registration_and_scheduler"]
+    if registration["production_registration"] != "NOT_REGISTERED":
+        raise GovernanceValidationError("production registration must remain NOT_REGISTERED")
+    if registration["scheduler_enabled"] is not False:
+        raise GovernanceValidationError("scheduler must remain disabled")
+    for name in (
+        "branch",
+        "active_delivery_stage",
+        "latest_focused_validation_result",
+        "latest_architecture_validation_result",
+        "latest_full_suite_result",
+        "current_live_attempt_state",
+        "current_evidence_or_session_reference",
+        "last_safe_completed_step",
+        "current_blocker",
+        "prohibited_repeated_action",
+        "stage_revision",
+        "stage_type",
+        "product_precondition",
+        "failure_class",
+        "control_parent_conversation_id",
+        "deferred_independent_review",
+    ):
+        if not isinstance(state[name], str) or not state[name].strip():
+            raise GovernanceValidationError(f"{name} must be a non-empty string")
+    for name in ("evidence_requirement", "monitoring_issue"):
+        value = state["evidence"][name]
+        if not isinstance(value, str) or not value.strip():
+            raise GovernanceValidationError(f"evidence.{name} must be a non-empty string")
+    if state["control_owner"] != "sol_parent":
+        raise GovernanceValidationError("handoff control_owner must be sol_parent")
     if state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"] is not True:
         raise GovernanceValidationError("handoff must prohibit recursive evidence inspection")
+    validate_lifecycle_relations(state)
     return state
+
+
+
+def validate_lifecycle_relations(state: Dict[str, Any]) -> None:
+    if state["next_task_activation_status"] == "awaiting_explicit_activation":
+        if state["active_task_or_flow"] != "none":
+            raise GovernanceValidationError(
+                "awaiting_explicit_activation requires no active task or flow"
+            )
+        if state["active_execution_manifest_path"] is not None:
+            raise GovernanceValidationError(
+                "awaiting_explicit_activation must not name an execution manifest"
+            )
+        if state["registration_and_scheduler"]["production_registration"] != "NOT_REGISTERED":
+            raise GovernanceValidationError(
+                "awaiting_explicit_activation requires NOT_REGISTERED"
+            )
+        if state["registration_and_scheduler"]["scheduler_enabled"] is not False:
+            raise GovernanceValidationError(
+                "awaiting_explicit_activation requires scheduler disabled"
+            )
+        if state["runtime_ownership_state"] != "none":
+            raise GovernanceValidationError(
+                "awaiting_explicit_activation requires no runtime owner"
+            )
+    if state["current_task_state"] in {"completed", "completed_offline"}:
+        if state["active_task_or_flow"] != "none":
+            raise GovernanceValidationError(
+                "completed stage must not retain an active task or flow"
+            )
+        if state["active_execution_manifest_path"] is not None:
+            raise GovernanceValidationError(
+                "completed stage must not retain an execution manifest"
+            )
+        if state["development_lease_state"] != "absent":
+            raise GovernanceValidationError("completed stage requires an absent lease")
+        if state["journals_and_lease"]["development_lease_status"] != "absent":
+            raise GovernanceValidationError("completed stage requires an absent journal lease")
+        if state["runtime_ownership_state"] != "none":
+            raise GovernanceValidationError("completed stage requires no runtime owner")
+        if state["writable_agent_state"] != "none":
+            raise GovernanceValidationError("completed stage requires no writable agent")
+        if state["unresolved_action_state"] != "clear":
+            raise GovernanceValidationError("completed stage requires clear unresolved action")
+        if state["journals_and_lease"]["active_prepared_input_sent_unresolved_action_ids"]:
+            raise GovernanceValidationError(
+                "completed stage must have no unresolved prepared inputs"
+            )
+
+
+def _validate_git_binding(root: Path, field_name: str, commit: str, reviewed_head: str) -> None:
+    try:
+        commit_check = subprocess.run(
+            ["git", "-C", str(root), "cat-file", "-e", f"{commit}^{{commit}}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise GovernanceValidationError(f"unable to inspect Git for {field_name}") from exc
+    if commit_check.returncode != 0:
+        raise GovernanceValidationError(f"{field_name} does not identify a repository commit")
+    try:
+        ancestor_check = subprocess.run(
+            ["git", "-C", str(root), "merge-base", "--is-ancestor", commit, reviewed_head],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise GovernanceValidationError(f"unable to inspect Git ancestry for {field_name}") from exc
+    if ancestor_check.returncode != 0:
+        raise GovernanceValidationError(
+            f"{field_name} must be an ancestor of the reviewed HEAD"
+        )
+
+
+def validate_git_bindings(root: Path, state: Dict[str, Any]) -> None:
+    try:
+        reviewed_head = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--verify", "HEAD^{commit}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise GovernanceValidationError("unable to inspect the reviewed Git HEAD") from exc
+    if reviewed_head.returncode != 0:
+        raise GovernanceValidationError("unable to resolve the reviewed Git HEAD")
+    head = reviewed_head.stdout.strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", head):
+        raise GovernanceValidationError("reviewed Git HEAD must be a full Git SHA")
+    for field_name in ("head_binding", "last_product_candidate_head"):
+        _validate_git_binding(root, field_name, state[field_name], head)
+
 
 
 def task_block(backlog_text: str, task_id: str) -> str:
@@ -646,13 +798,21 @@ def validate_flow_delivery_loop_policy(root: Path = ROOT) -> Dict[str, Any]:
 def validate_repository(root: Path = ROOT) -> Tuple[List[str], List[str]]:
     state = parse_handoff(root / "CURRENT_HANDOFF.md")
     backlog = _read(root / "BACKLOG.md")
-    active_block = task_block(backlog, state["current_task_id"])
-    fields = validate_task_contract(active_block, state["current_task_id"])
-    validate_active_task_state(state, fields, state["current_task_id"])
-    validate_task_evidence(state, fields, state["current_task_id"], root)
-    validate_successor(backlog, state)
-    validate_indexing_rules(root / ".cursorindexingignore")
+    validate_git_bindings(root, state)
+    validate_lifecycle_relations(state)
+    active_heading = re.search(
+        rf"^### {re.escape(state['current_task_id'])}(?:\s+—.*)?$",
+        backlog,
+        flags=re.MULTILINE,
+    )
+    if active_heading is not None:
+        active_block = task_block(backlog, state["current_task_id"])
+        fields = validate_task_contract(active_block, state["current_task_id"])
+        validate_active_task_state(state, fields, state["current_task_id"])
+        validate_task_evidence(state, fields, state["current_task_id"], root)
+        validate_successor(backlog, state)
     validate_flow_delivery_loop_policy(root)
+    validate_indexing_rules(root / ".cursorindexingignore")
     warnings: List[str] = []
     for match in re.finditer(
         r"^### ([A-Z0-9-]+)(?:\s+—.*)?$", backlog, flags=re.MULTILINE

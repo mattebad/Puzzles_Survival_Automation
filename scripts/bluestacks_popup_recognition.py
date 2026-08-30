@@ -14,6 +14,13 @@ import cv2
 import numpy as np
 import pytesseract
 
+from tasks.perception_bundle import (
+    ModalSurfaceClass,
+    RecoveryBehavior,
+    SourceContextModalClassification,
+    classify_source_context_modal,
+)
+
 
 RESET_POPUP_CLOSE_REGION = (260, 750, 540, 870)
 VIP_POPUP_TITLE_REGION = (260, 390, 540, 440)
@@ -147,3 +154,65 @@ def vip_popup_handled(
     recognized_successor: bool,
 ) -> bool:
     return bool(before.get("recognized") and not after.get("recognized") and recognized_successor)
+
+
+def classify_popup_recovery(
+    recognition: dict[str, Any],
+    *,
+    source_context: str,
+    successor_context: str | None = None,
+) -> SourceContextModalClassification:
+    """Project popup recognition into a typed, source-bound recovery result.
+
+    The recognizer remains recognition-only.  The result records whether a
+    contextual dismissal is meaningful and carries the source context for
+    successor checks.  It never exposes generic Confirm authority.
+    """
+
+    if not isinstance(recognition, dict):
+        return classify_source_context_modal(
+            source_context=source_context,
+            successor_context=successor_context,
+            surface_class=ModalSurfaceClass.UNKNOWN,
+            recovery_behavior=RecoveryBehavior.UNKNOWN,
+            recognized=False,
+            supporting_evidence=("popup_recognition_not_mapping",),
+        )
+    recognized = bool(recognition.get("recognized"))
+    identity = recognition.get("popup_identity")
+    target = recognition.get("target_identity")
+    if not recognized:
+        return classify_source_context_modal(
+            source_context=source_context,
+            successor_context=successor_context,
+            surface_identity=str(identity) if identity else None,
+            surface_class=ModalSurfaceClass.UNKNOWN,
+            recovery_behavior=RecoveryBehavior.UNKNOWN,
+            recognized=False,
+            supporting_evidence=(str(recognition.get("reason") or "unrecognized_popup"),),
+        )
+    successor_matches = successor_context is None or successor_context == source_context
+    recovery = RecoveryBehavior.DISMISS_CONTEXTUAL if successor_matches and target else RecoveryBehavior.RETURN_TO_SOURCE
+    return classify_source_context_modal(
+        source_context=source_context,
+        successor_context=successor_context,
+        surface_identity=str(identity) if identity else None,
+        surface_class=ModalSurfaceClass.CONTEXTUAL_MODAL,
+        recovery_behavior=recovery,
+        dismiss_target_identity=str(target) if target else None,
+        recognized=bool(identity and target),
+        confidence=1.0 if identity and target else 0.0,
+        supporting_evidence=tuple(
+            str(item)
+            for item in (
+                recognition.get("title_text"),
+                recognition.get("body_text"),
+                recognition.get("matched_close_text"),
+            )
+            if item
+        ),
+    )
+
+
+# Neutral aliases used by replay consumers.
+classify_source_context_popup = classify_popup_recovery
