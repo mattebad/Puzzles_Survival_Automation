@@ -1763,5 +1763,49 @@ class DevelopmentSessionTests(unittest.TestCase):
                     for entry in registration.load_disabled_registry(registry_path)
                 )
             )
+
+
+class GenericFlowStructureTests(unittest.TestCase):
+    def test_reconciliation_terminal_accepts_declared_causal_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / ".local-captures" / "campaign-reconciliation"
+            session.mkdir(parents=True)
+            (session / "frame.png").write_bytes(b"native-frame")
+            (session / "events.jsonl").write_text("{}\n", encoding="utf-8")
+            (session / "causal-trace.json").write_text("{}\n", encoding="utf-8")
+            result = {
+                "schema_version": 1,
+                "flow_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+                "status": "effect_reconciliation_required",
+                "effect_reconciliation_required": True,
+                "serial": pnsctl.BLUESTACKS_SERIAL,
+                "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
+                "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
+                "runtime_owner": "pnsctl-development-session:test",
+                "terminal_runtime_state": "safe_blocked_terminal",
+                "actions": [],
+                "frames": ["frame.png"],
+                "required_artifacts": ["events_path", "causal_trace_path"],
+                "events_path": "events.jsonl",
+                "causal_trace_path": "causal-trace.json",
+            }
+            result_path = session / "flow-delivery-result.json"
+            result_path.write_text(json.dumps(result), encoding="utf-8")
+
+            with patch.object(pnsctl, "REPO_ROOT", root):
+                verified = pnsctl._verify_flow_structure(session)
+                self.assertEqual(
+                    verified["artifacts"]["causal_trace_path"],
+                    "causal-trace.json",
+                )
+                result["effect_reconciliation_required"] = False
+                result_path.write_text(json.dumps(result), encoding="utf-8")
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "not terminally completed"
+                ):
+                    pnsctl._verify_flow_structure(session)
+
+
 if __name__ == "__main__":
     unittest.main()

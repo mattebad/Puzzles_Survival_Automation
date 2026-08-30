@@ -5,7 +5,9 @@ import hashlib
 import sqlite3
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock, patch
 
 from safe_action_core.resource_effect_authority import (
     ResourceEffectAuthority,
@@ -44,6 +46,50 @@ class ResourceAuthorityStoreTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.store.close()
         self.temp.cleanup()
+
+    def test_capability_consume_exception_closes_durable_intent_unknown(self) -> None:
+        prepared = SimpleNamespace(
+            fence=SimpleNamespace(runtime_invocation_id="runtime-invocation")
+        )
+        runtime_lock = SimpleNamespace(assert_held=Mock())
+        policy = SimpleNamespace(
+            consume_capability=Mock(side_effect=RuntimeError("consume failed"))
+        )
+        adapter = Mock()
+        token = object()
+        with (
+            patch.object(
+                self.authority,
+                "record_resource_transport_intent",
+                return_value=token,
+            ),
+            patch.object(self.authority, "consume_transport_intent") as consume_intent,
+            patch.object(self.authority, "_finish_resource_transport") as finish,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "consume failed"):
+                self.authority.dispatch_prepared_resource_item_use(
+                    prepared,
+                    controller_lease={"owner_id": "owner"},
+                    runtime_lock=runtime_lock,
+                    capability=object(),
+                    request=object(),
+                    policy=policy,
+                    adapter=adapter,
+                    now=10.0,
+                )
+
+        finish.assert_called_once_with(
+            prepared,
+            state="TRANSPORT_UNKNOWN",
+            result={
+                "reason": "capability_consumption_failed",
+                "exception_type": "RuntimeError",
+            },
+            now=10.0,
+            adapter_invoked=False,
+        )
+        consume_intent.assert_not_called()
+        adapter.assert_not_called()
 
     def _seed_reconciliation_reservation(
         self,

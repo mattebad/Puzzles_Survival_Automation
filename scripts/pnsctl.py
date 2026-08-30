@@ -6041,27 +6041,11 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
     ):
         raise OperatorError("unsupported flow-delivery result identity")
     result_status = result.get("status")
-    if result_status != "completed":
-        if result.get("flow_id") not in {
-            "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
-            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
-            "WORLD-MAP-NAVIGATION-FOUNDATION",
-        } or result_status not in {
-            "blocked",
-            "unresolved",
-            "manual_required",
-            *(
-                {"effect_reconciliation_required"}
-                if result.get("flow_id")
-                in {
-                    "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
-                    "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
-                    "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
-                }
-                else set()
-            ),
-        }:
-            raise OperatorError("flow result is not terminally completed")
+    allowed_statuses = {"completed", "blocked", "unresolved", "manual_required"}
+    if result.get("effect_reconciliation_required") is True:
+        allowed_statuses.add("effect_reconciliation_required")
+    if result_status not in allowed_statuses:
+        raise OperatorError("flow result is not terminally completed")
     if result.get("serial") != BLUESTACKS_SERIAL:
         raise OperatorError("flow result used an unapproved serial")
     if (result.get("native_width"), result.get("native_height")) != (
@@ -6093,6 +6077,7 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
     )
     artifact_fields = (
         "events_path",
+        "causal_trace_path",
         "ledger_path",
         "capability_audit_path",
         "journal_path",

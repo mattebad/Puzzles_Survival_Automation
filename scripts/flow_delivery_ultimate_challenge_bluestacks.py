@@ -252,7 +252,16 @@ def _ultimate_runtime_context(
             raise _pnsctl().OperatorError(
                 "Ultimate Challenge development session max_inputs must be exactly 16"
             )
-        return None, MAX_TOTAL_INPUTS
+        route_maximum = lease.get("route_max_inputs", maximum)
+        if (
+            type(route_maximum) is not int
+            or route_maximum < 0
+            or route_maximum > maximum
+        ):
+            raise _pnsctl().OperatorError(
+                "Ultimate Challenge route_max_inputs must be within the shared 16-input ceiling"
+            )
+        return None, route_maximum
 
     if lease.get("runtime_ownership_state") != "held":
         raise _pnsctl().OperatorError(

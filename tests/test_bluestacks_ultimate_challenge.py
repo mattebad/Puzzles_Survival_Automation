@@ -3012,6 +3012,27 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
         def __init__(self, root: Path) -> None:
             self.BLUESTACKS_ARTIFACT_ROOT = root
 
+    def test_development_context_uses_remaining_post_recovery_budget(self) -> None:
+        queue = {"active_flow_id": FLOW_ID, "development_session": True}
+        lease = {
+            "owner": "test-owner",
+            "runtime_ownership_state": "held",
+            "max_inputs": 16,
+            "route_max_inputs": 15,
+            "development_session": True,
+        }
+        with patch.object(delivery, "_pnsctl", return_value=self.FakePnsctl(Path("artifacts"))):
+            flow, maximum = delivery._ultimate_runtime_context(queue, lease)
+            self.assertIsNone(flow)
+            self.assertEqual(maximum, 15)
+            for invalid in (-1, 17, "15"):
+                with self.subTest(route_max_inputs=invalid), self.assertRaisesRegex(
+                    RuntimeError, "route_max_inputs"
+                ):
+                    delivery._ultimate_runtime_context(
+                        queue, {**lease, "route_max_inputs": invalid}
+                    )
+
     def test_result_writer_centralizes_terminal_artifacts_and_preserves_rows(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             session = Path(directory)

@@ -3469,7 +3469,20 @@ class ResourceEffectAuthority:
                 adapter_invoked=False,
             )
             raise ResourceFenceError("policy capability consumer is required")
-        consumed: CapabilityConsumeResult = consume(capability, request)
+        try:
+            consumed: CapabilityConsumeResult = consume(capability, request)
+        except BaseException as exc:
+            self._finish_resource_transport(
+                prepared,
+                state="TRANSPORT_UNKNOWN",
+                result={
+                    "reason": "capability_consumption_failed",
+                    "exception_type": type(exc).__name__,
+                },
+                now=now,
+                adapter_invoked=False,
+            )
+            raise
         if not consumed.allow_dispatch:
             self._finish_resource_transport(
                 prepared,

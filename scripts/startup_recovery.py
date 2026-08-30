@@ -514,65 +514,19 @@ def _recover_scarlett_surface(
         _release_store(store, owner)
 
 
-def recover_known_startup_overlay(
+def _recover_vip_reset_popup(
     runtime: LocalBlueStacksRuntime,
     *,
     task_id: str,
     recognize_successor: Callable[[np.ndarray], bool],
-    settle_seconds: float = 0.8,
-    sleep: Callable[[float], None] = time.sleep,
-    recovery_scope: str | None = None,
-    action_store_factory: Callable[[], SafetyStore] | None = None,
-    expected_source_sha256: str | None = None,
+    settle_seconds: float,
+    sleep: Callable[[float], None],
+    initial: dict[str, object],
+    probe: CapturedNativeFrame,
+    store: SafetyStore,
+    owner: str,
+    action_key: str,
 ) -> StartupRecoveryResult:
-    """Dismiss one exact allowlisted startup surface and capture its successor."""
-    probe = runtime.capture("startup-recovery-probe")
-    scarlett = recognize_startup_surface(probe.frame, probe.png)
-    if scarlett.get("recognized"):
-        if expected_source_sha256 is not None and (
-            len(expected_source_sha256) != 64
-            or any(
-                character not in "0123456789abcdef"
-                for character in expected_source_sha256
-            )
-        ):
-            raise StartupRecoveryError(
-                "startup recovery source provenance hash is invalid"
-            )
-        return _recover_scarlett_surface(
-            runtime,
-            task_id=task_id,
-            initial_frame=probe,
-            initial_detail=dict(scarlett),
-            recognize_successor=recognize_successor,
-            settle_seconds=settle_seconds,
-            sleep=sleep,
-            recovery_scope=recovery_scope,
-            action_store_factory=action_store_factory,
-        )
-    initial = recognize_reset_popup(probe.frame)
-    if not initial.get("recognized"):
-        return StartupRecoveryResult(
-            "not_present", 0, None, None, probe.sha256, None, None,
-            "no_exact_allowlisted_startup_overlay",
-        )
-    if runtime.input_count >= runtime.max_inputs:
-        _persist(runtime, StartupRecoveryResult(
-            "blocked", 0, str(initial.get("popup_identity") or ""), None,
-            probe.sha256, None, None, "startup_recovery_input_budget_exhausted",
-        ))
-        raise StartupRecoveryError("startup recovery input budget is exhausted")
-
-    scope = str(recovery_scope or datetime.now(timezone.utc).date().isoformat())
-    scope_digest = hashlib.sha256(f"{task_id}:{scope}".encode()).hexdigest()[:16]
-    action_key = f"{VIP_RESET_ACTION_KEY}:{scope_digest}"
-    store = (
-        action_store_factory()
-        if action_store_factory is not None
-        else SafetyStore(STARTUP_RECOVERY_STORE_PATH)
-    )
-    owner = f"startup-recovery:{task_id}"
-    store.acquire_lease(owner, time.time(), 300.0)
     prior = store.get_action_by_key(action_key)
     if prior is not None or store.has_action_block():
         reason = (
@@ -584,7 +538,6 @@ def recover_known_startup_overlay(
             "blocked", 0, str(initial.get("popup_identity") or ""), None,
             probe.sha256, None, action_key, reason,
         ))
-        _release_store(store, owner)
         raise StartupRecoveryError(reason)
 
     policy = CentralPolicy(supervised_tasks=frozenset({task_id}))
@@ -600,7 +553,6 @@ def recover_known_startup_overlay(
             probe.sha256, authorization_frame.sha256, action_key,
             "popup_or_target_changed",
         ))
-        _release_store(store, owner)
         raise StartupRecoveryError(
             "startup recovery popup or Close target changed before authorization"
         )
@@ -623,7 +575,6 @@ def recover_known_startup_overlay(
             probe.sha256, authorization_frame.sha256, action_key,
             authorized.reason_code,
         ))
-        _release_store(store, owner)
         raise StartupRecoveryError(
             f"startup recovery policy denied: {authorized.reason_code}"
         )
@@ -696,11 +647,7 @@ def recover_known_startup_overlay(
         post_observe, reconcile, wall_clock=time.time,
         max_pre_dispatch_attempts=1,
     )
-    try:
-        result = executor.execute(request)
-    except BaseException:
-        _release_store(store, owner)
-        raise
+    result = executor.execute(request)
 
     post = holder.get("post")
     input_count = runtime.input_count - before_count
@@ -718,9 +665,88 @@ def recover_known_startup_overlay(
     if isinstance(post, CapturedNativeFrame):
         status = "confirmed" if result.status is ActionStatus.CONFIRMED else "unresolved"
         runtime.reconcile(action_key, status, post, result.reason)
-    _release_store(store, owner)
     if result.status is not ActionStatus.CONFIRMED or input_count != 1:
         raise StartupRecoveryError(
             f"startup recovery failed after dispatch: {result.status.value}:{result.reason}"
         )
     return evidence
+
+
+def recover_known_startup_overlay(
+    runtime: LocalBlueStacksRuntime,
+    *,
+    task_id: str,
+    recognize_successor: Callable[[np.ndarray], bool],
+    settle_seconds: float = 0.8,
+    sleep: Callable[[float], None] = time.sleep,
+    recovery_scope: str | None = None,
+    action_store_factory: Callable[[], SafetyStore] | None = None,
+    expected_source_sha256: str | None = None,
+) -> StartupRecoveryResult:
+    """Dismiss one exact allowlisted startup surface and capture its successor."""
+    probe = runtime.capture("startup-recovery-probe")
+    scarlett = recognize_startup_surface(probe.frame, probe.png)
+    if scarlett.get("recognized"):
+        if expected_source_sha256 is not None and (
+            len(expected_source_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in expected_source_sha256
+            )
+        ):
+            raise StartupRecoveryError(
+                "startup recovery source provenance hash is invalid"
+            )
+        return _recover_scarlett_surface(
+            runtime,
+            task_id=task_id,
+            initial_frame=probe,
+            initial_detail=dict(scarlett),
+            recognize_successor=recognize_successor,
+            settle_seconds=settle_seconds,
+            sleep=sleep,
+            recovery_scope=recovery_scope,
+            action_store_factory=action_store_factory,
+        )
+    initial = recognize_reset_popup(probe.frame)
+    if not initial.get("recognized"):
+        return StartupRecoveryResult(
+            "not_present", 0, None, None, probe.sha256, None, None,
+            "no_exact_allowlisted_startup_overlay",
+        )
+    if runtime.input_count >= runtime.max_inputs:
+        _persist(runtime, StartupRecoveryResult(
+            "blocked", 0, str(initial.get("popup_identity") or ""), None,
+            probe.sha256, None, None, "startup_recovery_input_budget_exhausted",
+        ))
+        raise StartupRecoveryError("startup recovery input budget is exhausted")
+
+    scope = str(recovery_scope or datetime.now(timezone.utc).date().isoformat())
+    scope_digest = hashlib.sha256(f"{task_id}:{scope}".encode()).hexdigest()[:16]
+    action_key = f"{VIP_RESET_ACTION_KEY}:{scope_digest}"
+    store = (
+        action_store_factory()
+        if action_store_factory is not None
+        else SafetyStore(STARTUP_RECOVERY_STORE_PATH)
+    )
+    owner = f"startup-recovery:{task_id}"
+    try:
+        store.acquire_lease(owner, time.time(), 300.0)
+    except BaseException:
+        store.close()
+        raise
+    try:
+        return _recover_vip_reset_popup(
+            runtime,
+            task_id=task_id,
+            recognize_successor=recognize_successor,
+            settle_seconds=settle_seconds,
+            sleep=sleep,
+            initial=dict(initial),
+            probe=probe,
+            store=store,
+            owner=owner,
+            action_key=action_key,
+        )
+    finally:
+        _release_store(store, owner)

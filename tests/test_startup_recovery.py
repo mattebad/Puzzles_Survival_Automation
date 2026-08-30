@@ -429,6 +429,38 @@ class StartupRecoveryTests(unittest.TestCase):
         self.assertEqual(runtime.input_count, 1)
         self.assertEqual(runtime.reconciliations, ["confirmed"])
 
+    def test_vip_capture_exception_releases_safety_lease(self) -> None:
+        class AuthorizationCaptureFailure(FakeRuntime):
+            def capture(self, label: str) -> CapturedNativeFrame:
+                if label == "startup-recovery-authorization-before":
+                    raise RuntimeError("capture failed")
+                return super().capture(label)
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = AuthorizationCaptureFailure(Path(directory) / "runtime")
+            store_path = runtime.session / "test-startup-actions.sqlite3"
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                return_value=popup(),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "capture failed"):
+                    self._recover(
+                        runtime,
+                        task_id="FLOW",
+                        recognize_successor=lambda _frame: True,
+                        sleep=lambda _seconds: None,
+                    )
+            reopened = SafetyStore(store_path)
+            try:
+                lease = reopened.get_lease(time.time())
+            finally:
+                reopened.close()
+
+        self.assertIsNotNone(lease)
+        assert lease is not None
+        self.assertFalse(lease["valid"])
+        self.assertIsNotNone(lease["released_at"])
+
 
     def test_non_popup_is_observation_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -54,7 +54,16 @@ def _session_max_inputs(lease: Mapping[str, Any]) -> int:
         raise _pnsctl().OperatorError(
             "Troop Training continuous session requires exact 32-input cap"
         )
-    return maximum
+    route_value = lease.get("route_max_inputs", maximum)
+    if type(route_value) is not int:
+        raise _pnsctl().OperatorError(
+            "Troop Training route_max_inputs must be an integer"
+        )
+    if route_value < 0 or route_value > maximum:
+        raise _pnsctl().OperatorError(
+            "Troop Training route_max_inputs is outside the shared 32-input ceiling"
+        )
+    return route_value
 
 
 def _result_line(stdout: str) -> dict[str, Any]:

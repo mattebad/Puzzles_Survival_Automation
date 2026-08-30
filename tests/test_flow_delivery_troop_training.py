@@ -27,6 +27,7 @@ from scripts.flow_delivery_troop_training_bluestacks import (
     recover_troop_training_consolidation,
     run_troop_training_consolidation,
     _prior_dispatch_bearing_runs,
+    _session_max_inputs,
     _verify_training_records,
     verify_troop_training_consolidation,
 )
@@ -81,6 +82,20 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
             }
         finally:
             session.__exit__(None, None, None)
+
+    def test_session_max_inputs_uses_remaining_post_recovery_budget(self) -> None:
+        self.assertEqual(
+            _session_max_inputs({"max_inputs": MAX_INPUTS, "route_max_inputs": 31}),
+            31,
+        )
+        for invalid in (-1, MAX_INPUTS + 1, True, "31", "not-an-integer"):
+            with self.subTest(route_max_inputs=invalid), self.assertRaisesRegex(
+                pnsctl.OperatorError, "route_max_inputs"
+            ):
+                _session_max_inputs(
+                    {"max_inputs": MAX_INPUTS, "route_max_inputs": invalid}
+                )
+
     def test_main_configures_troop_runtime_frame_age_without_changing_shared_default(self) -> None:
         runtime = SimpleNamespace(session=Path("mock-troop-training-session"), frame_max_age_seconds=30.0)
         result = TroopTrainingRouteResult(
