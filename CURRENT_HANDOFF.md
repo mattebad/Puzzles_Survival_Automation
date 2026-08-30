@@ -4,12 +4,12 @@
 {
   "schema_version": 3,
   "branch": "feature/runtime-reliability-convergence",
-  "head_binding": "8b8e372606b9a1510d9130ec17252005591379c1",
-  "last_product_candidate_head": "c23f9da5df402f162ea1d53c08fea3e0e016956a",
+  "head_binding": "961d2b8adc9391a13e23fcfd967c43e21e755602",
+  "last_product_candidate_head": "961d2b8adc9391a13e23fcfd967c43e21e755602",
   "ahead_behind": {
     "source": "compute_from_git"
   },
-  "attributable_dirty_paths": ["CURRENT_HANDOFF.md", "docs/runtime-reliability-convergence-status.md"],
+  "attributable_dirty_paths": [],
   "task_start_worktree": {
     "tracked_dirty_paths": [],
     "protected_untracked_paths": []
@@ -30,13 +30,13 @@
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "Campaign r2 zero-input preflight: canonical Home 0.9849079, AP 120, exact flow selected with transport_count 0",
-  "latest_architecture_validation_result": "Terra confirmed the production hash-authority correction but returned NEEDS_FIX on regression evidence; capture-level same-digest proof was added in 8b8e372 and passes 18/18 startup tests",
-  "latest_full_suite_result": "Not run; not required by Campaign r2 closure",
+  "latest_focused_validation_result": "PR 4 audit repair: 5/5 exact regressions and 246/246 focused package tests passed with 2 skips; git diff --check passed",
+  "latest_architecture_validation_result": "Solo GPT-5.6 Sol Medium self-review completed at 961d2b8; independent review of this final audit repair remains pending",
+  "latest_full_suite_result": "Not run; full repository discovery remains manual-only and was not required for the focused PR repair",
   "current_live_attempt_state": "blocked_evidence_required_before_input",
   "current_evidence_or_session_reference": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20260826T214745064655Z",
-  "last_safe_completed_step": "The one Campaign r2 occurrence consumed registration and blocked fail-closed with recovery/route/total input counts all zero",
-  "exact_next_permitted_action": "Obtain external approval on PR #4; do not repeat Campaign r2 or merge without approval",
+  "last_safe_completed_step": "Offline PR 4 audit repair 961d2b8 closed four safety and evidence-contract defects without runtime input",
+  "exact_next_permitted_action": "Obtain independent approval on the pushed PR 4 head; do not repeat Campaign r2 or merge without approval",
   "current_blocker": "LOCALIZATION_NOT_RECOGNIZED before Campaign Home Atlas entry",
   "prohibited_repeated_action": "Do not retry Campaign r2, issue further Scarlett input, manufacture startup surfaces, or merge PR #4.",
   "stage_revision": "runtime-reliability-stage-10-phase-5-campaign-ap-r2",
@@ -68,16 +68,16 @@
   },
   "control_owner": "sol_parent",
   "control_parent_conversation_id": "stage-10-phase-5-reproof-20260826",
-  "deferred_independent_review": "Terra recheck budget exhausted after NEEDS_FIX on test evidence; parent applied the exact requested capture-digest regression correction; external PR approval remains pending",
+  "deferred_independent_review": "The historical Terra recheck budget remained exhausted; the final Solo audit repair at 961d2b8 is self-reviewed and focused-tested but still requires independent PR approval",
   "stage_7_ordered_plan": [
     "Stage A startup-surface recovery r2 accepted and pushed",
     "Stage B not_applicable for canonical Home successor",
     "Campaign AP r2 blocked_evidence_required before input"
   ],
   "next_three_atomic_tasks": [
-    "Commit and push truthful Campaign r2 closure",
-    "Obtain external approval on PR #4",
-    "Do not merge until that external approval gate passes"
+    "Obtain independent review of the final pushed PR 4 head, including product candidate 961d2b8",
+    "Merge PR 4 only if that review approves the complete head",
+    "Preserve Campaign r2 blocked_evidence_required without an identical retry"
   ],
   "stage_start_utc": "2026-08-26T21:43:00Z",
   "continuation_checkpoint_utc": "2026-08-26T21:23:00Z"
@@ -110,3 +110,9 @@
 - The one authorized occurrence is `.local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20260826T214745064655Z`. Registration was consumed before runtime; Home Atlas localization then failed closed with `LOCALIZATION_NOT_RECOGNIZED` before any route input.
 - Terminal accounting is recovery `0`, route `0`, total `0`, Campaign action count `0`, AP spend `0`, no refill or forbidden action, ownership released, final registration `NOT_REGISTERED`, and scheduler disabled.
 - Disposition is `blocked_evidence_required` (`local_defect`). No identical retry, repair, additional observation, or gameplay input is authorized under r2.
+
+## PR 4 final audit repair
+- Commit `961d2b8` closes four confirmed offline defects: generic retained-evidence verification now accepts declared causal traces and truthful reconciliation-required terminals; Ultimate Challenge and Troop Training receive only the shared post-recovery route budget; VIP startup recovery releases its safety lease on every post-acquisition exit; and capability-consumption exceptions finalize durable Resource transport intent as `TRANSPORT_UNKNOWN` without invoking the adapter.
+- Exact regressions pass 5/5. Focused package validation passes 246/246 with 2 skips across startup recovery, DevelopmentSession, Campaign, Recruitment, shared navigation boundary, Ultimate Challenge, Troop Training, Resource authority, and Daily Resource delivery. `git diff --check` and governance validation pass.
+- The untouched legacy `tests.test_navigation_runner` module still has six baseline `PROFILE_MISMATCH` fixture failures. Five lifecycle-mutation cases in `tests.test_governance_validation` remain baseline failures because they assert completed-state relations while the authoritative Campaign task truthfully remains `blocked_evidence_required`.
+- No live runtime, ADB input, registration, scheduler, retained evidence, or Campaign r2 state was changed. The repair was performed Solo with GPT-5.6 Sol Medium and has not been represented as independent acceptance; external review of the final pushed head remains required before merge.
