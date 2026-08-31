@@ -65,9 +65,9 @@
       {
         "task_id": "nova-praise-free-pulse",
         "execution_flow_id": "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
-        "queue_record_state": "existing_candidate_revalidation_required",
+        "queue_record_state": "accepted_existing",
         "depends_on": ["ultimate-challenge-daily"],
-        "blocker": "current lean Free-availability, one-pulse idempotency, and canonical return evidence must be rechecked before scheduler admission"
+        "blocker": null
       },
       {
         "task_id": "daily-milestone-claim",
@@ -80,7 +80,7 @@
       {
         "task_id": "use-resource-item",
         "execution_flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
-        "queue_record_state": "ready",
+        "queue_record_state": "accepted_existing",
         "depends_on": [],
         "maximum_inputs": 11,
         "maximum_resource_list_swipes": 8,
@@ -96,16 +96,16 @@
       {
         "task_id": "recruitment-basic-five-daily",
         "execution_flow_id": "RECRUITMENT-BLUESTACKS-INTEGRATION",
-        "queue_record_state": "existing_candidate_revalidation_required",
+        "queue_record_state": "accepted_existing",
         "depends_on": ["nova-praise-free-pulse"],
-        "blocker": "current Basic-five Daily free-attempt count, exactly five free recruits, Daily successor, and no premium/ticket fallback require lean live proof"
+        "blocker": null
       },
       {
         "task_id": "recruitment-tier-maintenance",
         "execution_flow_id": "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
-        "queue_record_state": "existing_candidate_revalidation_required",
+        "queue_record_state": "accepted_existing",
         "depends_on": ["recruitment-basic-five-daily"],
-        "blocker": "independent tier Free availability, exhaustion, and no paid/10x fallback require current lean live proof"
+        "blocker": null
       },
       {
         "task_id": "alliance-tech-donation",
@@ -187,16 +187,16 @@
       {
         "task_id": "campaign-natural-ap-auto-battle",
         "execution_flow_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
-        "queue_record_state": "existing_candidate_revalidation_required",
+        "queue_record_state": "blocked_evidence_required",
         "depends_on": ["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"],
-        "blocker": "configured stage, current natural AP affordability, no-refill branch, bounded Auto Battle, and terminal successor require lean live proof"
+        "blocker": "Terminal Campaign AP r2 closed blocked_evidence_required after LOCALIZATION_NOT_RECOGNIZED on canonical Home/Atlas localization with zero input; identical r2 retry is prohibited until a separately activated HOME-ATLAS-LOCALIZATION-RESTORATION task restores canonical localization"
       },
       {
         "task_id": "troop-training-four-variants",
         "execution_flow_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
-        "queue_record_state": "existing_candidate_variant_revalidation_required",
+        "queue_record_state": "accepted_existing",
         "depends_on": [],
-        "blocker": "Fighter, Rider, Shooter, and Vehicle variants each require current lean one-queue proof and no speedup/premium fallback"
+        "blocker": null
       },
       {
         "task_id": "gathering-search-level5",
@@ -3142,7 +3142,7 @@
       "kind": "continuous_session_migration",
       "priority": 125,
       "status": "blocked",
-      "backlog_task_id": "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+      "backlog_task_id": "DQ-FLOW-SUPPLY-DEPOT",
       "dependencies": [],
       "implementation_entrypoints": [
         "scripts/flow_delivery_supply_depot_bluestacks.py",
@@ -3481,7 +3481,7 @@
       "priority": 100,
       "status": "blocked",
       "backlog_task_id": "DQ-FLOW-NANOWEAPON",
-      "dependencies": [],
+      "dependencies": ["NANO-MATERIAL-PRODUCTION-MAINTENANCE"],
       "implementation_entrypoints": [
         "tasks/nanoweapon.py",
         "tasks/daily_nanoweapon.py",
@@ -3502,7 +3502,7 @@
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
       "blocked_reason": "Offline Normal Craft policy and adapter/session semantics are reconciled to exact 100 NANO_PARTS, one start per reset, one active craft, 43200 seconds, claim-first, and canonical Home; native selectors, route replay, production replay, and supervised canary remain missing.",
-      "next_concrete_action": "Keep Nanoweapon route/session migration blocked offline pending native Gear Factory/Nanoweapon/Normal Craft/claim/timer/Home evidence; do not dispatch a craft, add an adapter, register, schedule, or use runtime input. Advance to Ruins Shop product authority only.",
+      "next_concrete_action": "Keep Nanoweapon route/session migration blocked until the prerequisite NANO-MATERIAL-PRODUCTION-MAINTENANCE is completed and native Gear Factory/Nanoweapon/Normal Craft/claim/timer/Home evidence is accepted; do not dispatch a craft, add an adapter, register, schedule, or use runtime input.",
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/NANOWEAPON-BLUESTACKS-INTEGRATION"
@@ -4146,7 +4146,7 @@
       "status": "completed",
       "production_registration": "NOT_REGISTERED",
       "scheduler_enabled": false,
-      "backlog_task_id": "daily-resource-item",
+      "backlog_task_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
       "dependencies": [],
       "implementation_entrypoints": [
         "scripts/daily_resource_item_bluestacks.py",
@@ -4263,7 +4263,7 @@
       "kind": "shop_purchase_evidence_gate",
       "priority": 170,
       "status": "blocked",
-      "backlog_task_id": "ruins-shop-purchase",
+      "backlog_task_id": "DQ-FLOW-PURCHASES",
       "dependencies": [],
       "implementation_entrypoints": [
         "tasks/purchases_disabled.py",
@@ -4298,7 +4298,7 @@
       "kind": "shop_purchase_evidence_gate",
       "priority": 171,
       "status": "blocked",
-      "backlog_task_id": "rare-earth-shop-purchase",
+      "backlog_task_id": "DQ-FLOW-PURCHASES",
       "dependencies": [],
       "implementation_entrypoints": [
         "tasks/purchases_disabled.py",
@@ -4333,7 +4333,7 @@
       "kind": "shop_purchase_evidence_gate",
       "priority": 172,
       "status": "blocked",
-      "backlog_task_id": "alliance-shop-purchase",
+      "backlog_task_id": "DQ-FLOW-PURCHASES",
       "dependencies": [],
       "implementation_entrypoints": [
         "tasks/purchases_disabled.py",
@@ -4368,7 +4368,7 @@
       "kind": "hero_upgrade_evidence_gate",
       "priority": 173,
       "status": "blocked",
-      "backlog_task_id": "hero-upgrade",
+      "backlog_task_id": "DQ-FLOW-HERO-UPGRADE",
       "dependencies": [],
       "implementation_entrypoints": [
         "tasks/hero_upgrade_disabled.py",
@@ -4403,7 +4403,7 @@
       "kind": "hero_duel_evidence_gate",
       "priority": 174,
       "status": "blocked",
-      "backlog_task_id": "hero-duel",
+      "backlog_task_id": "DQ-FLOW-HERO-DUEL",
       "dependencies": [],
       "implementation_entrypoints": [
         "tasks/hero_duel_disabled.py",
@@ -4479,7 +4479,7 @@
       "kind": "vip_popup_helper_evidence_gate",
       "priority": 175,
       "status": "blocked",
-      "backlog_task_id": "vip-get-points-popup-dismissal",
+      "backlog_task_id": "VIP-GET-PTS-POPUP-DISMISSAL",
       "dependencies": [],
       "implementation_entrypoints": [
         "scripts/bluestacks_popup_recognition.py",

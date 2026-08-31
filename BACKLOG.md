@@ -1873,6 +1873,29 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   collection/postcondition, and Daily reconciliation remain required. No registration or
   scheduler.
 
+### DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION
+- Status: Completed (2026-08-19; one supervised direct 1K Food use verified the resource delta and canonical Home).
+- Queue truth: `completed`; the single supervised session
+  `.local-captures/development-sessions/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z`
+  used three inputs, one direct 1K Food Use dispatch, and verified the resource delta and canonical
+  Home successor.
+- Production authority: zero; `NOT_REGISTERED`, scheduler disabled/ineligible, and no production
+  registration or scheduler promotion is implied by this completed queue record.
+- Evidence boundary: the retained development session and
+  `.local-captures/flow-delivery/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION` artifact root are the
+  existing evidence boundary; no repeat input or stronger production claim is authorized.
+
+### VIP-GET-PTS-POPUP-DISMISSAL
+- Status: Blocked; fresh native popup identity, Close target, settled successor, and canonical Home evidence are missing.
+- Queue truth: `blocked`; zero live attempts are authorized because fresh native VIP Get Pts
+  identity, Close target, bounded dismissal, settled successor, and canonical Home route/session
+  evidence remain missing.
+- Production authority: zero; popup input, resource/currency behavior, registration, and scheduler
+  promotion remain prohibited (`NOT_REGISTERED`, scheduler disabled/ineligible).
+- Evidence boundary: only the existing flow artifact root
+  `.local-captures/flow-delivery/VIP-GET-PTS-POPUP-DISMISSAL` is in scope until a fresh native
+  evidence/session review closes the gate; no fallback or identical retry is authorized.
+
 ### TOOLS-HOME-BASE-ATLAS-BLUESTACKS
 - Task ID: `TOOLS-HOME-BASE-ATLAS-BLUESTACKS`.
 - Title: Build a reusable Home atlas, localizer, semantic building navigator, and direct local
@@ -5709,8 +5732,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   4. Nano Material Production maintenance.
   5. Nanoweapon Daily Normal Craft.
   6. Zombie Lair Home notification maintenance and Daily-observer integration.
-- Ordering rationale: no dependency requires a change. Ultimate Challenge can reuse the retained
-  Campaign entry seam without Campaign AP execution; all later flows are independent atomic slices.
+- Historical ordering rationale (2026-07-23): no dependency was recorded then; current portfolio authority now requires Nano Material Production maintenance before Nanoweapon.
 - Sequence state: step 1 was activated on 2026-07-23. Its evidence-independent controller slice is
   implemented, but positive production replay remains blocked by absent native selectors. The next
   permitted atomic task is Ultimate Challenge native visual evidence acquisition without
@@ -6841,7 +6863,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Covered: existing pure single-craft replay, now governed by Normal Craft only, exactly 100 nano
   parts, exactly 43200 seconds, one active craft, claim completed weapon on entry, and at most one
   start per game-day/reset. Exclusive Craft and rotating-display selection semantics are prohibited.
-- Dependencies/routes: inventory → Gear Factory → Nanoweapon.
+- Dependencies/routes: Nano Material Production maintenance precedes the Nanoweapon route; inventory → Gear Factory → Nanoweapon.
 - Source/target/policy: existing generic recipe model is stale and must be narrowed to the approved
   parts/enabled-Craft contract; insufficient parts or disabled Craft explicitly defers.
 - Offline acceptance/tests: `tasks/daily_nanoweapon.py` and
@@ -6862,7 +6884,7 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
   or refresh the due time and defer when active. Exactly one production, exactly 21600 seconds, and
   zero base resources, boxes, currency, or items; return canonical Home.
 - Registration/scheduler/live attempts: not registered; disabled/ineligible; zero.
-- Next: implement and offline-replay this state machine as the fourth future atomic task.
+- Next: implement Nano Material Production maintenance before the dependent Nanoweapon Daily Craft; no Nanoweapon implementation or runtime input is authorized here.
 
 ### DQ-FLOW-ENHANCE-GEAR
 - Status: Passed (2026-07-14; Daily Gear adapter plus 5 focused tests).
@@ -7597,10 +7619,10 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 ### RUNTIME-RELIABILITY-MERGE-BOUNDARY
 - Task ID: `RUNTIME-RELIABILITY-MERGE-BOUNDARY`.
 - Title: Review and merge the runtime reliability convergence branch.
-- Status: Pending explicit activation and review approval.
+- Status: Completed (2026-08-30; PR #4 merged non-force into `main`; no runtime or authority changes).
 - Milestone: Runtime reliability convergence merge boundary.
 - Dependencies: `STAGE-11-FINAL-RECONCILIATION` completed and committed.
-- Blocked by: explicit activation, final review approval, and branch synchronization.
+- Blocked by: None; no pending activation, review, or merge blocker remains.
 - Objective: review the frozen convergence diff and merge without weakening safety invariants.
 - Established facts: Stage 11 leaves zero active authority and no runtime ownership.
 - Direct implementation files: none unless review identifies a separately authorized repair.
@@ -7616,11 +7638,11 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Scheduler changes: none.
 - Actions that must not be repeated: all Stage 10 canaries and blocked phase attempts.
 - Required source: terminal Stage 11 commit, full branch diff, CI/review result, and remote synchronization status.
-- Exact target semantics: a reviewed non-force merge of the frozen branch.
-- Required local association: merge approval must identify this branch and its terminal Stage 11 commit.
+- Exact target semantics: PR #4 merge commit `25f5de6b153afb6b75907b29e91fde5a1d04e122` is reachable from `main` through a non-force merge; GitHub review metadata remains `REVIEW_REQUIRED` with no recorded reviews or checks.
+- Required local association: PR #4 merge commit `25f5de6b153afb6b75907b29e91fde5a1d04e122` and the terminal Stage 11 commit.
 - Negative controls: stale branch, failing validation, active authority, unreviewed repair, or protected evidence in the index.
 - Coordinate space: not applicable.
-- Accepted signals: explicit activation, approved review, passing checks, synchronized branch, and unchanged zero-authority registry.
+- Accepted signals: completed non-force merge into `main`, synchronized ancestry, and unchanged zero-authority registry; independent review or CI is not claimed.
 - Rejected weak signals: local success alone, implied approval, stale CI, or unchecked remote divergence.
 - Ambiguous-result behavior: stop before merge and request exact evidence or authorization.
 - Zero-cost requirement: no product/runtime resource consumption.
@@ -7642,4 +7664,54 @@ must be native; GnBots geometry is provenance only; tests are deterministic offl
 - Blocked-result commit policy: no merge and no repair without a separately frozen task.
 - Commit policy: no new code commit by default and no push until explicitly activated.
 - Expected focused commits: none.
-- Completion criteria: explicitly activated reviewed non-force merge with zero-authority invariants preserved.
+- Completion criteria: completed non-force merge of PR #4 into `main` with zero-authority invariants preserved; no pending activation, review, or merge blocker remains.
+
+### HOME-ATLAS-LOCALIZATION-RESTORATION
+- Task ID: `HOME-ATLAS-LOCALIZATION-RESTORATION`.
+- Title: Restore canonical Home Atlas localization from stable semantic and Atlas-target ROIs.
+- Status: Pending explicit activation; inactive atomic task, not a Campaign r2 continuation or retry.
+- Milestone: Canonical Home Atlas localization restoration and navigation-only proof.
+- Dependencies: Post-merge `main` state; `docs/android-back-state-matrix.md`; `docs/runtime-input-safety-policy.md`; active Home/Atlas contracts.
+- Blocked by: Explicit activation plus offline stable-ROI repair and review.
+- Objective: Diagnose and restore canonical Home Atlas recognition through the existing Home localizer and Atlas binding, then admit one bounded navigation-only Home proof.
+- Established facts: Campaign r2 remains `blocked_evidence_required`; its terminal evidence and no-retry disposition are retained and this task does not authorize Campaign/AP action.
+- Direct implementation files: Existing Home localizer/Atlas binding and focused localization/navigation tests only after activation.
+- Shared dependencies: Native 800x1280 frame observation, current-frame semantic binding, Home Atlas navigation, and safe-exit ownership.
+- Transitive regression set: Focused Home-localization and shared-navigation profiles after activation.
+- Allowed changes: Existing localizer/Atlas binding, task-scoped tests, and attributable durable records; no push before explicit activation.
+- Prohibited changes: Campaign/AP execution or retry, gameplay, premium/resource actions, registration, scheduler enablement, production changes, or a second recognizer.
+- Authorized runtime action: None while inactive; after activation, zero-input native diagnosis followed only by one bounded navigation-only Home proof.
+- Maximum transport inputs: Zero gameplay/action transport inputs; no Campaign/AP transport.
+- Navigation-only recovery: One bounded navigation-only Home proof after activation and review; no Campaign entry.
+- Consequential action: None.
+- Registration changes: None; production remains `NOT_REGISTERED`.
+- Scheduler changes: None; scheduler remains disabled.
+- Actions that must not be repeated: Campaign r2, any identical retry, or any gameplay input before explicit activation.
+- Required source: Current native 800x1280 frames plus stable semantic source and Atlas-target ROIs; the named Home safety and back-state policies.
+- Exact target semantics: Canonical fully zoomed-out Home Atlas, with recognized noncanonical zoom and benign overlays classified separately from unsupported variants.
+- Required local association: New atomic task/session identity bound to each current frame and its stable source/target ROI measurements.
+- Negative controls: Animation variance, altered stable source ROI, altered Atlas-target ROI, stale binding, benign overlay, and unsupported Home variant.
+- Coordinate space: Native 800x1280 contract bounds only.
+- Accepted signals: Two animation-variance positives with distinct full-frame hashes recognized from stable ROIs; companion source/target ROI negatives fail closed; one navigation-only proof returns to canonical Home.
+- Rejected weak signals: Full-frame hash equality alone, synthetic replay, stale selectors, unsupported variants, or projected Campaign state.
+- Ambiguous-result behavior: Stop with zero input and retain `evidence_required` diagnosis; do not retry Campaign r2.
+- Zero-cost requirement: No AP, currency, resource, item, refill, or other product cost.
+- Quantity limits: One new navigation-only Home proof after activation; zero Campaign/AP actions.
+- Resource consumption policy: No resource or refill transaction is permitted.
+- Premium or strategic restrictions: Campaign/AP, Auto Battle, premium, paid, refill, and production actions are prohibited.
+- Active evidence manifest: None while inactive; bind task-local evidence only after explicit activation.
+- Required artifacts: Offline stable-ROI repair/review records and, after activation, current-frame evidence, semantic classification, navigation journal, and terminal Home proof.
+- Immediate-before/immediate-post/result/journal: No runtime record before activation; after activation retain current frame, bounded navigation input ledger, immediate post frame, semantic successor, and released ownership.
+- Additional task-specific artifacts: Two positive animation-variance frames with distinct full-frame hashes and companion stable-ROI negatives.
+- Focused tests: Home-localization recognition, stable-ROI binding, and shared-navigation focused profiles after activation.
+- Integration tests: Shared Home/navigation integration profile after activation; no Campaign consumer integration.
+- Transitive regression tests: Existing Home Atlas and safe-navigation contract tests.
+- Full-suite requirement: None while inactive; focused profiles are required after activation.
+- Validators: Governance/index checks, focused Home-localization/shared-navigation profiles, and `git diff --check` after attributable edits.
+- Known baseline failures: None asserted for this inactive task; any later baseline failure must remain separately classified.
+- Evidence requirement: REQUIRED only after explicit activation; no evidence collection before activation.
+- Valid blocked outcomes: `LOCALIZATION_NOT_RECOGNIZED`, unsupported Home variant, unstable or stale ROI binding, ambiguous overlay, missing successor, unsafe ownership, or any pressure toward Campaign/AP input.
+- Blocked-result commit policy: Preserve zero-input diagnosis and no-retry disposition; do not authorize runtime or stage protected evidence.
+- Commit policy: No staging, commit, or push while inactive; implementation and terminal records only after explicit activation.
+- Expected focused commits: None while inactive; one attributable implementation/status sequence only after activation.
+- Completion criteria: Stable-ROI positives and negatives are reviewed, one bounded navigation-only proof reaches canonical Home, ownership is released, and Campaign r2 remains blocked without retry; otherwise remain inactive and evidence-gated.
