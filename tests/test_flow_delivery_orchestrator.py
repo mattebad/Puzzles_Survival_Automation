@@ -528,17 +528,85 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
         self.assertNotIn("pns-flow-reviewer", skill)
 
     def test_host_portable_routing_and_manifest_are_checked_in_contracts(self) -> None:
+        def compact(text: str) -> str:
+            return " ".join(text.split())
+
         agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         managed, project = agents.split(
             "<!-- codex-workflow-managed-end -->", 1
         )
+        project_compact = compact(project)
         self.assertNotIn("execution_coordinator", managed)
         self.assertIn("control_plane_owner", project)
         self.assertIn("procedure_coordinator", project)
         self.assertIn("read-only, defect-first code-and-acceptance", project)
+        self.assertIn("Review class: <sol | sol_plus_terra>", managed)
+        self.assertIn("only for `sol_plus_terra`", project)
         self.assertIn("Exclude (record as a Note at most, never a finding)", project)
         self.assertIn("exact usage-export model slug", project)
         self.assertIn("Do not put receipt chronology", project)
+
+        solo_gate = (
+            "It does not override the Heavy review-class safety gate: whenever "
+            "scope meets `sol_plus_terra`, Solo must record that class and "
+            "complete the conditional Terra review (and one recheck after any "
+            "consolidated repair) before final integration acceptance or live "
+            "admission."
+        )
+        self.assertIn(solo_gate, project_compact)
+        self.assertIn(
+            "Outside that gate, Solo may own serial work and use its normal "
+            "single-agent review override.",
+            project_compact,
+        )
+        self.assertNotIn(
+            "Solo overrides Light/Medium/Heavy role choreography, frozen-stage "
+            "delegation, independent-review requirements",
+            project_compact,
+        )
+
+        policy = (
+            ROOT / "docs" / "flow-delivery-validation-policy.md"
+        ).read_text(encoding="utf-8")
+        policy_compact = compact(policy)
+        final_acceptance_clause = (
+            "The parent records final integration acceptance only after the "
+            "required Terra evidence and binds it to the final clean candidate "
+            "content fingerprint."
+        )
+        self.assertIn(final_acceptance_clause, policy_compact)
+        self.assertLess(
+            policy_compact.index("The parent records final integration acceptance only after the required Terra evidence"),
+            policy_compact.index("binds it to the final clean candidate content fingerprint"),
+        )
+        self.assertIn(
+            "No route, including Solo, may admit canary/live work before those "
+            "required evidence and acceptance records.",
+            policy_compact,
+        )
+
+        chat = (
+            ROOT / "docs" / "chat-execution-ownership-policy.md"
+        ).read_text(encoding="utf-8")
+        chat_compact = compact(chat)
+        self.assertIn(
+            "Canary admission requires Luna implementation self-check evidence "
+            "and final parent Sol integration acceptance bound to the receipt's "
+            "final clean candidate content fingerprint.",
+            chat_compact,
+        )
+        self.assertIn(
+            "For `sol_plus_terra`, the required conditional independent read-only "
+            "Terra review evidence (and its one recheck when a repair occurred) "
+            "must be recorded before that final Sol acceptance; Solo cannot "
+            "bypass this class-specific gate or admit live work without it.",
+            chat_compact,
+        )
+        self.assertLess(
+            chat_compact.index("required conditional independent read-only Terra review evidence"),
+            chat_compact.index("must be recorded before that final Sol acceptance"),
+        )
+
         routing = (
             ROOT / ".cursor" / "rules" / "pns-model-routing.mdc"
         ).read_text(encoding="utf-8")
@@ -556,11 +624,21 @@ class FlowDeliveryCursorContractTests(unittest.TestCase):
         manifest = (ROOT / "docs" / "execution-manifest-template.md").read_text(
             encoding="utf-8"
         )
+        manifest_compact = compact(manifest)
         self.assertIn("## Frozen stage control", manifest)
         self.assertIn("Parent conversation ID", manifest)
         self.assertIn("| Role | Exact model slug | Authority |", manifest)
         self.assertIn("gpt-5.6-sol-high", manifest)
         self.assertIn("## Immutable budgets", manifest)
+        self.assertIn("Review class: `<sol | sol_plus_terra>`", manifest)
+        self.assertIn("not used for sol", manifest)
+        self.assertIn("Final clean candidate content fingerprint", manifest)
+        self.assertIn("Final parent Sol integration acceptance", manifest)
+        self.assertIn(
+            "For `sol_plus_terra`, acceptance is valid only after the required "
+            "Terra review/recheck evidence; Solo cannot bypass this gate.",
+            manifest_compact,
+        )
         self.assertNotIn("## Next authorized action", manifest)
         self.assertIn("RFC 3339 UTC milliseconds", manifest)
         self.assertIn("## Frozen architecture decision", manifest)

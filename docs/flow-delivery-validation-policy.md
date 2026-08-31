@@ -13,65 +13,101 @@ explicit user route selection wins and remains active until changed; otherwise u
 before entering this ladder. This document keeps the runnable validation mechanics and the stage
 admission contract.
 
+For Heavy work, every frozen manifest records exactly one review class and rationale:
+
+- `sol`: Heavy architecture or cross-contract work that does not change
+  runtime-input authority/enforcement, consequential-action authority,
+  registration/scheduler authority, credentials/protected-evidence durability,
+  or architecture/cross-contract decisions governing those boundaries. It
+  requires the bounded parent Sol diff/acceptance review and final integration
+  acceptance bound to the final clean candidate content fingerprint. Normal PR
+  review may be deferred when the deferral is recorded as pending.
+- `sol_plus_terra`: any change to runtime-input authority/enforcement,
+  consequential-action authority, registration/scheduler authority,
+  credentials/protected-evidence durability, or an architecture/cross-contract
+  decision governing one of those boundaries. It requires the bounded parent
+  Sol diff/acceptance review, then conditional independent read-only Terra
+  review before live admission and, after a consolidated repair, one Terra
+  recheck. All authorized repairs must be complete. The parent records final
+  integration acceptance only after the required Terra evidence and binds it to
+  the final clean candidate content fingerprint. That acceptance is the last
+  acceptance gate before live admission. Normal PR review is additive and
+  cannot defer or replace this pre-live safety review.
+
 An explicitly selected `Solo` route is the recognized single-agent exception
-defined in `AGENTS.md`. It replaces role choreography and per-task independent
+defined in `AGENTS.md`. It replaces role choreography and ordinary independent
 review with one named agent's serial plan/implement/validate/self-review/close
-loop. It does not waive this validation ladder, atomic scope, failure
-classification, evidence truth, runtime safety, registration/scheduler
-separation, Git protections, or action-specific authorization. If review is
-deferred to a PR, closure records it as pending and never as completed.
+loop only outside the `sol_plus_terra` safety gate. It does not waive this
+validation ladder, atomic scope, failure classification, evidence truth, runtime
+authorization. For any `sol_plus_terra` scope, Solo must record that review
+class and complete the required Terra review (and one recheck after any
+consolidated repair). After all authorized repairs and required Terra evidence,
+the final parent Sol integration acceptance and live admission remain mandatory.
+If normal PR review is deferred, that deferral is permitted only for `sol` work
+and is recorded as pending.
 
 ## Stage admission
 
 Absent an explicit `Solo` selection, the Sol parent is the mandatory
-`control_plane_owner` for Heavy work. Before
-implementation, review, or canary, the parent records the frozen revision,
-stage type, failure class, budgets, and product precondition. Diagnostic probes
-may begin at `evidence_required`; implementation and review require `proven` or
-`not_applicable`. A failed product precondition terminates the stage without
-Luna/Terra iteration. Any live failure is classified as `product_state`,
-`core_contract`, `local_defect`, `process_state`, or `diminishing_returns`
-before continuation is considered.
+`control_plane_owner` for Heavy work. Before implementation, review, repair, or
+canary, the parent records the frozen revision, stage type, explicit review
+class and rationale, failure class, budgets, and product precondition.
+Diagnostic probes may begin at `evidence_required`; the Luna implementation and
+parent review require `proven` or `not_applicable`. A failed product precondition
+terminates the stage without implementation, review, or repair iteration. Any
+live failure is classified as `product_state`, `core_contract`, `local_defect`,
+`process_state`, or `diminishing_returns` before continuation is considered.
+For `sol_plus_terra`, all authorized repairs and the required Terra evidence
+must be recorded before the final parent Sol integration acceptance bound to
+the final clean candidate content fingerprint. That final acceptance is the
+last acceptance gate before canary/live admission, including on Solo.
 
 Routine live flow development is convergence-governed (see the primary rule in
 [`../AGENTS.md`](../AGENTS.md) and the stateful
 [`flow-attempt-ledger-template.md`](flow-attempt-ledger-template.md)): the unit
 of work is the flow, local defects are repaired and continued in-session under
 the unchanged safety envelope, and the operator owns the CONTINUE /
-STEP_BACK_REDESIGN / ESCALATE_USER / STOP decision. A frozen manifest and
-independent review are required only for the STEP_BACK redesign, architecture,
-cross-contract, or safety-boundary case. `diminishing_returns` — a repeat or
-documented-hazard defect signature, ≥3 defects clustered in one subsystem, or
-two iterations without a furthest-progress advance — mandates STEP_BACK or
-escalation and never authorizes another identical local patch. Convergence, not
-stage/turn counts, is the primary brake; the safety envelope is never relaxed by
-autonomy.
+STEP_BACK_REDESIGN / ESCALATE_USER / STOP decision. A frozen manifest and Heavy
+review-class gate are required only for the STEP_BACK redesign, architecture,
+cross-contract, or safety-boundary case. `sol` uses the parent Sol review and
+final fingerprint-bound integration acceptance; `sol_plus_terra` additionally
+uses conditional Terra review/recheck before that final acceptance.
+`diminishing_returns` — a repeat or documented-hazard defect signature, ≥3
+defects clustered in one subsystem, or two iterations without a furthest-
+progress advance — mandates STEP_BACK or escalation and never authorizes
+another identical local patch. Convergence, not stage/turn counts, is the
+primary brake; the safety envelope is never relaxed by autonomy.
 
-Each frozen stage permits one implementation, one initial review, at most one
-consolidated repair and one recheck, and one live attempt. A parent conversation
-permits at most three stage revisions and eight managed turns. The frozen
-manifest is immutable between revision IDs and contains architecture and
-budgets only; compact development-session and evidence records remain history.
-`CURRENT_HANDOFF.md` is current truth and its latest modifying commit must be
-the live Git head before managed delegation. This avoids an impossible
-self-referential commit hash inside the tracked handoff while still rejecting a
-handoff skipped by a later commit. At 60 minutes record a visible checkpoint;
-at 90 minutes require a recorded user continuation later than the stage start.
+Each frozen stage permits one Luna XHigh implementation/self-check, one bounded
+initial parent Sol diff/acceptance review, at most one consolidated Luna repair,
+the conditional Terra review and (if a repair occurs) one Terra recheck only for
+`sol_plus_terra`, then one final parent Sol integration acceptance bound to the
+final clean candidate content fingerprint, and one live attempt. All authorized
+repairs and required Terra evidence must be complete before that final
+acceptance, which is the last acceptance gate before live admission. A parent
+conversation permits at most three stage revisions and eight managed turns. The
+frozen manifest is immutable between revision IDs and contains architecture,
+review class/rationale, and budgets only; compact development-session and
+evidence records remain history. `CURRENT_HANDOFF.md` is current truth and its
+latest modifying commit must be the live Git head before managed delegation.
+This avoids an impossible self-referential commit hash inside the tracked handoff
+while still rejecting a handoff skipped by a later commit. At 60 minutes record
+a visible checkpoint; at 90 minutes require a recorded user continuation later
+than the stage start.
 
 ## Reviewer scope and re-review contract
 
-This section owns the detailed `independent_tester` (Terra) scope. It exists to
-stop the review/repair loop that thrashed the Ultimate Challenge delivery
-(r1→r16+ rounds, most of them offline): each recheck was run as a fresh full
-review that surfaced a brand-new "improvement," and each new item was treated as
-authorization for another Luna repair round, while the actual live blocker went
-untouched. The reviewer is defect-first and read-only; it reports to the parent
-and never authorizes repair or expands scope.
-
-**Review only the diff.** The reviewer inspects only the code changed in the
-turn under review (the uncommitted diff or the named changed paths) plus the
-stage's stated acceptance criteria. It does not re-audit the whole codebase, the
-prior accepted work, or an idealized design.
+This section defines the detailed `independent_tester` (Terra) scope only for
+the `sol_plus_terra` class. It is conditional and is not part of the `sol`
+topology; every Heavy stage still receives the bounded initial parent Sol
+diff/acceptance review and, after any required Terra evidence, final parent Sol
+integration acceptance bound to the final clean candidate content fingerprint.
+The Terra gate exists to stop the review/repair loop that thrashed the Ultimate
+Challenge delivery (r1→r16+ rounds, most of them offline): each recheck was run
+as a fresh full review that surfaced a brand-new "improvement," and each new
+item was treated as authorization for another Luna repair round, while the
+actual live blocker went untouched. The reviewer is defect-first and read-only;
+it reports to the parent and never authorizes repair or expands scope.
 
 **Must-fix bar — raise a finding only when the change plausibly causes one of:**
 
@@ -111,8 +147,8 @@ to STEP_BACK_REDESIGN or ESCALATE_USER, never another identical repair round.
 
 ## Compact validation ladder
 
-Run the smallest rung that proves the current change, then advance once. Do not repeat a passed
-rung merely for ceremony.
+Run the smallest rung that proves the current change, then advance once. Do not
+repeat a passed rung merely for ceremony.
 
 1. During repair, rerun the exact failing regression after the correction.
 2. Run each affected package suite once.
@@ -120,11 +156,20 @@ rung merely for ceremony.
    `python scripts/run_flow_delivery_validation.py focused --flow-id FLOW-ID`.
 4. If shared navigation changed, run the boundary profile once:
    `python scripts/run_flow_delivery_validation.py shared-navigation --flow-id FLOW-ID`.
-5. Complete the one parent-owned integration gate after the executor self-check and tester package.
+5. Complete the bounded initial parent Sol diff/acceptance review after
+   the Luna self-check and classify its findings. If the class is
+   `sol_plus_terra`, complete the conditional Terra review before canary and
+   its one recheck only after any consolidated repair; after all authorized
+   repairs and required Terra evidence, record final parent Sol integration
+   acceptance bound to the final clean candidate content fingerprint. No route,
+   including Solo, may admit canary/live work before those required evidence
+   and acceptance records.
 6. Perform a zero-input observation through the supported interface:
    `python scripts/pnsctl.py development-session observe`.
-7. Execute the authorized live flow through its existing `pnsctl` development-session interface.
-8. Verify the semantic result and retained evidence with the flow's checked-in verifier.
+7. Execute the authorized live flow through its existing `pnsctl`
+   development-session interface.
+8. Verify the semantic result and retained evidence with the flow's checked-in
+   verifier.
 9. Full repository discovery is manual-only:
    `python scripts/run_flow_delivery_validation.py full --flow-id FLOW-ID --manual`.
 

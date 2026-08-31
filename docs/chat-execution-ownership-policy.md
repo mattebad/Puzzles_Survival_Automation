@@ -24,5 +24,10 @@ is not a bearer credential.
 Issuance and admission reject dirty or changed candidates. Admission consumes the receipt before
 runtime singleton acquisition, so a failed, dry-run, crashed, timed-out, or ambiguous admission
 cannot be replayed. Delegated sessions retain receipt-bound results and evidence and release the
-singleton on every safe terminal path. Canary admission additionally requires implementation
-self-check evidence, independent read-only tester evidence, and parent integration acceptance.
+singleton on every safe terminal path. All authorized repairs must be complete before final
+acceptance. Canary admission requires Luna implementation self-check evidence and final parent Sol
+integration acceptance bound to the receipt's final clean candidate content fingerprint. For
+`sol_plus_terra`, the required conditional independent read-only Terra review evidence (and its one
+recheck when a repair occurred) must be recorded before that final Sol acceptance; Solo cannot
+bypass this class-specific gate or admit live work without it. That acceptance is the last
+acceptance gate before live admission.
