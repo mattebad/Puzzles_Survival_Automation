@@ -1,4 +1,9 @@
-"""Strict, atomic production-registration authority for bounded flow canaries."""
+"""Legacy production-registration records retained for compatibility.
+
+Canonical scheduler admission is persisted in ``BotStateManager``.  The
+consume-once helpers below remain available only to not-yet-migrated routes;
+they are never consulted by the new scheduler/service path.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +14,9 @@ import os
 from pathlib import Path
 import threading
 import time
-from typing import Any, Iterator, Mapping
+from typing import Any, Callable, Iterator, Mapping
+
+from .contracts import FlowDescriptor, FlowSpec, RecurrenceClass, RecurrenceProjection
 
 
 REGISTRY_PATH = (
@@ -229,6 +236,204 @@ class RegisteredDispatchSnapshot:
         return self.production_handler
 
 
+@dataclass(frozen=True)
+class CanonicalFlowRegistration:
+    """Static, typed composition facts for a canonical service flow.
+
+    This registry is code-owned and intentionally independent of the legacy
+    disabled-production JSON and the BlueStacks runner registry.  It describes
+    which offline handler is available; mutable enablement remains exclusively
+    in ``BotStateManager``.
+    """
+
+    spec: FlowSpec
+    descriptor: FlowDescriptor
+    registration: RegisteredDispatchSnapshot
+    handler_id: str
+
+    @property
+    def flow_id(self) -> str:
+        return self.spec.flow_id
+
+    @property
+    def registered(self) -> bool:
+        return self.descriptor.registration_status == "REGISTERED"
+
+    @property
+    def registration_status(self) -> str:
+        return self.descriptor.registration_status
+
+    @property
+    def scheduler_eligible(self) -> bool:
+        return self.descriptor.scheduler_eligible
+
+    @property
+    def product_id(self) -> str:
+        return self.registration.product_id
+
+    @property
+    def product_revision(self) -> str:
+        return self.registration.product_revision
+
+    @property
+    def production_handler(self) -> str:
+        return self.handler_id
+
+    @property
+    def profile(self) -> str:
+        return self.registration.profile
+
+    @property
+    def mode(self) -> str:
+        return self.registration.mode
+
+    @property
+    def supported_profiles(self) -> tuple[str, ...]:
+        return (self.profile,)
+
+    def build_handler(self) -> Any:
+        """Instantiate the fixed handler without importing handlers at module load."""
+
+        from .handlers import (
+            CampaignApSelectionHandler,
+            NovaPraiseSelectionHandler,
+            RecruitmentMaintenanceSelectionHandler,
+            WorldNavigationSelectionHandler,
+        )
+
+        handler_types = {
+            CAMPAIGN_FLOW_ID: CampaignApSelectionHandler,
+            NOVA_FLOW_ID: NovaPraiseSelectionHandler,
+            RECRUITMENT_FLOW_ID: RecruitmentMaintenanceSelectionHandler,
+            WORLD_FLOW_ID: WorldNavigationSelectionHandler,
+        }
+        handler_type = handler_types.get(self.flow_id)
+        if handler_type is None:
+            raise ValueError(f"no canonical handler for flow: {self.flow_id}")
+        return handler_type(self.registration)
+
+
+def _canonical_registration(
+    flow_id: str,
+    *,
+    family: str,
+    variant: str,
+    cadence: str,
+    reset_scoped: bool = True,
+    recurrence: RecurrenceProjection | None = None,
+) -> CanonicalFlowRegistration:
+    binding = _FIXED_BINDINGS[flow_id]
+    snapshot = RegisteredDispatchSnapshot(
+        flow_id=flow_id,
+        product_id=binding["product_id"],
+        product_revision=binding["product_revision"],
+        production_handler=binding["production_handler"],
+        profile=binding["profile"],
+        mode=binding["mode"],
+        registration_status="REGISTERED",
+        scheduler_eligible=True,
+    )
+    descriptor = FlowDescriptor(
+        flow_id=flow_id,
+        owner="automation_service",
+        family=family,
+        variant=variant,
+        cadence=cadence,
+        priority=1,
+        reset_scoped=reset_scoped,
+        scheduler_eligible=True,
+        accepted_product=binding["product_id"],
+        product_revision=binding["product_revision"],
+        registration_status="REGISTERED",
+        recurrence=recurrence,
+    )
+    return CanonicalFlowRegistration(
+        spec=FlowSpec(
+            flow_id=flow_id,
+            default_enabled=False,
+            priority=descriptor.priority,
+            cadence=cadence,
+        ),
+        descriptor=descriptor,
+        registration=snapshot,
+        handler_id=binding["production_handler"],
+    )
+
+
+# The tuple is immutable and deterministic.  Do not derive it from a file,
+# environment, queue, or runner registration.
+CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
+    _canonical_registration(
+        WORLD_FLOW_ID,
+        family="world_map_navigation",
+        variant="navigation_only",
+        cadence="daily_once_per_reset",
+    ),
+    _canonical_registration(
+        NOVA_FLOW_ID,
+        family="nova_praise",
+        variant="supervised_one_free_pulse",
+        cadence="daily_once_per_reset",
+    ),
+    _canonical_registration(
+        RECRUITMENT_FLOW_ID,
+        family="recruitment",
+        variant="free_attempt_maintenance",
+        cadence="cooldown_pulse",
+        reset_scoped=False,
+    ),
+    _canonical_registration(
+        CAMPAIGN_FLOW_ID,
+        family="campaign_ap",
+        variant="one_auto_battle",
+        cadence="ap_regeneration_pulse",
+        reset_scoped=False,
+        recurrence=RecurrenceProjection(
+            RecurrenceClass.AP_REGENERATION,
+            observed_at_utc=0.0,
+            observed_balance=0.0,
+        ),
+    ),
+)
+
+
+def load_canonical_registry() -> tuple[CanonicalFlowRegistration, ...]:
+    """Return static canonical flow composition facts.
+
+    A function keeps call sites symmetrical with the retired registry loader,
+    while returning the immutable code-owned tuple rather than reading disk.
+    """
+
+    return CANONICAL_FLOW_REGISTRY
+
+
+canonical_registry = load_canonical_registry
+
+
+def canonical_flow_specs() -> tuple[FlowSpec, ...]:
+    """Return disabled-by-default static specs for SQLite initialization."""
+
+    return tuple(entry.spec for entry in CANONICAL_FLOW_REGISTRY)
+
+
+def canonical_descriptors() -> tuple[FlowDescriptor, ...]:
+    """Return canonical descriptors without consulting any external registry."""
+
+    return tuple(entry.descriptor for entry in CANONICAL_FLOW_REGISTRY)
+
+
+def build_canonical_handler(flow_id: str) -> Any:
+    """Build one fixed canonical handler by flow identity."""
+
+    entry = next(
+        (item for item in CANONICAL_FLOW_REGISTRY if item.flow_id == flow_id),
+        None,
+    )
+    if entry is None:
+        raise ValueError(f"unknown canonical flow: {flow_id}")
+    return entry.build_handler()
+
+
 _REGISTRY_LOCK = threading.RLock()
 
 
@@ -418,12 +623,13 @@ def _write_payload_atomic(path: Path, payload: Mapping[str, Any]) -> None:
     os.replace(temporary, path)
 
 
+
 def consume_registered_entry(
     flow_id: str = WORLD_FLOW_ID,
     *,
     path: Path | None = None,
 ) -> RegisteredDispatchSnapshot | None:
-    """Atomically consume one exact registered entry before live input."""
+    """Legacy-only atomic snapshot consumption for unmigrated routes."""
 
     registry_path = Path(REGISTRY_PATH if path is None else path)
     if flow_id not in _FIXED_BINDINGS:
@@ -555,6 +761,13 @@ def campaign_registration_snapshot(
 
 
 __all__ = [
+    "CanonicalFlowRegistration",
+    "CANONICAL_FLOW_REGISTRY",
+    "canonical_descriptors",
+    "canonical_flow_specs",
+    "canonical_registry",
+    "build_canonical_handler",
+    "load_canonical_registry",
     "DisabledProductionEntry",
     "ENTRY_FIELDS",
     "REGISTRY_PATH",
