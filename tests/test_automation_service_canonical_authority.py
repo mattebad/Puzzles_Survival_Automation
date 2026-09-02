@@ -298,7 +298,7 @@ class CanonicalAutomationAuthorityTests(unittest.TestCase):
                     flow_id=WORLD_FLOW_ID,
                 )
                 self.assertIsNone(report.candidate)
-                self.assertEqual(report.reason_code, "SERVICE_DISABLED")
+                self.assertEqual(report.reason_code, "SHADOW_NO_ELIGIBLE_TASK")
                 self.assertFalse(manager.get_flow_enabled(WORLD_FLOW_ID))
                 self.assertEqual(registry_path.read_bytes(), registry_before)
             finally:

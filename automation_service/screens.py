@@ -13,8 +13,16 @@ from enum import Enum
 import hashlib
 import inspect
 import math
+import threading
 import time
 from typing import Any, Callable, Iterable, Mapping, Protocol
+
+class _RecognitionTimeout(TimeoutError):
+    """A perception callback exceeded its hard execution deadline."""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
 
 
 Box = tuple[int, int, int, int]
@@ -264,8 +272,14 @@ class ScreenRouter:
         registry: Mapping[ScreenId | str, Any] | Iterable[Any] = (),
         *,
         clock: Callable[[], float] = time.monotonic,
+        callback_timeout_seconds: float = 2.0,
+        recognition_timeout_seconds: float | None = None,
     ) -> None:
+        timeout = callback_timeout_seconds if recognition_timeout_seconds is None else recognition_timeout_seconds
+        if isinstance(timeout, bool) or not math.isfinite(float(timeout)) or float(timeout) <= 0:
+            raise ValueError("callback timeout must be finite and positive")
         self._clock = clock
+        self._callback_timeout_seconds = float(timeout)
         self._definitions: list[Any] = []
         self._cache: dict[tuple[str, str], ScreenObservation] = {}
         if isinstance(registry, Mapping):
@@ -317,6 +331,8 @@ class ScreenRouter:
                     self._cache[cycle.identity] = result
                     return result
             result = self._unknown(cycle, "UNKNOWN_SCREEN")
+        except _RecognitionTimeout as exc:
+            result = self._unknown(cycle, exc.reason)
         except Exception as exc:
             # Recognition callbacks are untrusted perception code.  Never allow a
             # callback or malformed callback result to escape into an input path.
@@ -357,7 +373,7 @@ class ScreenRouter:
             if callable(recognizer):
                 return self._normalize(self._call(recognizer, cycle, deadline), cycle, None)
             if callable(entry):
-                return self._normalize(entry(cycle), cycle, None)
+                return self._normalize(self._call(entry, cycle, deadline), cycle, None)
             return None
         if entry.template is not None:
             template = self._call(entry.template, cycle, deadline)
@@ -374,23 +390,63 @@ class ScreenRouter:
         if entry.ocr is not None:
             if deadline is not None and self._clock() >= deadline:
                 return self._unknown(cycle, "OCR_DEADLINE")
-            value = self._call(entry.ocr, cycle, deadline)
+            value = self._call(entry.ocr, cycle, deadline, timeout_reason="OCR_DEADLINE")
             if deadline is not None and self._clock() >= deadline:
                 return self._unknown(cycle, "OCR_DEADLINE")
             return self._normalize(value, cycle, entry)
         return self._normalize(True, cycle, entry)
 
-    @staticmethod
-    def _call(fn: Callable[..., Any], cycle: CaptureCycle, deadline: float | None) -> Any:
+    def _call(
+        self,
+        fn: Callable[..., Any],
+        cycle: CaptureCycle,
+        deadline: float | None,
+        *,
+        timeout_reason: str = "RECOGNITION_DEADLINE",
+    ) -> Any:
+        """Run an untrusted perception callback behind a hard cancellable boundary.
+
+        Python cannot safely kill a running thread.  The daemon worker therefore
+        owns no router/session state, and a timed-out result is discarded forever;
+        only a joined result can reach normalization or input authority.
+        """
+
+        now = self._clock()
+        configured_deadline = now + self._callback_timeout_seconds
+        hard_deadline = configured_deadline if deadline is None else min(float(deadline), configured_deadline)
+        if not math.isfinite(hard_deadline):
+            raise _RecognitionTimeout(timeout_reason)
+        remaining = hard_deadline - now
+        if remaining <= 0:
+            raise _RecognitionTimeout(timeout_reason)
         try:
             params = inspect.signature(fn).parameters.values()
             positional = [item for item in params if item.kind in (item.POSITIONAL_ONLY, item.POSITIONAL_OR_KEYWORD)]
             accepts_varargs = any(item.kind is item.VAR_POSITIONAL for item in params)
         except (TypeError, ValueError):
             positional, accepts_varargs = (), True
-        if accepts_varargs or len(positional) >= 2:
-            return fn(cycle, deadline)
-        return fn(cycle)
+
+        result: dict[str, Any] = {}
+
+        def invoke() -> None:
+            try:
+                if accepts_varargs or len(positional) >= 2:
+                    result["value"] = fn(cycle, deadline)
+                else:
+                    result["value"] = fn(cycle)
+            except Exception as exc:
+                result["error"] = exc
+
+        worker = threading.Thread(target=invoke, name="screen-perception", daemon=True)
+        worker.start()
+        worker.join(max(0.0, remaining))
+        if worker.is_alive() or self._clock() >= hard_deadline:
+            raise _RecognitionTimeout(timeout_reason)
+        error = result.get("error")
+        if error is not None:
+            raise error
+        return result.get("value")
+
 
     def _normalize(self, value: Any, cycle: CaptureCycle, definition: ScreenDefinition | None) -> ScreenObservation | None:
         if value is None or value is False:

@@ -7249,6 +7249,22 @@ def automation_service_offline(args: argparse.Namespace) -> int:
     argv.append(command)
     if command in {"enable", "disable"}:
         argv.append(args.flow_id)
+    if command == "run":
+        argv.append(args.flow_id)
+        if args.live:
+            argv.append("--live")
+        argv.extend(
+            [
+                "--account-id",
+                args.account_id,
+                "--server-id",
+                args.server_id,
+                "--reset-id",
+                args.reset_id,
+            ]
+        )
+        if args.operator_request_id is not None:
+            argv.extend(["--operator-request-id", args.operator_request_id])
     if command in {"service-disable", "emergency-stop"}:
         argv.extend(["--reason", args.reason])
     if getattr(args, "now_utc_epoch", None) is not None:
@@ -7265,13 +7281,9 @@ def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
         SchedulerFacts,
     )
     from automation_service.service import AutomationService
-    from automation_service.state import BotStateManager
+    from automation_service.state import BotStateManager, resolve_state_path
 
-    state_path = Path(
-        args.state_path
-        if args.state_path is not None
-        else BotStateManager.DEFAULT_DB_PATH
-    )
+    state_path = Path(resolve_state_path(args.state_path))
     with BotStateManager(state_path) as state:
         service = AutomationService(mode="dry_run", state=state)
         flow_id = getattr(args, "flow_id", None)
@@ -8064,6 +8076,18 @@ def parser() -> argparse.ArgumentParser:
     automation_disable.add_argument("flow_id")
     automation_disable.add_argument("--state-path", type=Path, default=None)
     automation_disable.add_argument("--now-utc-epoch", type=float, default=None)
+    automation_run = automation_sub.add_parser("run")
+    automation_run.add_argument("flow_id")
+    automation_run.add_argument(
+        "--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled"
+    )
+    automation_run.add_argument("--live", action="store_true")
+    automation_run.add_argument("--state-path", type=Path, default=None)
+    automation_run.add_argument("--account-id", default="offline-account")
+    automation_run.add_argument("--server-id", default="offline-server")
+    automation_run.add_argument("--reset-id", default="offline-reset")
+    automation_run.add_argument("--operator-request-id", default=None)
+    automation_run.add_argument("--now-utc-epoch", type=float, default=None)
     service_enable = automation_sub.add_parser("service-enable")
     service_enable.add_argument("--state-path", type=Path, default=None)
     service_enable.add_argument("--now-utc-epoch", type=float, default=None)
@@ -8380,7 +8404,27 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return automation_service_scheduler_pulse_offline(args)
             return automation_service_offline(args)
         except (OperatorError, OSError, RuntimeError, ValueError) as exc:
-            print("pnsctl: " + str(exc), file=sys.stderr)
+            from automation_service.state import StateBusyError
+
+            if isinstance(exc, StateBusyError) or (
+                isinstance(exc, sqlite3.OperationalError)
+                and any(
+                    marker in str(exc).casefold() for marker in ("busy", "locked")
+                )
+            ):
+                print(
+                    json.dumps(
+                        {
+                            "status": "error",
+                            "reason": "SQLITE_BUSY",
+                            "retryable": True,
+                        },
+                        sort_keys=True,
+                    ),
+                    file=sys.stderr,
+                )
+            else:
+                print("pnsctl: " + str(exc), file=sys.stderr)
             return 2
     raise OperatorError("unsupported pnsctl command")
 

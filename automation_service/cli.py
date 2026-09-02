@@ -20,7 +20,7 @@ from .contracts import SchedulerFacts, ServiceMode
 from .operations import OperationsService, structured_summary
 from .registry import canonical_flow_specs
 from .service import AutomationService, ServiceError
-from .state import BotStateManager
+from .state import BotStateManager, StateBusyError, resolve_state_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,11 +39,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--state-path",
         type=Path,
-        default=Path(
-            os.environ.get(
-                "AUTOMATION_SERVICE_STATE_PATH",
-                BotStateManager.DEFAULT_DB_PATH,
-            )
+        default=None,
+        help=(
+            "SQLite state path; relative paths and AUTOMATION_SERVICE_STATE_PATH "
+            "are resolved against the repository root"
         ),
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -72,6 +71,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--account-id", default="cli-account")
     run.add_argument("--server-id", default="cli-server")
     run.add_argument("--reset-id", default="cli-reset")
+    run.add_argument(
+        "--operator-request-id",
+        default=None,
+        help="manual-run idempotency identity; generated when omitted",
+    )
     run.add_argument("--now-utc-epoch", type=float, default=None)
     shadow = subparsers.add_parser("shadow")
     shadow.add_argument("flow_id", nargs="?")
@@ -186,6 +190,30 @@ def _database_probe(path: Path) -> bool:
         return False
 
 
+def _structured_error(exc: BaseException) -> dict[str, object]:
+    """Return the stable operator-facing failure shape for expected contention."""
+
+    if isinstance(exc, StateBusyError) or (
+        isinstance(exc, sqlite3.OperationalError)
+        and any(marker in str(exc).casefold() for marker in ("busy", "locked"))
+    ):
+        return {
+            "status": "error",
+            "reason": "SQLITE_BUSY",
+            "retryable": True,
+        }
+    reason = getattr(exc, "reason", None)
+    retryable = getattr(exc, "retryable", None)
+    if reason is not None:
+        payload: dict[str, object] = {
+            "status": "error",
+            "reason": reason,
+            "retryable": bool(retryable),
+        }
+        return payload
+    return {"status": "error", "error": str(exc)}
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     try:
@@ -199,7 +227,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 2
     adapter = _adapter(args.adapter)
-    state_path = args.state_path
+    state_path = Path(resolve_state_path(args.state_path))
 
     if args.command in {
         "enable",
@@ -341,6 +369,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                         flow_id,
                         facts,
                         live=args.command == "run" and args.live,
+                        operator_request_id=getattr(
+                            args, "operator_request_id", None
+                        ),
                     )
                     candidate = (
                         {
@@ -371,8 +402,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                         return 2
                 print(json.dumps(payload, sort_keys=True))
                 return 0
-        except (ServiceError, ValueError) as exc:
-            print(json.dumps({"error": str(exc)}, sort_keys=True))
+        except (ServiceError, StateBusyError, sqlite3.OperationalError, ValueError) as exc:
+            print(json.dumps(_structured_error(exc), sort_keys=True))
             return 2
 
     if args.command == "serve":
@@ -391,8 +422,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     if not health.healthy:
                         return 1
                     time.sleep(30)
-        except (ServiceError, ValueError) as exc:
-            print(json.dumps({"error": str(exc)}, sort_keys=True))
+        except (ServiceError, StateBusyError, sqlite3.OperationalError, ValueError) as exc:
+            print(json.dumps(_structured_error(exc), sort_keys=True))
             return 2
 
     observed_frame_id = None

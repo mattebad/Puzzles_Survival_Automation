@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -19,6 +20,7 @@ from automation_service.state import (
     ActionState,
     BotStateManager,
     RunState,
+    StateBusyError,
     TerminalProjectionError,
 )
 
@@ -67,7 +69,9 @@ def make_facts(now: float = 100.0, **overrides: object) -> SchedulerFacts:
         "reset_agreement": True,
     }
     values.update(overrides)
-    return SchedulerFacts("account", "server", RESET, now, **values)
+    reset_id = str(values.pop("reset_id", RESET))
+    return SchedulerFacts("account", "server", reset_id, now, **values)
+
 
 
 class Handler:
@@ -122,9 +126,223 @@ def initialize(
     coordinator = UtcPulseCoordinator(state, [descriptor], {descriptor.flow_id: handler})
     return state, coordinator, handler
 
+def mutable_tables(path: Path) -> dict[str, tuple[tuple[object, ...], ...]]:
+    """Return every canonical state table in a stable, byte-level shape."""
+
+    tables = (
+        "service_control",
+        "service_lease",
+        "clock_state",
+        "flow_state",
+        "runs",
+        "actions",
+    )
+    with sqlite3.connect(path) as connection:
+        return {
+            table: tuple(
+                tuple(row)
+                for row in connection.execute(
+                    f"SELECT * FROM {table} ORDER BY rowid"
+                ).fetchall()
+            )
+            for table in tables
+        }
+
+
 
 class CanonicalSchedulerTests(unittest.TestCase):
+    def test_mf1_recurrence_bindings_use_canonical_occurrence_identity(self) -> None:
+        cases = (
+            (
+                "daily",
+                make_descriptor(),
+                make_facts(),
+                "daily_once_per_reset",
+                RESET,
+                f"{FLOW_ID}:{RESET}:0",
+            ),
+            (
+                "timer",
+                make_descriptor(
+                    cadence="timer",
+                    recurrence=RecurrenceProjection(
+                        RecurrenceClass.TIMER,
+                        next_eligible_at=100.0,
+                        observed_at_utc=100.0,
+                    ),
+                ),
+                make_facts(),
+                "timer",
+                "100.0",
+                f"{FLOW_ID}:timer:100.0",
+            ),
+            (
+                "cooldown",
+                make_descriptor(
+                    cadence="cooldown_pulse",
+                    recurrence=RecurrenceProjection(
+                        RecurrenceClass.COOLDOWN,
+                        next_eligible_at=100.0,
+                        observed_at_utc=100.0,
+                    ),
+                ),
+                make_facts(),
+                "cooldown",
+                "100.0",
+                f"{FLOW_ID}:cooldown:100.0",
+            ),
+            (
+                "resource",
+                make_descriptor(
+                    cadence="ap_regeneration",
+                    recurrence=RecurrenceProjection(
+                        RecurrenceClass.AP_REGENERATION,
+                        next_eligible_at=100.0,
+                        observed_at_utc=100.0,
+                        generation="ap-generation-1",
+                        observed_balance=12.0,
+                    ),
+                ),
+                make_facts(),
+                "ap_regeneration",
+                "ap-generation-1",
+                f"{FLOW_ID}:ap_regeneration:ap-generation-1",
+            ),
+            (
+                "bounded-repeat",
+                make_descriptor(
+                    cadence="bounded_repeat",
+                    recurrence=RecurrenceProjection(
+                        RecurrenceClass.BOUNDED_REPEAT,
+                        generation="repeat-sequence-1",
+                        repeat_ordinal=2,
+                        repeat_limit=3,
+                    ),
+                ),
+                make_facts(),
+                "bounded_repeat",
+                "repeat-sequence-1:2",
+                f"{FLOW_ID}:bounded_repeat:repeat-sequence-1:2",
+            ),
+            (
+                "queue",
+                make_descriptor(
+                    cadence="queue_generation",
+                    recurrence=RecurrenceProjection(
+                        RecurrenceClass.QUEUE_GENERATION,
+                        generation="queue-generation-1",
+                    ),
+                ),
+                make_facts(),
+                "queue_generation",
+                "queue-generation-1",
+                f"{FLOW_ID}:queue_generation:queue-generation-1",
+            ),
+            (
+                "march",
+                make_descriptor(
+                    cadence="march_generation",
+                    recurrence=RecurrenceProjection(
+                        RecurrenceClass.MARCH_GENERATION,
+                        generation="march-generation-1",
+                    ),
+                ),
+                make_facts(),
+                "march_generation",
+                "march-generation-1",
+                f"{FLOW_ID}:march_generation:march-generation-1",
+            ),
+        )
+        for (
+            label,
+            descriptor,
+            current_facts,
+            expected_kind,
+            expected_basis,
+            expected_key,
+        ) in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as folder:
+                state, coordinator, _handler = initialize(
+                    Path(folder) / "state.sqlite3", descriptor
+                )
+                try:
+                    report = coordinator.pulse(current_facts)
+                    self.assertIsNotNone(report.candidate)
+                    self.assertIsNotNone(report.result)
+                    assert report.candidate is not None
+                    assert report.candidate.claim is not None
+                    self.assertEqual(report.candidate.occurrence_key, expected_key)
+                    self.assertEqual(
+                        report.candidate.claim.occurrence_kind, expected_kind
+                    )
+                    self.assertEqual(
+                        report.candidate.claim.occurrence_basis, expected_basis
+                    )
+                finally:
+                    state.close()
+
+    def test_daily_occurrence_is_once_per_reset(self) -> None:
+        descriptor = make_descriptor()
+        with tempfile.TemporaryDirectory() as folder:
+            state, coordinator, handler = initialize(
+                Path(folder) / "state.sqlite3", descriptor
+            )
+            try:
+                first = coordinator.pulse(make_facts(now=100.0))
+                second = coordinator.pulse(make_facts(now=101.0))
+                self.assertIsNotNone(first.candidate)
+                self.assertEqual(second.reason_code, "NO_ELIGIBLE_TASK")
+                self.assertIsNone(second.candidate)
+                self.assertEqual(handler.plan_calls, 1)
+            finally:
+                state.close()
+
+    def test_manual_request_is_separate_and_retry_reuses_occurrence_key(self) -> None:
+        descriptor = make_descriptor()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            state, coordinator, handler = initialize(path, descriptor)
+            try:
+                first = coordinator.pulse(make_facts(now=100.0))
+                self.assertEqual(first.candidate.occurrence_key, f"{FLOW_ID}:{RESET}:0")
+                self.assertEqual(state.get_flow(FLOW_ID).next_occurrence_key, 1)
+
+                manual = coordinator.run_manual(
+                    FLOW_ID,
+                    make_facts(now=101.0),
+                    operator_request_id="operator-request-1",
+                )
+                self.assertEqual(
+                    manual.candidate.occurrence_key,
+                    f"{FLOW_ID}:manual:operator-request-1",
+                )
+                self.assertEqual(manual.candidate.claim.mode, "manual")
+                self.assertEqual(
+                    manual.candidate.claim.occurrence_basis, "operator-request-1"
+                )
+                self.assertEqual(state.get_flow(FLOW_ID).next_occurrence_key, 1)
+
+                handler.result = NormalizedResult(
+                    NormalizedOutcome.RECONCILIATION_REQUIRED, "RETRY_ME"
+                )
+                failed = coordinator.pulse(
+                    make_facts(now=102.0, reset_id="reset-2")
+                )
+                retry = coordinator.pulse(
+                    make_facts(now=104.0, reset_id="reset-2")
+                )
+                self.assertEqual(
+                    retry.candidate.occurrence_key,
+                    failed.candidate.occurrence_key,
+                )
+                self.assertEqual(
+                    retry.candidate.claim.run_id,
+                    failed.candidate.claim.run_id,
+                )
+            finally:
+                state.close()
     def test_all_public_selection_paths_apply_external_and_static_gates(self) -> None:
+
         descriptor = make_descriptor()
         with tempfile.TemporaryDirectory() as folder:
             state, coordinator, handler = initialize(Path(folder) / "state.sqlite3", descriptor)
@@ -150,6 +368,111 @@ class CanonicalSchedulerTests(unittest.TestCase):
                 state.set_service_enabled(True, now_utc_epoch=102.0)
                 state.set_flow_enabled(descriptor.flow_id, False, now_utc_epoch=102.0)
                 self.assertIsNone(coordinator.select(make_facts(now=102.0)))
+            finally:
+                state.close()
+    def test_disabled_service_shadow_is_fully_mutation_free(self) -> None:
+        descriptor = make_descriptor()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            state, coordinator, handler = initialize(path, descriptor)
+            try:
+                state.set_service_enabled(False, now_utc_epoch=99.0)
+                before = mutable_tables(path)
+                report = coordinator.shadow(make_facts(now=100.0))
+                after = mutable_tables(path)
+                self.assertEqual(report.reason_code, "SHADOW_CANDIDATE")
+                self.assertIsNotNone(report.candidate)
+                self.assertIsNone(report.candidate.claim)
+                self.assertEqual(handler.plan_calls, 0)
+                self.assertEqual(after, before)
+            finally:
+                state.close()
+
+    def test_scheduler_returns_safe_idle_on_state_lock_contention(self) -> None:
+        descriptor = make_descriptor()
+        with tempfile.TemporaryDirectory() as folder:
+            state, coordinator, handler = initialize(
+                Path(folder) / "state.sqlite3", descriptor
+            )
+            try:
+                with patch.object(
+                    state,
+                    "acquire_service_lease",
+                    side_effect=StateBusyError("service lease"),
+                ):
+                    report = coordinator.pulse(make_facts(now=100.0))
+                self.assertEqual(report.reason_code, "SQLITE_BUSY")
+                self.assertIsNone(report.candidate)
+                self.assertIsNone(report.result)
+                self.assertEqual(handler.plan_calls, 0)
+            finally:
+                state.close()
+
+    def test_only_reset_scoped_descriptors_roll_reset_state(self) -> None:
+        timer = make_descriptor(
+            cadence="timer",
+            recurrence=RecurrenceProjection(
+                RecurrenceClass.TIMER,
+                next_eligible_at=100.0,
+                observed_at_utc=100.0,
+            ),
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            state, coordinator, _handler = initialize(
+                Path(folder) / "state.sqlite3", timer
+            )
+            try:
+                with patch.object(
+                    state, "update_reset", wraps=state.update_reset
+                ) as update_reset:
+                    report = coordinator.pulse(make_facts(now=100.0))
+                self.assertIsNotNone(report.candidate)
+                self.assertEqual(
+                    report.candidate.claim.occurrence_kind, "timer"
+                )
+            finally:
+                state.close()
+
+    def test_retry_preserves_timer_run_key_when_projection_slot_changes(self) -> None:
+        descriptor = make_descriptor(
+            cadence="timer",
+            recurrence=RecurrenceProjection(
+                RecurrenceClass.TIMER,
+                next_eligible_at=100.0,
+                observed_at_utc=100.0,
+            ),
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            state, coordinator, handler = initialize(
+                Path(folder) / "state.sqlite3", descriptor
+            )
+            try:
+                handler.result = NormalizedResult(
+                    NormalizedOutcome.RECONCILIATION_REQUIRED, "RETRY_TIMER"
+                )
+                first = coordinator.pulse(make_facts(now=100.0))
+                handler.result = NormalizedResult(
+                    NormalizedOutcome.COMPLETE_FOR_RESET, "TIMER_RECOVERED"
+                )
+                changed_slot = RecurrenceProjection(
+                    RecurrenceClass.TIMER,
+                    next_eligible_at=102.0,
+                    observed_at_utc=102.0,
+                )
+                retry = coordinator.pulse(
+                    make_facts(
+                        now=102.0,
+                        projections={FLOW_ID: changed_slot},
+                    )
+                )
+                self.assertEqual(
+                    retry.candidate.occurrence_key,
+                    first.candidate.occurrence_key,
+                )
+                self.assertEqual(
+                    retry.candidate.claim.run_id,
+                    first.candidate.claim.run_id,
+                )
             finally:
                 state.close()
 
@@ -272,8 +595,9 @@ class CanonicalSchedulerTests(unittest.TestCase):
                 coordinator = UtcPulseCoordinator(
                     restarted, [descriptor], {FLOW_ID: handler}
                 )
-                report = coordinator.pulse(make_facts(now=200.0))
-                self.assertEqual(report.result.reason_code, "RECOVERED")
+                first = coordinator.pulse(make_facts(now=200.0))
+                self.assertEqual(first.reason_code, "NO_ELIGIBLE_TASK")
+                report = coordinator.pulse(make_facts(now=205.0))
                 self.assertEqual(report.candidate.claim.run_id, orphan.run_id)
                 self.assertEqual(
                     restarted.get_run(orphan.run_id).state, RunState.SUCCEEDED
@@ -343,7 +667,7 @@ class CanonicalSchedulerTests(unittest.TestCase):
                 )
                 self.assertEqual(handler.plan_calls, 0)
                 self.assertEqual(
-                    restarted.get_run(orphan.run_id).state, RunState.BLOCKED
+                    restarted.get_run(orphan.run_id).state, RunState.RECOVERING
                 )
                 self.assertTrue(restarted.has_unresolved_actions(orphan.run_id))
                 self.assertEqual(

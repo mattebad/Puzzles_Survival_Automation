@@ -18,7 +18,7 @@ from typing import Any, Callable, Iterable
 from .contracts import SemanticActionIntent
 from .screens import CaptureCycle, ScreenId, ScreenObservation, ScreenRouter, TargetBinding
 from .session import RuntimeSession
-from .state import ActionRecord, ActionState, DispatchValidation
+from .state import ActionRecord, ActionState, DispatchValidation, RunState
 
 
 class ActionExecutionError(RuntimeError):
@@ -151,6 +151,8 @@ class ActionExecutor:
             raise TypeError("intent must be a SemanticActionIntent")
         source = source_observation or source
         if intent.flow_id is not None and intent.flow_id != self.session.flow_id:
+            if self.session.run is not None:
+                return self._blocked_before_transport("FLOW_MISMATCH", source=source)
             return self._blocked("FLOW_MISMATCH", source=source)
         if not isinstance(action_class, str) or not action_class.strip():
             raise ActionExecutionError("action_class is required")
@@ -169,53 +171,93 @@ class ActionExecutor:
         run = self.session.run
         if run is None:
             return self._blocked("RUN_NOT_CLAIMED", source=source)
-        try:
-            fence = self._ensure_fence()
-        except Exception:
-            return self._blocked("FENCE_VALIDATION_FAILED", source=source)
-        if not isinstance(fence, DispatchValidation):
-            return self._blocked("FENCE_VALIDATION_INVALID_RESULT", source=source)
-        if not fence.valid:
-            return self._blocked(fence.reason or "FENCE_VALIDATION_FAILED", source=source)
-
+        heartbeat = getattr(self.session, "heartbeat", None)
+        if callable(heartbeat):
+            try:
+                renewed = heartbeat()
+            except Exception as exc:
+                reason = f"HEARTBEAT_FAILED:{type(exc).__name__}"
+                return self._blocked_before_transport(reason, source=source)
+            if renewed is None or isinstance(renewed, bool) or not hasattr(renewed, "state"):
+                return self._blocked_before_transport("HEARTBEAT_FENCE_FAILED", source=source)
+            run = renewed
+        # A claimed occurrence is only admission state.  Promote it through
+        # the fenced state authority before capturing any input-capable frame;
+        # reserve_action and validate_dispatch intentionally reject CLAIMED.
+        if run.state is RunState.CLAIMED:
+            try:
+                started = self._state_call(
+                    "transition_run",
+                    run.run_id,
+                    RunState.RUNNING,
+                    expected_state=RunState.CLAIMED,
+                    now_utc_epoch=self._utc(),
+                )
+            except Exception as exc:
+                reason = f"RUN_START_FAILED:{type(exc).__name__}"
+                return self._blocked_before_transport(reason, source=source)
+            if started is None or getattr(started, "state", None) is not RunState.RUNNING:
+                return self._blocked_before_transport("RUN_START_DENIED", source=source)
+            run = started
+            if hasattr(self.session, "_run"):
+                self.session._run = started
+        if run.state is not RunState.RUNNING:
+            return self._blocked_before_transport("RUN_NOT_RUNNING", source=source)
         # Planning/source recognition is never reused for dispatch.  This is a new
         # capture cycle even when the frame hash is unchanged.
         try:
             pre_cycle = self.session.capture("pre-dispatch")
             pre = self.router.observe(pre_cycle, deadline_monotonic=self._monotonic() + self.successor_timeout_seconds)
         except Exception as exc:
-            return self._blocked(f"PRE_DISPATCH_CAPTURE_FAILED:{type(exc).__name__}", source=source)
+            reason = f"PRE_DISPATCH_CAPTURE_FAILED:{type(exc).__name__}"
+            return self._blocked_before_transport(reason, source=source)
+        if pre.is_unknown:
+            reason = pre.reason_code or "UNKNOWN_PRE_DISPATCH"
+            return self._blocked_before_transport(reason, source=source, pre_dispatch=pre)
+
         try:
             target_identity = intent.target_identity
             if not target_identity:
-                return self._blocked("TARGET_IDENTITY_REQUIRED", source=source, pre_dispatch=pre)
+                return self._blocked_before_transport("TARGET_IDENTITY_REQUIRED", source=source, pre_dispatch=pre)
             target = pre.target(target_identity)
             if target is None:
-                return self._blocked("TARGET_NOT_RECOGNIZED", source=source, pre_dispatch=pre)
+                return self._blocked_before_transport("TARGET_NOT_RECOGNIZED", source=source, pre_dispatch=pre)
             if source is not None:
                 valid, reason = source.revalidate_target(pre, target_identity)
                 if not valid:
-                    return self._blocked(reason, source=source, pre_dispatch=pre)
+                    return self._blocked_before_transport(reason, source=source, pre_dispatch=pre)
         except Exception as exc:
             # Target lookup and stable-ROI compatibility are untrusted recognition
             # callbacks.  They are pre-dispatch authority and therefore block.
-            return self._blocked(
-                f"TARGET_RECOGNITION_FAILED:{type(exc).__name__}",
+            reason = f"TARGET_RECOGNITION_FAILED:{type(exc).__name__}"
+            return self._blocked_before_transport(
+                reason,
                 source=source,
                 pre_dispatch=pre,
             )
         authoritative_source = source or pre
         stable_source_digest = authoritative_source.stable_roi_digest
         if not isinstance(stable_source_digest, str) or not stable_source_digest.strip():
-            return self._blocked("SOURCE_STABLE_ROI_REQUIRED", source=source, pre_dispatch=pre)
+            return self._blocked_before_transport("SOURCE_STABLE_ROI_REQUIRED", source=source, pre_dispatch=pre)
 
         # Reservation is itself a generation/budget/idempotency fence.
         try:
             current_fence = self._ensure_fence()
         except Exception as exc:
-            return self._blocked(f"FENCE_VALIDATION_FAILED:{type(exc).__name__}", source=source, pre_dispatch=pre)
+            reason = f"FENCE_VALIDATION_FAILED:{type(exc).__name__}"
+            return self._blocked_before_transport(reason, source=source, pre_dispatch=pre)
+        if not isinstance(current_fence, DispatchValidation):
+            return self._blocked_before_transport(
+                "FENCE_VALIDATION_INVALID_RESULT",
+                source=source,
+                pre_dispatch=pre,
+            )
         if not current_fence.valid:
-            return self._blocked(current_fence.reason, source=source, pre_dispatch=pre)
+            return self._blocked_before_transport(
+                current_fence.reason or "FENCE_VALIDATION_FAILED",
+                source=source,
+                pre_dispatch=pre,
+            )
         try:
             action = self._state_call(
                 "reserve_action",
@@ -236,9 +278,10 @@ class ActionExecutor:
                 now_utc_epoch=self._utc(),
             )
         except Exception as exc:
-            return self._blocked(f"RESERVATION_FAILED:{type(exc).__name__}", source=source, pre_dispatch=pre)
+            reason = f"RESERVATION_FAILED:{type(exc).__name__}"
+            return self._blocked_before_transport(reason, source=source, pre_dispatch=pre)
         if action is None:
-            return self._blocked("RESERVATION_DENIED", source=source, pre_dispatch=pre)
+            return self._blocked_before_transport("RESERVATION_DENIED", source=source, pre_dispatch=pre)
 
         # The state manager's transition is the durable commit point immediately before
         # transport.  No transport is attempted unless this succeeds and the final
@@ -257,20 +300,9 @@ class ActionExecutor:
         else:
             transition_error = "DISPATCH_COMMIT_DENIED"
         if dispatching is None:
-            try:
-                blocked = self._state_call(
-                    "transition_action",
-                    action.action_id,
-                    ActionState.BLOCKED,
-                    expected_state=ActionState.RESERVED,
-                    outcome_reason=transition_error,
-                    now_utc_epoch=self._utc(),
-                )
-            except Exception:
-                blocked = None
-            return self._blocked(
+            return self._blocked_before_transport(
                 transition_error,
-                action=blocked or action,
+                action=action,
                 source=source,
                 pre_dispatch=pre,
             )
@@ -365,24 +397,18 @@ class ActionExecutor:
 
         except Exception as exc:
             # Even an exception after the transport boundary invalidates the
-            # pre-dispatch recognition cache; the action is terminal UNKNOWN.
+            # pre-dispatch recognition cache; the action is durable UNKNOWN.
             try:
                 self.router.invalidate()
             except Exception:
                 pass
             reason = f"TRANSPORT_EXCEPTION:{type(exc).__name__}"
-            try:
-                terminal = self._state_call(
-                    "transition_action",
-                    action.action_id,
-                    ActionState.UNKNOWN,
-                    expected_state=ActionState.DISPATCHING,
-                    outcome_reason=reason,
-                    transport_summary="transport raised after DISPATCHING commit",
-                    now_utc_epoch=self._utc(),
-                )
-            except Exception:
-                terminal = None
+            terminal = self._mark_unknown_after_transport(
+                action,
+                reason,
+                transport_summary="transport raised after DISPATCHING commit",
+            )
+            self._release_after_emergency(force=True, reason=f"post-transport unknown: {reason}")
             result = ActionResult(
                 ActionOutcome.UNKNOWN,
                 reason,
@@ -393,7 +419,6 @@ class ActionExecutor:
                 True,
                 None,
             )
-            self._release_after_emergency()
             return result
         successor: ScreenObservation | None = None
         successor_reason = "SUCCESSOR_DEADLINE"
@@ -446,6 +471,8 @@ class ActionExecutor:
         else:
             outcome = ActionOutcome.NO_EFFECT
             terminal_state = ActionState.NO_EFFECT
+        terminal: ActionRecord | None = None
+        commit_error: str | None = None
         try:
             terminal = self._state_call(
                 "transition_action",
@@ -460,15 +487,33 @@ class ActionExecutor:
                 now_utc_epoch=self._utc(),
             )
         except Exception as exc:
-            # A transport happened but its terminal projection did not commit.  Do
-            # not surface a false success or permit an implicit retry.
-            terminal = None
+            commit_error = f"TERMINAL_COMMIT_FAILED:{type(exc).__name__}"
+        if terminal is not None:
+            try:
+                valid_terminal = ActionState(getattr(terminal, "state", None)) is terminal_state
+            except (TypeError, ValueError):
+                valid_terminal = False
+            if not valid_terminal:
+                terminal = None
+                commit_error = commit_error or "TERMINAL_COMMIT_INVALID_RESULT"
+        if terminal is None:
+            commit_error = commit_error or "TERMINAL_COMMIT_DENIED"
+            terminal = self._mark_unknown_after_transport(
+                action,
+                commit_error,
+                transport_summary="terminal action commit was not confirmed",
+                consequence_summary="post-transport reconciliation required",
+            )
             outcome = ActionOutcome.UNKNOWN
-            successor_reason = f"TERMINAL_COMMIT_FAILED:{type(exc).__name__}"
+            successor_reason = commit_error
+            self._release_after_emergency(force=True, reason=f"post-transport unknown: {commit_error}")
+        else:
+            action = terminal
+            if outcome is ActionOutcome.UNKNOWN:
+                self._release_after_emergency(force=True, reason=f"post-transport unknown: {successor_reason}")
+            else:
+                self._release_after_emergency()
         action = terminal or action
-        # Emergency stop can race with an already in-flight transport.  This action is
-        # acknowledged above, but no later action is admitted and the run is fenced.
-        self._release_after_emergency()
         return ActionResult(outcome, successor_reason, action, source, pre, successor, transport_attempted, transport_succeeded)
 
     def _ensure_fence(self, *, action_id: str | None = None) -> DispatchValidation:
@@ -507,6 +552,108 @@ class ActionExecutor:
         if callable(authority_call):
             return authority_call(method, *args, **kwargs)
         return method(*args, **kwargs)
+    def _mark_unknown_after_transport(
+        self,
+        action: ActionRecord,
+        reason: str,
+        *,
+        transport_summary: str,
+        consequence_summary: str | None = None,
+    ) -> ActionRecord | None:
+        """Persist UNKNOWN through the post-transport reconciliation path.
+
+        This path is intentionally separate from pre-transport aborts.  It may
+        cross a disabled or generation-changed service boundary, but still
+        requires the exact run/lease identity supplied by the session.
+        """
+
+        authority = self.session.state_manager
+        post_transport = getattr(authority, "mark_post_transport_unknown", None)
+        if callable(post_transport):
+            try:
+                marked = self._state_call(
+                    "mark_post_transport_unknown",
+                    action.action_id,
+                    outcome_reason=reason,
+                    transport_summary=transport_summary,
+                    consequence_summary=consequence_summary,
+                    now_utc_epoch=self._utc(),
+                )
+            except Exception:
+                marked = None
+            try:
+                marked_unknown = marked is not None and ActionState(getattr(marked, "state", None)) is ActionState.UNKNOWN
+            except (TypeError, ValueError):
+                marked_unknown = False
+            if marked_unknown:
+                return marked
+        try:
+            marked = self._state_call(
+                "transition_action",
+                action.action_id,
+                ActionState.UNKNOWN,
+                expected_state=ActionState.DISPATCHING,
+                outcome_reason=reason,
+                transport_summary=transport_summary,
+                consequence_summary=consequence_summary,
+                now_utc_epoch=self._utc(),
+            )
+        except Exception:
+            marked = None
+        try:
+            marked_unknown = marked is not None and ActionState(getattr(marked, "state", None)) is ActionState.UNKNOWN
+        except (TypeError, ValueError):
+            marked_unknown = False
+        if marked_unknown:
+            return marked
+        getter = getattr(authority, "get_action", None)
+        if callable(getter):
+            try:
+                current = getter(action.action_id)
+            except Exception:
+                current = None
+            if current is not None and getattr(current, "state", None) is ActionState.UNKNOWN:
+                return current
+        return None
+
+    def _blocked_before_transport(
+        self,
+        reason: str,
+        *,
+        action: ActionRecord | None = None,
+        source: ScreenObservation | None,
+        pre_dispatch: ScreenObservation | None = None,
+    ) -> ActionResult:
+        """Block one pre-transport path and always clean up its ownership.
+
+        A reservation is a budget mutation even though it cannot cross the
+        external boundary.  When one exists, route it through the guarded
+        pre-transport abort path before terminalizing the run.  Earlier
+        admission failures have no action to abort, so force the run through
+        ``STOP_REQUESTED`` and release the session's exact lease identity.
+        """
+
+        if action is not None:
+            try:
+                action_state = ActionState(getattr(action, "state", None))
+            except (TypeError, ValueError):
+                action_state = None
+            if action_state in {ActionState.RESERVED, ActionState.DISPATCHING}:
+                return self._pretransport_abort(
+                    action,
+                    reason,
+                    source=source,
+                    pre_dispatch=pre_dispatch,
+                )
+        self._release_after_emergency(force=True, reason=reason)
+        return self._blocked(
+            reason,
+            action=action,
+            source=source,
+            pre_dispatch=pre_dispatch,
+        )
+
+
     def _pretransport_abort(
         self,
         action: ActionRecord,
@@ -515,26 +662,48 @@ class ActionExecutor:
         source: ScreenObservation | None,
         pre_dispatch: ScreenObservation | None,
     ) -> ActionResult:
-        """Durably abort a DISPATCHING action before any transport call."""
+        """Durably abort a RESERVED/DISPATCHING action before transport."""
 
         try:
-            aborted = self._state_call(
-                "abort_pretransport_action",
-                action.action_id,
-                ActionState.BLOCKED,
-                expected_state=ActionState.DISPATCHING,
-                transport_attempted=False,
-                outcome_reason=reason,
-                transport_summary="transport not called",
-                consequence_summary="pre-transport abort",
-                now_utc_epoch=self._utc(),
-            )
+            action_state = ActionState(getattr(action, "state", None))
+        except (TypeError, ValueError):
+            action_state = None
+        try:
+            if action_state is ActionState.RESERVED:
+                # RESERVED has not crossed the transport boundary; the normal
+                # transition refunds the reserved budget under the exact fence.
+                aborted = self._state_call(
+                    "transition_action",
+                    action.action_id,
+                    ActionState.BLOCKED,
+                    expected_state=ActionState.RESERVED,
+                    outcome_reason=reason,
+                    transport_summary="transport not called",
+                    consequence_summary="pre-transport abort",
+                    now_utc_epoch=self._utc(),
+                )
+            elif action_state is ActionState.DISPATCHING:
+                # DISPATCHING needs the proof-carrying abort API so it cannot
+                # be relabeled through a generic terminal transition.
+                aborted = self._state_call(
+                    "abort_pretransport_action",
+                    action.action_id,
+                    ActionState.BLOCKED,
+                    expected_state=ActionState.DISPATCHING,
+                    transport_attempted=False,
+                    outcome_reason=reason,
+                    transport_summary="transport not called",
+                    consequence_summary="pre-transport abort",
+                    now_utc_epoch=self._utc(),
+                )
+            else:
+                aborted = None
         except Exception:
             aborted = None
         # A pre-transport abort is the emergency cleanup path: terminalize a
         # STOP_REQUESTED run and release its exact singleton lease even when the
         # session did not observe the stop through its convenience property.
-        self._release_after_emergency(force=True, reason=f"pre-transport abort: {reason}")
+        self._release_after_emergency(force=True, reason=reason)
         return self._blocked(
             reason,
             action=aborted or action,
@@ -554,6 +723,27 @@ class ActionExecutor:
             requested = True
         if not requested and not force:
             return
+        if force:
+            # A flow-generation race need not have emitted STOP_REQUESTED.  Move
+            # the run into the safe fenced state before project_terminal so a
+            # post-transport UNKNOWN can never leave an active run behind.
+            try:
+                current = self.session.refresh_run()
+                if current is not None and current.state in {
+                    RunState.CLAIMED,
+                    RunState.RUNNING,
+                    RunState.RECOVERING,
+                }:
+                    self._state_call(
+                        "transition_run",
+                        current.run_id,
+                        RunState.STOP_REQUESTED,
+                        expected_state=current.state,
+                        reason=reason,
+                        now_utc_epoch=self._utc(),
+                    )
+            except Exception:
+                pass
         release = getattr(self.session, "release", None)
         if not callable(release):
             return

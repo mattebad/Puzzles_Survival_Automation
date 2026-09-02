@@ -65,6 +65,10 @@ class RuntimeSession:
         run_token: str | None = None,
         lease_generation: int | None = None,
         mode: str = "manual",
+        operator_request_id: str | None = None,
+        manual_request_id: str | None = None,
+        operator_request: str | None = None,
+        lease_ttl_seconds: float = 60.0,
         max_inputs: int = 1,
         max_actions: int = 1,
         monotonic_clock: Callable[[], float] = time.monotonic,
@@ -81,6 +85,14 @@ class RuntimeSession:
             raise SessionError("max_inputs must be non-negative")
         if type(max_actions) is not int or max_actions < 0:
             raise SessionError("max_actions must be non-negative")
+        if isinstance(lease_ttl_seconds, bool) or not math.isfinite(float(lease_ttl_seconds)) or float(lease_ttl_seconds) <= 0:
+            raise SessionError("lease TTL must be finite and positive")
+        request_values = [value for value in (operator_request_id, manual_request_id, operator_request) if value is not None]
+        if request_values and any(str(value) != str(request_values[0]) for value in request_values[1:]):
+            raise SessionError("operator and manual request IDs disagree")
+        supplied_request_id = None if not request_values else request_values[0]
+        if mode == "scheduled" and supplied_request_id is not None:
+            raise SessionError("scheduled sessions cannot carry an operator request ID")
         self.state_manager = state_manager
         self.adapter = adapter
         self.flow_id = str(flow_id)
@@ -101,6 +113,14 @@ class RuntimeSession:
         ):
             raise SessionError("lease generation must be non-negative")
         self.mode = mode
+        self.operator_request_id = (
+            None
+            if mode == "scheduled"
+            else str(supplied_request_id or f"manual:{self.flow_id}:{self.reset_id}")
+        )
+        if self.operator_request_id is not None and not self.operator_request_id.strip():
+            raise SessionError("operator request ID cannot be blank")
+        self.lease_ttl_seconds = float(lease_ttl_seconds)
         self.max_inputs = max_inputs
         self.max_actions = max_actions
         self._monotonic = monotonic_clock
@@ -110,6 +130,7 @@ class RuntimeSession:
             raise SessionError("session identity is required")
         self._run: RunRecord | None = None
         self._closed = False
+        self._fenced = False
         self._emergency_requested = False
         self._capture_ordinal = 0
         self._last_capture: CaptureCycle | None = None
@@ -125,6 +146,9 @@ class RuntimeSession:
     @property
     def emergency_requested(self) -> bool:
         return self._emergency_requested
+    @property
+    def fenced(self) -> bool:
+        return self._fenced
 
     @property
     def closed(self) -> bool:
@@ -249,6 +273,7 @@ class RuntimeSession:
         if not service.enabled:
             self._emergency_requested = True
             return None
+        run: RunRecord | None = None
         try:
             claim_kwargs: dict[str, Any] = {
                 "mode": self.mode,
@@ -256,6 +281,8 @@ class RuntimeSession:
                 "max_actions": self.max_actions,
                 "now_utc_epoch": self._utc(),
             }
+            if self.operator_request_id is not None:
+                claim_kwargs["operator_request_id"] = self.operator_request_id
             # With no supplied tokens, let the authority atomically acquire its
             # own lease.  Partial token sets are passed through and fail closed.
             explicit_fence = (
@@ -277,6 +304,7 @@ class RuntimeSession:
                                 owner_instance_id=self.owner_instance_id,
                                 process_start_token=process_token,
                                 process_id=getattr(self.state_manager, "process_id", None),
+                                lease_ttl_seconds=self.lease_ttl_seconds,
                                 now_utc_epoch=self._utc(),
                             )
                         except Exception:
@@ -315,6 +343,7 @@ class RuntimeSession:
                             acquire_lease,
                             owner_instance_id=self.owner_instance_id,
                             process_start_token=process_token,
+                            lease_ttl_seconds=self.lease_ttl_seconds,
                             process_id=getattr(self.state_manager, "process_id", None),
                             now_utc_epoch=self._utc(),
                         )
@@ -345,7 +374,26 @@ class RuntimeSession:
         if run is not None:
             self._run = run
             self._sync_tokens_from_run(run)
-        return run
+            if run.state is RunState.CLAIMED:
+                try:
+                    started = self._authority_call(
+                        self.state_manager.transition_run,
+                        run.run_id,
+                        RunState.RUNNING,
+                        expected_state=RunState.CLAIMED,
+                        now_utc_epoch=self._utc(),
+                        **self._token_kwargs(include_run=True),
+                    )
+                except Exception:
+                    started = None
+                if started is None or getattr(started, "state", None) is not RunState.RUNNING:
+                    self._fenced = True
+                    self._emergency_requested = True
+                    self.release(outcome="BLOCKED", reason="CLAIMED_TO_RUNNING_FAILED")
+                    return None
+                self._run = started
+                self._sync_tokens_from_run(started)
+        return self._run
 
     acquire = claim
     start = claim
@@ -375,6 +423,8 @@ class RuntimeSession:
 
         if self._run is None:
             return DispatchValidation(False, "RUN_NOT_CLAIMED")
+        if self._fenced:
+            return DispatchValidation(False, "SESSION_FENCED")
         try:
             validation = self._authority_call(
                 self.state_manager.validate_dispatch,
@@ -404,21 +454,75 @@ class RuntimeSession:
 
 
     def heartbeat(self) -> RunRecord | None:
-        if self._run is None or self._closed:
+        """Renew the exact service lease and run heartbeat as one admission check."""
+
+        if self._run is None or self._closed or self._fenced:
             return None
+        tokens = self._token_kwargs(include_run=True)
+        lease_result: Any = None
+        run_result: RunRecord | None = None
         try:
-            current = self._authority_call(
+            renew = getattr(self.state_manager, "renew_service_lease", None)
+            if callable(renew):
+                lease_result = self._authority_call(
+                    renew,
+                    lease_ttl_seconds=self.lease_ttl_seconds,
+                    now_utc_epoch=self._utc(),
+                    **{key: tokens[key] for key in ("owner_instance_id", "process_start_token", "lease_generation")},
+                )
+        except Exception:
+            lease_result = None
+        try:
+            run_result = self._authority_call(
                 self.state_manager.heartbeat_run,
                 self._run.run_id,
                 now_utc_epoch=self._utc(),
-                **self._token_kwargs(include_run=True),
+                **tokens,
             )
         except Exception:
+            run_result = None
+        lease_matches = (
+            lease_result is not None
+            and getattr(lease_result, "owner_instance_id", None) == self.owner_instance_id
+            and getattr(lease_result, "process_start_token", None) == tokens["process_start_token"]
+            and getattr(lease_result, "lease_generation", None) == tokens["lease_generation"]
+        )
+        if not lease_matches or run_result is None:
+            self._fence_session("HEARTBEAT_FENCE_FAILED")
             return None
-        if current is not None:
-            self._run = current
-            self._sync_tokens_from_run(current)
-        return current
+        self._run = run_result
+        self._sync_tokens_from_run(run_result)
+        return run_result
+
+    def _fence_session(self, reason: str) -> None:
+        """Fence and clean up after losing either half of the heartbeat."""
+
+        self._fenced = True
+        self._emergency_requested = True
+        if not self._closed:
+            try:
+                current = self.refresh_run()
+                if current is not None and current.state in {
+                    RunState.CLAIMED,
+                    RunState.RUNNING,
+                    RunState.RECOVERING,
+                }:
+                    stopped = self._authority_call(
+                        self.state_manager.transition_run,
+                        current.run_id,
+                        RunState.STOP_REQUESTED,
+                        expected_state=current.state,
+                        reason=reason,
+                        now_utc_epoch=self._utc(),
+                        **self._token_kwargs(include_run=True),
+                    )
+                    if stopped is not None:
+                        self._run = stopped
+                self.release(outcome="BLOCKED", reason=reason)
+                return
+            except Exception:
+                pass
+        self._release_service_lease()
 
     def capture(self, label: str | None = None) -> CaptureCycle:
         """Capture once and expose one immutable event to all recognition stages."""
@@ -427,6 +531,8 @@ class RuntimeSession:
             raise SessionError("session is closed")
         if self._run is None:
             raise SessionError("capture requires an acquired run")
+        if self._run.state is not RunState.RUNNING:
+            raise SessionError("capture requires a running run")
         self._capture_ordinal += 1
         sample = self._capture_adapter(label)
         if isinstance(sample, CaptureCycle):

@@ -8,6 +8,33 @@ import sqlite3
 import time
 from typing import Any
 
+from contextlib import contextmanager
+
+
+@contextmanager
+def _state_boundary():
+    """Expose bounded SQLite contention without leaking driver exceptions."""
+
+    try:
+        yield
+    except (StateBusyError, sqlite3.OperationalError) as exc:
+        if isinstance(exc, StateBusyError):
+            reason = exc.reason
+            retryable = exc.retryable
+        elif any(
+            marker in str(exc).casefold() for marker in ("busy", "locked")
+        ):
+            reason = "SQLITE_BUSY"
+            retryable = True
+        else:
+            raise
+        raise ServiceError(
+            str(exc),
+            reason=reason,
+            retryable=retryable,
+        ) from exc
+
+
 from .adapters import (
     AdapterKind,
     DeviceAdapter,
@@ -35,7 +62,7 @@ from .registry import (
     canonical_descriptors,
     canonical_flow_specs,
 )
-from .state import BotStateManager
+from .state import BotStateManager, StateBusyError, resolve_state_path
 from .scheduler import DisabledProductionAuthority, PulseReport, UtcPulseCoordinator
 _CANONICAL_TABLE_COLUMNS = {
     "service_control": {
@@ -89,9 +116,12 @@ def _canonical_database_probe(path: str) -> bool:
 
     if path in {":memory:", ""}:
         return True
+    resolved_path = resolve_state_path(path)
+    if resolved_path in {":memory:", ""}:
+        return True
     try:
         connection = sqlite3.connect(
-            f"file:{Path(path).expanduser().resolve()}?mode=ro",
+            f"file:{Path(resolved_path).resolve()}?mode=ro",
             uri=True,
         )
         try:
@@ -121,7 +151,18 @@ def _canonical_database_probe(path: str) -> bool:
 
 
 class ServiceError(RuntimeError):
-    pass
+    """Expected service-boundary failure with machine-readable metadata."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason: str | None = None,
+        retryable: bool = False,
+    ) -> None:
+        self.reason = reason
+        self.retryable = retryable
+        super().__init__(message)
 
 
 @dataclass(frozen=True)
@@ -351,9 +392,10 @@ class AutomationService:
         self.adapter = adapter or FakeDeviceAdapter()
         self.coordinator = coordinator
         if self.coordinator is None and self.state is not None:
-            _entries, _descriptors, _handlers, self.coordinator = (
-                registry_scheduler_components(self.state)
-            )
+            with _state_boundary():
+                _entries, _descriptors, _handlers, self.coordinator = (
+                    registry_scheduler_components(self.state)
+                )
         if self.state is None and self.coordinator is not None:
             candidate_state = getattr(self.coordinator, "repository", None)
             if isinstance(candidate_state, BotStateManager):
@@ -407,33 +449,34 @@ class AutomationService:
                 scheduler_eligible=False,
                 flow_enabled={flow_id: False for flow_id in flow_ids},
             )
-        self.state.initialize_flows(canonical_flow_specs())
-        service = self.state.get_service()
-        states = {
-            flow_id: self.state.get_flow(flow_id) for flow_id in flow_ids
-        }
-        return ServiceStatus(
-            mode=self.mode,
-            adapter_kind=self.adapter.kind.value,
-            registered_flows=registered,
-            disabled_flows=tuple(
-                flow_id
-                for flow_id, flow_state in states.items()
-                if flow_state is None or not flow_state.enabled
-            ),
-            scheduler_eligible=service.enabled and any(
-                item.scheduler_eligible
-                and states[item.flow_id] is not None
-                and states[item.flow_id].enabled
-                and not states[item.flow_id].blocked
-                for item in registrations
-            ),
-            service_enabled=service.enabled,
-            flow_enabled={
-                flow_id: bool(flow_state is not None and flow_state.enabled)
-                for flow_id, flow_state in states.items()
-            },
-        )
+        with _state_boundary():
+            self.state.initialize_flows(canonical_flow_specs())
+            service = self.state.get_service()
+            states = {
+                flow_id: self.state.get_flow(flow_id) for flow_id in flow_ids
+            }
+            return ServiceStatus(
+                mode=self.mode,
+                adapter_kind=self.adapter.kind.value,
+                registered_flows=registered,
+                disabled_flows=tuple(
+                    flow_id
+                    for flow_id, flow_state in states.items()
+                    if flow_state is None or not flow_state.enabled
+                ),
+                scheduler_eligible=service.enabled and any(
+                    item.scheduler_eligible
+                    and states[item.flow_id] is not None
+                    and states[item.flow_id].enabled
+                    and not states[item.flow_id].blocked
+                    for item in registrations
+                ),
+                service_enabled=service.enabled,
+                flow_enabled={
+                    flow_id: bool(flow_state is not None and flow_state.enabled)
+                    for flow_id, flow_state in states.items()
+                },
+            )
     def flow_descriptor(self, flow_id: str):
         """Return a static descriptor without consulting a legacy registry."""
 
@@ -456,9 +499,10 @@ class AutomationService:
     ):
         if self.state is None:
             raise ServiceError("state manager is not configured")
-        result = self.state.set_flow_enabled(
-            flow_id, enabled, now_utc_epoch=now_utc_epoch
-        )
+        with _state_boundary():
+            result = self.state.set_flow_enabled(
+                flow_id, enabled, now_utc_epoch=now_utc_epoch
+            )
         if result is None:
             raise ServiceError(f"unknown flow: {flow_id}")
         return result
@@ -466,9 +510,10 @@ class AutomationService:
     def enable_flow(self, flow_id: str, *, now_utc_epoch: float | None = None):
         if self.state is None:
             raise ServiceError("state manager is not configured")
-        result = self.state.set_flow_enabled(
-            flow_id, True, now_utc_epoch=now_utc_epoch
-        )
+        with _state_boundary():
+            result = self.state.set_flow_enabled(
+                flow_id, True, now_utc_epoch=now_utc_epoch
+            )
         if result is None:
             raise ServiceError(f"unknown flow: {flow_id}")
         return result
@@ -476,9 +521,10 @@ class AutomationService:
     def disable_flow(self, flow_id: str, *, now_utc_epoch: float | None = None):
         if self.state is None:
             raise ServiceError("state manager is not configured")
-        result = self.state.set_flow_enabled(
-            flow_id, False, now_utc_epoch=now_utc_epoch
-        )
+        with _state_boundary():
+            result = self.state.set_flow_enabled(
+                flow_id, False, now_utc_epoch=now_utc_epoch
+            )
         if result is None:
             raise ServiceError(f"unknown flow: {flow_id}")
         return result
@@ -492,11 +538,12 @@ class AutomationService:
     ):
         if self.state is None:
             raise ServiceError("state manager is not configured")
-        return self.state.set_service_enabled(
-            enabled,
-            emergency_reason=emergency_reason,
-            now_utc_epoch=now_utc_epoch,
-        )
+        with _state_boundary():
+            return self.state.set_service_enabled(
+                enabled,
+                emergency_reason=emergency_reason,
+                now_utc_epoch=now_utc_epoch,
+            )
 
     def emergency_stop(
         self, reason: str = "emergency stop", *, now_utc_epoch: float | None = None
@@ -531,9 +578,16 @@ class AutomationService:
             raise ServiceError(
                 "supervised mode requires the executor-bound BlueStacks adapter"
             )
-        return self.coordinator.pulse(
-            facts, perception=perception, shadow=shadow
-        )
+        try:
+            return self.coordinator.pulse(
+                facts, perception=perception, shadow=shadow
+            )
+        except (StateBusyError, sqlite3.OperationalError) as exc:
+            if isinstance(exc, StateBusyError) or any(
+                marker in str(exc).casefold() for marker in ("busy", "locked")
+            ):
+                return PulseReport(None, None, facts.now_utc_epoch, "SQLITE_BUSY")
+            raise
 
     def run(
         self,
@@ -542,6 +596,7 @@ class AutomationService:
         *,
         live: bool = False,
         perception: PerceptionEnvelope | None = None,
+        operator_request_id: str | None = None,
     ) -> PulseReport:
         if self.coordinator is None:
             raise ServiceError("pulse coordinator is not configured")
@@ -551,18 +606,34 @@ class AutomationService:
         }:
             raise ServiceError(f"{self.mode.value} service cannot execute a live run")
         if not live:
-            return self.coordinator.shadow(
-                facts, perception=perception, flow_id=flow_id
-            )
+            try:
+                return self.coordinator.shadow(
+                    facts, perception=perception, flow_id=flow_id
+                )
+            except (StateBusyError, sqlite3.OperationalError) as exc:
+                if isinstance(exc, StateBusyError) or any(
+                    marker in str(exc).casefold() for marker in ("busy", "locked")
+                ):
+                    return PulseReport(None, None, facts.now_utc_epoch, "SQLITE_BUSY")
+                raise
         if self.state is None:
             raise ServiceError("live runs require canonical state manager")
-        if not self.state.get_service_enabled():
-            raise ServiceError("SERVICE_DISABLED")
-        if not self.state.get_flow_enabled(flow_id):
-            raise ServiceError("FLOW_DISABLED")
-        return self.coordinator.run_manual(
-            flow_id, facts, perception=perception
+        request_id = (
+            operator_request_id.strip()
+            if isinstance(operator_request_id, str) and operator_request_id.strip()
+            else f"manual:{flow_id}:{facts.account_id}:{facts.server_id}:{facts.reset_id}"
         )
+        with _state_boundary():
+            if not self.state.get_service_enabled():
+                raise ServiceError("SERVICE_DISABLED")
+            if not self.state.get_flow_enabled(flow_id):
+                raise ServiceError("FLOW_DISABLED")
+            return self.coordinator.run_manual(
+                flow_id,
+                facts,
+                perception=perception,
+                operator_request_id=request_id,
+            )
 
     def health(self, **kwargs: Any) -> HealthSnapshot:
         if "mode" in kwargs:

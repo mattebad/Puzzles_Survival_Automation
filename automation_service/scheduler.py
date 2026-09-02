@@ -34,6 +34,7 @@ from .state import (
     FlowState,
     RunRecord,
     RunState,
+    StateBusyError,
     TerminalProjectionError,
 )
 from .registry import load_disabled_registry
@@ -182,22 +183,217 @@ class _CanonicalPulseCoordinator:
 
     @staticmethod
     def _projection_key(projection: RecurrenceProjection | None) -> str | None:
-        """Return a stable identity for one accepted recurrence projection."""
+        """Return a stable identity for one accepted recurrence projection.
+
+        Observation timestamps are freshness metadata, not occurrence identity.
+        In particular, rescanning the same timer slot or generation must not
+        create a second occurrence merely because the frame was captured later.
+        """
 
         if projection is None:
             return None
-        values = (
-            projection.recurrence_class.value,
-            projection.next_eligible_at,
-            projection.observed_at_utc,
-            projection.generation,
-            projection.observed_balance,
-            projection.repeat_ordinal,
-            projection.repeat_limit,
-            projection.window_open_at,
-            projection.window_close_at,
-        )
+        recurrence_class = projection.recurrence_class
+        if recurrence_class in {RecurrenceClass.TIMER, RecurrenceClass.COOLDOWN}:
+            values = (recurrence_class.value, projection.next_eligible_at)
+        elif recurrence_class in {
+            RecurrenceClass.AP_REGENERATION,
+            RecurrenceClass.STAMINA_REGENERATION,
+            RecurrenceClass.QUEUE_GENERATION,
+            RecurrenceClass.MARCH_GENERATION,
+        } and projection.generation is not None:
+            values = (recurrence_class.value, projection.generation)
+        elif recurrence_class is RecurrenceClass.BOUNDED_REPEAT:
+            values = (
+                recurrence_class.value,
+                projection.generation,
+                projection.repeat_ordinal,
+            )
+        elif recurrence_class is RecurrenceClass.EVENT_WINDOW:
+            values = (
+                recurrence_class.value,
+                projection.window_open_at,
+                projection.window_close_at,
+            )
+        else:
+            values = (
+                recurrence_class.value,
+                projection.next_eligible_at,
+                projection.generation,
+                projection.observed_balance,
+                projection.repeat_ordinal,
+                projection.repeat_limit,
+                projection.window_open_at,
+                projection.window_close_at,
+            )
         return hashlib.sha256(repr(values).encode("utf-8")).hexdigest()
+
+    @classmethod
+    def _occurrence_binding(
+        cls,
+        descriptor: FlowDescriptor,
+        facts: SchedulerFacts,
+        state: FlowState,
+        *,
+        mode: str = "scheduled",
+        operator_request_id: str | None = None,
+        ordinal: int | None = None,
+    ) -> dict[str, object]:
+        """Translate descriptor facts into the state claim identity contract."""
+
+        occurrence_ordinal = state.next_occurrence_key if ordinal is None else ordinal
+        if mode == "manual":
+            if operator_request_id is None or not operator_request_id.strip():
+                raise ValueError("manual pulse requires operator_request_id")
+            basis = operator_request_id.strip()
+            return {
+                "occurrence_kind": "manual",
+                "occurrence_basis": basis,
+                "operator_request_id": basis,
+                "occurrence_key": BotStateManager.occurrence_key(
+                    descriptor.flow_id,
+                    facts.reset_id,
+                    occurrence_ordinal,
+                    occurrence_kind="manual",
+                    occurrence_basis=basis,
+                    operator_request_id=basis,
+                ),
+            }
+
+        recurrence_class = descriptor.recurrence_class
+        projection = cls._recurrence_projection(descriptor, facts)
+        if recurrence_class is None or recurrence_class in {
+            RecurrenceClass.DAILY_ONCE_PER_RESET,
+            RecurrenceClass.RESET_BOUNDED,
+        }:
+            kind = (
+                "daily"
+                if recurrence_class is None
+                else recurrence_class.value
+            )
+            basis = facts.reset_id
+            return {
+                "occurrence_kind": kind,
+                "occurrence_basis": basis,
+                "occurrence_key": BotStateManager.occurrence_key(
+                    descriptor.flow_id,
+                    facts.reset_id,
+                    occurrence_ordinal,
+                    occurrence_kind=kind,
+                    occurrence_basis=basis,
+                ),
+            }
+
+        kind = recurrence_class.value
+        retry_basis = (
+            state.next_occurrence_basis
+            if mode == "scheduled"
+            and state.retry_not_before_utc is not None
+            and state.next_occurrence_kind.replace("-", "_").lower() == kind
+            else None
+        )
+        values: dict[str, object] = {
+            "occurrence_kind": kind,
+        }
+        if recurrence_class in {RecurrenceClass.TIMER, RecurrenceClass.COOLDOWN}:
+            slot: float | str | None = (
+                retry_basis
+                if retry_basis is not None
+                else projection.next_eligible_at
+                if projection is not None and projection.next_eligible_at is not None
+                else state.schedule_anchor_utc
+            )
+            if slot is None and projection is not None:
+                slot = projection.observed_at_utc
+            if slot is None:
+                raise ValueError("timer/cooldown occurrence requires a persisted slot")
+            values.update({"timer_slot": slot, "occurrence_basis": str(slot)})
+        elif recurrence_class in {
+            RecurrenceClass.AP_REGENERATION,
+            RecurrenceClass.STAMINA_REGENERATION,
+        }:
+            generation = (
+                retry_basis
+                if retry_basis is not None
+                else projection.generation
+                if projection is not None and projection.generation is not None
+                else cls._projection_key(projection)
+            )
+            if generation is None:
+                raise ValueError("resource occurrence requires projection generation")
+            values.update(
+                {
+                    "projection_generation": generation,
+                    "occurrence_basis": str(generation),
+                }
+            )
+        elif recurrence_class is RecurrenceClass.BOUNDED_REPEAT:
+            if retry_basis is not None and ":" in retry_basis:
+                sequence, ordinal_text = retry_basis.rsplit(":", 1)
+                try:
+                    repeat_ordinal = int(ordinal_text)
+                except ValueError:
+                    sequence = retry_basis
+                    repeat_ordinal = (
+                        projection.repeat_ordinal if projection is not None else 0
+                    )
+            else:
+                sequence = (
+                    projection.generation
+                    if projection is not None and projection.generation is not None
+                    else cls._projection_key(projection)
+                )
+                repeat_ordinal = projection.repeat_ordinal if projection is not None else 0
+            if sequence is None or projection is None:
+                raise ValueError("bounded-repeat occurrence requires sequence")
+            values.update(
+                {
+                    "repeat_sequence": sequence,
+                    "repeat_ordinal": repeat_ordinal,
+                    "occurrence_basis": f"{sequence}:{repeat_ordinal}",
+                }
+            )
+        elif recurrence_class is RecurrenceClass.QUEUE_GENERATION:
+            generation = (
+                retry_basis
+                if retry_basis is not None
+                else projection.generation if projection is not None else None
+            )
+            if not generation:
+                raise ValueError("queue occurrence requires generation")
+            values.update(
+                {
+                    "queue_generation": generation,
+                    "occurrence_basis": str(generation),
+                }
+            )
+        elif recurrence_class is RecurrenceClass.MARCH_GENERATION:
+            generation = (
+                retry_basis
+                if retry_basis is not None
+                else projection.generation if projection is not None else None
+            )
+            if not generation:
+                raise ValueError("march occurrence requires generation")
+            values.update(
+                {
+                    "march_generation": generation,
+                    "occurrence_basis": str(generation),
+                }
+            )
+        else:
+            basis = retry_basis or cls._projection_key(projection)
+            if basis is None:
+                raise ValueError("projection occurrence requires identity")
+            values["occurrence_basis"] = basis
+        key_values = dict(values)
+        key_values.pop("occurrence_key", None)
+        values["occurrence_key"] = BotStateManager.occurrence_key(
+            descriptor.flow_id,
+            facts.reset_id,
+            occurrence_ordinal,
+            **key_values,
+        )
+        return values
 
     @classmethod
     def _recurrence_allows(
@@ -281,19 +477,31 @@ class _CanonicalPulseCoordinator:
         ]
         return min(values) if values else now
 
+    @staticmethod
+    def _is_reset_scoped(descriptor: FlowDescriptor) -> bool:
+        recurrence_class = descriptor.recurrence_class
+        if recurrence_class is None:
+            return bool(descriptor.reset_scoped)
+        return recurrence_class in {
+            RecurrenceClass.DAILY_ONCE_PER_RESET,
+            RecurrenceClass.RESET_BOUNDED,
+        }
+
     def _eligible(
         self,
         facts: SchedulerFacts,
         *,
         perception: PerceptionEnvelope | None,
         flow_id: str | None = None,
+        mode: str = "scheduled",
+        allow_service_disabled: bool = False,
     ) -> list[tuple[FlowDescriptor, FlowState, float, bool]]:
         now = facts.now_utc_epoch
         if self._runtime_gate_reason(facts) is not None:
             return []
         if not self._clock_allows_selection(now):
             return []
-        if not self.state.get_service().enabled:
+        if not allow_service_disabled and not self.state.get_service().enabled:
             return []
         eligible: list[tuple[FlowDescriptor, FlowState, float, bool]] = []
         for descriptor in self.descriptors:
@@ -306,12 +514,24 @@ class _CanonicalPulseCoordinator:
             state = self.state.get_flow(descriptor.flow_id)
             if state is None or not state.enabled or state.blocked:
                 continue
-            if state.reset_id not in (None, facts.reset_id):
+            reset_scoped = self._is_reset_scoped(descriptor)
+            if mode == "scheduled" and reset_scoped and (
+                state.reset_id not in (None, facts.reset_id)
+            ):
                 # A reset rollover gets ordinal zero.  The normal path persists
                 # this rollover immediately before claiming; shadow does not.
                 ordinal = 0
             else:
                 ordinal = state.next_occurrence_key
+            if (
+                mode == "scheduled"
+                and reset_scoped
+                and state.reset_id == facts.reset_id
+                and state.next_occurrence_key > 0
+            ):
+                # Reset-scoped occurrences are admitted once per reset. The
+                # ordinal remains the durable proof that one already advanced.
+                continue
             if state.next_due_at_utc is not None and state.next_due_at_utc > now:
                 continue
             if state.consecutive_failures >= state.max_attempts:
@@ -327,8 +547,8 @@ class _CanonicalPulseCoordinator:
                 self._recurrence_projection(descriptor, facts)
             )
             if (
-                projection_key is not None
-                and state.reset_id == facts.reset_id
+                mode == "scheduled"
+                and projection_key is not None
                 and state.last_accepted_projection_key == projection_key
             ):
                 continue
@@ -374,15 +594,23 @@ class _CanonicalPulseCoordinator:
                 return False
         return expected is None or perception.profile_id == expected
 
-
     def _select_candidate(
         self,
         facts: SchedulerFacts,
         *,
         perception: PerceptionEnvelope | None,
         flow_id: str | None = None,
+        mode: str = "scheduled",
+        operator_request_id: str | None = None,
+        allow_service_disabled: bool = False,
     ) -> PulseCandidate | None:
-        options = self._eligible(facts, perception=perception, flow_id=flow_id)
+        options = self._eligible(
+            facts,
+            perception=perception,
+            flow_id=flow_id,
+            mode=mode,
+            allow_service_disabled=allow_service_disabled,
+        )
         if not options:
             return None
         options.sort(
@@ -395,32 +623,48 @@ class _CanonicalPulseCoordinator:
         )
         descriptor, state, _anchor, _starved = options[0]
         ordinal = (
-            0 if state.reset_id not in (None, facts.reset_id)
+            0
+            if mode == "scheduled"
+            and self._is_reset_scoped(descriptor)
+            and state.reset_id not in (None, facts.reset_id)
             else state.next_occurrence_key
         )
+        try:
+            binding = self._occurrence_binding(
+                descriptor,
+                facts,
+                state,
+                mode=mode,
+                operator_request_id=operator_request_id,
+                ordinal=ordinal,
+            )
+        except (TypeError, ValueError):
+            return None
         return PulseCandidate(
             descriptor=descriptor,
             identity=self._identity(facts, descriptor),
-            occurrence_key=self.state.occurrence_key(
-                descriptor.flow_id, facts.reset_id, ordinal
-            ),
+            occurrence_key=str(binding["occurrence_key"]),
         )
 
     def _prepare_claim(
-        self, facts: SchedulerFacts, descriptor: FlowDescriptor
+        self,
+        facts: SchedulerFacts,
+        descriptor: FlowDescriptor,
+        *,
+        mode: str = "scheduled",
+        operator_request_id: str | None = None,
     ) -> None:
-        """Persist only the selected reset/schedule facts before claiming.
-
-        Selection is intentionally read-only.  The claim path may persist a
-        reset rollover, but must not rewrite unrelated flows that were merely
-        inspected by this pulse.
-        """
+        """Persist only selected schedule facts immediately before claiming."""
 
         now = facts.now_utc_epoch
         state = self.state.get_flow(descriptor.flow_id)
         if state is None or not state.enabled or state.blocked:
             return
-        reset_changed = state.reset_id != facts.reset_id
+        reset_changed = (
+            mode == "scheduled"
+            and self._is_reset_scoped(descriptor)
+            and state.reset_id != facts.reset_id
+        )
         if reset_changed:
             state = self.state.update_reset(
                 descriptor.flow_id, facts.reset_id, now_utc_epoch=now
@@ -429,12 +673,26 @@ class _CanonicalPulseCoordinator:
             state.next_due_at_utc is not None and state.next_due_at_utc > now
         ):
             return
-        if reset_changed or state.eligible_since_utc is None:
-            self.state.update_schedule(
-                descriptor.flow_id,
-                eligible_since_utc=now,
-                now_utc_epoch=now,
-            )
+        ordinal = 0 if reset_changed else state.next_occurrence_key
+        binding = self._occurrence_binding(
+            descriptor,
+            facts,
+            state,
+            mode=mode,
+            operator_request_id=operator_request_id,
+            ordinal=ordinal,
+        )
+        if mode == "scheduled":
+            updates: dict[str, object] = {
+                "next_occurrence_kind": binding["occurrence_kind"],
+                "next_occurrence_basis": binding["occurrence_basis"],
+                "now_utc_epoch": now,
+            }
+            if state.eligible_since_utc is None or reset_changed:
+                updates["eligible_since_utc"] = now
+            if "timer_slot" in binding:
+                updates["schedule_anchor_utc"] = binding["timer_slot"]
+            self.state.update_schedule(descriptor.flow_id, **updates)
 
     @staticmethod
     def _run_state(result: NormalizedResult) -> RunState:
@@ -589,20 +847,35 @@ class _CanonicalPulseCoordinator:
         perception: PerceptionEnvelope | None = None,
         mode: str = "scheduled",
         flow_id: str | None = None,
+        operator_request_id: str | None = None,
         shadow: bool = False,
     ) -> PulseReport:
         if mode not in {"scheduled", "manual"}:
             raise ValueError("mode must be scheduled or manual")
+        if mode == "manual":
+            if flow_id is None:
+                raise ValueError("manual pulse requires flow_id")
+            if operator_request_id is None:
+                operator_request_id = (
+                    f"service:{flow_id}:{facts.reset_id}:"
+                    f"{facts.now_utc_epoch:.9f}"
+                )
+            elif not operator_request_id.strip():
+                raise ValueError("manual pulse requires operator_request_id")
         now = facts.now_utc_epoch
         gate_reason = self._runtime_gate_reason(facts)
         if gate_reason is not None:
             return PulseReport(None, None, self._next_wake(now, facts), gate_reason)
-        service = self.state.get_service()
-        if not service.enabled:
-            return PulseReport(None, None, self._next_wake(now, facts), "SERVICE_DISABLED")
         if shadow:
-            candidate = self.select(
-                facts, perception=perception, flow_id=flow_id
+            # A shadow is a read-only forecast.  It intentionally ignores the
+            # global enable bit while retaining every external and per-flow gate.
+            candidate = self._select_candidate(
+                facts,
+                perception=perception,
+                flow_id=flow_id,
+                mode=mode,
+                operator_request_id=operator_request_id,
+                allow_service_disabled=True,
             )
             return PulseReport(
                 candidate,
@@ -612,18 +885,27 @@ class _CanonicalPulseCoordinator:
                 if candidate is not None
                 else "SHADOW_NO_ELIGIBLE_TASK",
             )
-        if mode == "manual" and flow_id is None:
-            raise ValueError("manual pulse requires flow_id")
+        service = self.state.get_service()
+        if not service.enabled:
+            return PulseReport(None, None, self._next_wake(now, facts), "SERVICE_DISABLED")
 
         # Acquire before recovery and selection so all state reconciliation is
         # fenced by this pulse's exact service lease.  The lease is released
         # below for every claim, terminal, CAS, and exception path.
-        lease = self.state.acquire_service_lease(
-            owner_instance_id=self.state.owner_instance_id,
-            process_start_token=self.state.process_start_token,
-            process_id=self.state.process_id,
-            now_utc_epoch=now,
-        )
+        try:
+            lease = self.state.acquire_service_lease(
+                owner_instance_id=self.state.owner_instance_id,
+                process_start_token=self.state.process_start_token,
+                process_id=self.state.process_id,
+                now_utc_epoch=now,
+            )
+        except StateBusyError:
+            return PulseReport(
+                None,
+                None,
+                self._next_wake(now, facts),
+                "SQLITE_BUSY",
+            )
         if lease is None:
             return PulseReport(
                 None,
@@ -643,14 +925,14 @@ class _CanonicalPulseCoordinator:
                     "CLOCK_ROLLBACK",
                 )
 
-            # Reconcile stale reservations before selecting.  A stale run with
-            # no dispatch is safely terminalized and its occurrence may be
-            # reclaimed.  Any DISPATCHING/UNKNOWN effect remains unresolved,
-            # so this pulse must stop rather than select or retry it.
+            # Reconcile stale reservations before selecting. A stale run with
+            # no dispatch is safely terminalized and reclaimed. UNKNOWN
+            # effects remain RECOVERING and require an explicit reconciliation.
             try:
                 recovered = self.state.recover_orphans(now_utc_epoch=now)
                 if any(
-                    self.state.has_unresolved_actions(run.run_id)
+                    run.state is RunState.RECOVERING
+                    or self.state.has_unresolved_actions(run.run_id)
                     for run in recovered
                 ):
                     return PulseReport(
@@ -659,6 +941,10 @@ class _CanonicalPulseCoordinator:
                         self._next_wake(now, facts),
                         "ORPHAN_RECONCILIATION_REQUIRED",
                     )
+            except StateBusyError:
+                return PulseReport(
+                    None, None, self._next_wake(now, facts), "SQLITE_BUSY"
+                )
             except Exception as exc:
                 return PulseReport(
                     None,
@@ -668,7 +954,11 @@ class _CanonicalPulseCoordinator:
                 )
 
             candidate = self._select_candidate(
-                facts, perception=perception, flow_id=flow_id
+                facts,
+                perception=perception,
+                flow_id=flow_id,
+                mode=mode,
+                operator_request_id=operator_request_id,
             )
             if candidate is None:
                 if mode == "manual" and flow_id is not None:
@@ -699,22 +989,59 @@ class _CanonicalPulseCoordinator:
                 )
 
             # Selection is read-only; persist only the selected reset rollover
-            # immediately before asking SQLite to claim it.
-            self._prepare_claim(facts, candidate.descriptor)
-            claim = self.state.claim_occurrence(
-                candidate.descriptor.flow_id,
-                facts.reset_id,
-                now_utc_epoch=now,
-                mode=mode,
-                owner_instance_id=lease_owner,
-                process_start_token=lease_token,
-                lease_generation=lease_generation,
-                max_inputs=1,
-                max_actions=1,
-            )
+            # and recurrence anchor immediately before asking SQLite to claim.
+            try:
+                self._prepare_claim(
+                    facts,
+                    candidate.descriptor,
+                    mode=mode,
+                    operator_request_id=operator_request_id,
+                )
+                prepared_state = self.state.get_flow(candidate.descriptor.flow_id)
+                if prepared_state is None:
+                    return PulseReport(
+                        None, None, self._next_wake(now, facts), "CLAIM_UNAVAILABLE"
+                    )
+                binding = self._occurrence_binding(
+                    candidate.descriptor,
+                    facts,
+                    prepared_state,
+                    mode=mode,
+                    operator_request_id=operator_request_id,
+                    ordinal=(
+                        0
+                        if mode == "scheduled"
+                        and self._is_reset_scoped(candidate.descriptor)
+                        and prepared_state.reset_id != facts.reset_id
+                        else prepared_state.next_occurrence_key
+                    ),
+                )
+                claim_values = dict(binding)
+                claim_values.pop("occurrence_key", None)
+                claim = self.state.claim_occurrence(
+                    candidate.descriptor.flow_id,
+                    facts.reset_id,
+                    now_utc_epoch=now,
+                    mode=mode,
+                    occurrence_key=candidate.occurrence_key,
+                    owner_instance_id=lease_owner,
+                    process_start_token=lease_token,
+                    lease_generation=lease_generation,
+                    max_inputs=1,
+                    max_actions=1,
+                    **claim_values,
+                )
+            except StateBusyError:
+                return PulseReport(
+                    candidate, None, self._next_wake(now, facts), "SQLITE_BUSY"
+                )
+            except (TypeError, ValueError):
+                return PulseReport(
+                    candidate, None, self._next_wake(now, facts), "CLAIM_UNAVAILABLE"
+                )
             if claim is None:
                 return PulseReport(
-                    None, None, self._next_wake(now, facts), "CLAIM_UNAVAILABLE"
+                    candidate, None, self._next_wake(now, facts), "CLAIM_UNAVAILABLE"
                 )
             candidate = PulseCandidate(
                 candidate.descriptor,
@@ -722,21 +1049,36 @@ class _CanonicalPulseCoordinator:
                 claim.occurrence_key,
                 claim,
             )
-            validation = self.state.validate_dispatch(
+            running = self.state.transition_run(
                 claim.run_id,
+                RunState.RUNNING,
+                expected_state=RunState.CLAIMED,
                 owner_instance_id=claim.owner_instance_id,
                 process_start_token=claim.process_start_token,
                 run_token=claim.run_token,
                 lease_generation=claim.lease_generation,
                 now_utc_epoch=now,
             )
+            if running is None:
+                unknown = self._unknown_result(candidate.identity, "RUN_CAS_FAILED")
+                return PulseReport(
+                    candidate, unknown, self._next_wake(now, facts), unknown.reason_code
+                )
+            validation = self.state.validate_dispatch(
+                claim.run_id,
+                owner_instance_id=running.owner_instance_id,
+                process_start_token=running.process_start_token,
+                run_token=running.run_token,
+                lease_generation=running.lease_generation,
+                now_utc_epoch=now,
+            )
             if not validation.valid:
                 try:
                     self._project_terminal(
-                        claim,
+                        running,
                         RunState.BLOCKED,
-                        expected_state=RunState.CLAIMED,
-                        expected_row_version=claim.row_version,
+                        expected_state=RunState.RUNNING,
+                        expected_row_version=running.row_version,
                         reason=validation.reason,
                         outcome="BLOCKED",
                         now=now,
@@ -754,21 +1096,6 @@ class _CanonicalPulseCoordinator:
                     )
                 return PulseReport(
                     candidate, None, self._next_wake(now, facts), validation.reason
-                )
-            running = self.state.transition_run(
-                claim.run_id,
-                RunState.RUNNING,
-                expected_state=RunState.CLAIMED,
-                owner_instance_id=claim.owner_instance_id,
-                process_start_token=claim.process_start_token,
-                run_token=claim.run_token,
-                lease_generation=claim.lease_generation,
-                now_utc_epoch=now,
-            )
-            if running is None:
-                unknown = self._unknown_result(candidate.identity, "RUN_CAS_FAILED")
-                return PulseReport(
-                    candidate, unknown, self._next_wake(now, facts), unknown.reason_code
                 )
             handler = self.handlers[candidate.descriptor.flow_id]
             try:
@@ -897,15 +1224,23 @@ class _CanonicalPulseCoordinator:
                 self._next_wake(now, facts),
                 scheduler_result.reason_code,
             )
+        except StateBusyError:
+            return PulseReport(
+                None, None, self._next_wake(now, facts), "SQLITE_BUSY"
+            )
         finally:
             # Release only the generation acquired by this pulse.  A takeover
             # can advance the generation; the exact-match state API then
-            # intentionally refuses to release the new owner's lease.
-            self.state.release_service_lease(
-                owner_instance_id=lease_owner,
-                process_start_token=lease_token,
-                lease_generation=lease_generation,
-            )
+            try:
+                self.state.release_service_lease(
+                    owner_instance_id=lease_owner,
+                    process_start_token=lease_token,
+                    lease_generation=lease_generation,
+                )
+            except StateBusyError:
+                # The pulse is already fenced; a later owner can release an
+                # expired lease. Never mask the pulse result with contention.
+                pass
 class UtcPulseCoordinator:
     """Select, atomically claim, and execute at most one handler per UTC pulse.
 
@@ -1249,11 +1584,16 @@ class UtcPulseCoordinator:
         *,
         perception: PerceptionEnvelope | None = None,
         flow_id: str | None = None,
+        operator_request_id: str | None = None,
     ) -> PulseReport:
         if self._canonical is None:
             raise ValueError("shadow scheduling requires BotStateManager")
         return self._canonical.pulse(
-            facts, perception=perception, flow_id=flow_id, shadow=True
+            facts,
+            perception=perception,
+            flow_id=flow_id,
+            operator_request_id=operator_request_id,
+            shadow=True,
         )
 
     def run_manual(
@@ -1262,11 +1602,16 @@ class UtcPulseCoordinator:
         facts: SchedulerFacts,
         *,
         perception: PerceptionEnvelope | None = None,
+        operator_request_id: str | None = None,
     ) -> PulseReport:
         if self._canonical is None:
             raise ValueError("manual runs require BotStateManager")
         return self._canonical.pulse(
-            facts, perception=perception, mode="manual", flow_id=flow_id
+            facts,
+            perception=perception,
+            mode="manual",
+            flow_id=flow_id,
+            operator_request_id=operator_request_id,
         )
 
     def run(
@@ -1275,20 +1620,31 @@ class UtcPulseCoordinator:
         *,
         perception: PerceptionEnvelope | None = None,
         flow_id: str | None = None,
+        operator_request_id: str | None = None,
         live: bool = False,
         shadow: bool = False,
     ) -> PulseReport:
         if self._canonical is not None and (flow_id is not None or live or shadow):
             if shadow:
                 return self.shadow(
-                    facts, perception=perception, flow_id=flow_id
+                    facts,
+                    perception=perception,
+                    flow_id=flow_id,
+                    operator_request_id=operator_request_id,
                 )
             if flow_id is None:
                 raise ValueError("live manual run requires flow_id")
             return self.run_manual(
-                flow_id, facts, perception=perception
+                flow_id,
+                facts,
+                perception=perception,
+                operator_request_id=operator_request_id,
             )
-        return self.pulse(facts, perception=perception)
+        return self.pulse(
+            facts,
+            perception=perception,
+            operator_request_id=operator_request_id,
+        )
 
 
 PulseCoordinator = UtcPulseCoordinator

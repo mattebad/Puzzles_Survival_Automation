@@ -72,8 +72,6 @@ class ServiceLease:
         return self.expires_at_utc
 
 
-
-
 @dataclass(frozen=True)
 class ServiceControl:
     """Global enable gate and monotonic emergency generation."""
@@ -107,8 +105,6 @@ class ClockObservation:
         return self.high_water_utc
 
 
-
-
 @dataclass(frozen=True)
 class FlowState:
     """Mutable flow enable, block, schedule, retry, and accepted projection facts."""
@@ -134,15 +130,20 @@ class FlowState:
     consecutive_failures: int
     row_version: int
     last_accepted_projection_key: str | None = None
+    next_occurrence_basis: str | None = None
+    next_occurrence_kind: str = "daily"
 
 
 @dataclass(frozen=True)
 class RunRecord:
-    """Claim identity, generation fences, lifecycle, and action budgets."""
+    """Claim identity, recurrence identity, generation fences, and budgets."""
 
     run_id: str
     flow_id: str
     occurrence_key: str
+    occurrence_basis: str
+    occurrence_kind: str
+    occurrence_ordinal: int
     reset_id: str
     claimed_flow_generation: int
     service_generation: int
@@ -214,6 +215,21 @@ class StateError(RuntimeError):
     """Malformed state-manager operation."""
 
 
+class StateBusyError(StateError):
+    """Bounded, retryable SQLite contention outcome.
+
+    A caller may return the scheduler to idle or expose a structured operator
+    failure.  The state layer intentionally performs no retry loop.
+    """
+
+    reason = "SQLITE_BUSY"
+    retryable = True
+
+    def __init__(self, operation: str = "state mutation") -> None:
+        self.operation = operation
+        super().__init__(f"SQLITE_BUSY during {operation}")
+
+
 class StateTransitionError(StateError):
     """Unknown enum value; persisted invalid transitions return ``None``."""
 
@@ -224,6 +240,7 @@ class TerminalProjectionError(StateTransitionError):
     def __init__(self, reason: str) -> None:
         self.reason = reason
         super().__init__(reason)
+
 
 _ACTIVE_RUN_STATES = ("CLAIMED", "RUNNING", "STOP_REQUESTED", "RECOVERING")
 _TERMINAL_RUN_STATES = {
@@ -239,6 +256,49 @@ _TERMINAL_ACTION_STATES = {
     ActionState.NO_EFFECT,
     ActionState.BLOCKED,
 }
+_RESET_SCOPED_OCCURRENCE_KINDS = {
+    "reset",
+    "daily",
+    "daily_once_per_reset",
+    "reset_bounded",
+}
+_NON_RESET_OCCURRENCE_KINDS = {
+    "timer",
+    "cooldown",
+    "projection",
+    "resource",
+    "ap_regeneration",
+    "stamina_regeneration",
+    "bounded_repeat",
+    "repeat",
+    "queue",
+    "queue_generation",
+    "march",
+    "march_generation",
+    "manual",
+    "operator",
+    "manual_operator_request",
+}
+
+
+def _normalize_occurrence_kind(value: str) -> str:
+    return value.strip().lower().replace("-", "_")
+
+
+def _is_reset_scoped_occurrence_kind(value: str) -> bool:
+    normalized = _normalize_occurrence_kind(value)
+    # Only the explicit non-reset vocabulary may survive a reset rollover;
+    # unknown kinds fail closed as reset-scoped.
+    return (
+        normalized in _RESET_SCOPED_OCCURRENCE_KINDS
+        or normalized not in _NON_RESET_OCCURRENCE_KINDS
+    )
+
+
+def _is_non_reset_occurrence_kind(value: str) -> bool:
+    return _normalize_occurrence_kind(value) in _NON_RESET_OCCURRENCE_KINDS
+
+
 _UNSET = object()
 
 
@@ -267,6 +327,36 @@ def _nonnegative_int(value: int, name: str) -> int:
     if type(value) is not int or value < 0:
         raise ValueError(f"{name} must be a non-negative integer")
     return value
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+# Absolute repository root used for all implicit state paths.
+
+
+def resolve_state_path(
+    path: str | os.PathLike[str] | None = None,
+) -> str | Path:
+    """Resolve one canonical state path independently of the process CWD.
+
+    ``--state-path`` and ``AUTOMATION_SERVICE_STATE_PATH`` may be absolute or
+    relative.  Relative values are rooted at the repository containing this
+    module, not at the caller's working directory.  Omitting ``path`` uses the
+    environment override when present, otherwise the repository's canonical
+    ``.local-orchestrator/bot-state.sqlite3``.  SQLite's in-memory sentinel is
+    preserved for focused callers.
+    """
+
+    value: str | os.PathLike[str] | None = path
+    if value is None:
+        value = os.environ.get("AUTOMATION_SERVICE_STATE_PATH")
+    if value is None or os.fspath(value) == "":
+        value = BotStateManager.DEFAULT_DB_PATH
+    raw_value = os.fspath(value)
+    if raw_value in {":memory:", ""}:
+        return raw_value
+    candidate = Path(raw_value).expanduser()
+    if not candidate.is_absolute():
+        candidate = REPOSITORY_ROOT / candidate
+    return candidate.resolve()
+
 
 
 
@@ -290,6 +380,9 @@ def _binding_fingerprint(
     encoded = "\x1f".join(f"{len(value)}:{value}" for value in values).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
+
+
+
 class BotStateManager:
     """Own the bounded SQLite authority for service, flows, runs, and actions.
 
@@ -299,11 +392,13 @@ class BotStateManager:
     result in a later transaction.
     """
 
-    DEFAULT_DB_PATH = ".local-orchestrator/bot-state.sqlite3"
+    DEFAULT_DB_PATH = (
+        REPOSITORY_ROOT / ".local-orchestrator" / "bot-state.sqlite3"
+    ).resolve()
 
     def __init__(
         self,
-        db_path: str | os.PathLike[str] = DEFAULT_DB_PATH,
+        db_path: str | os.PathLike[str] | None = None,
         *,
         owner_instance_id: str | None = None,
         process_start_token: str | None = None,
@@ -312,7 +407,8 @@ class BotStateManager:
     ) -> None:
         if type(busy_timeout_ms) is not int or busy_timeout_ms < 1:
             raise ValueError("busy_timeout_ms must be a positive integer")
-        self.db_path = str(db_path)
+        resolved_path = resolve_state_path(db_path)
+        self.db_path = str(resolved_path)
         self.owner_instance_id = _text(
             f"bot-{uuid4().hex}" if owner_instance_id is None else owner_instance_id,
             "owner_instance_id",
@@ -354,17 +450,38 @@ class BotStateManager:
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
-        """Serialize a short local SQLite transaction, never external work."""
+        """Serialize one short SQLite transaction with bounded contention."""
 
         with self._lock:
-            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                self._db.execute("BEGIN IMMEDIATE")
+            except sqlite3.OperationalError as exc:
+                if "busy" in str(exc).lower() or "locked" in str(exc).lower():
+                    raise StateBusyError("BEGIN IMMEDIATE") from exc
+                raise
             try:
                 yield self._db
-            except Exception:
-                self._db.rollback()
+            except Exception as exc:
+                try:
+                    self._db.rollback()
+                except sqlite3.Error:
+                    pass
+                if isinstance(exc, sqlite3.OperationalError) and (
+                    "busy" in str(exc).lower() or "locked" in str(exc).lower()
+                ):
+                    raise StateBusyError("transaction") from exc
                 raise
             else:
-                self._db.commit()
+                try:
+                    self._db.commit()
+                except sqlite3.OperationalError as exc:
+                    try:
+                        self._db.rollback()
+                    except sqlite3.Error:
+                        pass
+                    if "busy" in str(exc).lower() or "locked" in str(exc).lower():
+                        raise StateBusyError("COMMIT") from exc
+                    raise
 
     def _create_schema(self) -> None:
         with self._transaction() as db:
@@ -419,6 +536,8 @@ class BotStateManager:
                     max_wait_seconds REAL,
                     max_attempts INTEGER NOT NULL CHECK (max_attempts >= 1),
                     next_occurrence_key INTEGER NOT NULL CHECK (next_occurrence_key >= 0),
+                    next_occurrence_basis TEXT,
+                    next_occurrence_kind TEXT NOT NULL DEFAULT 'daily',
                     next_due_at_utc REAL,
                     schedule_anchor_utc REAL,
                     reset_id TEXT,
@@ -436,6 +555,9 @@ class BotStateManager:
                     run_id TEXT PRIMARY KEY,
                     flow_id TEXT NOT NULL REFERENCES flow_state(flow_id),
                     occurrence_key TEXT NOT NULL,
+                    occurrence_basis TEXT NOT NULL DEFAULT '',
+                    occurrence_kind TEXT NOT NULL DEFAULT 'daily',
+                    occurrence_ordinal INTEGER NOT NULL DEFAULT 0 CHECK (occurrence_ordinal >= 0),
                     reset_id TEXT NOT NULL,
                     claimed_flow_generation INTEGER NOT NULL CHECK (claimed_flow_generation >= 0),
                     service_generation INTEGER NOT NULL CHECK (service_generation >= 0),
@@ -443,7 +565,6 @@ class BotStateManager:
                     process_start_token TEXT NOT NULL,
                     lease_generation INTEGER NOT NULL CHECK (lease_generation >= 0),
                     run_token TEXT NOT NULL,
-                    occurrence_ordinal INTEGER NOT NULL CHECK (occurrence_ordinal >= 0),
                     mode TEXT NOT NULL CHECK (mode IN ('scheduled', 'manual')),
                     state TEXT NOT NULL CHECK (state IN (
                         'CLAIMED', 'RUNNING', 'STOP_REQUESTED', 'RECOVERING',
@@ -511,6 +632,8 @@ class BotStateManager:
                 ("lease_generation", "INTEGER NOT NULL DEFAULT 0"),
                 ("run_token", "TEXT NOT NULL DEFAULT ''"),
                 ("occurrence_ordinal", "INTEGER NOT NULL DEFAULT 0"),
+                ("occurrence_basis", "TEXT NOT NULL DEFAULT ''"),
+                ("occurrence_kind", "TEXT NOT NULL DEFAULT 'daily'"),
             )
             for column, declaration in migrations:
                 if column not in existing:
@@ -523,6 +646,15 @@ class BotStateManager:
                 db.execute(
                     "ALTER TABLE flow_state ADD COLUMN last_accepted_projection_key TEXT"
                 )
+            for column, declaration in (
+                ("next_occurrence_basis", "TEXT"),
+                ("next_occurrence_kind", "TEXT NOT NULL DEFAULT 'daily'"),
+            ):
+                if column not in existing_flows:
+                    db.execute(f"ALTER TABLE flow_state ADD COLUMN {column} {declaration}")
+            db.execute(
+                "UPDATE runs SET occurrence_basis = reset_id WHERE occurrence_basis = ''"
+            )
             existing_actions = {str(item["name"]) for item in db.execute("PRAGMA table_info(actions)").fetchall()}
             action_migrations = (
                 ("source_stable_roi_digest", "TEXT"),
@@ -537,10 +669,109 @@ class BotStateManager:
                    WHERE binding_fingerprint IS NOT NULL"""
             )
     @staticmethod
-    def occurrence_key(flow_id: str, reset_id: str, ordinal: int) -> str:
-        """Derive a deterministic occurrence identity from flow/reset/ordinal."""
+    def occurrence_key(
+        flow_id: str,
+        reset_id: str | None = None,
+        ordinal: int = 0,
+        *,
+        occurrence_kind: str = "daily",
+        occurrence_basis: str | None = None,
+        kind: str | None = None,
+        basis: str | None = None,
+        timer_slot: str | int | None = None,
+        schedule_anchor_utc: float | None = None,
+        projection_generation: str | int | None = None,
+        resource_generation: str | int | None = None,
+        repeat_sequence: str | int | None = None,
+        repeat_ordinal: int | None = None,
+        queue_generation: str | int | None = None,
+        march_generation: str | int | None = None,
+        operator_request_id: str | None = None,
+        manual_request_id: str | None = None,
+        operator_request: str | None = None,
+        sequence: str | int | None = None,
+        generation: str | int | None = None,
+    ) -> str:
+        """Build a deterministic recurrence identity.
 
-        return f"{_text(flow_id, 'flow_id')}:{_text(reset_id, 'reset_id')}:{_nonnegative_int(ordinal, 'ordinal')}"
+        ``daily`` retains the historical ``flow:reset:ordinal`` spelling.
+        Other recurrence classes intentionally omit reset identity unless the
+        class itself is reset-scoped.  A supplied basis is already the
+        persisted canonical basis and is never decorated or reinterpreted.
+        """
+
+        flow = _text(flow_id, "flow_id")
+        reset = "none" if reset_id is None else _text(reset_id, "reset_id")
+        ordinal_value = _nonnegative_int(ordinal, "ordinal")
+        if kind is not None:
+            if occurrence_kind != "daily" and occurrence_kind != kind:
+                raise ValueError("occurrence_kind and kind disagree")
+            occurrence_kind = kind
+        if basis is not None:
+            if occurrence_basis is not None and occurrence_basis != basis:
+                raise ValueError("occurrence_basis and basis disagree")
+            occurrence_basis = basis
+        if not isinstance(occurrence_kind, str) or not occurrence_kind.strip():
+            raise ValueError("occurrence_kind must be non-empty text")
+        if operator_request is not None:
+            if operator_request_id is not None and operator_request_id != operator_request:
+                raise ValueError("operator_request_id and operator_request disagree")
+            operator_request_id = operator_request
+        if sequence is not None:
+            if repeat_sequence is not None and repeat_sequence != sequence:
+                raise ValueError("repeat_sequence and sequence disagree")
+            repeat_sequence = sequence
+        normalized_kind = occurrence_kind.strip().lower().replace("-", "_")
+        if occurrence_basis is not None:
+            canonical_basis = _text(occurrence_basis, "occurrence_basis")
+        elif normalized_kind in {
+            "reset", "daily", "daily_once_per_reset", "reset_bounded"
+        }:
+            canonical_basis = f"{reset}:{ordinal_value}"
+        elif normalized_kind in {"timer", "cooldown"}:
+            slot = timer_slot
+            if slot is None:
+                slot = schedule_anchor_utc
+            if slot is None:
+                raise ValueError("timer/cooldown occurrence requires timer_slot or schedule_anchor_utc")
+            canonical_basis = f"{slot}:{ordinal_value}"
+        elif normalized_kind in {"projection", "resource", "ap_regeneration", "stamina_regeneration"}:
+            value = projection_generation
+            if value is None:
+                value = resource_generation
+            if value is None:
+                value = generation
+            if value is None:
+                raise ValueError("projection/resource occurrence requires generation")
+            canonical_basis = f"{_text(str(value), 'generation')}:{ordinal_value}"
+        elif normalized_kind in {"bounded_repeat", "repeat"}:
+            sequence = repeat_sequence
+            if sequence is None:
+                sequence = generation
+            repeat_value = ordinal_value if repeat_ordinal is None else _nonnegative_int(repeat_ordinal, "repeat_ordinal")
+            if sequence is None:
+                raise ValueError("bounded-repeat occurrence requires repeat_sequence")
+            canonical_basis = f"{_text(str(sequence), 'repeat_sequence')}:{repeat_value}"
+        elif normalized_kind in {"queue", "queue_generation", "march", "march_generation"}:
+            value = (
+                queue_generation if normalized_kind in {"queue", "queue_generation"}
+                else march_generation
+            )
+            if value is None:
+                value = generation
+            if value is None:
+                raise ValueError("queue/march occurrence requires generation")
+            canonical_basis = f"{_text(str(value), 'generation')}:{ordinal_value}"
+        elif normalized_kind in {"manual", "operator", "manual_operator_request"}:
+            request = operator_request_id or manual_request_id
+            if request is None:
+                raise ValueError("manual occurrence requires operator_request_id")
+            canonical_basis = _text(request, "operator_request_id")
+        else:
+            canonical_basis = f"{reset}:{ordinal_value}"
+        if normalized_kind in {"reset", "daily", "daily_once_per_reset", "reset_bounded"}:
+            return f"{flow}:{reset}:{ordinal_value}"
+        return f"{flow}:{normalized_kind}:{canonical_basis}"
 
     @staticmethod
     def _lease(row: sqlite3.Row) -> ServiceLease:
@@ -568,20 +799,27 @@ class BotStateManager:
             row["schedule_anchor_utc"], row["reset_id"], row["retry_not_before_utc"],
             row["eligible_since_utc"], row["last_started_at_utc"], row["last_completed_at_utc"],
             row["last_outcome"], int(row["consecutive_failures"]), int(row["row_version"]),
-            row["last_accepted_projection_key"],
+            row["last_accepted_projection_key"], row["next_occurrence_basis"],
+            row["next_occurrence_kind"] or "daily",
         )
 
     @staticmethod
     def _run(row: sqlite3.Row) -> RunRecord:
         return RunRecord(
-            row["run_id"], row["flow_id"], row["occurrence_key"], row["reset_id"],
-            int(row["claimed_flow_generation"]), int(row["service_generation"]), row["owner_instance_id"],
-            row["process_start_token"], int(row["lease_generation"]), row["run_token"],
-            row["mode"], RunState(row["state"]), float(row["claimed_at_utc"]), row["started_at_utc"],
+            row["run_id"], row["flow_id"], row["occurrence_key"],
+            row["occurrence_basis"] or row["reset_id"],
+            row["occurrence_kind"] or "daily",
+            int(row["occurrence_ordinal"]), row["reset_id"],
+            int(row["claimed_flow_generation"]), int(row["service_generation"]),
+            row["owner_instance_id"], row["process_start_token"],
+            int(row["lease_generation"]), row["run_token"], row["mode"],
+            RunState(row["state"]), float(row["claimed_at_utc"]), row["started_at_utc"],
             row["heartbeat_at_utc"], row["stop_requested_at_utc"], row["terminal_at_utc"],
             int(row["max_inputs"]), int(row["max_actions"]), int(row["consumed_inputs"]),
-            int(row["consumed_actions"]), row["terminal_outcome"], row["terminal_reason"], int(row["row_version"]),
+            int(row["consumed_actions"]), row["terminal_outcome"], row["terminal_reason"],
+            int(row["row_version"]),
         )
+
 
     @staticmethod
     def _action(row: sqlite3.Row) -> ActionRecord:
@@ -958,6 +1196,8 @@ class BotStateManager:
         flow_id: str,
         *,
         next_occurrence_key: int | object = _UNSET,
+        next_occurrence_basis: str | None | object = _UNSET,
+        next_occurrence_kind: str | object = _UNSET,
         next_due_at_utc: float | None | object = _UNSET,
         schedule_anchor_utc: float | None | object = _UNSET,
         eligible_since_utc: float | None | object = _UNSET,
@@ -968,13 +1208,24 @@ class BotStateManager:
         flow_id = _text(flow_id, "flow_id")
         if next_occurrence_key is not _UNSET:
             _nonnegative_int(next_occurrence_key, "next_occurrence_key")  # type: ignore[arg-type]
+        if next_occurrence_basis is not _UNSET and next_occurrence_basis is not None:
+            _text(next_occurrence_basis, "next_occurrence_basis")  # type: ignore[arg-type]
+        if next_occurrence_kind is not _UNSET:
+            _text(next_occurrence_kind, "next_occurrence_kind")  # type: ignore[arg-type]
         for value, name in ((next_due_at_utc, "next_due_at_utc"), (schedule_anchor_utc, "schedule_anchor_utc"), (eligible_since_utc, "eligible_since_utc")):
             if value is not _UNSET:
                 _epoch(value, name)
         _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
         changes: list[str] = []
         values: list[Any] = []
-        for column, value in (("next_occurrence_key", next_occurrence_key), ("next_due_at_utc", next_due_at_utc), ("schedule_anchor_utc", schedule_anchor_utc), ("eligible_since_utc", eligible_since_utc)):
+        for column, value in (
+            ("next_occurrence_key", next_occurrence_key),
+            ("next_occurrence_basis", next_occurrence_basis),
+            ("next_occurrence_kind", next_occurrence_kind),
+            ("next_due_at_utc", next_due_at_utc),
+            ("schedule_anchor_utc", schedule_anchor_utc),
+            ("eligible_since_utc", eligible_since_utc),
+        ):
             if value is not _UNSET:
                 changes.append(f"{column} = ?")
                 values.append(value)
@@ -1008,18 +1259,33 @@ class BotStateManager:
             if row is None:
                 return None
             changed = row["reset_id"] != reset_id
+            occurrence_kind = _normalize_occurrence_kind(row["next_occurrence_kind"] or "daily")
+            reset_scoped = _is_reset_scoped_occurrence_kind(occurrence_kind)
             anchor_provided = schedule_anchor_utc is not _UNSET
             due_provided = next_due_at_utc is not _UNSET
-            anchor_value = schedule_anchor_utc if anchor_provided else (now if changed else None)
+            reset_rollover = changed and reset_scoped
+            anchor_value = schedule_anchor_utc if anchor_provided else (now if reset_rollover else None)
             db.execute(
-                """UPDATE flow_state SET reset_id = ?, next_occurrence_key = CASE WHEN ? THEN 0 ELSE next_occurrence_key END,
+                """UPDATE flow_state SET reset_id = ?,
+                   next_occurrence_key = CASE WHEN ? THEN 0 ELSE next_occurrence_key END,
+                   next_occurrence_basis = CASE WHEN ? THEN NULL ELSE next_occurrence_basis END,
+                   next_occurrence_kind = CASE WHEN ? THEN 'daily' ELSE next_occurrence_kind END,
                    schedule_anchor_utc = CASE WHEN ? THEN ? ELSE schedule_anchor_utc END,
                    next_due_at_utc = CASE WHEN ? THEN ? ELSE next_due_at_utc END,
                    last_accepted_projection_key = CASE WHEN ? THEN NULL ELSE last_accepted_projection_key END,
                    row_version = row_version + 1 WHERE flow_id = ?""",
-                (reset_id, int(changed), int(anchor_provided or changed), anchor_value,
-                 int(due_provided), next_due_at_utc if due_provided else None,
-                 int(changed), flow_id),
+                (
+                    reset_id,
+                    int(reset_rollover),
+                    int(reset_rollover),
+                    int(reset_rollover),
+                    int(anchor_provided or reset_rollover),
+                    anchor_value,
+                    int(due_provided),
+                    next_due_at_utc if due_provided else None,
+                    int(reset_rollover),
+                    flow_id,
+                ),
             )
             return self._flow(db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone())
 
@@ -1070,23 +1336,61 @@ class BotStateManager:
         run_token: str | None = None,
         max_inputs: int = 1,
         max_actions: int = 1,
+        occurrence_kind: str | None = None,
+        occurrence_basis: str | None = None,
+        occurrence_key: str | None = None,
+        timer_slot: str | int | None = None,
+        projection_generation: str | int | None = None,
+        resource_generation: str | int | None = None,
+        repeat_sequence: str | int | None = None,
+        repeat_ordinal: int | None = None,
+        queue_generation: str | int | None = None,
+        march_generation: str | int | None = None,
+        operator_request_id: str | None = None,
+        manual_request_id: str | None = None,
+        operator_request: str | None = None,
+        sequence: str | int | None = None,
+        generation: str | int | None = None,
     ) -> RunRecord | None:
-        """Atomically claim one due occurrence bound to the current service lease."""
+        """Atomically claim one deterministic occurrence.
+
+        Scheduled claims advance the persisted flow ordinal only on terminal
+        success/defer.  Manual claims are keyed by an operator request and
+        never consume that scheduled ordinal.
+        """
 
         flow_id, reset_id = _text(flow_id, "flow_id"), _text(reset_id, "reset_id")
         now = _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
         assert now is not None
         if mode not in {"scheduled", "manual"}:
             raise ValueError("mode must be scheduled or manual")
+        if occurrence_kind is not None:
+            occurrence_kind = _text(occurrence_kind, "occurrence_kind").lower().replace("-", "_")
+        if occurrence_basis is not None:
+            occurrence_basis = _text(occurrence_basis, "occurrence_basis")
+        if operator_request is not None:
+            if operator_request_id is not None and operator_request_id != operator_request:
+                raise ValueError("operator_request_id and operator_request disagree")
+            operator_request_id = operator_request
+        if sequence is not None:
+            if repeat_sequence is not None and repeat_sequence != sequence:
+                raise ValueError("repeat_sequence and sequence disagree")
+            repeat_sequence = sequence
+        if occurrence_key is not None:
+            occurrence_key = _text(occurrence_key, "occurrence_key")
+        if operator_request_id is not None:
+            operator_request_id = _text(operator_request_id, "operator_request_id")
+        if manual_request_id is not None:
+            manual_request_id = _text(manual_request_id, "manual_request_id")
+        if occurrence_kind in {"manual", "operator", "manual_operator_request"} and (
+            occurrence_basis is None and operator_request_id is None and manual_request_id is None
+        ):
+            raise ValueError("manual occurrence requires operator_request_id")
+        if repeat_ordinal is not None:
+            _nonnegative_int(repeat_ordinal, "repeat_ordinal")
         implicit_lease = owner_instance_id is None and process_start_token is None and lease_generation is None
-        owner = _text(
-            self.owner_instance_id if owner_instance_id is None else owner_instance_id,
-            "owner_instance_id",
-        )
-        token = _text(
-            self.process_start_token if process_start_token is None else process_start_token,
-            "process_start_token",
-        )
+        owner = _text(self.owner_instance_id if owner_instance_id is None else owner_instance_id, "owner_instance_id")
+        token = _text(self.process_start_token if process_start_token is None else process_start_token, "process_start_token")
         _nonnegative_int(max_inputs, "max_inputs")
         _nonnegative_int(max_actions, "max_actions")
         if implicit_lease:
@@ -1116,26 +1420,135 @@ class BotStateManager:
                 return None
             if not bool(flow["enabled"]) or bool(flow["blocked"]):
                 return None
-            if flow["reset_id"] not in (None, reset_id):
-                return None
+            kind = occurrence_kind or (
+                "manual" if mode == "manual" else flow["next_occurrence_kind"] or "daily"
+            )
+            if mode == "scheduled" and flow["reset_id"] not in (None, reset_id):
+                if not _is_non_reset_occurrence_kind(kind):
+                    return None
             if flow["next_due_at_utc"] is not None and float(flow["next_due_at_utc"]) > now:
                 return None
             if flow["retry_not_before_utc"] is not None and float(flow["retry_not_before_utc"]) > now:
                 return None
             if int(flow["consecutive_failures"]) >= int(flow["max_attempts"]):
                 return None
-            if db.execute("SELECT 1 FROM runs WHERE state IN ('CLAIMED', 'RUNNING', 'STOP_REQUESTED', 'RECOVERING') LIMIT 1").fetchone() is not None:
+            if db.execute(
+                "SELECT 1 FROM runs WHERE state IN ('CLAIMED', 'RUNNING', 'STOP_REQUESTED', 'RECOVERING') LIMIT 1"
+            ).fetchone() is not None:
                 return None
-            ordinal = int(flow["next_occurrence_key"])
-            key = self.occurrence_key(flow_id, reset_id, ordinal)
+            ordinal = int(flow["next_occurrence_key"]) if mode == "scheduled" else 0
+            normalized = _normalize_occurrence_kind(kind)
+            request = operator_request_id or manual_request_id
+            identity_supplied = occurrence_basis is not None or (
+                (normalized in {"timer", "cooldown"} and timer_slot is not None)
+                or (
+                    normalized
+                    in {
+                        "projection",
+                        "resource",
+                        "ap_regeneration",
+                        "stamina_regeneration",
+                    }
+                    and (
+                        projection_generation is not None
+                        or resource_generation is not None
+                        or generation is not None
+                    )
+                )
+                or (
+                    normalized in {"bounded_repeat", "repeat"}
+                    and (repeat_sequence is not None or sequence is not None)
+                )
+                or (
+                    normalized in {"queue", "queue_generation"}
+                    and (queue_generation is not None or generation is not None)
+                )
+                or (
+                    normalized in {"march", "march_generation"}
+                    and (march_generation is not None or generation is not None)
+                )
+                or (
+                    normalized in {"manual", "operator", "manual_operator_request"}
+                    and request is not None
+                )
+            )
+            basis = occurrence_basis or (
+                flow["next_occurrence_basis"]
+                if mode == "scheduled" and not identity_supplied
+                else None
+            )
+            if mode == "manual" and basis is None:
+                basis = request
+            if mode == "scheduled" and basis is None:
+                if normalized in {"timer", "cooldown"}:
+                    basis = str(timer_slot if timer_slot is not None else flow["schedule_anchor_utc"]) \
+                        if timer_slot is not None or flow["schedule_anchor_utc"] is not None else None
+                elif normalized in {
+                    "projection", "resource", "ap_regeneration", "stamina_regeneration"
+                }:
+                    generation = (
+                        projection_generation
+                        if projection_generation is not None
+                        else resource_generation
+                        if resource_generation is not None
+                        else generation
+                    )
+                    basis = str(generation) if generation is not None else None
+                elif normalized in {"bounded_repeat", "repeat"}:
+                    sequence_value = (
+                        repeat_sequence
+                        if repeat_sequence is not None
+                        else sequence
+                        if sequence is not None
+                        else generation
+                    )
+                    repeat_value = ordinal if repeat_ordinal is None else repeat_ordinal
+                    basis = (
+                        f"{sequence_value}:{repeat_value}"
+                        if sequence_value is not None
+                        else None
+                    )
+                elif normalized in {"queue", "queue_generation"}:
+                    basis_value = (
+                        queue_generation
+                        if queue_generation is not None
+                        else generation
+                    )
+                    basis = str(basis_value) if basis_value is not None else None
+                elif normalized in {"march", "march_generation"}:
+                    basis_value = (
+                        march_generation
+                        if march_generation is not None
+                        else generation
+                    )
+                    basis = str(basis_value) if basis_value is not None else None
+                else:
+                    basis = reset_id
+            if occurrence_key is None:
+                key = self.occurrence_key(
+                    flow_id,
+                    reset_id,
+                    ordinal,
+                    occurrence_kind=kind,
+                    occurrence_basis=basis,
+                    timer_slot=timer_slot,
+                    schedule_anchor_utc=flow["schedule_anchor_utc"],
+                    projection_generation=projection_generation,
+                    resource_generation=resource_generation,
+                    repeat_sequence=repeat_sequence,
+                    repeat_ordinal=repeat_ordinal,
+                    queue_generation=queue_generation,
+                    march_generation=march_generation,
+                    operator_request_id=request or operator_request_id,
+                    generation=generation,
+                )
+            else:
+                key = occurrence_key
             existing = db.execute(
                 "SELECT * FROM runs WHERE flow_id = ? AND occurrence_key = ?",
                 (flow_id, key),
             ).fetchone()
-            run_token = _text(
-                uuid4().hex if run_token is None else run_token,
-                "run_token",
-            )
+            run_token = _text(uuid4().hex if run_token is None else run_token, "run_token")
             if existing is not None:
                 if existing["state"] not in {RunState.FAILED.value, RunState.BLOCKED.value}:
                     return None
@@ -1150,10 +1563,13 @@ class BotStateManager:
                        mode = ?, state = 'CLAIMED', claimed_at_utc = ?, started_at_utc = NULL,
                        heartbeat_at_utc = ?, stop_requested_at_utc = NULL, terminal_at_utc = NULL,
                        max_inputs = ?, max_actions = ?, consumed_inputs = 0, consumed_actions = 0,
-                       terminal_outcome = NULL, terminal_reason = NULL, row_version = row_version + 1
+                       terminal_outcome = NULL, terminal_reason = ?, row_version = row_version + 1
                        WHERE run_id = ? AND state IN ('FAILED', 'BLOCKED')""",
-                    (reset_id, int(flow["generation"]), int(service["generation"]), owner, token,
-                     lease_generation, run_token, mode, now, now, max_inputs, max_actions, existing["run_id"]),
+                    (
+                        reset_id, int(flow["generation"]), int(service["generation"]), owner, token,
+                        lease_generation, run_token, mode, now, now, max_inputs, max_actions,
+                        "RETRY", existing["run_id"],
+                    ),
                 )
                 run_id = existing["run_id"]
             else:
@@ -1161,23 +1577,36 @@ class BotStateManager:
                 try:
                     db.execute(
                         """INSERT INTO runs
-                           (run_id, flow_id, occurrence_key, reset_id, claimed_flow_generation,
-                            service_generation, owner_instance_id, process_start_token, lease_generation,
-                            run_token, occurrence_ordinal, mode, state, claimed_at_utc,
+                           (run_id, flow_id, occurrence_key, occurrence_basis, occurrence_kind,
+                            occurrence_ordinal, reset_id, claimed_flow_generation,
+                            service_generation, owner_instance_id, process_start_token,
+                            lease_generation, run_token, mode, state, claimed_at_utc,
                             started_at_utc, heartbeat_at_utc, stop_requested_at_utc, terminal_at_utc,
                             max_inputs, max_actions, consumed_inputs, consumed_actions,
                             terminal_outcome, terminal_reason, row_version)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CLAIMED', ?, NULL, ?, NULL, NULL, ?, ?, 0, 0, NULL, NULL, 0)""",
-                        (run_id, flow_id, key, reset_id, int(flow["generation"]), int(service["generation"]),
-                         owner, token, lease_generation, run_token, ordinal, mode, now, now, max_inputs, max_actions),
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CLAIMED', ?,
+                                   NULL, ?, NULL, NULL, ?, ?, 0, 0, NULL, NULL, 0)""",
+                        (
+                            run_id, flow_id, key, basis or "", kind, ordinal, reset_id,
+                            int(flow["generation"]), int(service["generation"]), owner, token,
+                            lease_generation, run_token, mode, now, now, max_inputs, max_actions,
+                        ),
                     )
                 except sqlite3.IntegrityError:
                     return None
-            db.execute(
-                """UPDATE flow_state SET reset_id = ?, last_started_at_utc = ?, eligible_since_utc = NULL,
-                   retry_not_before_utc = NULL, row_version = row_version + 1 WHERE flow_id = ?""",
-                (reset_id, now, flow_id),
-            )
+            if mode == "scheduled":
+                db.execute(
+                    """UPDATE flow_state SET reset_id = ?, next_occurrence_basis = ?,
+                       next_occurrence_kind = ?, last_started_at_utc = ?,
+                       eligible_since_utc = NULL, retry_not_before_utc = NULL,
+                       row_version = row_version + 1 WHERE flow_id = ?""",
+                    (reset_id, basis, kind, now, flow_id),
+                )
+            else:
+                db.execute(
+                    "UPDATE flow_state SET last_started_at_utc = ?, row_version = row_version + 1 WHERE flow_id = ?",
+                    (now, flow_id),
+                )
             return self._run(db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone())
 
     def _project_terminal_db(
@@ -1263,11 +1692,21 @@ class BotStateManager:
         else:
             retry_value = retry_not_before_utc  # type: ignore[assignment]
         ordinal = int(row["occurrence_ordinal"])
-        next_occurrence = (
-            int(flow["next_occurrence_key"]) + 1
-            if advance
+        run_basis = row["occurrence_basis"] or row["reset_id"]
+        basis_matches = (
+            flow["next_occurrence_basis"] is None
+            or flow["next_occurrence_basis"] == run_basis
+        )
+        advance_occurrence = (
+            advance
+            and row["mode"] == "scheduled"
             and row["reset_id"] == flow["reset_id"]
             and int(flow["next_occurrence_key"]) == ordinal
+            and basis_matches
+        )
+        next_occurrence = (
+            int(flow["next_occurrence_key"]) + 1
+            if advance_occurrence
             else int(flow["next_occurrence_key"])
         )
         run_result = db.execute(
@@ -1279,19 +1718,24 @@ class BotStateManager:
         if run_result.rowcount != 1:
             raise TerminalProjectionError("TERMINAL_CAS_FAILED")
         flow_result = db.execute(
-            """UPDATE flow_state SET next_occurrence_key = ?, next_due_at_utc = CASE WHEN ? THEN ? ELSE next_due_at_utc END,
+            """UPDATE flow_state SET next_occurrence_key = ?,
+               next_occurrence_basis = CASE WHEN ? THEN NULL ELSE next_occurrence_basis END,
+               next_occurrence_kind = CASE WHEN ? THEN 'daily' ELSE next_occurrence_kind END,
+               next_due_at_utc = CASE WHEN ? THEN ? ELSE next_due_at_utc END,
                retry_not_before_utc = ?, last_completed_at_utc = ?, last_outcome = ?,
                last_accepted_projection_key = CASE WHEN ? THEN ? ELSE last_accepted_projection_key END,
                consecutive_failures = CASE WHEN ? THEN 0 ELSE consecutive_failures + ? END,
                row_version = row_version + 1 WHERE flow_id = ? AND row_version = ?""",
             (
                 next_occurrence,
+                int(advance_occurrence),
+                int(advance_occurrence),
                 int(next_due_at_utc is not _UNSET),
                 None if next_due_at_utc is _UNSET else next_due_at_utc,
                 retry_value,
                 now,
                 flow_outcome,
-                int(accepted_projection_key is not _UNSET and advance),
+                int(accepted_projection_key is not _UNSET and advance_occurrence),
                 None if accepted_projection_key is _UNSET else accepted_projection_key,
                 int(advance),
                 int(failure),
@@ -1547,7 +1991,7 @@ class BotStateManager:
             run = db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
             service = db.execute("SELECT * FROM service_control WHERE singleton_id = 1").fetchone()
             flow = None if run is None else db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (run["flow_id"],)).fetchone()
-            if run is None or service is None or flow is None or run["state"] not in _ACTIVE_RUN_STATES:
+            if run is None or service is None or flow is None or run["state"] != RunState.RUNNING.value:
                 return None
             if (
                 run["owner_instance_id"] != owner
@@ -1748,6 +2192,86 @@ class BotStateManager:
             if result.rowcount != 1:
                 return None
             return self._action(db.execute("SELECT * FROM actions WHERE action_id = ?", (action_id,)).fetchone())
+    def mark_post_transport_unknown(
+        self,
+        action_id: str,
+        *,
+        owner_instance_id: str,
+        process_start_token: str,
+        run_token: str,
+        lease_generation: int,
+        outcome_reason: str | None = None,
+        transport_summary: str | None = None,
+        consequence_summary: str | None = None,
+        now_utc_epoch: float | None = None,
+    ) -> ActionRecord | None:
+        """Durably mark a dispatched action UNKNOWN after transport.
+
+        The action/run identity and current singleton lease remain mandatory
+        fences.  Unlike a normal terminal transition, this operation does not
+        inspect service or flow generations, enabled gates, or the run's
+        ``STOP_REQUESTED`` state: transport has already crossed the external
+        boundary, so the only safe result is unresolved ``UNKNOWN``.  No run
+        budget is refunded and this method cannot authorize transport or a
+        positive terminal outcome.
+        """
+
+        action_id = _text(action_id, "action_id")
+        owner = _text(owner_instance_id, "owner_instance_id")
+        process_token = _text(process_start_token, "process_start_token")
+        token = _text(run_token, "run_token")
+        if type(lease_generation) is not int or lease_generation < 1:
+            return None
+        for value, name in (
+            (outcome_reason, "outcome_reason"),
+            (transport_summary, "transport_summary"),
+            (consequence_summary, "consequence_summary"),
+        ):
+            if value is not None:
+                _text(value, name)
+        now = _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
+        assert now is not None
+        with self._transaction() as db:
+            row = db.execute("SELECT * FROM actions WHERE action_id = ?", (action_id,)).fetchone()
+            if row is None or ActionState(row["state"]) is not ActionState.DISPATCHING:
+                return None
+            run = db.execute("SELECT * FROM runs WHERE run_id = ?", (row["run_id"],)).fetchone()
+            if (
+                run is None
+                or run["owner_instance_id"] != owner
+                or run["process_start_token"] != process_token
+                or run["run_token"] != token
+                or int(run["lease_generation"]) != lease_generation
+                or self._lease_matches(
+                    db,
+                    owner_instance_id=owner,
+                    process_start_token=process_token,
+                    lease_generation=lease_generation,
+                    now_utc_epoch=now,
+                ) is not None
+            ):
+                return None
+            result = db.execute(
+                """UPDATE actions SET state = 'UNKNOWN', completed_at_utc = ?,
+                   outcome_reason = COALESCE(?, outcome_reason),
+                   transport_summary = COALESCE(?, transport_summary),
+                   consequence_summary = COALESCE(?, consequence_summary),
+                   row_version = row_version + 1
+                   WHERE action_id = ? AND state = 'DISPATCHING' AND row_version = ?""",
+                (
+                    now,
+                    outcome_reason,
+                    transport_summary,
+                    consequence_summary,
+                    action_id,
+                    int(row["row_version"]),
+                ),
+            )
+            if result.rowcount != 1:
+                return None
+            return self._action(db.execute("SELECT * FROM actions WHERE action_id = ?", (action_id,)).fetchone())
+
+
     def abort_pretransport_action(
         self,
         action_id: str,
@@ -1894,8 +2418,8 @@ class BotStateManager:
             return DispatchValidation(False, "SERVICE_DISABLED", *base)
         if not bool(flow["enabled"]) or bool(flow["blocked"]):
             return DispatchValidation(False, "FLOW_DISABLED_OR_BLOCKED", *base)
-        if state not in {RunState.CLAIMED, RunState.RUNNING, RunState.RECOVERING}:
-            return DispatchValidation(False, "RUN_NOT_ACTIVE", *base)
+        if state is not RunState.RUNNING:
+            return DispatchValidation(False, "RUN_NOT_RUNNING", *base)
         if int(service["generation"]) != int(run["service_generation"]):
             return DispatchValidation(False, "SERVICE_GENERATION_MISMATCH", *base)
         if int(flow["generation"]) != int(run["claimed_flow_generation"]):
@@ -1946,6 +2470,294 @@ class BotStateManager:
         ).fetchall()
         return tuple(self._run(row) for row in rows)
 
+    def takeover_orphan(
+        self,
+        run_id: str,
+        *,
+        owner_instance_id: str | None = None,
+        process_start_token: str | None = None,
+        process_id: int | None = None,
+        lease_generation: int | None = None,
+        lease_ttl_seconds: float = 60.0,
+        now_utc_epoch: float | None = None,
+        heartbeat_timeout_seconds: float = 60.0,
+    ) -> RunRecord | None:
+        """Atomically acquire the current lease and fence an orphan into RECOVERING.
+
+        The original heartbeat must be stale.  A takeover rotates every run
+        identity fence, including ``run_token`` and lease generation, before
+        returning.  Reserved actions are refunded; dispatching actions become
+        UNKNOWN and are the only actions a reconciler may subsequently resolve.
+        """
+
+        run_id = _text(run_id, "run_id")
+        owner = _text(self.owner_instance_id if owner_instance_id is None else owner_instance_id, "owner_instance_id")
+        process_token = _text(
+            self.process_start_token if process_start_token is None else process_start_token,
+            "process_start_token",
+        )
+        pid = self.process_id if process_id is None else process_id
+        if type(pid) is not int or pid < 0:
+            raise ValueError("process_id must be a non-negative integer")
+        ttl = float(lease_ttl_seconds)
+        if isinstance(lease_ttl_seconds, bool) or not ttl > 0 or not ttl < float("inf"):
+            raise ValueError("lease_ttl_seconds must be a finite positive number")
+        now = _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
+        timeout = _epoch(heartbeat_timeout_seconds, "heartbeat_timeout_seconds", allow_none=False)
+        assert now is not None and timeout is not None
+        with self._transaction() as db:
+            run = db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+            lease = db.execute("SELECT * FROM service_lease WHERE singleton_id = 1").fetchone()
+            service = db.execute("SELECT * FROM service_control WHERE singleton_id = 1").fetchone()
+            if run is None or lease is None or service is None:
+                return None
+            stale_heartbeat = (
+                run["heartbeat_at_utc"] is None
+                or float(run["heartbeat_at_utc"]) < now - timeout
+            )
+            if run["state"] not in _ACTIVE_RUN_STATES or not stale_heartbeat:
+                return None
+            lease_active = (
+                lease["owner_instance_id"] is not None
+                and lease["expires_at_utc"] is not None
+                and float(lease["expires_at_utc"]) > now
+            )
+            lease_matches_request = (
+                lease["owner_instance_id"] == owner
+                and lease["process_start_token"] == process_token
+                and type(lease_generation) is int
+                and int(lease["lease_generation"]) == lease_generation
+            )
+            # A foreign live owner cannot be fenced.  If the caller has not
+            # supplied an already acquired generation, rotate the expired or
+            # released singleton lease in this same transaction.
+            if lease_active and not lease_matches_request:
+                return None
+            if lease_matches_request:
+                current_generation = int(lease_generation)  # type: ignore[arg-type]
+            else:
+                current_generation = int(lease["lease_generation"]) + 1
+                db.execute(
+                    """UPDATE service_lease SET owner_instance_id = ?, process_id = ?,
+                       process_start_token = ?, lease_generation = ?, heartbeat_at_utc = ?,
+                       expires_at_utc = ?, row_version = row_version + 1
+                       WHERE singleton_id = 1""",
+                    (owner, pid, process_token, current_generation, now, now + ttl),
+                )
+            # Idempotent calls from the new owner may refresh the returned
+            # recovery record without rotating it a second time.
+            if (
+                run["state"] == RunState.RECOVERING.value
+                and run["owner_instance_id"] == owner
+                and run["process_start_token"] == process_token
+                and int(run["lease_generation"]) == current_generation
+            ):
+                return self._run(run)
+            if run["owner_instance_id"] == owner and run["process_start_token"] == process_token:
+                # A process cannot take over its own still-valid identity just
+                # because a heartbeat is old; require a changed process token.
+                return None
+            flow = db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (run["flow_id"],)).fetchone()
+            if flow is None:
+                return None
+            reserved_budget = db.execute(
+                """SELECT COALESCE(SUM(input_cost), 0) AS input_cost, COUNT(*) AS action_count
+                   FROM actions WHERE run_id = ? AND state = 'RESERVED'""",
+                (run_id,),
+            ).fetchone()
+            db.execute(
+                """UPDATE runs SET consumed_inputs = MAX(0, consumed_inputs - ?),
+                   consumed_actions = MAX(0, consumed_actions - ?),
+                   owner_instance_id = ?, process_start_token = ?, lease_generation = ?,
+                   run_token = ?, service_generation = ?, claimed_flow_generation = ?,
+                   state = 'RECOVERING', terminal_at_utc = NULL, terminal_outcome = NULL,
+                   terminal_reason = NULL, stop_requested_at_utc = NULL,
+                   heartbeat_at_utc = ?, row_version = row_version + 1
+                   WHERE run_id = ? AND state IN ('CLAIMED', 'RUNNING', 'STOP_REQUESTED')""",
+                (
+                    int(reserved_budget["input_cost"]), int(reserved_budget["action_count"]),
+                    owner, process_token, current_generation, uuid4().hex,
+                    int(service["generation"]), int(flow["generation"]), now, run_id,
+                ),
+            )
+            if db.execute("SELECT changes()").fetchone()[0] != 1:
+                return None
+            db.execute(
+                """UPDATE actions SET state = 'UNKNOWN', completed_at_utc = ?,
+                   outcome_reason = COALESCE(outcome_reason, 'ORPHANED_DISPATCH'),
+                   row_version = row_version + 1
+                   WHERE run_id = ? AND state = 'DISPATCHING'""",
+                (now, run_id),
+            )
+            db.execute(
+                """UPDATE actions SET state = 'CANCELLED', completed_at_utc = ?,
+                   outcome_reason = COALESCE(outcome_reason, 'ORPHANED_RESERVATION'),
+                   row_version = row_version + 1
+                   WHERE run_id = ? AND state = 'RESERVED'""",
+                (now, run_id),
+            )
+            return self._run(db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone())
+
+    def reconcile_unknown_action(
+        self,
+        run_id: str,
+        action_id: str,
+        state: ActionState | str,
+        *,
+        owner_instance_id: str,
+        process_start_token: str,
+        run_token: str,
+        lease_generation: int,
+        outcome_reason: str | None = None,
+        successor_screen: str | None = None,
+        successor_binding_digest: str | None = None,
+        transport_summary: str | None = None,
+        consequence_summary: str | None = None,
+        now_utc_epoch: float | None = None,
+    ) -> ActionRecord | None:
+        """Resolve exactly one existing UNKNOWN action after a takeover."""
+
+        run_id = _text(run_id, "run_id")
+        action_id = _text(action_id, "action_id")
+        try:
+            target = ActionState(state)
+        except (TypeError, ValueError) as exc:
+            raise StateTransitionError("unknown reconciliation action state") from exc
+        if target not in {ActionState.SUCCEEDED, ActionState.NO_EFFECT, ActionState.BLOCKED}:
+            return None
+        run = self.get_run(run_id)
+        if run is None or run.state is not RunState.RECOVERING:
+            return None
+        action = self.get_action(action_id)
+        if action is None or action.run_id != run_id or action.state is not ActionState.UNKNOWN:
+            return None
+        return self.transition_action(
+            action_id,
+            target,
+            owner_instance_id=owner_instance_id,
+            process_start_token=process_start_token,
+            run_token=run_token,
+            lease_generation=lease_generation,
+            expected_state=ActionState.UNKNOWN,
+            outcome_reason=outcome_reason,
+            successor_screen=successor_screen,
+            successor_binding_digest=successor_binding_digest,
+            transport_summary=transport_summary,
+            consequence_summary=consequence_summary,
+            now_utc_epoch=now_utc_epoch,
+        )
+
+    def terminalize_recovered_run(
+        self,
+        run_id: str,
+        state: RunState | str = RunState.BLOCKED,
+        *,
+        owner_instance_id: str,
+        process_start_token: str,
+        run_token: str,
+        lease_generation: int,
+        reason: str | None = None,
+        outcome: str | None = None,
+        now_utc_epoch: float | None = None,
+        release_lease: bool = True,
+    ) -> RunRecord | None:
+        """Terminalize a reconciled RECOVERING run and release its lease."""
+
+        run_id = _text(run_id, "run_id")
+        if self.has_unresolved_actions(run_id):
+            return None
+        try:
+            target = RunState(state)
+        except (TypeError, ValueError) as exc:
+            raise StateTransitionError("unknown recovered run state") from exc
+        if target not in _TERMINAL_RUN_STATES:
+            return None
+        result = self.project_terminal(
+            run_id,
+            target,
+            owner_instance_id=owner_instance_id,
+            process_start_token=process_start_token,
+            run_token=run_token,
+            lease_generation=lease_generation,
+            expected_state=RunState.RECOVERING,
+            reason=reason,
+            outcome=outcome,
+            now_utc_epoch=now_utc_epoch,
+        )
+        if release_lease:
+            self.release_service_lease(
+                owner_instance_id=owner_instance_id,
+                process_start_token=process_start_token,
+                lease_generation=lease_generation,
+            )
+        return result
+
+    def reconcile_orphan(
+        self,
+        run_id: str,
+        action_id: str | None = None,
+        state: ActionState | str | None = None,
+        *,
+        owner_instance_id: str | None = None,
+        process_start_token: str | None = None,
+        run_token: str | None = None,
+        lease_generation: int | None = None,
+        terminal_state: RunState | str = RunState.BLOCKED,
+        now_utc_epoch: float | None = None,
+        heartbeat_timeout_seconds: float = 60.0,
+        outcome_reason: str | None = None,
+    ) -> RunRecord | None:
+        """Take over, resolve one UNKNOWN action, terminalize, and release."""
+
+        current = self.get_run(run_id)
+        now = _now() if now_utc_epoch is None else now_utc_epoch
+        if current is None:
+            return None
+        if current.state is not RunState.RECOVERING or (
+            owner_instance_id is not None
+            and current.owner_instance_id != owner_instance_id
+        ):
+            recovered = self.takeover_orphan(
+                run_id,
+                owner_instance_id=owner_instance_id,
+                process_start_token=process_start_token,
+                lease_generation=lease_generation,
+                now_utc_epoch=now,
+                heartbeat_timeout_seconds=heartbeat_timeout_seconds,
+            )
+            if recovered is None:
+                return None
+            current = recovered
+        owner = current.owner_instance_id if owner_instance_id is None else owner_instance_id
+        process_token = current.process_start_token if process_start_token is None else process_start_token
+        generation = current.lease_generation if lease_generation is None else lease_generation
+        if state is not None:
+            if action_id is None:
+                return None
+            resolved = self.reconcile_unknown_action(
+                run_id,
+                action_id,
+                state,
+                owner_instance_id=owner,
+                process_start_token=process_token,
+                run_token=current.run_token if run_token is None else run_token,
+                lease_generation=generation,
+                outcome_reason=outcome_reason,
+                now_utc_epoch=now,
+            )
+            if resolved is None:
+                return None
+        return self.terminalize_recovered_run(
+            run_id,
+            terminal_state,
+            owner_instance_id=owner,
+            process_start_token=process_token,
+            run_token=current.run_token if run_token is None else run_token,
+            lease_generation=generation,
+            reason=outcome_reason,
+            now_utc_epoch=now,
+        )
+
     def recover_orphan(
         self,
         run_id: str,
@@ -1953,49 +2765,46 @@ class BotStateManager:
         now_utc_epoch: float | None = None,
         heartbeat_timeout_seconds: float = 60.0,
     ) -> RunRecord | None:
-        """Classify stale reservations and dispatches; orphaned dispatch is never replayed."""
+        """Take over a stale run; UNKNOWN dispatches remain RECOVERING.
+
+        This compatibility entry point performs only the safe no-UNKNOWN
+        terminalization.  Callers that observe an UNKNOWN action must use
+        :meth:`reconcile_unknown_action` and :meth:`terminalize_recovered_run`.
+        """
 
         run_id = _text(run_id, "run_id")
-        now = _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
-        timeout = _epoch(heartbeat_timeout_seconds, "heartbeat_timeout_seconds", allow_none=False)
-        if timeout is None:
-            raise ValueError("heartbeat_timeout_seconds is required")
-        assert now is not None
-        with self._transaction() as db:
-            run = db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
-            if run is None or run["state"] not in _ACTIVE_RUN_STATES or (
-                run["heartbeat_at_utc"] is not None and float(run["heartbeat_at_utc"]) >= now - timeout
-            ):
-                return None
-            has_dispatch = db.execute(
-                "SELECT 1 FROM actions WHERE run_id = ? AND state = 'DISPATCHING' LIMIT 1", (run_id,)
-            ).fetchone() is not None
-            reserved_budget = db.execute(
-                """SELECT COALESCE(SUM(input_cost), 0) AS input_cost, COUNT(*) AS action_count
-                   FROM actions WHERE run_id = ? AND state = 'RESERVED'""",
-                (run_id,),
-            ).fetchone()
-            db.execute(
-                "UPDATE runs SET consumed_inputs = MAX(0, consumed_inputs - ?), consumed_actions = MAX(0, consumed_actions - ?), row_version = row_version + 1 WHERE run_id = ?",
-                (int(reserved_budget["input_cost"]), int(reserved_budget["action_count"]), run_id),
-            )
-            db.execute(
-                "UPDATE actions SET state = 'UNKNOWN', completed_at_utc = ?, outcome_reason = COALESCE(outcome_reason, 'ORPHANED_DISPATCH'), row_version = row_version + 1 WHERE run_id = ? AND state = 'DISPATCHING'",
-                (now, run_id),
-            )
-            db.execute(
-                "UPDATE actions SET state = 'CANCELLED', completed_at_utc = ?, outcome_reason = COALESCE(outcome_reason, 'ORPHANED_RESERVATION'), row_version = row_version + 1 WHERE run_id = ? AND state = 'RESERVED'",
-                (now, run_id),
-            )
-            # A stale reservation has not crossed the transport boundary and
-            # may be retried.  A stale dispatch may have reached the adapter;
-            # it is terminally blocked for reconciliation and is never replayed.
-            target = RunState.BLOCKED if has_dispatch else RunState.FAILED
-            db.execute(
-                "UPDATE runs SET state = ?, terminal_at_utc = ?, terminal_reason = ?, heartbeat_at_utc = ?, row_version = row_version + 1 WHERE run_id = ?",
-                (target.value, now, "ORPHANED_DISPATCH" if has_dispatch else "ORPHANED", now, run_id),
-            )
-            return self._run(db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone())
+        now = _now() if now_utc_epoch is None else now_utc_epoch
+        lease = self.get_service_lease()
+        current = self.takeover_orphan(
+            run_id,
+            owner_instance_id=self.owner_instance_id,
+            process_start_token=self.process_start_token,
+            process_id=self.process_id,
+            lease_generation=(
+                lease.lease_generation
+                if lease.owner_instance_id == self.owner_instance_id
+                and lease.process_start_token == self.process_start_token
+                else None
+            ),
+            now_utc_epoch=now,
+            heartbeat_timeout_seconds=heartbeat_timeout_seconds,
+        )
+        if current is None:
+            return None
+        if self.has_unresolved_actions(run_id):
+            return current
+        return self.project_terminal(
+            run_id,
+            RunState.FAILED,
+            owner_instance_id=current.owner_instance_id,
+            process_start_token=current.process_start_token,
+            run_token=current.run_token,
+            lease_generation=current.lease_generation,
+            expected_state=RunState.RECOVERING,
+            reason="ORPHANED",
+            outcome="FAILED",
+            now_utc_epoch=now,
+        )
 
     def recover_orphans(
         self,
@@ -2016,6 +2825,8 @@ class BotStateManager:
 
 
 __all__ = [
+    "REPOSITORY_ROOT",
+    "resolve_state_path",
     "ActionRecord",
     "ActionState",
     "BotStateManager",
@@ -2027,6 +2838,7 @@ __all__ = [
     "ServiceControl",
     "ServiceLease",
     "StateError",
+    "StateBusyError",
     "StateTransitionError",
     "TerminalProjectionError",
 ]
