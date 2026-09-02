@@ -432,3 +432,38 @@ class NormalizedResult:
             raise ValueError("next_eligible_at must be a non-negative UTC epoch")
         if self.outcome in {NormalizedOutcome.UNRESOLVED, NormalizedOutcome.RECONCILIATION_REQUIRED}:
             object.__setattr__(self, "unresolved_action", True)
+
+
+@dataclass(frozen=True)
+class FlowSpec:
+    """Static route facts used only when a flow row is first initialized.
+
+    Runtime enablement, blocking, scheduling, and retry state belong to the
+    SQLite state manager.  ``default_enabled`` intentionally defaults to
+    ``False`` and is never allowed to override an existing persisted row.
+    """
+
+    flow_id: str
+    default_enabled: bool = False
+    priority: int = 100
+    cadence: str = "manual"
+    max_wait_seconds: float | None = None
+    max_attempts: int = 3
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.flow_id, str) or not self.flow_id.strip():
+            raise ValueError("flow spec requires a flow id")
+        if type(self.default_enabled) is not bool:
+            raise ValueError("flow spec default_enabled must be a bool")
+        if type(self.priority) is not int or self.priority < 0:
+            raise ValueError("flow spec priority must be a non-negative integer")
+        if not isinstance(self.cadence, str) or not self.cadence.strip():
+            raise ValueError("flow spec cadence must be named")
+        if self.max_wait_seconds is not None and (
+            isinstance(self.max_wait_seconds, bool)
+            or not math.isfinite(float(self.max_wait_seconds))
+            or self.max_wait_seconds < 0
+        ):
+            raise ValueError("flow spec max wait must be a non-negative finite number")
+        if type(self.max_attempts) is not int or self.max_attempts < 1:
+            raise ValueError("flow spec max attempts must be positive")

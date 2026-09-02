@@ -7199,10 +7199,12 @@ def noahs_tavern_recruit(args: argparse.Namespace) -> str:
 
 
 def automation_service_offline(args: argparse.Namespace) -> int:
-    """Backward-compatible, zero-transport delegation to automation_service."""
+    """Delegate automation-service commands through its canonical CLI facade."""
+
     from automation_service.cli import main as automation_main
 
-    if args.automation_service_command == "campaign-plan":
+    command = args.automation_service_command
+    if command == "campaign-plan":
         from automation_service.campaign import CampaignNavigationHandler
         from automation_service.contracts import (
             FamilyFacts,
@@ -7236,104 +7238,125 @@ def automation_service_offline(args: argparse.Namespace) -> int:
             )
         )
         return 0
+
     argv = [
         "--mode",
-        args.mode,
-        "status" if args.automation_service_command == "status" else "health",
+        getattr(args, "mode", "disabled"),
     ]
+    state_path = getattr(args, "state_path", None)
+    if state_path is not None:
+        argv.extend(["--state-path", str(state_path)])
+    argv.append(command)
+    if command in {"enable", "disable"}:
+        argv.append(args.flow_id)
+    if command == "run":
+        argv.append(args.flow_id)
+        if args.live:
+            argv.append("--live")
+        argv.extend(
+            [
+                "--account-id",
+                args.account_id,
+                "--server-id",
+                args.server_id,
+                "--reset-id",
+                args.reset_id,
+            ]
+        )
+        if args.operator_request_id is not None:
+            argv.extend(["--operator-request-id", args.operator_request_id])
+    if command in {"service-disable", "emergency-stop"}:
+        argv.extend(["--reason", args.reason])
+    if getattr(args, "now_utc_epoch", None) is not None:
+        argv.extend(["--now-utc-epoch", str(args.now_utc_epoch)])
     return automation_main(argv)
 
 
 def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
-    """Run exactly one fail-closed, zero-transport scheduler pulse."""
+    """Run one canonical, fail-closed, zero-transport scheduler pulse."""
 
     from automation_service.contracts import (
         RecurrenceClass,
         RecurrenceProjection,
         SchedulerFacts,
     )
-    from automation_service.service import registry_scheduler_components
-    from safe_action_core import SafetyStore, SQLiteSchedulerInvocationRepository
+    from automation_service.service import AutomationService
+    from automation_service.state import BotStateManager, resolve_state_path
 
-    if args.state_path is None:
-        print(
-            json.dumps(
-                {
-                    "status": "disabled",
-                    "command": "scheduler-pulse",
-                    "reason": "STATE_PATH_REQUIRED_FOR_OFFLINE_PERSISTENCE",
-                    "transport_count": 0,
-                    "production_registration": "NOT_REGISTERED",
-                    "scheduler_eligible": False,
-                },
-                sort_keys=True,
-            )
-        )
-        return 0
-    store = SafetyStore(Path(args.state_path))
-    try:
-        repository = SQLiteSchedulerInvocationRepository(store)
-        entries, _descriptors, _handlers, coordinator = registry_scheduler_components(
-            repository
+    state_path = Path(resolve_state_path(args.state_path))
+    with BotStateManager(state_path) as state:
+        service = AutomationService(mode="dry_run", state=state)
+        flow_id = getattr(args, "flow_id", None)
+        if flow_id is None:
+            if getattr(args, "projection_observed_balance", None) is not None:
+                flow_id = CAMPAIGN_AP_FLOW_ID
+            elif getattr(args, "projection_observed_at_utc", None) is not None:
+                flow_id = RECRUITMENT_MAINTENANCE_FLOW_ID
+            else:
+                from automation_service.registry import load_canonical_registry
+
+                flow_id = load_canonical_registry()[0].flow_id
+        descriptor = service.flow_descriptor(flow_id)
+        flow_state = state.get_flow(flow_id)
+        scheduler_eligible = bool(
+            descriptor is not None
+            and descriptor.scheduler_eligible
+            and state.get_service_enabled()
+            and flow_state is not None
+            and flow_state.enabled
+            and not flow_state.blocked
         )
         now = (
             float(args.now_utc_epoch)
             if args.now_utc_epoch is not None
             else datetime.now(timezone.utc).timestamp()
         )
-        registered = next((entry for entry in entries if entry.registered), None)
         healthy = bool(getattr(args, "health_ok", False))
         projections = {}
         observed_at = getattr(args, "projection_observed_at_utc", None)
-        if (
-            registered is not None
-            and registered.flow_id == RECRUITMENT_MAINTENANCE_FLOW_ID
-            and observed_at is not None
-        ):
-            projections[registered.flow_id] = RecurrenceProjection(
+        if flow_id == RECRUITMENT_MAINTENANCE_FLOW_ID and observed_at is not None:
+            projections[flow_id] = RecurrenceProjection(
                 RecurrenceClass.COOLDOWN,
                 next_eligible_at=getattr(args, "projection_next_eligible_at", None),
                 observed_at_utc=float(observed_at),
             )
         elif (
-            registered is not None
-            and registered.flow_id == CAMPAIGN_AP_FLOW_ID
+            flow_id == CAMPAIGN_AP_FLOW_ID
             and observed_at is not None
             and getattr(args, "projection_observed_balance", None) is not None
         ):
-            projections[registered.flow_id] = RecurrenceProjection(
+            projections[flow_id] = RecurrenceProjection(
                 RecurrenceClass.AP_REGENERATION,
                 next_eligible_at=getattr(args, "projection_next_eligible_at", None),
                 observed_at_utc=float(observed_at),
                 observed_balance=float(args.projection_observed_balance),
             )
-        report = coordinator.pulse(
-            SchedulerFacts(
-                args.account_id,
-                args.server_id,
-                args.reset_id,
-                now,
-                health_ok=healthy,
-                accepted_product=registered.product_id
-                if registered is not None
-                else False,
-                product_revision=registered.product_revision
-                if registered is not None
-                else None,
-                registration_status=(
-                    registered.registration_status
-                    if registered is not None
-                    else "NOT_REGISTERED"
-                ),
-                scheduler_eligible=bool(
-                    registered is not None and registered.scheduler_eligible
-                ),
-                owner_available=healthy,
-                clock_ok=healthy,
-                reset_agreement=healthy,
-                projections=projections,
-            )
+        facts = SchedulerFacts(
+            args.account_id,
+            args.server_id,
+            args.reset_id,
+            now,
+            health_ok=healthy,
+            accepted_product=(
+                descriptor.accepted_product if descriptor is not None else False
+            ),
+            product_revision=(
+                descriptor.product_revision if descriptor is not None else None
+            ),
+            registration_status=(
+                descriptor.registration_status
+                if descriptor is not None
+                else "NOT_REGISTERED"
+            ),
+            scheduler_eligible=(
+                descriptor.scheduler_eligible if descriptor is not None else False
+            ),
+            owner_available=healthy,
+            clock_ok=healthy,
+            reset_agreement=healthy,
+            projections=projections,
         )
+        report = service.pulse(facts)
         candidate = None
         if report.candidate is not None:
             candidate = {
@@ -7351,25 +7374,27 @@ def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
                     "candidate": candidate,
                     "result": result,
                     "transport_count": 0,
-                    "production_registration": "REGISTERED"
-                    if registered is not None
-                    else "NOT_REGISTERED",
-                    "scheduler_eligible": bool(
-                        registered is not None and registered.scheduler_eligible
+                    "production_registration": (
+                        descriptor.registration_status
+                        if descriptor is not None
+                        else "NOT_REGISTERED"
                     ),
-                    "accepted_product": registered.product_id
-                    if registered is not None
-                    else False,
-                    "product_revision": registered.product_revision
-                    if registered is not None
-                    else None,
+                    "scheduler_eligible": scheduler_eligible,
+                    "accepted_product": (
+                        descriptor.accepted_product
+                        if descriptor is not None
+                        else False
+                    ),
+                    "product_revision": (
+                        descriptor.product_revision
+                        if descriptor is not None
+                        else None
+                    ),
                 },
                 sort_keys=True,
             )
         )
         return 0
-    finally:
-        store.close()
 
 
 scheduler_pulse_offline = automation_service_scheduler_pulse_offline
@@ -8037,14 +8062,48 @@ def parser() -> argparse.ArgumentParser:
     automation_status.add_argument(
         "--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled"
     )
+    automation_status.add_argument("--state-path", type=Path, default=None)
     automation_health = automation_sub.add_parser("health")
     automation_health.add_argument(
         "--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled"
     )
+    automation_health.add_argument("--state-path", type=Path, default=None)
+    automation_enable = automation_sub.add_parser("enable")
+    automation_enable.add_argument("flow_id")
+    automation_enable.add_argument("--state-path", type=Path, default=None)
+    automation_enable.add_argument("--now-utc-epoch", type=float, default=None)
+    automation_disable = automation_sub.add_parser("disable")
+    automation_disable.add_argument("flow_id")
+    automation_disable.add_argument("--state-path", type=Path, default=None)
+    automation_disable.add_argument("--now-utc-epoch", type=float, default=None)
+    automation_run = automation_sub.add_parser("run")
+    automation_run.add_argument("flow_id")
+    automation_run.add_argument(
+        "--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled"
+    )
+    automation_run.add_argument("--live", action="store_true")
+    automation_run.add_argument("--state-path", type=Path, default=None)
+    automation_run.add_argument("--account-id", default="offline-account")
+    automation_run.add_argument("--server-id", default="offline-server")
+    automation_run.add_argument("--reset-id", default="offline-reset")
+    automation_run.add_argument("--operator-request-id", default=None)
+    automation_run.add_argument("--now-utc-epoch", type=float, default=None)
+    service_enable = automation_sub.add_parser("service-enable")
+    service_enable.add_argument("--state-path", type=Path, default=None)
+    service_enable.add_argument("--now-utc-epoch", type=float, default=None)
+    service_disable = automation_sub.add_parser("service-disable")
+    service_disable.add_argument("--state-path", type=Path, default=None)
+    service_disable.add_argument("--now-utc-epoch", type=float, default=None)
+    service_disable.add_argument("--reason", default="service disabled")
+    emergency_stop = automation_sub.add_parser("emergency-stop")
+    emergency_stop.add_argument("--state-path", type=Path, default=None)
+    emergency_stop.add_argument("--now-utc-epoch", type=float, default=None)
+    emergency_stop.add_argument("--reason", default="emergency stop")
     scheduler_pulse = automation_sub.add_parser(
         "pulse",
         help="one offline UTC scheduler pulse; never starts runtime or transport",
     )
+    scheduler_pulse.add_argument("--flow-id", default=None)
     scheduler_pulse.add_argument("--state-path", type=Path, default=None)
     scheduler_pulse.add_argument("--account-id", default="offline-account")
     scheduler_pulse.add_argument("--server-id", default="offline-server")
@@ -8345,7 +8404,27 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return automation_service_scheduler_pulse_offline(args)
             return automation_service_offline(args)
         except (OperatorError, OSError, RuntimeError, ValueError) as exc:
-            print("pnsctl: " + str(exc), file=sys.stderr)
+            from automation_service.state import StateBusyError
+
+            if isinstance(exc, StateBusyError) or (
+                isinstance(exc, sqlite3.OperationalError)
+                and any(
+                    marker in str(exc).casefold() for marker in ("busy", "locked")
+                )
+            ):
+                print(
+                    json.dumps(
+                        {
+                            "status": "error",
+                            "reason": "SQLITE_BUSY",
+                            "retryable": True,
+                        },
+                        sort_keys=True,
+                    ),
+                    file=sys.stderr,
+                )
+            else:
+                print("pnsctl: " + str(exc), file=sys.stderr)
             return 2
     raise OperatorError("unsupported pnsctl command")
 
