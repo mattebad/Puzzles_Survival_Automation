@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.bliss_porting.remote import (
+from tools.experimental.bliss_porting.remote import (
     PortingConfig,
     PortingError,
     redact_argv,
@@ -96,6 +96,7 @@ class BlissPortingToolboxTests(unittest.TestCase):
         source = (ROOT / "scripts" / "pnsctl.py").read_text(encoding="utf-8")
         for forbidden in (
             "scripts.bliss_porting",
+            "tools.experimental.bliss_porting",
             "nas.local",
             "192.168.122.79:5555",
             "mvp_quest_to_claim",
