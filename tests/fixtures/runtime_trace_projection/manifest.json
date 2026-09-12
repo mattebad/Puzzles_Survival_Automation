@@ -2,7 +2,7 @@
   "schema_name": "runtime_trace_projection_portable_fixture_locator",
   "schema_version": 1,
   "source_policy": "retained_source_metadata_with_byte_equal_portable_copies",
-  "portable_copy_policy": "replay_inputs_only_no_frames_or_capture_tree",
+  "portable_copy_policy": "replay_inputs_and_referenced_frames_only",
   "fixtures": {
     "enhancement": {
       "source_record": {
@@ -30,7 +30,65 @@
           "bytes": 4277,
           "sha256": "4a78a4a648f15ecd171b0ec2bbdc220d9659e982ecdfce0db37ae0648e7fc07b"
         }
-      }
+      },
+      "frames": [
+        {
+          "phase": "immediate_post",
+          "event_label": "leave-completed-module-enhancement-immediate-post",
+          "evidence_ref": "frames/0003-leave-completed-module-enhancement-immediate-post.png",
+          "retained_source": {
+            "path": ".local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/frames/0003-leave-completed-module-enhancement-immediate-post.png",
+            "sha256": "1bd6a28ba8680f17ac4bfc13c8a32661389fcc92ab51f9357b9a0e3b2389bb92"
+          },
+          "portable_copy": {
+            "path": "tests/fixtures/runtime_trace_projection/frames/0003-leave-completed-module-enhancement-immediate-post.png",
+            "bytes": 452404,
+            "sha256": "1bd6a28ba8680f17ac4bfc13c8a32661389fcc92ab51f9357b9a0e3b2389bb92"
+          }
+        },
+        {
+          "phase": "first_settled",
+          "event_label": "leave-completed-module-enhancement-settled",
+          "evidence_ref": "frames/0004-leave-completed-module-enhancement-settled.png",
+          "retained_source": {
+            "path": ".local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/frames/0004-leave-completed-module-enhancement-settled.png",
+            "sha256": "434f4ebb55b8606824247a727229c79accddfb2f243d528328b253726eac6c5b"
+          },
+          "portable_copy": {
+            "path": "tests/fixtures/runtime_trace_projection/frames/0004-leave-completed-module-enhancement-settled.png",
+            "bytes": 826760,
+            "sha256": "434f4ebb55b8606824247a727229c79accddfb2f243d528328b253726eac6c5b"
+          }
+        },
+        {
+          "phase": "settled_confirmation",
+          "event_label": "commander-to-home-terminal-immediate-before",
+          "evidence_ref": "frames/0005-commander-to-home-terminal-immediate-before.png",
+          "retained_source": {
+            "path": ".local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/frames/0005-commander-to-home-terminal-immediate-before.png",
+            "sha256": "434f4ebb55b8606824247a727229c79accddfb2f243d528328b253726eac6c5b"
+          },
+          "portable_copy": {
+            "path": "tests/fixtures/runtime_trace_projection/frames/0004-leave-completed-module-enhancement-settled.png",
+            "bytes": 826760,
+            "sha256": "434f4ebb55b8606824247a727229c79accddfb2f243d528328b253726eac6c5b"
+          }
+        },
+        {
+          "phase": "terminal_settled",
+          "event_label": "commander-to-home-terminal-settled",
+          "evidence_ref": "frames/0007-commander-to-home-terminal-settled.png",
+          "retained_source": {
+            "path": ".local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/frames/0007-commander-to-home-terminal-settled.png",
+            "sha256": "f1814d91384522e0f2c67c1796d13a7838f5081ad2e016887b78b9b597bdf2ea"
+          },
+          "portable_copy": {
+            "path": "tests/fixtures/runtime_trace_projection/frames/0007-commander-to-home-terminal-settled.png",
+            "bytes": 2114499,
+            "sha256": "f1814d91384522e0f2c67c1796d13a7838f5081ad2e016887b78b9b597bdf2ea"
+          }
+        }
+      ]
     },
     "nova_live_events": {
       "retained_source": {

@@ -4,10 +4,10 @@ Owns per-flow machine-readable state under ``.local-orchestrator/conductor/``.
 Does not dispatch gameplay input itself: live work goes through ``pnsctl``
 development-session observe / run-flow. Safety kernel stays in pnsctl.
 
-This module is the **routine delivery driver**. Chat-Heavy Sol/Luna/Terra frozen
-manifests are not required for ordinary live reproof of already-contracted
-flows; reserve that ceremony for architecture, safety-boundary, or
-cross-contract redesign (see ``AGENTS.md`` route matrix).
+This module retains the legacy delivery driver's existing state and safety
+checks. Current development conventions do not require model-specific routing
+or review choreography; retiring those instructions does not waive controller
+admission checks.
 """
 
 from __future__ import annotations

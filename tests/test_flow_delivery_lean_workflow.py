@@ -99,10 +99,15 @@ class LeanWorkflowTests(unittest.TestCase):
             marker = controller.begin_delegation(
                 owner="parent",
                 delegation_id="slice-1",
+                agent="test-worker",
             )
-            self.assertEqual(marker["agent"], "pns-flow-implementer")
+            self.assertEqual(marker["agent"], "test-worker")
             with self.assertRaisesRegex(control.FlowDeliveryError, "already active"):
-                controller.begin_delegation(owner="parent", delegation_id="slice-2")
+                controller.begin_delegation(
+                    owner="parent",
+                    delegation_id="slice-2",
+                    agent="test-worker-2",
+                )
             with self.assertRaisesRegex(control.FlowDeliveryError, "cannot overlap"):
                 controller.record_stage(owner="parent", stage="implementation")
             with self.assertRaisesRegex(control.FlowDeliveryError, "delegated writer"):
@@ -127,7 +132,7 @@ class LeanWorkflowTests(unittest.TestCase):
             marker = {
                 "schema_version": 1,
                 "delegation_id": "slice-live",
-                "agent": "pns-flow-implementer",
+                "agent": "test-worker",
                 "lease_owner": "parent",
                 "lease_session": "session",
                 "active_flow": flow_id,

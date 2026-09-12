@@ -20,6 +20,11 @@ CORPUS = ROOT / "tests" / "fixtures" / "runtime_control_sequences" / "manifest.j
 ENHANCEMENT_FIXTURE = ROOT / "tests" / "fixtures" / "runtime_control_sequences" / "enhancement_transition.json"
 PORTABLE_REPLAY_FIXTURE = ROOT / "tests" / "fixtures" / "runtime_trace_projection" / "manifest.json"
 VIP_OCR_SNAPSHOT_FIXTURE = ROOT / "tests" / "fixtures" / "runtime_trace_projection" / "vip_popup_ocr_snapshot.json"
+IMG_5080 = ROOT / "examples" / "screenshots" / "IMG_5080.PNG"
+STARTUP_REFERENCE_MANIFEST = ROOT / "evidence" / "sessions" / "20260711-mvp-startup-normalization" / "reference-manifest.json"
+STARTUP_OFFLINE_RESULTS = ROOT / "evidence" / "sessions" / "20260711-mvp-startup-normalization" / "offline-results.json"
+IMG_5080_SHA256 = "8c3d7ac932ddf2836bfcfcc05559e7977a3745abeedef2704376e61144e86cdd"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 class RuntimeTraceProjectionTests(unittest.TestCase):
@@ -46,6 +51,22 @@ class RuntimeTraceProjectionTests(unittest.TestCase):
             provenance_manifest = ROOT / asset["provenance"].split(":", 1)[0]
             self.assertTrue(provenance_manifest.is_file(), asset["provenance"])
             self.assertIn(asset["sha256"], provenance_manifest.read_text(encoding="utf-8"))
+
+    def test_img_5080_is_restored_and_retained_evidence_bound(self):
+        relative = "examples/screenshots/IMG_5080.PNG"
+        self.assertTrue(IMG_5080.is_file(), relative)
+        self.assertEqual(hashlib.sha256(IMG_5080.read_bytes()).hexdigest(), IMG_5080_SHA256)
+
+        reference_manifest = json.loads(STARTUP_REFERENCE_MANIFEST.read_text(encoding="utf-8"))
+        retained = next(asset for asset in reference_manifest["assets"] if asset["path"] == relative)
+        self.assertEqual(retained["path"], relative)
+        self.assertEqual(retained["state"], "Home/Base")
+        self.assertFalse(retained["production_eligible"])
+
+        offline_results = json.loads(STARTUP_OFFLINE_RESULTS.read_text(encoding="utf-8"))
+        reference_check = offline_results["home_base_reference_check"]
+        self.assertEqual(reference_check["reference"], relative)
+        self.assertEqual(reference_check["reference_sha256"], IMG_5080_SHA256)
 
     def test_nova_and_ultimate_replay_use_transition_and_list_primitives(self):
         preflight = json.loads((ROOT / "tests/fixtures/nova_praise_preflight/manifest.json").read_text(encoding="utf-8"))
@@ -165,6 +186,10 @@ class RuntimeTraceProjectionTests(unittest.TestCase):
         self.assertEqual(set(phases), required_phases)
         self.assertEqual(len(phases), len(required_phases))
         observations = {observation["phase"]: observation for observation in fixture["observations"]}
+        frame_locators = portable["frames"]
+        self.assertEqual({locator["phase"] for locator in frame_locators}, required_phases)
+        self.assertEqual(len(frame_locators), len(required_phases))
+        frame_locators_by_phase = {locator["phase"]: locator for locator in frame_locators}
         expected_hashes = {
             "immediate_post": retained["actions"][0]["immediate_post_sha256"],
             "first_settled": retained["actions"][0]["settled_successor_sha256"],
@@ -173,8 +198,36 @@ class RuntimeTraceProjectionTests(unittest.TestCase):
         }
         for phase, observation in observations.items():
             event = events_by_label[observation["event_label"]]
+            locator = frame_locators_by_phase[phase]
+            retained_frame = locator["retained_source"]
+            portable_frame = locator["portable_copy"]
+            self.assertEqual(locator["event_label"], observation["event_label"])
+            self.assertEqual(locator["evidence_ref"], observation["evidence_ref"])
+            self.assertTrue(
+                event["path"].replace("\\", "/").endswith(retained_frame["path"]),
+                event["path"],
+            )
+            self.assertEqual(
+                retained_frame["path"],
+                (Path(source_retained["path"]).parent / observation["evidence_ref"]).as_posix(),
+            )
+            self.assertEqual(retained_frame["sha256"], event["sha256"])
             self.assertEqual(observation["frame_sha256"], expected_hashes[phase])
             self.assertEqual(observation["frame_sha256"], event["sha256"])
+            self.assertEqual(retained_frame["sha256"], observation["frame_sha256"])
+            self.assertEqual(portable_frame["sha256"], observation["frame_sha256"])
+            portable_path = ROOT / portable_frame["path"]
+            self.assertTrue(portable_path.resolve().is_relative_to(ROOT / "tests" / "fixtures"))
+            self.assertFalse(Path(portable_frame["path"]).is_absolute())
+            self.assertNotIn(".local-captures", Path(portable_frame["path"]).parts)
+            self.assertTrue(portable_path.is_file(), str(portable_path))
+            frame_bytes = portable_path.read_bytes()
+            self.assertEqual(len(frame_bytes), portable_frame["bytes"])
+            self.assertEqual(hashlib.sha256(frame_bytes).hexdigest(), portable_frame["sha256"])
+            self.assertTrue(frame_bytes.startswith(PNG_SIGNATURE))
+            frame = cv2.imread(str(portable_path), cv2.IMREAD_UNCHANGED)
+            self.assertIsNotNone(frame)
+            self.assertEqual((frame.shape[1], frame.shape[0]), tuple(fixture["native_dimensions"]))
             self.assertEqual(event["type"], "capture")
             self.assertTrue(
                 event["path"].replace("\\", "/").endswith(observation["evidence_ref"])

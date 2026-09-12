@@ -26,6 +26,8 @@
   state handling. Do not create a parallel authority or compatibility bypass.
 - Exactly one live runtime operator may exist. Development chats, agents, tests,
   collectors, and automation MUST NOT share or overlap a live operator.
+- Every live attempt requires explicit current authorization recorded by the controller/operator; documentation, receipts, and retained evidence never grant live authority.
+- The `begin-delegation` command/API requires an explicit non-empty free-form attribution; it has no default persona, provider, or model.
 - Do not use ad-hoc ADB, SSH, remote shells, device access, VM access, or live
   input in offline development. Login, account switching, credentials, tutorial,
   CAPTCHA, and other explicitly manual-only states stop for a human.
@@ -65,6 +67,7 @@
 
 - Public docs must state whether a capability is implemented, offline-proven,
   or live-accepted, and must preserve current blockers and uncertainty.
+- Current instructions are model/provider/persona-neutral. Historical model-specific policies and manifests belong under `docs/archive/` and are non-authoritative.
 - Keep durable history separate from volatile state. Never discard unrelated
   changes or rewrite shared history without explicit authorization.
 - Stage only explicitly attributable paths when authorized. Do not mutate runtime

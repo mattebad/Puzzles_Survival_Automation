@@ -14,3 +14,19 @@ rewritten during archival. Use the current backlog and architecture links for ac
 
 The current runtime direction is documented by [`../../governance-simplification-plan.md`](../../governance-simplification-plan.md)
 and the canonical implementation under [`../../automation_service/`](../../automation_service/).
+
+## Archived model-specific records
+
+The archived execution manifests, validation manifests, convergence status, flow-specific
+manifests, and agent progress notes were moved from `docs/` and `agent_docs/` without rewriting their bodies. They are
+historical evidence only, are not current instructions, and cannot select a route, participant,
+model, operator, review, runtime action, or retry:
+
+- [`execution-manifests/`](execution-manifests/) — superseded frozen execution records.
+- [`validation/`](validation/) — superseded validation records.
+- [`agent-latest-session-work.md`](agent-latest-session-work.md) and [`agent-project-progress.md`](agent-project-progress.md) — superseded tracked `agent_docs/` notes.
+- Root-level historical manifests and status records — retained for provenance only.
+
+References inside these files retain their original path context to preserve historical meaning.
+Use current `AGENTS.md`, the current flow contracts, and the supported runtime controls for active
+work.

@@ -4213,7 +4213,7 @@
       "reference_docs": [
         "docs/runtime-input-safety-policy.md",
         "docs/android-back-state-matrix.md",
-        "docs/validation/daily-resource-item-20260818-r6-manifest.md"
+        "docs/archive/validation/daily-resource-item-20260818-r6-manifest.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
