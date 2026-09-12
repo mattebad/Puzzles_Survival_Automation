@@ -3,8 +3,37 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+import sqlite3
 import time
 from typing import Any
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def _state_boundary():
+    """Expose bounded SQLite contention without leaking driver exceptions."""
+
+    try:
+        yield
+    except (StateBusyError, sqlite3.OperationalError) as exc:
+        if isinstance(exc, StateBusyError):
+            reason = exc.reason
+            retryable = exc.retryable
+        elif any(
+            marker in str(exc).casefold() for marker in ("busy", "locked")
+        ):
+            reason = "SQLITE_BUSY"
+            retryable = True
+        else:
+            raise
+        raise ServiceError(
+            str(exc),
+            reason=reason,
+            retryable=retryable,
+        ) from exc
+
 
 from .adapters import (
     AdapterKind,
@@ -12,7 +41,7 @@ from .adapters import (
     FakeDeviceAdapter,
     SupervisedBlueStacksAdapter,
 )
-from .contracts import PerceptionEnvelope, SchedulerFacts, ServiceMode
+from .contracts import FlowSpec, PerceptionEnvelope, SchedulerFacts, ServiceMode
 from .handlers import (
     CampaignApSelectionHandler,
     DisabledHandler,
@@ -23,19 +52,117 @@ from .handlers import (
 from .operations import HealthSnapshot, OperationsService
 from .registry import (
     CAMPAIGN_FLOW_ID,
+    CANONICAL_FLOW_REGISTRY,
+    CanonicalFlowRegistration,
     DisabledProductionEntry,
-    RegisteredDispatchSnapshot,
     NOVA_FLOW_ID,
     RECRUITMENT_FLOW_ID,
+    RegisteredDispatchSnapshot,
     WORLD_FLOW_ID,
-    load_disabled_registry,
+    canonical_descriptors,
+    canonical_flow_specs,
 )
+from .state import BotStateManager, StateBusyError, resolve_state_path
 from .scheduler import DisabledProductionAuthority, PulseReport, UtcPulseCoordinator
-from safe_action_core import SQLiteSchedulerInvocationRepository
+_CANONICAL_TABLE_COLUMNS = {
+    "service_control": {
+        "singleton_id",
+        "enabled",
+        "generation",
+        "emergency_reason",
+        "emergency_at_utc",
+        "updated_at_utc",
+        "row_version",
+    },
+    "flow_state": {
+        "flow_id",
+        "enabled",
+        "generation",
+        "blocked",
+        "priority",
+        "cadence",
+        "max_attempts",
+        "next_occurrence_key",
+        "row_version",
+    },
+    "runs": {
+        "run_id",
+        "flow_id",
+        "occurrence_key",
+        "reset_id",
+        "claimed_flow_generation",
+        "service_generation",
+        "owner_instance_id",
+        "mode",
+        "state",
+        "max_inputs",
+        "max_actions",
+        "row_version",
+    },
+    "actions": {
+        "action_id",
+        "run_id",
+        "sequence_no",
+        "idempotency_key",
+        "semantic_action_key",
+        "state",
+        "row_version",
+    },
+}
+
+
+def _canonical_database_probe(path: str) -> bool:
+    """Check the canonical BotStateManager schema without creating/migrating it."""
+
+    if path in {":memory:", ""}:
+        return True
+    resolved_path = resolve_state_path(path)
+    if resolved_path in {":memory:", ""}:
+        return True
+    try:
+        connection = sqlite3.connect(
+            f"file:{Path(resolved_path).resolve()}?mode=ro",
+            uri=True,
+        )
+        try:
+            if connection.execute("PRAGMA integrity_check").fetchone() != ("ok",):
+                return False
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            if set(_CANONICAL_TABLE_COLUMNS) - tables:
+                return False
+            return all(
+                expected <= {
+                    row[1]
+                    for row in connection.execute(f"PRAGMA table_info({table})")
+                }
+                for table, expected in _CANONICAL_TABLE_COLUMNS.items()
+            )
+        finally:
+            connection.close()
+    except (OSError, sqlite3.Error):
+        return False
+
+
 
 
 class ServiceError(RuntimeError):
-    pass
+    """Expected service-boundary failure with machine-readable metadata."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason: str | None = None,
+        retryable: bool = False,
+    ) -> None:
+        self.reason = reason
+        self.retryable = retryable
+        super().__init__(message)
 
 
 @dataclass(frozen=True)
@@ -45,11 +172,19 @@ class ServiceStatus:
     registered_flows: tuple[str, ...]
     disabled_flows: tuple[str, ...]
     scheduler_eligible: bool
+    service_enabled: bool = False
+    flow_enabled: dict[str, bool] | None = None
+def registry_descriptor(
+    entry: DisabledProductionEntry | CanonicalFlowRegistration,
+):
+    """Compose a descriptor from either static canonical or legacy facts.
 
+    ``path=`` compatibility callers retain the legacy parser, but the normal
+    service path supplies :class:`CanonicalFlowRegistration` directly.
+    """
 
-def registry_descriptor(entry: DisabledProductionEntry):
-    """Compose a scheduler descriptor from one validated registry entry."""
-
+    if isinstance(entry, CanonicalFlowRegistration):
+        return entry.descriptor
     from .contracts import FlowDescriptor, RecurrenceClass, RecurrenceProjection
 
     registered = entry.registered
@@ -99,18 +234,41 @@ def registry_descriptor(entry: DisabledProductionEntry):
     )
 
 
-def registry_scheduler_components(
-    repository: SQLiteSchedulerInvocationRepository,
+def registry_flow_spec(
+    entry: DisabledProductionEntry | CanonicalFlowRegistration,
+) -> FlowSpec:
+    """Return static facts for first-time SQLite initialization."""
+
+    if isinstance(entry, CanonicalFlowRegistration):
+        return entry.spec
+    descriptor = registry_descriptor(entry)
+    return FlowSpec(
+        flow_id=descriptor.flow_id,
+        default_enabled=False,
+        priority=descriptor.priority,
+        cadence=descriptor.cadence,
+    )
+
+
+def legacy_registry_scheduler_components(
+    repository,
     *,
     path=None,
     clock=time.time,
-) -> tuple[
-    tuple[DisabledProductionEntry, ...],
-    tuple[Any, ...],
-    dict[str, Any],
-    UtcPulseCoordinator,
-]:
-    """Build the offline scheduler solely from the checked-in registry."""
+):
+    """Compose legacy registry components for unmigrated repositories only.
+
+    The legacy JSON registration file is an input to this API by design.  It
+    must never be used with :class:`BotStateManager`, whose coordinator is
+    composed from the immutable canonical registry below.
+    """
+
+    if isinstance(repository, BotStateManager):
+        raise ValueError(
+            "legacy registry composition cannot use BotStateManager; "
+            "use registry_scheduler_components without path"
+        )
+    from .registry import load_disabled_registry
 
     entries = load_disabled_registry(path)
     descriptors = tuple(registry_descriptor(entry) for entry in entries)
@@ -134,10 +292,6 @@ def registry_scheduler_components(
             )
         else:
             handlers[entry.flow_id] = DisabledHandler(descriptor)
-    # Keep authority and descriptors bound to the same validated registry
-    # snapshot.  DisabledProductionAuthority normally loads the default path
-    # itself; replacing its private projection avoids a second, potentially
-    # different registration authority when callers supply a registry path.
     activation_authority = DisabledProductionAuthority()
     activation_authority._entries = {entry.flow_id: entry for entry in entries}
     coordinator = UtcPulseCoordinator(
@@ -150,13 +304,70 @@ def registry_scheduler_components(
     return entries, descriptors, handlers, coordinator
 
 
+def _canonical_registry_scheduler_components(
+    repository: BotStateManager,
+    *,
+    clock,
+):
+    """Compose scheduler solely from static canonical facts and SQLite state."""
+
+    registrations = CANONICAL_FLOW_REGISTRY
+    repository.initialize_flows(entry.spec for entry in registrations)
+    descriptors = canonical_descriptors()
+    handlers = {
+        entry.flow_id: entry.build_handler() for entry in registrations
+    }
+    return (
+        registrations,
+        descriptors,
+        handlers,
+        UtcPulseCoordinator(repository, descriptors, handlers, clock=clock),
+    )
+
+
+def registry_scheduler_components(
+    repository=None,
+    *,
+    state_manager: BotStateManager | None = None,
+    path=None,
+    clock=time.time,
+):
+    """Build canonical components from ``BotStateManager``.
+
+    ``path`` names the retired JSON registration authority and is rejected for
+    canonical state managers.  Unmigrated repository callers can opt into the
+    separate :func:`legacy_registry_scheduler_components` API.
+    """
+
+    if repository is not None and state_manager is not None and repository is not state_manager:
+        raise ValueError("repository and state_manager must refer to one authority")
+    repository = state_manager or repository
+    if repository is None:
+        raise ValueError("state_manager is required")
+    if isinstance(repository, BotStateManager):
+        if path is not None:
+            raise ValueError(
+                "canonical scheduler rejects legacy registry path; "
+                "use legacy_registry_scheduler_components for unmigrated callers"
+            )
+        return _canonical_registry_scheduler_components(repository, clock=clock)
+    if path is None:
+        raise ValueError(
+            "canonical scheduler requires BotStateManager; "
+            "use legacy_registry_scheduler_components for unmigrated callers"
+        )
+    return legacy_registry_scheduler_components(repository, path=path, clock=clock)
+
+
 # Public descriptive aliases used by offline callers and focused contract checks.
 build_registry_scheduler = registry_scheduler_components
 build_scheduler_components = registry_scheduler_components
 
 
+
+
 class AutomationService:
-    """Composition root that keeps production admission disabled by default."""
+    """Composition root backed by the canonical SQLite runtime authority."""
 
     def __init__(
         self,
@@ -165,7 +376,12 @@ class AutomationService:
         adapter: DeviceAdapter | None = None,
         coordinator: UtcPulseCoordinator | None = None,
         operations: OperationsService | None = None,
+        state_manager: BotStateManager | None = None,
+        state: BotStateManager | None = None,
     ) -> None:
+        if state_manager is not None and state is not None and state_manager is not state:
+            raise ServiceError("state and state_manager must refer to one authority")
+        self.state = state_manager or state
         if str(mode).casefold() == "automatic":
             raise ServiceError("automatic mode is unsupported")
         try:
@@ -175,6 +391,15 @@ class AutomationService:
         self.mode = resolved_mode
         self.adapter = adapter or FakeDeviceAdapter()
         self.coordinator = coordinator
+        if self.coordinator is None and self.state is not None:
+            with _state_boundary():
+                _entries, _descriptors, _handlers, self.coordinator = (
+                    registry_scheduler_components(self.state)
+                )
+        if self.state is None and self.coordinator is not None:
+            candidate_state = getattr(self.coordinator, "repository", None)
+            if isinstance(candidate_state, BotStateManager):
+                self.state = candidate_state
         if self.mode is ServiceMode.SUPERVISED and not isinstance(
             self.adapter, SupervisedBlueStacksAdapter
         ):
@@ -183,11 +408,14 @@ class AutomationService:
             )
         if self.mode is ServiceMode.SUPERVISED and (
             self.coordinator is None
-            or type(self.coordinator.activation_authority)
-            is not DisabledProductionAuthority
+            or (
+                getattr(self.coordinator, "_canonical", None) is None
+                and type(getattr(self.coordinator, "activation_authority", None))
+                is not DisabledProductionAuthority
+            )
         ):
             raise ServiceError(
-                "supervised mode requires the registry-backed production authority"
+                "supervised mode requires a canonical state-backed coordinator"
             )
         if self.mode is ServiceMode.DRY_RUN and self.adapter.kind not in {
             AdapterKind.FAKE,
@@ -196,24 +424,136 @@ class AutomationService:
             raise ServiceError("dry_run requires fake or replay adapter")
         self.operations = operations or OperationsService(
             adapter_status=self.adapter.status,
-            database_probe=lambda: True,
+            database_probe=lambda: (
+                self.state is not None
+                and (
+                    self.state.db_path in {":memory:", ""}
+                    or _canonical_database_probe(self.state.db_path)
+                )
+            ),
             lease_held=lambda: False,
         )
 
     def status(self) -> ServiceStatus:
-        registry = load_disabled_registry()
-        registered = tuple(item.flow_id for item in registry if item.registered)
-        return ServiceStatus(
-            mode=self.mode,
-            adapter_kind=self.adapter.kind.value,
-            registered_flows=registered,
-            disabled_flows=tuple(
-                item.flow_id for item in registry if not item.registered
+        # Route identity is static code authority; enablement and blocks are
+        # read from the persisted state manager below.
+        registrations = CANONICAL_FLOW_REGISTRY
+        registered = tuple(item.flow_id for item in registrations if item.registered)
+        flow_ids = tuple(item.flow_id for item in registrations)
+        if self.state is None:
+            return ServiceStatus(
+                mode=self.mode,
+                adapter_kind=self.adapter.kind.value,
+                registered_flows=registered,
+                disabled_flows=flow_ids,
+                scheduler_eligible=False,
+                flow_enabled={flow_id: False for flow_id in flow_ids},
+            )
+        with _state_boundary():
+            self.state.initialize_flows(canonical_flow_specs())
+            service = self.state.get_service()
+            states = {
+                flow_id: self.state.get_flow(flow_id) for flow_id in flow_ids
+            }
+            return ServiceStatus(
+                mode=self.mode,
+                adapter_kind=self.adapter.kind.value,
+                registered_flows=registered,
+                disabled_flows=tuple(
+                    flow_id
+                    for flow_id, flow_state in states.items()
+                    if flow_state is None or not flow_state.enabled
+                ),
+                scheduler_eligible=service.enabled and any(
+                    item.scheduler_eligible
+                    and states[item.flow_id] is not None
+                    and states[item.flow_id].enabled
+                    and not states[item.flow_id].blocked
+                    for item in registrations
+                ),
+                service_enabled=service.enabled,
+                flow_enabled={
+                    flow_id: bool(flow_state is not None and flow_state.enabled)
+                    for flow_id, flow_state in states.items()
+                },
+            )
+    def flow_descriptor(self, flow_id: str):
+        """Return a static descriptor without consulting a legacy registry."""
+
+        return next(
+            (
+                entry.descriptor
+                for entry in CANONICAL_FLOW_REGISTRY
+                if entry.flow_id == flow_id
             ),
-            scheduler_eligible=any(item.scheduler_eligible for item in registry),
+            None,
+        )
+
+
+    def set_flow_enabled(
+        self,
+        flow_id: str,
+        enabled: bool,
+        *,
+        now_utc_epoch: float | None = None,
+    ):
+        if self.state is None:
+            raise ServiceError("state manager is not configured")
+        with _state_boundary():
+            result = self.state.set_flow_enabled(
+                flow_id, enabled, now_utc_epoch=now_utc_epoch
+            )
+        if result is None:
+            raise ServiceError(f"unknown flow: {flow_id}")
+        return result
+
+    def enable_flow(self, flow_id: str, *, now_utc_epoch: float | None = None):
+        if self.state is None:
+            raise ServiceError("state manager is not configured")
+        with _state_boundary():
+            result = self.state.set_flow_enabled(
+                flow_id, True, now_utc_epoch=now_utc_epoch
+            )
+        if result is None:
+            raise ServiceError(f"unknown flow: {flow_id}")
+        return result
+
+    def disable_flow(self, flow_id: str, *, now_utc_epoch: float | None = None):
+        if self.state is None:
+            raise ServiceError("state manager is not configured")
+        with _state_boundary():
+            result = self.state.set_flow_enabled(
+                flow_id, False, now_utc_epoch=now_utc_epoch
+            )
+        if result is None:
+            raise ServiceError(f"unknown flow: {flow_id}")
+        return result
+
+    def set_service_enabled(
+        self,
+        enabled: bool,
+        *,
+        emergency_reason: str | None = None,
+        now_utc_epoch: float | None = None,
+    ):
+        if self.state is None:
+            raise ServiceError("state manager is not configured")
+        with _state_boundary():
+            return self.state.set_service_enabled(
+                enabled,
+                emergency_reason=emergency_reason,
+                now_utc_epoch=now_utc_epoch,
+            )
+
+    def emergency_stop(
+        self, reason: str = "emergency stop", *, now_utc_epoch: float | None = None
+    ):
+        return self.set_service_enabled(
+            False, emergency_reason=reason, now_utc_epoch=now_utc_epoch
         )
 
     def observe(self):
+        """Capture only; observation never reserves, claims, or enables."""
         return self.adapter.capture()
 
     def pulse(
@@ -221,27 +561,79 @@ class AutomationService:
         facts: SchedulerFacts,
         *,
         perception: PerceptionEnvelope | None = None,
+        shadow: bool = False,
     ) -> PulseReport:
-        if self.mode in {ServiceMode.DISABLED, ServiceMode.OBSERVE_ONLY}:
-            raise ServiceError(f"{self.mode.value} service cannot execute a pulse")
         if self.coordinator is None:
             raise ServiceError("pulse coordinator is not configured")
-        if self.mode is ServiceMode.DRY_RUN:
-            if self.adapter.kind not in {AdapterKind.FAKE, AdapterKind.REPLAY}:
-                raise ServiceError("dry_run requires fake or replay adapter")
-            if isinstance(
-                self.coordinator.activation_authority, DisabledProductionAuthority
-            ):
-                raise ServiceError(
-                    "dry_run requires an explicitly injected offline authority"
-                )
+        if self.mode in {ServiceMode.DISABLED, ServiceMode.OBSERVE_ONLY} and not shadow:
+            raise ServiceError(f"{self.mode.value} service cannot execute a pulse")
+        if self.mode is ServiceMode.DRY_RUN and self.adapter.kind not in {
+            AdapterKind.FAKE,
+            AdapterKind.REPLAY,
+        }:
+            raise ServiceError("dry_run requires fake or replay adapter")
         if self.mode is ServiceMode.SUPERVISED and not isinstance(
             self.adapter, SupervisedBlueStacksAdapter
         ):
             raise ServiceError(
                 "supervised mode requires the executor-bound BlueStacks adapter"
             )
-        return self.coordinator.pulse(facts, perception=perception)
+        try:
+            return self.coordinator.pulse(
+                facts, perception=perception, shadow=shadow
+            )
+        except (StateBusyError, sqlite3.OperationalError) as exc:
+            if isinstance(exc, StateBusyError) or any(
+                marker in str(exc).casefold() for marker in ("busy", "locked")
+            ):
+                return PulseReport(None, None, facts.now_utc_epoch, "SQLITE_BUSY")
+            raise
+
+    def run(
+        self,
+        flow_id: str,
+        facts: SchedulerFacts,
+        *,
+        live: bool = False,
+        perception: PerceptionEnvelope | None = None,
+        operator_request_id: str | None = None,
+    ) -> PulseReport:
+        if self.coordinator is None:
+            raise ServiceError("pulse coordinator is not configured")
+        if live and self.mode in {
+            ServiceMode.DISABLED,
+            ServiceMode.OBSERVE_ONLY,
+        }:
+            raise ServiceError(f"{self.mode.value} service cannot execute a live run")
+        if not live:
+            try:
+                return self.coordinator.shadow(
+                    facts, perception=perception, flow_id=flow_id
+                )
+            except (StateBusyError, sqlite3.OperationalError) as exc:
+                if isinstance(exc, StateBusyError) or any(
+                    marker in str(exc).casefold() for marker in ("busy", "locked")
+                ):
+                    return PulseReport(None, None, facts.now_utc_epoch, "SQLITE_BUSY")
+                raise
+        if self.state is None:
+            raise ServiceError("live runs require canonical state manager")
+        request_id = (
+            operator_request_id.strip()
+            if isinstance(operator_request_id, str) and operator_request_id.strip()
+            else f"manual:{flow_id}:{facts.account_id}:{facts.server_id}:{facts.reset_id}"
+        )
+        with _state_boundary():
+            if not self.state.get_service_enabled():
+                raise ServiceError("SERVICE_DISABLED")
+            if not self.state.get_flow_enabled(flow_id):
+                raise ServiceError("FLOW_DISABLED")
+            return self.coordinator.run_manual(
+                flow_id,
+                facts,
+                perception=perception,
+                operator_request_id=request_id,
+            )
 
     def health(self, **kwargs: Any) -> HealthSnapshot:
         if "mode" in kwargs:
