@@ -9,7 +9,7 @@ distinct; this module provides no capability, policy grant, or dispatch API.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 import math
 import re
@@ -644,7 +644,7 @@ class SafeExitBindingResult:
     projection_honesty: tuple[str, ...]
     actionability: SafeExitActionability
     authorize_dispatch: bool = False
-    metadata: Mapping[str, str] = MappingProxyType({})
+    metadata: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         _validate_binding_result(self, canonicalize=True)
