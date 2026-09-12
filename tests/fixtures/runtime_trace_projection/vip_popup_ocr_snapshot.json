@@ -18,8 +18,8 @@
     {
       "name": "title",
       "roi": [260, 390, 540, 440],
-      "transform": "resize=4x; INTER_CUBIC; BGR2GRAY; THRESH_BINARY(threshold=120,max=255)",
-      "crop_sha256": "d47c7face555bd33689dd4c78349ad78374a990748ab1d500ec8d96ee82542c4",
+      "resize_scale": 4,
+      "binary_threshold": 120,
       "config": "--psm 7",
       "text": "get pts",
       "provenance": "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/vip-points-popup-pre-dispatch.json:recognized_popup.title_text"
@@ -27,8 +27,7 @@
     {
       "name": "body",
       "roi": [120, 480, 680, 720],
-      "transform": "resize=2.5x; INTER_CUBIC",
-      "crop_sha256": "bafdc9565c684e476ff38146de018e4280cf5a862ca6a5f39547c71af9cafcbf",
+      "resize_scale": 2.5,
       "config": "--psm 6",
       "text": "int log in every day to get vip pt yp, obtaind vip pts: 180 up log in streak: 5 day(s) pts to gain tomorrow: 200",
       "provenance": "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/vip-points-popup-pre-dispatch.json:recognized_popup.body_text"
@@ -36,8 +35,7 @@
     {
       "name": "close",
       "roi": [260, 750, 540, 870],
-      "transform": "resize=3x; INTER_CUBIC",
-      "crop_sha256": "d373e9b988856891644b28ba0eb5da3384b4dde112bbc86a33e151ce59d34248",
+      "resize_scale": 3,
       "config": "--psm 7",
       "text": "close",
       "provenance": "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/vip-points-popup-pre-dispatch.json:recognized_popup.matched_close_text"

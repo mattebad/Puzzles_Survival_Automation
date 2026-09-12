@@ -240,10 +240,23 @@ class RuntimeTraceProjectionTests(unittest.TestCase):
         self.assertIsNotNone(frame)
         self.assertEqual(tuple(frame.shape), tuple(popup_snapshot["frame"]["shape"]))
 
-        recorded = {
-            (observation["crop_sha256"], observation["config"]): observation
-            for observation in popup_snapshot["observations"]
-        }
+        # Bind recorded OCR to the retained frame/ROIs, not one CPU backend's
+        # interpolated bytes. Generate expected crops with this host's OpenCV.
+        recorded = {}
+        for observation in popup_snapshot["observations"]:
+            x0, y0, x1, y1 = observation["roi"]
+            scale = observation["resize_scale"]
+            expected_crop = cv2.resize(
+                frame[y0:y1, x0:x1], None, fx=scale, fy=scale,
+                interpolation=cv2.INTER_CUBIC,
+            )
+            if "binary_threshold" in observation:
+                gray = cv2.cvtColor(expected_crop, cv2.COLOR_BGR2GRAY)
+                expected_crop = cv2.threshold(
+                    gray, observation["binary_threshold"], 255, cv2.THRESH_BINARY,
+                )[1]
+            key = (hashlib.sha256(expected_crop.tobytes()).hexdigest(), observation["config"])
+            recorded[key] = observation
 
         def replay_ocr(image, *, config):
             key = (hashlib.sha256(image.tobytes()).hexdigest(), config)
