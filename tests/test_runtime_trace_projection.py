@@ -4,9 +4,11 @@ import hashlib
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import cv2
 
+from scripts import bluestacks_popup_recognition as popup_recognition
 from scripts.bluestacks_popup_recognition import classify_popup_recovery, recognize_reset_popup
 from scripts.runtime_trace_projection import TraceStatus, project_trace
 from tasks.list_search import ListObservation, SearchStatus, inspect_list
@@ -17,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "tests" / "fixtures" / "runtime_control_sequences" / "manifest.json"
 ENHANCEMENT_FIXTURE = ROOT / "tests" / "fixtures" / "runtime_control_sequences" / "enhancement_transition.json"
 PORTABLE_REPLAY_FIXTURE = ROOT / "tests" / "fixtures" / "runtime_trace_projection" / "manifest.json"
+VIP_OCR_SNAPSHOT_FIXTURE = ROOT / "tests" / "fixtures" / "runtime_trace_projection" / "vip_popup_ocr_snapshot.json"
 
 
 class RuntimeTraceProjectionTests(unittest.TestCase):
@@ -24,6 +27,7 @@ class RuntimeTraceProjectionTests(unittest.TestCase):
     def setUpClass(cls):
         cls.corpus = json.loads(CORPUS.read_text(encoding="utf-8"))
         cls.portable_replay = json.loads(PORTABLE_REPLAY_FIXTURE.read_text(encoding="utf-8"))
+        cls.vip_ocr_snapshot = json.loads(VIP_OCR_SNAPSHOT_FIXTURE.read_text(encoding="utf-8"))
     def test_provenance_manifest_hashes_and_native_bindings_are_independent(self):
         for source in self.corpus["source_manifests"]:
             path = ROOT / source["path"]
@@ -227,9 +231,33 @@ class RuntimeTraceProjectionTests(unittest.TestCase):
         self.assertEqual(claim_search.input_count, 0)
 
         popup_asset = next(asset for asset in self.corpus["retained_assets"] if asset["consumer"] == "VIP")
-        frame = cv2.imread(str(ROOT / popup_asset["path"]), cv2.IMREAD_COLOR)
+        popup_snapshot = self.vip_ocr_snapshot
+        frame_path = ROOT / popup_asset["path"]
+        self.assertEqual(popup_snapshot["frame"]["path"], popup_asset["path"])
+        self.assertEqual(popup_snapshot["frame"]["sha256"], popup_asset["sha256"])
+        self.assertEqual(hashlib.sha256(frame_path.read_bytes()).hexdigest(), popup_snapshot["frame"]["sha256"])
+        frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
-        popup = recognize_reset_popup(frame)
+        self.assertEqual(tuple(frame.shape), tuple(popup_snapshot["frame"]["shape"]))
+
+        recorded = {
+            (observation["crop_sha256"], observation["config"]): observation
+            for observation in popup_snapshot["observations"]
+        }
+
+        def replay_ocr(image, *, config):
+            key = (hashlib.sha256(image.tobytes()).hexdigest(), config)
+            observation = recorded.get(key)
+            if observation is None:
+                raise AssertionError(f"unbound OCR crop/config request: {key}")
+            return observation["text"]
+
+        with patch.object(
+            popup_recognition.pytesseract,
+            "image_to_string",
+            side_effect=replay_ocr,
+        ):
+            popup = recognize_reset_popup(frame)
         self.assertTrue(popup["recognized"])
         vip = classify_popup_recovery(popup, source_context="vip-source", successor_context="vip-source")
         self.assertTrue(vip.recognized)

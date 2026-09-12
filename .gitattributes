@@ -4,3 +4,16 @@ docs/archive/autonomous_iteration_prompt.md -text
 tests/fixtures/runtime_trace_projection/*.jsonl -text
 # This retained Windows record uses CRLF; it must not be reserialized.
 tests/fixtures/runtime_trace_projection/enhancement-source.json -text whitespace=cr-at-eol
+
+# These existing manifests are also verified by their recorded raw-byte hashes.
+tests/fixtures/native_frame_replay_manifest.json -text
+tests/fixtures/world_map_navigation_observations.json -text
+tests/fixtures/nova_praise_preflight/manifest.json -text
+tests/fixtures/nova_praise_replay/manifest.json -text
+tests/fixtures/resource_effect_authority/historical_sessions.json -text
+tasks/assets/campaign_auto_battle/800x1280/ground-truth/tier-controls-selection/manifest.json -text
+tasks/assets/navigation/800x1280/manifest.json -text
+
+# Historical resource importer inputs also retain their recorded bytes.
+tests/fixtures/resource_effect_authority/portable/*.json -text whitespace=cr-at-eol
+tests/fixtures/resource_effect_authority/portable/*.jsonl -text whitespace=cr-at-eol
