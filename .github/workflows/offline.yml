@@ -19,6 +19,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          # Governance checks validate retained commit ancestry, not only HEAD.
+          fetch-depth: 0
       - name: Set up Python 3.11
         uses: actions/setup-python@v7
         with:

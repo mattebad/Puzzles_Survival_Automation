@@ -16,3 +16,11 @@ tasks/assets/navigation/800x1280/manifest.json -text
 # Historical resource importer inputs also retain their recorded bytes.
 tests/fixtures/resource_effect_authority/portable/*.json -text whitespace=cr-at-eol
 tests/fixtures/resource_effect_authority/portable/*.jsonl -text whitespace=cr-at-eol
+
+# The governance evidence manifest verifies these retained JSON files byte-for-byte.
+docs/research/bioenhancer_e2e_validation_manifest.json -text
+evidence/sessions/20260714-bioenhancer-e2e-validation/nav-daily-bioenhancer-go-1784079563-result.json -text
+evidence/sessions/20260714-bioenhancer-e2e-validation/bioenhancer-free-1784079616-result.json -text
+evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json -text
+evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json -text
+evidence/sessions/20260714-bioenhancer-live-transaction/daily-reconciliation-status.json -text
