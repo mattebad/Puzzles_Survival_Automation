@@ -1,6 +1,6 @@
 # DQ-FLOW-BUILDING-UPGRADE
 
-Repository authority: catalog owns `upgrade_building`; matrix owns disabled policy/status; backlog owns task.
+Repository authority: catalog owns `upgrade_building`; matrix owns disabled policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record.
 Main Quest Claim excluded.
 
 Scope: proven generic building-upgrade row only. Vehicle Depot wording is PROVEN_MAIN_OBJECTIVE

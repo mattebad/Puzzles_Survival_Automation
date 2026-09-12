@@ -1,0 +1,6 @@
+# Historical records and retained replay inputs keep their original bytes on every OS.
+docs/archive/backlog-legacy.md -text
+docs/archive/autonomous_iteration_prompt.md -text
+tests/fixtures/runtime_trace_projection/*.jsonl -text
+# This retained Windows record uses CRLF; it must not be reserialized.
+tests/fixtures/runtime_trace_projection/enhancement-source.json -text whitespace=cr-at-eol

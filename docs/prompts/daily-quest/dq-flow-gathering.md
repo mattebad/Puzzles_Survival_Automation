@@ -1,7 +1,6 @@
 # DQ-FLOW-GATHERING
 
-Repository authority: catalog owns proven `gather_wood`, `gather_steel`, and `gather_gas`; matrix owns
-state/policy; backlog owns task. Main Quest Claim excluded.
+Repository authority: catalog owns proven `gather_wood`, `gather_steel`, and `gather_gas`; matrix owns state/policy; `docs/archive/backlog-legacy.md` preserves the historical task record. Main Quest Claim is excluded.
 
 Scope: parameterized gathering family for proven Wood, Steel, and Gas rows. Gather Food/Gathered
 Food remains excluded until selected-Daily evidence qualifies it; do not create a handler owner for

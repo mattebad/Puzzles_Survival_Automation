@@ -2,7 +2,7 @@
 
 Repository authority: `tasks/daily_quest_catalog.json` owns observed Daily objective identity,
 aliases, variants, quantities, inventories, and provenance. `tasks/daily_quest_execution_matrix.json`
-owns mutable implementation state. `BACKLOG.md` owns task dependencies.
+owns mutable implementation state. `docs/archive/backlog-legacy.md` preserves the historical task record.
 
 Scope: reconcile only retained selected-Daily inventory rows. Apply the admission rule in
 `tasks/daily_quest_provenance_audit.json`: raw/lossless Bliss evidence or derived inventory,

@@ -1,6 +1,6 @@
 # DQ-FLOW-NANOWEAPON
 
-Repository authority: catalog owns `craft_nanoweapon`; matrix owns status/policy; backlog owns task. Main
+Repository authority: catalog owns `craft_nanoweapon`; matrix owns status/policy; `docs/archive/backlog-legacy.md` preserves the historical task record. Main
 Quest Claim excluded.
 
 Scope: Craft nanoweapon. Reuse Daily inventory, nanoweapon route, safe action core, evidence

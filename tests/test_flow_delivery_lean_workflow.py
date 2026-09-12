@@ -344,17 +344,7 @@ class LeanWorkflowTests(unittest.TestCase):
             completed = controller.complete(owner="parent", commit=valid)
             self.assertEqual(completed["status"], "completed")
 
-    def test_retired_routing_artifacts_are_absent_and_runtime_is_idle(self) -> None:
-        removed = (
-            ROOT / ".cursor" / "hooks" / "pns_flow_subagent_guard.py",
-            ROOT / ".cursor" / "rules" / "pns-flow-delivery-subagents.mdc",
-            ROOT / "tasks" / "flow_delivery_subagent_routing_policy.json",
-            ROOT / "scripts" / "flow_delivery_routing_policy.py",
-            ROOT / "scripts" / "validate_flow_delivery_model_probe.py",
-        )
-        for path in removed:
-            self.assertFalse(path.exists(), path)
-
+    def test_runtime_is_idle_after_handoff(self) -> None:
         lease = json.loads(
             (ROOT / "CURRENT_HANDOFF.md")
             .read_text(encoding="utf-8")

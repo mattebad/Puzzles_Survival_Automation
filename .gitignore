@@ -54,4 +54,3 @@ tests/fixtures/_tmp_*
 /artifacts/evidence-audit*.md
 agent_docs/
 .codex_workflow_hidden_resources/
-AGENTS.md

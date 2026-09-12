@@ -1,7 +1,7 @@
 # DQ-CLAIM-MILESTONE
 
 Repository authority: catalog owns objective identity; matrix owns milestone Claim status and
-policy; `BACKLOG.md` owns this task. Exclude Main Quest Claim and ordinary row Claim semantics.
+policy; `docs/archive/backlog-legacy.md` preserves the historical task record. Exclude Main Quest Claim and ordinary row Claim semantics.
 
 Scope: activity Daily milestone chest Claim, independent from row completion. Reusable components:
 selected Daily inventory, milestone recognition, safe action core, persistence contract. Route:

@@ -1,6 +1,6 @@
 # DQ-FLOW-BIOENHANCER
 
-Repository authority: catalog owns `bioenhancer_research`; matrix owns policy/status; backlog owns task.
+Repository authority: catalog owns `bioenhancer_research`; matrix owns policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record.
 Exclude Main Quest Claim and all unrelated research.
 
 Scope: Bioenhancer research. Reuse Daily inventory, research screen recognizers, safe action core,

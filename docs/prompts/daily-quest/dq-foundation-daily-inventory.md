@@ -1,7 +1,6 @@
 # DQ-FOUNDATION-DAILY-INVENTORY
 
-Repository authority: catalog owns observed identity; matrix owns current state; `BACKLOG.md`
-owns this task. Preserve validated selected Daily-tab recognition. Exclude Main Quest Claim.
+Repository authority: catalog owns observed identity; matrix owns current state; `docs/archive/backlog-legacy.md` preserves the historical task record. Preserve validated selected Daily-tab recognition. Exclude Main Quest Claim.
 
 Scope: selected Daily tab and complete inventory binding for retained inventory rows only.
 Do not promote Main Quest rows, documentation candidates, or synthetic fixture names. Reusable

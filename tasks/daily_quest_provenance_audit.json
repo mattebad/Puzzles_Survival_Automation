@@ -64,7 +64,7 @@
       "evidence_paths": [
         "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md",
         "tests/fixtures/phase_e_daily_claim_observations.json",
-        "autonomous_iteration_prompt.md"
+        "docs/archive/autonomous_iteration_prompt.md"
       ],
       "source_type": ["documentation_only", "synthetic_fixture", "planning_document"],
       "raw_or_inventory_source": [],
@@ -118,7 +118,7 @@
         "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.png",
         "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.json",
         "evidence/sessions/20260712-mvp-quest-to-claim/live-continuation-20260713.md",
-        "autonomous_iteration_prompt.md"
+        "docs/archive/autonomous_iteration_prompt.md"
       ],
       "source_type": ["raw_bliss_frame", "unclassified_ocr_capture", "documentation_only", "planning_document"],
       "raw_or_inventory_source": "evidence/sessions/20260712-mvp-quest-to-claim/live-20260713/nav-home-quest-20260713-reconcile-daily.png",

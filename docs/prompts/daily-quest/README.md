@@ -9,7 +9,7 @@ Repository authority:
   provenance.
 - `tasks/daily_quest_execution_matrix.json`: current status, policy, evidence, promotion,
   registration, persistence, and scheduler authority.
-- `BACKLOG.md`: task ownership and dependencies.
+- `docs/archive/backlog-legacy.md`: historical task ownership and dependencies for these legacy prompts.
 - `docs/daily-quest-execution-matrix.md`: human-readable matrix.
 
 Every prompt preserves these boundaries:

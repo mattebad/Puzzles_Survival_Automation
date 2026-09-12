@@ -1,7 +1,7 @@
 # DQ-FLOW-PURCHASES
 
 Repository authority: catalog owns `buy_box`, `ruins_shop_purchase`, `rare_earth_shop_purchase`,
-`alliance_shop_purchase`; matrix owns disabled policy/status; backlog owns task. Main Quest Claim
+`alliance_shop_purchase`; matrix owns disabled policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record. Main Quest Claim
 excluded.
 
 Scope: parameterized shop identity; preserve four distinct objective keys and exact shop variants.

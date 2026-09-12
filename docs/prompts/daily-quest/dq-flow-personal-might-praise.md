@@ -1,8 +1,7 @@
 # DQ-FLOW-PERSONAL-MIGHT-PRAISE
 
 Repository authority: catalog owns `personal_might_praise`; matrix owns current
-status, Policy, registration, and scheduler eligibility; `BACKLOG.md` owns the
-task. Historical Bliss Personal Might Praise evidence remains immutable but
+status, Policy, registration, and scheduler eligibility; `docs/archive/backlog-legacy.md` preserves the historical task record. Historical Bliss Personal Might Praise evidence remains immutable but
 does not authorize current gameplay.
 
 Scope: selected-Daily completion attribution only. Route: none; the provider

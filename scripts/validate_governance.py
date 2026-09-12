@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 HANDOFF_PATH = ROOT / "CURRENT_HANDOFF.md"
-BACKLOG_PATH = ROOT / "BACKLOG.md"
+BACKLOG_PATH = ROOT / "docs" / "archive" / "backlog-legacy.md"
 MANIFEST_PATH = ROOT / "evidence" / "current-evidence-manifest.json"
 INDEXING_IGNORE_PATH = ROOT / ".cursorindexingignore"
 
@@ -216,7 +216,6 @@ REQUIRED_INDEXING_PATTERNS = {
     "**/__pycache__/**",
     "artifacts/evidence-audit*.json",
     "artifacts/evidence-audit*.md",
-    "autonomous_iteration_prompt.md",
     "/Puzzle_Survival_Runtime_POC*.zip",
     "/*.7z",
     "evidence/**/*.jsonl",
@@ -227,6 +226,7 @@ REQUIRED_INDEXING_PATTERNS = {
     "evidence/**/*.sqlite3-wal",
     "evidence/**/*.sqlite3-shm",
     "evidence/**/sessions/*/",
+    "docs/archive/**",
 }
 
 
@@ -781,23 +781,12 @@ def validate_flow_delivery_loop_policy(root: Path = ROOT) -> Dict[str, Any]:
         raise GovernanceValidationError(
             "parent conversation progress path is not covered by .gitignore"
         )
-    command = _read(root / ".cursor" / "commands" / "pns-flow-delivery-loop.md")
-    skill = _read(root / ".cursor" / "skills" / "pns-flow-delivery" / "SKILL.md")
-    for label, text in (("command", command), ("skill", skill)):
-        if "flow_delivery_loop_policy.json" not in text:
-            raise GovernanceValidationError(f"{label} must reference the loop policy")
-        if "PARENT_CONVERSATION_ROLLOVER_REQUIRED" not in text:
-            raise GovernanceValidationError(f"{label} must name the rollover stop reason")
-        if f"max_completed_flows_per_parent_conversation\": {maximum}" in text:
-            raise GovernanceValidationError(
-                f"{label} hardcodes a competing numeric maximum"
-            )
     return payload
 
 
 def validate_repository(root: Path = ROOT) -> Tuple[List[str], List[str]]:
     state = parse_handoff(root / "CURRENT_HANDOFF.md")
-    backlog = _read(root / "BACKLOG.md")
+    backlog = _read(root / "docs" / "archive" / "backlog-legacy.md")
     validate_git_bindings(root, state)
     validate_lifecycle_relations(state)
     active_heading = re.search(

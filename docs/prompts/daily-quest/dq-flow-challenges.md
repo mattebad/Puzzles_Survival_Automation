@@ -1,7 +1,6 @@
 # DQ-FLOW-CHALLENGES
 
-Repository authority: catalog owns proven `ruins_challenge`; matrix owns disabled policy/status;
-backlog owns task. Ultimate Challenge is excluded as PROVEN_MAIN_OBJECTIVE. Main Quest Claim
+Repository authority: catalog owns proven `ruins_challenge`; matrix owns disabled policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record. Ultimate Challenge is excluded as PROVEN_MAIN_OBJECTIVE. Main Quest Claim
 excluded.
 
 Scope: Ruins Challenge route only. Route: Daily row → declared challenge. Source: selected-Daily

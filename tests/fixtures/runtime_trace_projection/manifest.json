@@ -1,0 +1,74 @@
+{
+  "schema_name": "runtime_trace_projection_portable_fixture_locator",
+  "schema_version": 1,
+  "source_policy": "retained_source_metadata_with_byte_equal_portable_copies",
+  "portable_copy_policy": "replay_inputs_only_no_frames_or_capture_tree",
+  "fixtures": {
+    "enhancement": {
+      "source_record": {
+        "retained_source": {
+          "manifest": "tests/fixtures/runtime_control_sequences/enhancement_transition.json",
+          "selector": "source_record",
+          "path": ".local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/flow-delivery-result.json",
+          "sha256": "bc36407fb2ede1d202d4b18ced544192c4fcb8125af3943e8364f1fb109dde0b"
+        },
+        "portable_copy": {
+          "path": "tests/fixtures/runtime_trace_projection/enhancement-source.json",
+          "bytes": 23337,
+          "sha256": "bc36407fb2ede1d202d4b18ced544192c4fcb8125af3943e8364f1fb109dde0b"
+        }
+      },
+      "event_log": {
+        "retained_source": {
+          "manifest": "tests/fixtures/runtime_control_sequences/enhancement_transition.json",
+          "selector": "event_log",
+          "path": ".local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/events.jsonl",
+          "sha256": "4a78a4a648f15ecd171b0ec2bbdc220d9659e982ecdfce0db37ae0648e7fc07b"
+        },
+        "portable_copy": {
+          "path": "tests/fixtures/runtime_trace_projection/enhancement-events.jsonl",
+          "bytes": 4277,
+          "sha256": "4a78a4a648f15ecd171b0ec2bbdc220d9659e982ecdfce0db37ae0648e7fc07b"
+        }
+      }
+    },
+    "nova_live_events": {
+      "retained_source": {
+        "manifest": "tests/fixtures/nova_praise_replay/manifest.json",
+        "selector": "cases[praise_on_cooldown].evidence_refs[dispatch_and_initial_reconciliation_journal]",
+        "path": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/events.jsonl",
+        "sha256": "275c1aab3db6c8c571a4f18818e82014b7bf8fa7cbb312f464cc01378a515f44"
+      },
+      "portable_copy": {
+        "path": "tests/fixtures/runtime_trace_projection/nova-events.jsonl",
+        "bytes": 3467,
+        "sha256": "275c1aab3db6c8c571a4f18818e82014b7bf8fa7cbb312f464cc01378a515f44"
+      }
+    },
+    "nova_reconcile_events": {
+      "retained_source": {
+        "manifest": "tests/fixtures/nova_praise_replay/manifest.json",
+        "selector": "cases[praise_on_cooldown].evidence_refs[terminal_reconciliation_journal]",
+        "path": ".local-captures/integrated-route-validation/nova-reconcile/nova-praise-20260716T194002298266Z/events.jsonl",
+        "sha256": "09021f7076d8fa57e10a6345677859507d8c8eeb3909573ef8896006b6450f5c"
+      },
+      "portable_copy": {
+        "path": "tests/fixtures/runtime_trace_projection/nova-reconcile-events.jsonl",
+        "bytes": 1405,
+        "sha256": "09021f7076d8fa57e10a6345677859507d8c8eeb3909573ef8896006b6450f5c"
+      }
+    },
+    "resource_events": {
+      "retained_source": {
+        "manifest": "tests/fixtures/resource_effect_authority/historical_sessions.json",
+        "selector": "sessions[1].events",
+        "sha256": "dcc43eb3cd5348ff2db9ec71b924add0e5af8e97824f6d23948aa98860f3a3cc"
+      },
+      "portable_copy": {
+        "path": "tests/fixtures/runtime_trace_projection/resource-events.jsonl",
+        "bytes": 8011,
+        "sha256": "dcc43eb3cd5348ff2db9ec71b924add0e5af8e97824f6d23948aa98860f3a3cc"
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # DQ-FLOW-HERO-UPGRADE
 
-Repository authority: catalog owns `upgrade_hero`; matrix owns disabled policy/status; backlog owns task.
+Repository authority: catalog owns `upgrade_hero`; matrix owns disabled policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record.
 Main Quest Claim excluded.
 
 Scope: Hero upgrade. Reuse hero identity and offline material model only. Route: Daily row →

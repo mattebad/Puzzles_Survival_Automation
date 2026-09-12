@@ -1,7 +1,7 @@
 # DQ-FLOW-ALLIANCE-HELP
 
 Repository authority: catalog owns `help_allies`; matrix owns current status,
-Policy, registration, and scheduler eligibility; `BACKLOG.md` owns the task.
+Policy, registration, and scheduler eligibility; `docs/archive/backlog-legacy.md` preserves the historical task record.
 Historical Bliss Help All and individual Help evidence remains immutable but
 does not authorize current gameplay.
 

@@ -1,6 +1,6 @@
 # DQ-FLOW-ZOMBIE-LAIR
 
-Repository authority: catalog owns `defeat_zombie_lair`; matrix owns policy/status; backlog owns task.
+Repository authority: catalog owns `defeat_zombie_lair`; matrix owns policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record.
 Main Quest Claim excluded.
 
 Scope: Defeat Zombie Lair. Reuse world/stamina engine, Daily inventory, Lair route, safe action

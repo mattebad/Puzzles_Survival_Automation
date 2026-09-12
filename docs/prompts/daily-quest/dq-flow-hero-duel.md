@@ -1,6 +1,6 @@
 # DQ-FLOW-HERO-DUEL
 
-Repository authority: catalog owns `join_hero_duel`; matrix owns disabled policy/status; backlog owns task.
+Repository authority: catalog owns `join_hero_duel`; matrix owns disabled policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record.
 Main Quest Claim excluded.
 
 Scope: Join Hero Duel. Reuse Hero Duel identity and offline eligibility model only. Route: Daily
