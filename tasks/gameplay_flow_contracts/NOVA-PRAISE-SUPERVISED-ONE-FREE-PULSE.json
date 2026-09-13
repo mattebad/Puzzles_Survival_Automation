@@ -479,11 +479,11 @@
   "supervised_live_proof_state": "current",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
-    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r13",
+    "product_authority_digest": "13a3b12051a89f25e926875fc9d085aa5c220c6eb3904375d147e34f302a67d6",
     "product_record_id": "nova_praise",
-    "product_record_revision": "nova_praise-v1",
-    "product_record_digest": "959fe8201ce0250dcab494dc65f930cf52c753b1ac5833d22bcb3a1abea2b2ae",
+    "product_record_revision": "nova_praise-v2",
+    "product_record_digest": "812414f2b3b34ddd692fad76e90cb11df7faf35c713c3147d1ef73511c9d27f8",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

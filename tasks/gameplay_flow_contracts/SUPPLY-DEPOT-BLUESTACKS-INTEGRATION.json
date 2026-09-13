@@ -181,11 +181,11 @@
   "registration_state": "disabled",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
-    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r13",
+    "product_authority_digest": "13a3b12051a89f25e926875fc9d085aa5c220c6eb3904375d147e34f302a67d6",
     "product_record_id": "supply_depot",
-    "product_record_revision": "supply_depot-v1",
-    "product_record_digest": "667ff4961534fa5f667e7875b937f9b14e771f03a33e99698b8c43b2e8da80f2",
+    "product_record_revision": "supply_depot-v2",
+    "product_record_digest": "8e83ec05a3fee83474170eb27a157533a98b162bb6374460108c0b099b0e0412",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

@@ -30,12 +30,26 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - name: Install developer dependencies
         run: python -m pip install --requirement requirements-dev.txt
+      - name: Install offline fixture OCR on Linux
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+      - name: Install offline fixture OCR on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install tesseract --version=5.5.3.20260724 --no-progress -y
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "C:\Program Files\Tesseract-OCR" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Run deterministic offline checks
         run: python scripts/check.py
       - name: Run REC-F01 provenance regressions
         run: python -m unittest tests.test_automation_service_boundaries tests.test_automation_service_temporal
+      - name: Run REC-D01 catalog policy regressions
+        run: python -m unittest tests.test_daily_quest_planning tests.test_catalog_and_pnsctl tests.test_product_authority tests.test_gameplay_flow_contracts
       - name: Run REC-F05 read-only scheduling regressions
         run: python -m unittest tests.test_automation_service_canonical_authority tests.test_automation_service_cli tests.test_automation_service_scheduler_canonical tests.test_pnsctl_scheduler_pulse
+      - name: Run REC-F08 evidence accounting regressions
+        run: python -m unittest tests.test_bluestacks_native_runtime tests.test_pnsctl_scheduler_pulse tests.test_world_map_navigation_bluestacks
       - name: Run directly affected cleanup regressions
         run: >-
           python -m unittest

@@ -90,5 +90,16 @@ Relevant broader unittest modules may be run separately when working on a subsys
 python -m unittest tests.test_automation_service_state
 ```
 
+The broader `tests.test_world_map_navigation_bluestacks` fixture replay requires a local
+`tesseract` executable on `PATH` (CI installs it). Its checked-in World HUD and Search-menu
+PNGs are authorized byte-exact copies of retained captures, not fresh native acceptance.
+
+New native-runtime capture files use portable filename components; original semantic labels
+remain in structured events. `actions.jsonl` records each canonical action once, including
+failed or unresolved attempts. `transport_attempted_count` counts actual dispatch attempts;
+`semantic_completed_count` requires a confirmed semantic outcome, not successful transport
+or a retained screenshot. Historical evidence paths are not rewritten, and none of these
+records enables a flow or authorizes retry.
+
 Neither the small offline check nor an offline unittest run is a full-suite or live BlueStacks/ADB
 claim. Native/device operations are separate, supervised work and are not part of repository checks.
