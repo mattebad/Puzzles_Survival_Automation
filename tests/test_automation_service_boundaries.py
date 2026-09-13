@@ -355,6 +355,200 @@ class RuntimeBoundaryTests(unittest.TestCase):
         session = RuntimeSession(manager, adapter, flow_id=FLOW_ID, reset_id=RESET_ID, max_inputs=2, max_actions=2)
         self.assertIsNotNone(session.claim())
         return session
+    def test_denied_borrowed_session_preserves_current_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            state = manager(Path(folder) / "state.sqlite3")
+            try:
+                lease = state.acquire_service_lease(
+                    now_utc_epoch=1.0,
+                    lease_ttl_seconds=60.0,
+                )
+                self.assertIsNotNone(lease)
+                assert lease is not None
+                state.set_flow_enabled(FLOW_ID, False, now_utc_epoch=2.0)
+                session = RuntimeSession(
+                    state,
+                    SequenceAdapter([frame("denied")]),
+                    flow_id=FLOW_ID,
+                    reset_id=RESET_ID,
+                    owner_instance_id=state.owner_instance_id,
+                    process_start_token=state.process_start_token,
+                    lease_generation=lease.lease_generation,
+                    utc_clock=lambda: 2.0,
+                )
+                self.assertIsNone(session.claim())
+                session.close()
+                current = state.get_service_lease()
+                self.assertEqual(current.owner_instance_id, lease.owner_instance_id)
+                self.assertEqual(current.process_start_token, lease.process_start_token)
+                self.assertEqual(current.lease_generation, lease.lease_generation)
+                self.assertEqual(current.heartbeat_at_utc, lease.heartbeat_at_utc)
+                self.assertEqual(current.expires_at_utc, lease.expires_at_utc)
+                self.assertEqual(current.row_version, lease.row_version)
+            finally:
+                state.close()
+
+    def test_denied_acquired_session_releases_exact_lease_once(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            state = manager(Path(folder) / "state.sqlite3")
+            try:
+                state.set_flow_enabled(FLOW_ID, False, now_utc_epoch=2.0)
+                original_release = state.release_service_lease
+                release_calls: list[dict[str, object]] = []
+
+                def counted_release(
+                    *,
+                    owner_instance_id: str | None = None,
+                    process_start_token: str | None = None,
+                    lease_generation: int | None = None,
+                ) -> bool:
+                    release_calls.append(
+                        {
+                            "owner_instance_id": owner_instance_id,
+                            "process_start_token": process_start_token,
+                            "lease_generation": lease_generation,
+                        }
+                    )
+                    return original_release(
+                        owner_instance_id=owner_instance_id,
+                        process_start_token=process_start_token,
+                        lease_generation=lease_generation,
+                    )
+
+                state.release_service_lease = counted_release  # type: ignore[method-assign]
+                session = RuntimeSession(
+                    state,
+                    SequenceAdapter([frame("denied")]),
+                    flow_id=FLOW_ID,
+                    reset_id=RESET_ID,
+                    owner_instance_id=state.owner_instance_id,
+                    process_start_token=state.process_start_token,
+                    utc_clock=lambda: 2.0,
+                )
+                self.assertIsNone(session.claim())
+                session.close()
+                self.assertEqual(len(release_calls), 1)
+                self.assertEqual(release_calls[0]["owner_instance_id"], state.owner_instance_id)
+                self.assertEqual(release_calls[0]["process_start_token"], state.process_start_token)
+                self.assertEqual(release_calls[0]["lease_generation"], 1)
+                current = state.get_service_lease()
+                self.assertIsNone(current.owner_instance_id)
+                self.assertIsNone(current.process_start_token)
+                self.assertEqual(current.lease_generation, 2)
+            finally:
+                state.close()
+    def test_close_preserves_lease_when_any_run_fence_drifts(self) -> None:
+        for field, value in (
+            ("owner_instance_id", "wrong-owner"),
+            ("process_start_token", "wrong-process"),
+            ("lease_generation", 2),
+            ("run_token", "wrong-run-token"),
+        ):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as folder:
+                state = BotStateManager(
+                    Path(folder) / "state.sqlite3",
+                    owner_instance_id="probe-owner",
+                    process_start_token="probe-process",
+                )
+                try:
+                    state.initialize_flows([FlowSpec(FLOW_ID, cadence="daily")])
+                    state.set_service_enabled(True, now_utc_epoch=1.0)
+                    state.set_flow_enabled(FLOW_ID, True, now_utc_epoch=1.0)
+                    session = RuntimeSession(
+                        state,
+                        SequenceAdapter([frame("fence")]),
+                        flow_id=FLOW_ID,
+                        reset_id=RESET_ID,
+                        owner_instance_id="probe-owner",
+                        process_start_token="probe-process",
+                        utc_clock=lambda: 2.0,
+                    )
+                    run = session.claim()
+                    self.assertIsNotNone(run)
+                    assert run is not None
+                    setattr(session, field, value)
+                    session.close()
+                    current_run = state.get_run(run.run_id)
+                    current_lease = state.get_service_lease()
+                    self.assertIsNotNone(current_run)
+                    assert current_run is not None
+                    self.assertEqual(current_run.state, RunState.RUNNING)
+                    self.assertEqual(current_lease.owner_instance_id, "probe-owner")
+                    self.assertEqual(current_lease.process_start_token, "probe-process")
+                finally:
+                    state.close()
+
+    def test_session_release_cas_rejects_retry_claimed_between_projection_and_release(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            state = BotStateManager(
+                Path(folder) / "state.sqlite3",
+                owner_instance_id="probe-owner",
+                process_start_token="probe-process",
+            )
+            try:
+                state.initialize_flows([FlowSpec(FLOW_ID, cadence="daily")])
+                state.set_service_enabled(True, now_utc_epoch=1.0)
+                state.set_flow_enabled(FLOW_ID, True, now_utc_epoch=1.0)
+                session_a = RuntimeSession(
+                    state,
+                    SequenceAdapter([frame("a")]),
+                    flow_id=FLOW_ID,
+                    reset_id=RESET_ID,
+                    owner_instance_id="probe-owner",
+                    process_start_token="probe-process",
+                    utc_clock=lambda: 2.0,
+                )
+                run_a = session_a.claim()
+                self.assertIsNotNone(run_a)
+                assert run_a is not None
+                original_release = state.release_service_lease
+                session_b_holder: list[RuntimeSession] = []
+
+                def interleaved_release(
+                    *,
+                    owner_instance_id: str | None = None,
+                    process_start_token: str | None = None,
+                    lease_generation: int | None = None,
+                    run_id: str | None = None,
+                    run_token: str | None = None,
+                ) -> bool:
+                    if run_id == run_a.run_id and not session_b_holder:
+                        session_b = RuntimeSession(
+                            state,
+                            SequenceAdapter([frame("b")]),
+                            flow_id=FLOW_ID,
+                            reset_id=RESET_ID,
+                            owner_instance_id="probe-owner",
+                            process_start_token="probe-process",
+                            utc_clock=lambda: 2.0,
+                        )
+                        run_b = session_b.claim()
+                        self.assertIsNotNone(run_b)
+                        session_b_holder.append(session_b)
+                    return original_release(
+                        owner_instance_id=owner_instance_id,
+                        process_start_token=process_start_token,
+                        lease_generation=lease_generation,
+                        run_id=run_id,
+                        run_token=run_token,
+                    )
+
+                state.release_service_lease = interleaved_release  # type: ignore[method-assign]
+                session_a.release(
+                    outcome="BLOCKED",
+                    reason="retry",
+                    retry_not_before_utc=2.0,
+                )
+                lease_after_a = state.get_service_lease()
+                self.assertEqual(lease_after_a.owner_instance_id, "probe-owner")
+                self.assertEqual(lease_after_a.process_start_token, "probe-process")
+                self.assertEqual(state.get_run(run_a.run_id).state, RunState.RUNNING)
+                session_b_holder[0].close()
+                self.assertIsNone(state.get_service_lease().owner_instance_id)
+            finally:
+                state.close()
+
+
 
     def test_adapter_cannot_relabel_an_old_session_capture(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

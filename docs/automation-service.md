@@ -30,6 +30,10 @@ Campaign/Home semantics remain the source contracts.
   because fresh capture ordinals distinguish events on coarse-resolution clocks.
 - Full-frame animation variance is not a source/target change when authoritative stable ROIs
   still match. Unsupported mutable payload types fail closed rather than losing shape or type.
+- Denied sessions preserve borrowed service leases. Fresh admission leases are released
+  only by their exact owner/process/generation fence, including after claim rollback.
+  Run-associated release also checks the run token atomically, so a retried or different
+  active run cannot lose ownership to an older session's cleanup.
 
 ## Local checks
 

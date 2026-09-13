@@ -208,6 +208,91 @@ class AutomationServiceStateTests(unittest.TestCase):
                     stale.close()
             finally:
                 manager.close()
+    def test_denied_implicit_claim_releases_only_its_fresh_lease(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manager, generation = bootstrap_manager(Path(folder) / "state.sqlite3")
+            try:
+                self.assertTrue(
+                    manager.release_service_lease(
+                        owner_instance_id="owner-a",
+                        process_start_token="process-a",
+                        lease_generation=generation,
+                    )
+                )
+                manager.set_flow_enabled(FLOW_ID, False, now_utc_epoch=101.0)
+                before = manager.get_service_lease()
+                self.assertIsNone(
+                    manager.claim_occurrence(
+                        FLOW_ID,
+                        RESET_ID,
+                        now_utc_epoch=102.0,
+                        max_inputs=4,
+                        max_actions=4,
+                    )
+                )
+                after = manager.get_service_lease()
+                self.assertIsNone(after.owner_instance_id)
+                self.assertIsNone(after.process_start_token)
+                self.assertEqual(after.lease_generation, before.lease_generation + 2)
+                self.assertEqual(after.row_version, before.row_version + 2)
+            finally:
+                manager.close()
+
+    def test_lease_and_run_fences_reject_every_mismatching_identity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manager, generation = bootstrap_manager(Path(folder) / "state.sqlite3")
+            try:
+                lease_before = manager.get_service_lease()
+                for kwargs in (
+                    {"owner_instance_id": "owner-b"},
+                    {"process_start_token": "process-b"},
+                    {"lease_generation": generation + 1},
+                ):
+                    release_kwargs = {
+                        "owner_instance_id": "owner-a",
+                        "process_start_token": "process-a",
+                        "lease_generation": generation,
+                    }
+                    release_kwargs.update(kwargs)
+                    self.assertFalse(manager.release_service_lease(**release_kwargs))
+                    lease_after = manager.get_service_lease()
+                    self.assertEqual(lease_after.owner_instance_id, lease_before.owner_instance_id)
+                    self.assertEqual(lease_after.process_start_token, lease_before.process_start_token)
+                    self.assertEqual(lease_after.lease_generation, lease_before.lease_generation)
+
+                run = claim(manager, generation)
+                self.assertIsNotNone(run)
+                assert run is not None
+                for kwargs in (
+                    {"owner_instance_id": "owner-b"},
+                    {"process_start_token": "process-b"},
+                    {"run_token": "stale-run-token"},
+                    {"lease_generation": generation + 1},
+                ):
+                    auth = run_auth(run)
+                    auth.update(kwargs)
+                    self.assertIsNone(
+                        manager.transition_run(
+                            run.run_id,
+                            RunState.RUNNING,
+                            expected_state=RunState.CLAIMED,
+                            **auth,
+                            now_utc_epoch=102.0,
+                        )
+                    )
+                    self.assertEqual(manager.get_service_lease().owner_instance_id, "owner-a")
+                self.assertIsNotNone(
+                    manager.transition_run(
+                        run.run_id,
+                        RunState.RUNNING,
+                        expected_state=RunState.CLAIMED,
+                        **run_auth(run),
+                        now_utc_epoch=103.0,
+                    )
+                )
+            finally:
+                manager.close()
+
 
     def test_owner_and_run_tokens_are_required_for_action_mutation(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -283,6 +368,7 @@ class AutomationServiceStateTests(unittest.TestCase):
                 run = claim(manager, generation)
                 self.assertIsNotNone(run)
                 assert run is not None
+
                 run = start_running(manager, run)
                 action = manager.reserve_action(run.run_id, "refund-cancel", "tap", input_cost=2, **run_auth(run), now_utc_epoch=102.0)
                 self.assertIsNotNone(action)
@@ -306,6 +392,79 @@ class AutomationServiceStateTests(unittest.TestCase):
                 self.assertEqual(manager.get_run(run.run_id).consumed_inputs, 1)
             finally:
                 manager.close()
+    def test_invalid_implicit_claim_releases_lease_after_transaction_rollback(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manager, generation = bootstrap_manager(Path(folder) / "state.sqlite3")
+            try:
+                self.assertTrue(
+                    manager.release_service_lease(
+                        owner_instance_id="owner-a",
+                        process_start_token="process-a",
+                        lease_generation=generation,
+                    )
+                )
+                with self.assertRaisesRegex(ValueError, "run_token must be non-empty text"):
+                    manager.claim_occurrence(
+                        FLOW_ID,
+                        RESET_ID,
+                        now_utc_epoch=102.0,
+                        max_inputs=4,
+                        max_actions=4,
+                        run_token="",
+                    )
+                lease = manager.get_service_lease()
+                self.assertIsNone(lease.owner_instance_id)
+                self.assertIsNone(lease.process_start_token)
+                self.assertEqual(lease.lease_generation, generation + 3)
+            finally:
+                manager.close()
+    def test_implicit_admission_stale_snapshot_cannot_clear_borrowed_lease(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manager, generation = bootstrap_manager(Path(folder) / "state.sqlite3")
+            try:
+                self.assertTrue(
+                    manager.release_service_lease(
+                        owner_instance_id="owner-a",
+                        process_start_token="process-a",
+                        lease_generation=generation,
+                    )
+                )
+                original_get = manager.get_service_lease
+                original_acquire = manager.acquire_service_lease
+                snapshot = original_get()
+                interleaved = False
+
+                def stale_snapshot():
+                    nonlocal interleaved
+                    if not interleaved:
+                        interleaved = True
+                        self.assertIsNotNone(
+                            original_acquire(
+                                owner_instance_id="shared-owner",
+                                process_start_token="shared-process",
+                                now_utc_epoch=102.0,
+                            )
+                        )
+                    return snapshot
+
+                manager.get_service_lease = stale_snapshot  # type: ignore[method-assign]
+                self.assertIsNone(
+                    manager.claim_occurrence(
+                        FLOW_ID,
+                        RESET_ID,
+                        now_utc_epoch=102.0,
+                        max_inputs=4,
+                        max_actions=4,
+                    )
+                )
+                manager.get_service_lease = original_get  # type: ignore[method-assign]
+                current = manager.get_service_lease()
+                self.assertEqual(current.owner_instance_id, "shared-owner")
+                self.assertEqual(current.process_start_token, "shared-process")
+                self.assertEqual(current.lease_generation, generation + 2)
+            finally:
+                manager.close()
+
 
     def test_terminal_projection_reports_compare_and_set_failure(self):
         with tempfile.TemporaryDirectory() as folder:
