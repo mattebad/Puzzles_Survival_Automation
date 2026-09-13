@@ -7280,11 +7280,13 @@ def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
         RecurrenceProjection,
         SchedulerFacts,
     )
+    from automation_service.registry import canonical_flow_specs
     from automation_service.service import AutomationService
     from automation_service.state import BotStateManager, resolve_state_path
 
     state_path = Path(resolve_state_path(args.state_path))
     with BotStateManager(state_path) as state:
+        state.initialize_flows(canonical_flow_specs())
         service = AutomationService(mode="dry_run", state=state)
         flow_id = getattr(args, "flow_id", None)
         if flow_id is None:

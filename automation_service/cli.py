@@ -228,6 +228,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     adapter = _adapter(args.adapter)
     state_path = Path(resolve_state_path(args.state_path))
+    observation_only = args.command == "shadow" or (
+        args.command == "run" and not args.live
+    )
 
     if args.command in {
         "enable",
@@ -240,7 +243,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "shadow",
     }:
         try:
-            with BotStateManager(state_path) as state:
+            with BotStateManager(
+                state_path, read_only=observation_only
+            ) as state:
                 service = AutomationService(
                     mode=args.mode,
                     adapter=adapter,
