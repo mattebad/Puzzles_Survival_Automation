@@ -266,6 +266,14 @@ class _CanonicalPulseCoordinator:
             RecurrenceClass.MARCH_GENERATION,
         } and projection.generation is not None:
             values = (recurrence_class.value, projection.generation)
+        elif recurrence_class is RecurrenceClass.RESET_BOUNDED:
+            values = (
+                recurrence_class.value,
+                projection.ready_batch_id,
+                projection.repeat_ordinal,
+                projection.revision_within_reset,
+                projection.repeat_limit,
+            )
         elif recurrence_class is RecurrenceClass.BOUNDED_REPEAT:
             values = (
                 recurrence_class.value,
@@ -325,15 +333,8 @@ class _CanonicalPulseCoordinator:
 
         recurrence_class = descriptor.recurrence_class
         projection = cls._recurrence_projection(descriptor, facts)
-        if recurrence_class is None or recurrence_class in {
-            RecurrenceClass.DAILY_ONCE_PER_RESET,
-            RecurrenceClass.RESET_BOUNDED,
-        }:
-            kind = (
-                "daily"
-                if recurrence_class is None
-                else recurrence_class.value
-            )
+        if recurrence_class is None or recurrence_class is RecurrenceClass.DAILY_ONCE_PER_RESET:
+            kind = "daily" if recurrence_class is None else recurrence_class.value
             basis = facts.reset_id
             return {
                 "occurrence_kind": kind,
@@ -346,7 +347,37 @@ class _CanonicalPulseCoordinator:
                     occurrence_basis=basis,
                 ),
             }
-
+        if recurrence_class is RecurrenceClass.RESET_BOUNDED:
+            if (
+                projection is None
+                or projection.ready_batch_id is None
+                or projection.revision_within_reset is None
+            ):
+                raise ValueError("reset-bounded occurrence requires canonical ready batch")
+            if projection.repeat_limit is None:
+                raise ValueError("reset-bounded occurrence requires repeat limit")
+            batch_id = projection.ready_batch_id
+            revision = projection.revision_within_reset
+            basis = facts.reset_id
+            return {
+                "occurrence_kind": recurrence_class.value,
+                "occurrence_basis": basis,
+                "ready_batch_id": batch_id,
+                "revision_within_reset": revision,
+                "occurrence_limit": projection.repeat_limit,
+                "ordinal": occurrence_ordinal,
+                "ui_changed": projection.ui_changed,
+                "reconciled": projection.reconciled,
+                "occurrence_key": BotStateManager.occurrence_key(
+                    descriptor.flow_id,
+                    facts.reset_id,
+                    occurrence_ordinal,
+                    occurrence_kind=recurrence_class.value,
+                    occurrence_basis=basis,
+                    ready_batch_id=batch_id,
+                    revision_within_reset=revision,
+                ),
+            }
         kind = recurrence_class.value
         retry_basis = (
             state.next_occurrence_basis
@@ -469,6 +500,14 @@ class _CanonicalPulseCoordinator:
             return True
         if projection is not None and projection.recurrence_class is not expected:
             return False
+        if expected is RecurrenceClass.RESET_BOUNDED and (
+            projection is None
+            or projection.ready_batch_id is None
+            or projection.revision_within_reset is None
+            or projection.repeat_limit is None
+            or projection.repeat_ordinal >= projection.repeat_limit
+        ):
+            return False
         if expected in {
             RecurrenceClass.COOLDOWN,
             RecurrenceClass.TIMER,
@@ -578,24 +617,42 @@ class _CanonicalPulseCoordinator:
             state = self.state.get_flow(descriptor.flow_id)
             if state is None or not state.enabled or state.blocked:
                 continue
-            reset_scoped = self._is_reset_scoped(descriptor)
-            if mode == "scheduled" and reset_scoped and (
-                state.reset_id not in (None, facts.reset_id)
-            ):
-                # A reset rollover gets ordinal zero.  The normal path persists
-                # this rollover immediately before claiming; shadow does not.
-                ordinal = 0
-            else:
-                ordinal = state.next_occurrence_key
             if (
                 mode == "scheduled"
-                and reset_scoped
+                and descriptor.recurrence_class is RecurrenceClass.DAILY_ONCE_PER_RESET
                 and state.reset_id == facts.reset_id
                 and state.next_occurrence_key > 0
             ):
-                # Reset-scoped occurrences are admitted once per reset. The
-                # ordinal remains the durable proof that one already advanced.
+                # Daily-once consumes the reset's sole ordinal. RESET_BOUNDED
+                # deliberately admits each ordinal up to its durable limit.
                 continue
+            projection = self._recurrence_projection(descriptor, facts)
+            if (
+                mode == "scheduled"
+                and descriptor.recurrence_class is RecurrenceClass.RESET_BOUNDED
+                and projection is not None
+            ):
+                limit = (
+                    state.occurrence_limit
+                    if state.reset_id == facts.reset_id and state.occurrence_limit is not None
+                    else projection.repeat_limit
+                )
+                if limit is None or state.next_occurrence_key >= limit:
+                    continue
+                candidate_batch = (
+                    projection.ready_batch_id,
+                    projection.revision_within_reset,
+                )
+                if state.next_ready_batch_id is not None and candidate_batch != (
+                    state.next_ready_batch_id,
+                    state.next_revision_within_reset,
+                ) and not (projection.ui_changed and projection.reconciled):
+                    continue
+                if state.next_ready_batch_id is None and state.last_ready_batch_id is not None and candidate_batch == (
+                    state.last_ready_batch_id,
+                    state.last_revision_within_reset,
+                ):
+                    continue
             if state.next_due_at_utc is not None and state.next_due_at_utc > now:
                 continue
             if state.consecutive_failures >= state.max_attempts:
@@ -607,11 +664,10 @@ class _CanonicalPulseCoordinator:
                 continue
             if not self._recurrence_allows(descriptor, facts, now):
                 continue
-            projection_key = self._projection_key(
-                self._recurrence_projection(descriptor, facts)
-            )
+            projection_key = self._projection_key(projection)
             if (
                 mode == "scheduled"
+                and descriptor.recurrence_class is not RecurrenceClass.RESET_BOUNDED
                 and projection_key is not None
                 and state.last_accepted_projection_key == projection_key
             ):
@@ -754,10 +810,23 @@ class _CanonicalPulseCoordinator:
             }
             if state.eligible_since_utc is None or reset_changed:
                 updates["eligible_since_utc"] = now
-            if "timer_slot" in binding:
+            if "occurrence_limit" in binding and (
+                state.next_ready_batch_id is None
+                or (
+                    state.next_ready_batch_id == binding["ready_batch_id"]
+                    and state.next_revision_within_reset == binding["revision_within_reset"]
+                )
+            ):
+                if state.occurrence_limit is None:
+                    updates["occurrence_limit"] = binding["occurrence_limit"]
+                updates["next_ready_batch_id"] = binding["ready_batch_id"]
+                updates["next_revision_within_reset"] = binding["revision_within_reset"]
+            if "timer_slot" in binding and (
+                state.schedule_anchor_utc is None
+                or state.next_occurrence_basis != binding["occurrence_basis"]
+            ):
                 updates["schedule_anchor_utc"] = binding["timer_slot"]
             self.state.update_schedule(descriptor.flow_id, **updates)
-
     @staticmethod
     def _run_state(result: NormalizedResult) -> RunState:
         if result.outcome is NormalizedOutcome.DEFERRED:
@@ -816,6 +885,7 @@ class _CanonicalPulseCoordinator:
         return SchedulerAwareTaskResult.reconciliation_required(
             identity, result.reason_code, **kwargs
         )
+
     @staticmethod
     def _unknown_result(
         identity: SchedulerIdentity, reason: str
@@ -838,10 +908,8 @@ class _CanonicalPulseCoordinator:
 
         if terminal_state is not RunState.FAILED or state is None:
             return None
-        # The first retry is one second later; each subsequent failure doubles
-        # the delay, capped to keep a damaged route from monopolizing a pulse.
-        return now + float(2 ** min(state.consecutive_failures, 10))
-
+        base = max(2.0, float(state.retry_backoff_seconds))
+        return now + min(3_600.0, base * 2 ** min(state.consecutive_failures, 10))
     def _project_terminal(
         self,
         run: RunRecord,
@@ -861,7 +929,7 @@ class _CanonicalPulseCoordinator:
         project = getattr(self.state, "project_terminal", None)
         if not callable(project):
             raise TerminalProjectionError("TERMINAL_PROJECTION_UNAVAILABLE")
-        kwargs = {
+        kwargs: dict[str, object] = {
             "owner_instance_id": run.owner_instance_id,
             "process_start_token": run.process_start_token,
             "run_token": run.run_token,
@@ -870,10 +938,12 @@ class _CanonicalPulseCoordinator:
             "expected_row_version": expected_row_version,
             "outcome": outcome,
             "reason": reason,
-            "next_due_at_utc": next_due_at_utc,
-            "retry_not_before_utc": retry_not_before_utc,
             "now_utc_epoch": now,
         }
+        if next_due_at_utc is not None:
+            kwargs["next_due_at_utc"] = next_due_at_utc
+        if retry_not_before_utc is not None:
+            kwargs["retry_not_before_utc"] = retry_not_before_utc
         if accepted_projection_key is not None:
             kwargs["accepted_projection_key"] = accepted_projection_key
         projected = project(run.run_id, terminal_state, **kwargs)
@@ -1050,6 +1120,44 @@ class _CanonicalPulseCoordinator:
                     return PulseReport(
                         None, None, self._next_wake(now, facts), reason
                     )
+                if mode == "scheduled":
+                    exhausted_descriptors = tuple(
+                        item
+                        for item in self.descriptors
+                        if (flow_id is None or item.flow_id == flow_id)
+                        and item.recurrence_class is RecurrenceClass.RESET_BOUNDED
+                    )
+                    for exhausted_descriptor in exhausted_descriptors:
+                        exhausted_state = self.state.get_flow(
+                            exhausted_descriptor.flow_id
+                        )
+                        exhausted_projection = self._recurrence_projection(
+                            exhausted_descriptor, facts
+                        )
+                        limit = (
+                            exhausted_state.occurrence_limit
+                            if exhausted_state is not None and exhausted_state.occurrence_limit is not None
+                            else exhausted_projection.repeat_limit if exhausted_projection is not None else None
+                        )
+                        if (
+                            exhausted_state is not None
+                            and exhausted_state.enabled
+                            and not exhausted_state.blocked
+                            and exhausted_state.reset_id in (None, facts.reset_id)
+                            and limit is not None
+                            and exhausted_state.next_occurrence_key >= limit
+                        ):
+                            self.state.block_flow(
+                                exhausted_descriptor.flow_id,
+                                "RESET_BOUNDED_EXHAUSTED",
+                                now_utc_epoch=now,
+                            )
+                            return PulseReport(
+                                None,
+                                None,
+                                self._next_wake(now, facts),
+                                "RESET_BOUNDED_EXHAUSTED",
+                            )
                 return PulseReport(
                     None, None, self._next_wake(now, facts), "NO_ELIGIBLE_TASK"
                 )
@@ -1080,7 +1188,23 @@ class _CanonicalPulseCoordinator:
 
             # Selection is read-only; persist only the selected reset rollover
             # and recurrence anchor immediately before asking SQLite to claim.
-
+            preparation_state = self.state.get_flow(candidate.descriptor.flow_id)
+            def restore_preparation() -> None:
+                if preparation_state is None:
+                    return
+                try:
+                    self.state.update_schedule(
+                        candidate.descriptor.flow_id,
+                        next_occurrence_key=preparation_state.next_occurrence_key,
+                        next_occurrence_basis=preparation_state.next_occurrence_basis,
+                        next_occurrence_kind=preparation_state.next_occurrence_kind,
+                        occurrence_limit=preparation_state.occurrence_limit,
+                        next_ready_batch_id=preparation_state.next_ready_batch_id,
+                        next_revision_within_reset=preparation_state.next_revision_within_reset,
+                        now_utc_epoch=now,
+                    )
+                except Exception:
+                    pass
             try:
                 self._prepare_claim(
                     facts,
@@ -1123,14 +1247,17 @@ class _CanonicalPulseCoordinator:
                     **claim_values,
                 )
             except StateBusyError:
+                restore_preparation()
                 return PulseReport(
                     candidate, None, self._next_wake(now, facts), "SQLITE_BUSY"
                 )
             except (TypeError, ValueError):
+                restore_preparation()
                 return PulseReport(
                     candidate, None, self._next_wake(now, facts), "CLAIM_UNAVAILABLE"
                 )
             if claim is None:
+                restore_preparation()
                 return PulseReport(
                     candidate, None, self._next_wake(now, facts), "CLAIM_UNAVAILABLE"
                 )
@@ -1277,10 +1404,31 @@ class _CanonicalPulseCoordinator:
                 normalized = _admit_normalized_result(
                     normalized, candidate.descriptor, handler
                 )
-                scheduler_result = self._to_scheduler_result(
-                    candidate.identity, normalized
-                )
                 terminal_state = self._run_state(normalized)
+                current_flow = self.state.get_flow(running.flow_id)
+                if (
+                    terminal_state is RunState.FAILED
+                    and current_flow is not None
+                    and current_flow.consecutive_failures + 1 >= current_flow.max_attempts
+                ):
+                    normalized = NormalizedResult(
+                        NormalizedOutcome.BLOCKED,
+                        "RETRY_EXHAUSTED",
+                        action_count=normalized.action_count,
+                        verified=False,
+                        observed_progress=normalized.observed_progress,
+                        consequence=normalized.consequence,
+                        evidence_refs=normalized.evidence_refs,
+                        unresolved_action=False,
+                    )
+                    scheduler_result = self._to_scheduler_result(
+                        candidate.identity, normalized
+                    )
+                    terminal_state = RunState.BLOCKED
+                else:
+                    scheduler_result = self._to_scheduler_result(
+                        candidate.identity, normalized
+                    )
             except Exception as exc:
                 scheduler_result = SchedulerAwareTaskResult.reconciliation_required(
                     candidate.identity,
