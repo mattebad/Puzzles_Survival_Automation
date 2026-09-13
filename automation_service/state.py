@@ -389,7 +389,9 @@ class BotStateManager:
     Every mutation uses a short ``BEGIN IMMEDIATE`` transaction and commits
     before returning.  This manager never runs external work in a transaction;
     callers reserve or transition state, perform external work, then record its
-    result in a later transaction.
+    result in a later transaction.  ``read_only`` opens an existing database
+    with SQLite's query-only guard; a missing target is represented by an
+    isolated in-memory schema.
     """
 
     DEFAULT_DB_PATH = (
@@ -404,11 +406,15 @@ class BotStateManager:
         process_start_token: str | None = None,
         process_id: int | None = None,
         busy_timeout_ms: int = 5_000,
+        read_only: bool = False,
     ) -> None:
         if type(busy_timeout_ms) is not int or busy_timeout_ms < 1:
             raise ValueError("busy_timeout_ms must be a positive integer")
+        if type(read_only) is not bool:
+            raise ValueError("read_only must be bool")
         resolved_path = resolve_state_path(db_path)
         self.db_path = str(resolved_path)
+        self.read_only = read_only
         self.owner_instance_id = _text(
             f"bot-{uuid4().hex}" if owner_instance_id is None else owner_instance_id,
             "owner_instance_id",
@@ -421,20 +427,48 @@ class BotStateManager:
         if type(self.process_id) is not int or self.process_id < 0:
             raise ValueError("process_id must be a non-negative integer")
         self._lock = threading.RLock()
-        if self.db_path not in {":memory:", ""}:
+        isolated = self.db_path in {":memory:", ""} or not Path(self.db_path).is_file()
+        self._isolated_read_only = bool(read_only and isolated)
+        self._schema_bootstrap = False
+        if not read_only and self.db_path not in {":memory:", ""}:
             Path(self.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
+        connect_path = self.db_path
+        connect_kwargs: dict[str, object] = {}
+        if read_only and not self._isolated_read_only:
+            connect_path = f"{Path(self.db_path).resolve().as_uri()}?mode=ro"
+            connect_kwargs["uri"] = True
+        elif self._isolated_read_only:
+            # A missing read-only target is represented only by an in-memory
+            # schema.  It cannot create the target directory or be consumed
+            # by a production scheduler.
+            connect_path = ":memory:"
         self._db = sqlite3.connect(
-            self.db_path,
+            connect_path,
             timeout=busy_timeout_ms / 1_000,
             isolation_level=None,
             check_same_thread=False,
+            **connect_kwargs,
         )
-        self._db.row_factory = sqlite3.Row
-        self._db.execute("PRAGMA foreign_keys = ON")
-        self._db.execute("PRAGMA journal_mode = WAL")
-        self._db.execute("PRAGMA synchronous = FULL")
-        self._db.execute(f"PRAGMA busy_timeout = {busy_timeout_ms}")
-        self._create_schema()
+        try:
+            self._db.row_factory = sqlite3.Row
+            self._db.execute("PRAGMA foreign_keys = ON")
+            self._db.execute(f"PRAGMA busy_timeout = {busy_timeout_ms}")
+            if read_only and not self._isolated_read_only:
+                self._db.execute("PRAGMA query_only = ON")
+            else:
+                self._db.execute("PRAGMA journal_mode = WAL")
+                self._db.execute("PRAGMA synchronous = FULL")
+            if not read_only or self._isolated_read_only:
+                self._schema_bootstrap = self._isolated_read_only
+                try:
+                    self._create_schema()
+                finally:
+                    self._schema_bootstrap = False
+                if self._isolated_read_only:
+                    self._db.execute("PRAGMA query_only = ON")
+        except BaseException:
+            self._db.close()
+            raise
 
     def close(self) -> None:
         """Close the SQLite connection after external callers have stopped using it."""
@@ -450,7 +484,8 @@ class BotStateManager:
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
-        """Serialize one short SQLite transaction with bounded contention."""
+        if self.read_only and not self._schema_bootstrap:
+            raise StateError("read-only state manager cannot mutate state")
 
         with self._lock:
             try:
