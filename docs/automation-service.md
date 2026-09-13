@@ -34,6 +34,16 @@ Campaign/Home semantics remain the source contracts.
   only by their exact owner/process/generation fence, including after claim rollback.
   Run-associated release also checks the run token atomically, so a retried or different
   active run cannot lose ownership to an older session's cleanup.
+- `reset_bounded` requires a canonical ready-batch ID and revision. The first persisted
+  limit governs the entire reset; later batches do not receive another allowance.
+  Ordinals, batch identity, timer anchors, and retry identity survive restart.
+- Batch/revision changes require a persisted successful predecessor plus changed-UI
+  and reconciliation facts. Failed or unresolved predecessors cannot authorize advancement.
+  Retired batch IDs and retired revisions cannot be replayed; the current pair may consume
+  its remaining ordinals. Capture hashes and rescans are not batch authority.
+- Retries retain occurrence identity and use a nonzero UTC backoff (at least two seconds).
+  Durable exhaustion reports `RESET_BOUNDED_EXHAUSTED` or `RETRY_EXHAUSTED`;
+  UTC rollback blocks claims. A running old-reset occurrence cannot consume the new reset.
 
 ## Local checks
 

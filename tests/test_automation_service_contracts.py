@@ -15,7 +15,7 @@ from automation_service import (
     SchedulerFacts,
     SemanticActionIntent,
 )
-from automation_service.contracts import FlowSpec, SelectionPlan
+from automation_service.contracts import FlowSpec, RecurrenceClass, RecurrenceProjection, SelectionPlan
 from automation_service.registry import (
     ENTRY_FIELDS,
     NOVA_FLOW_ID,
@@ -61,6 +61,17 @@ def nova_registered_registry_payload() -> dict:
 
 
 class AutomationServiceContractTests(unittest.TestCase):
+    def test_invalid_attempt_caps_and_missing_recurrence_authority_are_rejected(self) -> None:
+        for limit in (0, True):
+            with self.subTest(limit=limit), self.assertRaises(ValueError):
+                FlowSpec("flow", max_attempts=limit)
+        with self.assertRaises(ValueError):
+            RecurrenceProjection(RecurrenceClass.QUEUE_GENERATION)
+        with self.assertRaises(ValueError):
+            RecurrenceProjection(
+                RecurrenceClass.AP_REGENERATION, observed_at_utc=100.0
+            )
+
     def test_typed_contracts_preserve_separate_facts_and_cost_dimensions(self) -> None:
         descriptor = FlowDescriptor("flow", "owner", "family", "variant", "daily_once")
         facts = PerceptionEnvelope(

@@ -132,6 +132,12 @@ class FlowState:
     last_accepted_projection_key: str | None = None
     next_occurrence_basis: str | None = None
     next_occurrence_kind: str = "daily"
+    retry_backoff_seconds: float = 2.0
+    occurrence_limit: int | None = None
+    next_ready_batch_id: str | None = None
+    next_revision_within_reset: int | None = None
+    last_ready_batch_id: str | None = None
+    last_revision_within_reset: int | None = None
 
 
 @dataclass(frozen=True)
@@ -165,6 +171,9 @@ class RunRecord:
     terminal_outcome: str | None
     terminal_reason: str | None
     row_version: int
+    ready_batch_id: str | None = None
+    revision_within_reset: int | None = None
+    occurrence_limit: int | None = None
 
 
 @dataclass(frozen=True)
@@ -327,6 +336,10 @@ def _nonnegative_int(value: int, name: str) -> int:
     if type(value) is not int or value < 0:
         raise ValueError(f"{name} must be a non-negative integer")
     return value
+def _row_value(row: sqlite3.Row, name: str, default: Any = None) -> Any:
+    """Read additive columns without fabricating authority for old schemas."""
+
+    return row[name] if name in row.keys() else default
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 # Absolute repository root used for all implicit state paths.
 
@@ -593,9 +606,19 @@ class BotStateManager:
                     cadence TEXT NOT NULL,
                     max_wait_seconds REAL,
                     max_attempts INTEGER NOT NULL CHECK (max_attempts >= 1),
+                    retry_backoff_seconds REAL NOT NULL DEFAULT 2.0 CHECK (retry_backoff_seconds >= 2.0),
+                    occurrence_limit INTEGER CHECK (occurrence_limit IS NULL OR occurrence_limit >= 1),
                     next_occurrence_key INTEGER NOT NULL CHECK (next_occurrence_key >= 0),
                     next_occurrence_basis TEXT,
                     next_occurrence_kind TEXT NOT NULL DEFAULT 'daily',
+                    next_ready_batch_id TEXT,
+                    next_revision_within_reset INTEGER CHECK (
+                        next_revision_within_reset IS NULL OR next_revision_within_reset >= 0
+                    ),
+                    last_ready_batch_id TEXT,
+                    last_revision_within_reset INTEGER CHECK (
+                        last_revision_within_reset IS NULL OR last_revision_within_reset >= 0
+                    ),
                     next_due_at_utc REAL,
                     schedule_anchor_utc REAL,
                     reset_id TEXT,
@@ -616,6 +639,13 @@ class BotStateManager:
                     occurrence_basis TEXT NOT NULL DEFAULT '',
                     occurrence_kind TEXT NOT NULL DEFAULT 'daily',
                     occurrence_ordinal INTEGER NOT NULL DEFAULT 0 CHECK (occurrence_ordinal >= 0),
+                    ready_batch_id TEXT,
+                    revision_within_reset INTEGER CHECK (
+                        revision_within_reset IS NULL OR revision_within_reset >= 0
+                    ),
+                    occurrence_limit INTEGER CHECK (
+                        occurrence_limit IS NULL OR occurrence_limit >= 1
+                    ),
                     reset_id TEXT NOT NULL,
                     claimed_flow_generation INTEGER NOT NULL CHECK (claimed_flow_generation >= 0),
                     service_generation INTEGER NOT NULL CHECK (service_generation >= 0),
@@ -692,6 +722,9 @@ class BotStateManager:
                 ("occurrence_ordinal", "INTEGER NOT NULL DEFAULT 0"),
                 ("occurrence_basis", "TEXT NOT NULL DEFAULT ''"),
                 ("occurrence_kind", "TEXT NOT NULL DEFAULT 'daily'"),
+                ("ready_batch_id", "TEXT"),
+                ("revision_within_reset", "INTEGER"),
+                ("occurrence_limit", "INTEGER"),
             )
             for column, declaration in migrations:
                 if column not in existing:
@@ -707,13 +740,22 @@ class BotStateManager:
             for column, declaration in (
                 ("next_occurrence_basis", "TEXT"),
                 ("next_occurrence_kind", "TEXT NOT NULL DEFAULT 'daily'"),
+                ("retry_backoff_seconds", "REAL NOT NULL DEFAULT 2.0"),
+                ("occurrence_limit", "INTEGER"),
+                ("next_ready_batch_id", "TEXT"),
+                ("next_revision_within_reset", "INTEGER"),
+                ("last_ready_batch_id", "TEXT"),
+                ("last_revision_within_reset", "INTEGER"),
             ):
                 if column not in existing_flows:
                     db.execute(f"ALTER TABLE flow_state ADD COLUMN {column} {declaration}")
             db.execute(
                 "UPDATE runs SET occurrence_basis = reset_id WHERE occurrence_basis = ''"
             )
-            existing_actions = {str(item["name"]) for item in db.execute("PRAGMA table_info(actions)").fetchall()}
+            existing_actions = {
+                str(item["name"])
+                for item in db.execute("PRAGMA table_info(actions)").fetchall()
+            }
             action_migrations = (
                 ("source_stable_roi_digest", "TEXT"),
                 ("binding_fingerprint", "TEXT"),
@@ -749,6 +791,8 @@ class BotStateManager:
         operator_request: str | None = None,
         sequence: str | int | None = None,
         generation: str | int | None = None,
+        ready_batch_id: str | None = None,
+        revision_within_reset: int | None = None,
     ) -> str:
         """Build a deterministic recurrence identity.
 
@@ -779,7 +823,22 @@ class BotStateManager:
             if repeat_sequence is not None and repeat_sequence != sequence:
                 raise ValueError("repeat_sequence and sequence disagree")
             repeat_sequence = sequence
+        if ready_batch_id is not None:
+            ready_batch_id = _text(ready_batch_id, "ready_batch_id")
+        if revision_within_reset is not None:
+            revision_within_reset = _nonnegative_int(
+                revision_within_reset, "revision_within_reset"
+            )
         normalized_kind = occurrence_kind.strip().lower().replace("-", "_")
+        if normalized_kind == "reset_bounded":
+            if ready_batch_id is None or revision_within_reset is None:
+                raise ValueError(
+                    "reset-bounded occurrence requires ready_batch_id and revision_within_reset"
+                )
+            canonical_basis = (
+                f"{reset}:{ready_batch_id}:{ordinal_value}:{revision_within_reset}"
+            )
+            return f"{flow}:{normalized_kind}:{canonical_basis}"
         if occurrence_basis is not None:
             canonical_basis = _text(occurrence_basis, "occurrence_basis")
         elif normalized_kind in {
@@ -857,8 +916,19 @@ class BotStateManager:
             row["schedule_anchor_utc"], row["reset_id"], row["retry_not_before_utc"],
             row["eligible_since_utc"], row["last_started_at_utc"], row["last_completed_at_utc"],
             row["last_outcome"], int(row["consecutive_failures"]), int(row["row_version"]),
-            row["last_accepted_projection_key"], row["next_occurrence_basis"],
-            row["next_occurrence_kind"] or "daily",
+            _row_value(row, "last_accepted_projection_key"),
+            _row_value(row, "next_occurrence_basis"),
+            _row_value(row, "next_occurrence_kind", "daily") or "daily",
+            float(_row_value(row, "retry_backoff_seconds", 2.0)),
+            (
+                None
+                if _row_value(row, "occurrence_limit") is None
+                else int(_row_value(row, "occurrence_limit"))
+            ),
+            _row_value(row, "next_ready_batch_id"),
+            _row_value(row, "next_revision_within_reset"),
+            _row_value(row, "last_ready_batch_id"),
+            _row_value(row, "last_revision_within_reset"),
         )
 
     @staticmethod
@@ -875,7 +945,13 @@ class BotStateManager:
             row["heartbeat_at_utc"], row["stop_requested_at_utc"], row["terminal_at_utc"],
             int(row["max_inputs"]), int(row["max_actions"]), int(row["consumed_inputs"]),
             int(row["consumed_actions"]), row["terminal_outcome"], row["terminal_reason"],
-            int(row["row_version"]),
+            int(row["row_version"]), _row_value(row, "ready_batch_id"),
+            _row_value(row, "revision_within_reset"),
+            (
+                None
+                if _row_value(row, "occurrence_limit") is None
+                else int(_row_value(row, "occurrence_limit"))
+            ),
         )
 
 
@@ -1206,14 +1282,26 @@ class BotStateManager:
                     """
                     INSERT OR IGNORE INTO flow_state
                         (flow_id, enabled, generation, blocked, blocked_reason, priority,
-                         cadence, max_wait_seconds, max_attempts, next_occurrence_key,
-                         next_due_at_utc, schedule_anchor_utc, reset_id,
-                         retry_not_before_utc, eligible_since_utc, last_started_at_utc,
-                         last_completed_at_utc, last_outcome, consecutive_failures, row_version)
-                    VALUES (?, 0, 0, 0, NULL, ?, ?, ?, ?, 0, NULL, NULL, NULL,
-                            NULL, NULL, NULL, NULL, NULL, 0, 0)
+                         cadence, max_wait_seconds, max_attempts, retry_backoff_seconds,
+                         occurrence_limit, next_occurrence_key, next_occurrence_basis,
+                         next_occurrence_kind, next_ready_batch_id,
+                         next_revision_within_reset, last_ready_batch_id,
+                         last_revision_within_reset, next_due_at_utc, schedule_anchor_utc,
+                         reset_id, retry_not_before_utc, eligible_since_utc,
+                         last_started_at_utc, last_completed_at_utc, last_outcome,
+                         last_accepted_projection_key, consecutive_failures, row_version)
+                    VALUES (?, 0, 0, 0, NULL, ?, ?, ?, ?, ?, NULL, 0, NULL, 'daily',
+                            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                            NULL, NULL, NULL, 0, 0)
                     """,
-                    (spec.flow_id, spec.priority, spec.cadence, spec.max_wait_seconds, spec.max_attempts),
+                    (
+                        spec.flow_id,
+                        spec.priority,
+                        spec.cadence,
+                        spec.max_wait_seconds,
+                        spec.max_attempts,
+                        spec.retry_backoff_seconds,
+                    ),
                 )
         states: list[FlowState] = []
         for spec in specs:
@@ -1310,6 +1398,9 @@ class BotStateManager:
         next_occurrence_key: int | object = _UNSET,
         next_occurrence_basis: str | None | object = _UNSET,
         next_occurrence_kind: str | object = _UNSET,
+        occurrence_limit: int | None | object = _UNSET,
+        next_ready_batch_id: str | None | object = _UNSET,
+        next_revision_within_reset: int | None | object = _UNSET,
         next_due_at_utc: float | None | object = _UNSET,
         schedule_anchor_utc: float | None | object = _UNSET,
         eligible_since_utc: float | None | object = _UNSET,
@@ -1324,16 +1415,28 @@ class BotStateManager:
             _text(next_occurrence_basis, "next_occurrence_basis")  # type: ignore[arg-type]
         if next_occurrence_kind is not _UNSET:
             _text(next_occurrence_kind, "next_occurrence_kind")  # type: ignore[arg-type]
+        if occurrence_limit is not _UNSET and occurrence_limit is not None:
+            _nonnegative_int(occurrence_limit, "occurrence_limit")  # type: ignore[arg-type]
+            if occurrence_limit < 1:  # type: ignore[operator]
+                raise ValueError("occurrence_limit must be positive")
+        if next_ready_batch_id is not _UNSET and next_ready_batch_id is not None:
+            _text(next_ready_batch_id, "next_ready_batch_id")  # type: ignore[arg-type]
+        if next_revision_within_reset is not _UNSET and next_revision_within_reset is not None:
+            _nonnegative_int(
+                next_revision_within_reset, "next_revision_within_reset"  # type: ignore[arg-type]
+            )
         for value, name in ((next_due_at_utc, "next_due_at_utc"), (schedule_anchor_utc, "schedule_anchor_utc"), (eligible_since_utc, "eligible_since_utc")):
             if value is not _UNSET:
                 _epoch(value, name)
-        _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
         changes: list[str] = []
         values: list[Any] = []
         for column, value in (
             ("next_occurrence_key", next_occurrence_key),
             ("next_occurrence_basis", next_occurrence_basis),
             ("next_occurrence_kind", next_occurrence_kind),
+            ("occurrence_limit", occurrence_limit),
+            ("next_ready_batch_id", next_ready_batch_id),
+            ("next_revision_within_reset", next_revision_within_reset),
             ("next_due_at_utc", next_due_at_utc),
             ("schedule_anchor_utc", schedule_anchor_utc),
             ("eligible_since_utc", eligible_since_utc),
@@ -1382,12 +1485,22 @@ class BotStateManager:
                    next_occurrence_key = CASE WHEN ? THEN 0 ELSE next_occurrence_key END,
                    next_occurrence_basis = CASE WHEN ? THEN NULL ELSE next_occurrence_basis END,
                    next_occurrence_kind = CASE WHEN ? THEN 'daily' ELSE next_occurrence_kind END,
+                   occurrence_limit = CASE WHEN ? THEN NULL ELSE occurrence_limit END,
+                   next_ready_batch_id = CASE WHEN ? THEN NULL ELSE next_ready_batch_id END,
+                   next_revision_within_reset = CASE WHEN ? THEN NULL ELSE next_revision_within_reset END,
+                   last_ready_batch_id = CASE WHEN ? THEN NULL ELSE last_ready_batch_id END,
+                   last_revision_within_reset = CASE WHEN ? THEN NULL ELSE last_revision_within_reset END,
                    schedule_anchor_utc = CASE WHEN ? THEN ? ELSE schedule_anchor_utc END,
                    next_due_at_utc = CASE WHEN ? THEN ? ELSE next_due_at_utc END,
                    last_accepted_projection_key = CASE WHEN ? THEN NULL ELSE last_accepted_projection_key END,
                    row_version = row_version + 1 WHERE flow_id = ?""",
                 (
                     reset_id,
+                    int(reset_rollover),
+                    int(reset_rollover),
+                    int(reset_rollover),
+                    int(reset_rollover),
+                    int(reset_rollover),
                     int(reset_rollover),
                     int(reset_rollover),
                     int(reset_rollover),
@@ -1451,6 +1564,12 @@ class BotStateManager:
         occurrence_kind: str | None = None,
         occurrence_basis: str | None = None,
         occurrence_key: str | None = None,
+        ordinal: int | None = None,
+        ready_batch_id: str | None = None,
+        revision_within_reset: int | None = None,
+        occurrence_limit: int | None = None,
+        ui_changed: bool = False,
+        reconciled: bool = False,
         timer_slot: str | int | None = None,
         projection_generation: str | int | None = None,
         resource_generation: str | int | None = None,
@@ -1490,16 +1609,18 @@ class BotStateManager:
             repeat_sequence = sequence
         if occurrence_key is not None:
             occurrence_key = _text(occurrence_key, "occurrence_key")
-        if operator_request_id is not None:
-            operator_request_id = _text(operator_request_id, "operator_request_id")
-        if manual_request_id is not None:
-            manual_request_id = _text(manual_request_id, "manual_request_id")
-        if occurrence_kind in {"manual", "operator", "manual_operator_request"} and (
-            occurrence_basis is None and operator_request_id is None and manual_request_id is None
-        ):
-            raise ValueError("manual occurrence requires operator_request_id")
-        if repeat_ordinal is not None:
-            _nonnegative_int(repeat_ordinal, "repeat_ordinal")
+        if ordinal is not None:
+            _nonnegative_int(ordinal, "ordinal")
+        if ready_batch_id is not None:
+            ready_batch_id = _text(ready_batch_id, "ready_batch_id")
+        if revision_within_reset is not None:
+            _nonnegative_int(revision_within_reset, "revision_within_reset")
+        if occurrence_limit is not None:
+            _nonnegative_int(occurrence_limit, "occurrence_limit")
+            if occurrence_limit < 1:
+                raise ValueError("occurrence_limit must be positive")
+        if type(ui_changed) is not bool or type(reconciled) is not bool:
+            raise ValueError("ready-batch transition facts must be bools")
         implicit_lease = owner_instance_id is None and process_start_token is None and lease_generation is None
         owner = _text(self.owner_instance_id if owner_instance_id is None else owner_instance_id, "owner_instance_id")
         token = _text(self.process_start_token if process_start_token is None else process_start_token, "process_start_token")
@@ -1568,9 +1689,11 @@ class BotStateManager:
             if not bool(flow["enabled"]) or bool(flow["blocked"]):
                 release_claim_lease(db)
                 return None
-            kind = occurrence_kind or (
-                "manual" if mode == "manual" else flow["next_occurrence_kind"] or "daily"
+            kind = _normalize_occurrence_kind(
+                occurrence_kind
+                or ("manual" if mode == "manual" else flow["next_occurrence_kind"] or "daily")
             )
+            normalized = kind
             if mode == "scheduled" and flow["reset_id"] not in (None, reset_id):
                 if not _is_non_reset_occurrence_kind(kind):
                     release_claim_lease(db)
@@ -1582,6 +1705,10 @@ class BotStateManager:
                 release_claim_lease(db)
                 return None
             if int(flow["consecutive_failures"]) >= int(flow["max_attempts"]):
+                db.execute(
+                    "UPDATE flow_state SET blocked = 1, blocked_reason = COALESCE(blocked_reason, 'RETRY_EXHAUSTED'), row_version = row_version + 1 WHERE flow_id = ?",
+                    (flow_id,),
+                )
                 release_claim_lease(db)
                 return None
             if db.execute(
@@ -1589,8 +1716,107 @@ class BotStateManager:
             ).fetchone() is not None:
                 release_claim_lease(db)
                 return None
-            ordinal = int(flow["next_occurrence_key"]) if mode == "scheduled" else 0
-            normalized = _normalize_occurrence_kind(kind)
+            ordinal_value = int(flow["next_occurrence_key"]) if mode == "scheduled" else 0
+            if ordinal is not None:
+                if mode == "scheduled" and ordinal != ordinal_value:
+                    release_claim_lease(db)
+                    return None
+                ordinal_value = ordinal
+            occurrence_limit_value = (
+                occurrence_limit
+                if occurrence_limit is not None
+                else flow["occurrence_limit"]
+            )
+            if occurrence_limit_value is not None:
+                occurrence_limit_value = int(occurrence_limit_value)
+            if normalized == "reset_bounded":
+                if (
+                    ready_batch_id is None
+                    or revision_within_reset is None
+                    or occurrence_limit_value is None
+                ):
+                    release_claim_lease(db)
+                    return None
+                if (
+                    flow["occurrence_limit"] is not None
+                    and int(flow["occurrence_limit"]) != occurrence_limit_value
+                ):
+                    release_claim_lease(db)
+                    return None
+                if ordinal_value >= occurrence_limit_value:
+                    db.execute(
+                        "UPDATE flow_state SET blocked = 1, blocked_reason = 'RESET_BOUNDED_EXHAUSTED', row_version = row_version + 1 WHERE flow_id = ?",
+                        (flow_id,),
+                    )
+                    release_claim_lease(db)
+                    return None
+                candidate_identity = (ready_batch_id, revision_within_reset)
+                prior_batch = flow["next_ready_batch_id"]
+                prior_revision = flow["next_revision_within_reset"]
+                last_batch = flow["last_ready_batch_id"]
+                last_revision = flow["last_revision_within_reset"]
+                active_batch = (
+                    prior_batch if prior_batch is not None else last_batch
+                )
+                active_revision = (
+                    prior_revision if prior_batch is not None else last_revision
+                )
+                active_identity = (active_batch, active_revision)
+                candidate_differs = (
+                    active_batch is not None
+                    and candidate_identity != active_identity
+                )
+                if active_batch is not None and active_batch != ready_batch_id and db.execute(
+                    """SELECT 1 FROM runs
+                       WHERE flow_id = ? AND reset_id = ? AND occurrence_kind = 'reset_bounded'
+                         AND ready_batch_id = ?
+                         AND state IN ('SUCCEEDED', 'DEFERRED') LIMIT 1""",
+                    (flow_id, reset_id, ready_batch_id),
+                ).fetchone() is not None:
+                    release_claim_lease(db)
+                    return None
+                if (
+                    active_batch == ready_batch_id
+                    and candidate_differs
+                    and db.execute(
+                        """SELECT 1 FROM runs
+                           WHERE flow_id = ? AND reset_id = ?
+                             AND occurrence_kind = 'reset_bounded'
+                             AND ready_batch_id = ? AND revision_within_reset = ?
+                             AND state IN ('SUCCEEDED', 'DEFERRED') LIMIT 1""",
+                        (flow_id, reset_id, ready_batch_id, revision_within_reset),
+                    ).fetchone() is not None
+                ):
+                    release_claim_lease(db)
+                    return None
+                if candidate_differs:
+                    latest = db.execute(
+                        """SELECT state FROM runs
+                           WHERE flow_id = ? AND reset_id = ?
+                             AND occurrence_kind = 'reset_bounded'
+                             AND ready_batch_id = ? AND revision_within_reset = ?
+                           ORDER BY occurrence_ordinal DESC, row_version DESC
+                           LIMIT 1""",
+                        (flow_id, reset_id, active_batch, active_revision),
+                    ).fetchone()
+                    if latest is None or latest["state"] != RunState.SUCCEEDED.value:
+                        release_claim_lease(db)
+                        return None
+                    if db.execute(
+                        """SELECT 1 FROM runs AS prior
+                           JOIN actions AS action ON action.run_id = prior.run_id
+                           WHERE prior.flow_id = ? AND prior.reset_id = ?
+                             AND prior.occurrence_kind = 'reset_bounded'
+                             AND prior.ready_batch_id = ? AND prior.revision_within_reset = ?
+                             AND action.state = 'UNKNOWN' LIMIT 1""",
+                        (flow_id, reset_id, active_batch, active_revision),
+                    ).fetchone() is not None:
+                        release_claim_lease(db)
+                        return None
+                    if not (ui_changed and reconciled):
+                        release_claim_lease(db)
+                        return None
+            ordinal = ordinal_value
             request = operator_request_id or manual_request_id
             identity_supplied = occurrence_basis is not None or (
                 (normalized in {"timer", "cooldown"} and timer_slot is not None)
@@ -1675,28 +1901,40 @@ class BotStateManager:
                         else generation
                     )
                     basis = str(basis_value) if basis_value is not None else None
+                elif normalized == "reset_bounded":
+                    basis = occurrence_basis or reset_id
                 else:
                     basis = reset_id
-            if occurrence_key is None:
-                key = self.occurrence_key(
-                    flow_id,
-                    reset_id,
-                    ordinal,
-                    occurrence_kind=kind,
-                    occurrence_basis=basis,
-                    timer_slot=timer_slot,
-                    schedule_anchor_utc=flow["schedule_anchor_utc"],
-                    projection_generation=projection_generation,
-                    resource_generation=resource_generation,
-                    repeat_sequence=repeat_sequence,
-                    repeat_ordinal=repeat_ordinal,
-                    queue_generation=queue_generation,
-                    march_generation=march_generation,
-                    operator_request_id=request or operator_request_id,
-                    generation=generation,
+            canonical_key = self.occurrence_key(
+                flow_id,
+                reset_id,
+                ordinal,
+                occurrence_kind=kind,
+                occurrence_basis=basis,
+                timer_slot=timer_slot,
+                schedule_anchor_utc=flow["schedule_anchor_utc"],
+                projection_generation=projection_generation,
+                resource_generation=resource_generation,
+                repeat_sequence=repeat_sequence,
+                repeat_ordinal=repeat_ordinal,
+                queue_generation=queue_generation,
+                march_generation=march_generation,
+                operator_request_id=request or operator_request_id,
+                generation=generation,
+                ready_batch_id=ready_batch_id,
+                revision_within_reset=revision_within_reset,
+            )
+            if occurrence_key is not None and normalized == "reset_bounded" and occurrence_key != canonical_key:
+                release_claim_lease(db)
+                return None
+            key = canonical_key if occurrence_key is None else occurrence_key
+            if normalized == "reset_bounded":
+                db.execute(
+                    """UPDATE flow_state SET next_ready_batch_id = ?,
+                       next_revision_within_reset = ?, occurrence_limit = ?,
+                       row_version = row_version + 1 WHERE flow_id = ?""",
+                    (ready_batch_id, revision_within_reset, occurrence_limit_value, flow_id),
                 )
-            else:
-                key = occurrence_key
             existing = db.execute(
                 "SELECT * FROM runs WHERE flow_id = ? AND occurrence_key = ?",
                 (flow_id, key),
@@ -1704,6 +1942,13 @@ class BotStateManager:
             run_token = _text(uuid4().hex if run_token is None else run_token, "run_token")
             if existing is not None:
                 if existing["state"] not in {RunState.FAILED.value, RunState.BLOCKED.value}:
+                    release_claim_lease(db)
+                    return None
+                if normalized == "reset_bounded" and (
+                    existing["ready_batch_id"] != ready_batch_id
+                    or existing["revision_within_reset"] != revision_within_reset
+                    or existing["occurrence_limit"] != occurrence_limit_value
+                ):
                     release_claim_lease(db)
                     return None
                 if db.execute(
@@ -1733,17 +1978,19 @@ class BotStateManager:
                     db.execute(
                         """INSERT INTO runs
                            (run_id, flow_id, occurrence_key, occurrence_basis, occurrence_kind,
-                            occurrence_ordinal, reset_id, claimed_flow_generation,
+                            occurrence_ordinal, ready_batch_id, revision_within_reset,
+                            occurrence_limit, reset_id, claimed_flow_generation,
                             service_generation, owner_instance_id, process_start_token,
                             lease_generation, run_token, mode, state, claimed_at_utc,
                             started_at_utc, heartbeat_at_utc, stop_requested_at_utc, terminal_at_utc,
                             max_inputs, max_actions, consumed_inputs, consumed_actions,
                             terminal_outcome, terminal_reason, row_version)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CLAIMED', ?,
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CLAIMED', ?,
                                    NULL, ?, NULL, NULL, ?, ?, 0, 0, NULL, NULL, 0)""",
                         (
-                            run_id, flow_id, key, basis or "", kind, ordinal, reset_id,
-                            int(flow["generation"]), int(service["generation"]), owner, token,
+                            run_id, flow_id, key, basis or "", kind, ordinal,
+                            ready_batch_id, revision_within_reset, occurrence_limit_value,
+                            reset_id, int(flow["generation"]), int(service["generation"]), owner, token,
                             lease_generation, run_token, mode, now, now, max_inputs, max_actions,
                         ),
                     )
@@ -1839,10 +2086,17 @@ class BotStateManager:
         flow_outcome = outcome or target.value
         failure = target in {RunState.BLOCKED, RunState.FAILED}
         advance = target in {RunState.SUCCEEDED, RunState.DEFERRED}
+        failure_count = int(flow["consecutive_failures"]) + (1 if failure else 0)
+        exhausted = failure and failure_count >= int(flow["max_attempts"])
         if retry_not_before_utc is _UNSET:
             retry_value: float | None = (
-                now + min(3_600.0, float(max(1, 2 ** min(int(flow["consecutive_failures"]) + 1, 10))))
-                if failure
+                now
+                + min(
+                    3_600.0,
+                    max(2.0, float(flow["retry_backoff_seconds"] or 2.0))
+                    * 2 ** min(int(flow["consecutive_failures"]), 10),
+                )
+                if failure and not exhausted
                 else None
             )
         else:
@@ -1859,6 +2113,17 @@ class BotStateManager:
             and row["reset_id"] == flow["reset_id"]
             and int(flow["next_occurrence_key"]) == ordinal
             and basis_matches
+        )
+        bounded_active = bool(
+            advance_occurrence
+            and row["occurrence_kind"] == "reset_bounded"
+            and row["occurrence_limit"] is not None
+            and ordinal + 1 < int(row["occurrence_limit"])
+        )
+        bounded_complete = bool(
+            advance_occurrence
+            and row["occurrence_kind"] == "reset_bounded"
+            and not bounded_active
         )
         next_occurrence = (
             int(flow["next_occurrence_key"]) + 1
@@ -1877,15 +2142,30 @@ class BotStateManager:
             """UPDATE flow_state SET next_occurrence_key = ?,
                next_occurrence_basis = CASE WHEN ? THEN NULL ELSE next_occurrence_basis END,
                next_occurrence_kind = CASE WHEN ? THEN 'daily' ELSE next_occurrence_kind END,
+               next_ready_batch_id = CASE WHEN ? THEN NULL ELSE next_ready_batch_id END,
+               next_revision_within_reset = CASE WHEN ? THEN NULL ELSE next_revision_within_reset END,
+               last_ready_batch_id = CASE WHEN ? THEN ? ELSE last_ready_batch_id END,
+               last_revision_within_reset = CASE WHEN ? THEN ? ELSE last_revision_within_reset END,
+               occurrence_limit = CASE WHEN ? THEN COALESCE(?, occurrence_limit) ELSE occurrence_limit END,
                next_due_at_utc = CASE WHEN ? THEN ? ELSE next_due_at_utc END,
                retry_not_before_utc = ?, last_completed_at_utc = ?, last_outcome = ?,
                last_accepted_projection_key = CASE WHEN ? THEN ? ELSE last_accepted_projection_key END,
                consecutive_failures = CASE WHEN ? THEN 0 ELSE consecutive_failures + ? END,
+               blocked = CASE WHEN ? THEN 1 ELSE blocked END,
+               blocked_reason = CASE WHEN ? THEN 'RETRY_EXHAUSTED' ELSE blocked_reason END,
                row_version = row_version + 1 WHERE flow_id = ? AND row_version = ?""",
             (
                 next_occurrence,
                 int(advance_occurrence),
                 int(advance_occurrence),
+                int(advance_occurrence and not bounded_active),
+                int(advance_occurrence and not bounded_active),
+                int(bounded_complete),
+                row["ready_batch_id"] if bounded_complete else None,
+                int(bounded_complete),
+                row["revision_within_reset"] if bounded_complete else None,
+                int(advance_occurrence and row["occurrence_limit"] is not None),
+                row["occurrence_limit"] if row["occurrence_limit"] is not None else None,
                 int(next_due_at_utc is not _UNSET),
                 None if next_due_at_utc is _UNSET else next_due_at_utc,
                 retry_value,
@@ -1895,6 +2175,8 @@ class BotStateManager:
                 None if accepted_projection_key is _UNSET else accepted_projection_key,
                 int(advance),
                 int(failure),
+                int(exhausted),
+                int(exhausted),
                 row["flow_id"],
                 int(flow["row_version"]),
             ),
