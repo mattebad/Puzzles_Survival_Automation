@@ -13,6 +13,7 @@ from hashlib import sha256
 import json
 import math
 from pathlib import Path
+import time
 from types import MappingProxyType
 from typing import Callable, Iterator, Mapping, Optional, Sequence
 
@@ -28,6 +29,7 @@ from tasks.perception_bundle import (
 )
 from tasks.semantic_ocr_crop import (
     CropRoiRequest,
+    DEFAULT_OCR_TIMEOUT_SECONDS,
     NormalizationOp,
     ObservationStatus,
     OcrMode,
@@ -743,6 +745,10 @@ def iter_replay_observations(
     yield from result.observations
 
 
+def _fixture_ocr_engine(_image: np.ndarray, _psm: int) -> str:
+    return "fixture-ocr"
+
+
 def built_in_perception_ocr_callback(
     *,
     roi: tuple[int, int, int, int] = (40, 40, 120, 80),
@@ -761,10 +767,14 @@ def built_in_perception_ocr_callback(
         try:
             observation = run_semantic_ocr(
                 pixels,
-                CropRoiRequest(context.identity, roi),
-                ocr_mode=OcrMode.UNIFORM_BLOCK,
+                CropRoiRequest(
+                    context.identity,
+                    roi,
+                    ocr_mode=OcrMode.UNIFORM_BLOCK,
+                    deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS,
+                ),
                 normalization=(NormalizationOp.TO_GRAYSCALE,),
-                ocr_engine=ocr_engine or (lambda _image, _psm: "fixture-ocr"),
+                ocr_engine=ocr_engine or _fixture_ocr_engine,
             )
             bundle: FramePerceptionBundle = bundle_from_identity(context.identity)
             if observation.status is ObservationStatus.OK:

@@ -44,6 +44,16 @@ jobs:
         run: python scripts/check.py
       - name: Run REC-F01 provenance regressions
         run: python -m unittest tests.test_automation_service_boundaries tests.test_automation_service_temporal
+      - name: Run REC-F02 OCR seam and caller regressions
+        run: >-
+          python -m unittest
+          tests.test_semantic_ocr_crop
+          tests.test_native_frame_mutation
+          tests.test_supply_depot_vision
+          tests.test_supply_depot_verified_route
+          tests.test_daily_supply_depot
+          tests.test_supply_depot
+          tests.test_flow_delivery_supply_depot_bluestacks
       - name: Run REC-D01 catalog policy regressions
         run: python -m unittest tests.test_daily_quest_planning tests.test_catalog_and_pnsctl tests.test_product_authority tests.test_gameplay_flow_contracts
       - name: Run REC-F05 read-only scheduling regressions

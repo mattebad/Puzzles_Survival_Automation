@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 import re
+import time
 from typing import Callable
 
 import cv2
@@ -22,6 +23,7 @@ from .home_atlas_vision import BLUESTACKS_PROFILE_ID, frame_digest, native_frame
 from .perception_bundle import NativeFrameIdentity
 from .semantic_ocr_crop import (
     CropRoiRequest,
+    DEFAULT_OCR_TIMEOUT_SECONDS,
     NormalizationOp,
     ObservationStatus,
     OcrMode,
@@ -130,13 +132,17 @@ def _ocr_roi_text(
             normalization.append(NormalizationOp.UPSCALE_3X)
         observation = run_semantic_ocr(
             frame,
-            CropRoiRequest(source_frame, roi),
-            ocr_mode=OcrMode.UNIFORM_AND_SPARSE,
+            CropRoiRequest(
+                source_frame,
+                roi,
+                ocr_mode=OcrMode.UNIFORM_AND_SPARSE,
+                deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS,
+            ),
             normalization=tuple(normalization),
             ocr_engine=ocr,
         )
-        if observation.status is ObservationStatus.INVALID:
-            raise ValueError("ROI is outside native BlueStacks bounds")
+        if observation.status is ObservationStatus.INVALID or observation.reason_code == "OCR_DEADLINE":
+            raise ValueError(observation.reason_code)
         return observation.text
     except SemanticOcrCropError as exc:
         raise ValueError("ROI is outside native BlueStacks bounds") from exc
@@ -203,33 +209,6 @@ def _claim_supply_roi_from_data(data: dict[str, list], *, scale: float = 2.0) ->
     return (x0, y0, x1, y1) if x1 - x0 >= 40 and y1 - y0 >= 30 else None
 
 
-def _ocr_roi_text_live_compatible(
-    frame: np.ndarray,
-    roi: Box,
-    ocr: OCR,
-    *,
-    source_frame: NativeFrameIdentity | None,
-    scale: int = 3,
-) -> str:
-    """OCR a ROI, bridging live ADB PNG transport digests to imencode validation.
-
-    When ``source_frame`` is present and its semantic digest matches the frame,
-    but its transport digest is the ADB PNG hash rather than ``cv2.imencode``,
-    fall back to legacy OCR. Forged/cross-capture identities still fail closed.
-    """
-
-    try:
-        return _ocr_roi_text(frame, roi, ocr, source_frame=source_frame, scale=scale)
-    except ValueError:
-        if source_frame is None:
-            raise
-        from tasks.semantic_ocr_crop import compute_transport_digest
-
-        if source_frame.semantic_sha256 != frame_digest(frame):
-            raise
-        if compute_transport_digest(frame) == source_frame.transport_sha256:
-            raise
-        return _ocr_roi_text(frame, roi, ocr, source_frame=None, scale=scale)
 
 
 def _normalized(text: str) -> str:
@@ -459,23 +438,7 @@ def recognize_supply_depot_screen(
             return SupplyDepotScreenRecognition(
                 False, "unknown", "", (), False, False, "non_native_frame", frame_digest(frame), None
             )
-        from tasks.semantic_ocr_crop import compute_transport_digest
-
-        # Only bridge live ADB PNG transport vs imencode transport. Forged or
-        # cross-capture identities must still fail closed without legacy OCR.
-        if (
-            source_frame.semantic_sha256 != frame_digest(frame)
-            or compute_transport_digest(frame) == source_frame.transport_sha256
-        ):
-            return SupplyDepotScreenRecognition(
-                False, "unknown", "", (), False, False, "non_native_frame", frame_digest(frame), None
-            )
-        try:
-            title_text = _title_ocr(explicit=None)
-        except ValueError:
-            return SupplyDepotScreenRecognition(
-                False, "unknown", "", (), False, False, "ocr_invalid_title", frame_digest(frame), None
-            )
+        return _invalid_ocr_screen(frame, title_text="", reason="ocr_invalid_title")
     title = _normalized(title_text)
     if "supply depot" not in title:
         return SupplyDepotScreenRecognition(False, "unknown", title_text, (), False, False, "title_not_recognized", frame_digest(frame), None)
@@ -502,31 +465,11 @@ def recognize_supply_depot_screen(
                 )
             )
         except ValueError:
-            from tasks.semantic_ocr_crop import compute_transport_digest
-
-            if compute_transport_digest(frame) != source_frame.transport_sha256:
-                try:
-                    attempts_text = _normalized(
-                        _ocr_roi_text(
-                            frame,
-                            SUPPLY_DEPOT_ATTEMPTS_ROI,
-                            ocr,
-                            source_frame=None,
-                            scale=3,
-                        )
-                    )
-                except ValueError:
-                    return _invalid_ocr_screen(
-                        frame,
-                        title_text=title_text,
-                        reason="ocr_invalid_attempts",
-                    )
-            else:
-                return _invalid_ocr_screen(
-                    frame,
-                    title_text=title_text,
-                    reason="ocr_invalid_attempts",
-                )
+            return _invalid_ocr_screen(
+                frame,
+                title_text=title_text,
+                reason="ocr_invalid_attempts",
+            )
     attempts_match = re.search(r"daily free attempts\s*(\d{1,2})\b", attempts_text)
     zero_match = re.search(r"daily free attempts\s*o\b", attempts_text)
     daily_free_attempts = int(attempts_match.group(1)) if attempts_match else (0 if zero_match else None)
@@ -536,58 +479,32 @@ def recognize_supply_depot_screen(
     else:
         try:
             _validate_explicit_identity(source_frame)
-            from dataclasses import replace as _dc_replace
-
-            from tasks.semantic_ocr_crop import compute_transport_digest
-
-            panel_identity = source_frame
-            if (
-                source_frame.semantic_sha256 == frame_digest(frame)
-                and compute_transport_digest(frame) != source_frame.transport_sha256
-            ):
-                panel_identity = _dc_replace(
-                    source_frame,
-                    transport_sha256=compute_transport_digest(frame),
-                    evidence_path="",
-                )
             panel_observation = run_semantic_ocr(
                 frame,
-                CropRoiRequest(panel_identity, SUPPLY_DEPOT_PANEL_ROI),
-                ocr_mode=OcrMode.UNIFORM_BLOCK,
+                CropRoiRequest(
+                    source_frame,
+                    SUPPLY_DEPOT_PANEL_ROI,
+                    ocr_mode=OcrMode.UNIFORM_BLOCK,
+                    deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS,
+                ),
                 normalization=(),
                 ocr_engine=ocr,
             )
         except (SemanticOcrCropError, ValueError):
-            if (
-                source_frame.semantic_sha256 == frame_digest(frame)
-            ):
-                try:
-                    panel_text = _normalized(ocr(_legacy_crop(frame, SUPPLY_DEPOT_PANEL_ROI), 6))
-                except Exception:
-                    return _invalid_ocr_screen(
-                        frame,
-                        title_text=title_text,
-                        reason="ocr_invalid_panel",
-                        daily_free_attempts=daily_free_attempts,
-                    )
-            else:
+            return _invalid_ocr_screen(
+                frame,
+                title_text=title_text,
+                reason="ocr_invalid_panel",
+                daily_free_attempts=daily_free_attempts,
+            )
+        else:
+            if panel_observation.status is ObservationStatus.INVALID or panel_observation.reason_code == "OCR_DEADLINE":
                 return _invalid_ocr_screen(
                     frame,
                     title_text=title_text,
                     reason="ocr_invalid_panel",
                     daily_free_attempts=daily_free_attempts,
                 )
-        else:
-            if panel_observation.status is ObservationStatus.INVALID:
-                if source_frame.semantic_sha256 == frame_digest(frame):
-                    panel_text = _normalized(ocr(_legacy_crop(frame, SUPPLY_DEPOT_PANEL_ROI), 6))
-                else:
-                    return _invalid_ocr_screen(
-                        frame,
-                        title_text=title_text,
-                        reason="ocr_invalid_panel",
-                        daily_free_attempts=daily_free_attempts,
-                    )
             else:
                 panel_text = _normalized(
                     panel_observation.text
@@ -611,7 +528,7 @@ def recognize_supply_depot_screen(
         else:
             try:
                 text = _normalized(
-                    _ocr_roi_text_live_compatible(
+                    _ocr_roi_text(
                         frame,
                         roi,
                         ocr,

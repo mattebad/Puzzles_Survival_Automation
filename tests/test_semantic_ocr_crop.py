@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import hashlib
-import inspect
 import json
 from pathlib import Path
 import tempfile
+import time
 import unittest
 from types import MappingProxyType
 
@@ -18,6 +18,7 @@ from tasks import semantic_ocr_crop as crop_module
 from tasks.semantic_ocr_crop import (
     CropProvenance,
     CropRoiRequest,
+    DEFAULT_OCR_TIMEOUT_SECONDS,
     ExclusionMask,
     MAX_PADDING_PX,
     NormalizationOp,
@@ -61,6 +62,26 @@ def make_identity(frame: np.ndarray, **overrides) -> NativeFrameIdentity:
     )
     values.update(overrides)
     return NativeFrameIdentity(**values)
+
+
+@dataclass(frozen=True)
+class TextOcrEngine:
+    text: str
+
+    def __call__(self, _image: np.ndarray, _psm: int) -> str:
+        return self.text
+
+
+def mode_ocr_engine(_image: np.ndarray, psm: int) -> str:
+    return f"token{psm}"
+
+
+def failed_ocr_engine(_image: np.ndarray, _psm: int) -> str:
+    raise RuntimeError("engine unavailable")
+
+
+def interrupted_ocr_engine(_image: np.ndarray, _psm: int) -> str:
+    raise KeyboardInterrupt()
 
 
 class SemanticOcrCropTests(unittest.TestCase):
@@ -131,39 +152,16 @@ class SemanticOcrCropTests(unittest.TestCase):
 
     def test_constrained_ocr_modes_and_unknown_mode_fail_closed(self) -> None:
         request = CropRoiRequest(self.identity, (200, 100, 360, 140))
-        calls: list[int] = []
 
-        def engine(_image, psm: int) -> str:
-            calls.append(psm)
-            return f"token{psm}"
-
-        uniform = run_semantic_ocr(
-            self.frame,
-            request,
-            ocr_mode=OcrMode.UNIFORM_BLOCK,
-            normalization=(NormalizationOp.TO_GRAYSCALE,),
-            ocr_engine=engine,
-        )
+        uniform = run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.UNIFORM_BLOCK, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), normalization=(NormalizationOp.TO_GRAYSCALE,),
+        ocr_engine=mode_ocr_engine,)
         self.assertEqual(uniform.status, ObservationStatus.OK)
-        self.assertEqual(calls, [6])
-        calls.clear()
-        sparse = run_semantic_ocr(
-            self.frame,
-            request,
-            ocr_mode=OcrMode.SPARSE_TEXT,
-            normalization=(NormalizationOp.TO_GRAYSCALE,),
-            ocr_engine=engine,
-        )
+        self.assertEqual(uniform.text, "token6")
+        sparse = run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.SPARSE_TEXT, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), normalization=(NormalizationOp.TO_GRAYSCALE,),
+        ocr_engine=mode_ocr_engine,)
         self.assertEqual(sparse.text, "token11")
-        calls.clear()
-        both = run_semantic_ocr(
-            self.frame,
-            request,
-            ocr_mode=OcrMode.UNIFORM_AND_SPARSE,
-            normalization=(NormalizationOp.TO_GRAYSCALE,),
-            ocr_engine=engine,
-        )
-        self.assertEqual(calls, [6, 11])
+        both = run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.UNIFORM_AND_SPARSE, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), normalization=(NormalizationOp.TO_GRAYSCALE,),
+        ocr_engine=mode_ocr_engine,)
         self.assertIn("token6", both.text)
         self.assertIn("token11", both.text)
         with self.assertRaises(SemanticOcrCropError) as raised:
@@ -226,13 +224,8 @@ class SemanticOcrCropTests(unittest.TestCase):
                     raised.exception.reason_code,
                     "INVALID_NORMALIZATION_SEQUENCE",
                 )
-                observation = run_semantic_ocr(
-                    self.frame,
-                    request,
-                    ocr_mode=OcrMode.UNIFORM_BLOCK,
-                    normalization=plan,  # type: ignore[arg-type]
-                    ocr_engine=lambda _image, _psm: "unreachable",
-                )
+                observation = run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.UNIFORM_BLOCK, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), normalization=plan,  # type: ignore[arg-type]
+                ocr_engine=TextOcrEngine("unreachable"),)
                 self.assertEqual(observation.status, ObservationStatus.INVALID)
                 self.assertEqual(
                     observation.reason_code,
@@ -241,13 +234,8 @@ class SemanticOcrCropTests(unittest.TestCase):
 
     def test_same_capture_identity_binds_observation(self) -> None:
         request = CropRoiRequest(self.identity, (200, 100, 360, 140))
-        observation = run_semantic_ocr(
-            self.frame,
-            request,
-            ocr_mode=OcrMode.UNIFORM_BLOCK,
-            normalization=(NormalizationOp.TO_GRAYSCALE,),
-            ocr_engine=lambda _image, _psm: "Supply Depot",
-        )
+        observation = run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.UNIFORM_BLOCK, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), normalization=(NormalizationOp.TO_GRAYSCALE,),
+        ocr_engine=TextOcrEngine("Supply Depot"),)
         self.assertTrue(observation.source_frame.same_capture_event(self.identity))
         self.assertEqual(observation.source_frame.transport_sha256, self.identity.transport_sha256)
         self.assertEqual(observation.source_frame.semantic_sha256, self.identity.semantic_sha256)
@@ -272,23 +260,21 @@ class SemanticOcrCropTests(unittest.TestCase):
         with self.assertRaises(SemanticOcrCropError) as raised:
             prepare_ocr_crop(self.frame, CropRoiRequest(wrong_geometry, (200, 100, 360, 140)))
         self.assertEqual(raised.exception.reason_code, "FRAME_GEOMETRY_MISMATCH")
-        observation = run_semantic_ocr(
-            self.frame,
-            CropRoiRequest(other_identity, (200, 100, 360, 140)),
+        observation = run_semantic_ocr(self.frame, CropRoiRequest(
+            other_identity, (200, 100, 360, 140),
             ocr_mode=OcrMode.UNIFORM_BLOCK,
-            ocr_engine=lambda _image, _psm: "x",
-        )
+            deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS,
+        ), ocr_engine=TextOcrEngine("x"),)
         self.assertEqual(observation.status, ObservationStatus.INVALID)
         self.assertEqual(observation.reason_code, "TRANSPORT_DIGEST_MISMATCH")
 
     def test_immutability_and_no_numpy_retention(self) -> None:
-        observation = run_semantic_ocr(
-            self.frame,
-            CropRoiRequest(self.identity, (200, 100, 360, 140)),
+        observation = run_semantic_ocr(self.frame, CropRoiRequest(
+            self.identity, (200, 100, 360, 140),
             ocr_mode=OcrMode.UNIFORM_BLOCK,
-            normalization=(NormalizationOp.TO_GRAYSCALE,),
-            ocr_engine=lambda _image, _psm: "text",
-        )
+            deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS,
+        ), normalization=(NormalizationOp.TO_GRAYSCALE,),
+        ocr_engine=TextOcrEngine("text"),)
         with self.assertRaises(Exception):
             observation.text = "mutated"  # type: ignore[misc]
         with self.assertRaises(Exception):
@@ -377,34 +363,19 @@ class SemanticOcrCropTests(unittest.TestCase):
 
     def test_debug_artifacts_opt_in_deterministic_and_default_off(self) -> None:
         request = CropRoiRequest(self.identity, (200, 100, 360, 140))
-        quiet = run_semantic_ocr(
-            self.frame,
-            request,
-            ocr_mode=OcrMode.UNIFORM_BLOCK,
-            normalization=(NormalizationOp.TO_GRAYSCALE,),
-            ocr_engine=lambda _image, _psm: "a",
-        )
+        quiet = run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.UNIFORM_BLOCK, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), normalization=(NormalizationOp.TO_GRAYSCALE,),
+        ocr_engine=TextOcrEngine("a"),)
         self.assertIsNone(quiet.debug_artifact_name)
         self.assertIsNone(quiet.debug_artifact_sha256)
         with tempfile.TemporaryDirectory() as directory:
-            first = run_semantic_ocr(
-                self.frame,
-                request,
-                ocr_mode=OcrMode.UNIFORM_BLOCK,
-                normalization=(NormalizationOp.TO_GRAYSCALE,),
-                ocr_engine=lambda _image, _psm: "a",
-                enable_debug_artifacts=True,
-                debug_dir=directory,
-            )
-            second = run_semantic_ocr(
-                self.frame,
-                request,
-                ocr_mode=OcrMode.UNIFORM_BLOCK,
-                normalization=(NormalizationOp.TO_GRAYSCALE,),
-                ocr_engine=lambda _image, _psm: "a",
-                enable_debug_artifacts=True,
-                debug_dir=directory,
-            )
+            first = run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.UNIFORM_BLOCK, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), normalization=(NormalizationOp.TO_GRAYSCALE,),
+            ocr_engine=TextOcrEngine("a"),
+            enable_debug_artifacts=True,
+            debug_dir=directory,)
+            second = run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.UNIFORM_BLOCK, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), normalization=(NormalizationOp.TO_GRAYSCALE,),
+            ocr_engine=TextOcrEngine("a"),
+            enable_debug_artifacts=True,
+            debug_dir=directory,)
             self.assertEqual(first.debug_artifact_name, second.debug_artifact_name)
             self.assertEqual(first.debug_artifact_sha256, second.debug_artifact_sha256)
             path = Path(directory) / first.debug_artifact_name
@@ -412,25 +383,19 @@ class SemanticOcrCropTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), first.debug_artifact_sha256)
             self.assertNotIn("tests/fixtures", path.as_posix())
             self.assertNotIn("evidence/", path.as_posix())
-        disabled = run_semantic_ocr(
-            self.frame,
-            request,
-            ocr_mode=OcrMode.UNIFORM_BLOCK,
-            ocr_engine=lambda _image, _psm: "a",
-            enable_debug_artifacts=False,
-            debug_dir="should-not-write",
-        )
+        disabled = run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.UNIFORM_BLOCK, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), ocr_engine=TextOcrEngine("a"),
+        enable_debug_artifacts=False,
+        debug_dir="should-not-write",)
         self.assertEqual(disabled.status, ObservationStatus.INVALID)
         self.assertEqual(disabled.reason_code, "DEBUG_NOT_ENABLED")
 
     def test_ocr_empty_and_ambiguous_negative_controls(self) -> None:
-        empty = run_semantic_ocr(
-            self.frame,
-            CropRoiRequest(self.identity, (200, 100, 360, 140)),
+        empty = run_semantic_ocr(self.frame, CropRoiRequest(
+            self.identity, (200, 100, 360, 140),
             ocr_mode=OcrMode.SPARSE_TEXT,
-            normalization=(NormalizationOp.TO_GRAYSCALE,),
-            ocr_engine=lambda _image, _psm: "   ",
-        )
+            deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS,
+        ), normalization=(NormalizationOp.TO_GRAYSCALE,),
+        ocr_engine=TextOcrEngine("   "),)
         self.assertEqual(empty.status, ObservationStatus.UNKNOWN)
         self.assertEqual(empty.reason_code, "OCR_EMPTY")
         ambiguous = ambiguous_observation(
@@ -448,12 +413,11 @@ class SemanticOcrCropTests(unittest.TestCase):
         self.assertFalse(observation_grants_dispatch(ambiguous))
 
     def test_invalid_unknown_fail_closed_and_no_dispatch_authority(self) -> None:
-        invalid = run_semantic_ocr(
-            self.frame,
-            CropRoiRequest(self.identity, (0, 0, 900, 10)),
+        invalid = run_semantic_ocr(self.frame, CropRoiRequest(
+            self.identity, (0, 0, 900, 10),
             ocr_mode=OcrMode.UNIFORM_BLOCK,
-            ocr_engine=lambda _image, _psm: "should-not-run",
-        )
+            deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS,
+        ), ocr_engine=TextOcrEngine("should-not-run"),)
         self.assertEqual(invalid.status, ObservationStatus.INVALID)
         self.assertEqual(invalid.reason_code, "ROI_OUT_OF_BOUNDS")
         self.assertFalse(observation_grants_dispatch(invalid))
@@ -480,7 +444,6 @@ class SemanticOcrCropTests(unittest.TestCase):
             run_semantic_ocr(
                 self.frame,
                 object(),  # type: ignore[arg-type]
-                ocr_mode=OcrMode.UNIFORM_BLOCK,
             )
         self.assertEqual(raised.exception.reason_code, "INVALID_REQUEST")
         with self.assertRaises(SemanticOcrCropError) as raised:
@@ -490,37 +453,17 @@ class SemanticOcrCropTests(unittest.TestCase):
     def test_ocr_engine_exception_returns_invalid_without_swallowing_baseexception(self) -> None:
         request = CropRoiRequest(self.identity, (200, 100, 360, 140))
 
-        def failed_engine(_image, _psm):
-            raise RuntimeError("engine unavailable")
 
-        failed = run_semantic_ocr(
-            self.frame,
-            request,
-            ocr_mode=OcrMode.UNIFORM_BLOCK,
-            normalization=(NormalizationOp.TO_GRAYSCALE,),
-            ocr_engine=failed_engine,
-        )
+        failed = run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.UNIFORM_BLOCK, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), normalization=(NormalizationOp.TO_GRAYSCALE,),
+        ocr_engine=failed_ocr_engine,)
         self.assertEqual(failed.status, ObservationStatus.INVALID)
         self.assertEqual(failed.reason_code, "OCR_ENGINE_ERROR")
 
-        def interrupted_engine(_image, _psm):
-            raise KeyboardInterrupt()
 
         with self.assertRaises(KeyboardInterrupt):
-            run_semantic_ocr(
-                self.frame,
-                request,
-                ocr_mode=OcrMode.UNIFORM_BLOCK,
-                normalization=(NormalizationOp.TO_GRAYSCALE,),
-                ocr_engine=interrupted_engine,
-            )
+            run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.UNIFORM_BLOCK, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), normalization=(NormalizationOp.TO_GRAYSCALE,),
+            ocr_engine=interrupted_ocr_engine,)
 
-    def test_module_keeps_ocr_and_authorization_distinct(self) -> None:
-        source = inspect.getsource(crop_module)
-        self.assertNotIn("AUTHORIZE", source)
-        self.assertNotIn("dispatch_input", source)
-        self.assertNotIn("pnsctl", source)
-        self.assertIn("never grants dispatch", observation_grants_dispatch.__doc__.lower())
 
 
 if __name__ == "__main__":

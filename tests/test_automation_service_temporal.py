@@ -179,6 +179,27 @@ class AutomationServiceTemporalTests(unittest.TestCase):
         self.assertTrue(settled.settled)
         self.assertEqual(settled.reason_code, "SETTLED")
 
+    def test_late_older_capture_cannot_settle_after_newer(self) -> None:
+        candidate = CandidateEvidence("home", 0.99, 0.0)
+        temporal = TemporalPerception(TemporalPolicy(consecutive_agreement=2, settle_polls=2))
+        self.assertFalse(
+            temporal.observe(
+                TemporalObservation(provenance(2), candidate, transient=False),
+                now_monotonic=10.0,
+            ).settled
+        )
+        late = temporal.observe(
+            TemporalObservation(provenance(1), candidate, transient=False),
+            now_monotonic=10.0,
+        )
+        self.assertEqual(late.reason_code, "OUT_OF_ORDER_CAPTURE")
+        self.assertIsNone(temporal.settled_candidate(now_monotonic=10.0))
+        newer = temporal.observe(
+            TemporalObservation(provenance(3), candidate, transient=False),
+            now_monotonic=10.0,
+        )
+        self.assertFalse(newer.settled)
+
     def test_temporal_candidate_and_masks_snapshot_mutable_inputs(self) -> None:
         negative = ["clear"]
         candidate = CandidateEvidence("home", 0.99, negative_evidence=negative)
