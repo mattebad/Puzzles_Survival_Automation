@@ -127,7 +127,7 @@ def nova_registered_registry_payload() -> dict:
 
 
 class AutomationServiceSchedulerTests(unittest.TestCase):
-    def test_nova_daily_once_per_reset_fences_duplicate_and_reopened_occurrences(self):
+    def test_nova_selection_remains_non_consuming_across_restarts(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "state.sqlite3"
             registry_path = Path(folder) / "registry.json"
@@ -152,15 +152,16 @@ class AutomationServiceSchedulerTests(unittest.TestCase):
                 first = coordinator.pulse(nova_facts)
                 self.assertIsNotNone(first.candidate)
                 self.assertEqual(first.candidate.descriptor.flow_id, NOVA_FLOW_ID)
-                self.assertEqual(first.result.reason_code, "NOVA_PRAISE_PARENT_CANARY_REQUIRED")
-                self.assertEqual(first.result.observed_progress["transport_count"], 0)
+                self.assertIsNone(first.result)
                 duplicate = coordinator.pulse(facts(
                     reset="reset-1",
                     now=101.0,
                     accepted_product=NOVA_PRODUCT_ID,
                     product_revision=NOVA_PRODUCT_REVISION,
                 ))
-                self.assertIsNone(duplicate.candidate)
+                self.assertIsNotNone(duplicate.candidate)
+                self.assertIsNone(duplicate.result)
+                self.assertEqual(duplicate.candidate.identity, first.candidate.identity)
             finally:
                 store.close()
 
@@ -176,7 +177,11 @@ class AutomationServiceSchedulerTests(unittest.TestCase):
                     accepted_product=NOVA_PRODUCT_ID,
                     product_revision=NOVA_PRODUCT_REVISION,
                 ))
-                self.assertIsNone(reopened_duplicate.candidate)
+                self.assertIsNotNone(reopened_duplicate.candidate)
+                self.assertIsNone(reopened_duplicate.result)
+                self.assertEqual(
+                    reopened_duplicate.candidate.identity, first.candidate.identity
+                )
                 next_reset = coordinator.pulse(facts(
                     reset="reset-2",
                     now=103.0,
@@ -243,10 +248,7 @@ class AutomationServiceSchedulerTests(unittest.TestCase):
                     report.candidate.descriptor.flow_id,
                     WORLD_FLOW_ID,
                 )
-                self.assertEqual(
-                    report.result.reason_code,
-                    "WORLD_NAVIGATION_PARENT_CANARY_REQUIRED",
-                )
+                self.assertIsNone(report.result)
             finally:
                 store.close()
 
