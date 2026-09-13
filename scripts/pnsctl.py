@@ -904,6 +904,17 @@ def _unique_action_rows(
             unique.append(replacement)
             continue
         previous = unique[previous_position]
+        previous_status = previous.get("semantic_status", previous.get("status"))
+        replacement_status = replacement.get("semantic_status", replacement.get("status"))
+        if previous_status == "completed":
+            previous_status = "confirmed"
+        if replacement_status == "completed":
+            replacement_status = "confirmed"
+        if (
+            previous_status in {"confirmed", "failed_confirmed"}
+            and previous_status != replacement_status
+        ):
+            raise OperatorError("action ledger contains conflicting terminal outcomes")
         replacement["transport_attempted_count"] = max(
             _action_transport_attempts(previous), _action_transport_attempts(replacement)
         )

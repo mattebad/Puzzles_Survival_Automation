@@ -175,6 +175,14 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
                 self.assertEqual(_retained_semantic_completed_count(actions), completed)
                 self.assertEqual(actions[0]["semantic_status"], terminal)
 
+    def test_canonical_duplicates_cannot_erase_a_terminal_failure(self):
+        failed = {"action_key": "action", "status": "failed_confirmed"}
+        confirmed = {"action_key": "action", "status": "completed"}
+        for rows in ([failed, confirmed], [confirmed, failed]):
+            with self.subTest(rows=rows):
+                with self.assertRaises(OperatorError):
+                    _unique_action_rows(rows)
+
 
     def test_pulse_contention_is_structured_and_never_selected(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
