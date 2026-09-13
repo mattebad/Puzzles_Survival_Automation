@@ -48,6 +48,8 @@ jobs:
         run: python -m unittest tests.test_daily_quest_planning tests.test_catalog_and_pnsctl tests.test_product_authority tests.test_gameplay_flow_contracts
       - name: Run REC-F05 read-only scheduling regressions
         run: python -m unittest tests.test_automation_service_canonical_authority tests.test_automation_service_cli tests.test_automation_service_scheduler_canonical tests.test_pnsctl_scheduler_pulse
+      - name: Run REC-F06 non-consuming selector regressions
+        run: python -m unittest tests.test_automation_service_handlers tests.test_automation_service_contracts tests.test_automation_service_canonical_authority tests.test_automation_service_scheduler
       - name: Run REC-F08 evidence accounting regressions
         run: python -m unittest tests.test_bluestacks_native_runtime tests.test_pnsctl_scheduler_pulse tests.test_world_map_navigation_bluestacks
       - name: Run directly affected cleanup regressions

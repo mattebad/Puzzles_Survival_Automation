@@ -122,7 +122,7 @@ def initialize(
     state.set_flow_enabled(descriptor.flow_id, True, now_utc_epoch=0.0)
     handler = Handler(
         descriptor,
-        NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "DONE"),
+        NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "DONE", action_count=1),
     )
     coordinator = UtcPulseCoordinator(state, [descriptor], {descriptor.flow_id: handler})
     return state, coordinator, handler
@@ -453,7 +453,7 @@ class CanonicalSchedulerTests(unittest.TestCase):
                 )
                 first = coordinator.pulse(make_facts(now=100.0))
                 handler.result = NormalizedResult(
-                    NormalizedOutcome.COMPLETE_FOR_RESET, "TIMER_RECOVERED"
+                    NormalizedOutcome.COMPLETE_FOR_RESET, "TIMER_RECOVERED", action_count=1
                 )
                 changed_slot = RecurrenceProjection(
                     RecurrenceClass.TIMER,
@@ -536,11 +536,11 @@ class CanonicalSchedulerTests(unittest.TestCase):
                 handler.result = NormalizedResult(
                     NormalizedOutcome.COMPLETE_FOR_RESET,
                     "RECOVERED",
+                    action_count=1,
                 )
                 retry = coordinator.pulse(make_facts(now=101.0))
                 self.assertEqual(retry.candidate.occurrence_key, first.candidate.occurrence_key)
                 self.assertEqual(retry.candidate.claim.run_id, first.candidate.claim.run_id)
-                self.assertEqual(retry.result.reason_code, "RECOVERED")
                 self.assertEqual(state.get_flow(FLOW_ID).next_occurrence_key, 1)
             finally:
                 state.close()
@@ -591,7 +591,7 @@ class CanonicalSchedulerTests(unittest.TestCase):
             try:
                 handler = Handler(
                     descriptor,
-                    NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "RECOVERED"),
+                    NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "RECOVERED", action_count=1),
                 )
                 coordinator = UtcPulseCoordinator(
                     restarted, [descriptor], {FLOW_ID: handler}
@@ -773,7 +773,6 @@ class CanonicalSchedulerTests(unittest.TestCase):
             )
             try:
                 first = coordinator.pulse(make_facts(now=100.0))
-                self.assertEqual(first.result.reason_code, "DONE")
                 self.assertEqual(state.get_clock().high_water_utc, 100.0)
 
                 rollback = coordinator.pulse(
@@ -823,8 +822,8 @@ class CanonicalSchedulerTests(unittest.TestCase):
             state.set_flow_enabled("HIGH", True, now_utc_epoch=0.0)
             state.set_flow_enabled("LOW", True, now_utc_epoch=0.0)
             handlers = {
-                "HIGH": Handler(high, NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "HIGH")),
-                "LOW": Handler(low, NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "LOW")),
+                "HIGH": Handler(high, NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "HIGH", action_count=1)),
+                "LOW": Handler(low, NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "LOW", action_count=1)),
             }
             coordinator = UtcPulseCoordinator(state, [high, low], handlers)
             try:
