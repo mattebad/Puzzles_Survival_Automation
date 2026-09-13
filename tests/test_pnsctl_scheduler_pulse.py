@@ -17,12 +17,117 @@ from automation_service.registry import (
 )
 from automation_service.state import BotStateManager
 
-from scripts.pnsctl import main
+from scripts.pnsctl import (
+    OperatorError,
+    _compact_development_action_results,
+    _retained_semantic_completed_count,
+    _retained_transport_count,
+    _startup_recovery_action_rows,
+    _unique_action_rows,
+    main,
+)
+
 
 
 
 
 class PnsctlSchedulerPulseTests(unittest.TestCase):
+    def test_retained_action_projection_deduplicates_transport_and_keeps_semantics(self):
+        rows = [
+            {
+                "type": "dispatch",
+                "action_key": "same-action",
+                "target_identity": "target",
+                "source_sha256": "before",
+                "execute": True,
+            },
+            {
+                "type": "capture",
+                "label": "post",
+                "path": r"historical:stream\post.png",
+                "sha256": "after",
+            },
+            {
+                "type": "dispatch",
+                "action_key": "same-action",
+                "target_identity": "target",
+                "source_sha256": "before",
+                "execute": True,
+            },
+            {
+                "type": "capture",
+                "label": "duplicate-post",
+                "path": "duplicate-post.png",
+                "sha256": "duplicate-after",
+            },
+            {
+                "type": "reconcile",
+                "action_key": "same-action",
+                "status": "unresolved",
+                "reason": "unknown successor",
+            },
+        ]
+        actions = _compact_development_action_results(rows)
+        self.assertEqual(_retained_transport_count(rows), 1)
+        self.assertEqual(_retained_semantic_completed_count(actions), 0)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0]["semantic_status"], "unresolved")
+        self.assertFalse(actions[0]["semantic_completed"])
+        self.assertEqual(actions[0]["capture_status"], "post_captured")
+        self.assertEqual(actions[0]["after_path"], r"historical:stream\post.png")
+
+    def test_canonical_action_rows_count_failed_unknown_once_without_capture_success(self):
+        rows = [
+            {"label": "confirmed", "status": "completed"},
+            {"label": "confirmed", "status": "unknown", "transport_attempted_count": 2},
+            {"label": "positive", "status": "completed"},
+            {"label": "failed", "status": "effect_reconciliation_required"},
+            {"label": "unknown", "status": "unknown"},
+        ]
+        self.assertEqual(_retained_transport_count(rows), 5)
+        self.assertEqual(_retained_semantic_completed_count(rows), 1)
+    def test_startup_recovery_action_keeps_one_action_distinct_from_multiple_inputs(self):
+        recovery = {
+            "status": "recovered",
+            "input_count": 2,
+            "action_key": "startup-recovery:close",
+            "popup_identity": "reset-popup",
+            "before_sha256": "before",
+            "after_sha256": "after",
+            "reason": "successor recognized",
+        }
+        rows = _startup_recovery_action_rows(recovery)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(_retained_transport_count(rows), 2)
+        self.assertEqual(_retained_semantic_completed_count(rows), 1)
+        self.assertEqual(rows[0]["action_key"], recovery["action_key"])
+        self.assertEqual(rows[0]["status"], "completed")
+        combined = _unique_action_rows([*rows, *rows])
+        self.assertEqual(_retained_transport_count(combined), 2)
+        self.assertEqual(_retained_semantic_completed_count(combined), 1)
+
+    def test_nonattempted_dispatch_is_excluded_without_losing_label_identity(self):
+        events = [
+            {"type": "dispatch", "execute": True, "transport_attempted": False},
+            {"type": "dispatch", "execute": True, "label": "actual-label"},
+        ]
+        actions = _compact_development_action_results(events)
+        self.assertEqual([row["action_key"] for row in actions], ["actual-label"])
+        self.assertEqual(_retained_transport_count(events), 1)
+        self.assertEqual(_retained_transport_count(actions), 1)
+        self.assertEqual(_retained_semantic_completed_count(actions), 0)
+
+    def test_malformed_executable_ledger_cannot_silently_undercount(self):
+        for event in (
+            {"type": "dispatch", "execute": True},
+            {"type": "dispatch", "execute": True, "action_key": "action", "transport_attempted_count": -1},
+        ):
+            with self.subTest(event=event):
+                with self.assertRaises(OperatorError):
+                    _compact_development_action_results([event])
+                with self.assertRaises(OperatorError):
+                    _retained_transport_count([event])
+
 
     def test_pulse_contention_is_structured_and_never_selected(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
