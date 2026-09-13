@@ -128,6 +128,23 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
                 with self.assertRaises(OperatorError):
                     _retained_transport_count([event])
 
+    def test_semantic_count_rejects_identityless_actions_but_ignores_capture_events(self):
+        for row in (
+            {"status": "completed"},
+            {"type": "reconcile", "semantic_status": "confirmed"},
+            {"type": "dispatch", "execute": True},
+        ):
+            with self.subTest(row=row):
+                with self.assertRaises(OperatorError):
+                    _retained_semantic_completed_count([row])
+        self.assertEqual(
+            _retained_semantic_completed_count([
+                {"type": "capture", "semantic_status": "confirmed"},
+                {"action_key": "confirmed-action", "status": "completed"},
+            ]),
+            1,
+        )
+
 
     def test_pulse_contention_is_structured_and_never_selected(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

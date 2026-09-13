@@ -1031,9 +1031,11 @@ def _retained_semantic_completed_count(
 
     semantic_by_identity: dict[str, str] = {}
     for row in action_rows:
+        if row.get("type") not in {None, "dispatch", "reconcile"}:
+            continue
         identity = _canonical_action_identity(row)
         if identity is None:
-            continue
+            raise OperatorError("semantic action ledger row is missing an action identity")
         semantic_status = row.get("semantic_status")
         if semantic_status is None:
             if row.get("type") is not None:
