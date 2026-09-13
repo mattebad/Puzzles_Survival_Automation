@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -137,7 +138,7 @@ def mutable_tables(path: Path) -> dict[str, tuple[tuple[object, ...], ...]]:
         "runs",
         "actions",
     )
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection:
         return {
             table: tuple(
                 tuple(row)

@@ -3,8 +3,8 @@
 
 This module deliberately does not own ADB or input transport.  It only classifies fresh
 profile-sized frames and produces an annotated, non-actionable target proposal.  A supervised
-controller may use the returned target only after a fresh source recapture and the policy gates
-described in BACKLOG.md pass.
+controller is responsible for fresh source recapture and current runtime policy gates.
+Historical design context is retained in docs/archive/backlog-legacy.md.
 """
 
 from __future__ import annotations

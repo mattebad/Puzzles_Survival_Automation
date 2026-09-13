@@ -1,7 +1,6 @@
 # DQ-FLOW-RESOURCE-BOOST
 
-Repository authority: catalog owns `boost_resource_building_output`; matrix owns disabled policy/status;
-backlog owns task. Main Quest Claim excluded.
+Repository authority: catalog owns `boost_resource_building_output`; matrix owns disabled policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record. Main Quest Claim excluded.
 
 Scope: boost any resource building output. Reuse building identity and offline boost model only.
 Route: Daily row → selected resource building → boost. Source: row/building/resource identity;

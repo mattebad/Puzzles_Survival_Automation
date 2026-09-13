@@ -8,7 +8,7 @@ live-capture authority. Persisted observations and results never retain numpy ar
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass
 from hashlib import sha256
 import json
 import math
@@ -264,7 +264,7 @@ class ReplayFrameObservation:
     channels: int
     transport_sha256: str
     semantic_sha256: str
-    callback_payload: Mapping[str, str] = MappingProxyType({})
+    callback_payload: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self._validate_structure()

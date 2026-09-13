@@ -2,6 +2,9 @@
 **/*conversation-transcript*.md
 **/*agent-transcript*.md
 
+# Historical plans and delivery records remain available by explicit path.
+docs/archive/**
+
 # Raw and local evidence is retained but excluded from broad indexing.
 .local-captures/**
 .local-reference/**
@@ -30,7 +33,6 @@ evidence/**/*transcript*.md
 **/__pycache__/**
 artifacts/evidence-audit*.json
 artifacts/evidence-audit*.md
-autonomous_iteration_prompt.md
 /Puzzle_Survival_Runtime_POC*.zip
 /*.7z
 # Broad raw evidence exclusions beyond image/db/raw trees above.

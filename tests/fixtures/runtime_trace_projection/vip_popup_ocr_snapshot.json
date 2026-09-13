@@ -1,0 +1,44 @@
+{
+  "schema_name": "fixture_only_ocr_snapshot",
+  "schema_version": 1,
+  "fixture_only": true,
+  "capture_policy": "recorded_from_retained_observation; no OCR process in replay",
+  "provenance": {
+    "frame_sha256_record": "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/reset-popup-close-result.json:action.source_frame_sha256",
+    "ocr_records": [
+      "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/vip-points-popup-pre-dispatch.json:recognized_popup"
+    ]
+  },
+  "frame": {
+    "path": "tasks/assets/navigation/800x1280/reset_popup_source.png",
+    "sha256": "73952c7f000dcefcf0fd5c7fe3f47be99eb8037e414fea67d1b116153cb1025e",
+    "shape": [1280, 800, 3]
+  },
+  "observations": [
+    {
+      "name": "title",
+      "roi": [260, 390, 540, 440],
+      "resize_scale": 4,
+      "binary_threshold": 120,
+      "config": "--psm 7",
+      "text": "get pts",
+      "provenance": "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/vip-points-popup-pre-dispatch.json:recognized_popup.title_text"
+    },
+    {
+      "name": "body",
+      "roi": [120, 480, 680, 720],
+      "resize_scale": 2.5,
+      "config": "--psm 6",
+      "text": "int log in every day to get vip pt yp, obtaind vip pts: 180 up log in streak: 5 day(s) pts to gain tomorrow: 200",
+      "provenance": "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/vip-points-popup-pre-dispatch.json:recognized_popup.body_text"
+    },
+    {
+      "name": "close",
+      "roi": [260, 750, 540, 870],
+      "resize_scale": 3,
+      "config": "--psm 7",
+      "text": "close",
+      "provenance": "evidence/sessions/20260713-personal-might-praise/live-corrected-popup-006/vip-points-popup-pre-dispatch.json:recognized_popup.matched_close_text"
+    }
+  ]
+}

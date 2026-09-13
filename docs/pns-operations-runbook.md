@@ -45,14 +45,14 @@ objective binding, fixed point delta, or identical retry.
 
 ## Future Bliss porting toolbox
 
-Reusable remote infrastructure is isolated under `scripts/bliss_porting/` and
+Reusable remote infrastructure is isolated under `tools/experimental/bliss_porting/` and
 `docker/bliss-porting-tooling.Dockerfile`. It is manual-only and is not
 imported, registered, scheduled, or exposed by `pnsctl`.
 
 Only an explicitly selected future Bliss porting task may invoke:
 
 ```text
-python -m scripts.bliss_porting.cli --help
+python -m tools.experimental.bliss_porting.cli --help
 ```
 
 The toolbox requires explicit host, host key, serial, container, image,

@@ -1033,7 +1033,12 @@ class DevelopmentSessionTests(unittest.TestCase):
     def test_pnsctl_flow_session_avoids_queue_and_preserves_checkpoint_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            checkpoints = tuple(root / name for name in ("BACKLOG.md", "queue.json", "handoff.md"))
+            checkpoints = (
+                root / "docs" / "archive" / "backlog-legacy.md",
+                root / "queue.json",
+                root / "handoff.md",
+            )
+            checkpoints[0].parent.mkdir(parents=True)
             for path in checkpoints:
                 path.write_text(path.name, encoding="utf-8")
             child = root / "child"

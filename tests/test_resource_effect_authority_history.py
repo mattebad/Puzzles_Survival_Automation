@@ -18,6 +18,8 @@ from safe_action_core.store import SafetyStore
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "resource_effect_authority" / "historical_sessions.json"
+PORTABLE_FIXTURE_DIR = ROOT / "tests" / "fixtures" / "resource_effect_authority" / "portable"
+SHARED_RESOURCE_EVENTS = ROOT / "tests" / "fixtures" / "runtime_trace_projection" / "resource-events.jsonl"
 
 
 def _digest(path: Path) -> str:
@@ -29,7 +31,34 @@ class ResourceAuthorityHistoryTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.store = SafetyStore(Path(self.temp.name) / "history.sqlite3")
         self.authority = ResourceEffectAuthority(self.store)
-        self.fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        portable_fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        portable_paths = (
+            {
+                "summary": "session-1-summary.json",
+                "events": "session-1-events.jsonl",
+                "transport_source_frame": "session-1-transport-source.png",
+                "settled_post": "session-1-settled-post.png",
+            },
+            {
+                "summary": "session-2-summary.json",
+                "events": SHARED_RESOURCE_EVENTS,
+                "transport_source_frame": "session-2-transport-source.png",
+                "settled_post": "session-2-settled-post.png",
+                "terminal_home": "session-2-terminal-home.png",
+            },
+        )
+        for session, paths in zip(portable_fixture["sessions"], portable_paths, strict=True):
+            for artifact_name, filename in paths.items():
+                path = Path(filename)
+                if not path.is_absolute():
+                    path = PORTABLE_FIXTURE_DIR / path
+                session[artifact_name]["path"] = str(path.resolve())
+        self.fixture = portable_fixture
+        self.portable_fixture = Path(self.temp.name) / "historical_sessions.json"
+        self.portable_fixture.write_text(
+            json.dumps(portable_fixture, indent=2) + "\n",
+            encoding="utf-8",
+        )
 
     def tearDown(self) -> None:
         self.store.close()
@@ -98,7 +127,7 @@ class ResourceAuthorityHistoryTests(unittest.TestCase):
         )
 
     def test_exact_fixture_importer_reads_only_named_paths(self) -> None:
-        imported = self.authority.import_historical_sessions(FIXTURE)
+        imported = self.authority.import_historical_sessions(self.portable_fixture)
         self.assertEqual(len(imported["transports"]), 2)
         self.assertEqual(len(imported["effects"]), 2)
         self.assertEqual(

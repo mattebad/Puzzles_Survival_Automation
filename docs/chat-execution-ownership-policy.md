@@ -1,33 +1,41 @@
-# Chat and execution ownership policy
+# Runtime execution ownership
 
-Exactly one chat, agent, worker, collector, or automation may prepare or issue runtime input. Every
-live path uses `pnsctl development-session`, which owns the singleton lock for the whole bounded
-flow and releases it automatically.
+Exactly one runtime operator may prepare or issue input. Planning chats, workers, tests,
+collectors, and automation must not overlap that operator. Explicit current authorization
+and the existing runtime ownership, lease, and fencing checks are required; documentation,
+participant labels, review results, and historical evidence grant no authority.
 
-Parallel live-runtime work is prohibited. Offline planning may coexist only when it cannot mutate
-the runtime or overlap working-tree ownership.
+Use the supported `pnsctl` boundary for the applicable runtime path. Do not use ad-hoc ADB,
+SSH, VM/device access, or direct transport to bypass admission. Offline development does not
+require a runtime owner, queue activation, delivery receipt, or prescribed agent choreography.
 
-A handoff occurs only after the session has terminated, native evidence and the compact summary are
-flushed, runtime ownership is released, and attributable staged/unstaged paths are known. Routine
-inputs, recognition failures, repairs, tests, zoom attempts, combat, claims, rewards, and recovery
-do not trigger `CURRENT_HANDOFF.md`, queue, or backlog rewrites. Update those artifacts only at a
-flow checkpoint or genuine external blocker.
+## Existing delegated runtime controls
 
-## Delegated receipt ownership
+Where a retained legacy runtime path uses delegated receipts, its existing checks remain in
+force. The controller binds the exact task/flow, operator identity, candidate, command,
+scenario, capability, budgets, expiry, and result. It enforces single-use admission and
+singleton ownership; descriptive attribution is not a bearer credential or permission grant.
+Retiring editor/model workflow instructions does not waive candidate, review, receipt,
+authorization, or other safety checks enforced by that controller.
 
-The parent controller may issue one single-use delegated runtime receipt at a time. A receipt binds
-the exact task, flow, Luna identity, clean candidate content fingerprint, HEAD, canonical
-`pnsctl development-session` argv, scenario, variant, capability manifest, budgets, expiry, and
-result identity. Receipt state is controller-owned durable state; its digest detects alteration but
-is not a bearer credential.
+The separate legacy `begin-delegation` development command/API requires an explicit non-empty
+free-form `--agent` value. This records attribution only, selects no model or persona, and does
+not authorize runtime input. Ordinary offline work need not use this command.
 
-Issuance and admission reject dirty or changed candidates. Admission consumes the receipt before
-runtime singleton acquisition, so a failed, dry-run, crashed, timed-out, or ambiguous admission
-cannot be replayed. Delegated sessions retain receipt-bound results and evidence and release the
-singleton on every safe terminal path. All authorized repairs must be complete before final
-acceptance. Canary admission requires Luna implementation self-check evidence and final parent Sol
-integration acceptance bound to the receipt's final clean candidate content fingerprint. For
-`sol_plus_terra`, the required conditional independent read-only Terra review evidence (and its one
-recheck when a repair occurred) must be recorded before that final Sol acceptance; Solo cannot
-bypass this class-specific gate or admit live work without it. That acceptance is the last
-acceptance gate before live admission.
+## Unresolved actions and handoff
+
+- Preserve fresh source/target binding, input budgets, unresolved-action handling, and the
+  existing safe terminal/release path. Never bypass a stale lease or fencing failure.
+- Unknown or ambiguous consequential results fail closed. Do not issue an uncertain retry,
+  repeat an input to force teardown, or infer semantic success from a transport return.
+- Login, tutorial, CAPTCHA, account/credential work, and other manual-only states stop for a
+  human. Premium, real-money, unsupported, and unapproved consequential actions are prohibited.
+- Before a runtime handoff, retain the required native evidence and summary, classify any
+  unresolved state, and complete the existing safe ownership release. If safe release is
+  impossible, report the blocker rather than releasing or taking over by force.
+- Keep evidence immutable. Record a consequential or unknown terminal surface honestly;
+  historical records are not permission to repair, retry, or enable a flow.
+
+See [runtime input safety](runtime-input-safety-policy.md) and
+[validation boundaries](flow-delivery-validation-policy.md). Archived model-specific workflow
+records under [archive/](archive/README.md) are non-authoritative historical context.

@@ -1,7 +1,7 @@
 # DQ-CLAIM-DAILY
 
 Repository authority: catalog owns objective identity; matrix owns Claim state
-and policy; `BACKLOG.md` owns this task. Preserve generic
+and policy; `docs/archive/backlog-legacy.md` preserves the historical task record. Preserve generic
 `CLAIM_DAILY_QUEST`. Exclude Main Quest and milestone Claim.
 
 Scope: one aggregate Claim action on positively selected Daily. Reuse the

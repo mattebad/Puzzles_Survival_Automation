@@ -1,86 +1,66 @@
-# Backlog task contract
+# Backlog planning conventions
 
-This is the canonical schema for newly created or activated backlog tasks. It is a contract
-specification, not an execution prompt.
+This document describes the compact format for the 74 current recovery tickets. It is a planning
+convention, not an execution prompt, queue, registry, scheduler, evidence authority, or runtime
+control plane. Offline work does not require a runtime state change, delivery receipt, or queue
+activation. Live runtime changes still require explicit authorization and existing safety checks.
 
-## Required contract
+## Required planning information
 
-Each adopted task must contain these labeled fields in its `BACKLOG.md` section:
+Every linked ticket should make these facts easy to find:
 
-### Identity
+- **Identity:** stable `Task ID`, title, type, priority, and status.
+- **Outcome:** one atomic objective, established facts, dependencies, and related historical work.
+- **Scope:** exact implementation and test paths, shared dependencies, intended changes, and clear
+  non-goals. A proposed new path is marked `NEW`.
+- **Acceptance:** observable success and fail-closed boundaries, including unknown/stale,
+  crash/restart, disable, duplicate/no-retry, cost/resource, and ownership behavior where relevant.
+- **Verification:** real repository commands or a precise offline decision/operations proof. A
+  prescribed command is not a claim that it has run.
+- **Native gate:** whether later supervised current evidence is required. Development BlueStacks
+  evidence and replay fixtures do not become NAS/Unraid production acceptance by reference.
+- **Integration owner:** the callers, registry/schema/service/CLI seams that must change in the same
+  PR. A mention is not permission to leave wiring for later.
+- **PR boundary:** one focused change set with exact allowed paths, rollback/disable behavior, and
+  no push unless separately authorized.
+- **Runtime authorization:** normally `none` for these records. State explicitly when a later gate
+  is required; a planning record never grants transport, host/device/ADB/VM access, scheduler
+  enablement, registration, evidence mutation, or production state mutation.
+- **Completion:** distinguish offline code merge, current native evidence, scheduler acceptance, and
+  explicit enablement. Do not call the latter three complete because code or tests pass.
 
-`Task ID`, `Title`, `Status`, `Milestone`, `Dependencies`, and `Blocked by`.
+The recommended ticket labels are `Task ID`, `Type`, `Priority`, `Status`, `Objective`,
+`Dependencies`, `Related work`, `Evidence`, `Scope`, `Changes`, `Non-goals`, `Acceptance`,
+`Verification`, `Native gate`, `Integration owner`, `PR boundary`, `Rollback`, `Runtime
+authorization`, and `Completion`. Their order is for readability, not positional parsing.
 
-### Objective and facts
+## Status and authority boundaries
 
-`Objective` must name one atomic outcome. `Established facts` records proven facts that should not
-be broadly re-proven.
+`READY` means that a later offline assignment may be considered after dependencies, decisions, path
+locks, and an approved base are checked. `WAITING_DEPENDENCIES`, `BLOCKED_POLICY`, and
+`BLOCKED_NATIVE` remain explicit blockers. None of these labels starts work or changes runtime
+eligibility. Keep `code_merged`, `native_pending`, `scheduler_accepted`, and `enabled` distinct.
 
-### Scope
+The canonical mutable runtime authorities remain the existing SQLite state manager, service lease,
+flow/run generations, action reservations, `ResourceEffectAuthority` where parity is not yet proven,
+and the current runtime gates. Do not create a queue, second registry, conductor, receipt, evidence-
+based enablement, or legacy fallback. Unknown or unresolved consequential outcomes are retained for
+reconciliation or blocked and are never automatically retried.
 
-`Direct implementation files`, `Shared dependencies`, `Transitive regression set`, `Allowed
-changes`, and `Prohibited changes`.
+The root [`BACKLOG.md`](../BACKLOG.md) is only an index to the linked records. The historical
+148-record backlog is preserved byte-for-byte at
+[`docs/archive/backlog-legacy.md`](archive/backlog-legacy.md). Existing legacy tooling may read that
+explicit archive path; the archive is historical and cannot activate a current ticket. The derived
+`tasks/backlog_task_index.json` remains a compatibility subset for legacy flow-delivery context, not
+discovery for the 74 records.
 
-### Live authorization
+## Future assignment boundary
 
-`Authorized runtime action`, `Maximum transport inputs`, `Navigation-only recovery`,
-`Consequential action`, `Registration changes`, `Scheduler changes`, and `Actions that must not be
-repeated`.
+A later, separately authorized assignment may use one ticket, one worktree, and one focused PR (or a
+documentary/operational record where the ticket says so). Workers edit only the ticket's allowed
+paths and use fake/replay adapters or isolated temporary state for offline proof. No assignment from
+this document creates a branch, worktree, commit, PR, native run, or persistent state transition.
 
-Use explicit `none`, `forbidden`, or numeric zero values where a task has no live authority.
-
-### Recognition and semantics
-
-`Required source`, `Exact target semantics`, `Required local association`, `Negative controls`,
-`Coordinate space`, `Accepted signals`, `Rejected weak signals`, and `Ambiguous-result behavior`.
-
-### Product resource policy
-
-`Zero-cost requirement`, `Quantity limits`, `Resource consumption policy`, and `Premium or strategic
-restrictions`.
-
-### Evidence and verification
-
-`Evidence requirement` must be one of:
-
-- `REQUIRED` for runtime or live-evidence tasks; the handoff names an exact canonical manifest and
-  the validator checks its task identity, paths, and hashes.
-- `TASK_LOCAL` for offline tasks that require a tracked task-local manifest; the handoff names that
-  repository-relative manifest and the validator checks it.
-- `NOT_APPLICABLE — <reason>` for offline tasks that produce no canonical evidence; the handoff
-  uses a null active manifest and records the reason explicitly.
-
-`Active evidence manifest`, `Required artifacts`, `Immediate-before/immediate-post/result/journal`,
-`Additional task-specific artifacts`, `Focused tests`, `Integration tests`, `Transitive regression
-tests`, `Full-suite requirement`, `Validators`, and `Known baseline failures`.
-
-### Outcomes and commits
-
-`Valid blocked outcomes`, `Blocked-result commit policy`, `Expected focused commits`, per-commit
-`allowed paths`, `Completion criteria`, and `No push unless explicitly authorized`.
-
-## Activation and migration
-
-The validator hard-fails the task named by `current_task_id` in the structured
-`CURRENT_HANDOFF.md`, `GOV-DURABLE-STATE`, newly created tasks, and legacy tasks modified after
-governance adoption.
-
-Untouched legacy nonterminal tasks receive warnings only. Completed historical tasks have no
-migration requirement. A warning becomes a hard failure when the task is modified or activated.
-
-A legacy task becomes active only after:
-
-1. its backlog section satisfies this contract;
-2. its dependencies and authorization are validated;
-3. `CURRENT_HANDOFF.md` is updated in a separate persisted transition to move the task from
-   `next_task_id` to `current_task_id`.
-
-`next_task_id` is a declared successor, not an active task, and does not trigger immediate contract
-migration.
-
-## Commit ownership
-
-Every task names the exact path allowlist for each expected commit. If one file spans concerns,
-reviewed hunk-level staging is required. If hunk staging would create an unclear dependency
-boundary, collapse the commits. Never duplicate changes, create artificial commits, or stage a
-whole shared file merely because one hunk belongs to the active commit.
+Shared source, test, and integration hunks are serialized by their actual overlap. The integration
+owner completes required caller and cutover changes in the same PR; “wire later” is not completion.
+No workflow persona, exact stage count, or conversational ceremony is part of this contract.

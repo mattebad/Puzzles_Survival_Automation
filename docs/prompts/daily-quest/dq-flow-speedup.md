@@ -1,7 +1,6 @@
 # DQ-FLOW-SPEEDUP
 
-Repository authority: catalog owns `speedup_using_items`; matrix owns disabled policy/status; backlog owns
-task. Main Quest Claim excluded.
+Repository authority: catalog owns `speedup_using_items`; matrix owns disabled policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record. Main Quest Claim excluded.
 
 Scope: Speedup 180 minutes using items. Reuse timer identity and offline duration model only.
 Route: Daily row → selected timer → speedup. Source: row, timer, item inventory; target: exact

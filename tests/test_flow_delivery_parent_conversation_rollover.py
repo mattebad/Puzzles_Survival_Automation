@@ -15,8 +15,6 @@ ROOT = Path(__file__).resolve().parents[1]
 QUEUE_PATH = ROOT / "tasks" / "flow_delivery_queue.json"
 POLICY_PATH = ROOT / "tasks" / "flow_delivery_product_policy.json"
 LOOP_POLICY_PATH = ROOT / "tasks" / "flow_delivery_loop_policy.json"
-COMMAND_PATH = ROOT / ".cursor" / "commands" / "pns-flow-delivery-loop.md"
-SKILL_PATH = ROOT / ".cursor" / "skills" / "pns-flow-delivery" / "SKILL.md"
 CAMPAIGN = "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
 ULTIMATE = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
 NOVA = "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
@@ -63,19 +61,6 @@ class LoopPolicyTests(unittest.TestCase):
                     "extra": True,
                 }
             )
-
-    def test_command_and_skill_are_not_numeric_authorities(self) -> None:
-        command = COMMAND_PATH.read_text(encoding="utf-8")
-        skill = SKILL_PATH.read_text(encoding="utf-8")
-        progress.assert_texts_do_not_hardcode_maximum(
-            {"command": command, "skill": skill},
-            maximum=2,
-        )
-        self.assertIn("flow_delivery_loop_policy.json", command)
-        self.assertIn("flow_delivery_loop_policy.json", skill)
-        self.assertIn(control.PARENT_CONVERSATION_ROLLOVER_REQUIRED, command)
-        self.assertIn(control.PARENT_CONVERSATION_ROLLOVER_REQUIRED, skill)
-        self.assertIn(control.RESUME_INVOCATION.splitlines()[0], command)
 
 
 class ParentConversationRolloverControllerTests(unittest.TestCase):

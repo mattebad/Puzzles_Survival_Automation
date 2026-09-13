@@ -363,7 +363,6 @@ class NoahTavernNavigationIsolationTests(unittest.TestCase):
             "gameplay_flow_contracts",
             "flow_delivery_coverage",
             "backlog_task_index",
-            "backlog.md",
             "current_handoff",
         ):
             self.assertNotIn(needle, source)

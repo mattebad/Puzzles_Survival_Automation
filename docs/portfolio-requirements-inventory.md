@@ -90,7 +90,7 @@ Daily rows. They are design references, not current-runtime authorization.
 
 ### Accepted foundations preserved
 
-- Delegated Luna receipt enforcement, dry-run proof, and zero-input ownership observation are
+- Delegated runtime receipt enforcement, dry-run proof, and zero-input ownership observation are
   accepted and must not be rebuilt.
 - Enhancement BlueStacks implementation and verifier repair are accepted offline. Gear, Chip, and
   Module native semantics/canaries remain three separate evidence tasks.

@@ -38,7 +38,6 @@ class GovernanceValidationTests(unittest.TestCase):
             state["exact_next_permitted_action"],
             state["exact_next_permitted_action"].strip(),
         )
-        self.assertEqual(state["control_owner"], "sol_parent")
         self.assertNotIn("actions_already_performed", state)
 
     def test_manifest_uses_fixed_artifact_state_schema(self):
@@ -82,6 +81,8 @@ class GovernanceValidationTests(unittest.TestCase):
         }
         self.assertIn("evidence/**/*.png", patterns)
         self.assertNotIn("evidence/current-evidence-manifest.json", patterns)
+        self.assertIn("docs/archive/**", patterns)
+        self.assertNotIn("autonomous_iteration_prompt.md", patterns)
 
     def test_declared_successor_remains_inactive(self):
         state = validate_governance.parse_handoff()
@@ -109,7 +110,7 @@ class GovernanceValidationTests(unittest.TestCase):
         )
 
     def test_existing_gov_and_mvp_contracts_remain_structurally_valid(self):
-        backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
+        backlog = (ROOT / "docs" / "archive" / "backlog-legacy.md").read_text(encoding="utf-8")
         for task_id in ("GOV-DURABLE-STATE", "MVP-QUEST-TO-CLAIM"):
             fields = validate_governance.validate_task_contract(
                 validate_governance.task_block(backlog, task_id),
@@ -118,7 +119,7 @@ class GovernanceValidationTests(unittest.TestCase):
             self.assertEqual(fields["Evidence requirement"].split()[0].rstrip(":,.;"), "REQUIRED")
 
     def test_nonexistent_task_id_is_rejected(self):
-        backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
+        backlog = (ROOT / "docs" / "archive" / "backlog-legacy.md").read_text(encoding="utf-8")
         with self.assertRaises(validate_governance.GovernanceValidationError):
             validate_governance.task_block(backlog, "NOT-A-REAL-TASK")
 
@@ -259,7 +260,7 @@ class GovernanceValidationTests(unittest.TestCase):
         state["next_task_id"] = "NOT-A-REAL-TASK"
         with self.assertRaises(validate_governance.GovernanceValidationError):
             validate_governance.validate_successor(
-                (ROOT / "BACKLOG.md").read_text(encoding="utf-8"),
+                (ROOT / "docs" / "archive" / "backlog-legacy.md").read_text(encoding="utf-8"),
                 state,
             )
 

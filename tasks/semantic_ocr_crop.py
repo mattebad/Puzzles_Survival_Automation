@@ -7,7 +7,7 @@ Debug crop artifacts are disabled by default and, when enabled, are deterministi
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 import hashlib
 from numbers import Integral
@@ -254,7 +254,7 @@ class SemanticOcrObservation:
     supporting_evidence: tuple[str, ...] = ()
     debug_artifact_name: str | None = None
     debug_artifact_sha256: str | None = None
-    metadata: Mapping[str, str] = MappingProxyType({})
+    metadata: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.source_frame, NativeFrameIdentity):

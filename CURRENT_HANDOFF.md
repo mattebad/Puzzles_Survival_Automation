@@ -95,7 +95,6 @@
     "monitoring_issue": "none",
     "do_not_recursively_inspect_parent_evidence_tree": true
   },
-  "control_owner": "sol_parent",
   "control_parent_conversation_id": "stage-10-phase-5-reproof-20260826",
   "deferred_independent_review": "PR 4 is merged non-force into main at 25f5de6; GitHub records REVIEW_REQUIRED with no independent review or checks recorded, so no independent approval is claimed and no merge action remains pending",
   "stage_7_ordered_plan": [

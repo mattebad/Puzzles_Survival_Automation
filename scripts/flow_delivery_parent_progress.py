@@ -22,9 +22,8 @@ DEFAULT_PROGRESS_PATH = REPO_ROOT / ".local-orchestrator" / "parent-conversation
 
 PARENT_CONVERSATION_ROLLOVER_REQUIRED = "PARENT_CONVERSATION_ROLLOVER_REQUIRED"
 RESUME_INVOCATION_LINES = (
-    "/loop Load and follow `.cursor/commands/pns-flow-delivery-loop.md` exactly.",
-    "Continue the authoritative queue until a checked-in hard stop condition occurs.",
-    "IDE-native custom subagents only; no CLI fallback.",
+    "python scripts/flow_delivery_control.py status",
+    "Continue from the reported queue state with the supported flow-delivery CLI.",
 )
 RESUME_INVOCATION = "\n".join(RESUME_INVOCATION_LINES)
 

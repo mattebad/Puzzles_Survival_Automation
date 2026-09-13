@@ -1,6 +1,6 @@
 # DQ-FLOW-RECRUITMENT
 
-Repository authority: catalog owns `recruit_noahs_tavern`; matrix owns status/policy; backlog owns task.
+Repository authority: catalog owns `recruit_noahs_tavern`; matrix owns status/policy; `docs/archive/backlog-legacy.md` preserves the historical task record.
 Main Quest Claim excluded.
 
 Scope: Recruit 5x in Noah's Tavern. Reuse Daily inventory, Tavern route, free-recruitment

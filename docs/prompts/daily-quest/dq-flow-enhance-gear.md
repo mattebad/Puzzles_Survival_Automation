@@ -1,6 +1,6 @@
 # DQ-FLOW-ENHANCE-GEAR
 
-Repository authority: catalog owns `enhance_gear`; matrix owns policy/status; backlog owns task. Main Quest
+Repository authority: catalog owns `enhance_gear`; matrix owns policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record. Main Quest
 Claim excluded.
 
 Scope: Gear enhancement, shared with chip/module family only where transaction semantics match.

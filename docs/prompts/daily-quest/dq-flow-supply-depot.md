@@ -1,6 +1,6 @@
 # DQ-FLOW-SUPPLY-DEPOT
 
-Repository authority: catalog owns `supply_depot`; matrix owns policy/status; backlog owns task. Main Quest
+Repository authority: catalog owns `supply_depot`; matrix owns policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record. Main
 Claim excluded.
 
 Scope: Supply Depot action. Reuse Daily inventory, depot recognizer, safe action core, and free

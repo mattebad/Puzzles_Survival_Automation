@@ -11,7 +11,7 @@ CATALOG_PATH = ROOT / "tasks" / "daily_quest_catalog.json"
 MATRIX_PATH = ROOT / "tasks" / "daily_quest_execution_matrix.json"
 AUDIT_PATH = ROOT / "tasks" / "daily_quest_provenance_audit.json"
 PROMPT_INDEX_PATH = ROOT / "docs" / "prompts" / "daily-quest" / "index.json"
-BACKLOG_PATH = ROOT / "BACKLOG.md"
+BACKLOG_PATH = ROOT / "docs" / "archive" / "backlog-legacy.md"
 
 
 def load_json(path: Path):
