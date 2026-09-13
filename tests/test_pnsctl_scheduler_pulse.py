@@ -145,6 +145,36 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
             1,
         )
 
+    def test_terminal_reconciliation_cannot_be_overwritten(self):
+        dispatch = {"type": "dispatch", "action_key": "action", "execute": True}
+        for first, later in (
+            ("failed_confirmed", "confirmed"),
+            ("confirmed", "failed_confirmed"),
+            ("failed_confirmed", "unresolved"),
+        ):
+            with self.subTest(first=first, later=later):
+                events = [dispatch, *(
+                    {"type": "reconcile", "action_key": "action", "status": status}
+                    for status in (first, later)
+                )]
+                with self.assertRaises(OperatorError):
+                    _compact_development_action_results(events)
+
+    def test_unresolved_action_can_reconcile_to_one_terminal_outcome(self):
+        for terminal, completed in (("confirmed", 1), ("failed_confirmed", 0)):
+            with self.subTest(terminal=terminal):
+                events = [
+                    {"type": "dispatch", "action_key": "action", "execute": True},
+                    *(
+                        {"type": "reconcile", "action_key": "action", "status": status}
+                        for status in ("unresolved", terminal, terminal)
+                    ),
+                ]
+                actions = _compact_development_action_results(events)
+                self.assertEqual(_retained_transport_count(actions), 1)
+                self.assertEqual(_retained_semantic_completed_count(actions), completed)
+                self.assertEqual(actions[0]["semantic_status"], terminal)
+
 
     def test_pulse_contention_is_structured_and_never_selected(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

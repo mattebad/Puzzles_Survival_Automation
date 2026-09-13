@@ -964,6 +964,13 @@ def _compact_development_action_results(
         elif kind == "reconcile":
             identity = _canonical_action_identity(event)
             if identity is not None:
+                previous = reconciliations.get(identity)
+                if (
+                    previous is not None
+                    and previous.get("status") in {"confirmed", "failed_confirmed"}
+                    and event.get("status") != previous.get("status")
+                ):
+                    raise OperatorError("action ledger contains conflicting terminal reconciliations")
                 reconciliations[identity] = event
 
     actions: list[dict[str, Any]] = []
