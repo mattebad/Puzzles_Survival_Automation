@@ -34,6 +34,8 @@ jobs:
         run: python scripts/check.py
       - name: Run REC-D01 catalog policy regressions
         run: python -m unittest tests.test_daily_quest_planning tests.test_catalog_and_pnsctl tests.test_product_authority tests.test_gameplay_flow_contracts
+      - name: Run REC-F05 read-only scheduling regressions
+        run: python -m unittest tests.test_automation_service_canonical_authority tests.test_automation_service_cli tests.test_automation_service_scheduler_canonical tests.test_pnsctl_scheduler_pulse
       - name: Run directly affected cleanup regressions
         run: >-
           python -m unittest

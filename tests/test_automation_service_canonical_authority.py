@@ -48,7 +48,7 @@ from automation_service.service import (
     registry_flow_spec,
     registry_scheduler_components,
 )
-from automation_service.state import ActionState, BotStateManager, RunState
+from automation_service.state import ActionState, BotStateManager, RunState, StateError
 
 
 FLOW_ID = "CANONICAL-FLOW"
@@ -417,6 +417,54 @@ class CanonicalAutomationAuthorityTests(unittest.TestCase):
                 self.assertEqual(after_counts, (0, 0))
             finally:
                 state.close()
+    def test_service_shadow_construction_does_not_seed_or_mutate_state(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            state = BotStateManager(path, owner_instance_id="shadow-owner")
+            try:
+                service = AutomationService(
+                    mode=ServiceMode.DISABLED,
+                    adapter=FakeDeviceAdapter(),
+                    state=state,
+                )
+                self.assertIsNone(state.get_flow(WORLD_FLOW_ID))
+                report = service.pulse(
+                    world_facts(), perception=perception_with_evidence(), shadow=True
+                )
+                self.assertEqual(report.reason_code, "SHADOW_NO_ELIGIBLE_TASK")
+                self.assertIsNone(report.candidate)
+                self.assertIsNone(state.get_flow(WORLD_FLOW_ID))
+                with contextlib.closing(sqlite3.connect(path)) as connection:
+                    counts = connection.execute(
+                        "SELECT (SELECT COUNT(*) FROM runs), "
+                        "(SELECT COUNT(*) FROM actions)"
+                    ).fetchone()
+                self.assertEqual(tuple(counts), (0, 0))
+            finally:
+                state.close()
+    def test_isolated_shadow_state_cannot_be_used_for_real_pulse(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "missing" / "state.sqlite3"
+            with BotStateManager(path, read_only=True) as state:
+                service = AutomationService(
+                    mode=ServiceMode.DRY_RUN,
+                    adapter=FakeDeviceAdapter(),
+                    state=state,
+                )
+                with self.assertRaisesRegex(
+                    ServiceError, "read-only state manager cannot initialize flows"
+                ):
+                    service.pulse(world_facts())
+                with self.assertRaisesRegex(
+                    ServiceError, "read-only state manager cannot initialize flows"
+                ):
+                    service.run(WORLD_FLOW_ID, world_facts(), live=True)
+                with self.assertRaisesRegex(
+                    StateError, "read-only state manager cannot execute a real pulse"
+                ):
+                    service.coordinator.pulse(world_facts())
+            self.assertFalse(path.exists())
+            self.assertFalse(path.parent.exists())
 
     def test_occurrence_key_is_deterministic_and_reset_scoped(self) -> None:
         self.assertEqual(

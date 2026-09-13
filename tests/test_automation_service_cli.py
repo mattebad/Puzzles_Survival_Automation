@@ -12,7 +12,11 @@ from unittest.mock import patch
 from safe_action_core import SafetyStore
 
 from automation_service import cli as cli_module
-from automation_service.registry import WORLD_FLOW_ID, load_canonical_registry
+from automation_service.registry import (
+    WORLD_FLOW_ID,
+    canonical_flow_specs,
+    load_canonical_registry,
+)
 from automation_service.state import BotStateManager, resolve_state_path
 
 from automation_service.cli import main
@@ -318,6 +322,110 @@ class AutomationServiceCliTests(unittest.TestCase):
         with contextlib.redirect_stdout(output):
             self.assertEqual(main(["--adapter", "replay", "observe"]), 1)
         self.assertIn('"observed": false', output.getvalue())
+
+    def test_shadow_and_nonlive_run_missing_path_remain_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            shadow_path = Path(folder) / "shadow" / "state.sqlite3"
+            output = StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(
+                    main(
+                        [
+                            "--mode",
+                            "dry_run",
+                            "--state-path",
+                            str(shadow_path),
+                            "shadow",
+                            WORLD_FLOW_ID,
+                        ]
+                    ),
+                    0,
+                )
+            payload = json.loads(output.getvalue())
+            self.assertEqual(payload["reason"], "SHADOW_NO_ELIGIBLE_TASK")
+            self.assertFalse(shadow_path.exists())
+            self.assertFalse(shadow_path.parent.exists())
+
+            run_path = Path(folder) / "run" / "state.sqlite3"
+            output = StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(
+                    main(
+                        [
+                            "--mode",
+                            "dry_run",
+                            "--state-path",
+                            str(run_path),
+                            "run",
+                            WORLD_FLOW_ID,
+                        ]
+                    ),
+                    0,
+                )
+            payload = json.loads(output.getvalue())
+            self.assertEqual(payload["reason"], "SHADOW_NO_ELIGIBLE_TASK")
+            self.assertFalse(run_path.exists())
+            self.assertFalse(run_path.parent.exists())
+
+    def test_shadow_existing_canonical_state_is_read_only(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            spec = next(
+                item for item in canonical_flow_specs() if item.flow_id == WORLD_FLOW_ID
+            )
+            with BotStateManager(path) as state:
+                state.initialize_flows([spec])
+                state.set_service_enabled(True, now_utc_epoch=1.0)
+                state.set_flow_enabled(WORLD_FLOW_ID, True, now_utc_epoch=1.0)
+                before = (
+                    state.get_service(),
+                    state.get_flow(WORLD_FLOW_ID),
+                    state.get_clock(),
+                    state.get_service_lease(),
+                )
+
+            output = StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(
+                    main(
+                        [
+                            "--mode",
+                            "dry_run",
+                            "--state-path",
+                            str(path),
+                            "shadow",
+                            WORLD_FLOW_ID,
+                            "--now-utc-epoch",
+                            "100",
+                        ]
+                    ),
+                    0,
+                )
+            payload = json.loads(output.getvalue())
+            self.assertEqual(payload["reason"], "SHADOW_CANDIDATE")
+            self.assertIsNotNone(payload["candidate"])
+            self.assertIsNone(payload["candidate"]["run_id"])
+
+            with BotStateManager(path, read_only=True) as state:
+                self.assertEqual(
+                    (
+                        state.get_service(),
+                        state.get_flow(WORLD_FLOW_ID),
+                        state.get_clock(),
+                        state.get_service_lease(),
+                    ),
+                    before,
+                )
+                with contextlib.closing(sqlite3.connect(path)) as connection:
+                    self.assertEqual(
+                        tuple(
+                            connection.execute(
+                                "SELECT (SELECT COUNT(*) FROM runs), "
+                                "(SELECT COUNT(*) FROM actions)"
+                            ).fetchone()
+                        ),
+                        (0, 0),
+                    )
 
     def test_pnsctl_offline_delegation_reports_static_routes_and_disabled_sqlite(
         self,
