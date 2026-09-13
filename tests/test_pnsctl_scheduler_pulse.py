@@ -127,6 +127,8 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
                     _compact_development_action_results([event])
                 with self.assertRaises(OperatorError):
                     _retained_transport_count([event])
+        with self.assertRaises(OperatorError):
+            _compact_development_action_results([{"type": "reconcile", "status": "confirmed"}])
 
     def test_semantic_count_rejects_identityless_actions_but_ignores_capture_events(self):
         for row in (
