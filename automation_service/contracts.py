@@ -403,6 +403,54 @@ class SemanticActionIntent:
             return self.core_intent.action_key
         return f"{self.task_id}:{self.semantic_action}"
 
+@dataclass(frozen=True)
+class SelectionPlan:
+    """Descriptive selector output that cannot consume a gameplay occurrence.
+
+    Selection confirms only eligibility and static/perception facts.  A scheduler
+    may expose this plan to a caller, but MUST NOT claim or terminalize a run
+    from it.
+    """
+
+    reason_code: str
+    verified: bool = True
+    observed_progress: Mapping[str, Any] = field(default_factory=dict)
+    consequence: Mapping[str, Any] = field(default_factory=dict)
+    evidence_refs: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.reason_code, str) or not self.reason_code.strip():
+            raise ValueError("selection plans require a reason code")
+        if type(self.verified) is not bool:
+            raise ValueError("selection plan verified must be a bool")
+        transport_count = self.observed_progress.get("transport_count", 0)
+        if type(transport_count) is not int or transport_count != 0:
+            raise ValueError("selection plans must have zero transport")
+
+    @property
+    def non_consuming(self) -> bool:
+        return True
+
+    @property
+    def action_count(self) -> int:
+        return 0
+
+    @property
+    def transport_count(self) -> int:
+        return 0
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "kind": "selection_plan",
+            "non_consuming": True,
+            "reason_code": self.reason_code,
+            "verified": self.verified,
+            "observed_progress": dict(self.observed_progress),
+            "consequence": dict(self.consequence),
+            "evidence_refs": list(self.evidence_refs),
+            "action_count": 0,
+            "transport_count": 0,
+        }
 
 @dataclass(frozen=True)
 class NormalizedResult:
@@ -449,6 +497,7 @@ class FlowSpec:
     cadence: str = "manual"
     max_wait_seconds: float | None = None
     max_attempts: int = 3
+    observation_only_completion: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.flow_id, str) or not self.flow_id.strip():
@@ -467,3 +516,5 @@ class FlowSpec:
             raise ValueError("flow spec max wait must be a non-negative finite number")
         if type(self.max_attempts) is not int or self.max_attempts < 1:
             raise ValueError("flow spec max attempts must be positive")
+        if type(self.observation_only_completion) is not bool:
+            raise ValueError("observation_only_completion must be a bool")

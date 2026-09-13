@@ -15,6 +15,7 @@ from automation_service import (
     SchedulerFacts,
     SemanticActionIntent,
 )
+from automation_service.contracts import FlowSpec, SelectionPlan
 from automation_service.registry import (
     ENTRY_FIELDS,
     NOVA_FLOW_ID,
@@ -105,6 +106,26 @@ class AutomationServiceContractTests(unittest.TestCase):
     def test_unresolved_normalizes_to_global_block(self) -> None:
         result = NormalizedResult(NormalizedOutcome.UNRESOLVED, "UNKNOWN_RESULT")
         self.assertTrue(result.unresolved_action)
+
+    def test_selection_plan_rejects_transport_evidence(self) -> None:
+        with self.assertRaises(ValueError):
+            SelectionPlan("ROUTE_SELECTED", observed_progress={"transport_count": 1})
+
+
+    def test_ordinary_and_milestone_claim_identities_do_not_alias(self) -> None:
+        ordinary = SemanticActionIntent(
+            "claim",
+            "daily-row-claim",
+            "daily",
+            "ordinary_claimed",
+        )
+        milestone = SemanticActionIntent(
+            "claim",
+            "daily-milestone-claim",
+            "activity_milestones",
+            "milestone_claimed",
+        )
+        self.assertNotEqual(ordinary.action_key, milestone.action_key)
 
     def test_registry_closure_disables_every_exact_binding(self) -> None:
         entries = load_disabled_registry()

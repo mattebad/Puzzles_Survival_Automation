@@ -71,6 +71,18 @@ offline `pnsctl` scheduler pulse. Both persisted execution gates still apply.
 
 This is an offline boundary repair, not native acceptance or scheduler enablement.
 
+### Non-consuming selectors (REC-F06)
+
+World, Nova, Recruitment, Campaign, and disabled handlers return `SelectionPlan`,
+not gameplay completion. Repeated eligible selections remain available across
+restarts without creating runs/actions or consuming an occurrence. The offline
+`pnsctl` pulse can therefore report a selected candidate with `result: null`.
+
+Real-runner planning remains behind claim and dispatch fences. A verified
+zero-action `ALREADY_COMPLETE` result is accepted only when the handler's matching
+`FlowSpec.observation_only_completion` explicitly permits it; registration and
+selection alone never establish gameplay success.
+
 ## Packaging and eventual deployment
 
 `docker/automation-service.Dockerfile` and `compose.automation-service.yml` provide a reproducible

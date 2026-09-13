@@ -21,12 +21,14 @@ from tasks.scheduler_task_result import (
 
 from .contracts import (
     FlowDescriptor,
+    FlowSpec,
     NormalizedOutcome,
     NormalizedResult,
     PerceptionEnvelope,
     RecurrenceClass,
     RecurrenceProjection,
     SchedulerFacts,
+    SelectionPlan,
 )
 from .handlers import FlowHandler
 from .state import (
@@ -76,6 +78,67 @@ class PulseReport:
     result: SchedulerAwareTaskResult | None
     next_wake_utc_epoch: float | None
     reason_code: str
+
+
+def _selection_only_handler(handler: FlowHandler) -> bool:
+    """Return whether a handler exposes a descriptive, non-consuming plan."""
+
+    return getattr(handler, "selection_only", False) is True
+
+
+def _observation_only_permitted(
+    descriptor: FlowDescriptor, handler: FlowHandler
+) -> bool:
+    """Require the handler's matching FlowSpec to permit observation-only completion."""
+
+    flow_spec = getattr(handler, "flow_spec", None)
+    return (
+        isinstance(flow_spec, FlowSpec)
+        and flow_spec.flow_id == descriptor.flow_id
+        and flow_spec.observation_only_completion is True
+    )
+
+
+def _admit_normalized_result(
+    result: NormalizedResult,
+    descriptor: FlowDescriptor,
+    handler: FlowHandler,
+) -> NormalizedResult:
+    """Reject unverified or unauthorized zero-input gameplay success."""
+
+    success_outcomes = {
+        NormalizedOutcome.ACTION_PERFORMED,
+        NormalizedOutcome.COMPLETE_FOR_RESET,
+        NormalizedOutcome.ALREADY_COMPLETE,
+    }
+    if result.outcome not in success_outcomes:
+        return result
+    if result.verified is not True:
+        return NormalizedResult(
+            NormalizedOutcome.RECONCILIATION_REQUIRED,
+            "UNVERIFIED_GAMEPLAY_RESULT",
+            action_count=result.action_count,
+            verified=False,
+            observed_progress=result.observed_progress,
+            consequence=result.consequence,
+            evidence_refs=result.evidence_refs,
+            unresolved_action=True,
+        )
+    if result.action_count > 0:
+        return result
+    if (
+        _observation_only_permitted(descriptor, handler)
+        and result.outcome is NormalizedOutcome.ALREADY_COMPLETE
+    ):
+        return result
+    return NormalizedResult(
+        NormalizedOutcome.BLOCKED,
+        "ZERO_ACTION_GAMEPLAY_RESULT_NOT_PERMITTED",
+        verified=False,
+        observed_progress=result.observed_progress,
+        consequence=result.consequence,
+        evidence_refs=result.evidence_refs,
+    )
 
 
 class _CanonicalPulseCoordinator:
@@ -990,9 +1053,34 @@ class _CanonicalPulseCoordinator:
                 return PulseReport(
                     None, None, self._next_wake(now, facts), "NO_ELIGIBLE_TASK"
                 )
+            handler = self.handlers[candidate.descriptor.flow_id]
+            if _selection_only_handler(handler):
+                try:
+                    selection = handler.plan(facts, perception)
+                except Exception as exc:
+                    return PulseReport(
+                        candidate,
+                        None,
+                        self._next_wake(now, facts),
+                        "SELECTION_PLAN_FAILED:" + type(exc).__name__,
+                    )
+                if not isinstance(selection, SelectionPlan):
+                    return PulseReport(
+                        candidate,
+                        None,
+                        self._next_wake(now, facts),
+                        "SELECTION_PLAN_INVALID",
+                    )
+                return PulseReport(
+                    candidate,
+                    None,
+                    self._next_wake(now, facts),
+                    selection.reason_code,
+                )
 
             # Selection is read-only; persist only the selected reset rollover
             # and recurrence anchor immediately before asking SQLite to claim.
+
             try:
                 self._prepare_claim(
                     facts,
@@ -1172,13 +1260,23 @@ class _CanonicalPulseCoordinator:
                         "DISPATCH_FENCE_FAILED",
                     )
                 plan = handler.plan(facts, perception)
-                normalized = (
-                    plan
-                    if isinstance(plan, NormalizedResult)
-                    else handler.reconcile(plan, perception)
-                )
+                if isinstance(plan, SelectionPlan):
+                    normalized = NormalizedResult(
+                        NormalizedOutcome.BLOCKED,
+                        "NON_CONSUMING_SELECTION_RESULT",
+                        verified=False,
+                    )
+                else:
+                    normalized = (
+                        plan
+                        if isinstance(plan, NormalizedResult)
+                        else handler.reconcile(plan, perception)
+                    )
                 if not isinstance(normalized, NormalizedResult):
                     raise TypeError("handler did not return a normalized result")
+                normalized = _admit_normalized_result(
+                    normalized, candidate.descriptor, handler
+                )
                 scheduler_result = self._to_scheduler_result(
                     candidate.identity, normalized
                 )
@@ -1495,6 +1593,29 @@ class UtcPulseCoordinator:
                     continue
             except Exception:
                 continue
+            if _selection_only_handler(handler):
+                try:
+                    selection = handler.plan(facts, perception)
+                except Exception as exc:
+                    return PulseReport(
+                        PulseCandidate(descriptor, identity),
+                        None,
+                        self._next_wake(now, facts),
+                        "SELECTION_PLAN_FAILED:" + type(exc).__name__,
+                    )
+                if not isinstance(selection, SelectionPlan):
+                    return PulseReport(
+                        PulseCandidate(descriptor, identity),
+                        None,
+                        self._next_wake(now, facts),
+                        "SELECTION_PLAN_INVALID",
+                    )
+                return PulseReport(
+                    PulseCandidate(descriptor, identity),
+                    None,
+                    self._next_wake(now, facts),
+                    selection.reason_code,
+                )
             recurrence_class = (
                 descriptor.recurrence_class.value
                 if descriptor.recurrence_class is not None
@@ -1548,9 +1669,23 @@ class UtcPulseCoordinator:
 
         try:
             plan = handler.plan(facts, perception)
-            normalized = plan if isinstance(plan, NormalizedResult) else handler.reconcile(plan, perception)
+            if isinstance(plan, SelectionPlan):
+                normalized = NormalizedResult(
+                    NormalizedOutcome.BLOCKED,
+                    "NON_CONSUMING_SELECTION_RESULT",
+                    verified=False,
+                )
+            else:
+                normalized = (
+                    plan
+                    if isinstance(plan, NormalizedResult)
+                    else handler.reconcile(plan, perception)
+                )
             if not isinstance(normalized, NormalizedResult):
                 raise TypeError("handler did not return a normalized result")
+            normalized = _admit_normalized_result(
+                normalized, selected.descriptor, handler
+            )
             scheduler_result = self._to_scheduler_result(selected.identity, normalized)
         except Exception as exc:
             scheduler_result = self._unknown_result(
