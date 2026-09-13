@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
-
+from unittest.mock import patch
 import cv2
 import numpy as np
 
@@ -19,6 +19,17 @@ class FakeRunner:
     def __init__(self) -> None:
         self.taps: list[tuple[int, int]] = []
         self.swipes: list[tuple[tuple[int, int], tuple[int, int]]] = []
+        self.capture_calls = 0
+        self.capture_payload: bytes | None = None
+
+    def capture_png(self) -> bytes:
+        self.capture_calls += 1
+        if self.capture_payload is not None:
+            return self.capture_payload
+        image = np.zeros((1280, 800, 3), dtype=np.uint8)
+        ok, encoded = cv2.imencode(".png", image)
+        assert ok
+        return encoded.tobytes()
 
     def dispatch_tap(self, point: tuple[int, int]) -> None:
         self.taps.append(point)
@@ -215,6 +226,60 @@ class LocalBlueStacksRuntimeActionClassTests(unittest.TestCase):
                 self.assertEqual(runner.taps, [])
                 self.assertEqual(runtime.input_count, 0)
                 self.assertFalse(runtime.events.exists())
+    def test_capture_sanitizes_path_and_ads_syntax_before_runner_capture(self):
+        labels = {
+            "../outside": "outside",
+            r"..\outside": "outside",
+            "capture:stream": "capture-stream",
+        }
+        for label, expected in labels.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                runtime, runner = self._runtime(root)
+                captured = runtime.capture(label)
+                self.assertEqual(runner.capture_calls, 1)
+                self.assertEqual(captured.path.name, f"0001-{expected}.png")
+                self.assertEqual(captured.path.parent, runtime.frames)
+                self.assertEqual(captured.path.read_bytes(), captured.png)
+                event = json.loads(runtime.events.read_text(encoding="utf-8"))
+                self.assertEqual(event["label"], label)
+                self.assertEqual(event["filename_component"], expected)
+                self.assertFalse((root / "outside.png").exists())
+
+    def test_capture_rejects_empty_or_ambiguous_label_before_runner_capture(self):
+        for label in ("", "   ", "..", "://"):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                runtime, runner = self._runtime(root)
+                with self.assertRaises(RuntimeError):
+                    runtime.capture(label)
+                self.assertEqual(runner.capture_calls, 0)
+                self.assertFalse((root / "outside.png").exists())
+
+    def test_capture_sanitizes_punctuation_and_retains_original_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime, runner = self._runtime(root)
+            captured = runtime.capture("capture label")
+            self.assertEqual(runner.capture_calls, 1)
+            self.assertEqual(captured.path.name, "0001-capture-label.png")
+            self.assertEqual(captured.path.read_bytes(), captured.png)
+            event = json.loads(runtime.events.read_text(encoding="utf-8"))
+            self.assertEqual(event["label"], "capture label")
+            self.assertEqual(event["filename_component"], "capture-label")
+            self.assertEqual(event["path"], str(captured.path))
+    def test_connect_rejects_ambiguous_workflow_before_device_operations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch("scripts.bluestacks_native_runtime.ADBRunner") as runner:
+                with self.assertRaisesRegex(RuntimeError, "ambiguous"):
+                    LocalBlueStacksRuntime.connect(
+                        adb="adb",
+                        serial="not-a-device",
+                        output_directory=Path(directory),
+                        workflow="..",
+                        execute=True,
+                    )
+                runner.assert_not_called()
 
 
 if __name__ == "__main__":
