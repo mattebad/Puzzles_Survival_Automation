@@ -80,7 +80,6 @@ class CompactHandoffTests(unittest.TestCase):
         self.assertIsNone(state["active_execution_manifest_path"])
         self.assertEqual(state["unresolved_action_state"], "clear")
         self.assertTrue(state["protected_user_owned_paths"])
-        self.assertEqual(state["control_owner"], "sol_parent")
         self.assertTrue(state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"])
 
     def test_handoff_rejects_manifest_paths_outside_repository(self) -> None:

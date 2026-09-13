@@ -38,7 +38,6 @@ class GovernanceValidationTests(unittest.TestCase):
             state["exact_next_permitted_action"],
             state["exact_next_permitted_action"].strip(),
         )
-        self.assertEqual(state["control_owner"], "sol_parent")
         self.assertNotIn("actions_already_performed", state)
 
     def test_manifest_uses_fixed_artifact_state_schema(self):

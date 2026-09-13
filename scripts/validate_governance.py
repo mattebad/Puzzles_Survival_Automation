@@ -88,7 +88,6 @@ HANDOFF_REQUIRED_KEYS = {
     "registration_and_scheduler",
     "journals_and_lease",
     "evidence",
-    "control_owner",
     "control_parent_conversation_id",
     "deferred_independent_review",
     "stage_7_ordered_plan",
@@ -379,8 +378,6 @@ def parse_handoff(path: Path = HANDOFF_PATH) -> Dict[str, Any]:
         value = state["evidence"][name]
         if not isinstance(value, str) or not value.strip():
             raise GovernanceValidationError(f"evidence.{name} must be a non-empty string")
-    if state["control_owner"] != "sol_parent":
-        raise GovernanceValidationError("handoff control_owner must be sol_parent")
     if state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"] is not True:
         raise GovernanceValidationError("handoff must prohibit recursive evidence inspection")
     validate_lifecycle_relations(state)

@@ -74,7 +74,7 @@
         "execution_flow_id": "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
         "queue_record_state": "blocked_evidence_required",
         "depends_on": [],
-        "blocker": "Evidence owner: Sol parent. No current BlueStacks-native ready milestone chest, same-milestone successor, or canonical-Home corpus exists; the retained Bliss/synthetic fixture is diagnostic and non-authorizing."
+        "blocker": "No current BlueStacks-native ready milestone chest, same-milestone successor, or canonical-Home corpus exists; the retained Bliss/synthetic fixture is diagnostic and non-authorizing."
 
       },
       {
@@ -3355,7 +3355,7 @@
       "performance_metrics_required": [
         "claim_binding_latency_seconds"
       ],
-      "blocked_reason": "Evidence owner: Sol parent. Fresh BlueStacks-native ready-milestone target, positive same-milestone successor, and canonical-Home evidence are missing; no implementation or dispatch is admissible.",
+      "blocked_reason": "Fresh BlueStacks-native ready-milestone target, positive same-milestone successor, and canonical-Home evidence are missing; no implementation or dispatch is admissible.",
       "next_concrete_action": "Obtain separately authorized zero-input/navigation-only BlueStacks-native milestone evidence; only after a ready chest and positive successor are proven may a new atomic route-integration task be selected.",
       "last_completed_stage": "blocked",
       "last_commit": null,

@@ -43,7 +43,12 @@ jobs:
           tests.test_flow_delivery_lean_workflow
           tests.test_runtime_trace_projection
           tests.test_resource_effect_authority_history
+          tests.test_flow_delivery_token_context_hygiene.CompactHandoffTests
       - name: Compile Python sources
         run: python -m compileall -q automation_service safe_action_core scripts tasks tools
-      - name: Check diff whitespace
-        run: git diff --check
+      - name: Check committed diff whitespace
+        shell: bash
+        env:
+          DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          DIFF_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: git diff --check "$DIFF_BASE...$DIFF_HEAD"
