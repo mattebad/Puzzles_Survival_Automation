@@ -28,6 +28,19 @@ Campaign/Home semantics remain the source contracts.
   requires a newer capture ordinal, non-regressing capture time, current age within the existing
   temporal policy, and matching source/target stable ROIs. Equal clock ticks are permitted
   because fresh capture ordinals distinguish events on coarse-resolution clocks.
+- Actual OCR requires one `CropRoiRequest` carrying capture identity, ROI, mode, and an
+  explicit real-monotonic deadline. The padded raw ROI is capped at 262144 pixels;
+  full-frame and out-of-bounds crops are rejected. Crop-only validation needs no OCR deadline.
+- `run_semantic_ocr` owns the sole OCR process boundary. Windows Job Objects and Linux
+  process groups contain helpers; success and timeout both drain the tree and reap its root.
+  A 250ms cleanup reserve is deducted from the execution budget. Timeout is `UNKNOWN/OCR_DEADLINE`.
+- `ScreenDefinition.ocr` is a spawn-picklable `(pixels, psm) -> str` engine;
+  `ocr_request` supplies the fixed request or a capture/deadline factory.
+  `ocr_recognizer` is pure interpretation of the completed OCR observation and current capture,
+  not another OCR callback. Existing provenance normalization still applies.
+- Existing capture-bound Supply Depot calls never repair identity or fall back after denial.
+  No-identity legacy OCR and other direct native consumers remain held for F17; this
+  shared-seam repair does not authorize native route adoption.
 - Full-frame animation variance is not a source/target change when authoritative stable ROIs
   still match. Unsupported mutable payload types fail closed rather than losing shape or type.
 - Denied sessions preserve borrowed service leases. Fresh admission leases are released

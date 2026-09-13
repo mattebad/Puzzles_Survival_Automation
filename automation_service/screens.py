@@ -14,12 +14,24 @@ import hashlib
 import inspect
 import math
 import re
-from types import MappingProxyType
-import threading
 import time
+import threading
+from types import MappingProxyType
 from typing import Any, Callable, Iterable, Mapping, Protocol
+from tasks.perception_bundle import NativeFrameIdentity, PerceptionBundleError
+from tasks.semantic_ocr_crop import (
+    CropRoiRequest,
+    OcrEngine,
+    OcrMode,
+    ObservationStatus,
+    SemanticOcrCropError,
+    SemanticOcrObservation,
+    run_semantic_ocr,
+)
 from .temporal import TemporalPolicy
 
+import cv2
+import numpy as np
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -102,6 +114,35 @@ class _RecognitionTimeout(TimeoutError):
 
 
 Box = tuple[int, int, int, int]
+
+
+
+
+def _decode_capture_image(cycle: CaptureCycle) -> np.ndarray:
+    """Decode an explicit native image payload; never treat metadata as pixels."""
+
+    payload = cycle.payload
+    if isinstance(payload, np.ndarray):
+        image = payload
+    elif isinstance(payload, (bytes, bytearray, memoryview)):
+        encoded = np.frombuffer(bytes(payload), dtype=np.uint8)
+        image = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+    elif isinstance(payload, Mapping):
+        candidate = payload.get("frame", payload.get("png", payload.get("image")))
+        if isinstance(candidate, np.ndarray):
+            image = candidate
+        elif isinstance(candidate, (bytes, bytearray, memoryview)):
+            encoded = np.frombuffer(bytes(candidate), dtype=np.uint8)
+            image = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+        else:
+            raise ScreenRecognitionError("OCR_IMAGE_UNSUPPORTED")
+    else:
+        raise ScreenRecognitionError("OCR_IMAGE_UNSUPPORTED")
+    if image is None or not isinstance(image, np.ndarray) or image.ndim not in (2, 3):
+        raise ScreenRecognitionError("OCR_IMAGE_UNSUPPORTED")
+    return np.ascontiguousarray(image)
+
+
 
 
 class ScreenId(str, Enum):
@@ -490,10 +531,12 @@ class ScreenDefinition:
     screen: ScreenId | str
     template: Callable[..., Any] | None = None
     geometry: Callable[..., Any] | None = None
-    ocr: Callable[..., Any] | None = None
+    ocr: OcrEngine | None = None
     recognizer: Callable[..., Any] | None = None
     priority: int = 100
     overlays: tuple[OverlayId | str, ...] = ()
+    ocr_request: CropRoiRequest | Callable[[CaptureCycle, float], CropRoiRequest] | None = None
+    ocr_recognizer: Callable[[SemanticOcrObservation, CaptureCycle], Any] | None = None
 
     def __post_init__(self) -> None:
         try:
@@ -691,6 +734,66 @@ class ScreenRouter:
                 return False, fresh, fresh.reason_code
             raise
 
+    def _screen_ocr_request(
+        self,
+        entry: ScreenDefinition,
+        cycle: CaptureCycle,
+        deadline: float | None,
+    ) -> tuple[CropRoiRequest, np.ndarray]:
+        """Build one canonical request, bind it to this capture, and decode it."""
+
+        real_now = time.monotonic()
+        try:
+            clock_now = float(self._clock())
+            remaining = self._callback_timeout_seconds
+            if deadline is not None:
+                remaining = min(remaining, float(deadline) - clock_now)
+        except (TypeError, ValueError):
+            raise _RecognitionTimeout("OCR_DEADLINE") from None
+        if not math.isfinite(clock_now) or not math.isfinite(remaining) or remaining <= 0:
+            raise _RecognitionTimeout("OCR_DEADLINE")
+        hard_deadline = real_now + remaining
+        factory = entry.ocr_request
+        if isinstance(factory, CropRoiRequest):
+            request = factory
+        elif callable(factory):
+            try:
+                request = factory(cycle, hard_deadline)
+            except (SemanticOcrCropError, PerceptionBundleError) as exc:
+                raise ScreenRecognitionError(getattr(exc, "reason_code", "OCR_CONTRACT_INVALID")) from exc
+        else:
+            raise ScreenRecognitionError("OCR_CONTRACT_INVALID")
+        if not isinstance(request, CropRoiRequest):
+            raise ScreenRecognitionError("OCR_CONTRACT_INVALID")
+        if not isinstance(request.ocr_mode, OcrMode):
+            raise ScreenRecognitionError("OCR_MODE_INVALID")
+        source = request.source_frame
+        if not isinstance(source, NativeFrameIdentity):
+            raise ScreenRecognitionError("OCR_CONTRACT_INVALID")
+        envelope = cycle.metadata.get("envelope") if isinstance(cycle.metadata, Mapping) else None
+        profile_id = getattr(envelope, "profile_id", None)
+        if profile_id is not None and source.runtime_profile_id != profile_id:
+            raise ScreenRecognitionError("OCR_CAPTURE_MISMATCH")
+        if (
+            cycle.width is None
+            or cycle.height is None
+            or source.runtime_session_id != cycle.runtime_session_id
+            or source.capture_ordinal != cycle.capture_ordinal
+            or source.capture_completed_monotonic != cycle.captured_monotonic
+            or source.width != cycle.width
+            or source.height != cycle.height
+            or source.transport_sha256 != cycle.transport_sha256
+            or source.semantic_sha256 != cycle.semantic_sha256
+        ):
+            raise ScreenRecognitionError("OCR_CAPTURE_MISMATCH")
+        if request.deadline_monotonic is None:
+            raise ScreenRecognitionError("OCR_DEADLINE_INVALID")
+        request = replace(
+            request,
+            deadline_monotonic=min(float(request.deadline_monotonic), hard_deadline),
+        )
+        return request, _decode_capture_image(cycle)
+
     def _recognize_entry(self, entry: Any, cycle: CaptureCycle, deadline: float | None) -> ScreenObservation | None:
         if not isinstance(entry, ScreenDefinition):
             recognizer = getattr(entry, "recognize", None)
@@ -712,11 +815,33 @@ class ScreenRouter:
             callback = recognizer if callable(recognizer) else entry.recognizer
             return self._normalize(self._call(callback, cycle, deadline), cycle, entry)
         if entry.ocr is not None:
-            if deadline is not None and self._clock() >= deadline:
+            if entry.ocr_recognizer is None:
+                return self._unknown(cycle, "OCR_MATCHER_REQUIRED")
+            try:
+                request, image = self._screen_ocr_request(entry, cycle, deadline)
+            except _RecognitionTimeout as exc:
+                return self._unknown(cycle, exc.reason)
+            except ScreenRecognitionError as exc:
+                return self._unknown(cycle, str(exc))
+            ocr_observation = run_semantic_ocr(
+                image,
+                request,
+                ocr_engine=entry.ocr,
+            )
+            if not isinstance(ocr_observation, SemanticOcrObservation):
+                return self._unknown(cycle, "OCR_RESULT_INVALID")
+            if ocr_observation.status is not ObservationStatus.OK:
+                return self._unknown(cycle, ocr_observation.reason_code or "OCR_UNKNOWN")
+            if time.monotonic() >= request.deadline_monotonic:
                 return self._unknown(cycle, "OCR_DEADLINE")
-            value = self._call(entry.ocr, cycle, deadline, timeout_reason="OCR_DEADLINE")
-            if deadline is not None and self._clock() >= deadline:
-                return self._unknown(cycle, "OCR_DEADLINE")
+            value = self._call(
+                entry.ocr_recognizer,
+                cycle,
+                request.deadline_monotonic,
+                timeout_reason="OCR_DEADLINE",
+                call_args=(ocr_observation, cycle),
+                deadline_is_real=True,
+            )
             return self._normalize(value, cycle, entry)
         return self._normalize(True, cycle, entry)
 
@@ -727,21 +852,24 @@ class ScreenRouter:
         deadline: float | None,
         *,
         timeout_reason: str = "RECOGNITION_DEADLINE",
+        call_args: tuple[Any, ...] | None = None,
+        deadline_is_real: bool = False,
     ) -> Any:
-        """Run an untrusted perception callback behind a hard cancellable boundary.
+        """Run an untrusted callback behind a hard cancellable boundary."""
 
-        Python cannot safely kill a running thread.  The daemon worker therefore
-        owns no router/session state, and a timed-out result is discarded forever;
-        only a joined result can reach normalization or input authority.
-        """
-
-        now = self._clock()
-        configured_deadline = now + self._callback_timeout_seconds
-        hard_deadline = configured_deadline if deadline is None else min(float(deadline), configured_deadline)
-        if not math.isfinite(hard_deadline):
-            raise _RecognitionTimeout(timeout_reason)
-        remaining = hard_deadline - now
-        if remaining <= 0:
+        clock_now = float(self._clock())
+        real_now = time.monotonic()
+        if deadline_is_real:
+            configured_deadline = real_now + self._callback_timeout_seconds
+            hard_deadline = configured_deadline if deadline is None else min(float(deadline), configured_deadline)
+            remaining = hard_deadline - real_now
+            expired = lambda: time.monotonic() >= hard_deadline
+        else:
+            configured_deadline = clock_now + self._callback_timeout_seconds
+            hard_deadline = configured_deadline if deadline is None else min(float(deadline), configured_deadline)
+            remaining = hard_deadline - clock_now
+            expired = lambda: self._clock() >= hard_deadline
+        if not math.isfinite(hard_deadline) or remaining <= 0:
             raise _RecognitionTimeout(timeout_reason)
         try:
             params = inspect.signature(fn).parameters.values()
@@ -754,7 +882,9 @@ class ScreenRouter:
 
         def invoke() -> None:
             try:
-                if accepts_varargs or len(positional) >= 2:
+                if call_args is not None:
+                    result["value"] = fn(*call_args)
+                elif accepts_varargs or len(positional) >= 2:
                     result["value"] = fn(cycle, deadline)
                 else:
                     result["value"] = fn(cycle)
@@ -764,7 +894,7 @@ class ScreenRouter:
         worker = threading.Thread(target=invoke, name="screen-perception", daemon=True)
         worker.start()
         worker.join(max(0.0, remaining))
-        if worker.is_alive() or self._clock() >= hard_deadline:
+        if worker.is_alive() or expired():
             raise _RecognitionTimeout(timeout_reason)
         error = result.get("error")
         if error is not None:

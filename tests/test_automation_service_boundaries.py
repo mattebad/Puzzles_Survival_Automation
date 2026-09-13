@@ -4,10 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from pathlib import Path
-import threading
+import os
+import hashlib
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
+import cv2
+import numpy as np
 
+from tasks.perception_bundle import NativeFrameIdentity
+from tasks.semantic_ocr_crop import CropRoiRequest, OcrMode, SemanticOcrObservation
 from automation_service.actions import ActionExecutor, ActionOutcome, SuccessorConstraint
 from automation_service.contracts import FlowSpec, PerceptionEnvelope, SemanticActionIntent
 from automation_service.overlays import OverlayRecoveryManager
@@ -28,6 +36,134 @@ from automation_service.adapters import FrameSample
 FLOW_ID = "BOUNDARY-FLOW"
 RESET_ID = "boundary-reset"
 TARGET = "button:free"
+
+class EncodedFrame(bytes):
+    @property
+    def shape(self) -> tuple[int, int, int]:
+        return (1280, 800, 3)
+
+
+def ocr_sample() -> FrameSample:
+    image = np.zeros((1280, 800, 3), dtype=np.uint8)
+    ok, payload = cv2.imencode(".png", image)
+    assert ok
+    return FrameSample(
+        "ocr",
+        PerceptionEnvelope("ocr", "home", "native-800x1280", "fresh"),
+        EncodedFrame(payload.tobytes()),
+    )
+
+def ocr_cycle() -> CaptureCycle:
+    sample = ocr_sample()
+    digest = hashlib.sha256(bytes(sample.payload)).hexdigest()
+    return CaptureCycle(
+        "ocr",
+        digest,
+        payload=sample.payload,
+        captured_monotonic=1.0,
+        capture_ordinal=1,
+        width=800,
+        height=1280,
+        runtime_session_id="boundary-session",
+        transport_sha256=digest,
+        semantic_sha256=digest,
+    )
+
+
+def ocr_request_for_cycle(cycle: CaptureCycle, deadline: float) -> CropRoiRequest:
+    assert cycle.width is not None and cycle.height is not None
+    identity = NativeFrameIdentity(
+        "fixture",
+        cycle.runtime_session_id,
+        cycle.capture_ordinal,
+        cycle.captured_monotonic,
+        cycle.transport_sha256,
+        cycle.semantic_sha256,
+        "native-800x1280",
+        cycle.width,
+        cycle.height,
+    )
+    return CropRoiRequest(
+        identity,
+        (10, 10, 30, 30),
+        ocr_mode=OcrMode.UNIFORM_BLOCK,
+        deadline_monotonic=deadline,
+    )
+
+
+@dataclass(frozen=True)
+class BlockingOcrEngine:
+    marker: str
+
+    def __call__(self, _pixels: np.ndarray, _psm: int) -> str:
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        Path(self.marker).write_text(f"{os.getpid()},{child.pid}", encoding="ascii")
+        time.sleep(60.0)
+        return ""
+
+@dataclass(frozen=True)
+class SuccessWithDescendantOcrEngine:
+    marker: str
+
+    def __call__(self, _pixels: np.ndarray, _psm: int) -> str:
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        Path(self.marker).write_text(f"{os.getpid()},{child.pid}", encoding="ascii")
+        return "HOME"
+
+
+def positive_ocr_engine(_pixels: np.ndarray, _psm: int) -> str:
+    return "HOME"
+
+
+def match_home(observation: SemanticOcrObservation, _cycle: CaptureCycle) -> bool:
+    return observation.text.strip().upper() == "HOME"
+
+
+
+
+def exploding_ocr_matcher(_observation: SemanticOcrObservation, _cycle: CaptureCycle) -> object:
+    raise LookupError("matcher")
+
+
+def process_alive(pid: int) -> bool:
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.WaitForSingleObject.argtypes = [ctypes.c_void_p, wintypes.DWORD]
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        handle = kernel32.OpenProcess(0x00100000, False, pid)
+        if not handle:
+            if ctypes.get_last_error() == 87:
+                return False
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            status = kernel32.WaitForSingleObject(handle, 0)
+            if status == 0xFFFFFFFF:
+                raise ctypes.WinError(ctypes.get_last_error())
+            return status == 258
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except PermissionError:
+        return True
+    except (OSError, ProcessLookupError):
+        return False
+    if os.name != "nt":
+        try:
+            data = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
+            fields = data[data.rfind(")") + 2 :].split()
+            if fields and fields[0] in {"Z", "X"}:
+                return False
+        except OSError:
+            pass
+    return True
 
 
 @dataclass
@@ -324,21 +460,20 @@ class ScreenBoundaryTests(unittest.TestCase):
         self.assertTrue(observation.is_unknown)
         self.assertEqual(observation.reason_code, "CONTRADICTORY_RECOGNITION")
     def test_ocr_is_not_called_after_deadline(self) -> None:
-        calls: list[str] = []
         router = ScreenRouter(
             [
                 ScreenDefinition(
                     ScreenId.HOME,
-                    template=lambda _cycle: True,
-                    geometry=lambda _cycle: True,
-                    ocr=lambda _cycle: calls.append("ocr") or {"screen": "HOME", "confidence": 1.0},
+                    ocr=positive_ocr_engine,
+                    ocr_recognizer=match_home,
+                    ocr_request=ocr_request_for_cycle,
                 )
             ],
             clock=lambda: 10.0,
         )
-        observation = router.observe(CaptureCycle("capture", "a" * 64), deadline_monotonic=9.0)
-        self.assertEqual(observation.reason_code, "RECOGNITION_DEADLINE")
-        self.assertEqual(calls, [])
+        observation = router.observe(ocr_cycle(), deadline_monotonic=9.0)
+        self.assertTrue(observation.is_unknown)
+        self.assertEqual(observation.targets, ())
 
     def test_unknown_screen_is_typed_and_cached_by_capture_identity(self) -> None:
         router = ScreenRouter()
@@ -1070,24 +1205,76 @@ class RuntimeBoundaryTests(unittest.TestCase):
                 owner_b.close()
                 owner_a.close()
 
-    def test_blocking_ocr_times_out_unknown_and_releases_ownership(self) -> None:
-        finished = threading.Event()
+    def test_screen_ocr_positive_result_is_normalized(self) -> None:
+        observation = ScreenRouter(
+            [
+                ScreenDefinition(
+                    ScreenId.HOME,
+                    ocr=positive_ocr_engine,
+                    ocr_recognizer=match_home,
+                    ocr_request=ocr_request_for_cycle,
+                )
+            ],
+            callback_timeout_seconds=3.0,
+        ).observe(ocr_cycle())
+        self.assertFalse(observation.is_unknown)
+        self.assertEqual(observation.screen, ScreenId.HOME)
+        self.assertTrue(observation.recognized)
 
-        def blocking_ocr(_cycle: CaptureCycle) -> object:
-            finished.wait()
-            return {"screen": "HOME"}
+    def test_successful_ocr_drains_descendant_before_return(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / "ocr-success-worker.pid"
+            observation = ScreenRouter(
+                [
+                    ScreenDefinition(
+                        ScreenId.HOME,
+                        ocr=SuccessWithDescendantOcrEngine(str(marker)),
+                        ocr_recognizer=match_home,
+                        ocr_request=ocr_request_for_cycle,
+                    )
+                ],
+                callback_timeout_seconds=3.0,
+            ).observe(ocr_cycle())
+            self.assertFalse(observation.is_unknown)
+            self.assertTrue(observation.recognized)
+            self.assertTrue(marker.exists())
+            worker_pid, child_pid = (int(value) for value in marker.read_text(encoding="ascii").split(","))
+            self.assertFalse(process_alive(worker_pid))
+            self.assertFalse(process_alive(child_pid))
+
+    def test_blocking_ocr_times_out_unknown_and_releases_ownership(self) -> None:
 
         with tempfile.TemporaryDirectory() as folder:
             state = manager(Path(folder) / "state.sqlite3")
+            marker = Path(folder) / "ocr-worker.pid"
             try:
-                session = self._session(state, SequenceAdapter([frame("ocr")]))
+                session = self._session(state, SequenceAdapter([ocr_sample()]))
+                deadlines: list[float] = []
+
+                def request_factory(cycle: CaptureCycle, deadline: float) -> CropRoiRequest:
+                    deadlines.append(deadline)
+                    return ocr_request_for_cycle(cycle, deadline)
+
+
                 perception = ScreenRouter(
-                    [ScreenDefinition(ScreenId.HOME, ocr=blocking_ocr)],
-                    callback_timeout_seconds=0.05,
+                    [
+                        ScreenDefinition(
+                            ScreenId.HOME,
+                            ocr=BlockingOcrEngine(str(marker)),
+                            ocr_recognizer=match_home,
+                            ocr_request=request_factory,
+                        )
+                    ],
+                    callback_timeout_seconds=2.0,
                 )
                 result = ActionExecutor(session, perception).execute(intent())
+                self.assertLessEqual(time.monotonic(), deadlines[0])
                 self.assertEqual(result.outcome, ActionOutcome.BLOCKED)
                 self.assertEqual(result.reason, "OCR_DEADLINE")
+                self.assertTrue(marker.exists())
+                worker_pid, child_pid = (int(value) for value in marker.read_text(encoding="ascii").split(","))
+                self.assertFalse(process_alive(worker_pid))
+                self.assertFalse(process_alive(child_pid))
                 self.assertEqual(result.transport_attempted, False)
                 self.assertEqual(len(session.adapter.transports), 0)
                 self.assertIsNone(state.get_service_lease().owner_instance_id)
@@ -1097,7 +1284,6 @@ class RuntimeBoundaryTests(unittest.TestCase):
                 assert persisted_run is not None
                 self.assertEqual(persisted_run.state, RunState.BLOCKED)
             finally:
-                finished.set()
                 state.close()
 
 
@@ -1132,11 +1318,23 @@ class OverlayBoundaryTests(unittest.TestCase):
         def exploding(_cycle: CaptureCycle) -> object:
             raise RuntimeError("recognizer")
 
-        for callback_name in ("template", "geometry", "recognizer", "ocr"):
+        for callback_name in ("template", "geometry", "recognizer"):
             definition = ScreenDefinition(ScreenId.HOME, **{callback_name: exploding})
             observation = ScreenRouter([definition]).observe(cycle)
             self.assertTrue(observation.is_unknown)
             self.assertEqual(observation.reason_code, "RECOGNITION_EXCEPTION:RuntimeError")
+        ocr_observation = ScreenRouter(
+            [
+                ScreenDefinition(
+                    ScreenId.HOME,
+                    ocr=positive_ocr_engine,
+                    ocr_request=ocr_request_for_cycle,
+                    ocr_recognizer=exploding_ocr_matcher,
+                )
+            ]
+        ).observe(ocr_cycle())
+        self.assertTrue(ocr_observation.is_unknown)
+        self.assertEqual(ocr_observation.reason_code, "RECOGNITION_EXCEPTION:LookupError")
         direct = ScreenRouter([exploding]).observe(cycle)
         self.assertTrue(direct.is_unknown)
         self.assertEqual(direct.reason_code, "RECOGNITION_EXCEPTION:RuntimeError")
