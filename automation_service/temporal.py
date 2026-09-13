@@ -8,7 +8,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import math
+import re
 from typing import Iterable
+
+
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class TemporalError(ValueError):
@@ -31,17 +35,32 @@ class CaptureProvenance:
     height: int
     transport_sha256: str
     semantic_sha256: str
+    payload_sha256: str
+    stable_roi_digest: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.capture_id.strip() or not self.runtime_session_id.strip() or not self.profile_id.strip():
+        if not all(isinstance(value, str) and value.strip() for value in (
+            self.capture_id,
+            self.runtime_session_id,
+            self.profile_id,
+        )):
             raise TemporalError("capture provenance requires identity")
-        if self.capture_ordinal < 1 or not math.isfinite(self.captured_monotonic):
+        try:
+            captured_monotonic = float(self.captured_monotonic)
+        except (TypeError, ValueError):
+            raise TemporalError("capture provenance ordinal/time is invalid") from None
+        if type(self.capture_ordinal) is not int or self.capture_ordinal < 1 or not math.isfinite(captured_monotonic):
             raise TemporalError("capture provenance ordinal/time is invalid")
-        if self.width <= 0 or self.height <= 0:
+        object.__setattr__(self, "captured_monotonic", captured_monotonic)
+        if type(self.width) is not int or type(self.height) is not int or self.width <= 0 or self.height <= 0:
             raise TemporalError("capture geometry must be positive")
-        for digest in (self.transport_sha256, self.semantic_sha256):
-            if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+        for digest in (self.transport_sha256, self.semantic_sha256, self.payload_sha256):
+            if not isinstance(digest, str) or _SHA256_RE.fullmatch(digest) is None:
                 raise TemporalError("capture digests must be lowercase SHA-256 values")
+        if self.stable_roi_digest is not None and (
+            not isinstance(self.stable_roi_digest, str) or not self.stable_roi_digest.strip()
+        ):
+            raise TemporalError("stable ROI digest cannot be blank")
 
 
 @dataclass(frozen=True)
@@ -52,11 +71,20 @@ class RoiMask:
     reason: str
 
     def __post_init__(self) -> None:
-        if not self.name.strip() or not self.reason.strip():
+        if not isinstance(self.name, str) or not self.name.strip() or not isinstance(self.reason, str) or not self.reason.strip():
             raise TemporalError("ROI masks require identity and reason")
-        x0, y0, x1, y1 = self.roi
+        try:
+            kind = self.kind if isinstance(self.kind, RoiMaskKind) else RoiMaskKind(str(self.kind))
+            roi = tuple(self.roi)
+        except (TypeError, ValueError) as exc:
+            raise TemporalError("ROI mask bounds are invalid") from exc
+        if len(roi) != 4 or not all(type(value) is int for value in roi):
+            raise TemporalError("ROI mask bounds are invalid")
+        x0, y0, x1, y1 = roi
         if not (0 <= x0 < x1 and 0 <= y0 < y1):
             raise TemporalError("ROI mask bounds are invalid")
+        object.__setattr__(self, "kind", kind)
+        object.__setattr__(self, "roi", roi)
 
 
 @dataclass(frozen=True)
@@ -68,13 +96,16 @@ class CandidateEvidence:
     source: str = ""
 
     def __post_init__(self) -> None:
-        if not self.identity.strip():
+        if not isinstance(self.identity, str) or not self.identity.strip():
             raise TemporalError("candidate identity is required")
         for value in (self.confidence, self.runner_up_confidence):
             if not math.isfinite(value) or not 0.0 <= value <= 1.0:
                 raise TemporalError("candidate confidence must be in [0, 1]")
         if self.runner_up_confidence > self.confidence:
             raise TemporalError("runner-up confidence cannot exceed candidate confidence")
+        object.__setattr__(self, "negative_evidence", tuple(str(item) for item in self.negative_evidence))
+        if not isinstance(self.source, str):
+            object.__setattr__(self, "source", str(self.source))
 
     @property
     def margin(self) -> float:
@@ -91,7 +122,6 @@ class TemporalPolicy:
     disqualifying_negative_evidence: frozenset[str] = frozenset(
         {"ambiguous", "unknown", "manual_only", "overlay", "loading"}
     )
-
     def __post_init__(self) -> None:
         if not 0.0 <= self.minimum_confidence <= 1.0:
             raise TemporalError("minimum confidence must be in [0, 1]")
@@ -99,6 +129,11 @@ class TemporalPolicy:
             raise TemporalError("temporal thresholds must be positive")
         if self.max_age_seconds <= 0 or not math.isfinite(self.max_age_seconds):
             raise TemporalError("maximum age must be finite and positive")
+        object.__setattr__(
+            self,
+            "disqualifying_negative_evidence",
+            frozenset(str(item) for item in self.disqualifying_negative_evidence),
+        )
 
 
 @dataclass(frozen=True)
@@ -110,12 +145,16 @@ class TemporalObservation:
     dynamic_roi_masks: tuple[RoiMask, ...] = ()
 
     def __post_init__(self) -> None:
-        for mask in self.stable_roi_masks:
-            if mask.kind is not RoiMaskKind.STABLE:
-                raise TemporalError("stable ROI collection contains a dynamic mask")
-        for mask in self.dynamic_roi_masks:
-            if mask.kind is not RoiMaskKind.DYNAMIC:
-                raise TemporalError("dynamic ROI collection contains a stable mask")
+        if not isinstance(self.provenance, CaptureProvenance):
+            raise TemporalError("temporal observation requires typed provenance")
+        stable = tuple(self.stable_roi_masks)
+        dynamic = tuple(self.dynamic_roi_masks)
+        if any(not isinstance(mask, RoiMask) or mask.kind is not RoiMaskKind.STABLE for mask in stable):
+            raise TemporalError("stable ROI collection contains a dynamic mask")
+        if any(not isinstance(mask, RoiMask) or mask.kind is not RoiMaskKind.DYNAMIC for mask in dynamic):
+            raise TemporalError("dynamic ROI collection contains a stable mask")
+        object.__setattr__(self, "stable_roi_masks", stable)
+        object.__setattr__(self, "dynamic_roi_masks", dynamic)
 
 
 @dataclass(frozen=True)
@@ -134,9 +173,8 @@ class TemporalPerception:
         self._observations: list[TemporalObservation] = []
         self._invalidated = False
         self._last_provenance: CaptureProvenance | None = None
-        self._seen_capture_ids: set[str] = set()
         self._seen_digests: set[tuple[str, str]] = set()
-        self._last_now_monotonic: float | None = None
+        self._seen_capture_ids: set[tuple[str, int, str]] = set()
 
     @property
     def invalidated_after_input(self) -> bool:
@@ -145,6 +183,10 @@ class TemporalPerception:
     def observe(self, observation: TemporalObservation, *, now_monotonic: float) -> TemporalDecision:
         if self._invalidated:
             return TemporalDecision(False, None, "INVALIDATED_AFTER_INPUT", 0)
+        if not isinstance(observation, TemporalObservation):
+            return TemporalDecision(False, None, "INVALID_OBSERVATION", 0)
+        if not math.isfinite(float(now_monotonic)):
+            raise TemporalError("observation time must be finite")
         age = now_monotonic - observation.provenance.captured_monotonic
         if age < 0:
             self._observations.clear()
@@ -153,6 +195,9 @@ class TemporalPerception:
             self._observations.clear()
             return TemporalDecision(False, None, "STALE_CAPTURE", 0)
         provenance = observation.provenance
+        if observation.candidate is not None and not isinstance(observation.candidate, CandidateEvidence):
+            self._observations.clear()
+            return TemporalDecision(False, None, "INVALID_OBSERVATION", 0)
         if self._last_provenance is not None:
             if provenance.runtime_session_id != self._last_provenance.runtime_session_id:
                 self._observations.clear()
@@ -164,11 +209,24 @@ class TemporalPerception:
             if provenance.capture_ordinal <= self._last_provenance.capture_ordinal:
                 self._observations.clear()
                 return TemporalDecision(False, None, "OUT_OF_ORDER_CAPTURE", 0)
+            if (
+                provenance.stable_roi_digest is not None
+                and self._last_provenance.stable_roi_digest is not None
+                and provenance.stable_roi_digest != self._last_provenance.stable_roi_digest
+            ):
+                self._observations.clear()
+                self._last_provenance = None
+                return TemporalDecision(False, None, "STALE_OR_CHANGED_SOURCE_ROI", 0)
         digest_pair = (provenance.transport_sha256, provenance.semantic_sha256)
-        if provenance.capture_id in self._seen_capture_ids or digest_pair in self._seen_digests:
+        event_identity = (
+            provenance.runtime_session_id,
+            provenance.capture_ordinal,
+            provenance.capture_id,
+        )
+        if event_identity in self._seen_capture_ids or digest_pair in self._seen_digests:
             self._observations.clear()
             return TemporalDecision(False, None, "DUPLICATE_CAPTURE", 0)
-        self._seen_capture_ids.add(provenance.capture_id)
+        self._seen_capture_ids.add(event_identity)
         self._seen_digests.add(digest_pair)
         self._last_provenance = provenance
         self._last_now_monotonic = now_monotonic

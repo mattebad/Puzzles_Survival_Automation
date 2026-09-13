@@ -8,15 +8,14 @@ cycles, and releases its run on every terminal/close path.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import hashlib
 import inspect
 import math
+import re
 import time
 from typing import Any, Callable, Mapping, Protocol
 from uuid import uuid4
-
 from .state import BotStateManager, DispatchValidation, RunRecord, RunState
-from .screens import CaptureCycle
+from .screens import CaptureCycle, _freeze, _payload_sha256
 
 
 class SessionError(RuntimeError):
@@ -523,9 +522,8 @@ class RuntimeSession:
             except Exception:
                 pass
         self._release_service_lease()
-
     def capture(self, label: str | None = None) -> CaptureCycle:
-        """Capture once and expose one immutable event to all recognition stages."""
+        """Capture once and allocate immutable provenance for this session event."""
 
         if self._closed:
             raise SessionError("session is closed")
@@ -535,19 +533,26 @@ class RuntimeSession:
             raise SessionError("capture requires a running run")
         self._capture_ordinal += 1
         sample = self._capture_adapter(label)
+        if isinstance(sample, CaptureCycle) and sample.runtime_session_id not in {"", self.session_id}:
+            raise SessionError("capture cycle belongs to another runtime session")
         if isinstance(sample, CaptureCycle):
-            cycle = sample
-            if cycle.capture_ordinal == 0:
-                cycle = CaptureCycle(
-                    capture_id=cycle.capture_id,
-                    frame_hash=cycle.frame_hash,
-                    payload=cycle.payload,
-                    captured_monotonic=cycle.captured_monotonic or self._monotonic(),
-                    capture_ordinal=self._capture_ordinal,
-                    width=cycle.width,
-                    height=cycle.height,
-                    metadata=cycle.metadata,
-                )
+            if sample.runtime_session_id and sample.capture_ordinal != self._capture_ordinal:
+                raise SessionError("capture cycle is not the requested session event")
+            cycle = CaptureCycle(
+                capture_id=sample.capture_id,
+                frame_hash=sample.frame_hash,
+                payload=sample.payload,
+                captured_monotonic=sample.captured_monotonic or self._monotonic(),
+                capture_ordinal=self._capture_ordinal,
+                width=sample.width,
+                height=sample.height,
+                metadata=sample.metadata,
+                runtime_session_id=self.session_id,
+                transport_sha256=sample.transport_sha256,
+                semantic_sha256=sample.semantic_sha256,
+                stable_roi_digest=sample.stable_roi_digest,
+                payload_sha256=sample.payload_sha256,
+            )
         else:
             cycle = self._cycle_from_sample(sample)
         self._last_capture = cycle
@@ -687,28 +692,44 @@ class RuntimeSession:
             payload = self._attribute(sample, "png", None)
         if payload is None:
             payload = self._attribute(sample, "frame", sample)
+        frozen_payload = _freeze(payload)
+        payload_digest = self._hash_payload(frozen_payload)
+        supplied_payload_digest = self._attribute(sample, "payload_sha256", None)
+        payload_sha256 = str(supplied_payload_digest) if supplied_payload_digest else payload_digest
         supplied_hash = self._attribute(sample, "frame_sha256", None) or self._attribute(sample, "sha256", None)
-        frame_hash = str(supplied_hash) if supplied_hash else self._hash_payload(payload)
+        frame_hash = str(supplied_hash) if supplied_hash else payload_digest
+        transport_sha256 = (
+            self._attribute(sample, "transport_sha256", None)
+            or payload_sha256
+            or self._attribute(sample, "transport_digest", None)
+            or supplied_hash
+            or payload_digest
+        )
+        semantic_sha256 = (
+            self._attribute(sample, "semantic_sha256", None)
+            or self._attribute(sample, "semantic_digest", None)
+            or payload_digest
+        )
+        stable_roi_digest = self._attribute(sample, "stable_roi_digest", None)
         width, height = self._dimensions(sample, payload)
-        metadata: dict[str, Any] = {"sample": sample}
+        metadata: dict[str, Any] = {}
         if envelope is not None:
             metadata["envelope"] = envelope
         return CaptureCycle(
             capture_id=capture_id,
             frame_hash=frame_hash,
-            payload=payload,
+            payload=frozen_payload,
             captured_monotonic=self._monotonic(),
             capture_ordinal=self._capture_ordinal,
+            runtime_session_id=self.session_id,
             width=width,
             height=height,
             metadata=metadata,
+            transport_sha256=str(transport_sha256),
+            semantic_sha256=str(semantic_sha256),
+            stable_roi_digest=stable_roi_digest,
+            payload_sha256=payload_sha256,
         )
-
-    @staticmethod
-    def _attribute(value: Any, name: str, default: Any) -> Any:
-        if isinstance(value, Mapping):
-            return value.get(name, default)
-        return getattr(value, name, default)
 
     @classmethod
     def _dimensions(cls, sample: Any, payload: Any) -> tuple[int | None, int | None]:
@@ -719,19 +740,21 @@ class RuntimeSession:
         if shape is not None and len(shape) >= 2:
             height = height or int(shape[0])
             width = width or int(shape[1])
+        envelope = cls._attribute(sample, "envelope", None)
+        profile = cls._attribute(envelope, "profile_id", "") if envelope is not None else ""
+        match = re.search(r"(?<!\d)(\d+)\s*[xX]\s*(\d+)(?!\d)", str(profile))
+        if match:
+            width = width or int(match.group(1))
+            height = height or int(match.group(2))
         return width, height
-
     @staticmethod
     def _hash_payload(payload: Any) -> str:
-        if isinstance(payload, bytes):
-            raw = payload
-        elif isinstance(payload, bytearray):
-            raw = bytes(payload)
-        elif hasattr(payload, "tobytes") and callable(payload.tobytes):
-            raw = payload.tobytes()
-        else:
-            raw = repr(payload).encode("utf-8", "replace")
-        return hashlib.sha256(raw).hexdigest()
+        return _payload_sha256(_freeze(payload))
+    @staticmethod
+    def _attribute(value: Any, name: str, default: Any = None) -> Any:
+        if isinstance(value, Mapping):
+            return value.get(name, default)
+        return getattr(value, name, default)
 
 
 __all__ = ["CaptureAdapter", "RuntimeSession", "SessionError", "SessionFence"]
