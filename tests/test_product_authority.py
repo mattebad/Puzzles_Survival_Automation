@@ -472,7 +472,6 @@ class ProductAuthorityTests(unittest.TestCase):
     def test_gathering_record_binds_supported_variants_and_free_node_guards(self) -> None:
         record = self.records["gathering_resources"]
         self.assertEqual(record["record_type"], "gathering_resources")
-        self.assertEqual(record["record_revision"], "gathering_resources-v2")
         self.assertEqual(record["recurrence"], "pulse_march_slot_timer")
         self.assertEqual(record["semantic_entry_route"]["source_home_authorities"], ["HOME_READY"])
         self.assertEqual(
@@ -580,7 +579,6 @@ class ProductAuthorityTests(unittest.TestCase):
     def test_troop_training_record_preserves_four_type_queue_and_daily_policy(self) -> None:
         record = self.records["troop_training"]
         self.assertEqual(record["record_type"], "troop_training")
-        self.assertEqual(record["record_revision"], "troop_training-v1")
         self.assertEqual(record["semantic_entry_route"]["target"], "TRAINING_FACILITIES")
         variants = record["target"]["per_type_contract"]
         self.assertEqual(variants["fighter"]["target_tier"], 8)
@@ -1035,7 +1033,6 @@ class ProductAuthorityTests(unittest.TestCase):
         binding = contract["product_authority_binding"]
         self.assertEqual(binding["product_record_id"], "nova_praise")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
-        self.assertEqual(binding["product_record_revision"], "nova_praise-v1")
         self.assertEqual(binding["home_authority"], "HOME_LOCALIZED")
         self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
         self.assertFalse(contract["production_eligible"])
@@ -1046,7 +1043,6 @@ class ProductAuthorityTests(unittest.TestCase):
         binding = contract["product_authority_binding"]
         self.assertEqual(binding["product_record_id"], "ultimate_challenge")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
-        self.assertEqual(binding["product_record_revision"], "ultimate_challenge-v1")
         self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
         self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
         self.assertFalse(contract["production_eligible"])

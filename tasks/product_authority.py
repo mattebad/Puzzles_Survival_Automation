@@ -20,7 +20,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r12"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r13"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -2576,6 +2576,129 @@ def _policy_ids(payload: Mapping[str, Any]) -> set[str]:
     return identities
 
 
+
+def _validate_d01_boundary_policies(payload: Mapping[str, Any]) -> None:
+    """Keep REC-D01 safety and identity policy facts fail-closed offline."""
+
+    policies = {
+        policy["policy_id"]: policy
+        for policy in payload["policies"]
+        if isinstance(policy, Mapping)
+    }
+
+    def require_fields(policy_id: str, expected: Mapping[str, Any]) -> None:
+        policy = policies.get(policy_id)
+        if policy is None:
+            raise ProductAuthorityError(f"missing REC-D01 policy: {policy_id}")
+        for field, value in expected.items():
+            if policy.get(field) != value:
+                raise ProductAuthorityError(
+                    f"REC-D01 policy {policy_id} has invalid {field}"
+                )
+
+    require_fields(
+        "ultimate-daily-join-identity",
+        {
+            "daily_owner_task_id": "REC-D05",
+            "daily_control": "Join",
+            "main_control": "Clear",
+            "campaign_ap_owner_task_id": "REC-R11",
+            "catalog_admitted": False,
+            "main_clear_is_daily": False,
+            "campaign_ap_is_daily": False,
+            "dispatch_authority": None,
+        },
+    )
+    require_fields(
+        "nova-personal-might-identity",
+        {
+            "nova_product_record_id": "nova_praise",
+            "personal_might_catalog_key": "personal_might_praise",
+            "distinct_identities": True,
+            "personal_might_owner_task_id": "REC-D09",
+            "nova_daily_owner_task_id": None,
+            "dispatch_authority": None,
+        },
+    )
+    require_fields(
+        "buy-box-resource-boost-separation",
+        {
+            "buy_box_owner_task_id": "REC-P12",
+            "resource_building_boost_owner_task_id": "REC-P10",
+            "buy_box_catalog_key": "buy_box",
+            "resource_building_boost_catalog_key": "boost_resource_building_output",
+            "same_identity": False,
+            "dispatch_authority": None,
+        },
+    )
+    require_fields(
+        "daily-control-cost-boundary",
+        {
+            "prohibited_controls": [
+                "premium_purchase",
+                "cash_purchase",
+                "paid_control",
+                "ambiguous_control",
+                "refill",
+                "10x",
+                "item_backed_substitute",
+            ],
+            "premium_allowed": False,
+            "cash_allowed": False,
+            "paid_allowed": False,
+            "ambiguous_allowed": False,
+            "refill_allowed": False,
+            "ten_x_allowed": False,
+            "item_backed_substitute_allowed": False,
+            "unknown_cost_allowed": False,
+            "route_owned_effects_globally_forbidden": False,
+            "route_owner_ticket_required": True,
+            "governing_owner_ticket_families": ["REC-R*", "REC-P*"],
+            "dispatch_authority": None,
+        },
+    )
+    require_fields(
+        "current-positive-completion-postcondition",
+        {
+            "applies_to": ["training", "march"],
+            "current_positive_postcondition_required": True,
+            "queue_projection_is_completion": False,
+            "timer_projection_is_completion": False,
+            "outbound_projection_is_completion": False,
+            "return_projection_is_completion": False,
+            "dispatch_is_completion": False,
+        },
+    )
+    require_fields(
+        "supply-depot-free-only",
+        {
+            "free_only": True,
+            "stop_when_free_disappears": True,
+            "permissions_infer_daily_completion": False,
+            "daily_completion_requires_independent_positive_progress": True,
+        },
+    )
+    unknown = policies.get("unknown-consequence")
+    if (
+        unknown is None
+        or unknown.get("status") != "prohibited"
+        or unknown.get("scope") != "global.unknown"
+    ):
+        raise ProductAuthorityError(
+            "REC-D01 unknown cost controls must remain prohibited"
+        )
+    non_authorizing = payload.get("static_facts_are_non_authorizing")
+    if non_authorizing != {
+        "can_claim": False,
+        "can_reserve": False,
+        "can_enable": False,
+        "can_dispatch": False,
+        "runtime_authority": False,
+    }:
+        raise ProductAuthorityError(
+            "REC-D01 static policy facts must be non-authorizing"
+        )
+
 def validate_daily_reset_policy(
     authority_or_policy: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -2627,6 +2750,7 @@ def validate_product_authority(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise ProductAuthorityError("product-policy vocabulary mismatch")
     _policy_ids(payload)
     validate_daily_reset_policy(payload)
+    _validate_d01_boundary_policies(payload)
     records = _records(payload)
     seen: set[str] = set()
     for record in records:

@@ -342,6 +342,166 @@ class DailyQuestPlanningTests(unittest.TestCase):
                         str(path),
                     )
 
+    def test_rec_d01_exact_recovery_owner_map_preserves_prior_dispositions(self):
+        expected = {
+            "upgrade_building": "REC-P06",
+            "join_hero_duel": "REC-P05",
+            "upgrade_tech": "REC-P07",
+            "train_fighter": "REC-R06",
+            "train_rider": "REC-R07",
+            "train_shooter": "REC-R08",
+            "train_vehicle": "REC-R09",
+            "recruit_noahs_tavern": "REC-D07",
+            "upgrade_hero": "REC-P04",
+            "defeat_zombie_lair": "REC-R19",
+            "consume_stamina": "REC-R19",
+            "consume_ap": "REC-R11",
+            "help_allies": "REC-D08",
+            "buy_box": "REC-P12",
+            "gather_wood": "REC-R17",
+            "gather_steel": "REC-R17",
+            "gather_gas": "REC-R18",
+            "boost_resource_building_output": "REC-P10",
+            "ruins_shop_purchase": "REC-P01",
+            "rare_earth_shop_purchase": "REC-P02",
+            "alliance_shop_purchase": "REC-P03",
+            "speedup_using_items": "REC-P09",
+            "bioenhancer_research": "REC-D06",
+            "craft_nanoweapon": "REC-R15",
+            "personal_might_praise": "REC-D09",
+            "enhance_chip": "REC-R04",
+            "enhance_module": "REC-R05",
+            "enhance_gear": "REC-R03",
+            "donate_alliance_tech": "REC-P08",
+            "supply_depot": "REC-D10",
+            "ruins_challenge": "REC-R12",
+        }
+        ownership = self.matrix["portfolio_reconciliation"]["catalog_objective_ownership"]
+        self.assertEqual(len(ownership), 31)
+        self.assertEqual({row["objective_key"]: row["owner_task_id"] for row in ownership}, expected)
+        self.assertEqual(len({row["objective_key"] for row in ownership}), 31)
+        for row in ownership:
+            with self.subTest(objective=row["objective_key"]):
+                self.assertEqual(row["recovery_owner_task_id"], expected[row["objective_key"]])
+                self.assertEqual(row["dispatch_authority"], None)
+                self.assertEqual(row["dispatch_owner"], None)
+                self.assertTrue(row["historical_owner_task_id"])
+                self.assertTrue(row["historical_state"])
+                self.assertTrue(row["historical_missing_proof"])
+        for key, disposition in self.matrix["portfolio_reconciliation"]["catalog_disposition"].items():
+            self.assertEqual(disposition["owner_task_id"], expected[key])
+            self.assertEqual(disposition["dispatch_authority"], None)
+            self.assertTrue(disposition["historical_missing_proof"])
+
+    def test_rec_d01_non_catalog_identity_boundaries_are_explicit(self):
+        rows = {row["identity"]: row for row in self.matrix["portfolio_reconciliation"]["non_catalog_portfolio_ownership"]}
+        ultimate = rows["ultimate_daily_join"]
+        self.assertEqual(ultimate["owner_task_id"], "REC-D05")
+        self.assertFalse(ultimate["catalog_admitted"])
+        self.assertEqual(ultimate["daily_control"], "Join")
+        self.assertEqual(ultimate["main_control"], "Clear")
+        self.assertTrue(ultimate["not_main_clear"])
+        self.assertTrue(ultimate["not_campaign_ap"])
+        self.assertEqual(ultimate["campaign_ap_owner"], "REC-R11")
+        resource = rows["use_resource_item"]
+        self.assertEqual(resource["owner_task_id"], "REC-R02")
+        self.assertFalse(resource["catalog_admitted"])
+        self.assertTrue(resource["direct_resource_evidence_required"])
+        self.assertTrue(resource["selected_daily_evidence_required"])
+        self.assertTrue(resource["ownership_requires_both_evidence"])
+        food = rows["gathering_food_march_proving_slice"]
+        self.assertEqual(food["owner_task_id"], "REC-R16")
+        self.assertFalse(food["catalog_admitted"])
+        self.assertTrue(food["proving_slice"])
+        self.assertEqual(food["daily_ownership"], "EXCLUDED_FROM_DAILY")
+
+    def test_rec_d01_policy_consumers_keep_negative_and_non_authorizing_facts(self):
+        from copy import deepcopy
+
+        from tasks.product_authority import (
+            ProductAuthorityError,
+            authority_digest,
+            load_product_authority,
+            validate_product_authority,
+        )
+
+        authority = load_product_authority()
+        policies = {row["policy_id"]: row for row in authority["policies"]}
+        costs = policies["daily-control-cost-boundary"]
+        for field in (
+            "premium_allowed", "cash_allowed", "paid_allowed", "ambiguous_allowed",
+            "refill_allowed", "ten_x_allowed", "item_backed_substitute_allowed",
+            "unknown_cost_allowed",
+        ):
+            with self.subTest(control=field):
+                self.assertFalse(costs[field])
+        self.assertFalse(costs["route_owned_effects_globally_forbidden"])
+        unknown = policies["unknown-consequence"]
+        self.assertEqual(unknown["status"], "prohibited")
+        completion = policies["current-positive-completion-postcondition"]
+        self.assertTrue(completion["current_positive_postcondition_required"])
+        for field in (
+            "queue_projection_is_completion", "timer_projection_is_completion",
+            "outbound_projection_is_completion", "return_projection_is_completion",
+            "dispatch_is_completion",
+        ):
+            with self.subTest(projection=field):
+                self.assertFalse(completion[field])
+        supply = policies["supply-depot-free-only"]
+        self.assertTrue(supply["free_only"])
+        self.assertTrue(supply["stop_when_free_disappears"])
+        self.assertFalse(supply["permissions_infer_daily_completion"])
+        for key in (
+            "train_fighter", "train_rider", "train_shooter", "train_vehicle",
+            "gather_wood", "gather_steel", "gather_gas",
+        ):
+            row = self.matrix_by_key[key]
+            self.assertTrue(row["completion_requires_current_positive_postcondition"])
+            self.assertFalse(row.get("queue_projection_is_completion", False))
+            self.assertFalse(row.get("timer_projection_is_completion", False))
+            self.assertFalse(row.get("return_projection_is_completion", False))
+        ultimate = policies["ultimate-daily-join-identity"]
+        self.assertFalse(ultimate["main_clear_is_daily"])
+        self.assertFalse(ultimate["campaign_ap_is_daily"])
+
+        rejected_policy_mutations = (
+            ("Main Clear identity", "ultimate-daily-join-identity", "main_clear_is_daily", True),
+            ("Nova and Personal Might transfer", "nova-personal-might-identity", "distinct_identities", False),
+            ("BuyBox and ResourceBuildingBoost merge", "buy-box-resource-boost-separation", "same_identity", True),
+            ("premium control", "daily-control-cost-boundary", "premium_allowed", True),
+            ("paid control", "daily-control-cost-boundary", "paid_allowed", True),
+            ("projected completion", "current-positive-completion-postcondition", "queue_projection_is_completion", True),
+            ("Free disappearance", "supply-depot-free-only", "stop_when_free_disappears", False),
+            ("unknown cost", "daily-control-cost-boundary", "unknown_cost_allowed", True),
+        )
+        for label, policy_id, field, invalid in rejected_policy_mutations:
+            with self.subTest(rejected=label):
+                changed = deepcopy(authority)
+                changed_policy = next(
+                    row for row in changed["policies"] if row["policy_id"] == policy_id
+                )
+                changed_policy[field] = invalid
+                changed["authority_digest"] = authority_digest(changed)
+                with self.assertRaises(ProductAuthorityError):
+                    validate_product_authority(changed)
+
+        changed = deepcopy(authority)
+        changed["static_facts_are_non_authorizing"]["can_claim"] = True
+        changed["authority_digest"] = authority_digest(changed)
+        with self.assertRaises(ProductAuthorityError):
+            validate_product_authority(changed)
+
+        for facts in (
+            self.catalog["authority"]["static_facts_are_non_authorizing"],
+            authority["static_facts_are_non_authorizing"],
+            self.matrix["authority"]["non_authorizing_static_facts"],
+        ):
+            self.assertFalse(facts["can_claim"])
+            self.assertFalse(facts["can_reserve"])
+            self.assertFalse(facts["can_enable"])
+            self.assertFalse(facts["can_dispatch"])
+            self.assertFalse(facts["runtime_authority"])
+
 
 if __name__ == "__main__":
     unittest.main()
