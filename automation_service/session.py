@@ -131,6 +131,9 @@ class RuntimeSession:
         self._closed = False
         self._fenced = False
         self._emergency_requested = False
+        self._lease_acquired = False
+        self._acquired_lease_fence: tuple[str, str, int] | None = None
+        self._lease_released = False
         self._capture_ordinal = 0
         self._last_capture: CaptureCycle | None = None
 
@@ -227,6 +230,65 @@ class RuntimeSession:
             self.run_token = str(run_token)
         if self.lease_generation is None and lease_generation is not None:
             self.lease_generation = int(lease_generation)
+    def _record_acquired_lease(self, lease: Any) -> bool:
+        """Remember ownership acquired by this admission attempt."""
+
+        owner = getattr(lease, "owner_instance_id", None)
+        process_token = getattr(lease, "process_start_token", None)
+        generation = getattr(lease, "lease_generation", None)
+        if (
+            owner != self.owner_instance_id
+            or process_token is None
+            or type(generation) is not int
+            or generation < 1
+        ):
+            return False
+        self.process_start_token = str(process_token)
+        self.lease_generation = generation
+        self._lease_acquired = True
+        self._acquired_lease_fence = (
+            self.owner_instance_id,
+            self.process_start_token,
+            generation,
+        )
+        self._lease_released = False
+        return True
+
+    def _matching_lease_expired(self) -> bool:
+        """Return whether this session's current lease generation is expired."""
+
+        if self.lease_generation is None:
+            return False
+        get_lease = getattr(self.state_manager, "get_service_lease", None)
+        if not callable(get_lease):
+            return False
+        try:
+            lease = get_lease()
+        except Exception:
+            return False
+        return bool(
+            getattr(lease, "owner_instance_id", None) == self.owner_instance_id
+            and getattr(lease, "process_start_token", None) == self.process_start_token
+            and getattr(lease, "lease_generation", None) == self.lease_generation
+            and (
+                getattr(lease, "expires_at_utc", None) is None
+                or float(getattr(lease, "expires_at_utc")) <= self._utc()
+            )
+        )
+    def _run_fence_matches(self, run: Any) -> bool:
+        """Require the session's full run fence before releasing its lease."""
+
+        for attribute, expected in (
+            ("owner_instance_id", self.owner_instance_id),
+            ("process_start_token", self.process_start_token),
+            ("lease_generation", self.lease_generation),
+            ("run_token", self.run_token),
+        ):
+            actual = getattr(run, attribute, None)
+            if actual is not None and actual != expected:
+                return False
+        return True
+
 
     def _adopt_matching_lease(self) -> None:
         """Adopt a lease acquired before this session was constructed.
@@ -305,6 +367,7 @@ class RuntimeSession:
                                 process_id=getattr(self.state_manager, "process_id", None),
                                 lease_ttl_seconds=self.lease_ttl_seconds,
                                 now_utc_epoch=self._utc(),
+                                _allow_existing_lease=False,
                             )
                         except Exception:
                             lease = None
@@ -315,8 +378,7 @@ class RuntimeSession:
                             and type(getattr(lease, "lease_generation", None)) is int
                             and getattr(lease, "lease_generation", 0) >= 1
                         ):
-                            self.process_start_token = str(lease.process_start_token)
-                            self.lease_generation = int(lease.lease_generation)
+                            self._record_acquired_lease(lease)
                 claim_kwargs.update(self._token_kwargs())
             if self.run_token is not None:
                 claim_kwargs["run_token"] = self.run_token
@@ -331,8 +393,8 @@ class RuntimeSession:
             # the same owner/process identity and retry once with the new
             # generation.  A different owner or process token can never be
             # reacquired and therefore still fails closed.
-            if run is None and self.lease_generation is not None:
-                acquire_lease = getattr(self.state_manager, "acquire_service_lease", None)
+            acquire_lease = getattr(self.state_manager, "acquire_service_lease", None)
+            if run is None and self.lease_generation is not None and self._matching_lease_expired():
                 if callable(acquire_lease):
                     process_token = self.process_start_token
                     if process_token is None:
@@ -345,6 +407,7 @@ class RuntimeSession:
                             lease_ttl_seconds=self.lease_ttl_seconds,
                             process_id=getattr(self.state_manager, "process_id", None),
                             now_utc_epoch=self._utc(),
+                            _allow_existing_lease=False,
                         )
                     except Exception:
                         lease = None
@@ -358,8 +421,7 @@ class RuntimeSession:
                             and type(lease_generation) is int
                             and lease_generation >= 1
                         ):
-                            self.process_start_token = str(lease_process)
-                            self.lease_generation = lease_generation
+                            self._record_acquired_lease(lease)
                             claim_kwargs.update(self._token_kwargs())
                             run = self._authority_call(
                                 self.state_manager.claim_occurrence,
@@ -369,6 +431,10 @@ class RuntimeSession:
                             )
         except Exception:
             self._emergency_requested = True
+            self._release_service_lease(acquired_only=True)
+            return None
+        if run is None:
+            self._release_service_lease(acquired_only=True)
             return None
         if run is not None:
             self._run = run
@@ -644,18 +710,35 @@ class RuntimeSession:
 
     finish = release
 
-    def _release_service_lease(self) -> None:
+    def _release_service_lease(self, *, acquired_only: bool = False) -> None:
         """Best-effort release guarded by the session's exact lease tokens."""
 
-        if self.lease_generation is None:
+        if self._lease_released or self.lease_generation is None:
+            return
+        if acquired_only and not self._lease_acquired:
+            return
+        if self._run is None and not self._lease_acquired:
+            return
+        if self._run is not None and not self._run_fence_matches(self._run):
             return
         release = getattr(self.state_manager, "release_service_lease", None)
         if not callable(release):
             return
+        tokens = self._token_kwargs(include_run=self._run is not None)
+        if self._run is not None:
+            tokens["run_id"] = getattr(self._run, "run_id", None)
+        if self._run is None and self._acquired_lease_fence is not None:
+            owner, process_token, generation = self._acquired_lease_fence
+            tokens.update(
+                owner_instance_id=owner,
+                process_start_token=process_token,
+                lease_generation=generation,
+            )
         try:
-            self._authority_call(release, **self._token_kwargs())
+            self._authority_call(release, **tokens)
         except Exception:
-            pass
+            return
+        self._lease_released = True
 
     @staticmethod
     def _terminal_state(outcome: str) -> RunState:

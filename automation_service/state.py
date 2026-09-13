@@ -518,6 +518,29 @@ class BotStateManager:
                         raise StateBusyError("COMMIT") from exc
                     raise
 
+    @contextmanager
+    def _claim_transaction(
+        self,
+        *,
+        acquired_lease: ServiceLease | None,
+    ) -> Iterator[sqlite3.Connection]:
+        """Roll back claim work before releasing a fresh admission lease."""
+
+        try:
+            with self._transaction() as db:
+                yield db
+        except Exception:
+            if acquired_lease is not None:
+                try:
+                    self.release_service_lease(
+                        owner_instance_id=acquired_lease.owner_instance_id,
+                        process_start_token=acquired_lease.process_start_token,
+                        lease_generation=acquired_lease.lease_generation,
+                    )
+                except Exception:
+                    pass
+            raise
+
     def _create_schema(self) -> None:
         with self._transaction() as db:
             db.executescript(
@@ -942,6 +965,7 @@ class BotStateManager:
         process_id: int | None = None,
         lease_ttl_seconds: float = 60.0,
         now_utc_epoch: float | None = None,
+        _allow_existing_lease: bool = True,
     ) -> ServiceLease | None:
         """Acquire or renew the singleton lease, fencing any expired owner."""
 
@@ -966,7 +990,10 @@ class BotStateManager:
             if row is None:
                 raise StateError("service_lease row is missing")
             active = row["owner_instance_id"] is not None and row["expires_at_utc"] is not None and float(row["expires_at_utc"]) > now
-            if active and (row["owner_instance_id"], row["process_start_token"]) != (owner, token):
+            if active and (
+                not _allow_existing_lease
+                or (row["owner_instance_id"], row["process_start_token"]) != (owner, token)
+            ):
                 return None
             generation = int(row["lease_generation"]) if active else int(row["lease_generation"]) + 1
             db.execute(
@@ -1033,29 +1060,79 @@ class BotStateManager:
             and not self.has_unresolved_actions(run_id)
         )
 
+    @staticmethod
+    def _release_service_lease_cas(
+        db: sqlite3.Connection,
+        *,
+        owner_instance_id: str,
+        process_start_token: str,
+        lease_generation: int,
+        run_id: str | None = None,
+        run_token: str | None = None,
+    ) -> bool:
+        lease_update = """UPDATE service_lease SET owner_instance_id = NULL, process_id = NULL,
+           process_start_token = NULL, heartbeat_at_utc = NULL, expires_at_utc = NULL,
+           lease_generation = lease_generation + 1, row_version = row_version + 1
+           WHERE singleton_id = 1 AND owner_instance_id = ? AND process_start_token = ?
+             AND lease_generation = ?"""
+        params: tuple[object, ...] = (owner_instance_id, process_start_token, lease_generation)
+        if run_id is not None and run_token is not None:
+            lease_update += """ AND EXISTS (
+               SELECT 1 FROM runs AS associated
+               WHERE associated.run_id = ? AND associated.run_token = ?
+                 AND associated.owner_instance_id = ?
+                 AND associated.process_start_token = ?
+                 AND associated.lease_generation = ?
+            ) AND NOT EXISTS (
+               SELECT 1 FROM runs AS other
+               WHERE other.run_id <> ?
+                 AND other.owner_instance_id = ?
+                 AND other.process_start_token = ?
+                 AND other.lease_generation = ?
+                 AND other.state IN ('CLAIMED', 'RUNNING', 'STOP_REQUESTED', 'RECOVERING')
+            )"""
+            params += (
+                run_id,
+                run_token,
+                owner_instance_id,
+                process_start_token,
+                lease_generation,
+                run_id,
+                owner_instance_id,
+                process_start_token,
+                lease_generation,
+            )
+        result = db.execute(lease_update, params)
+        return result.rowcount == 1
+
     def release_service_lease(
         self,
         *,
         owner_instance_id: str | None = None,
         process_start_token: str | None = None,
         lease_generation: int | None = None,
+        run_id: str | None = None,
+        run_token: str | None = None,
     ) -> bool:
-        """Release the lease only for its current owner, token, and generation."""
+        """Release the lease only for its current owner and optional run fence."""
 
         owner = _text(owner_instance_id or self.owner_instance_id, "owner_instance_id")
         token = _text(process_start_token or self.process_start_token, "process_start_token")
         if type(lease_generation) is not int or lease_generation < 1:
             return False
+        if (run_id is None) != (run_token is None):
+            raise ValueError("run_id and run_token must be supplied together")
+        associated_run_id = None if run_id is None else _text(run_id, "run_id")
+        associated_run_token = None if run_token is None else _text(run_token, "run_token")
         with self._transaction() as db:
-            result = db.execute(
-                """UPDATE service_lease SET owner_instance_id = NULL, process_id = NULL,
-                   process_start_token = NULL, heartbeat_at_utc = NULL, expires_at_utc = NULL,
-                   lease_generation = lease_generation + 1, row_version = row_version + 1
-                   WHERE singleton_id = 1 AND owner_instance_id = ? AND process_start_token = ?
-                     AND lease_generation = ?""",
-                (owner, token, lease_generation),
+            return self._release_service_lease_cas(
+                db,
+                owner_instance_id=owner,
+                process_start_token=token,
+                lease_generation=lease_generation,
+                run_id=associated_run_id,
+                run_token=associated_run_token,
             )
-            return result.rowcount == 1
     heartbeat_service_lease = renew_service_lease
     acquire_lease = acquire_service_lease
     renew_lease = renew_service_lease
@@ -1428,22 +1505,56 @@ class BotStateManager:
         token = _text(self.process_start_token if process_start_token is None else process_start_token, "process_start_token")
         _nonnegative_int(max_inputs, "max_inputs")
         _nonnegative_int(max_actions, "max_actions")
+        acquired_lease: ServiceLease | None = None
+        borrowed_lease: ServiceLease | None = None
         if implicit_lease:
-            acquired = self.acquire_service_lease(
-                owner_instance_id=owner,
-                process_start_token=token,
-                process_id=self.process_id,
-                now_utc_epoch=now,
-            )
-            if acquired is None:
-                return None
-            lease_generation = acquired.lease_generation
+            try:
+                current_lease = self.get_service_lease()
+            except Exception:
+                current_lease = None
+            if (
+                current_lease is not None
+                and current_lease.owner_instance_id == owner
+                and current_lease.process_start_token == token
+                and current_lease.lease_generation >= 1
+                and current_lease.expires_at_utc is not None
+                and float(current_lease.expires_at_utc) > now
+            ):
+                borrowed_lease = current_lease
+            else:
+                acquired_lease = self.acquire_service_lease(
+                    owner_instance_id=owner,
+                    process_start_token=token,
+                    process_id=self.process_id,
+                    now_utc_epoch=now,
+                    _allow_existing_lease=False,
+                )
+                if acquired_lease is None:
+                    return None
+                lease_generation = acquired_lease.lease_generation
+        if borrowed_lease is not None:
+            lease_generation = borrowed_lease.lease_generation
         if type(lease_generation) is not int or lease_generation < 1:
+            if acquired_lease is not None:
+                self.release_service_lease(
+                    owner_instance_id=owner,
+                    process_start_token=token,
+                    lease_generation=acquired_lease.lease_generation,
+                )
             return None
-        with self._transaction() as db:
+        def release_claim_lease(db: sqlite3.Connection) -> None:
+            if acquired_lease is not None:
+                self._release_service_lease_cas(
+                    db,
+                    owner_instance_id=acquired_lease.owner_instance_id,
+                    process_start_token=acquired_lease.process_start_token,
+                    lease_generation=acquired_lease.lease_generation,
+                )
+        with self._claim_transaction(acquired_lease=acquired_lease) as db:
             service = db.execute("SELECT * FROM service_control WHERE singleton_id = 1").fetchone()
             flow = db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone()
             if service is None or flow is None or not bool(service["enabled"]):
+                release_claim_lease(db)
                 return None
             if self._lease_matches(
                 db,
@@ -1452,24 +1563,31 @@ class BotStateManager:
                 lease_generation=lease_generation,
                 now_utc_epoch=now,
             ) is not None:
+                release_claim_lease(db)
                 return None
             if not bool(flow["enabled"]) or bool(flow["blocked"]):
+                release_claim_lease(db)
                 return None
             kind = occurrence_kind or (
                 "manual" if mode == "manual" else flow["next_occurrence_kind"] or "daily"
             )
             if mode == "scheduled" and flow["reset_id"] not in (None, reset_id):
                 if not _is_non_reset_occurrence_kind(kind):
+                    release_claim_lease(db)
                     return None
             if flow["next_due_at_utc"] is not None and float(flow["next_due_at_utc"]) > now:
+                release_claim_lease(db)
                 return None
             if flow["retry_not_before_utc"] is not None and float(flow["retry_not_before_utc"]) > now:
+                release_claim_lease(db)
                 return None
             if int(flow["consecutive_failures"]) >= int(flow["max_attempts"]):
+                release_claim_lease(db)
                 return None
             if db.execute(
                 "SELECT 1 FROM runs WHERE state IN ('CLAIMED', 'RUNNING', 'STOP_REQUESTED', 'RECOVERING') LIMIT 1"
             ).fetchone() is not None:
+                release_claim_lease(db)
                 return None
             ordinal = int(flow["next_occurrence_key"]) if mode == "scheduled" else 0
             normalized = _normalize_occurrence_kind(kind)
@@ -1586,11 +1704,13 @@ class BotStateManager:
             run_token = _text(uuid4().hex if run_token is None else run_token, "run_token")
             if existing is not None:
                 if existing["state"] not in {RunState.FAILED.value, RunState.BLOCKED.value}:
+                    release_claim_lease(db)
                     return None
                 if db.execute(
                     "SELECT 1 FROM actions WHERE run_id = ? AND state = 'UNKNOWN' LIMIT 1",
                     (existing["run_id"],),
                 ).fetchone() is not None:
+                    release_claim_lease(db)
                     return None
                 db.execute(
                     """UPDATE runs SET reset_id = ?, claimed_flow_generation = ?, service_generation = ?,
@@ -1628,6 +1748,7 @@ class BotStateManager:
                         ),
                     )
                 except sqlite3.IntegrityError:
+                    release_claim_lease(db)
                     return None
             if mode == "scheduled":
                 db.execute(
