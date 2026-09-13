@@ -10,7 +10,8 @@
       "next_development_priority",
       "policy_mode"
     ],
-    "legacy_status_fields_are_non_authoritative": true
+    "legacy_status_fields_are_non_authoritative": true,
+    "static_facts_are_non_authorizing": {"can_claim": false, "can_reserve": false, "can_enable": false, "can_dispatch": false, "runtime_authority": false}
   },
   "source_inventories": [
     "evidence/sessions/20260712-mvp-quest-to-claim/live-daily-inventory-20260713/inventory-20260713.json",
@@ -31,12 +32,17 @@
   "implementation_reconciliation": {
     "use_resource_item": {
       "execution_flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
-      "owner_task_id": "use-resource-item",
+      "owner_task_id": "REC-R02",
+      "recovery_owner_task_id": "REC-R02",
+      "historical_owner_task_id": "use-resource-item",
       "implementation_state": "OFFLINE_ROUTE_IMPLEMENTED",
       "scheduler_eligibility": false,
+      "daily_ownership_status": "candidate_no_daily_ownership_until_both_evidence",
+      "direct_resource_evidence_required": true,
+      "selected_daily_evidence_required": true,
       "maximum_inputs": 10,
       "maximum_resource_list_swipes": 6,
-      "notes": "The direct Home-to-Bag selected-resource observed-list route owns exact 1K Food use proof; catalog identity remains separate and does not authorize registration or scheduling."
+      "notes": "REC-R02 is a candidate only: direct Home-to-Bag 1K Food proof and selected-Daily objective-list evidence must both be current before any Daily ownership; this static record never authorizes registration or scheduling."
     },
     "aggregate_daily_claim": {
       "execution_flow_id": "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
@@ -104,6 +110,7 @@
   ],
   "excluded_reconciliation_records": [
     {"candidate_key": "gather_food", "observed_names": ["Gather Food", "Gathered Food"], "classification": "SYNTHETIC_ONLY", "source_refs": ["tasks/daily_quest_provenance_audit.json#records[gather_food]"]},
+    {"candidate_key": "use_resource_item", "observed_names": ["Use resource item"], "classification": "DIRECT_RESOURCE_CANDIDATE", "catalog_admitted": false, "missing_evidence": "direct-resource transaction AND selected-Daily objective-list evidence", "source_refs": ["tasks/daily_quest_catalog.json#implementation_reconciliation.use_resource_item"]},
     {"candidate_key": "upgrade_building.vehicle_depot", "observed_names": ["Recom'd Upgrade Vehicle Depot to Lv.23", "Upgrade Vehicle Depot to Lv.23"], "classification": "PROVEN_MAIN_OBJECTIVE", "source_refs": ["tasks/daily_quest_provenance_audit.json#records[upgrade_building.vehicle_depot]"]},
     {"candidate_key": "ultimate_challenge", "observed_names": ["Clear Ultimate Challenge Stage 110"], "classification": "PROVEN_MAIN_OBJECTIVE", "source_refs": ["tasks/daily_quest_provenance_audit.json#records[ultimate_challenge]"]},
     {"candidate_key": "hunt_zombie", "observed_names": ["Hunt Lv.5 Zombie x3"], "classification": "PROVEN_MAIN_OBJECTIVE", "source_refs": ["tasks/daily_quest_provenance_audit.json#records[hunt_zombie]"]},
@@ -124,8 +131,9 @@
       {
         "candidate_key": "use_resource_item",
         "historical_observation": "Use resource item x1",
-        "current_state": "DIRECT_RESOURCE_ITEM_ROUTE_IMPLEMENTED",
-        "missing_evidence": "current native direct-route semantic proof"
+        "current_state": "DIRECT_RESOURCE_ROUTE_CANDIDATE_NO_DAILY_OWNERSHIP",
+        "catalog_admitted": false,
+        "missing_evidence": "current direct-resource transaction proof AND current selected-Daily objective-list evidence"
       },
       {
         "candidate_key": "gather_food",
@@ -137,9 +145,13 @@
       {
         "candidate_key": "ultimate_challenge",
         "historical_observation": "Join Ultimate Challenge 1x",
-        "current_state": "EXCLUDED_RECLASSIFIED_MAIN",
+        "current_state": "EXCLUDED_MAIN_CLEAR_IDENTITY; DAILY_JOIN_NONCATALOG_CANDIDATE",
         "catalog_admitted": false,
-        "missing_evidence": "none sought by this portfolio; current native Main classification controls over historical reference"
+        "daily_owner_task_id": "REC-D05",
+        "daily_control": "Join",
+        "main_control": "Clear",
+        "campaign_ap_owner_task_id": "REC-R11",
+        "missing_evidence": "current selected-Daily Join identity and positive completion evidence; Main Clear proof is not Daily proof"
       },
       {
         "candidate_key": "upgrade_tech",
@@ -604,6 +616,7 @@
         "Personal Might praise"
       ],
       "product_record_id": "nova_praise",
+      "identity_boundary": "Nova free Praise is distinct from selected-Daily Personal Might Praise attribution",
       "selected_daily_prerequisite": false,
       "handler_family": "praise",
       "route_name": "daily_go_to_personal_might",

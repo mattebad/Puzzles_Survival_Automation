@@ -2,6 +2,7 @@
   "schema_version": 2,
   "registry_kind": "flow_delivery_product_policy",
   "purpose": "Record product decisions used by the development-flow queue. This registry does not authorize runtime input by itself.",
+  "static_facts_are_non_authorizing": {"can_claim": false, "can_reserve": false, "can_enable": false, "can_dispatch": false, "runtime_authority": false},
   "status_vocabulary": [
     "explicitly_approved",
     "navigation_only_validation",
@@ -69,8 +70,13 @@
       "policy_id": "ultimate-challenge-flow-separation",
       "scope": "ultimate_challenge.flow_identity",
       "status": "explicitly_approved",
-      "decision": "Ultimate Challenge is a distinct gameplay flow from Campaign AP farming and must not be embedded in or dispatched as Campaign AP.",
-      "source": "explicit_user_direction"
+      "decision": "Ultimate Daily Join is a distinct non-catalog identity from Main Clear and Campaign AP farming; it must not be embedded in or dispatched as Campaign AP.",
+      "daily_owner_task_id": "REC-D05",
+      "daily_control": "Join",
+      "main_control": "Clear",
+      "campaign_ap_owner_task_id": "REC-R11",
+      "catalog_admitted": false,
+      "source": "REC-D01_explicit_identity_boundary"
     },
     {
       "policy_id": "ultimate-challenge-navigation-validation",
@@ -104,7 +110,10 @@
       "policy_id": "ultimate-challenge-unresolved-execution-details",
       "scope": "ultimate_challenge.daily_execution",
       "status": "explicitly_approved",
-      "decision": "From Campaign select Ultimate Challenge, tap Challenge, tap Challenge again in Hero Lineup, immediately tap the upper-right Exit control, then tap Flee on the warning. Verified Flee completes the Daily objective without AP, stamina, currency, items, or other resources. Auto Battle is prohibited. Already-complete is idempotent and every terminal returns to canonical Home.",
+      "decision": "From Campaign select Ultimate Challenge, tap Challenge, tap Challenge again in Hero Lineup, immediately tap the upper-right Exit control, then tap Flee on the warning. Verified Flee is the positive successor for the separate non-catalog Daily Join identity without AP, stamina, currency, items, or other resources. Auto Battle is prohibited. Already-complete is idempotent and every terminal returns to canonical Home.",
+      "daily_identity": "Join",
+      "main_identity": "Clear",
+      "campaign_ap_identity": false,
       "execution_sequence": [
         "select_ultimate_challenge",
         "tap_challenge",
@@ -127,7 +136,11 @@
       "policy_id": "supply-depot-free-only",
       "scope": "supply_depot.collection",
       "status": "supervised_consequential_validation",
-      "decision": "Only a positively identified free collection may be considered; stop when Free disappears.",
+      "decision": "Only a positively identified Free collection may be considered; stop immediately when Free disappears. Collection permission never proves Daily 5/5.",
+      "free_only": true,
+      "stop_when_free_disappears": true,
+      "permissions_infer_daily_completion": false,
+      "daily_completion_requires_independent_positive_progress": true,
       "source": "execution_matrix_and_explicit_user_direction"
     },
     {
@@ -200,7 +213,9 @@
       "registration_status": "NOT_REGISTERED",
       "scheduler_eligibility": false,
       "selected_daily_prerequisite": false,
-      "daily_catalog_boundary": "Food is a proving slice only; Wood, Steel, and Gas progress is separately observed and gains no selected-Daily route authority"
+      "completion_requires_current_positive_postcondition": true,
+      "outbound_or_return_projection_is_not_completion": true,
+      "daily_catalog_boundary": "Food is a proving slice only; Gather Food is excluded from Daily admission and Wood, Steel, and Gas progress is separately observed without selected-Daily route authority"
     },
     {
       "policy_id": "troop-training-resource-policy",
@@ -211,7 +226,8 @@
       "registration_status": "NOT_REGISTERED",
       "scheduler_eligibility": false,
       "daily_quest_inheritance": "prohibited",
-      "resource_box_restriction": "Fighter and Vehicle only; Shooter and Rider are structurally prohibited"
+      "resource_box_restriction": "Fighter and Vehicle only; Shooter and Rider are structurally prohibited",
+      "completion_contract": {"current_positive_postcondition_required": true, "queue_projection_is_completion": false, "timer_projection_is_completion": false, "return_projection_is_completion": false}
     },
     {
       "policy_id": "recruitment-quantity-and-resource-policy",
@@ -429,9 +445,14 @@
       "reset_time": "00:00:00",
       "interval_seconds": 86400,
       "source": "explicit_user_direction_2026-08-20"
-    }
+    },
+    {"policy_id": "ultimate-daily-join-identity", "scope": "ultimate_challenge.daily_identity", "status": "explicitly_approved", "decision": "The non-catalog Daily Ultimate identity is Join, not Main Clear and not Campaign AP. REC-D05 owns this identity; REC-R11 owns Campaign AP separately.", "daily_owner_task_id": "REC-D05", "daily_control": "Join", "main_control": "Clear", "campaign_ap_owner_task_id": "REC-R11", "catalog_admitted": false, "main_clear_is_daily": false, "campaign_ap_is_daily": false, "dispatch_authority": null, "source": "REC-D01_explicit_identity_boundary"},
+    {"policy_id": "nova-personal-might-identity", "scope": "nova_praise.personal_might_separation", "status": "explicitly_approved", "decision": "Nova free Praise is a direct product action distinct from selected-Daily Personal Might Praise completion attribution. Neither identity transfers the other identity ownership.", "nova_product_record_id": "nova_praise", "personal_might_catalog_key": "personal_might_praise", "distinct_identities": true, "personal_might_owner_task_id": "REC-D09", "nova_daily_owner_task_id": null, "dispatch_authority": null, "source": "REC-D01_explicit_identity_boundary"},
+    {"policy_id": "buy-box-resource-boost-separation", "scope": "daily.catalog_purchase_vs_resource_boost", "status": "prohibited", "decision": "BuyBox and ResourceBuildingBoost are distinct Daily identities and must not share a recovery or dispatch owner.", "buy_box_owner_task_id": "REC-P12", "resource_building_boost_owner_task_id": "REC-P10", "buy_box_catalog_key": "buy_box", "resource_building_boost_catalog_key": "boost_resource_building_output", "same_identity": false, "dispatch_authority": null, "source": "REC-D01_explicit_identity_boundary"},
+    {"policy_id": "daily-control-cost-boundary", "scope": "global.daily_control_costs", "status": "explicitly_approved", "decision": "Universal Daily control safety boundary: premium/cash purchases, paid or ambiguous controls, refills, 10x controls, and item-backed substitutes are prohibited. Route-approved resource, AP, and stamina effects remain governed by their own R/P ticket and are not globally forbidden.", "prohibited_controls": ["premium_purchase", "cash_purchase", "paid_control", "ambiguous_control", "refill", "10x", "item_backed_substitute"], "premium_allowed": false, "cash_allowed": false, "paid_allowed": false, "ambiguous_allowed": false, "refill_allowed": false, "ten_x_allowed": false, "item_backed_substitute_allowed": false, "unknown_cost_allowed": false, "route_owned_effects_globally_forbidden": false, "route_owner_ticket_required": true, "governing_owner_ticket_families": ["REC-R*", "REC-P*"], "dispatch_authority": null, "source": "REC-D01_explicit_cost_boundary"},
+    {"policy_id": "current-positive-completion-postcondition", "scope": "global.completion_semantics", "status": "explicitly_approved", "decision": "Training and march completion require a current positive postcondition. Queue, timer, outbound, return, or other projected state alone never proves completion.", "applies_to": ["training", "march"], "current_positive_postcondition_required": true, "queue_projection_is_completion": false, "timer_projection_is_completion": false, "outbound_projection_is_completion": false, "return_projection_is_completion": false, "dispatch_is_completion": false, "source": "REC-D01_explicit_completion_boundary"}
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r12",
+  "authority_revision": "flow-delivery-product-authority-v2-r13",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -489,7 +510,9 @@
         "daily_owner": null,
         "point_credit_trigger": null,
         "selected_daily_prerequisite": false,
-        "notes": "The direct item transaction does not require Daily navigation or selected-Daily admission."
+        "daily_ownership_status": "candidate_no_daily_ownership",
+        "daily_admission_contract": {"candidate_owner_task_id": "REC-R02", "catalog_admitted": false, "direct_resource_evidence_required": true, "selected_daily_evidence_required": true, "ownership_requires_both_evidence": true},
+        "notes": "REC-R02 is a candidate with no Daily ownership until both direct-resource transaction evidence and selected-Daily objective-list evidence are independently current."
       },
       "authority_references": [
         {
@@ -503,8 +526,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "use_resource_item-v1",
-      "record_digest": "ce28b70ba87f73f0df72322f070ca8e9d06dcba970fab9d2697e36c9643b53e8"
+      "record_revision": "use_resource_item-v2",
+      "record_digest": "e51bdc251eea52d3b2dd7b4dfe369597ab3fbbb0c6b3706e0270af56f0ae3d09"
     },
     {
       "record_id": "enhancement_family",
@@ -654,7 +677,10 @@
         "daily_owner": null,
         "point_credit_trigger": null,
         "selected_daily_prerequisite": false,
-        "notes": "Navigation and Free-target evidence do not claim collection or Daily 5/5 completion."
+        "collection_authority": "free_only_until_free_disappears",
+        "permissions_infer_daily_completion": false,
+        "daily_progress_requires_independent_positive_evidence": true,
+        "notes": "Only positively recognized Free controls are eligible; stop when Free disappears, and permission or collection evidence never infers Daily 5/5."
       },
       "authority_references": [
         {
@@ -668,8 +694,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "supply_depot-v1",
-      "record_digest": "667ff4961534fa5f667e7875b937f9b14e771f03a33e99698b8c43b2e8da80f2"
+      "record_revision": "supply_depot-v2",
+      "record_digest": "8e83ec05a3fee83474170eb27a157533a98b162bb6374460108c0b099b0e0412"
     },
     {
       "record_id": "aggregate_daily_claim",
@@ -890,7 +916,8 @@
         "daily_owner": null,
         "point_credit_trigger": null,
         "selected_daily_prerequisite": false,
-        "notes": "Nova Praise is a direct action and does not require, own, or attribute selected Daily progress."
+        "identity_boundary": {"product_identity": "nova_free_praise", "distinct_from_catalog_identity": "personal_might_praise", "catalog_admitted": false, "daily_owner_task_id": null},
+        "notes": "Nova free Praise is a direct product action distinct from Personal Might selected-Daily completion attribution; it does not own or attribute selected Daily progress."
       },
       "authority_references": [
         {
@@ -904,8 +931,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "nova_praise-v1",
-      "record_digest": "959fe8201ce0250dcab494dc65f930cf52c753b1ac5833d22bcb3a1abea2b2ae"
+      "record_revision": "nova_praise-v2",
+      "record_digest": "812414f2b3b34ddd692fad76e90cb11df7faf35c713c3147d1ef73511c9d27f8"
     },
     {
       "record_id": "ultimate_challenge",
@@ -974,7 +1001,8 @@
         "daily_owner": null,
         "point_credit_trigger": null,
         "selected_daily_prerequisite": false,
-        "notes": "Ultimate Challenge is a direct reset-bound flow, not Campaign AP and not selected Daily ownership."
+        "identity_boundary": {"daily_identity": "Join", "main_identity": "Clear", "campaign_ap_identity": false, "daily_owner_task_id": "REC-D05", "catalog_admitted": false},
+        "notes": "The direct Ultimate flow is the non-catalog Daily Join identity, distinct from Main Clear and Campaign AP REC-R11; it is not a catalog row or automatic claim owner."
       },
       "authority_references": [
         {
@@ -988,8 +1016,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "ultimate_challenge-v1",
-      "record_digest": "8ce40a2975bf07b34d41751a45a16281ab303ce2071370fd878e5e7c63a3b609"
+      "record_revision": "ultimate_challenge-v2",
+      "record_digest": "4580bb4fb90b030604078bc94ebce6225fba1b281e9c42e78d2d1fec04a9986d"
     },
     {
       "record_id": "bioenhancer_research",
@@ -1141,6 +1169,10 @@
         "effect_ordinal": 1,
         "queue_slot_effect": true,
         "active_queue_successor_required": true,
+        "current_positive_postcondition_required": true,
+        "queue_projection_is_completion": false,
+        "timer_projection_is_completion": false,
+        "return_projection_is_completion": false,
         "positive_timer_spatial_association_required": true,
         "current_max_numeric_reconciliation_required": true,
         "fixed_quantity_exact_required": true,
@@ -1185,8 +1217,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "troop_training-v1",
-      "record_digest": "709ce023ca11f8e09e7cf7ef71d83d8e1cc129daa3bb22ba3c943fdcf5b3d537"
+      "record_revision": "troop_training-v2",
+      "record_digest": "5cc24fffa0a7d3bf14a7f25bb19964a9475c204f6fa19e38b6aad3899cdd8fce"
     },
     {
       "record_id": "hero_duel",
@@ -2032,6 +2064,9 @@
         "default_formation_required": true,
         "outbound_timer_successor_required": true,
         "return_timer_successor_required": true,
+        "current_positive_postcondition_required": true,
+        "outbound_projection_is_completion": false,
+        "return_projection_is_completion": false,
         "terminal_home_successor_required": true,
         "resource_progress_successor_required": true,
         "dispatch_is_not_success_proof": true,
@@ -2080,8 +2115,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "gathering_resources-v2",
-      "record_digest": "5c65405bc13a7df05d1e4f3a01f8719b0dc3fc564f0f10b9aae13b1664f4143b"
+      "record_revision": "gathering_resources-v3",
+      "record_digest": "eeefd9430edf6574d7de3423e2c9b01fa8d1564f4df31fa32f708c376b9fce11"
     },
     {
       "record_id": "world_map_navigation",
@@ -2468,5 +2503,5 @@
       "record_digest": "dfdf98ff9705882aa163450668b8c513d19fcf89904f45778d97ac63e085717e"
     }
   ],
-  "authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3"
+  "authority_digest": "13a3b12051a89f25e926875fc9d085aa5c220c6eb3904375d147e34f302a67d6"
 }
