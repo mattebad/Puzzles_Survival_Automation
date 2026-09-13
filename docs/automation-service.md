@@ -53,6 +53,20 @@ PYTHONDONTWRITEBYTECODE=1 python -m automation_service --mode disabled status
 PYTHONDONTWRITEBYTECODE=1 python -m automation_service --adapter replay observe
 ```
 
+### Read-only shadow scheduling (REC-F05)
+
+`shadow`, non-live `run`, and service construction for observation do not seed flow
+rows or claim occurrences. CLI shadow opens existing canonical state read-only; an
+absent path stays absent and uses an isolated, query-only in-memory schema. Neither
+form can execute a real pulse, reserve actions, or acquire a service lease.
+
+Existing enabled/due rows can produce a candidate without starting its handler.
+Service, flow, run, action, lease, and clock facts remain unchanged. Initialization
+belongs to explicit control and real-execution entrypoints, including the retained
+offline `pnsctl` scheduler pulse. Both persisted execution gates still apply.
+
+This is an offline boundary repair, not native acceptance or scheduler enablement.
+
 ## Packaging and eventual deployment
 
 `docker/automation-service.Dockerfile` and `compose.automation-service.yml` provide a reproducible

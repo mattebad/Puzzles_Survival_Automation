@@ -35,6 +35,7 @@ from .state import (
     RunRecord,
     RunState,
     StateBusyError,
+    StateError,
     TerminalProjectionError,
 )
 from .registry import load_disabled_registry
@@ -852,6 +853,8 @@ class _CanonicalPulseCoordinator:
     ) -> PulseReport:
         if mode not in {"scheduled", "manual"}:
             raise ValueError("mode must be scheduled or manual")
+        if not shadow and getattr(self.state, "read_only", False):
+            raise StateError("read-only state manager cannot execute a real pulse")
         if mode == "manual":
             if flow_id is None:
                 raise ValueError("manual pulse requires flow_id")
