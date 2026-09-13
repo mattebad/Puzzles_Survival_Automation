@@ -21,6 +21,15 @@ Campaign/Home semantics remain the source contracts.
   `tasks.campaign_auto_battle` / `tasks.campaign_atlas` contracts. It never authorizes AP,
   Challenge, Auto Battle, Sweep, Blitz, Auto Complete, or AP refill.
 - Retention operations classify records only; deletion remains in the dedicated evidence workflow.
+- Canonical capture cycles snapshot payload and metadata before hashing. Typed observations
+  must bind the requested session, capture ordinal, dimensions, timestamp, and payload,
+  transport, and semantic digests; a cached or hash-only result cannot gain that binding.
+- Conflicting screen, overlay, or target matches fail closed. Pre-transport target rebinding
+  requires a newer capture ordinal, non-regressing capture time, current age within the existing
+  temporal policy, and matching source/target stable ROIs. Equal clock ticks are permitted
+  because fresh capture ordinals distinguish events on coarse-resolution clocks.
+- Full-frame animation variance is not a source/target change when authoritative stable ROIs
+  still match. Unsupported mutable payload types fail closed rather than losing shape or type.
 
 ## Local checks
 

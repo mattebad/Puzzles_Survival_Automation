@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 import threading
 import tempfile
@@ -71,9 +71,28 @@ def router() -> ScreenRouter:
         )
         if OverlayId.VIP_RESET in overlays:
             targets += (TargetBinding("overlay:vip-reset:close", (100, 100, 140, 140), semantic_identity="close", stable_roi_digest="close"),)
-        return ScreenObservation(screen, overlays, cycle.frame_hash, 0.99, targets, cycle.capture_id, payload["digest"], ("fake",), "recognized", True)
+        return ScreenObservation(
+            screen,
+            overlays,
+            cycle.frame_hash,
+            0.99,
+            targets,
+            cycle.capture_id,
+            payload["digest"],
+            ("fake",),
+            "recognized",
+            True,
+            runtime_session_id=cycle.runtime_session_id,
+            capture_ordinal=cycle.capture_ordinal,
+            captured_monotonic=cycle.captured_monotonic,
+            width=cycle.width,
+            height=cycle.height,
+            transport_sha256=cycle.transport_sha256,
+            semantic_sha256=cycle.semantic_sha256,
+            payload_sha256=cycle.payload_sha256,
+        )
 
-    return ScreenRouter({ScreenId.HOME: recognize, ScreenId.DAILY: recognize})
+    return ScreenRouter([recognize])
 
 
 def manager(path: Path) -> BotStateManager:
@@ -94,48 +113,216 @@ def intent() -> SemanticActionIntent:
         flow_id=FLOW_ID,
     )
 
+def recognized_mapping(cycle: CaptureCycle, **values: object) -> dict[str, object]:
+    result: dict[str, object] = {
+        "capture_id": cycle.capture_id,
+        "runtime_session_id": cycle.runtime_session_id,
+        "capture_ordinal": cycle.capture_ordinal,
+        "captured_monotonic": cycle.captured_monotonic,
+        "width": cycle.width,
+        "height": cycle.height,
+        "frame_sha256": cycle.frame_hash,
+        "payload_sha256": cycle.payload_sha256,
+        "transport_sha256": cycle.transport_sha256,
+        "semantic_sha256": cycle.semantic_sha256,
+        "stable_roi_digest": "stable",
+    }
+    result.update(values)
+    return result
+
+def complete_cycle() -> CaptureCycle:
+    return CaptureCycle(
+        "capture",
+        "a" * 64,
+        payload={"screen": "HOME"},
+        captured_monotonic=1.0,
+        capture_ordinal=1,
+        width=800,
+        height=1280,
+        runtime_session_id="test-session",
+        transport_sha256="b" * 64,
+        semantic_sha256="c" * 64,
+        stable_roi_digest="stable",
+    )
+def bound_observation(
+    frame_hash: str,
+    capture_id: str,
+    ordinal: int,
+    target: TargetBinding,
+    stable_roi_digest: str,
+) -> ScreenObservation:
+    return ScreenObservation(
+        ScreenId.HOME,
+        (),
+        frame_hash,
+        0.99,
+        (target,),
+        capture_id,
+        stable_roi_digest,
+        runtime_session_id="test-session",
+        capture_ordinal=ordinal,
+        captured_monotonic=10.0,
+        width=800,
+        height=1280,
+        transport_sha256=frame_hash,
+        semantic_sha256=frame_hash,
+        payload_sha256=frame_hash,
+        recognized=True,
+    )
 
 class ScreenBoundaryTests(unittest.TestCase):
     def test_animation_hash_variance_preserves_stable_target_binding(self) -> None:
         target = TargetBinding(TARGET, (10, 10, 30, 30), "free-button", "stable")
-        source = ScreenObservation(ScreenId.HOME, (), "a" * 64, 0.99, (target,), "capture-a", "stable", recognized=True)
-        fresh = ScreenObservation(ScreenId.HOME, (), "b" * 64, 0.99, (target,), "capture-b", "stable", recognized=True)
+        source = bound_observation("a" * 64, "capture-a", 1, target, "stable")
+        fresh = bound_observation("b" * 64, "capture-b", 2, target, "stable")
         self.assertEqual(source.revalidate_target(fresh, TARGET), (True, "OK"))
 
     def test_changed_target_roi_is_stale_and_fails_closed(self) -> None:
         source_target = TargetBinding(TARGET, (10, 10, 30, 30), "free-button", "stable")
         fresh_target = TargetBinding(TARGET, (11, 10, 31, 30), "free-button", "stable")
-        source = ScreenObservation(ScreenId.HOME, (), "a" * 64, 0.99, (source_target,), "a", recognized=True)
-        fresh = ScreenObservation(ScreenId.HOME, (), "b" * 64, 0.99, (fresh_target,), "b", recognized=True)
+        source = bound_observation("a" * 64, "capture-a", 1, source_target, "stable")
+        fresh = bound_observation("b" * 64, "capture-b", 2, fresh_target, "stable")
         self.assertEqual(source.revalidate_target(fresh, TARGET), (False, "STALE_OR_CHANGED_TARGET_ROI"))
 
     def test_changed_source_roi_digest_is_stale_with_same_target_binding(self) -> None:
         target = TargetBinding(TARGET, (10, 10, 30, 30), "free-button", "stable-target")
-        source = ScreenObservation(
-            ScreenId.HOME,
-            (),
-            "a" * 64,
-            0.99,
-            (target,),
-            "capture-a",
-            "stable-source-a",
-            recognized=True,
-        )
-        fresh = ScreenObservation(
-            ScreenId.HOME,
-            (),
-            "b" * 64,
-            0.99,
-            (target,),
-            "capture-b",
-            "stable-source-b",
-            recognized=True,
-        )
+        source = bound_observation("a" * 64, "capture-a", 1, target, "stable-source-a")
+        fresh = bound_observation("b" * 64, "capture-b", 2, target, "stable-source-b")
         self.assertEqual(
             source.revalidate_target(fresh, TARGET),
             (False, "STALE_OR_CHANGED_SOURCE_ROI"),
         )
+    def test_mutable_capture_payload_and_metadata_are_snapshotted(self) -> None:
+        @dataclass(frozen=True)
+        class FrozenEnvelope:
+            values: list[int]
 
+        envelope = FrozenEnvelope([1, 2])
+        payload = {"nested": {"items": [1, 2]}}
+        payload["envelope"] = envelope
+        metadata = {"nested": {"value": 1}}
+        cycle = CaptureCycle(
+            "capture",
+            "a" * 64,
+            payload=payload,
+            capture_ordinal=1,
+            runtime_session_id="session",
+            width=800,
+            height=1280,
+            metadata=metadata,
+            transport_sha256="b" * 64,
+            semantic_sha256="c" * 64,
+        )
+        payload["nested"]["items"].append(3)
+        metadata["nested"]["value"] = 2
+        envelope.values.append(3)
+        self.assertEqual(cycle.payload["envelope"].values, (1, 2))
+        self.assertEqual(cycle.payload["nested"]["items"], (1, 2))
+        self.assertEqual(cycle.metadata["nested"]["value"], 1)
+        with self.assertRaises(TypeError):
+            cycle.payload["nested"]["items"] = ()
+        with self.assertRaises(TypeError):
+            cycle.metadata["nested"] = {}
+
+    def test_cross_capture_observation_is_typed_unknown(self) -> None:
+        def foreign(_cycle: CaptureCycle) -> ScreenObservation:
+            return ScreenObservation(
+                ScreenId.HOME,
+                (),
+                "a" * 64,
+                0.99,
+                (),
+                "foreign-capture",
+                "stable",
+                recognized=True,
+            )
+
+        observation = ScreenRouter({ScreenId.HOME: foreign}).observe(
+            CaptureCycle("current-capture", "a" * 64)
+        )
+        self.assertTrue(observation.is_unknown)
+        self.assertEqual(observation.reason_code, "CROSS_CAPTURE_OBSERVATION")
+
+    def test_contradictory_screen_matches_fail_closed(self) -> None:
+        router = ScreenRouter(
+            [
+                ScreenDefinition(
+                    ScreenId.HOME,
+                    recognizer=lambda cycle: recognized_mapping(cycle, screen="HOME"),
+                ),
+                ScreenDefinition(
+                    ScreenId.DAILY,
+                    recognizer=lambda cycle: recognized_mapping(cycle, screen="DAILY"),
+                ),
+            ]
+        )
+        observation = router.observe(complete_cycle())
+        self.assertTrue(observation.is_unknown)
+        self.assertEqual(observation.reason_code, "CONTRADICTORY_RECOGNITION")
+
+    def test_revalidate_rejects_digest_only_observations(self) -> None:
+        target = TargetBinding(TARGET, (10, 10, 30, 30), "free-button", "stable")
+        source = ScreenObservation(ScreenId.HOME, (), "a" * 64, 0.99, (target,), "capture-a", "stable", recognized=True)
+        fresh = ScreenObservation(ScreenId.HOME, (), "b" * 64, 0.99, (target,), "capture-b", "stable", recognized=True)
+        self.assertEqual(source.revalidate_target(fresh, TARGET), (False, "INCOMPLETE_CAPTURE_PROVENANCE"))
+
+    def test_revalidation_reclassifies_instead_of_using_cached_target(self) -> None:
+        target = TargetBinding(TARGET, (10, 10, 30, 30), "free", "stable")
+        current_target = [target]
+        router = ScreenRouter(
+            [lambda cycle: recognized_mapping(cycle, screen="HOME", targets=current_target)],
+            clock=lambda: 10.0,
+        )
+        source = router.observe(complete_cycle())
+        fresh_cycle = replace(
+            complete_cycle(), capture_id="fresh", capture_ordinal=2, captured_monotonic=2.0
+        )
+        router.observe(fresh_cycle)
+        current_target[0] = replace(target, roi=(20, 10, 40, 30))
+        valid, _, reason = router.revalidate(source, fresh_cycle, target_identity=TARGET)
+        self.assertFalse(valid)
+        self.assertEqual(reason, "STALE_OR_CHANGED_TARGET_ROI")
+
+    def test_recent_ordinal_does_not_authorize_expired_capture(self) -> None:
+        target = TargetBinding(TARGET, (10, 10, 30, 30), "free", "stable")
+        source = bound_observation("a" * 64, "source", 1, target, "stable")
+        fresh = bound_observation("b" * 64, "fresh", 2, target, "stable")
+        self.assertEqual(
+            source.revalidate_target(fresh, TARGET, now_monotonic=100.0),
+            (False, "STALE_CAPTURE_REVALIDATION"),
+        )
+
+    def test_mapping_provenance_mismatch_is_unknown(self) -> None:
+        router = ScreenRouter(
+            {
+                ScreenId.HOME: lambda _cycle: {
+                    "screen": "HOME",
+                    "frame_sha256": "f" * 64,
+                }
+            }
+        )
+        observation = router.observe(CaptureCycle("capture", "a" * 64))
+        self.assertTrue(observation.is_unknown)
+        self.assertEqual(observation.reason_code, "CAPTURE_PROVENANCE_MISMATCH")
+
+    def test_contradictory_target_matches_are_unknown(self) -> None:
+        target_a = {"target_identity": TARGET, "roi": (10, 10, 30, 30), "semantic_identity": "free", "stable_roi_digest": "a"}
+        target_b = {"target_identity": TARGET, "roi": (11, 10, 31, 30), "semantic_identity": "free", "stable_roi_digest": "a"}
+        router = ScreenRouter(
+            [
+                ScreenDefinition(
+                    ScreenId.HOME,
+                    recognizer=lambda cycle: recognized_mapping(cycle, screen="HOME", targets=(target_a,)),
+                ),
+                ScreenDefinition(
+                    ScreenId.HOME,
+                    recognizer=lambda cycle: recognized_mapping(cycle, screen="HOME", targets=(target_b,)),
+                ),
+            ]
+        )
+        observation = router.observe(complete_cycle())
+        self.assertTrue(observation.is_unknown)
+        self.assertEqual(observation.reason_code, "CONTRADICTORY_RECOGNITION")
     def test_ocr_is_not_called_after_deadline(self) -> None:
         calls: list[str] = []
         router = ScreenRouter(
@@ -168,6 +355,21 @@ class RuntimeBoundaryTests(unittest.TestCase):
         session = RuntimeSession(manager, adapter, flow_id=FLOW_ID, reset_id=RESET_ID, max_inputs=2, max_actions=2)
         self.assertIsNotNone(session.claim())
         return session
+
+    def test_adapter_cannot_relabel_an_old_session_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            state = manager(Path(folder) / "state.sqlite3")
+            try:
+                adapter = SequenceAdapter([frame("source")])
+                session = self._session(state, adapter)
+                original = session.capture()
+                adapter.frames = [original]
+                with self.assertRaisesRegex(RuntimeError, "requested session event"):
+                    session.capture()
+                self.assertEqual(adapter.transports, [])
+                session.release(outcome="BLOCKED", reason="stale capture")
+            finally:
+                state.close()
 
     def test_stale_roi_blocks_without_transport(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
@@ -404,6 +606,36 @@ class RuntimeBoundaryTests(unittest.TestCase):
                 result = ActionExecutor(session, router()).execute(intent())
                 self.assertEqual(result.outcome, ActionOutcome.BLOCKED)
                 self.assertEqual(adapter.transports, [])
+            finally:
+                state.close()
+    def test_invalid_source_releases_runtime_ownership_before_transport(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            state = manager(Path(folder) / "state.sqlite3")
+            try:
+                adapter = SequenceAdapter([frame("pre")])
+                session = self._session(state, adapter)
+                invalid_source = ScreenObservation(
+                    ScreenId.HOME,
+                    (),
+                    "a" * 64,
+                    0.99,
+                    (TargetBinding(TARGET, (10, 10, 30, 30), "free-button", "stable"),),
+                    "digest-only",
+                    "stable",
+                    recognized=True,
+                )
+                result = ActionExecutor(session, router()).execute(intent(), source=invalid_source)
+                self.assertEqual(result.outcome, ActionOutcome.BLOCKED)
+                self.assertEqual(result.reason, "INCOMPLETE_CAPTURE_PROVENANCE")
+                self.assertEqual(adapter.transports, [])
+                self.assertIsNone(state.get_service_lease().owner_instance_id)
+                assert session.run_id is not None
+                persisted = state.get_run(session.run_id)
+                assert persisted is not None
+                self.assertIn(
+                    persisted.state,
+                    {RunState.SUCCEEDED, RunState.DEFERRED, RunState.BLOCKED, RunState.FAILED, RunState.ABANDONED},
+                )
             finally:
                 state.close()
 
