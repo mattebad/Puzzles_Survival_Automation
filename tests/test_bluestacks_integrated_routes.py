@@ -636,7 +636,6 @@ class IntegratedRouteTests(unittest.TestCase):
         result = replace(
             noah_observation(HERO_RECRUIT_RESULT_SCREEN, "c" * 64),
             result_tier=RecruitTier.BASIC,
-            result_identity="hero frag",
             safe_close_visible=True,
             safe_close_roi=(90, 975, 350, 1100),
         )

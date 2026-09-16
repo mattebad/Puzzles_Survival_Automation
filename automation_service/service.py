@@ -378,6 +378,7 @@ class AutomationService:
         operations: OperationsService | None = None,
         state_manager: BotStateManager | None = None,
         state: BotStateManager | None = None,
+        recruitment_runner=None,
     ) -> None:
         if state_manager is not None and state is not None and state_manager is not state:
             raise ServiceError("state and state_manager must refer to one authority")
@@ -390,6 +391,7 @@ class AutomationService:
             raise ServiceError(f"unsupported service mode: {mode}") from exc
         self.mode = resolved_mode
         self.adapter = adapter or FakeDeviceAdapter()
+        self.recruitment_runner = recruitment_runner
         self.coordinator = coordinator
         if self.coordinator is None and self.state is not None:
             with _state_boundary():
@@ -400,7 +402,7 @@ class AutomationService:
             candidate_state = getattr(self.coordinator, "repository", None)
             if isinstance(candidate_state, BotStateManager):
                 self.state = candidate_state
-        if self.mode is ServiceMode.SUPERVISED and not isinstance(
+        if self.mode is ServiceMode.SUPERVISED and self.recruitment_runner is None and not isinstance(
             self.adapter, SupervisedBlueStacksAdapter
         ):
             raise ServiceError(
@@ -588,6 +590,110 @@ class AutomationService:
             ):
                 return PulseReport(None, None, facts.now_utc_epoch, "SQLITE_BUSY")
             raise
+
+    def serve(self, *, account_id: str, server_id: str, stop, emit, clock=time.time) -> None:
+        """Drive one native recruitment handler through the existing pulse lifecycle."""
+        from tasks.scheduler_task_result import SchedulerIdentity
+        from tasks.noahs_tavern_recruit_maintenance import MAINTENANCE_TASK_ID
+        from scripts.navigation_development_boundary import RuntimeInputLock
+        from .contracts import NormalizedOutcome, NormalizedResult, RecurrenceClass, RecurrenceProjection
+        from .recruitment import RecruitmentExecutionHandler, recruitment_next_due, recruitment_reset
+        from .registry import RECRUITMENT_FLOW_ID
+
+        if self.mode is not ServiceMode.SUPERVISED or self.recruitment_runner is None or self.state is None:
+            raise ServiceError("serve requires an explicitly configured recruitment runner")
+        if not account_id.strip() or not server_id.strip():
+            raise ServiceError("serve requires account and server identity")
+        state = self.state
+        entry = next(item for item in CANONICAL_FLOW_REGISTRY if item.flow_id == RECRUITMENT_FLOW_ID)
+        interrupted = "RECRUITMENT_INTERRUPTED_REQUIRES_INSPECTION"
+        with RuntimeInputLock(owner="automation-service", invocation_id=state.owner_instance_id) as owner:
+            def execute(run, facts):
+                identity = SchedulerIdentity(account_id, server_id, facts.reset_id, MAINTENANCE_TASK_ID)
+
+                def checkpoint():
+                    owner.assert_held(owner.owner, owner.invocation_id)
+                    if stop.is_set():
+                        raise ServiceError("STOP_REQUESTED")
+                    current = state.get_flow(RECRUITMENT_FLOW_ID)
+                    control = state.get_service()
+                    if (not control.enabled or control.generation != run.service_generation
+                            or current is None or not current.enabled
+                            or current.generation != run.claimed_flow_generation
+                            or (current.blocked and current.blocked_reason != interrupted)):
+                        raise ServiceError("SERVICE_OR_FLOW_DISABLED")
+                    now = clock()
+                    if not state.observe_clock(now).accepted:
+                        raise ServiceError("CLOCK_ROLLBACK")
+                    if recruitment_reset(now) != identity.reset_id:
+                        raise ServiceError("RESET_CHANGED_DURING_RECRUITMENT")
+                    if state.renew_service_lease(
+                        owner_instance_id=run.owner_instance_id,
+                        process_start_token=run.process_start_token,
+                        lease_generation=run.lease_generation, now_utc_epoch=now,
+                    ) is None:
+                        raise ServiceError("SERVICE_LEASE_LOST")
+
+                # Native ordinary inputs use the existing session lock, not action
+                # leases. Keep a local crash marker until terminal projection succeeds.
+                state.block_flow(RECRUITMENT_FLOW_ID, interrupted)
+                result = {}
+                try:
+                    checkpoint()
+                    result = self.recruitment_runner(identity, previous_reset, checkpoint)
+                    due = recruitment_next_due(result, identity, facts.now_utc_epoch)
+                    checkpoint()
+                    return NormalizedResult(
+                        NormalizedOutcome.DEFERRED, "RECRUITMENT_PASS_VERIFIED",
+                        verified=True, next_eligible_at=due,
+                        action_count=result["actions_completed"], observed_progress=result,
+                    )
+                except Exception as exc:
+                    state.block_flow(RECRUITMENT_FLOW_ID, f"RECRUITMENT_REQUIRES_INSPECTION:{exc}")
+                    return NormalizedResult(
+                        NormalizedOutcome.BLOCKED, f"RECRUITMENT_REQUIRES_INSPECTION:{exc}",
+                        verified=False, observed_progress=result if isinstance(result, dict) else {},
+                    )
+
+            handler = RecruitmentExecutionHandler(entry.registration, execute)
+            coordinator = UtcPulseCoordinator(state, (entry.descriptor,), {entry.flow_id: handler}, clock=clock)
+            while not stop.is_set():
+                if not state.get_service_enabled():
+                    emit({"status": "stopped", "reason": "SERVICE_DISABLED"})
+                    return
+                now = clock()
+                flow = state.get_flow(RECRUITMENT_FLOW_ID)
+                previous_reset = flow.reset_id if flow else None
+                if flow is None or not flow.enabled or flow.blocked:
+                    emit({"status": "paused", "reason": flow.blocked_reason if flow and flow.blocked else "FLOW_DISABLED"})
+                    stop.wait(30)
+                    continue
+                facts = SchedulerFacts(
+                    account_id, server_id, recruitment_reset(now), now,
+                    health_ok=True, accepted_product=entry.product_id,
+                    product_revision=entry.product_revision, registration_status=entry.registration_status,
+                    scheduler_eligible=entry.scheduler_eligible, owner_available=owner.held,
+                    clock_ok=True, reset_agreement=True,
+                    projections={entry.flow_id: RecurrenceProjection(
+                        RecurrenceClass.COOLDOWN, observed_at_utc=now,
+                        next_eligible_at=flow.next_due_at_utc,
+                    )},
+                )
+                report = coordinator.pulse(facts)
+                if report.result is not None:
+                    result = report.result
+                    completed = result.verified and result.reason_code == "RECRUITMENT_PASS_VERIFIED"
+                    if completed:
+                        state.unblock_flow(RECRUITMENT_FLOW_ID)
+                    emit({"status": "completed" if completed else "blocked",
+                          "flow_id": entry.flow_id, "reason": report.reason_code,
+                          "next_due_at_utc": result.next_eligible_at,
+                          "result": dict(result.observed_progress)})
+                due = state.get_flow(RECRUITMENT_FLOW_ID).next_due_at_utc
+                if stop.is_set() or not state.get_service_enabled():
+                    continue
+                delay = due - clock() if due is not None else 30
+                stop.wait(min(30, delay) if delay > 0 else 30)
 
     def run(
         self,

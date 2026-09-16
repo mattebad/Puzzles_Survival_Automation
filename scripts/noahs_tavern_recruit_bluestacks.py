@@ -15,8 +15,6 @@ import time
 from typing import Callable
 
 import cv2
-import pytesseract
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -166,16 +164,6 @@ def _atlas_canonical_home(localization, observation) -> bool:
     )
 
 
-def _noahs_tavern_binding_ocr(image, psm: int) -> str:
-    """Keep the Atlas label association tolerant to the native renderer's clipped final n."""
-
-    raw = pytesseract.image_to_string(image, config=f"--psm {psm}")
-    folded = " ".join(raw.casefold().replace("'", " ").split())
-    if "noah" in folded and "taver" in folded:
-        return f"{raw}\nNoah's Tavern"
-    return raw
-
-
 def noahs_tavern_navigation_route_declaration() -> NavigationRouteDeclaration:
     """Noah's Tavern adapter route declaration for the shared navigation-development boundary.
 
@@ -261,6 +249,7 @@ class NoahTavernIntegratedRoute:
         self.atlas_binding = atlas_binding or self._default_atlas_binding
         self.pending_result = None
         self.pending_action_key: str | None = None
+        self.atlas_binding_diagnostics: dict[str, object] = {}
 
     def run_maintenance_pass(
         self,
@@ -305,7 +294,10 @@ class NoahTavernIntegratedRoute:
     def _default_atlas_binding(self, captured: CapturedNativeFrame):
         """Canonical production Atlas binding for the current native frame."""
 
-        return self._navigation_route()._atlas_binding(captured)
+        navigation = self._navigation_route()
+        binding = navigation._atlas_binding(captured)
+        self.atlas_binding_diagnostics = dict(navigation.last_atlas_binding_diagnostics)
+        return binding
 
     def _return_home(self, captured, recognition, actions: int) -> IntegratedRouteResult:
         navigation = self._navigation_route()
@@ -364,9 +356,9 @@ class NoahTavernIntegratedRoute:
         time.sleep(self.post_input_delay)
         after_capture, after_recognition = self._observe("resume-after-close")
         if not self.controller.accept_postcondition(result_recognition, after_recognition.observation):
-            self.runtime.reconcile(action_key, "unresolved", after_capture, "recovery decrement/cooldown not proven")
+            self.runtime.reconcile(action_key, "unresolved", after_capture, "recovery result/cooldown transition not proven")
             return IntegratedRouteResult("unresolved", "recovery_postcondition_not_proven", 0, str(self.runtime.session))
-        self.runtime.reconcile(action_key, "confirmed", after_capture, "retained result, decrement, and cooldown verified")
+        self.runtime.reconcile(action_key, "confirmed", after_capture, "retained result and cooldown transition verified")
         return self._return_home(after_capture, after_recognition, 1)
 
     def run(self, *, max_steps: int = 40) -> IntegratedRouteResult:
@@ -394,7 +386,13 @@ class NoahTavernIntegratedRoute:
             if command.action == NoahAction.OPEN_TAVERN:
                 target_roi = self.atlas_binding(captured)
                 if target_roi is None:
-                    return IntegratedRouteResult("blocked", "home_atlas_tavern_binding_not_proven", actions, str(self.runtime.session))
+                    detail = str(self.atlas_binding_diagnostics.get("reason") or "not_proven")
+                    reason = (
+                        f"home_atlas_{detail}"
+                        if detail in {"localization_failed", "label_not_read", "target_unsafe"}
+                        else "home_atlas_tavern_binding_not_proven"
+                    )
+                    return IntegratedRouteResult("blocked", reason, actions, str(self.runtime.session))
                 self.runtime.tap(captured, target_identity=NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID, target_roi=target_roi, action_key=f"noah:open:{captured.sha256}")
             elif command.action == NoahAction.SELECT_TIER:
                 self.runtime.tap(captured, target_identity=command.target_identity or "", target_roi=command.target_roi or (0, 0, 0, 0), action_key=f"noah:tier:{command.tier.name}:{captured.sha256}")
@@ -511,6 +509,7 @@ class NoahTavernNavigationCanaryRoute:
         )
         self.records: list[dict[str, object]] = []
         self.input_count = 0
+        self.last_atlas_binding_diagnostics: dict[str, object] = {}
 
     def _capture(self, label: str) -> CapturedNativeFrame:
         return self.runtime.capture(label)
@@ -572,37 +571,131 @@ class NoahTavernNavigationCanaryRoute:
             runtime = runtime._inner
         return hasattr(runtime, "runner")
 
+    def _persist_atlas_binding_diagnostic(
+        self,
+        captured: CapturedNativeFrame,
+        diagnostics: dict[str, object],
+    ) -> None:
+        """Persist frame-linked binding evidence without issuing another capture/input."""
+
+        diagnostics["source_frame_path"] = str(captured.path)
+        session = Path(self.runtime.session)
+        for name, key in (("search", "search_bounds"), ("text", "text_bounds")):
+            bounds = diagnostics.get(key)
+            if not isinstance(bounds, (tuple, list)) or len(bounds) != 4:
+                continue
+            x0, y0, x1, y1 = (int(value) for value in bounds)
+            if x0 >= x1 or y0 >= y1:
+                continue
+            crop = captured.frame[max(0, y0):min(1280, y1), max(0, x0):min(800, x1)]
+            if crop.size == 0:
+                continue
+            path = session / f"atlas-binding-{name}-{captured.sha256[:12]}.png"
+            session.mkdir(parents=True, exist_ok=True)
+            if cv2.imwrite(str(path), crop):
+                diagnostics[f"{key}_crop_path"] = str(path)
+        self.last_atlas_binding_diagnostics = dict(diagnostics)
+        self.records.append({"action": "atlas_binding_diagnostic", "diagnostics": dict(diagnostics)})
+
     def _atlas_binding(self, captured: CapturedNativeFrame):
         """Bind Noah's Tavern from the current canonical Home Atlas frame only."""
 
+        diagnostics: dict[str, object] = {}
         if not self._runtime_is_live() and not self._home_localizer_injected:
+            diagnostics.update({
+                "reason": "localization_failed",
+                "predicate": "production_localizer_unavailable",
+            })
+            self.last_atlas_binding_diagnostics = dict(diagnostics)
+            self.records.append({"action": "atlas_binding_diagnostic", "diagnostics": dict(diagnostics)})
             return None
+        diagnostics.update({
+            "source_frame_sha256": frame_digest(captured.frame),
+            "source_frame_path": str(captured.path),
+        })
         try:
             localization = self.home_localizer.localize(captured.frame)
-        except (OSError, ValueError, TypeError):
+        except (OSError, ValueError, TypeError, cv2.error, MemoryError) as exc:
+            diagnostics.update({
+                "reason": "localization_failed",
+                "predicate": "localizer_exception",
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+            self._persist_atlas_binding_diagnostic(captured, diagnostics)
             return None
+        diagnostics["localization"] = {
+            "recognized": bool(getattr(localization, "recognized", False)),
+            "profile_id": getattr(localization, "profile_id", None),
+            "zoom_identity": getattr(getattr(localization, "zoom_identity", None), "value", getattr(localization, "zoom_identity", None)),
+            "frame_sha256": getattr(localization, "frame_sha256", None),
+            "confidence": getattr(localization, "confidence", None),
+            "residual_px": getattr(localization, "residual_px", None),
+            "ambiguity_state": getattr(getattr(localization, "ambiguity_state", None), "value", getattr(localization, "ambiguity_state", None)),
+            "overlay": bool(getattr(localization, "overlay", False)),
+            "stale": bool(getattr(localization, "stale", False)),
+        }
+        current_digest = str(diagnostics["source_frame_sha256"])
+        ambiguity = getattr(localization, "ambiguity_state", None)
+        ambiguity_value = getattr(ambiguity, "value", ambiguity)
         if (
             not localization.recognized
             or localization.zoom_identity is not ZoomIdentity.FULLY_ZOOMED_OUT
-            or localization.frame_sha256 != frame_digest(captured.frame)
+            or localization.frame_sha256 != current_digest
+            or bool(getattr(localization, "stale", False))
+            or bool(getattr(localization, "overlay", False))
+            or ambiguity_value not in (None, "none")
         ):
+            diagnostics.update({
+                "reason": "localization_failed",
+                "predicate": {
+                    "recognized": bool(localization.recognized),
+                    "fully_zoomed_out": localization.zoom_identity is ZoomIdentity.FULLY_ZOOMED_OUT,
+                    "current_frame_digest": localization.frame_sha256 == current_digest,
+                    "fresh": not bool(getattr(localization, "stale", False)),
+                    "overlay_clear": not bool(getattr(localization, "overlay", False)),
+                    "ambiguity_clear": ambiguity_value in (None, "none"),
+                },
+            })
+            self._persist_atlas_binding_diagnostic(captured, diagnostics)
             return None
+        binder_diagnostics: dict[str, object] = {}
         binding = bind_visible_building(
             captured.frame,
             localization,
             self.atlas.lookup_building(NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID),
-            ocr=_noahs_tavern_binding_ocr,
+            diagnostics=binder_diagnostics,
         )
+        diagnostics.update(binder_diagnostics)
         if (
             binding is None
             or binding.building_id != NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID
-            or binding.frame_sha256 != frame_digest(captured.frame)
+            or binding.frame_sha256 != current_digest
             or binding.confidence < 0.80
             or not binding.semantic_evidence
             or binding.overlay_intersects
             or binding.ambiguous_overlap
         ):
+            if binding is not None and diagnostics.get("reason") == "accepted":
+                diagnostics.update({
+                    "reason": "target_unsafe",
+                    "predicate": {
+                        "building_id": binding.building_id == NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID,
+                        "frame_digest": binding.frame_sha256 == current_digest,
+                        "confidence": binding.confidence >= 0.80,
+                        "semantic_evidence": bool(binding.semantic_evidence),
+                        "overlay_clear": not binding.overlay_intersects,
+                        "ambiguity_clear": not binding.ambiguous_overlap,
+                    },
+                })
+            self._persist_atlas_binding_diagnostic(captured, diagnostics)
             return None
+        diagnostics["decisive_predicate"] = {
+            **dict(diagnostics.get("decisive_predicate") or {}),
+            "route_binding_identity": binding.building_id,
+            "current_frame_binding": binding.frame_sha256 == current_digest,
+            "safe_target_roi": tuple(int(value) for value in binding.target_roi),
+        }
+        self._persist_atlas_binding_diagnostic(captured, diagnostics)
         return tuple(binding.target_roi)
 
     def _canonical_home_proven(self, captured: CapturedNativeFrame, observation) -> bool:
@@ -618,6 +711,12 @@ class NoahTavernNavigationCanaryRoute:
             return True
         try:
             localization = self.home_localizer.localize(captured.frame)
+        except (cv2.error, MemoryError) as exc:
+            self.records.append({
+                "action": "canonical_home_localization_failed",
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+            return False
         except (OSError, ValueError, TypeError):
             localization = None
         if (
@@ -912,6 +1011,9 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
         workflow="noahs-tavern-unified-recruitment",
         execute=True,
     )
+    runtime.checkpoint = getattr(args, "checkpoint", None)
+    if runtime.checkpoint is not None:
+        runtime.checkpoint()
     configured_input_cap = runtime.max_inputs
     route_input_cap = int(getattr(args, "max_inputs", 12))
     runtime.max_inputs = min(configured_input_cap, route_input_cap)
@@ -1049,6 +1151,8 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
         if step.disposition.value != "recover_zoom":
             raise RuntimeError(f"unsupported Home Atlas recovery disposition: {step.disposition.value}")
         try:
+            if runtime.checkpoint is not None:
+                runtime.checkpoint()
             zoom_guard.dispatch_zoom_out(
                 source,
                 facts,
@@ -1141,6 +1245,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                 },
             )
             raise
+    atlas_route = None
     try:
         atlas_probe = runtime.capture("home-atlas-entry-immediate-before-annotated")
         atlas_route = NoahTavernNavigationCanaryRoute(runtime, settle_seconds=0.0)
@@ -1171,17 +1276,25 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                 ),
                 "total_input_cap": runtime.max_inputs,
                 "zoom_normalization": zoom_records,
+                "atlas_binding_diagnostics": dict(getattr(atlas_route, "last_atlas_binding_diagnostics", {})),
             },
         )
         raise
     annotated_path = runtime.session / "home-atlas-entry-immediate-before-annotated.png"
     annotated = atlas_probe.frame.copy()
     if binding is None:
+        binding_diagnostics = dict(getattr(atlas_route, "last_atlas_binding_diagnostics", {}))
+        binding_reason = binding_diagnostics.get("reason")
+        blocked_reason = (
+            f"home_atlas_{binding_reason}"
+            if binding_reason in {"localization_failed", "label_not_read", "target_unsafe"}
+            else "home_atlas_binding_not_proven"
+        )
         _write_unified_result(
             runtime,
             {
                 "status": "blocked",
-                "reason": "home_atlas_binding_not_proven",
+                "reason": blocked_reason,
                 "failure_stage": "home_atlas_binding",
                 "actions_completed": 0,
                 "session_directory": str(runtime.session),
@@ -1201,19 +1314,34 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                 ),
                 "total_input_cap": runtime.max_inputs,
                 "zoom_normalization": zoom_records,
+                "atlas_binding_diagnostics": binding_diagnostics,
             },
         )
-        raise RuntimeError("home Atlas binding not proven after bounded zoom normalization")
+        raise RuntimeError(blocked_reason)
     x0, y0, x1, y1 = binding
     cv2.rectangle(annotated, (x0, y0), (x1, y1), (0, 255, 0), 4)
     cv2.putText(annotated, NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID, (x0, max(30, y0 - 12)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
     cv2.imwrite(str(annotated_path), annotated)
     zoom_records.append({"atlas_probe_sha256": atlas_probe.sha256, "atlas_binding_roi": list(binding), "annotated_frame": str(annotated_path)})
     runtime.max_inputs = min(configured_input_cap, route_input_cap)
-    store = SafetyStore(runtime.session / "maintenance-state.sqlite3")
+    maintenance_path = getattr(args, "maintenance_path", None)
+    store = SafetyStore(maintenance_path or runtime.session / "maintenance-state.sqlite3")
     repository = SQLiteSchedulerInvocationRepository(store)
     try:
         invocation = repository.get(identity)
+        previous_reset = getattr(args, "previous_reset_id", None)
+        if invocation is None and previous_reset and previous_reset != identity.reset_id:
+            from tasks.noahs_tavern_recruit_maintenance import rollover_persisted_maintenance_state
+
+            previous = repository.get(SchedulerIdentity(
+                identity.account_id, identity.server_id, previous_reset, identity.task_id
+            ))
+            if previous is not None:
+                rollover_persisted_maintenance_state(
+                    NoahMaintenanceState.from_scheduler_invocation(previous),
+                    identity.reset_id, repository, time.time(),
+                )
+                invocation = repository.get(identity)
         state_session = getattr(args, "state_session", None)
         if state_session is not None:
             prior_path = Path(state_session) / "maintenance-state.sqlite3"
@@ -1234,6 +1362,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             maintenance_state=state,
             repository=repository,
             scheduler_identity=identity,
+            utc_clock=getattr(args, "utc_clock", None),
         )
         route = NoahTavernIntegratedRoute(
             runtime,
@@ -1260,6 +1389,8 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             "transport_mode": "native_bluestacks_ordinary_development",
             "identity": identity.__dict__,
             "maintenance_state": json.loads(final_state.to_json()),
+            "time_basis": "utc" if controller.utc_clock is not None else "monotonic",
+            "completed_at_utc": controller.utc_clock() if controller.utc_clock is not None else None,
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
             "evidence_events": str(runtime.events),
@@ -1271,6 +1402,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             "total_input_cap": runtime.max_inputs,
             "zoom_normalization": zoom_records,
             "atlas_binding_roi": list(binding),
+            "atlas_binding_diagnostics": route.atlas_binding_diagnostics,
             "atlas_immediate_before_sha256": atlas_probe.sha256,
             "atlas_annotated_frame": str(annotated_path),
         }

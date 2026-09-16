@@ -244,11 +244,8 @@ class AutomationServiceHandlerTests(unittest.TestCase):
         self.assertEqual(descriptor.cadence, "cooldown_pulse")
         self.assertFalse(descriptor.reset_scoped)
         result = handler.plan(self._recruitment_facts())
-        self.assertEqual(result.outcome, NormalizedOutcome.COMPLETE_FOR_RESET)
-        self.assertEqual(
-            result.reason_code,
-            "RECRUITMENT_MAINTENANCE_PARENT_CANARY_REQUIRED",
-        )
+        self.assertEqual(result.outcome, NormalizedOutcome.BLOCKED)
+        self.assertFalse(result.verified)
         self.assertEqual(result.action_count, 0)
         self.assertEqual(result.observed_progress["transport_count"], 0)
 

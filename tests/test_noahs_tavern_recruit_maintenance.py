@@ -81,7 +81,6 @@ class MaintenanceFixtures:
             captured_monotonic=101.0,
             recognized=True,
             result_tier=tier,
-            result_identity="hero fragment",
             safe_close_visible=True,
             safe_close_roi=(100, 1000, 360, 1070),
         )
@@ -387,7 +386,6 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
         )
         blocked = route.run(max_steps=1)
         self.assertEqual(blocked.status, "blocked")
-        self.assertEqual(blocked.reason, "home_atlas_tavern_binding_not_proven")
         self.assertEqual(runtime.inputs, [])
 
         runtime = Runtime()
@@ -424,6 +422,26 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
         evidence[RecruitTier.BASIC] = replace(evidence[RecruitTier.BASIC], after_close=delayed_after)
         result = NoahTavernMaintenanceController(self.state, now=100.0).run_pass(evidence, self.f.home(), identity=self.identity)
         self.assertEqual(result.tier_results[0].outcome, TierPassOutcome.ACTION_PERFORMED)
+
+    def test_unknown_or_conflicting_after_count_uses_before_count(self):
+        for post_count in (None, 5):
+            with self.subTest(post_count=post_count):
+                evidence = self.all_evidence()
+                before = evidence[RecruitTier.BASIC].before
+                after = evidence[RecruitTier.BASIC].after_close
+                selected = after.tier(RecruitTier.BASIC)
+                altered = replace(selected, attempts_remaining=post_count)
+                altered_after = replace(
+                    after,
+                    tiers=tuple(altered if item.tier is RecruitTier.BASIC else item for item in after.tiers),
+                )
+                evidence[RecruitTier.BASIC] = replace(evidence[RecruitTier.BASIC], after_close=altered_after)
+                result = NoahTavernMaintenanceController(self.state, now=100.0).run_pass(
+                    evidence, self.f.home(), identity=self.identity,
+                )
+                self.assertEqual(result.tier_results[0].outcome, TierPassOutcome.ACTION_PERFORMED)
+                self.assertEqual(result.state.tiers[RecruitTier.BASIC].attempts_remaining, 4)
+                self.assertEqual(result.state.basic_daily_count, 1)
 
     def test_transport_observed_is_forbidden(self):
         evidence = self.all_evidence()

@@ -449,7 +449,8 @@ def classify_home_base_live(
     try:
         import pytesseract
 
-        navigation_text = pytesseract.image_to_string(navigation_roi, config="--psm 6").lower()
+        # Navigation labels are scattered among icons, not a uniform text block.
+        navigation_text = pytesseract.image_to_string(navigation_roi, config="--psm 11").lower()
         scene_text = pytesseract.image_to_string(scene_roi, config="--psm 6").lower()
     except Exception as exc:  # pragma: no cover - environment capability is deliberately fail-closed
         return {

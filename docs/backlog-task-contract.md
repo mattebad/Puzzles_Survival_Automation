@@ -1,86 +1,36 @@
-# Backlog task contract
+# Backlog task guidance
 
-This is the canonical schema for newly created or activated backlog tasks. It is a contract
-specification, not an execution prompt.
+The active backlog is the section of `../BACKLOG.md` above `<!-- ACTIVE_BACKLOG_END -->`.
+It describes user outcomes, not a runtime authorization system or a development ceremony.
 
-## Required contract
+## A useful ticket
 
-Each adopted task must contain these labeled fields in its `BACKLOG.md` section:
+Give the task a clear title and status, then record:
 
-### Identity
+- **Problem:** What is wrong or missing?
+- **Outcome:** What should the user or bot be able to do when this is finished?
+- **Code/docs:** Relevant files or existing implementation, when known.
+- **Check:** The observable result that will establish completion.
 
-`Task ID`, `Title`, `Status`, `Milestone`, `Dependencies`, and `Blocked by`.
+Split an implementation ticket when it combines independently selectable work. The active
+backlog's gameplay groups are a feature inventory, not a requirement to implement them all
+at once. Preserve distinct behavior when sharing an implementation across variants.
 
-### Objective and facts
+Add dependencies, unresolved choices, or concrete spending/live-input limits only when they
+matter to that task. Reuse approved policy; do not copy it into dozens of fields or ask the
+user to approve it again. Backlog approval alone does not start a live session.
 
-`Objective` must name one atomic outcome. `Established facts` records proven facts that should not
-be broadly re-proven.
+## Completion and history
 
-### Scope
+Record what changed, what was actually exercised, and any remaining relevant limitation.
+A selected handler, transport success, passing mock, receipt, or old completed status does
+not establish successful gameplay. Keep tests for real behavioral risks; avoid test-count
+requirements and project-wide qualification ladders.
 
-`Direct implementation files`, `Shared dependencies`, `Transitive regression set`, `Allowed
-changes`, and `Prohibited changes`.
+The historical backlog is reference material. It does not need migration to this format.
+There is no required agent-role sequence, evidence manifest for a documentation task,
+per-commit allowlist, standalone activation transition, or mandatory 19-field-plus contract.
 
-### Live authorization
-
-`Authorized runtime action`, `Maximum transport inputs`, `Navigation-only recovery`,
-`Consequential action`, `Registration changes`, `Scheduler changes`, and `Actions that must not be
-repeated`.
-
-Use explicit `none`, `forbidden`, or numeric zero values where a task has no live authority.
-
-### Recognition and semantics
-
-`Required source`, `Exact target semantics`, `Required local association`, `Negative controls`,
-`Coordinate space`, `Accepted signals`, `Rejected weak signals`, and `Ambiguous-result behavior`.
-
-### Product resource policy
-
-`Zero-cost requirement`, `Quantity limits`, `Resource consumption policy`, and `Premium or strategic
-restrictions`.
-
-### Evidence and verification
-
-`Evidence requirement` must be one of:
-
-- `REQUIRED` for runtime or live-evidence tasks; the handoff names an exact canonical manifest and
-  the validator checks its task identity, paths, and hashes.
-- `TASK_LOCAL` for offline tasks that require a tracked task-local manifest; the handoff names that
-  repository-relative manifest and the validator checks it.
-- `NOT_APPLICABLE — <reason>` for offline tasks that produce no canonical evidence; the handoff
-  uses a null active manifest and records the reason explicitly.
-
-`Active evidence manifest`, `Required artifacts`, `Immediate-before/immediate-post/result/journal`,
-`Additional task-specific artifacts`, `Focused tests`, `Integration tests`, `Transitive regression
-tests`, `Full-suite requirement`, `Validators`, and `Known baseline failures`.
-
-### Outcomes and commits
-
-`Valid blocked outcomes`, `Blocked-result commit policy`, `Expected focused commits`, per-commit
-`allowed paths`, `Completion criteria`, and `No push unless explicitly authorized`.
-
-## Activation and migration
-
-The validator hard-fails the task named by `current_task_id` in the structured
-`CURRENT_HANDOFF.md`, `GOV-DURABLE-STATE`, newly created tasks, and legacy tasks modified after
-governance adoption.
-
-Untouched legacy nonterminal tasks receive warnings only. Completed historical tasks have no
-migration requirement. A warning becomes a hard failure when the task is modified or activated.
-
-A legacy task becomes active only after:
-
-1. its backlog section satisfies this contract;
-2. its dependencies and authorization are validated;
-3. `CURRENT_HANDOFF.md` is updated in a separate persisted transition to move the task from
-   `next_task_id` to `current_task_id`.
-
-`next_task_id` is a declared successor, not an active task, and does not trigger immediate contract
-migration.
-
-## Commit ownership
-
-Every task names the exact path allowlist for each expected commit. If one file spans concerns,
-reviewed hunk-level staging is required. If hunk staging would create an unclear dependency
-boundary, collapse the commits. Never duplicate changes, create artificial commits, or stage a
-whole shared file merely because one hunk belongs to the active commit.
+Existing governance utilities still encode the former workflow; they are not acceptance gates
+for this active backlog. Do not rewrite them merely to make the new prose pass an obsolete
+schema. Remove or adapt a real dependency when the selected implementation encounters it.

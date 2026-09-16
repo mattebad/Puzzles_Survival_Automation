@@ -20,6 +20,7 @@ from .noahs_tavern_recruit import (
     NOAHS_TAVERN_SCREEN,
     NoahTavernObservation,
     RecruitTier,
+    noah_consumed_attempts_remaining,
     noah_recruit_authorizeable,
     noah_result_postcondition_verified,
     parse_cooldown_seconds,
@@ -238,15 +239,26 @@ class NoahTavernMaintenanceController:
             return False
         if state.next_eligible_at is not None and state.next_eligible_at > clock:
             return False
-        return bool(observed.recognized and (state.attempts_remaining > 0 or observed.attempts_remaining))
+        # An unopened tab has no observed count. A matured persisted cooldown
+        # permits inspection only; current_tier_eligible still requires a fresh free control.
+        matured = state.next_eligible_at is not None and state.next_eligible_at <= clock
+        return bool(observed.recognized and (state.attempts_remaining > 0 or observed.attempts_remaining or matured))
 
-    def record_verified_transition(self, tier: RecruitTier, after_close: NoahTavernObservation, *, now: float | None = None) -> None:
+    def record_verified_transition(
+        self,
+        tier: RecruitTier,
+        before: NoahTavernObservation,
+        *,
+        now: float | None = None,
+    ) -> None:
         """Persist one verified result transition from the executable controller path."""
 
-        observed = after_close.tier(tier)
+        consumed_remaining = noah_consumed_attempts_remaining(before, tier)
+        if consumed_remaining is None:
+            raise ValueError("verified transition requires an authorized free source")
         clock = self.now if now is None else now
         self.state.tiers[tier] = PersistedTierState(
-            observed.attempts_remaining or 0,
+            consumed_remaining,
             clock + TIER_COOLDOWN_SECONDS[tier],
             TIER_COOLDOWN_SECONDS[tier],
             "action_performed",
@@ -340,15 +352,17 @@ class NoahTavernMaintenanceController:
                 tier_results.append(TierPassResult(tier, TierPassOutcome.BLOCKED, "transport_forbidden_in_offline_replay"))
                 blocked = True
                 break
+            result = item.result
+            if result is not None and result.result_tier is None:
+                result = replace(result, result_tier=tier)
             if not noah_result_postcondition_verified(
                 before,
-                item.result,
+                result,
                 item.after_close,
                 tier,
-                require_daily_progress=False,
                 cooldown_tolerance_seconds=30,
             ):
-                tier_results.append(TierPassResult(tier, TierPassOutcome.BLOCKED, "result_decrement_cooldown_not_proven"))
+                tier_results.append(TierPassResult(tier, TierPassOutcome.BLOCKED, "result_cooldown_transition_not_proven"))
                 blocked = True
                 break
             after_tier = item.after_close.tier(tier)  # type: ignore[union-attr]
@@ -362,8 +376,13 @@ class NoahTavernMaintenanceController:
                 blocked = True
                 break
             next_at = self.now + TIER_COOLDOWN_SECONDS[tier]
+            consumed_remaining = noah_consumed_attempts_remaining(before, tier)
+            if consumed_remaining is None:
+                tier_results.append(TierPassResult(tier, TierPassOutcome.BLOCKED, "source_attempt_count_not_proven"))
+                blocked = True
+                break
             candidate.tiers[tier] = PersistedTierState(
-                after_tier.attempts_remaining or 0,
+                consumed_remaining,
                 next_at,
                 TIER_COOLDOWN_SECONDS[tier],
                 "action_performed",

@@ -1,70 +1,13 @@
 ---
-description: Cursor routing for the host-portable P&S execution roles
+description: Lean personal-bot development instructions
 alwaysApply: true
 ---
 
-# P&S model routing
+# P&S development
 
-Apply the host-neutral role contract in `AGENTS.md`. Keep the manifest and
-escalation packet model-neutral so another host can map the same roles.
-
-- `architecture_planner`: user-selected Sol.
-- `control_plane_owner`: Sol parent; mandatory for Heavy live work.
-- `procedure_coordinator`: optional Luna XHigh procedural assistance under a
-  frozen checklist; it cannot own stage transitions or architecture.
-- `bounded_implementer`: Luna XHigh.
-- routine `independent_tester`: Terra High in a separate read-only context.
-- high-risk or cross-contract tester: delegated Sol Medium when the broader
-  reasoning capability is justified.
-- `escalation_architect`: delegated Sol Medium; use Sol High only in a
-  user-selected fresh chat when available.
-
-Before every routine procedural or testing turn, select or verify the assigned
-model. Never inherit an expensive parent model accidentally for routine work.
-The procedure coordinator follows the frozen checklist and may not redesign
-it, expand writable scope, weaken acceptance, own stage transitions, invent
-live actions, or override contradictory evidence.
-
-Select Terra High explicitly for the independent reviewer. If the current host
-cannot delegate that model, use a user-selected fresh Terra High read-only chat
-or report the unavailable assignment; never substitute another model silently.
-The reviewer prioritizes concrete defects and acceptance risks over idealized
-code. It reviews only the diff under review plus the stage's stated acceptance
-criteria, and raises a finding only when the change plausibly causes a concrete
-failure (incorrect behavior, safety-envelope violation, acceptance failure,
-regression in a touched component, or data/credential loss). It must not request
-style-only cleanup, naming/"truthfulness" wording that does not change behavior,
-speculative abstractions, public-service or multi-tenant hardening, added
-coverage beyond proving the change, or perfection-oriented refactors without a
-plausible impact on this private local project. The one recheck confirms only
-that the parent-classified prior findings are resolved and the fix added no new
-regression; a brand-new item is classified by the parent and does not by itself
-authorize another repair. Local deployment does not excuse credential exposure,
-unsafe command execution, runtime-input safety, data-loss risks, or other
-defects with a concrete local impact. Full contract:
-[`docs/flow-delivery-validation-policy.md`](../../docs/flow-delivery-validation-policy.md).
-
-Named agents still require a manifest-compatible assignment. The
-`pns-flow-implementer` assignment is Luna XHigh; verify the explicit model on
-every mutable implementation or repair turn rather than inheriting the parent.
-
-Use a compact checkpoint packet containing only the manifest, changed paths,
-compact diff summary, test receipts, tester findings, and unresolved decisions.
-Do not forward the full orchestration transcript. Codex remains portable by
-mapping these roles to its available GPT models without requiring Cursor-only
-model names or capabilities.
-
-Routine live flow delivery uses `pnsctl conduct` under Medium repair-and-continue
-rules. The Sol/Luna/Terra frozen-manifest path is reserved for architecture,
-safety-boundary, cross-contract redesign, or `diminishing_returns` STEP_BACK —
-not for ordinary live reproof of an already-contracted flow.
-
-Routine live flow development is convergence-governed by `AGENTS.md` and the
-conductor-owned per-flow state (`.local-orchestrator/conductor/`). The Sol
-control-plane owner owns CONTINUE / STEP_BACK_REDESIGN / ESCALATE_USER / STOP
-when Heavy is selected, and repairs local defects in-session without
-delegating a fresh Luna implementation or Terra review per micro-fix. Delegate
-a bounded Luna XHigh implementer and a Terra High reviewer only for the
-STEP_BACK redesign, architecture, cross-contract, or safety-boundary case, or
-when `diminishing_returns` mandates a batched re-derivation. Do not spin up
-per-defect delegated turns.
+Follow `AGENTS.md`, `CURRENT_HANDOFF.md`, the active portion of `BACKLOG.md`
+above `<!-- ACTIVE_BACKLOG_END -->`, and `docs/backlog-task-contract.md`.
+Work directly on the selected slice. Do not require model roles, delegation,
+development leases, manifests, receipts, or historical queue transitions.
+Delegate only when the user requests it. Preserve existing gameplay approvals,
+runtime singleton ownership, and explicit live-operation permission boundaries.

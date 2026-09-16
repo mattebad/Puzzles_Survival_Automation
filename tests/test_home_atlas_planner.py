@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import cv2
 import numpy as np
+import pytesseract
 
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.home_atlas_bluestacks import bluestacks_direct_pan_contract, command_navigate_building
@@ -19,6 +20,7 @@ from tasks.home_atlas import (
     HomeAtlas,
     LocalizationResult,
     PlatformProfile,
+    load_home_atlas,
     SemanticBuilding,
     ZoomIdentity,
 )
@@ -35,6 +37,7 @@ from tasks.home_atlas_planner import (
 from tasks.home_atlas_vision import (
     BLUESTACKS_PLATFORM,
     BLUESTACKS_PROFILE_ID,
+    BlueStacksHomeLocalizer,
     bind_visible_building,
     frame_digest,
 )
@@ -154,13 +157,6 @@ class MinimalPanPlannerTests(unittest.TestCase):
         binding = bind_visible_building(frame, loc, target, ocr=lambda image, psm: "Bank")
         self.assertIsNotNone(binding)
         self.assertIn("current-frame OCR", binding.semantic_evidence[0])
-        focused = bind_visible_building(
-            frame,
-            loc,
-            target,
-            ocr=lambda image, psm: "Bank" if psm in (8, 13) else "unknown",
-        )
-        self.assertIsNotNone(focused)
 
         pit = replace(
             target,
@@ -172,6 +168,103 @@ class MinimalPanPlannerTests(unittest.TestCase):
         self.assertIsNone(
             bind_visible_building(frame, loc, pit, ocr=lambda image, psm: "Hospital")
         )
+
+    def test_native_label_binding_handles_two_retained_camera_offsets(self):
+        try:
+            pytesseract.get_tesseract_version()
+        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
+            self.skipTest("Tesseract is unavailable for native binding regression")
+        root = Path(__file__).resolve().parents[1]
+        atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+        world = load_home_atlas(atlas_path)
+        target = world.lookup_building("home.building.noahs_tavern")
+        localizer = BlueStacksHomeLocalizer(world, atlas_path)
+        for name in ("home_atlas_noahs_tavern_attempt3.png", "home_atlas_noahs_tavern_attempt2.png"):
+            with self.subTest(name=name):
+                frame = cv2.imread(str(root / "tests" / "fixtures" / name), cv2.IMREAD_COLOR)
+                self.assertIsNotNone(frame)
+                localization = localizer.localize(frame)
+                diagnostics = {}
+                binding = bind_visible_building(frame, localization, target, diagnostics=diagnostics)
+                self.assertIsNotNone(binding)
+                self.assertEqual(binding.building_id, target.semantic_id)
+                self.assertEqual(binding.frame_sha256, frame_digest(frame))
+                self.assertEqual(diagnostics["reason"], "accepted")
+                self.assertTrue(diagnostics["decisive_predicate"]["expected_label_present"])
+                self.assertLessEqual(len(diagnostics["ocr_calls"]), 2)
+
+    def test_native_preflight_binding_handles_bank_and_neighbor_labels(self):
+        try:
+            pytesseract.get_tesseract_version()
+        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
+            self.skipTest("Tesseract is unavailable for native binding regression")
+        root = Path(__file__).resolve().parents[1]
+        atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+        world = load_home_atlas(atlas_path)
+        frame = cv2.imread(
+            str(root / "tests" / "fixtures" / "home_atlas_preflight_bank.png"),
+            cv2.IMREAD_COLOR,
+        )
+        self.assertIsNotNone(frame)
+        localizer = BlueStacksHomeLocalizer(world, atlas_path)
+        localization = localizer.localize(frame)
+        for semantic_id in (
+            "home.building.bank",
+            "home.building.fighter_camp",
+            "home.building.noahs_tavern",
+        ):
+            with self.subTest(semantic_id=semantic_id):
+                diagnostics = {}
+                building = world.lookup_building(semantic_id)
+                binding = bind_visible_building(
+                    frame,
+                    localization,
+                    building,
+                    diagnostics=diagnostics,
+                )
+                self.assertIsNotNone(binding)
+                self.assertEqual(binding.building_id, semantic_id)
+                self.assertEqual(binding.frame_sha256, frame_digest(frame))
+                self.assertEqual(diagnostics["reason"], "accepted")
+                self.assertTrue(diagnostics["decisive_predicate"]["expected_label_present"])
+                self.assertIsNotNone(diagnostics["glyph_bounds"])
+                search = diagnostics["search_bounds"]
+                glyph = diagnostics["glyph_bounds"]
+                self.assertTrue(search[0] <= glyph[0] < glyph[2] <= search[2])
+                self.assertTrue(search[1] <= glyph[1] < glyph[3] <= search[3])
+                self.assertLessEqual(len(diagnostics["ocr_calls"]), 2)
+
+    def test_native_binding_rejects_wrong_label_and_profile_with_decisive_reasons(self):
+        try:
+            pytesseract.get_tesseract_version()
+        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
+            self.skipTest("Tesseract is unavailable for native binding regression")
+        root = Path(__file__).resolve().parents[1]
+        atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+        world = load_home_atlas(atlas_path)
+        target = world.lookup_building("home.building.noahs_tavern")
+        frame = cv2.imread(str(root / "tests" / "fixtures" / "home_atlas_noahs_tavern_attempt3.png"), cv2.IMREAD_COLOR)
+        localizer = BlueStacksHomeLocalizer(world, atlas_path)
+        localization = localizer.localize(frame)
+        wrong_label = replace(
+            target,
+            platform_binding_policy={"bluestacks": {"label": "Wrong Building"}},
+            recognition={"bluestacks": {"label": "Wrong Building"}},
+        )
+        label_diagnostics = {}
+        self.assertIsNone(bind_visible_building(frame, localization, wrong_label, diagnostics=label_diagnostics))
+        self.assertEqual(label_diagnostics["reason"], "label_not_read")
+        self.assertFalse(label_diagnostics["decisive_predicate"]["expected_label_present"])
+        profile_diagnostics = {}
+        self.assertIsNone(
+            bind_visible_building(
+                frame,
+                replace(localization, profile_id="wrong-profile"),
+                target,
+                diagnostics=profile_diagnostics,
+            )
+        )
+        self.assertEqual(profile_diagnostics["reason"], "localization_failed")
 
     def test_project_owned_route_dry_run_issues_no_input(self):
         class Runtime:

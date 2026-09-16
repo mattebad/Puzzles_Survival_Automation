@@ -178,6 +178,29 @@ class NoahTavernNavigationDeclarationTests(unittest.TestCase):
 
 
 class NoahTavernNavigationRouteTests(unittest.TestCase):
+    def setUp(self):
+        # These tests script semantic screens, not native image localization.
+        localizer = SimpleNamespace(localize=lambda _frame: SimpleNamespace(recognized=False))
+        patcher = patch("scripts.noahs_tavern_recruit_bluestacks.BlueStacksHomeLocalizer", return_value=localizer)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_localization_allocation_failure_blocks_without_further_input(self):
+        import cv2
+
+        runtime = ScriptedTavernRuntime(["UNKNOWN"])
+        localizer = SimpleNamespace(localize=lambda _frame: None)
+        route = NoahTavernNavigationCanaryRoute(
+            runtime, recognizer=runtime.recognizer, home_localizer=localizer,
+            settle_seconds=0.0,
+        )
+        source = runtime.capture("unknown")
+        with patch.object(localizer, "localize", side_effect=cv2.error("allocation failed")):
+            result = route._return_home(source, _observation("UNKNOWN", source.captured_monotonic))
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(runtime.calls, [])
+        self.assertIn("allocation failed", result.records[0]["error"])
+
     def test_navigation_round_trip_home_to_tavern_to_home(self) -> None:
         stub = ScriptedTavernRuntime(["HOME_BASE", "NOAHS_TAVERN", "HOME_BASE"])
         route = NoahTavernNavigationCanaryRoute(

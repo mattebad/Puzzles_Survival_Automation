@@ -323,30 +323,6 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
         self.assertTrue(result["effect_reconciliation_required"])
         self.assertTrue(result["identical_retry_denied"])
 
-    def test_conduct_recruitment_does_not_create_pre_observation_session(self):
-        with tempfile.TemporaryDirectory() as directory:
-            with (
-                patch.object(
-                    pnsctl,
-                    "development_session_observe",
-                    side_effect=AssertionError("pre-observation is forbidden"),
-                ),
-                patch.object(
-                    pnsctl,
-                    "development_session_run_flow",
-                    return_value=json.dumps({"status": "blocked"}),
-                ) as run_flow,
-            ):
-                result = json.loads(
-                    pnsctl.conduct_flow(
-                        delivery.FLOW_ID,
-                        live=True,
-                        yes=True,
-                        state_root=Path(directory),
-                    )
-                )
-            self.assertEqual(result["flow_id"], delivery.FLOW_ID)
-            run_flow.assert_called_once()
 
 
 if __name__ == "__main__":

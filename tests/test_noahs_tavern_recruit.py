@@ -7,13 +7,14 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 
+import cv2
 import numpy as np
+import pytesseract
 
 from tasks.noahs_tavern_recruit import (
     HERO_RECRUIT_RESULT_SCREEN,
     NOAHS_TAVERN_SCREEN,
     NOAHS_TAVERN_FREE_TARGET,
-    DailyQuestProgress,
     NoahTavernObservation,
     NoahTierObservation,
     RecruitTier,
@@ -25,7 +26,13 @@ from tasks.noahs_tavern_recruit import (
     parse_cooldown_seconds,
 )
 from tasks.noahs_tavern_recruit_runtime import NoahAction, NoahTavernRecruitRuntimeController
-from tasks.noahs_tavern_recruit_vision import recognize_noahs_tavern_frame
+from tasks.noahs_tavern_recruit_vision import (
+    TAVERN_ATTEMPTS_ROI,
+    TAVERN_FREE_ROI,
+    TAVERN_HEADER_ROI,
+    TAVERN_TITLE_ROI,
+    recognize_noahs_tavern_frame,
+)
 from scripts.noahs_tavern_recruit_bluestacks import (
     BlueStacksNoahsTavernRecruitAdapter,
     _apply_startup_recovery_input_reserve,
@@ -63,7 +70,7 @@ class NoahFixtures:
         )
         return base
 
-    def tavern(self, selected=RecruitTier.BASIC, *, basic_remaining=5, daily=0, digest="a" * 64, **changes):
+    def tavern(self, selected=RecruitTier.BASIC, *, basic_remaining=5, digest="a" * 64, **changes):
         tiers = {
             RecruitTier.BASIC: self.tier(RecruitTier.BASIC, remaining=basic_remaining, enabled=selected == RecruitTier.BASIC),
             RecruitTier.INT: self.tier(RecruitTier.INT, remaining=1, enabled=selected == RecruitTier.INT),
@@ -77,7 +84,6 @@ class NoahFixtures:
             tiers=tuple(tiers.values()),
             frame_sha256=digest,
             captured_monotonic=100.0,
-            daily_quest_completed=daily,
             recognized=True,
             **changes,
         )
@@ -91,13 +97,12 @@ class NoahFixtures:
             captured_monotonic=101.0,
             recognized=True,
             result_tier=tier,
-            result_identity="hero frag",
             safe_close_visible=True,
             safe_close_roi=(100, 1000, 340, 1070),
             premium_result_control_visible=True,
         )
 
-    def after(self, before, tier=RecruitTier.BASIC, daily=1, digest="c" * 64, cooldown_text="00:09:52"):
+    def after(self, before, tier=RecruitTier.BASIC, digest="c" * 64, cooldown_text="00:09:52"):
         tiers = list(before.tiers)
         index = next(i for i, item in enumerate(tiers) if item.tier == tier)
         tiers[index] = replace(
@@ -116,7 +121,6 @@ class NoahFixtures:
             frame_sha256=digest,
             captured_monotonic=102.0,
             recognized=True,
-            daily_quest_completed=daily,
         )
 
 
@@ -197,24 +201,52 @@ class NoahContractTests(unittest.TestCase):
         self.assertEqual(spec.maximum_cost, 0)
         self.assertTrue(spec.free_only)
 
-    def test_exact_one_attempt_decrement_and_result(self):
-        before = self.f.tavern(selected=RecruitTier.BASIC, basic_remaining=5)
-        after = self.f.after(before, daily=1)
-        self.assertEqual(before.tier(RecruitTier.BASIC).attempts_remaining - after.tier(RecruitTier.BASIC).attempts_remaining, 1)
-        self.assertTrue(noah_result_postcondition_verified(before, self.f.result(), after, RecruitTier.BASIC))
-
     def test_independent_cooldown_parsing(self):
         self.assertEqual(parse_cooldown_seconds("Free in 00:09:52"), 592)
         self.assertEqual(parse_cooldown_seconds("Free in 23:59:51"), 86391)
         self.assertEqual(parse_cooldown_seconds("Free in 1d23:59:52"), 172792)
 
-    def test_invalid_decrement_and_ambiguous_postcondition_rejected(self):
+    def test_postcondition_uses_source_count_and_rejects_missing_timer(self):
         before = self.f.tavern(basic_remaining=5)
-        bad = self.f.after(before, daily=1)
-        tier = bad.tier(RecruitTier.BASIC)
-        bad = replace(bad, tiers=(replace(tier, attempts_remaining=5),) + bad.tiers[1:])
-        self.assertFalse(noah_result_postcondition_verified(before, self.f.result(), bad, RecruitTier.BASIC))
+        conflicting = self.f.after(before)
+        tier = conflicting.tier(RecruitTier.BASIC)
+        conflicting = replace(conflicting, tiers=(replace(tier, attempts_remaining=5),) + conflicting.tiers[1:])
+        self.assertTrue(noah_result_postcondition_verified(before, self.f.result(), conflicting, RecruitTier.BASIC))
+        missing_timer = replace(
+            self.f.after(before),
+            tiers=(replace(self.f.after(before).tier(RecruitTier.BASIC), cooldown_text="", cooldown_duration_seconds=None),)
+            + self.f.after(before).tiers[1:],
+        )
+        self.assertFalse(noah_result_postcondition_verified(before, self.f.result(), missing_timer, RecruitTier.BASIC))
         self.assertFalse(noah_result_postcondition_verified(before, None, self.f.after(before), RecruitTier.BASIC))
+
+    def test_postcondition_rejects_preexisting_cooldown_wrong_tier_stale_and_overlay(self):
+        before = self.f.tavern(basic_remaining=5)
+        result = self.f.result()
+        after = self.f.after(before)
+        cooled_before = self.f.after(before)
+        self.assertFalse(noah_result_postcondition_verified(cooled_before, result, after, RecruitTier.BASIC))
+        self.assertFalse(noah_result_postcondition_verified(before, self.f.result(RecruitTier.INT), after, RecruitTier.BASIC))
+        self.assertFalse(noah_result_postcondition_verified(before, result, replace(after, selected_tier=RecruitTier.INT), RecruitTier.BASIC))
+        self.assertFalse(noah_result_postcondition_verified(before, result, replace(after, stale=True), RecruitTier.BASIC))
+        enabled_after = replace(
+            after,
+            tiers=(replace(after.tier(RecruitTier.BASIC), free_control_enabled=True),) + after.tiers[1:],
+        )
+        self.assertFalse(noah_result_postcondition_verified(before, result, enabled_after, RecruitTier.BASIC))
+        self.assertFalse(noah_result_postcondition_verified(before, result, replace(after, overlay_state="modal"), RecruitTier.BASIC))
+
+    def test_distinct_frames_allow_clock_tick_ties_but_not_time_reversal(self):
+        before = self.f.tavern()
+        result = replace(self.f.result(), captured_monotonic=100.0)
+        after = replace(self.f.after(before), captured_monotonic=100.0)
+        self.assertTrue(noah_result_postcondition_verified(before, result, after, RecruitTier.BASIC))
+        self.assertFalse(noah_result_postcondition_verified(
+            before, replace(result, captured_monotonic=99.0), after, RecruitTier.BASIC,
+        ))
+        self.assertFalse(noah_result_postcondition_verified(
+            before, result, replace(after, captured_monotonic=99.0), RecruitTier.BASIC,
+        ))
 
     def test_disabled_cooldown_unknown_stale_overlay_and_premium_guards(self):
         base = self.f.tavern()
@@ -231,47 +263,147 @@ class NoahContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             recognize_noahs_tavern_frame(np.zeros((720, 1280, 3), dtype=np.uint8))
 
-    def test_adv_title_ocr_confusion_is_scoped_to_noah_tavern_header(self):
+
+    def test_result_close_does_not_depend_on_reward_ocr(self):
+        try:
+            pytesseract.get_tesseract_version()
+        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
+            self.skipTest("Tesseract is unavailable for native OCR fixture")
+        frame = cv2.imread(str(Path(__file__).with_name("fixtures") / "noahs_tavern_nova_result.png"))
+        self.assertIsNotNone(frame)
+        blank_reward = frame.copy()
+        blank_reward[450:790, 250:560] = 0
+        for label, candidate in (("native", frame), ("reward_removed", blank_reward)):
+            with self.subTest(label=label):
+                observed = recognize_noahs_tavern_frame(candidate, captured_monotonic=101.0)
+                self.assertEqual(observed.screen_state, HERO_RECRUIT_RESULT_SCREEN)
+                self.assertTrue(observed.safe_close_visible)
+                controller = NoahTavernRecruitRuntimeController(now=100.0)
+                before = self.f.tavern(selected=RecruitTier.INT)
+                wrap = lambda obs: SimpleNamespace(observation=obs, frame_sha256=obs.frame_sha256)
+                self.assertEqual(controller.next_command(wrap(before)).action, NoahAction.RECRUIT_FREE)
+                self.assertEqual(controller.next_command(wrap(observed)).action, NoahAction.CLOSE_RESULT)
+
+    def test_result_close_requires_bounded_label_and_color(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-        calls = []
-        def ocr(_image, psm):
-            calls.append(psm)
-            if psm == 6 and len(calls) == 1:
-                return "Noahs Tavern"
-            if psm == 6 and len(calls) == 2:
-                return "AQV. RECruit"
-            return ""
-        observed = recognize_noahs_tavern_frame(frame, ocr=ocr)
+        x0, y0, x1, y1 = (90, 975, 350, 1100)
+        frame[y0:y1, x0:x1] = (0, 0, 255)
+
+        def close_only_ocr(image, _psm):
+            return "Close"
+
+        no_color = frame.copy()
+        no_color[y0:y1, x0:x1] = (80, 80, 80)
+        self.assertNotEqual(
+            recognize_noahs_tavern_frame(no_color, ocr=close_only_ocr).screen_state,
+            HERO_RECRUIT_RESULT_SCREEN,
+        )
+
+        def no_close_ocr(image, _psm):
+            center = image[image.shape[0] // 2, image.shape[1] // 2]
+            return "Recruit 1x" if center[2] > 200 else "Close"
+
+        self.assertNotEqual(
+            recognize_noahs_tavern_frame(frame, ocr=no_close_ocr).screen_state,
+            HERO_RECRUIT_RESULT_SCREEN,
+        )
+
+    def test_native_advanced_fixture_preserves_complete_header_and_title_glyphs(self):
+        try:
+            pytesseract.get_tesseract_version()
+        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
+            self.skipTest("Tesseract is unavailable for native OCR fixture")
+        fixture_path = Path(__file__).with_name("fixtures") / "noahs_tavern_advanced_roi.png"
+        frame = cv2.imread(str(fixture_path), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        observed = recognize_noahs_tavern_frame(frame)
         self.assertEqual(observed.screen_state, NOAHS_TAVERN_SCREEN)
         self.assertTrue(observed.recognized)
         self.assertEqual(observed.selected_tier, RecruitTier.ADV)
+        advanced = observed.tier(RecruitTier.ADV)
+        self.assertEqual(advanced.attempts_remaining, 1)
+        self.assertTrue(advanced.free_control_enabled)
+        self.assertEqual(advanced.cost_amount, 0)
+        self.assertEqual(advanced.quantity, 1)
 
-        def negative_ocr(_image, psm):
-            if psm == 6:
-                return "Unknown Surface" if not calls else "AQV. RECruit"
-            return ""
-        self.assertNotEqual(
-            recognize_noahs_tavern_frame(frame, ocr=negative_ocr).screen_state,
-            NOAHS_TAVERN_SCREEN,
+    def test_native_after_close_fixture_keeps_cooldown_and_blocks_duplicate_free(self):
+        try:
+            pytesseract.get_tesseract_version()
+        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
+            self.skipTest("Tesseract is unavailable for native OCR fixture")
+        fixture_path = Path(__file__).with_name("fixtures") / "noahs_tavern_recruit_after_close.png"
+        frame = cv2.imread(str(fixture_path), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        observed = recognize_noahs_tavern_frame(frame, captured_monotonic=1000.0)
+        self.assertEqual(observed.screen_state, NOAHS_TAVERN_SCREEN)
+        self.assertEqual(observed.selected_tier, RecruitTier.ADV)
+        advanced = observed.tier(RecruitTier.ADV)
+        self.assertIsNone(advanced.attempts_remaining)
+        self.assertTrue(advanced.cooldown_active)
+        self.assertEqual(advanced.cooldown_duration_seconds, 172794)
+        self.assertEqual(advanced.next_eligible_timestamp, 173794.0)
+        self.assertFalse(advanced.free_control_enabled)
+        self.assertFalse(noah_recruit_authorizeable(observed, RecruitTier.ADV))
+        before_frame = cv2.imread(
+            str(Path(__file__).with_name("fixtures") / "noahs_tavern_advanced_roi.png"),
+            cv2.IMREAD_COLOR,
+        )
+        self.assertIsNotNone(before_frame)
+        before = recognize_noahs_tavern_frame(before_frame)
+        self.assertTrue(
+            noah_result_postcondition_verified(
+                before,
+                self.f.result(tier=RecruitTier.ADV),
+                observed,
+                RecruitTier.ADV,
+            )
         )
 
-    def test_one_attempt_tier_accepts_free_control_when_counter_one_is_vertical_bar(self):
-        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-        calls = 0
+    def test_free_control_evidence_and_cooldown_precedence(self):
+        cases = (
+            ("enabled_single", "Adv. Recruit", "Daily free attempts: |",
+             "Free Recruit 1x", (180, 0, 180), 1, False, True),
+            ("disabled_single", "Adv. Recruit", "Daily free attempts: |",
+             "Free Recruit 1x", (80, 80, 80), None, False, False),
+            ("timer_words_are_not_a_button", "Adv. Recruit", "Free in ???",
+             "Free in ??? Recruit 1x", (180, 0, 180), None, False, False),
+            ("basic_cooldown_overrides_free_label", "Basic Recruit",
+             "Daily free attempts: 4 Free in 00:09:52",
+             "Free Recruit 1x", (180, 0, 180), 4, True, False),
+        )
+        for name, title, attempts, control, color, remaining, cooldown, enabled in cases:
+            with self.subTest(name=name):
+                frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+                for box, marker in (
+                    (TAVERN_HEADER_ROI, 11),
+                    (TAVERN_TITLE_ROI, 29),
+                    (TAVERN_ATTEMPTS_ROI, 47),
+                ):
+                    x0, y0, _, _ = box
+                    frame[y0 : y0 + 8, x0 : x0 + 8] = marker
+                x0, y0, x1, y1 = TAVERN_FREE_ROI
+                frame[y0:y1, x0:x1] = color
 
-        def ocr(_image, _psm):
-            nonlocal calls
-            calls += 1
-            return {
-                1: "Noahs Tavern",
-                2: "Adv. Recruit",
-                5: "Daily free attempts: |",
-                8: "Free Recruit 1x",
-            }.get(calls, "")
+                def ocr(image, _psm):
+                    marker = int(image[5, 5, 0])
+                    return {
+                        11: "Noahs Tavern",
+                        29: title,
+                        47: attempts,
+                        color[0]: control,
+                    }.get(marker, "")
 
-        advanced = recognize_noahs_tavern_frame(frame, ocr=ocr).tier(RecruitTier.ADV)
-        self.assertEqual(advanced.attempts_remaining, 1)
-        self.assertTrue(advanced.recognized)
+                observed = recognize_noahs_tavern_frame(
+                    frame, captured_monotonic=1000.0, ocr=ocr,
+                )
+                selected = observed.tier(observed.selected_tier)
+                self.assertEqual(selected.attempts_remaining, remaining)
+                self.assertEqual(selected.cooldown_active, cooldown)
+                self.assertEqual(selected.free_control_enabled, enabled)
+                self.assertEqual(
+                    noah_recruit_authorizeable(observed, observed.selected_tier),
+                    enabled,
+                )
 
     def test_bluestacks_adapter_is_dry_run_by_default(self):
         adapter = BlueStacksNoahsTavernRecruitAdapter()
@@ -299,14 +431,36 @@ class NoahRuntimeTests(unittest.TestCase):
         self.assertEqual(controller.next_command(self.rec(before)).action, NoahAction.RECRUIT_FREE)
         result = self.f.result()
         self.assertEqual(controller.next_command(self.rec(result)).action, NoahAction.CLOSE_RESULT)
+        self.assertEqual(controller.next_command(self.rec(result)).action, NoahAction.STOP)
         after = self.f.after(before)
         self.assertTrue(controller.accept_postcondition(self.rec(result), after))
-        int_obs = self.f.after(before, daily=1, digest="d" * 64)
+        int_obs = self.f.after(before, digest="d" * 64)
         controller.progress.tiers[RecruitTier.INT] = TierState(RecruitTier.INT, 1, 1)
         controller.progress.inspected_tiers.add(RecruitTier.INT)
         controller.progress.tiers[RecruitTier.ADV] = TierState(RecruitTier.ADV, 1, 0, 100, True, 200.0)
         controller.progress.inspected_tiers.add(RecruitTier.ADV)
         self.assertEqual(controller.next_command(self.rec(int_obs)).action, NoahAction.SELECT_TIER)
+
+    def test_runtime_derives_consumed_count_from_before(self):
+        for post_count in (None, 5):
+            with self.subTest(post_count=post_count):
+                controller = NoahTavernRecruitRuntimeController(now=100.0)
+                before = self.f.tavern(basic_remaining=5)
+                self.assertEqual(controller.next_command(self.rec(before)).action, NoahAction.RECRUIT_FREE)
+                result = self.f.result()
+                self.assertEqual(controller.next_command(self.rec(result)).action, NoahAction.CLOSE_RESULT)
+                after = self.f.after(before)
+                selected = after.tier(RecruitTier.BASIC)
+                altered = replace(selected, attempts_remaining=post_count)
+                after = replace(
+                    after,
+                    tiers=tuple(altered if item.tier is RecruitTier.BASIC else item for item in after.tiers),
+                )
+                self.assertTrue(controller.accept_postcondition(self.rec(result), after))
+                self.assertEqual(
+                    controller.maintenance_controller.state.tiers[RecruitTier.BASIC].attempts_remaining,
+                    4,
+                )
 
     def test_basic_cooldown_still_selects_independently_eligible_int(self):
         controller = NoahTavernRecruitRuntimeController(now=100.0)
@@ -330,7 +484,7 @@ class NoahRuntimeTests(unittest.TestCase):
     def test_daily_claim_readiness_does_not_suppress_independent_advanced_free(self):
         controller = NoahTavernRecruitRuntimeController()
         controller.progress.daily_quest.recruits_completed = 5
-        done = self.f.tavern(selected=RecruitTier.ADV, daily=5)
+        done = self.f.tavern(selected=RecruitTier.ADV)
         self.assertEqual(controller.next_command(self.rec(done)).action, NoahAction.RECRUIT_FREE)
         self.assertTrue(controller.progress.daily_quest.ready_to_claim)
         self.assertTrue(controller.progress.daily_quest.claim_dormant)
@@ -341,11 +495,42 @@ class NoahRuntimeTests(unittest.TestCase):
         for tier, next_at in ((RecruitTier.BASIC, 700.0), (RecruitTier.INT, 200.0), (RecruitTier.ADV, 900.0)):
             controller.progress.tiers[tier] = TierState(tier, {RecruitTier.BASIC: 5, RecruitTier.INT: 1, RecruitTier.ADV: 1}[tier], 0, 600, True, next_at)
             controller.progress.inspected_tiers.add(tier)
-        obs = self.f.tavern(basic_remaining=0, daily=3)
+        obs = self.f.tavern(basic_remaining=0)
         command = controller.next_command(self.rec(obs))
         self.assertEqual(command.action, NoahAction.WAIT_COOLDOWN)
         self.assertTrue(command.scheduler_ready)
         self.assertEqual(command.next_eligible_timestamp, 200.0)
+
+    def test_matured_persisted_tier_reopens_before_free_revalidation(self):
+        from tasks.noahs_tavern_recruit_maintenance import PersistedTierState
+
+        controller = NoahTavernRecruitRuntimeController(now=100.0)
+        state = controller.maintenance_controller.state
+        state.tiers[RecruitTier.INT] = PersistedTierState(0, 90.0, 86400, "action_performed")
+        state.tiers[RecruitTier.ADV] = PersistedTierState(0, 900.0, 172800, "action_performed")
+        basic = self.f.after(self.f.tavern())
+        # Actual recognition cannot know the free count behind an unopened tab.
+        basic = replace(basic, tiers=tuple(
+            replace(item, attempts_remaining=None, free_control_visible=False, free_control_enabled=False)
+            if item.tier is RecruitTier.INT else item for item in basic.tiers
+        ))
+        command = controller.next_command(self.rec(basic))
+        self.assertEqual(command.action, NoahAction.SELECT_TIER)
+        self.assertEqual(command.tier, RecruitTier.INT)
+        fresh_int = self.f.tavern(selected=RecruitTier.INT, digest="e" * 64)
+        self.assertEqual(controller.next_command(self.rec(fresh_int)).action, NoahAction.RECRUIT_FREE)
+
+    def test_pending_result_close_rejects_wrong_tier_stale_and_overlay(self):
+        for mutation in (
+            lambda result: replace(result, result_tier=RecruitTier.INT),
+            lambda result: replace(result, stale=True),
+            lambda result: replace(result, overlay_state="modal"),
+        ):
+            with self.subTest(mutation=mutation):
+                controller = NoahTavernRecruitRuntimeController()
+                before = self.f.tavern()
+                self.assertEqual(controller.next_command(self.rec(before)).action, NoahAction.RECRUIT_FREE)
+                self.assertEqual(controller.next_command(self.rec(mutation(self.f.result()))).action, NoahAction.STOP)
 
     def test_bad_result_close_is_fail_closed(self):
         controller = NoahTavernRecruitRuntimeController()

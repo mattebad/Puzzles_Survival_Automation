@@ -484,9 +484,9 @@ class RecruitmentMaintenanceSelectionHandler:
         projection = facts.projections[RECRUITMENT_FLOW_ID]
         snapshot = self._snapshot.to_mapping()
         return NormalizedResult(
-            NormalizedOutcome.COMPLETE_FOR_RESET,
-            "RECRUITMENT_MAINTENANCE_PARENT_CANARY_REQUIRED",
-            verified=True,
+            NormalizedOutcome.BLOCKED,
+            "RECRUITMENT_RUNNER_NOT_CONFIGURED",
+            verified=False,
             observed_progress={
                 "transport_count": 0,
                 "accepted_product": RECRUITMENT_PRODUCT_ID,

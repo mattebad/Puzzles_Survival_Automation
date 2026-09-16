@@ -100,87 +100,478 @@ def _project_building(localization: LocalizationResult, building: SemanticBuildi
     return cv2.perspectiveTransform(points, inverse).reshape(-1, 2)
 
 
+_BINDING_MAX_OCR_CALLS = 2
+_BINDING_OCR_TIMEOUT_SECONDS = 15
+_LABEL_COMPONENT_THRESHOLDS = (128, 140)
+_LABEL_COMPONENT_HORIZONTAL_GAP = 24
+_LABEL_COMPONENT_Y_TOLERANCE = 3
+
+
+def _record_binding_diagnostic(
+    diagnostics: dict[str, object] | None,
+    *,
+    reason: str,
+    **details: object,
+) -> None:
+    if diagnostics is None:
+        return
+    diagnostics.clear()
+    diagnostics.update({"reason": reason, **details})
+
+
+def _label_line_candidate(
+    frame: np.ndarray,
+    projected: np.ndarray,
+    search: tuple[int, int, int, int],
+) -> tuple[
+    tuple[int, int, int, int],
+    tuple[int, int, int, int],
+    tuple[int, int, int, int] | None,
+]:
+    """Find one complete renderer label line within the projected search area.
+
+    Retained frames place labels at materially different heights relative to a
+    building, so segmentation covers the whole projected search rectangle. Two
+    fixed, renderer-calibrated luminance
+    thresholds make antialiased glyph extents stable without widening the OCR
+    search or making spelling part of candidate selection.
+    """
+
+    search_x0, search_y0, search_x1, search_y1 = search
+    if search_x0 >= search_x1 or search_y0 >= search_y1:
+        return search, search, None
+
+    gray = cv2.cvtColor(
+        frame[search_y0:search_y1, search_x0:search_x1],
+        cv2.COLOR_BGR2GRAY,
+    )
+    candidates: list[tuple[int, int, int, int, int, int, int]] = []
+    for threshold in _LABEL_COMPONENT_THRESHOLDS:
+        ink = np.uint8(gray >= threshold) * 255
+        ink = cv2.morphologyEx(
+            ink,
+            cv2.MORPH_CLOSE,
+            cv2.getStructuringElement(cv2.MORPH_RECT, (3, 1)),
+        )
+        count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(
+            ink,
+            8,
+        )
+        components: list[tuple[int, int, int, int, int]] = []
+        for index in range(1, count):
+            component_x, component_y, width, height, area = (
+                int(value) for value in stats[index]
+            )
+            if 5 <= height <= 14 and 2 <= width <= 80 and area >= 10:
+                components.append(
+                    (
+                        component_x + search_x0,
+                        component_y + search_y0,
+                        width,
+                        height,
+                        area,
+                    )
+                )
+        components.sort(key=lambda item: (item[1], item[0]))
+        rows: list[list[tuple[int, int, int, int, int]]] = []
+        for component in components:
+            center_y = component[1] + component[3] / 2
+            row = next(
+                (
+                    candidate
+                    for candidate in rows
+                    if abs(
+                        center_y
+                        - float(
+                            np.median(
+                                [
+                                    item[1] + item[3] / 2
+                                    for item in candidate
+                                ]
+                            )
+                        )
+                    )
+                    <= _LABEL_COMPONENT_Y_TOLERANCE
+                ),
+                None,
+            )
+            if row is None:
+                rows.append([component])
+            else:
+                row.append(component)
+        for row in rows:
+            row.sort(key=lambda item: item[0])
+            groups: list[list[tuple[int, int, int, int, int]]] = []
+            for component in row:
+                if (
+                    not groups
+                    or component[0]
+                    - (groups[-1][-1][0] + groups[-1][-1][2])
+                    > _LABEL_COMPONENT_HORIZONTAL_GAP
+                ):
+                    groups.append([component])
+                else:
+                    groups[-1].append(component)
+            for group in groups:
+                text_x0 = min(item[0] for item in group)
+                text_y0 = min(item[1] for item in group)
+                text_x1 = max(item[0] + item[2] for item in group)
+                text_y1 = max(item[1] + item[3] for item in group)
+                width = text_x1 - text_x0
+                height = text_y1 - text_y0
+                if width < 20 or height < 5 or height > 16:
+                    continue
+                candidates.append(
+                    (
+                        text_x0,
+                        text_y0,
+                        text_x1,
+                        text_y1,
+                        len(group),
+                        sum(item[4] for item in group),
+                        threshold,
+                    )
+                )
+
+    if not candidates:
+        return search, search, None
+
+    # The same line appears at both thresholds.  Retain the wider, denser
+    # extent before ranking, so weak antialiased trailing glyphs are not clipped.
+    candidates.sort(
+        key=lambda item: (
+            item[1],
+            item[0],
+            -(item[2] - item[0]),
+            -item[5],
+        )
+    )
+    unique: list[tuple[int, int, int, int, int, int, int]] = []
+    for candidate in candidates:
+        if any(
+            abs(candidate[1] - prior[1]) <= _LABEL_COMPONENT_Y_TOLERANCE
+            and abs(candidate[0] - prior[0]) <= 4
+            and abs(candidate[2] - prior[2]) <= 4
+            and abs(candidate[3] - prior[3]) <= 4
+            for prior in unique
+        ):
+            continue
+        unique.append(candidate)
+
+    px0, _py0 = np.floor(projected.min(axis=0)).astype(int)
+    px1, py1 = np.ceil(projected.max(axis=0)).astype(int)
+    projected_center_x = (float(px0) + float(px1)) / 2.0
+
+    def candidate_score(
+        candidate: tuple[int, int, int, int, int, int, int],
+    ) -> tuple[float, float, float, float, float]:
+        text_x0, text_y0, text_x1, text_y1, _count, area, _threshold = candidate
+        width = text_x1 - text_x0
+        height = text_y1 - text_y0
+        density = area / float(width * height)
+        center_x = (float(text_x0) + float(text_x1)) / 2.0
+        return (
+            abs(center_x - projected_center_x),
+            abs(float(text_y1) - float(py1)),
+            -float(min(width, 120)),
+            abs(float(height) - 9.0),
+            -min(density, 1.0),
+        )
+
+    text_x0, text_y0, text_x1, text_y1, _count, _area, _threshold = min(
+        unique,
+        key=candidate_score,
+    )
+    text_bounds = (text_x0, text_y0, text_x1, text_y1)
+    padded = (
+        max(search_x0, text_x0 - 14),
+        max(search_y0, text_y0 - 4),
+        min(search_x1, text_x1 + 14),
+        min(search_y1, text_y1 + 7),
+    )
+    return text_bounds, padded, text_bounds
+
+
 def bind_visible_building(
     frame: np.ndarray,
     localization: LocalizationResult,
     building: SemanticBuilding,
     *,
     ocr=None,
+    diagnostics: dict[str, object] | None = None,
 ) -> BuildingBinding | None:
-    """BlueStacks renderer binding for an atlas-predicted building label.
+    """Bind an atlas building only after current-frame renderer label proof.
 
-    Projection narrows the current-frame search only.  A present renderer-local
+    Projection narrows the current-frame search only. A present renderer-local
     semantic label is still required and the returned interaction ROI must lie
     wholly inside the fixed-HUD-free region.
     """
 
-    if (
-        not native_frame_guard(frame)
-        or localization.profile_id != BLUESTACKS_PROFILE_ID
-        or localization.frame_sha256 != frame_digest(frame)
-        or not building.interaction_eligible
-    ):
+    if not native_frame_guard(frame):
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="localization_failed",
+            predicate="native_frame_guard",
+        )
         return None
-    policy = building.platform_binding_policy.get("bluestacks", building.recognition.get("bluestacks", {}))
+    if localization.profile_id != BLUESTACKS_PROFILE_ID:
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="localization_failed",
+            predicate="profile_id",
+            expected_profile_id=BLUESTACKS_PROFILE_ID,
+            actual_profile_id=localization.profile_id,
+        )
+        return None
+    current_digest = frame_digest(frame)
+    zoom_identity = getattr(localization, "zoom_identity", None)
+    if (
+        not localization.recognized
+        or zoom_identity is not ZoomIdentity.FULLY_ZOOMED_OUT
+        or bool(getattr(localization, "stale", False))
+        or bool(getattr(localization, "overlay", False))
+    ):
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="localization_failed",
+            predicate="canonical_localization_state",
+            recognized=bool(localization.recognized),
+            zoom_identity=getattr(zoom_identity, "value", zoom_identity),
+            stale=bool(getattr(localization, "stale", False)),
+            overlay=bool(getattr(localization, "overlay", False)),
+        )
+        return None
+    if localization.frame_sha256 != current_digest:
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="localization_failed",
+            predicate="current_frame_digest",
+            localization_frame_sha256=localization.frame_sha256,
+            current_frame_sha256=current_digest,
+        )
+        return None
+    if not building.interaction_eligible:
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="target_unsafe",
+            predicate="interaction_eligible",
+            building_id=building.semantic_id,
+        )
+        return None
+    policy = building.platform_binding_policy.get(
+        "bluestacks", building.recognition.get("bluestacks", {})
+    )
     if not isinstance(policy, dict) or not policy.get("label"):
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="target_unsafe",
+            predicate="renderer_label_policy",
+            building_id=building.semantic_id,
+        )
         return None
     expected = _normalized_label(str(policy["label"]))
     declared_aliases = policy.get("label_aliases", ())
-    if not isinstance(declared_aliases, (list, tuple)) or not all(isinstance(item, str) and item.strip() for item in declared_aliases):
+    if not isinstance(declared_aliases, (list, tuple)) or not all(
+        isinstance(item, str) and item.strip() for item in declared_aliases
+    ):
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="target_unsafe",
+            predicate="renderer_label_alias_policy",
+            building_id=building.semantic_id,
+        )
         return None
     accepted_labels = (expected, *(_normalized_label(item) for item in declared_aliases))
-    projected = _project_building(localization, building)
+    try:
+        projected = _project_building(localization, building)
+    except (ValueError, np.linalg.LinAlgError) as exc:
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="localization_failed",
+            predicate="project_building",
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        return None
     px0, py0 = np.floor(projected.min(axis=0)).astype(int)
     px1, py1 = np.ceil(projected.max(axis=0)).astype(int)
-    search = (max(0, px0 - 18), max(0, py1 - 75), min(800, px1 + 18), min(1280, py1 + 45))
+    search = (
+        max(0, px0 - 18),
+        max(0, py1 - 75),
+        min(800, px1 + 18),
+        min(1280, py1 + 45),
+    )
     if search[0] >= search[2] or search[1] >= search[3]:
-        return None
-    crop = cv2.cvtColor(frame[search[1]:search[3], search[0]:search[2]], cv2.COLOR_BGR2GRAY)
-    threshold = cv2.threshold(crop, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-    reader = ocr or (lambda image, psm: pytesseract.image_to_string(image, config=f"--psm {psm}"))
-    readings = []
-    for variant in (crop, threshold):
-        enlarged = cv2.resize(variant, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
-        readings.extend(reader(enlarged, psm) for psm in (6, 7, 11, 12))
-    text = _normalized_label(" ".join(readings))
-    if not any(_contains_label(text, label) for label in accepted_labels):
-        # Small renderer labels can disappear inside the broader projected
-        # building crop.  Re-read only the independently projected label band;
-        # this remains current-frame semantic proof, never geometry-only authority.
-        center_x = (px0 + px1) // 2
-        focused = (
-            max(0, center_x - 46),
-            max(0, py1 - 34),
-            min(800, center_x + 34),
-            min(1280, py1 + 2),
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="target_unsafe",
+            predicate="projected_search_bounds",
+            projected_polygon=np.asarray(projected, dtype=float).tolist(),
+            search_bounds=tuple(int(value) for value in search),
         )
-        if focused[0] < focused[2] and focused[1] < focused[3]:
-            focused_color = frame[focused[1]:focused[3], focused[0]:focused[2]]
-            focused_gray = cv2.cvtColor(focused_color, cv2.COLOR_BGR2GRAY)
-            focused_threshold = cv2.threshold(
-                focused_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU,
-            )[1]
-            for variant in (focused_color, focused_gray, focused_threshold):
-                enlarged = cv2.resize(variant, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
-                readings.extend(reader(enlarged, psm) for psm in (8, 13))
-            text = _normalized_label(" ".join(readings))
-    if not any(_contains_label(text, label) for label in accepted_labels):
+        return None
+    line_band, text_crop_bounds, glyph_bounds = _label_line_candidate(
+        frame,
+        projected,
+        tuple(int(value) for value in search),
+    )
+    if glyph_bounds is None and ocr is None:
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="label_not_read",
+            building_id=building.semantic_id,
+            expected_label=expected,
+            accepted_labels=accepted_labels,
+            projected_polygon=np.asarray(projected, dtype=float).tolist(),
+            search_bounds=tuple(int(value) for value in search),
+            label_band_bounds=tuple(int(value) for value in line_band),
+            text_bounds=None,
+            glyph_bounds=None,
+            ocr_calls=[],
+            decisive_predicate={
+                "label_band_valid": False,
+                "expected_label_present": False,
+            },
+        )
+        return None
+    if (
+        text_crop_bounds[0] >= text_crop_bounds[2]
+        or text_crop_bounds[1] >= text_crop_bounds[3]
+    ):
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="label_not_read",
+            building_id=building.semantic_id,
+            expected_label=expected,
+            accepted_labels=accepted_labels,
+            projected_polygon=np.asarray(projected, dtype=float).tolist(),
+            search_bounds=tuple(int(value) for value in search),
+            label_band_bounds=tuple(int(value) for value in line_band),
+            text_bounds=tuple(int(value) for value in text_crop_bounds),
+            glyph_bounds=None,
+            ocr_calls=[],
+            decisive_predicate={
+                "label_band_valid": False,
+                "expected_label_present": False,
+            },
+        )
+        return None
+    reader = ocr or (
+        lambda image, psm: pytesseract.image_to_string(
+            image,
+            config=f"--psm {psm}",
+            timeout=_BINDING_OCR_TIMEOUT_SECONDS,
+        )
+    )
+    readings: list[dict[str, object]] = []
+    matched_label: str | None = None
+    image = frame[
+        text_crop_bounds[1]:text_crop_bounds[3],
+        text_crop_bounds[0]:text_crop_bounds[2],
+    ]
+    enlarged = cv2.resize(image, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
+    for psm in (13, 11):
+        if len(readings) >= _BINDING_MAX_OCR_CALLS:
+            break
+        try:
+            raw = str(reader(enlarged, psm))
+            error = None
+        except (OSError, RuntimeError, TimeoutError) as exc:
+            raw = ""
+            error = f"{type(exc).__name__}: {exc}"
+        normalized = _normalized_label(raw)
+        matches = tuple(label for label in accepted_labels if _contains_label(normalized, label))
+        reading = {
+            "psm": psm,
+            "variant": "renderer_label_line_bgr",
+            "shape": tuple(int(value) for value in enlarged.shape),
+            "raw_text": raw,
+            "normalized_text": normalized,
+            "matched_labels": matches,
+        }
+        if error is not None:
+            reading["error"] = error
+        readings.append(reading)
+        if matches:
+            matched_label = matches[0]
+            break
+    common_diagnostics = {
+        "building_id": building.semantic_id,
+        "expected_label": expected,
+        "accepted_labels": accepted_labels,
+        "projected_polygon": np.asarray(projected, dtype=float).tolist(),
+        "search_bounds": tuple(int(value) for value in search),
+        "label_band_bounds": tuple(int(value) for value in line_band),
+        "text_bounds": tuple(int(value) for value in text_crop_bounds),
+        "glyph_bounds": (
+            tuple(int(value) for value in glyph_bounds)
+            if glyph_bounds is not None
+            else None
+        ),
+        "ocr_calls": readings,
+    }
+    if matched_label is None:
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="label_not_read",
+            **common_diagnostics,
+            decisive_predicate={
+                "expected_label_present": False,
+                "matched_label": None,
+            },
+        )
         return None
     sx0, sy0, sx1, sy1 = BLUESTACKS_SAFE_INTERACTION_BOX
-    ax0, ay0, ax1, ay1 = max(px0, sx0), max(py0, sy0), min(px1, sx1), min(py1, sy1)
+    ax0, ay0, ax1, ay1 = (
+        max(px0, sx0), max(py0, sy0), min(px1, sx1), min(py1, sy1)
+    )
     if ax1 - ax0 < 45 or ay1 - ay0 < 45:
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="target_unsafe",
+            **common_diagnostics,
+            decisive_predicate={
+                "expected_label_present": True,
+                "matched_label": matched_label,
+                "safe_interaction_size": (int(ax1 - ax0), int(ay1 - ay0)),
+            },
+        )
         return None
     inset_x = min(18, max(6, (ax1 - ax0) // 8))
     inset_y = min(18, max(6, (ay1 - ay0) // 8))
     target = (ax0 + inset_x, ay0 + inset_y, ax1 - inset_x, ay1 - inset_y)
     if target[0] >= target[2] or target[1] >= target[3]:
+        _record_binding_diagnostic(
+            diagnostics,
+            reason="target_unsafe",
+            **common_diagnostics,
+            decisive_predicate={
+                "expected_label_present": True,
+                "matched_label": matched_label,
+                "target_valid": False,
+            },
+        )
         return None
+    _record_binding_diagnostic(
+        diagnostics,
+        reason="accepted",
+        **common_diagnostics,
+        decisive_predicate={
+            "expected_label_present": True,
+            "matched_label": matched_label,
+            "target_valid": True,
+            "target_roi": tuple(int(value) for value in target),
+        },
+    )
     return BuildingBinding(
         building_id=building.semantic_id,
         target_roi=tuple(int(value) for value in target),
         frame_sha256=localization.frame_sha256,
         confidence=min(localization.confidence, building.confidence, 0.98),
-        semantic_evidence=(f"current-frame OCR: {policy['label']}", "atlas-predicted building region", "BlueStacks renderer policy"),
+        semantic_evidence=(
+            f"current-frame OCR: {policy['label']}",
+            "atlas-predicted building region",
+            "BlueStacks renderer policy",
+        ),
     )
 
 

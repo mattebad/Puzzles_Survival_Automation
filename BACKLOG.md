@@ -1,9 +1,363 @@
-# Canonical execution backlog
+# Bot backlog
 
-Last updated: 2026-07-14 (America/Chicago)
+## Approved direction
 
-This is the single authoritative task/status record. The service plan controls technical
-requirements and measured facts. Evidence records contain observations, not competing status.
+Build a simple, reliable personal game bot on **Windows/BlueStacks first**.
+Reuse the existing flows. Integrate one real flow at a time; do not require a framework
+migration, governance programme, or NAS deployment before useful operation.
+
+This active backlog supersedes the historical execution order below and the previous
+74-ticket recovery proposal. Historical completion labels are not fresh runtime proof.
+Approval of this backlog does not start the bot or authorize live development input.
+
+- Worktree: `C:/tmp/pns-lean-bot-backlog`.
+- Branch: `refactor/lean-bot-backlog`, based on main `dfca54a0c6d898927e83f4ec6c42bf03bffc48fe`.
+- The abandoned Supply worktree remains untouched; no changes were carried forward.
+- Preserve existing explicit gameplay approvals in
+  [`tasks/flow_delivery_product_policy.json`](tasks/flow_delivery_product_policy.json).
+  Resolve only genuine gaps or contradictions. Do not silently replace approved spending
+  with a new blanket zero-spend policy.
+- One running bot, one controlled emulator, one flow at a time.
+- First implementation slice: recruitment through the real service loop, verified offline.
+  Three authorized live attempts retained; latest blocked at building-label binding before Tavern entry.
+
+## LB-01 — Simplify working rules and backlog
+
+- **Status:** Complete, including the three active Cursor instruction entrypoints.
+- **Problem:** Conflicting instructions and oversized task contracts obscure the actual work.
+- **Outcome:** One concise set of working rules, this active backlog, and a current handoff.
+  Keep history without treating it as an active queue.
+- **Code/docs:** `AGENTS.md`, `BACKLOG.md`, `CURRENT_HANDOFF.md`,
+  `docs/backlog-task-contract.md`.
+  `.cursor/rules/pns-model-routing.mdc`, `.cursor/commands/pns-flow-delivery-loop.md`,
+  `.cursor/skills/pns-flow-delivery/SKILL.md`.
+- **Check:** All eight agreed outcomes and all 74 reviewed ticket IDs are accounted for;
+  local document links resolve; historical backlog content is preserved.
+
+## LB-02 — Run an existing flow through the bot loop
+
+- **Status:** Attempt7 bounded live pass verified. Subsequent30-minute soak stopped after27s at Home label binding, before input; prolonged operation remains unverified.
+- **Problem:** `serve` health-checks and sleeps; registered handlers select work rather than
+  running the existing gameplay routes.
+- **Outcome:** Use the existing BlueStacks interface to execute one existing flow, report its
+  actual result, return to a usable state, wait until work is due, and stop on request.
+  Selection is not completion. No Git, handoff, agent, or development-receipt dependency
+  belongs in the bot's runtime loop.
+- **Code/docs:** `automation_service/cli.py`, `automation_service/service.py`,
+  `automation_service/registry.py`, `automation_service/handlers.py`;
+  existing recruitment runners in `scripts/`.
+- **Check:** Exercise the actual configured flow through the service, observe its result,
+  cooldown and later eligibility, and stop it cleanly. Recruitment is the recommended
+  first slice, not a prerequisite for every unrelated repair.
+- **Delivered:** `serve` uses the existing canonical scheduler and native recruitment runner;
+  singleton ownership, persisted UTC cooldowns, Basic reset rollover, interruptible idle waits,
+  and capture/dispatch stop checks. Selection no longer reports recruitment completion.
+  Unknown/interrupted outcomes retain a local inspection block rather than retry consumption.
+- **Verified:** 120 focused tests passed, including guarded service-to-native-runner/controller
+  execution, Home return, 600-second cooldown/restart/later eligibility, midnight rollover with
+  long cooldown retention, matured-tier reinspection, second-controller refusal, stopping
+  before/after input, and fail-closed Home localization allocation errors.
+  Guarded CLI smoke preserved disabled state and released ownership without a device connection.
+  Those checks used scripted recognition/transport; they did not prove live gameplay.
+  Operator invocation and limitations: `docs/automation-service.md`. Stop here; no next slice started.
+- **Live attempt:** User-requested task subagent ran one bounded service launch. Preflight
+  captured a Home-looking native frame, but semantic recognition returned UNKNOWN and a
+  retained-frame Atlas diagnostic hit OpenCV allocation failure. The service then blocked
+  on ADB readiness because `emulator-5554` disappeared, before route-session creation.
+  Zero inputs/recruits; next due unset. Service/flow were temporarily enabled, then restored
+  disabled; the Recruitment inspection block remains. Main verified process exit, disabled
+  gates, empty actions, released service lease and empty runtime-input lock.
+  Retained result: `.local-captures/lb02-live/service-attempt-result.json`.
+  The offline continuation below does not authorize another live attempt.
+- **Offline continuation:** Corrected Home navigation OCR in `scripts/startup_normalization.py`
+  from uniform-block (`--psm 6`) to sparse-text (`--psm 11`). The retained frame now passes
+  the independent Home classifier with six navigation labels; thresholds and source guards
+  are unchanged. The Tavern semantic recognizer still reports UNKNOWN; independent Atlas
+  localization succeeds (confidence 0.983, residual 0.206 px), without bypassing recognition.
+  This improves the independent Home-source check only: the actual preflight uses the Tavern
+  recognizer and still rejects this frame as `current_source_not_recognized`; that failure
+  remains unresolved.
+  Retained-frame smoke passed positive recognition, missing-region/unsafe-source/OCR-failure
+  negatives, and two existing wrong-screen assets; 21 recruitment/navigation tests passed.
+  Read-only existing-server inspection found `emulator-5554` available again, without restart.
+  The original allocation failure and device disappearance remain unexplained. No SIFT,
+  transport, gate, block or gameplay-policy changes; fresh evidence and gameplay still need
+  separate authorization. No additional live run, new persistent test fixture, commit or push.
+- **Live retry (attempt 2):** After the user's BlueStacks restart and explicit retry approval,
+  a task subagent used existing state, cleared only the inspected zero-input ADB block and
+  ran one bounded service pass. Actual inputs: zoom out, camera pan, Tavern tap. The retained
+  next frame visibly shows Adv. Recruit, but the route rejected it as UNKNOWN/stale.
+  No recruitment or Home-return input; no verified cooldown/count transition. Both gates
+  restored disabled (generation 4), new inspection block retained, process exited and locks
+  released. Native events record three inputs even though canonical action counters remain zero.
+  Evidence: `.local-captures/lb02-live/attempt2-20260915T221754Z/attempt2-result.json`.
+  Preserve that inspection block; the following investigation did not authorize another live attempt.
+- **Offline recognition investigation:** User-requested scout mapping followed by task-subagent
+  probes reproduced UNKNOWN with `stale=False`: header OCR `a 2` fails the identity check,
+  and title OCR `AUV. RECPUIL` independently fails tier parsing. Header-only grayscale plus
+  `auv` to `adv` title normalization produced the real controller's RECRUIT_FREE decision
+  in memory, without dispatch; either correction alone failed. Title grayscale did not suffice.
+  Retained Home and synthetic missing header/title/free and stale guards prevented recruitment,
+  including a free-control mask with paid Recruit 10x still visible. No production correction,
+  test suite, live input or state change. Other tier/cooldown images remain unverified.
+  Evidence: `.local-captures/lb02-offline-recognition-20260915T223147Z/report.json`.
+- **Crop-geometry follow-up:** Main inspected the actual OCR crops: title y=105 cuts off
+  letter tops; header ending y=105 includes a title fragment. Unchanged BGR/3x cubic/PSM 6
+  reads `Noah's Tavern —` from header `(180,10,620,60)` and `Adv. Recruit` from title
+  `(150,75,650,145)`, without a new alias. Correct ROI geometry instead of the initial
+  grayscale/alias workaround. Two crop OCR calls only; production edit and full-controller/
+  other-tier verification remain pending. No live input or product edits.
+  Evidence: `.local-captures/lb02-offline-recognition-20260915T223147Z/crop-boundary-comparison.json`.
+- **Crop fix applied:** Task subagent corrected header/title ROIs without grayscale or a new
+  alias. Actual production recognizer/controller replay computes one zero-cost Advanced single;
+  no dispatch. Native-image regression fails with old clipping and passes with corrected ROIs.
+  Main ran 44 recruitment/navigation tests: PASS. Home, missing header/title/free and stale
+  probes stay non-recruitable, including paid Recruit 10x remaining visible. Native Basic/Int/
+  cooldown frames were unavailable. Await the user's Home-reset readiness for the next bounded
+  run; do not reset persisted cooldown/count state. Gates/block untouched; no live input.
+  Evidence: `.local-captures/lb02-crop-fix-20260915T2252Z/probe-results.json`.
+- **Attempt 3 and diagnosis:** User authorized one bounded run after Home reset. Main verified
+  fresh Home, reused existing state, cleared only the inspected previous block, and ran the
+  actual service until its first terminal report. One camera pan; zero Tavern taps/recruits.
+  Gates restored disabled (generation 6), new block retained, lease/lock released, process exited.
+  Exact final-frame replay proves Atlas localization succeeds (confidence 0.978844, residual
+  0.253870 px). Target-label binding fails after 14 OCR calls: broad crop is noisy; focused
+  80px crop clips initial N. Widening alone fails, but complete isolated label-line crop reads
+  `Noah's Tavern` using existing PSM 13. No production change or extra live input.
+  Independent Home OCR false is separate, not the binding veto. Remediate shared label
+  extraction/diagnostics and test retained camera offsets, not aliases or weaker safety checks.
+  Evidence: `.local-captures/lb02-live/attempt3-20260915T231940Z/attempt3-result.json`.
+- **Shared repair completed:** Task subagent replaced clipped/fixed-band extraction with
+  complete glyph-line selection across the Atlas-projected search area. Main caught and
+  returned a Bank regression in the first prototype; final Tavern, Bank and Fighter Camp
+  native cases pass, including five Tavern frames across three camera positions. No injected
+  Tavern label; maximum two OCR calls, 15 seconds each. Existing safety requirements retained.
+  Main verified actual unified-runner rejection emits precise reason plus OCR/crop evidence;
+  wrong/missing label and runtime-safety negatives reject. Final affected suite: 185 tests PASS.
+  No new live input or state/gate/block change. Renderer-specific, not all-building/live proof.
+  Evidence: `.local-captures/lb02-shared-binding-fix-20260916T003701Z/delivery-result.json`.
+- **Attempt 4:** User-requested task subagent used existing shared recovery to close the exact
+  VIP Get Pts popup once. Popup absent and Home visually confirmed by Main, but Home-nav
+  template correlation 0.3359435201 missed the 0.90 threshold. Recovery remains
+  `unresolved:unexpected_successor`; service unstarted, zero Tavern/recruitment inputs.
+  Main verified generation-6 gates still disabled, prior Recruitment block/failures 3 intact,
+  maintenance state empty and ownership released. Preserve the unresolved startup action;
+  investigate the retained successor offline rather than retrying or weakening the threshold.
+  Evidence: `.local-captures/lb02-live/attempt4-20260916T012252Z/attempt4-result.json`;
+  independent image/event/state checks are in adjacent `parent-verification.json`.
+- **Attempt 5:** After the user's ticket/retry request, task subagent used fresh normal Home
+  admission, inspected/re-armed only the failed-run budget (3 to 0), and ran one real service
+  pass. No repeated VIP Close or startup Home-template gate. Repaired Tavern binding passed.
+  Native inputs: Tavern entry, one free Advanced recruit, result Close. Main visually confirmed
+  Griffin Frag x1, followed by Free in 1d 23:59:54 with token balance unchanged at 274.
+  Automatic route stopped at `recruit_postcondition_not_proven`: no Home return or persisted
+  cooldown; revision-0 tier fields are defaults. Native events prove a recruit was dispatched
+  despite zero-dispatch flags/canonical counters. Treat it as consumed; do not blindly retry.
+  Main verified generation-8 gates disabled, new block retained, failures 1, empty maintenance
+  state and released ownership. Operator cleanup hit a closed DB; bounded finalizer restored
+  disabled gates. Prior VIP ledger unchanged. LB-09 was added, not implemented.
+  Evidence: `.local-captures/lb02-live/attempt5-20260916T015052776722Z/attempt5-result.json`
+  and adjacent `parent-verification.json`.
+- **Cooldown/control repair:** The task subagent removed broad “free”/“recruit 1x” co-occurrence
+  matching. Exact button text, enabled purple evidence and no positive timer now govern free
+  availability; Basic explicit counts remain intact. No OCR or verifier relaxation.
+  Main's retained native before/result/after replay now accepts the transition, persists/restores
+  Advanced cooldown in temporary SQLite and denies duplicate recruitment. Final affected suite:
+  72 tests PASS, with native and recognizer-level negative regressions. Operational state/block
+  unchanged; no live retry. Dispatch accounting, wrapper cleanup and LB-09 are not included.
+  Evidence: `.local-captures/lb02-cooldown-control-fix-20260916T022139Z/delivery-result.json`.
+- **Attempt 6:** User returned to Home and authorized one service pass. Task subagent performed
+  one camera pan, Tavern entry and one free Intermediate recruit; no Advanced repeat.
+  Main visually confirmed 5K Nova EXP x1 and unchanged117 token balance. Four identical
+  result captures were rejected at `recruit_result_not_recognized`. Offline replay reads
+  the reward correctly, but the result predicate only accepts “frag” or “antiserum”.
+  No Close, persisted cooldown/count or Home return; Advanced deferred state was not established.
+  Main verified generation10 gates disabled, failures2/max3, new block retained, empty
+  maintenance and released ownership; process exited0 cleanly. Preserve both consumed attempts.
+  Evidence: `.local-captures/lb02-live/attempt6-20260916T024024482907Z/attempt6-result.json`
+  and adjacent independent verification/recognition diagnosis. No source changes or live retry.
+- **Reward-independent completion:** Task subagent implemented the scoped contract; Main finished
+  integration and verification. Pending free context permits one literal Close in the bounded
+  red control. Fresh same-tier Free-in cooldown plus disabled free control proves consumption;
+  reward names, quest counters and exact post-screen decrements are no longer gates.
+  Main verified native Nova and reward-erased Close, complete Advanced native replay with
+  temporary persistence/restart, and synthetic Basic4->3/Int1->0. 78 affected tests PASS.
+  Operational state/generation10 block unchanged; no live input or reconciliation. Both prior
+  recruits remain consumed. Dispatch accounting, live recovery and LB-09 are outside this repair.
+  Evidence: `.local-captures/lb02-cooldown-success-contract-20260916T025512Z/delivery-result.json`.
+- **Attempt7 — verified live pass:** Same task subagent executed one user-authorized service pass.
+  Six native inputs: Tavern entry, Basic free, Close, Int tab, Adv tab, safe Back. Main verified
+  Maverick Frag x1, Basic Free in00:09:56, Int22:40:28, Adv1d21:50:02 and settled Home.
+  No Int/Adv repeat or paid action. Scheduler persisted Basic daily count1/remaining4 and all
+  cooldown deadlines; next due2026-09-16T04:11:47.161664Z. Native route/events prove completion;
+  generic scheduler Home/action-count fields are not authoritative for gameplay completion.
+  Initial launcher failed before service import; corrected single-pass process exited0.
+  Main checked generation12 disabled gates, failures0, released ownership and unchanged VIP
+  ledger. No product changes/tests or second pass; later-due/unattended operation remains untested live.
+  Evidence: `.local-captures/lb02-live/attempt7-20260916T035700Z/attempt7-result.json`
+  and adjacent `parent-verification.json`. No next backlog slice started.
+- **30-minute soak — blocked:** User authorized repeated eligible passes with natural waits.
+  Same task subagent started a correctly bounded1800s service window, then stopped at the first
+  fault after27.328s: `home_atlas_label_not_read`. Main inspected visibly Home source/Tavern label;
+  two capture events and zero dispatches. No new recruits, count/cooldown changes or cycle coverage.
+  Main verified generation14 disabled gates, failures1/max3, new inspection block, unchanged VIP
+  ledger/scheduler invocation, no active runs/ownership and clean exit0. No retry or product changes.
+  Attempt7 success remains valid; Home-binding reliability needs investigation before another soak.
+  Evidence: `.local-captures/lb02-live/soak-20260916T042200Z/soak-result.json`
+  and adjacent `parent-verification.json`, which links the native session omitted by the operator summary.
+
+## LB-03 — Make recognition and navigation support the flows
+
+- **Status:** Planned.
+- **Problem:** Brittle bindings and redundant checks can reject valid UI transitions.
+- **Outcome:** Reuse Home/Atlas/Back helpers. Bind current controls, carry established context
+  through expected transitions, refresh after input, and verify the next screen. Use templates
+  for stable visual controls and OCR for text that actually needs reading. Do not re-prove
+  an obscured building name after opening its menu.
+- **Code/docs:** Existing flow navigation and recognition helpers;
+  `tasks/supply_depot_vision.py` for the targeted Claim Supply binding.
+- **Check:** Exercise the changed route and its plausible wrong-screen case. A valid Supply
+  radial must not fail solely because the building name is hidden. Do not rebuild a universal
+  recognition framework or require identical whole-frame pixels.
+
+## LB-04 — Persist only useful repeatability state
+
+- **Status:** Planned.
+- **Problem:** A bot must survive restarts and respect cooldowns and limits without treating
+  every ordinary click as a distributed transaction.
+- **Outcome:** Reuse existing storage for settings, enabled flows, due times, applicable reset
+  limits, and unfinished work that needs resolution. Resolve uncertain spending from fresh
+  game state where possible; never blindly repeat it. Keep unresolved failures local where safe.
+- **Code/docs:** Existing scheduler, state storage, and relevant flow/resource-state code.
+- **Check:** Restart around a cooldown, reset boundary, and genuinely uncertain consuming action;
+  observe neither duplicate consumption nor a permanent global lock over an ordinary claim.
+
+## LB-05 — Recover from ordinary failures without loops
+
+- **Status:** Planned.
+- **Problem:** Capture/OCR/ADB timeouts, popups, and recovery retries can stall a long-running bot.
+- **Outcome:** Bound work and retries, stop timed-out workers, handle known popups and recoverable
+  application failures, and back off or pause when there is no progress. Do not hold the UI
+  waiting through long cooldowns or retry unsafe unknown outcomes.
+- **Code/docs:** `automation_service/screens.py`, existing transport, recovery, and flow runners.
+- **Check:** Exercise a real timeout/failure scenario, confirm work terminates and recovery is
+  bounded, then observe the bot either continue safely or report a useful paused/skipped result.
+
+## LB-06 — Connect and finish gameplay flows incrementally
+
+- **Status:** Planned; feature groups remain independent work, not one migration gate.
+- **Problem:** Existing routes and planned features are not consistently usable by the bot.
+- **Outcome:** Reuse implementations and finish the following groups as selected:
+  - Daily inventory, ordinary Claim, and milestone chests; distinguish the controls.
+  - Ultimate, Bioenhancer, recruitment, Alliance Help, Personal Might, Supply, and Nova.
+  - Approved resource-item use.
+  - Gear, Chip, and Module enhancement through one family implementation.
+  - Four training configurations through the existing controller, preserving their distinct
+    tier, quantity, daily-limit, and resource-box policies.
+  - Campaign navigation/AP, Ruins challenges/chests, Nano production/Normal Craft.
+  - Gathering through one shared route with resource-specific settings.
+  - Lairs, shops, Hero Upgrade/Duel, building, technology, donations, speedups, boosts,
+    Pit income, and Buy Box, preserving existing decisions and resolving actual policy gaps.
+  Maintenance success is not automatically Daily completion. Ready rewards need not wait for
+  a new challenge. Do not replace Supply's existing approved hold semantics with the abandoned
+  one-Food implementation.
+- **Code/docs:** Existing `scripts/` runners and `tasks/` implementations;
+  `tasks/flow_delivery_product_policy.json`. The development delivery queue is historical
+  implementation information, not the bot scheduler or an authorization source.
+- **Check:** For each selected flow, exercise its actual action, postcondition, applicable
+  cooldown/reset/limit, and return path. Add shared machinery only when the concrete flow needs it.
+
+## LB-07 — Make Windows operation practical
+
+- **Status:** Planned.
+- **Problem:** Personal unattended use needs simple controls and diagnosable failures.
+- **Outcome:** Start/stop/pause/resume/status, flow configuration, second-instance refusal,
+  proportional emulator/account checks, bounded logs and failure screenshots, basic state
+  backup, and bounded restart handling. No fleet-management or mandatory monitoring stack.
+- **Code/docs:** Existing CLI, BlueStacks setup, configuration, logging, and state storage.
+- **Check:** Launch on Windows, reject a second controller, pause/resume/stop, inspect a useful
+  failure report, and verify retention and restart behavior. NAS/VM lifecycle work is deferred.
+
+## LB-08 — Prove useful unattended operation proportionately
+
+- **Status:** Planned; apply focused verification during each implementation slice.
+- **Problem:** Passing selectors, tests, or receipts does not prove repeatable gameplay.
+- **Outcome:** Exercise changed behavior and plausible failures, run affected tests, then run
+  selected working flows across meaningful cooldown/reset/restart boundaries. Inspect failures,
+  recovery, and resource growth. Keep regression tests for real bugs, not paperwork.
+- **Code/docs:** The selected flow/runtime and its relevant existing tests and logs.
+- **Check:** Report exactly what ran and what happened. No full suite after every edit, universal
+  20-contender matrix, or mandatory 24-hour/72-hour/seven-day/21-day qualification ladder.
+
+## LB-09 — Handle known popup interruptions and resume the current flow
+
+- **Status:** Planned; explicitly requested after LB-02 attempt 4. Not part of the live retry.
+- **Problem:** VIP dismissal exists, but shared recovery is startup-only, requires Home afterward,
+  and is not automatically invoked by the canonical Recruitment service. A popup appearing
+  mid-flow can invalidate the next input; successful dismissal is conflated with flow admission.
+- **Outcome:** Integrate allowlisted popup handling at shared observation/pre-dispatch boundaries.
+  Pause the current flow, recognize the popup and its Close control on a fresh native frame,
+  perform one bounded zero-cost dismissal under the existing runtime owner, and verify absence.
+  Record dismissal separately from readiness to resume. Re-observe the underlying context,
+  invalidate stale targets/pending input decisions, and let the flow validate its expected
+  screen. Resume progress without restarting the flow or resetting counts/cooldowns.
+  Home is required only when the flow's current context requires it, not by the dismisser.
+- **Safety:** Unknown/commercial/ambiguous overlays stop without generic Close/Back. Bound
+  observation, dismissal and recurrence; no repeated Close for an uncertain outcome or loop
+  when the same popup persists. Preserve dispatch accounting and existing stop/singleton guards.
+  If interruption follows a consuming input, reconcile that input before continuing; never
+  replay consumption because the popup was removed. Scope ordinary navigation failures locally.
+- **Code/docs:** `scripts/bluestacks_popup_recognition.py`, `scripts/startup_recovery.py`,
+  `scripts/bluestacks_native_runtime.py`, shared navigation boundaries, native flow runners,
+  and `automation_service/recruitment.py`. Reuse existing contracts; do not add a parallel
+  popup framework, per-flow copies, or a new global unresolved-action gate.
+- **Check:** Exercise VIP interruption at startup and mid-Home navigation, plus a supported
+  non-Home context. Confirm exactly one Close, verified absence and context-aware continuation;
+  no forced Home return, stale-target dispatch, state reset or duplicate consuming action.
+  Cover persistent/unknown popup, failed capture, unexpected successor and interruption after
+  consumption. Report dismissal success separately when resumption remains blocked.
+- **Evidence:** `.local-captures/lb02-live/attempt4-20260916T012252Z/attempt4-result.json`
+  records one successful visible VIP close rejected by the unrelated Home-nav template check.
+- **Relationship:** Concrete shared-popup slice of LB-03/LB-05. Ticket creation does not authorize
+  implementation, additional gameplay flows or an autonomous run.
+
+## Disposition of the reviewed recovery tickets
+
+These IDs identify the 74-ticket proposal reviewed in the main worktree. Its uncommitted
+documents were not copied into this branch. Every ID is mapped here; historical records
+below retain their original IDs.
+
+| Previous tickets | Treatment |
+| --- | --- |
+| F01–F08 | Keep concrete bugs; narrow fixes and verification under LB-02–LB-05/LB-07. |
+| F09–F10 | Small integration using existing state/session/transport; no new authority framework. |
+| F11–F12 | Keep necessary shared navigation/recognition repairs under LB-03. |
+| F13 | Connect the existing World flow incrementally; no World-first global gate. |
+| F14–F15 | Keep the actual loop and usable controls under LB-02/LB-07. |
+| F16 | Focused single-bot failure checks under LB-08, not a concurrency programme. |
+| F17 | Adopt bounded OCR where needed under LB-05; no mandatory bulk migration first. |
+| D01 | Reconcile genuine contradictions; preserve existing approvals. |
+| D02–D12 | Keep gameplay and scheduling outcomes under LB-04/LB-06; trim migration gates. |
+| R01 | Preserve resource protections; no wholesale authority migration prerequisite. |
+| R02–R18 | Keep features under LB-06; consolidate enhancement/training/gathering variants. |
+| R19, P01–P12 | Preserve decided policy; ask only about genuine gaps in the selected feature. |
+| O01 | Replace historical reconciliation project with LB-01; keep history as reference. |
+| O02, O05–O06 | Defer NAS work; retain useful Windows setup/backup/recovery under LB-05/LB-07. |
+| O03–O04, O07 | Keep proportional identity checks, controls, and diagnostics under LB-07. |
+| O08–O11 | Replace the qualification programme with LB-08. |
+| O12–O14 | Remove duplicate paths as integrated flows work; not a wholesale prerequisite. |
+
+<!-- ACTIVE_BACKLOG_END -->
+
+## Historical backlog — reference only
+
+Everything below is the prior backlog, retained for history and existing references. Its
+activation instructions, mandatory governance gates, and claims of current authority are
+superseded by the active backlog above and `AGENTS.md`. Do not resume tasks from this section
+unless the user selects their remaining concrete work. Existing explicit gameplay approvals
+and recorded outcomes remain relevant; historical statuses are not new verification.
+
+Historical header: last updated 2026-07-14 (America/Chicago).
 
 ## Repository governance migration
 

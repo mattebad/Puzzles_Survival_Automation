@@ -1027,8 +1027,8 @@ class _CanonicalPulseCoordinator:
                     owner_instance_id=lease_owner,
                     process_start_token=lease_token,
                     lease_generation=lease_generation,
-                    max_inputs=1,
-                    max_actions=1,
+                    max_inputs=getattr(self.handlers[candidate.descriptor.flow_id], "max_inputs", 1),
+                    max_actions=getattr(self.handlers[candidate.descriptor.flow_id], "max_actions", 1),
                     **claim_values,
                 )
             except StateBusyError:
@@ -1168,7 +1168,16 @@ class _CanonicalPulseCoordinator:
                         self._next_wake(now, facts),
                         "DISPATCH_FENCE_FAILED",
                     )
-                plan = handler.plan(facts, perception)
+                execute_run = getattr(handler, "execute_run", None)
+                plan = (
+                    execute_run(running, facts, perception)
+                    if callable(execute_run) else handler.plan(facts, perception)
+                )
+                if callable(execute_run):
+                    now = self.clock()
+                    # Native execution may observe a stop while running. Preserve
+                    # that transition when projecting its blocked terminal result.
+                    running = self.state.get_run(running.run_id) or running
                 normalized = (
                     plan
                     if isinstance(plan, NormalizedResult)
@@ -1193,6 +1202,7 @@ class _CanonicalPulseCoordinator:
                 self._project_terminal(
                     running,
                     terminal_state,
+                    expected_state=running.state,
                     expected_row_version=running.row_version,
                     reason=scheduler_result.reason_code,
                     outcome=scheduler_result.outcome.value,
