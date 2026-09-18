@@ -2,13 +2,13 @@
 
 ## Current position
 
-LB-03's Atlas-defined Home entry is live accepted. The pushed `bc93ea7` cutover plus an
-uncommitted follow-up candidate provide Atlas-wide startup zoom normalization and the demonstrated
-fractional-anchor ROI rounding fix. Fresh current-frame geometry and route-owned successor
+LB-03's Atlas-defined Home entry is live accepted and pushed through `827a85b`. The checkpoint
+provides Atlas-wide startup zoom normalization and the demonstrated fractional-anchor ROI rounding
+fix. Fresh current-frame geometry and route-owned successor
 recognition remain the entry contract.
 
 - Worktree: `C:/tmp/pns-lean-bot-backlog`; branch: `refactor/lean-bot-backlog`.
-- Candidate parent: pushed `bc93ea7fcb8bf7cef38c9fe28a3bbf0f05ab0233`.
+- Accepted checkpoint: pushed `827a85b` to `origin/refactor/lean-bot-backlog`.
 - Old worktree `C:/tmp/pns-supply-depot-one-claim` is untouched; nothing was carried forward.
 - The active backlog is above `<!-- ACTIVE_BACKLOG_END -->` in `BACKLOG.md`.
 - Windows/BlueStacks first; NAS deferred. Preserve existing explicit gameplay approvals.
@@ -21,9 +21,8 @@ recognition remain the entry contract.
 - State is generation16 disabled and unblocked, failures0/max3, next due persisted, with no
   owner/run/input lock. The unresolved startup VIP record is unchanged.
 - Evidence: `.local-captures/lb03-live-admission-20260918T224056406651Z/`.
-- The follow-up candidate remains uncommitted. Commit/push still requires authorization.
-- LB-04 through LB-08 remain planned and untouched. LB-09 is next after the follow-up
-  candidate's separately authorized commit/push checkpoint.
+- The accepted follow-up candidate is committed and pushed at `827a85b`.
+- LB-04 through LB-08 remain planned and untouched. LB-09 is ready next.
 - Do not resume S1c, contact prior agents, or retry the historical Campaign r2 attempt.
 - No paid input, duplicate recruit, popup recovery, unrelated flow, or post-soak live input ran.
 
@@ -358,8 +357,7 @@ and the startup VIP unresolved record unchanged. Evidence:
 `.local-captures/lb03-live-admission-20260918T224056406651Z/`.
 
 Limitations: full 1,800-second duration, real night/day transition, and live Supply/Nova or
-other-building entry remain unproved. The follow-up candidate is uncommitted; start LB-09 only
-after commit/push is explicitly authorized and completed.
+other-building entry remain unproved. The accepted checkpoint is pushed; LB-09 is ready next.
 
 ## Existing machine-readable state
 
@@ -373,38 +371,12 @@ registry. Offline fixtures and retained live evidence remain distinct.
 {
   "schema_version": 3,
   "branch": "refactor/lean-bot-backlog",
-  "head_binding": "bc93ea7fcb8bf7cef38c9fe28a3bbf0f05ab0233",
-  "last_product_candidate_head": "bc93ea7fcb8bf7cef38c9fe28a3bbf0f05ab0233",
+  "head_binding": "827a85b8e685bc15aaf03c559a5a7df66718d876",
+  "last_product_candidate_head": "827a85b8e685bc15aaf03c559a5a7df66718d876",
   "ahead_behind": {
     "source": "compute_from_git"
   },
-  "attributable_dirty_paths": [
-    "BACKLOG.md",
-    "CURRENT_HANDOFF.md",
-    "docs/atlas-home-entry-design.md",
-    "docs/automation-service.md",
-    "scripts/bioenhancer_free_research_canary.py",
-    "scripts/bluestacks_campaign_ap.py",
-    "scripts/bluestacks_ultimate_challenge.py",
-    "scripts/home_atlas_bluestacks.py",
-    "scripts/noahs_tavern_recruit_bluestacks.py",
-    "scripts/ruins_challenge_bluestacks.py",
-    "scripts/supply_depot_free_canary.py",
-    "tasks/home_atlas_vision.py",
-    "tests/test_flow_delivery_supply_depot_bluestacks.py",
-    "tests/test_home_atlas_planner.py",
-    "tests/test_home_atlas_verified_route.py",
-    "tests/test_noahs_tavern_navigation.py",
-    "tests/test_troop_training_entry.py",
-    "scripts/atlas_flow_startup.py",
-    "scripts/atlas_runtime_startup.py",
-    "scripts/atlas_startup_normalizer.py",
-    "scripts/noah_atlas_startup.py",
-    "tests/test_atlas_flow_startup.py",
-    "tests/test_atlas_runtime_startup.py",
-    "tests/test_atlas_startup_normalizer.py",
-    "tests/test_ruins_home_zoom_normalization.py"
-  ],
+  "attributable_dirty_paths": [],
   "task_start_worktree": {
     "tracked_dirty_paths": [
       "AGENTS.md",
@@ -421,28 +393,28 @@ registry. Offline fixtures and retained live evidence remain distinct.
     "evidence/"
   ],
   "current_task_id": "LB-03",
-  "current_task_state": "live_accepted_awaiting_commit_push",
+  "current_task_state": "closed_live_accepted_checkpoint_pushed",
   "next_task_id": "LB-09",
-  "next_task_activation_status": "after_lb03_candidate_commit_push",
-  "active_task_or_flow": "LB-03",
-  "active_delivery_stage": "live_accepted",
+  "next_task_activation_status": "ready",
+  "active_task_or_flow": "none",
+  "active_delivery_stage": "checkpoint_pushed",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
-  "unresolved_action_state": "awaiting_commit_push_authorization",
+  "unresolved_action_state": "none",
   "latest_focused_validation_result": "PASS: 488 tests, 6 skipped; zero-input preflight, two-input canary, two service cycles, 15 soak inputs, 4 free recruits",
   "latest_architecture_validation_result": "No formal governance/architecture validation; reused the existing scheduler, runner, controller and storage",
   "latest_full_suite_result": "PASS: 488 tests, 6 skipped",
   "current_live_attempt_state": "stopped_cleanly_at_four_recruit_safety_ceiling_after_772_8_seconds",
   "current_evidence_or_session_reference": ".local-captures/lb03-live-admission-20260918T224056406651Z/soak-20260918T224734538294Z/soak-result.json",
-  "last_safe_completed_step": "User accepted the 772.8-second four-recruit safety-ceiling result as LB-03 live closure; generation16 disabled/unblocked state remains preserved",
-  "exact_next_permitted_action": "Obtain explicit authorization to commit and push the live-accepted follow-up candidate.",
-  "current_blocker": "Commit/push remains a separate authorization checkpoint.",
+  "last_safe_completed_step": "Committed and pushed the live-accepted LB-03 follow-up checkpoint at 827a85b; generation16 disabled/unblocked state remains preserved",
+  "exact_next_permitted_action": "Begin LB-09 contextual VIP popup handling without live input unless separately authorized.",
+  "current_blocker": "none",
   "prohibited_repeated_action": "Do not repeat consumed recruits before recognized eligibility, trust generic zero counters over native evidence, reset gameplay state or retry automatically; preserve VIP unresolved record",
-  "stage_revision": "lb03-atlas-entry-live-accepted",
-  "stage_type": "live_acceptance",
-  "product_precondition": "live_accepted_candidate_uncommitted",
+  "stage_revision": "lb03-atlas-entry-checkpoint-pushed",
+  "stage_type": "closed",
+  "product_precondition": "met",
   "failure_class": "none",
   "budgets": {
     "stage_revisions_used": 0,
@@ -480,9 +452,9 @@ registry. Offline fixtures and retained live evidence remain distinct.
   "deferred_independent_review": "No mandatory role review; parent completed diff, geometry, affected-suite, live-event and stopped-state verification",
   "stage_7_ordered_plan": [],
   "next_three_atomic_tasks": [
-    "Obtain explicit commit/push authorization for the live-accepted follow-up candidate",
-    "Commit and push only after that authorization",
-    "Start LB-09 contextual VIP popup handling after the checkpoint"
+    "Begin LB-09 contextual VIP popup handling",
+    "Reuse shared popup dismissal only after exact title/body/context matching",
+    "Keep live input and future commit/push behind separate authorization checkpoints"
   ]
 }
 <!-- CURRENT_HANDOFF_STATE_END -->

@@ -208,7 +208,7 @@ Approval of this backlog does not start the bot or authorize live development in
 
 ## LB-03 — Make recognition and navigation support the flows
 
-- **Status:** **Closed — live accepted.** Atlas entry is committed at `bc93ea7`; navigation and two service cycles passed live. The user accepted the intentional four-recruit safety stop at 772.8 seconds as satisfying LB-03 despite the unexecuted 1,800-second wall-time target.
+- **Status:** **Closed — live accepted.** Atlas entry is committed at `bc93ea7`, with the accepted follow-up pushed at `827a85b`; navigation and two service cycles passed live. The user accepted the intentional four-recruit safety stop at 772.8 seconds as satisfying LB-03 despite the unexecuted 1,800-second wall-time target.
 - **Problem:** Brittle bindings and redundant checks can reject valid UI transitions.
 - **Outcome:** Reuse Home/Atlas/Back helpers. Bind current controls, carry established context
   through expected transitions, refresh after input, and verify the next screen. Use templates

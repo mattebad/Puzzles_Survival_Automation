@@ -2,7 +2,7 @@
 
 ## Scope and checkpoint
 
-Checkpoint `bc93ea7fcb8bf7cef38c9fe28a3bbf0f05ab0233` is pushed to `origin/refactor/lean-bot-backlog`. The follow-up uncommitted candidate centralizes bounded Atlas startup normalization and fixes the demonstrated fractional-anchor ROI rounding defect. Its live proof completed two eligible service cycles; the user accepted the intentional four-recruit safety stop at 772.8 seconds as satisfying LB-03 despite the unexecuted 1,800-second wall-time target. Commit/push remains a separate authorization checkpoint.
+Checkpoint `bc93ea7fcb8bf7cef38c9fe28a3bbf0f05ab0233` is pushed to `origin/refactor/lean-bot-backlog`. The follow-up uncommitted candidate centralizes bounded Atlas startup normalization and fixes the demonstrated fractional-anchor ROI rounding defect. Its live proof completed two eligible service cycles; the user accepted the intentional four-recruit safety stop at 772.8 seconds as satisfying LB-03 despite the unexecuted 1,800-second wall-time target. The accepted follow-up is committed and pushed at `827a85b`.
 
 Goal: use a building's Atlas-space interaction anchor, transformed by fresh camera localization, for Home entry. Building-name OCR must not veto an otherwise valid geometric binding. Each flow must still recognize its expected destination or radial before the next action.
 
