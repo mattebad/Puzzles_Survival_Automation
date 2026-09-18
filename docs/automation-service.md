@@ -168,8 +168,22 @@ A subsequent authorized30-minute soak stopped on its first pass after27.328s:
 `home_atlas_label_not_read`, before any input. Main sees Home/Tavern label in the retained frame.
 Two captures, zero recruits; scheduler state and VIP ledger unchanged. Gates disabled at
 generation14, failures1/max3, new block retained, ownership released and process exited0.
-This does not establish prolonged or repeated-cycle reliability. No automatic retry or code fix.
+This does not establish prolonged or repeated-cycle reliability.
 Evidence: `.local-captures/lb02-live/soak-20260916T042200Z/soak-result.json`
 and adjacent `parent-verification.json`.
+
+The LB-03 offline candidate now removes building-name OCR from Home-entry authority. A fresh
+canonical Atlas localization projects a distinct interaction anchor and an anchor-centred hit
+region that must remain inside the building footprint and HUD-safe geometry. Route-owned
+successor recognition still gates Tavern, Supply, Nova and other destinations. The duplicate
+Supply Home-building binder is removed; Claim Supply/radial OCR remains destination semantics.
+The settled affected command passed 369 tests with 4 skipped. Five retained positives include
+the exact failed-soak frame, two other Tavern camera positions, native Bank, and a label-erased
+Tavern frame with OCR forbidden; 16 geometry/state negatives produced no input. Read-only
+inspection preserved generation14 disabled gates, the original block/failure count, cooldowns,
+counts, released ownership and unresolved startup VIP ledger. Evidence:
+`.local-captures/lb03-atlas-entry-20260918T185758Z/`.
+No live LB-03 navigation or prolonged service proof has run yet. Retained Tavern evidence does
+not prove real lighting transitions, Supply/Nova live entry, or other buildings.
 Earlier retained Campaign/Supply results do not qualify this branch's service integration.
 

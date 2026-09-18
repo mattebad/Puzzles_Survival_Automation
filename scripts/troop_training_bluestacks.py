@@ -87,15 +87,15 @@ def _canonical_home_proof(
     *,
     training=None,
 ) -> bool:
-    """Prove a safe canonical Home surface without requiring four labels.
+    """Prove a safe canonical Home surface without requiring facility labels.
 
-    Facility OCR is useful for binding a specific building, but it is not a
-    stable Home predicate: panning can clip a label at the screen edge.  The
-    recovery contract instead requires the native HUD semantic, no recognized
+    Mapped-building geometry is the entry authority; facility label OCR is not a
+    stable Home predicate because panning can clip labels at the screen edge.
+    The recovery contract instead requires the native HUD semantic, no recognized
     training/modal surface, and a same-frame fully-zoomed-out Atlas match.
-    Non-array frames are accepted only for unit-test doubles that already
-    provide a positive Home observation; native runtime frames always take the
-    strict HUD/negative-surface path below.
+    Non-array frames are accepted only for unit-test doubles that already provide
+    a positive Home observation; native runtime frames always take the strict
+    HUD/negative-surface path below.
     """
 
     if training is None:

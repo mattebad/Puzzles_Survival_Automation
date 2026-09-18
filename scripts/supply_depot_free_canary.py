@@ -20,12 +20,11 @@ from scripts.home_atlas_bluestacks import (
 from scripts.navigation_development_boundary import DevelopmentSession
 from tasks.home_atlas import load_home_atlas
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
-from tasks.home_atlas_vision import BlueStacksHomeLocalizer
+from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building
 from tasks.home_nav_recognition import recognize_home_nav
 from tasks.supply_depot import SupplyDepotHoldConfig
 from tasks.supply_depot_vision import (
     SUPPLY_DEPOT_BUILDING_ID,
-    bind_supply_depot_building,
     bind_supply_depot_claim_supply,
     recognize_supply_depot_screen,
 )
@@ -133,11 +132,10 @@ def _bind_home_building(runtime: LocalBlueStacksRuntime, captured):
         return localization, None
     return (
         localization,
-        bind_supply_depot_building(
+        bind_visible_building(
             captured.frame,
             localization,
             atlas.lookup_building(SUPPLY_DEPOT_BUILDING_ID),
-            source_frame=identity,
         ),
     )
 

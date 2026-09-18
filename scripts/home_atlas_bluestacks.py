@@ -151,7 +151,6 @@ from tasks.bluestacks_home_safe_exit import (
     safe_exit_evidence_snapshot,
 )
 from tasks.supply_depot_vision import (
-    bind_supply_depot_building,
     bind_supply_depot_claim_supply,
     recognize_supply_depot_screen,
 )
@@ -1886,34 +1885,6 @@ def reject_direct_supply_depot_navigation_transport(
         raise RuntimeError("DIRECT_TRANSPORT_BYPASS_REJECTED")
 
 
-def bind_supply_depot_home_building(
-    frame: np.ndarray,
-    *,
-    atlas_path: Path | None,
-    source_frame: NativeFrameIdentity,
-) -> BuildingBinding | None:
-    """Bind the Supply Depot building only from a positively recognized Home frame."""
-
-    if atlas_path is None:
-        return None
-    try:
-        atlas = load_home_atlas(atlas_path)
-        localizer = BlueStacksHomeLocalizer(atlas, atlas_path)
-        localization = localizer.localize(frame)
-        if (
-            not localization.recognized
-            or localization.frame_sha256 != source_frame.semantic_sha256
-        ):
-            return None
-        building = atlas.lookup_building("home.building.supply_depot")
-        return bind_supply_depot_building(
-            frame,
-            localization,
-            building,
-            source_frame=source_frame,
-        )
-    except (KeyError, OSError, ValueError):
-        return None
 
 
 def recognize_supply_depot_home_successor(
@@ -2430,11 +2401,24 @@ def dispatch_verified_supply_depot_building_tap(
         label="supply-depot-building-pre-dispatch",
     )
     if rebind_building is None:
-        fresh_binding = bind_supply_depot_home_building(
-            fresh_capture.frame,
-            atlas_path=atlas_path,
-            source_frame=fresh_identity,
-        )
+        if atlas_path is None:
+            fresh_binding = None
+        else:
+            try:
+                atlas = load_home_atlas(atlas_path)
+                fresh_localization = BlueStacksHomeLocalizer(
+                    atlas, atlas_path
+                ).localize(fresh_capture.frame)
+                if fresh_localization.frame_sha256 == fresh_identity.semantic_sha256:
+                    fresh_binding = bind_visible_building(
+                        fresh_capture.frame,
+                        fresh_localization,
+                        atlas.lookup_building(SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY),
+                    )
+                else:
+                    fresh_binding = None
+            except (KeyError, OSError, ValueError, TypeError):
+                fresh_binding = None
     else:
         fresh_binding = rebind_building(fresh_capture.frame, fresh_identity)
     if (
@@ -3945,13 +3929,13 @@ def command_open_building(args) -> int:
     if not source_localization.recognized:
         print(json.dumps({"status": "blocked", "reason": "source_localization_failed", "localization": source_localization.__dict__}, sort_keys=True, default=str))
         return 3
-    source_binding = bind_supply_depot_building(source.frame, source_localization, building)
+    source_binding = bind_visible_building(source.frame, source_localization, building)
     if source_binding is None:
         print(json.dumps({"status": "blocked", "reason": "source_building_binding_failed", "localization": source_localization.__dict__}, sort_keys=True, default=str))
         return 3
     immediate_before = runtime.capture("open-building-immediate-before")
     before_localization = localizer.localize(immediate_before.frame)
-    before_binding = bind_supply_depot_building(immediate_before.frame, before_localization, building)
+    before_binding = bind_visible_building(immediate_before.frame, before_localization, building)
     if before_binding is None or before_binding.overlay_intersects or before_binding.ambiguous_overlap:
         print(json.dumps({"status": "blocked", "reason": "immediate_before_binding_failed"}, sort_keys=True))
         return 3
@@ -4635,6 +4619,32 @@ def command_supply_depot_radial(args) -> int:
             result.update(extra)
         return _emit(result, 3)
 
+    atlas_path = getattr(args, "atlas", None)
+    atlas = None
+    localizer = None
+
+    def _bind_supply_home(frame: np.ndarray, identity: NativeFrameIdentity):
+        nonlocal atlas, localizer
+        if atlas is None or localizer is None:
+            if atlas_path is None:
+                return None
+            try:
+                atlas = load_home_atlas(atlas_path)
+                localizer = BlueStacksHomeLocalizer(atlas, atlas_path)
+            except (KeyError, OSError, ValueError, TypeError):
+                return None
+        try:
+            localization = localizer.localize(frame)
+            if (
+                not localization.recognized
+                or localization.frame_sha256 != identity.semantic_sha256
+            ):
+                return None
+            building = atlas.lookup_building(SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY)
+            return bind_visible_building(frame, localization, building)
+        except (KeyError, OSError, ValueError, TypeError):
+            return None
+
     try:
         source = runtime.capture("radial-source")
         source_ordinal = getattr(runtime, "ordinal", None) or 1
@@ -4650,11 +4660,7 @@ def command_supply_depot_radial(args) -> int:
         )
         source_building_binding = None
         if source_radial_binding is None:
-            source_building_binding = bind_supply_depot_home_building(
-                source.frame,
-                atlas_path=getattr(args, "atlas", None),
-                source_frame=source_identity,
-            )
+            source_building_binding = _bind_supply_home(source.frame, source_identity)
             if source_building_binding is None:
                 return _blocked(
                     "source_radial_or_building_not_recognized",
@@ -4678,22 +4684,10 @@ def command_supply_depot_radial(args) -> int:
             ),
         )
         if source_radial_binding is None:
-            building_binding = bind_supply_depot_home_building(
-                immediate_before.frame,
-                atlas_path=getattr(args, "atlas", None),
-                source_frame=identity,
-            )
+            building_binding = _bind_supply_home(immediate_before.frame, identity)
             radial_binding = None
         else:
-            building_binding = (
-                bind_supply_depot_home_building(
-                    immediate_before.frame,
-                    atlas_path=getattr(args, "atlas", None),
-                    source_frame=identity,
-                )
-                if getattr(args, "atlas", None) is not None
-                else None
-            )
+            building_binding = _bind_supply_home(immediate_before.frame, identity)
             radial_binding = bind_supply_depot_claim_supply(
                 immediate_before.frame,
                 source_frame=identity,

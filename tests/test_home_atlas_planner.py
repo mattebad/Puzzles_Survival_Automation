@@ -9,7 +9,6 @@ from unittest.mock import patch
 
 import cv2
 import numpy as np
-import pytesseract
 
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.home_atlas_bluestacks import bluestacks_direct_pan_contract, command_navigate_building
@@ -138,7 +137,7 @@ class MinimalPanPlannerTests(unittest.TestCase):
         coordinate_only = BuildingBinding(target.semantic_id, (320, 420, 420, 520), loc.frame_sha256, 0.9, ())
         self.assertEqual(controller.plan(loc, coordinate_only).reason, "current_frame_building_binding_rejected")
         controller = DirectPanNavigator(world, target.semantic_id, SAFE, CALIBRATION)
-        semantic = replace(coordinate_only, semantic_evidence=("current-frame OCR: Bank",))
+        semantic = replace(coordinate_only, semantic_evidence=("current-frame Atlas projection",))
         self.assertEqual(controller.plan(loc, semantic).disposition, PlanDisposition.COMPLETE)
 
     def test_bluestacks_and_bliss_calibration_are_separate(self):
@@ -149,31 +148,84 @@ class MinimalPanPlannerTests(unittest.TestCase):
         self.assertEqual(plan.reason, "gesture_calibration_profile_mismatch")
         self.assertNotEqual(blue.profile_id, bliss.profile_id)
 
-    def test_generic_binder_requires_current_frame_semantics(self):
+    def test_geometry_binding_uses_anchor_without_reading_labels(self):
         frame = np.zeros((1280, 800, 3), np.uint8)
         loc = replace(localization(), frame_sha256=frame_digest(frame))
-        target = building(polygon=((300, 400), (440, 400), (440, 540), (300, 540)))
-        self.assertIsNone(bind_visible_building(frame, loc, target, ocr=lambda image, psm: "unknown"))
-        binding = bind_visible_building(frame, loc, target, ocr=lambda image, psm: "Bank")
+        target = building(
+            polygon=((300, 400), (440, 400), (440, 540), (300, 540)),
+        )
+        diagnostics = {}
+        binding = bind_visible_building(frame, loc, target, diagnostics=diagnostics)
         self.assertIsNotNone(binding)
-        self.assertIn("current-frame OCR", binding.semantic_evidence[0])
+        assert binding is not None
+        self.assertEqual(binding.anchor_source, "polygon_centroid")
+        self.assertEqual(binding.atlas_anchor, target.interaction_anchor)
+        self.assertLessEqual(abs((binding.target_roi[0] + binding.target_roi[2]) / 2 - binding.screen_anchor[0]), 1)
+        self.assertLessEqual(abs((binding.target_roi[1] + binding.target_roi[3]) / 2 - binding.screen_anchor[1]), 1)
+        self.assertNotIn("ocr_calls", diagnostics)
 
-        pit = replace(
-            target,
-            semantic_id="home.building.pit",
-            display_identity="Pit",
-            recognition={"bluestacks": {"label": "Pit"}},
-            platform_binding_policy={"bluestacks": {"label": "Pit"}},
+    def test_explicit_interaction_anchor_stays_separate_from_navigation_anchor(self):
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        loc = replace(localization(), frame_sha256=frame_digest(frame))
+        target = replace(
+            building(polygon=((300, 400), (440, 400), (440, 540), (300, 540))),
+            navigation_anchor_override=(370, 470),
+            interaction_anchor_override=(330, 470),
         )
-        self.assertIsNone(
-            bind_visible_building(frame, loc, pit, ocr=lambda image, psm: "Hospital")
-        )
+        binding = bind_visible_building(frame, loc, target)
+        self.assertIsNotNone(binding)
+        assert binding is not None
+        self.assertEqual(target.navigation_anchor, (370, 470))
+        self.assertEqual(target.interaction_anchor, (330, 470))
+        self.assertEqual(binding.atlas_anchor, (330, 470))
+        self.assertAlmostEqual(binding.screen_anchor[0], 330, delta=1)
 
-    def test_native_label_binding_handles_two_retained_camera_offsets(self):
-        try:
-            pytesseract.get_tesseract_version()
-        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
-            self.skipTest("Tesseract is unavailable for native binding regression")
+    def test_geometry_binding_rejects_invalid_or_offscreen_anchor(self):
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        loc = replace(localization(), frame_sha256=frame_digest(frame))
+        offscreen = building(polygon=((900, 400), (1040, 400), (1040, 540), (900, 540)))
+        self.assertIsNone(bind_visible_building(frame, loc, offscreen))
+        malformed = replace(
+            building(polygon=((300, 400), (440, 400), (440, 400), (300, 400))),
+            interaction_anchor_override=(370, 400),
+        )
+        self.assertIsNone(bind_visible_building(frame, loc, malformed))
+        singular = replace(loc, screen_to_atlas=((0, 0, 0), (0, 0, 0), (0, 0, 1)))
+        self.assertIsNone(bind_visible_building(frame, singular, building()))
+
+    def test_hit_region_cannot_bridge_a_concave_footprint_gap(self):
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        loc = replace(localization(), frame_sha256=frame_digest(frame))
+        target = replace(
+            building(polygon=(
+                (300, 400), (500, 400), (500, 450), (350, 450),
+                (350, 550), (500, 550), (500, 600), (300, 600),
+            )),
+            interaction_anchor_override=(340, 500),
+        )
+        # Four ROI corners can lie in the footprint while its right edge
+        # crosses the gap. No minimum-sized region fits around this anchor.
+        self.assertIsNone(bind_visible_building(frame, loc, target))
+
+    def test_retained_bad_label_frame_binds_tavern_geometry(self):
+        root = Path(__file__).resolve().parents[1]
+        atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+        world = load_home_atlas(atlas_path)
+        target = world.lookup_building("home.building.noahs_tavern")
+        localizer = BlueStacksHomeLocalizer(world, atlas_path)
+        frame = cv2.imread(str(root / "tests" / "fixtures" / "home_atlas_noahs_tavern_attempt3.png"), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        localization = localizer.localize(frame)
+        diagnostics = {}
+        binding = bind_visible_building(frame, localization, target, diagnostics=diagnostics)
+        self.assertIsNotNone(binding)
+        assert binding is not None
+        self.assertEqual(binding.building_id, target.semantic_id)
+        self.assertEqual(binding.frame_sha256, frame_digest(frame))
+        self.assertEqual(diagnostics["reason"], "accepted")
+        self.assertEqual(diagnostics["anchor_source"], "explicit_override")
+
+    def test_native_geometry_binding_handles_two_retained_camera_offsets(self):
         root = Path(__file__).resolve().parents[1]
         atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
         world = load_home_atlas(atlas_path)
@@ -187,84 +239,43 @@ class MinimalPanPlannerTests(unittest.TestCase):
                 diagnostics = {}
                 binding = bind_visible_building(frame, localization, target, diagnostics=diagnostics)
                 self.assertIsNotNone(binding)
+                assert binding is not None
                 self.assertEqual(binding.building_id, target.semantic_id)
                 self.assertEqual(binding.frame_sha256, frame_digest(frame))
                 self.assertEqual(diagnostics["reason"], "accepted")
-                self.assertTrue(diagnostics["decisive_predicate"]["expected_label_present"])
-                self.assertLessEqual(len(diagnostics["ocr_calls"]), 2)
+                self.assertNotIn("ocr_calls", diagnostics)
 
-    def test_native_preflight_binding_handles_bank_and_neighbor_labels(self):
-        try:
-            pytesseract.get_tesseract_version()
-        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
-            self.skipTest("Tesseract is unavailable for native binding regression")
+    def test_native_preflight_geometry_binding_handles_bank_and_neighbors(self):
         root = Path(__file__).resolve().parents[1]
         atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
         world = load_home_atlas(atlas_path)
-        frame = cv2.imread(
-            str(root / "tests" / "fixtures" / "home_atlas_preflight_bank.png"),
-            cv2.IMREAD_COLOR,
-        )
+        frame = cv2.imread(str(root / "tests" / "fixtures" / "home_atlas_preflight_bank.png"), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
         localizer = BlueStacksHomeLocalizer(world, atlas_path)
         localization = localizer.localize(frame)
-        for semantic_id in (
-            "home.building.bank",
-            "home.building.fighter_camp",
-            "home.building.noahs_tavern",
-        ):
+        for semantic_id in ("home.building.bank", "home.building.fighter_camp", "home.building.noahs_tavern"):
             with self.subTest(semantic_id=semantic_id):
                 diagnostics = {}
-                building = world.lookup_building(semantic_id)
-                binding = bind_visible_building(
-                    frame,
-                    localization,
-                    building,
-                    diagnostics=diagnostics,
-                )
+                binding = bind_visible_building(frame, localization, world.lookup_building(semantic_id), diagnostics=diagnostics)
                 self.assertIsNotNone(binding)
+                assert binding is not None
                 self.assertEqual(binding.building_id, semantic_id)
                 self.assertEqual(binding.frame_sha256, frame_digest(frame))
                 self.assertEqual(diagnostics["reason"], "accepted")
-                self.assertTrue(diagnostics["decisive_predicate"]["expected_label_present"])
-                self.assertIsNotNone(diagnostics["glyph_bounds"])
-                search = diagnostics["search_bounds"]
-                glyph = diagnostics["glyph_bounds"]
-                self.assertTrue(search[0] <= glyph[0] < glyph[2] <= search[2])
-                self.assertTrue(search[1] <= glyph[1] < glyph[3] <= search[3])
-                self.assertLessEqual(len(diagnostics["ocr_calls"]), 2)
+                self.assertNotIn("ocr_calls", diagnostics)
 
-    def test_native_binding_rejects_wrong_label_and_profile_with_decisive_reasons(self):
-        try:
-            pytesseract.get_tesseract_version()
-        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
-            self.skipTest("Tesseract is unavailable for native binding regression")
-        root = Path(__file__).resolve().parents[1]
-        atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
-        world = load_home_atlas(atlas_path)
-        target = world.lookup_building("home.building.noahs_tavern")
-        frame = cv2.imread(str(root / "tests" / "fixtures" / "home_atlas_noahs_tavern_attempt3.png"), cv2.IMREAD_COLOR)
-        localizer = BlueStacksHomeLocalizer(world, atlas_path)
-        localization = localizer.localize(frame)
-        wrong_label = replace(
-            target,
-            platform_binding_policy={"bluestacks": {"label": "Wrong Building"}},
-            recognition={"bluestacks": {"label": "Wrong Building"}},
-        )
-        label_diagnostics = {}
-        self.assertIsNone(bind_visible_building(frame, localization, wrong_label, diagnostics=label_diagnostics))
-        self.assertEqual(label_diagnostics["reason"], "label_not_read")
-        self.assertFalse(label_diagnostics["decisive_predicate"]["expected_label_present"])
-        profile_diagnostics = {}
-        self.assertIsNone(
-            bind_visible_building(
-                frame,
-                replace(localization, profile_id="wrong-profile"),
-                target,
-                diagnostics=profile_diagnostics,
-            )
-        )
-        self.assertEqual(profile_diagnostics["reason"], "localization_failed")
+    def test_geometry_binding_rejects_stale_ambiguous_and_wrong_profile(self):
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        loc = replace(localization(), frame_sha256=frame_digest(frame))
+        target = building()
+        self.assertIsNone(bind_visible_building(frame, replace(loc, stale=True), target))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, ambiguity_state=AmbiguityState.CONFLICTING_TRANSFORMS), target))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, profile_id="wrong-profile"), target))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, confidence=0.2), target))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, residual_px=float("nan")), target))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, zoom_identity=ZoomIdentity.ZOOMED_IN), target))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, overlay=True), target))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, frame_sha256="b" * 64), target))
 
     def test_project_owned_route_dry_run_issues_no_input(self):
         class Runtime:
@@ -329,7 +340,7 @@ class MinimalPanPlannerTests(unittest.TestCase):
             sample = runtime.capture("seed")
             digest = frame_digest(sample.frame)
             loc = replace(localization(), frame_sha256=digest)
-            binding = BuildingBinding(target.semantic_id, (320, 420, 420, 520), digest, 0.95, ("current-frame OCR: Bank",))
+            binding = BuildingBinding(target.semantic_id, (320, 420, 420, 520), digest, 0.95, ("current-frame Atlas projection: Bank",))
             args = SimpleNamespace(execute=True, yes=True, atlas=Path(directory) / "atlas.json", building_id=target.semantic_id, maximum_pans=4, settle_seconds=0, adb="unused", serial="emulator-5554", output_directory=Path(directory))
             fake_localizer = SimpleNamespace(localize=lambda frame: replace(loc, frame_sha256=frame_digest(frame)))
             with patch("scripts.home_atlas_bluestacks.load_home_atlas", return_value=world), patch(

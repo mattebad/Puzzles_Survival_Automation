@@ -143,6 +143,9 @@ class HomeAtlasVisionTests(unittest.TestCase):
         supply = atlas.lookup_building("home.building.supply_depot")
         self.assertEqual(supply.center, (1246.7, 976.1))
         self.assertIn("supply depot label", " ".join(supply.semantic_proof).lower())
+        self.assertEqual(atlas.lookup_building("home.building.noahs_tavern").interaction_anchor, (355.0, 757.5))
+        self.assertEqual(atlas.lookup_building("home.building.research_lab").interaction_anchor, (835.0, 520.0))
+        self.assertEqual(supply.interaction_anchor, (1246.7, 976.1))
         image = cv2.imread(str(manifest.parent / atlas.image_path), cv2.IMREAD_COLOR)
         self.assertEqual(image.shape[:2], (atlas.height, atlas.width))
 

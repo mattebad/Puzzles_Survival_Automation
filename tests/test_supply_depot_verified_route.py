@@ -203,6 +203,20 @@ def _policy() -> CentralPolicy:
         supervised_tasks=frozenset({SUPPLY_DEPOT_ROUTE_TASK_ID})
     )
 
+def _fake_supply_atlas():
+    return SimpleNamespace(
+        lookup_building=lambda semantic_id: SimpleNamespace(semantic_id=semantic_id)
+    )
+
+
+def _fake_supply_localizer():
+    return SimpleNamespace(
+        localize=lambda frame: SimpleNamespace(
+            recognized=True,
+            frame_sha256=frame_digest(frame),
+        )
+    )
+
 
 class SupplyDepotVerifiedRouteTests(unittest.TestCase):
     def test_command_reuses_all_shared_seams_and_finishes_navigation_only(self) -> None:
@@ -380,6 +394,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                 adb="unused",
                 serial="emulator-5554",
                 output_directory=root,
+                atlas=Path("atlas.json"),
             )
             with patch(
                 "scripts.home_atlas_bluestacks.connect_runtime",
@@ -388,8 +403,14 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                 "scripts.home_atlas_bluestacks.bind_supply_depot_claim_supply",
                 side_effect=radial_bind,
             ), patch(
-                "scripts.home_atlas_bluestacks.bind_supply_depot_home_building",
-                side_effect=lambda frame, *, atlas_path, source_frame: _binding(frame),
+                "scripts.home_atlas_bluestacks.load_home_atlas",
+                return_value=_fake_supply_atlas(),
+            ), patch(
+                "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer",
+                return_value=_fake_supply_localizer(),
+            ), patch(
+                "scripts.home_atlas_bluestacks.bind_visible_building",
+                side_effect=lambda frame, localization, building: _binding(frame),
             ), patch(
                 "scripts.home_atlas_bluestacks.recognize_supply_depot_screen",
                 side_effect=lambda frame, *, source_frame=None: _successor(frame),

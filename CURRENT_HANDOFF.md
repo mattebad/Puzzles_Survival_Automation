@@ -2,26 +2,28 @@
 
 ## Current position
 
-The authorized 30-minute soak stopped after27.328s on its first pass:
-`RECRUITMENT_REQUIRES_INSPECTION:home_atlas_label_not_read`. Two captures, zero inputs/recruits.
-Main sees Home and a visible Tavern label in the retained frame; runtime binding rejected it.
-Scheduler counts/cooldowns and VIP ledger unchanged. Gates disabled at generation14, failures1,
-ownership released, process exited0. No automatic retry or product changes.
-Attempt7's successful bounded pass remains verified; prolonged/repeated-cycle operation is not.
+LB-03's Atlas-defined Home-entry candidate is offline accepted and still uncommitted.
+Fresh current-frame geometry and a distinct interaction anchor now own building entry; the
+obsolete Home-building OCR gate and duplicate Supply binder are removed. Route-specific
+successor recognition remains mandatory.
 
 - Worktree: `C:/tmp/pns-lean-bot-backlog`; branch: `refactor/lean-bot-backlog`.
-- Baseline: main `dfca54a0c6d898927e83f4ec6c42bf03bffc48fe`.
+- Candidate parent: pushed `944827bf8097ea0e16a3e1f412a836d9bfb65e06`.
 - Old worktree `C:/tmp/pns-supply-depot-one-claim` is untouched; nothing was carried forward.
 - The active backlog is above `<!-- ACTIVE_BACKLOG_END -->` in `BACKLOG.md`.
 - Windows/BlueStacks first; NAS deferred. Preserve existing explicit gameplay approvals.
-- Completed implementation: existing recruitment through `serve`, UTC cooldown/restart/reset,
-  singleton ownership and stop/uncertain-result handling. No next backlog slice is active.
-- Eight live authorizations retained: seven attempts plus this soak; attempt4 did not launch service.
-- Cumulative native inputs remain17. The soak's1800s deadline was correct; first fault stopped it.
-- New Recruitment Home-label inspection block retained; failures1/max3. VIP record unchanged.
+- LB-03 verification: 369 affected tests passed, 4 skipped; five retained-frame positives and
+  16 safety negatives passed with zero inputs. Evidence:
+  `.local-captures/lb03-atlas-entry-20260918T185758Z/`.
+- Read-only state remains generation14 disabled, Recruitment block
+  `home_atlas_label_not_read`, failures1/max3, no owner/run/input lock, and unchanged cooldowns,
+  counts, and unresolved startup VIP record.
+- Eight prior LB-02 live authorizations remain retained. Cumulative native inputs remain17.
 - Basic daily count1/remaining4 and Int/Advanced cooldowns persisted by attempt7 remain intact.
+- Commit/push and the authorized bounded LB-03 navigation canary/soak are the next checkpoints.
+- LB-04 through LB-08 remain planned; LB-09 starts only after LB-03 closure.
 - Do not resume S1c, contact prior agents, or retry the historical Campaign r2 attempt.
-- Existing uncommitted documentation changes were preserved. No commit or push was made.
+- No LB-03 live input, commit, or push has occurred.
 
 ## First live attempt — historical
 
@@ -328,6 +330,33 @@ VIP unresolved record. No product changes/tests; no later-due live pass or unatt
 Evidence: `.local-captures/lb02-live/attempt7-20260916T035700Z/attempt7-result.json`
 and adjacent `parent-verification.json`.
 
+## LB-03 Atlas-defined Home entry — offline accepted
+
+The uncommitted candidate separates interaction anchors from camera-placement anchors and
+binds a building only from native 800×1280, fresh canonical Atlas geometry associated with
+the current frame. The anchor-centred hit region must remain inside the projected footprint
+and HUD-safe box; concave gaps and Supply Depot coverage below 55×55 reject. Building-name
+OCR and the duplicate Supply Home binder are absent. Tavern, Nova, Supply, Ruins, training,
+Bioenhancer and generic Home callers retain route-owned successor recognition.
+
+The settled 17-module command passed 369 tests with 4 skipped. Real localization plus binding
+passed on the exact failed-soak Tavern frame, two earlier Tavern camera positions, native Bank,
+and a label-erased frame with OCR patched to raise. Five annotated overlays were inspected:
+Tavern and Bank polygons, anchors and target ROIs land on the intended buildings and remain
+inside the shown safe box. Sixteen negatives cover stale/overlay/profile/zoom/quality/digest/
+transform/geometry/actionability/off-screen/Supply-minimum/concave failures with zero input.
+
+Read-only SQLite URI inspection did not construct a state manager or initialize schema.
+Service and Recruitment remain disabled at generation14; the inspected Home-label block,
+failure count1, scheduler cooldown/count state and startup VIP action are preserved. No active
+run, service owner, Recruitment controller lease or runtime input lock exists. Database and
+WAL hashes remained unchanged across inspection. Evidence:
+`.local-captures/lb03-atlas-entry-20260918T185758Z/`.
+
+Limitations remain explicit: no real night/day transition, Supply or Nova live entry was
+proved by Tavern evidence, and LB-02 prolonged/repeated-cycle operation is still unverified.
+LB-03 commit/push authorization is the next stop before the bounded live navigation check.
+
 ## Existing machine-readable state
 
 The structured shape remains for existing consumers; legacy names do not reinstate ceremony.
@@ -341,36 +370,36 @@ cooldown are visually observed; automated completion, cooldown persistence and H
 {
   "schema_version": 3,
   "branch": "refactor/lean-bot-backlog",
-  "head_binding": "dfca54a0c6d898927e83f4ec6c42bf03bffc48fe",
-  "last_product_candidate_head": "961d2b8adc9391a13e23fcfd967c43e21e755602",
+  "head_binding": "944827bf8097ea0e16a3e1f412a836d9bfb65e06",
+  "last_product_candidate_head": "944827bf8097ea0e16a3e1f412a836d9bfb65e06",
   "ahead_behind": {"source": "compute_from_git"},
-  "attributable_dirty_paths": ["AGENTS.md", "BACKLOG.md", "CURRENT_HANDOFF.md", "docs/backlog-task-contract.md", ".cursor/rules/pns-model-routing.mdc", ".cursor/commands/pns-flow-delivery-loop.md", ".cursor/skills/pns-flow-delivery/SKILL.md", "automation_service/cli.py", "automation_service/service.py", "automation_service/handlers.py", "automation_service/scheduler.py", "automation_service/recruitment.py", "scripts/bluestacks_native_runtime.py", "scripts/noahs_tavern_recruit_bluestacks.py", "scripts/startup_normalization.py", "tasks/noahs_tavern_recruit_runtime.py", "tasks/noahs_tavern_recruit_maintenance.py", "tests/test_service_recruitment.py", "tests/test_automation_service_handlers.py", "tests/test_flow_delivery_recruitment_bluestacks.py", "tests/test_noahs_tavern_recruit.py", "tests/test_noahs_tavern_navigation.py", "tests/test_bluestacks_native_runtime.py", "docs/automation-service.md", "tasks/noahs_tavern_recruit.py", "tasks/noahs_tavern_recruit_vision.py", "tests/test_noahs_tavern_recruit_maintenance.py", "tests/fixtures/noahs_tavern_nova_result.png"],
+  "attributable_dirty_paths": ["scripts/home_atlas_bluestacks.py", "scripts/noahs_tavern_recruit_bluestacks.py", "scripts/supply_depot_free_canary.py", "scripts/troop_training_bluestacks.py", "tasks/assets/home_atlas/bluestacks/800x1280/atlas.json", "tasks/home_atlas.py", "tasks/home_atlas_planner.py", "tasks/home_atlas_vision.py", "tasks/supply_depot_vision.py", "tests/test_home_atlas.py", "tests/test_home_atlas_planner.py", "tests/test_supply_depot_verified_route.py", "tests/test_supply_depot_vision.py", "BACKLOG.md", "CURRENT_HANDOFF.md", "docs/automation-service.md", "docs/atlas-home-entry-design.md"],
   "task_start_worktree": {"tracked_dirty_paths": ["AGENTS.md", "BACKLOG.md", "CURRENT_HANDOFF.md", "docs/backlog-task-contract.md"], "protected_untracked_paths": []},
   "protected_user_owned_paths": ["Stop-PnS-OMP.ps1", ".local-captures/", ".local-reference/", "evidence/"],
-  "current_task_id": "LB-02",
-  "current_task_state": "blocked",
-  "next_task_id": "LB-03",
-  "next_task_activation_status": "awaiting_explicit_activation",
-  "active_task_or_flow": "none",
-  "active_delivery_stage": "blocked",
+  "current_task_id": "LB-03",
+  "current_task_state": "offline_accepted_awaiting_checkpoint",
+  "next_task_id": "LB-09",
+  "next_task_activation_status": "after_lb03_live_closure",
+  "active_task_or_flow": "LB-03",
+  "active_delivery_stage": "offline_accepted",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "blocked",
-  "latest_focused_validation_result": "PASS: 78 affected tests; native Nova/blank-reward Close, Advanced cooldown persistence/restart, synthetic Basic4->3/Int1->0, duplicate Close/acceptance denial",
+  "latest_focused_validation_result": "PASS: 369 affected tests, 4 skipped; 5 retained-frame Atlas positives and 16 no-input safety negatives",
   "latest_architecture_validation_result": "No formal governance/architecture validation; reused the existing scheduler, runner, controller and storage",
   "latest_full_suite_result": "Not run: focused slice verification only",
-  "current_live_attempt_state": "soak_blocked_before_input",
-  "current_evidence_or_session_reference": ".local-captures/lb02-live/soak-20260916T042200Z/soak-result.json",
-  "last_safe_completed_step": "Thirty-minute soak attempted; first Home admission failed after27.328s. Two captures, zero inputs, unchanged scheduler state, generation14 gates disabled, ownership released",
-  "exact_next_permitted_action": "Report stopped soak. Inspect/repair Home label binding offline when selected; preserve state and inspection block. No automatic live retry.",
-  "current_blocker": "home_atlas_label_not_read on visibly Home source. No repeated-cycle soak coverage; attempt7 bounded success remains valid.",
+  "current_live_attempt_state": "lb03_live_not_started",
+  "current_evidence_or_session_reference": ".local-captures/lb03-atlas-entry-20260918T185758Z/offline-proof-summary.json",
+  "last_safe_completed_step": "LB-03 offline accepted; 369 tests pass, retained geometry proof passes, generation14 state unchanged",
+  "exact_next_permitted_action": "Obtain explicit LB-03 commit/push decision, then run the already-authorized bounded navigation canary only against the admitted commit or manifest.",
+  "current_blocker": "LB-03 commit/push checkpoint; live navigation and prolonged service proof remain pending.",
   "prohibited_repeated_action": "Do not repeat consumed recruits before recognized eligibility, trust generic zero counters over native evidence, reset gameplay state or retry automatically; preserve VIP unresolved record",
-  "stage_revision": "lean-recruitment-soak-home-label-block",
-  "stage_type": "live_attempt",
-  "product_precondition": "evidence_required",
-  "failure_class": "runtime_precondition",
+  "stage_revision": "lb03-atlas-entry-offline-accepted",
+  "stage_type": "offline_acceptance",
+  "product_precondition": "offline_accepted_live_proof_pending",
+  "failure_class": "none",
   "budgets": {"stage_revisions_used": 0, "managed_turns_used": 0, "live_attempts_used": 8, "runtime_inputs_used": 17},
   "retained_terminal_disposition": {
     "task_id": "runtime-reliability-stage-10-phase-5-campaign-ap-r2",
@@ -387,14 +416,14 @@ cooldown are visually observed; automated completion, cooldown persistence and H
     "monitoring_issue": "none",
     "do_not_recursively_inspect_parent_evidence_tree": true
   },
-  "control_owner": "sol_parent",
+  "control_owner": "parent_agent",
   "control_parent_conversation_id": "lean-recruitment-service",
-  "deferred_independent_review": "Main inspected retained Home frame, counted two captures/zero dispatches, checked unchanged scheduler/VIP state, generation14 disabled gates, no active runs/ownership and process exit0",
+  "deferred_independent_review": "No mandatory role review; parent completed diff, retained-frame, geometry, affected-suite and read-only state verification",
   "stage_7_ordered_plan": [],
   "next_three_atomic_tasks": [
-    "Report first-pass Home-label failure and absence of prolonged soak coverage",
-    "Inspect Home binding offline when selected; do not bypass the guard or repeat live automatically",
-    "Preserve prior successful pass, persisted cooldowns, new inspection block and VIP record"
+    "Obtain explicit LB-03 commit/push authorization",
+    "Bind live admission to the resulting commit or retained candidate manifest",
+    "Run one bounded Tavern navigation canary, restore stopped state, then proceed to the authorized soak only after canary success"
   ]
 }
 <!-- CURRENT_HANDOFF_STATE_END -->

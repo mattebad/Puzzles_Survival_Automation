@@ -389,7 +389,7 @@ class NoahTavernIntegratedRoute:
                     detail = str(self.atlas_binding_diagnostics.get("reason") or "not_proven")
                     reason = (
                         f"home_atlas_{detail}"
-                        if detail in {"localization_failed", "label_not_read", "target_unsafe"}
+                        if detail in {"localization_failed", "target_unsafe"}
                         else "home_atlas_tavern_binding_not_proven"
                     )
                     return IntegratedRouteResult("blocked", reason, actions, str(self.runtime.session))
@@ -579,21 +579,6 @@ class NoahTavernNavigationCanaryRoute:
         """Persist frame-linked binding evidence without issuing another capture/input."""
 
         diagnostics["source_frame_path"] = str(captured.path)
-        session = Path(self.runtime.session)
-        for name, key in (("search", "search_bounds"), ("text", "text_bounds")):
-            bounds = diagnostics.get(key)
-            if not isinstance(bounds, (tuple, list)) or len(bounds) != 4:
-                continue
-            x0, y0, x1, y1 = (int(value) for value in bounds)
-            if x0 >= x1 or y0 >= y1:
-                continue
-            crop = captured.frame[max(0, y0):min(1280, y1), max(0, x0):min(800, x1)]
-            if crop.size == 0:
-                continue
-            path = session / f"atlas-binding-{name}-{captured.sha256[:12]}.png"
-            session.mkdir(parents=True, exist_ok=True)
-            if cv2.imwrite(str(path), crop):
-                diagnostics[f"{key}_crop_path"] = str(path)
         self.last_atlas_binding_diagnostics = dict(diagnostics)
         self.records.append({"action": "atlas_binding_diagnostic", "diagnostics": dict(diagnostics)})
 
@@ -1287,7 +1272,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
         binding_reason = binding_diagnostics.get("reason")
         blocked_reason = (
             f"home_atlas_{binding_reason}"
-            if binding_reason in {"localization_failed", "label_not_read", "target_unsafe"}
+            if binding_reason in {"localization_failed", "target_unsafe"}
             else "home_atlas_binding_not_proven"
         )
         _write_unified_result(

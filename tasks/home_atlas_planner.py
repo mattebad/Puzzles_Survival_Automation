@@ -28,6 +28,8 @@ from .home_atlas import (
     SemanticBuilding,
     ZoomIdentity,
     point_in_coverage,
+    point_in_polygon,
+    polygon_is_valid,
     polygon_bounds,
 )
 
@@ -314,15 +316,33 @@ def camera_origin(localization: LocalizationResult) -> Point:
 def _localization_rejection(atlas: HomeAtlas, localization: LocalizationResult) -> str | None:
     if not localization.recognized or localization.screen_to_atlas is None:
         return f"localization_failed:{localization.ambiguity_state.value}"
+    matrix = localization.screen_to_atlas
+    if len(matrix) != 3 or any(len(row) != 3 for row in matrix):
+        return "invalid_localization_transform"
+    if not all(math.isfinite(float(cell)) for row in matrix for cell in row):
+        return "invalid_localization_transform"
+    determinant = matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0]
+    if abs(determinant) < 1e-9:
+        return "invalid_localization_transform"
     if localization.stale or localization.ambiguity_state is AmbiguityState.STALE_FRAME:
         return "stale_frame"
     if localization.overlay or localization.zoom_identity is ZoomIdentity.OVERLAY:
         return "overlay"
+    if localization.ambiguity_state is not AmbiguityState.NONE:
+        return "ambiguous_localization"
     if localization.platform != atlas.profile.platform or localization.profile_id != atlas.profile.profile_id:
         return "wrong_profile"
     if localization.zoom_identity is not ZoomIdentity.FULLY_ZOOMED_OUT:
         return "canonical_zoom_required"
-    if localization.confidence <= 0 or not localization.supporting_landmarks or localization.residual_px is None:
+    if (
+        not math.isfinite(float(localization.confidence))
+        or localization.confidence < 0.80
+        or not localization.supporting_landmarks
+        or localization.residual_px is None
+        or not math.isfinite(float(localization.residual_px))
+        or localization.residual_px > 4.5
+        or not polygon_is_valid(localization.viewport_polygon)
+    ):
         return "insufficient_landmark_support"
     return None
 
@@ -336,6 +356,32 @@ def _building_binding_policy(building: SemanticBuilding, localization: Localizat
     return policy if isinstance(policy, dict) else {}
 
 
+def _interaction_anchor_valid(building: SemanticBuilding) -> bool:
+    try:
+        anchor = building.interaction_anchor
+    except (TypeError, ValueError, ZeroDivisionError):
+        return False
+    return (
+        polygon_is_valid(building.polygon)
+        and all(math.isfinite(float(coordinate)) for coordinate in anchor)
+        and point_in_polygon(anchor, building.polygon)
+    )
+
+
+def _interaction_anchor_in_safe_region(
+    localization: LocalizationResult,
+    building: SemanticBuilding,
+    safe: SafeInteractionRegion,
+) -> bool:
+    if localization.screen_to_atlas is None or not _interaction_anchor_valid(building):
+        return False
+    try:
+        projected = _inverse_affine(localization.screen_to_atlas, building.interaction_anchor)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return False
+    return _point_in_box(projected, safe.screen_box)
+
+
 def _building_inside_safe_region(localization: LocalizationResult, building: SemanticBuilding, safe: SafeInteractionRegion) -> bool:
     assert localization.screen_to_atlas is not None
     x0, y0, x1, y1 = safe.screen_box
@@ -343,8 +389,14 @@ def _building_inside_safe_region(localization: LocalizationResult, building: Sem
 
 
 def _point_in_box(point: Point, box: Box) -> bool:
+    try:
+        x, y = float(point[0]), float(point[1])
+    except (IndexError, TypeError, ValueError):
+        return False
+    if not math.isfinite(x) or not math.isfinite(y):
+        return False
     x0, y0, x1, y1 = box
-    return x0 <= point[0] <= x1 and y0 <= point[1] <= y1
+    return x0 <= x <= x1 and y0 <= y <= y1
 
 
 def _box_inside_box(inner: Box, outer: Box) -> bool:
@@ -449,6 +501,8 @@ def _legacy_plan_building_viewport(
     """Exact pre-recovery-aware single-candidate planner."""
 
     building = atlas.lookup_building(building_id)
+    if not _interaction_anchor_valid(building):
+        return BuildingViewportPlan(PlanDisposition.REJECTED, "interaction_anchor_invalid", building_id, None, None, None, None, (0.0, 0.0))
     rejected = _localization_rejection(atlas, localization)
     if rejected:
         return BuildingViewportPlan(PlanDisposition.REJECTED, rejected, building_id, None, None, None, None, (0.0, 0.0))
@@ -458,9 +512,9 @@ def _legacy_plan_building_viewport(
     policy = _building_binding_policy(building, localization)
     allow_subregion = bool(policy.get("allow_safe_subregion_at_camera_edge"))
     fully_covered = all(point_in_coverage(point, atlas.coverage_polygons) for point in building.polygon)
-    if not fully_covered and not (allow_subregion and point_in_coverage(building.navigation_anchor, atlas.coverage_polygons)):
+    if not fully_covered and not (allow_subregion and point_in_coverage(building.navigation_anchor, atlas.coverage_polygons) and point_in_coverage(building.interaction_anchor, atlas.coverage_polygons)):
         return BuildingViewportPlan(PlanDisposition.REJECTED, "target_outside_verified_coverage", building_id, current, None, None, None, (0.0, 0.0))
-    if _building_inside_safe_region(localization, building, safe_region):
+    if _building_inside_safe_region(localization, building, safe_region) and _interaction_anchor_in_safe_region(localization, building, safe_region):
         anchor = _inverse_affine(localization.screen_to_atlas, building.navigation_anchor)
         return BuildingViewportPlan(PlanDisposition.ALREADY_SAFE, "target_already_safely_visible", building_id, current, current, current, anchor, (0.0, 0.0))
     if atlas.camera_origin_bounds is None:
@@ -476,6 +530,9 @@ def _legacy_plan_building_viewport(
     safe_x0, safe_y0, safe_x1, safe_y1 = safe_region.screen_box
     if not (safe_x0 <= target_screen[0] <= safe_x1 and safe_y0 <= target_screen[1] <= safe_y1):
         return BuildingViewportPlan(PlanDisposition.REJECTED, "map_edge_clamp_before_target", building_id, current, desired, unclamped, target_screen, (desired[0] - current[0], desired[1] - current[1]), clamped)
+    interaction_screen = _project_atlas_point(_linear_from_matrix(localization.screen_to_atlas), desired, building.interaction_anchor)
+    if not _point_in_box(interaction_screen, safe_region.screen_box):
+        return BuildingViewportPlan(PlanDisposition.REJECTED, "interaction_anchor_outside_safe_region", building_id, current, desired, unclamped, target_screen, (desired[0] - current[0], desired[1] - current[1]), clamped)
     bx0, by0, bx1, by1 = polygon_bounds(building.polygon)
     fully_fits = safe_x0 <= bx0 - desired[0] and bx1 - desired[0] <= safe_x1 and safe_y0 <= by0 - desired[1] and by1 - desired[1] <= safe_y1
     if not fully_fits:
@@ -535,6 +592,11 @@ def _actionable_interaction_region(
     allow_subregion = bool(policy.get("allow_safe_subregion_at_camera_edge"))
     projected = _project_polygon(linear, translation, building.polygon)
     body = _screen_bounds(projected)
+    interaction_screen = _project_atlas_point(linear, translation, building.interaction_anchor)
+    if not _point_in_box(interaction_screen, safe.screen_box):
+        return None, "interaction_anchor_outside_safe_region"
+    if not point_in_coverage(interaction_screen, (projected,)):
+        return None, "interaction_anchor_outside_projected_footprint"
     safe_box = safe.screen_box
     if _box_inside_box(body, safe_box):
         return body, None
@@ -829,6 +891,8 @@ def _plan_with_policy(
     assert policy is not None
     assert localization.screen_to_atlas is not None
     building = atlas.lookup_building(building_id)
+    if not _interaction_anchor_valid(building):
+        return BuildingViewportPlan(PlanDisposition.REJECTED, "interaction_anchor_invalid", building_id, None, None, None, None, (0.0, 0.0), recovery_honesty=_RECOVERY_HONESTY)
     rejected = _localization_rejection(atlas, localization)
     if rejected:
         return BuildingViewportPlan(PlanDisposition.REJECTED, rejected, building_id, None, None, None, None, (0.0, 0.0), recovery_honesty=_RECOVERY_HONESTY)
@@ -838,7 +902,7 @@ def _plan_with_policy(
     binding_policy = _building_binding_policy(building, localization)
     allow_subregion = bool(binding_policy.get("allow_safe_subregion_at_camera_edge"))
     fully_covered = all(point_in_coverage(point, atlas.coverage_polygons) for point in building.polygon)
-    if not fully_covered and not (allow_subregion and point_in_coverage(building.navigation_anchor, atlas.coverage_polygons)):
+    if not fully_covered and not (allow_subregion and point_in_coverage(building.navigation_anchor, atlas.coverage_polygons) and point_in_coverage(building.interaction_anchor, atlas.coverage_polygons)):
         return BuildingViewportPlan(PlanDisposition.REJECTED, "target_outside_verified_coverage", building_id, current, None, None, None, (0.0, 0.0), recovery_honesty=_RECOVERY_HONESTY)
     if atlas.camera_origin_bounds is None:
         return BuildingViewportPlan(PlanDisposition.REJECTED, "camera_origin_bounds_unverified", building_id, current, None, None, None, (0.0, 0.0), recovery_honesty=_RECOVERY_HONESTY)
@@ -1047,7 +1111,7 @@ def measure_pan_progress(before: LocalizationResult, after: LocalizationResult, 
 def _localization_rejection_for_progress(before: LocalizationResult, after: LocalizationResult) -> str | None:
     if not after.recognized or after.screen_to_atlas is None:
         return "post_pan_localization_failed"
-    if after.stale or after.overlay or after.zoom_identity is not ZoomIdentity.FULLY_ZOOMED_OUT:
+    if after.stale or after.overlay or after.ambiguity_state is not AmbiguityState.NONE or after.zoom_identity is not ZoomIdentity.FULLY_ZOOMED_OUT:
         return "post_pan_localization_invalid"
     if before.frame_sha256 == after.frame_sha256:
         return "repeated_viewport"
@@ -1089,7 +1153,42 @@ class DirectPanNavigator:
             if binding is None:
                 self.last_plan = plan
                 return plan
-            if (binding.building_id != self.building_id or binding.frame_sha256 != localization.frame_sha256 or binding.confidence < 0.80 or not binding.semantic_evidence or binding.overlay_intersects or binding.ambiguous_overlap):
+            expected_building = self.atlas.lookup_building(self.building_id)
+            anchor_matches = binding.atlas_anchor is None or (
+                len(binding.atlas_anchor) == 2
+                and all(math.isfinite(float(value)) for value in binding.atlas_anchor)
+                and _interaction_anchor_valid(expected_building)
+                and all(
+                    abs(float(actual) - float(expected)) <= 1e-6
+                    for actual, expected in zip(binding.atlas_anchor, expected_building.interaction_anchor)
+                )
+            )
+            screen_anchor_valid = binding.screen_anchor is None or (
+                len(binding.screen_anchor) == 2
+                and all(math.isfinite(float(value)) for value in binding.screen_anchor)
+            )
+            screen_anchor_safe = screen_anchor_valid and (
+                binding.screen_anchor is None or _point_in_box(binding.screen_anchor, self.safe_region.screen_box)
+            )
+            roi_x0, roi_y0, roi_x1, roi_y1 = binding.target_roi
+            roi_valid = roi_x0 < roi_x1 and roi_y0 < roi_y1 and _box_inside_box(binding.target_roi, self.safe_region.screen_box)
+            center_matches = binding.screen_anchor is None or (
+                screen_anchor_valid
+                and abs((roi_x0 + roi_x1) / 2.0 - binding.screen_anchor[0]) <= 1.0
+                and abs((roi_y0 + roi_y1) / 2.0 - binding.screen_anchor[1]) <= 1.0
+            )
+            if (
+                binding.building_id != self.building_id
+                or binding.frame_sha256 != localization.frame_sha256
+                or binding.confidence < 0.80
+                or not binding.semantic_evidence
+                or binding.overlay_intersects
+                or binding.ambiguous_overlap
+                or not anchor_matches
+                or not screen_anchor_safe
+                or not roi_valid
+                or not center_matches
+            ):
                 return DirectPanPlan(PlanDisposition.REJECTED, "current_frame_building_binding_rejected", plan.viewport)
             return DirectPanPlan(PlanDisposition.COMPLETE, "current_frame_semantic_building_bound", plan.viewport)
         if plan.disposition is PlanDisposition.PAN:

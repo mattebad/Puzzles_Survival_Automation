@@ -17,7 +17,7 @@ import cv2
 import numpy as np
 import pytesseract
 
-from .home_atlas import BuildingBinding, LocalizationResult, SemanticBuilding
+from .home_atlas import BuildingBinding
 from .home_atlas_vision import BLUESTACKS_PROFILE_ID, frame_digest, native_frame_guard
 from .perception_bundle import NativeFrameIdentity
 from .semantic_ocr_crop import (
@@ -35,7 +35,6 @@ from .semantic_ocr_crop import (
 Box = tuple[int, int, int, int]
 OCR = Callable[[np.ndarray, int], str]
 SUPPLY_DEPOT_BUILDING_ID = "home.building.supply_depot"
-SUPPLY_DEPOT_SAFE_SCENE: Box = (138, 150, 650, 1010)
 SUPPLY_DEPOT_TITLE_ROI: Box = (120, 0, 680, 110)
 SUPPLY_DEPOT_PANEL_ROI: Box = (30, 940, 770, 1270)
 SUPPLY_DEPOT_ATTEMPTS_ROI: Box = (100, 800, 700, 950)
@@ -236,81 +235,8 @@ def _normalized(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
 
-def _project_atlas_polygon_to_screen(localization: LocalizationResult, building: SemanticBuilding) -> np.ndarray:
-    if not localization.recognized or localization.screen_to_atlas is None:
-        raise ValueError("building binding requires a recognized current localization")
-    matrix = np.asarray(localization.screen_to_atlas, dtype=np.float64)
-    inverse = np.linalg.inv(matrix)
-    points = np.asarray(building.polygon, dtype=np.float32).reshape(-1, 1, 2)
-    return cv2.perspectiveTransform(points, inverse).reshape(-1, 2)
 
 
-def bind_supply_depot_building(
-    frame: np.ndarray,
-    localization: LocalizationResult,
-    building: SemanticBuilding,
-    *,
-    ocr: OCR = _default_ocr,
-    source_frame: NativeFrameIdentity | None = None,
-) -> BuildingBinding | None:
-    """Bind only a current-frame Supply Depot label inside its atlas-predicted region."""
-
-    if (
-        not native_frame_guard(frame)
-        or localization.profile_id != BLUESTACKS_PROFILE_ID
-        or localization.frame_sha256 != frame_digest(frame)
-        or building.semantic_id != SUPPLY_DEPOT_BUILDING_ID
-    ):
-        return None
-    polygon = _project_atlas_polygon_to_screen(localization, building)
-    x0, y0 = (int(v) for v in np.floor(polygon.min(axis=0)))
-    x1, y1 = (int(v) for v in np.ceil(polygon.max(axis=0)))
-    search = (
-        max(0, x0 - 10),
-        max(0, y1 - 55),
-        min(800, x1 + 10),
-        min(1280, y1 + 35),
-    )
-    if search[0] >= search[2] or search[1] >= search[3]:
-        return None
-    try:
-        text = _normalized(_ocr_roi_text(frame, search, ocr, source_frame=source_frame, scale=3))
-    except ValueError:
-        # Live capture identities store ADB PNG transport digests; the semantic OCR
-        # pipeline validates cv2.imencode digests. Fall back to legacy OCR only for
-        # that transport mismatch while keeping localization digest association.
-        if source_frame is None:
-            return None
-        from tasks.semantic_ocr_crop import compute_transport_digest
-
-        if compute_transport_digest(frame) == source_frame.transport_sha256:
-            return None
-        try:
-            text = _normalized(_ocr_roi_text(frame, search, ocr, source_frame=None, scale=3))
-        except ValueError:
-            return None
-    if "supply depot" not in text:
-        return None
-
-    sx0, sy0, sx1, sy1 = SUPPLY_DEPOT_SAFE_SCENE
-    ax0, ay0 = max(x0, sx0), max(y0, sy0)
-    ax1, ay1 = min(x1, sx1), min(y1, sy1)
-    if ax1 - ax0 < 55 or ay1 - ay0 < 55:
-        return None
-    inset_x = min(18, max(5, (ax1 - ax0) // 8))
-    inset_y = min(18, max(5, (ay1 - ay0) // 8))
-    target = tuple(int(value) for value in (ax0 + inset_x, ay0 + inset_y, ax1 - inset_x, ay1 - inset_y))
-    if target[0] >= target[2] or target[1] >= target[3]:
-        return None
-    return BuildingBinding(
-        building_id=building.semantic_id,
-        target_roi=target,
-        frame_sha256=localization.frame_sha256,
-        confidence=min(localization.confidence, building.confidence, 0.99),
-        semantic_evidence=("current-frame OCR: Supply Depot", "atlas-predicted helicopter-pad region"),
-        overlay_intersects=False,
-        ambiguous_overlap=False,
-    )
 
 
 def bind_supply_depot_claim_supply(

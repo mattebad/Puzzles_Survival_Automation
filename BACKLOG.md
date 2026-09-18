@@ -208,7 +208,7 @@ Approval of this backlog does not start the bot or authorize live development in
 
 ## LB-03 — Make recognition and navigation support the flows
 
-- **Status:** Planned.
+- **Status:** Offline accepted; commit/push and bounded live proof pending.
 - **Problem:** Brittle bindings and redundant checks can reject valid UI transitions.
 - **Outcome:** Reuse Home/Atlas/Back helpers. Bind current controls, carry established context
   through expected transitions, refresh after input, and verify the next screen. Use templates
@@ -219,6 +219,20 @@ Approval of this backlog does not start the bot or authorize live development in
 - **Check:** Exercise the changed route and its plausible wrong-screen case. A valid Supply
   radial must not fail solely because the building name is hidden. Do not rebuild a universal
   recognition framework or require identical whole-frame pixels.
+- **Delivered offline:** Home entry now uses a fresh Atlas localization and a distinct
+  per-building interaction anchor; building-name OCR no longer authorizes or vetoes the tap.
+  The shared binder rejects stale/wrong-profile/low-quality geometry, unsafe HUD placement,
+  insufficient Supply Depot 55×55 coverage, and concave-footprint gaps. Supply's duplicate
+  Home-building OCR binder is removed while each route retains successor recognition.
+- **Verified offline:** 369 affected tests passed with 4 skipped. Retained failed-soak,
+  attempt-2/attempt-3 Tavern and native Bank frames bind at visually inspected building
+  geometry; a label-erased/OCR-forbidden Tavern frame also binds. Sixteen safety negatives
+  produced no binding or input. Read-only inspection preserved generation-14 disabled gates,
+  the Recruitment inspection block/failure count, cooldown/count rows, released ownership,
+  and the unresolved startup VIP ledger. Evidence:
+  `.local-captures/lb03-atlas-entry-20260918T185758Z/`.
+  This does not prove real lighting transitions, Supply/Nova live entry, or prolonged service
+  operation; LB-04 through LB-08 remain planned.
 
 ## LB-04 — Persist only useful repeatability state
 
