@@ -2,7 +2,7 @@
 
 ## Scope and checkpoint
 
-Checkpoint `944827bf8097ea0e16a3e1f412a836d9bfb65e06` is pushed to `origin/refactor/lean-bot-backlog`. This is the selected LB-03 recognition/navigation slice. The uncommitted candidate is offline accepted; commit/push remains a separate authorization checkpoint before the already-authorized bounded live navigation canary and soak.
+Checkpoint `bc93ea7fcb8bf7cef38c9fe28a3bbf0f05ab0233` is pushed to `origin/refactor/lean-bot-backlog`. The follow-up uncommitted candidate centralizes bounded Atlas startup normalization and fixes the demonstrated fractional-anchor ROI rounding defect. Its live proof completed two eligible service cycles; the user accepted the intentional four-recruit safety stop at 772.8 seconds as satisfying LB-03 despite the unexecuted 1,800-second wall-time target. Commit/push remains a separate authorization checkpoint.
 
 Goal: use a building's Atlas-space interaction anchor, transformed by fresh camera localization, for Home entry. Building-name OCR must not veto an otherwise valid geometric binding. Each flow must still recognize its expected destination or radial before the next action.
 
@@ -21,6 +21,18 @@ Existing components are sufficient:
 - Nova already carries `ResearchLabTapProvenance` and separately recognizes its radial/template target. Supply Depot separately binds Claim Supply versus Upgrade.
 
 ## Shared contract
+
+### Atlas-flow startup normalization
+
+Every supported flow that uses the Home/world Atlas must establish canonical camera state at
+the beginning of the flow. If a fresh, overlay-free Home frame is already fully zoomed out, the
+flow may proceed without a normalization input. If the frame positively identifies a supported
+noncanonical zoom, the flow must use the existing zoom-normalization transport for at most two
+inputs, recapture after each input,
+and require fresh fully-zoomed-out localization before Atlas planning or binding. Unknown,
+ambiguous, stale, overlaid, unsupported, repeated, no-progress, or exhausted recovery states fail
+closed. Observation-only preflights remain zero-transport and may report that normalization is
+required; they do not replace the live flow's normalization responsibility.
 
 ### Atlas interaction anchor
 
@@ -92,4 +104,20 @@ The settled affected command passed 369 tests with 4 skipped. Durable evidence i
 
 Sixteen no-input negatives cover stale/overlay/profile/zoom/low and nonfinite confidence/excessive and nonfinite residual/digest mismatch/singular and nonfinite transform/degenerate polygon/non-actionable/off-screen anchor/Supply coverage below 55×55/concave-notch rejection. Read-only SQLite URI inspection preserved generation-14 disabled service and Recruitment, the `home_atlas_label_not_read` block with failure count 1, scheduler cooldown/count rows, released ownership/runtime lock, and the unresolved startup VIP ledger; database and WAL hashes did not change.
 
-This evidence does not establish a real night/day transition, live Supply or Nova entry, other-building live reliability, or LB-02 prolonged/repeated-cycle operation. The bounded live navigation check and soak remain required before claiming live reliability.
+This offline evidence alone did not establish a real night/day transition, live Supply or Nova entry, other-building live reliability, or prolonged/repeated-cycle operation. The live continuation below supplies Tavern and repeated-cycle evidence while retaining the stated duration and building-coverage limitations.
+
+## Live result
+
+The admitted candidate passed a zero-input Tavern binding preflight and one navigation-only
+round trip with two inputs: Atlas-bound Tavern entry and verified safe return to Home. The
+subsequent service soak completed two eligible recruitment cycles. Both cycles used fresh Atlas
+binding, recognized Tavern, persisted verified tier cooldown/count changes, and returned to Home.
+Across the soak, retained native events contain 15 inputs and exactly four free recruits; no paid
+input or duplicate recruit occurred. The second cycle waited for the persisted Basic cooldown.
+
+The soak stopped at its configured four-recruit ceiling after 772.8 seconds. Service and
+Recruitment are disabled at generation 16, ownership and the runtime-input lock are released,
+and the unresolved startup VIP record is unchanged. This is live Tavern and repeated-cycle proof,
+accepted by the user as LB-03 live closure, not a completed 1,800-second prolonged soak. It
+still does not establish real lighting transitions or live Supply, Nova, or other-building entry. Evidence is retained under
+`.local-captures/lb03-live-admission-20260918T224056406651Z/`.

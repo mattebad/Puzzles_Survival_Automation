@@ -208,14 +208,15 @@ Approval of this backlog does not start the bot or authorize live development in
 
 ## LB-03 — Make recognition and navigation support the flows
 
-- **Status:** Offline accepted; commit/push and bounded live proof pending.
+- **Status:** **Closed — live accepted.** Atlas entry is committed at `bc93ea7`; navigation and two service cycles passed live. The user accepted the intentional four-recruit safety stop at 772.8 seconds as satisfying LB-03 despite the unexecuted 1,800-second wall-time target.
 - **Problem:** Brittle bindings and redundant checks can reject valid UI transitions.
 - **Outcome:** Reuse Home/Atlas/Back helpers. Bind current controls, carry established context
   through expected transitions, refresh after input, and verify the next screen. Use templates
   for stable visual controls and OCR for text that actually needs reading. Do not re-prove
   an obscured building name after opening its menu.
-- **Code/docs:** Existing flow navigation and recognition helpers;
-  `tasks/supply_depot_vision.py` for the targeted Claim Supply binding.
+- **Code/docs:** `docs/atlas-home-entry-design.md` is the canonical reusable Home-entry
+  contract. Use the existing Atlas/localizer/planner/binder and flow-owned recognition helpers;
+  `tasks/supply_depot_vision.py` retains only the targeted Claim Supply destination binding.
 - **Check:** Exercise the changed route and its plausible wrong-screen case. A valid Supply
   radial must not fail solely because the building name is hidden. Do not rebuild a universal
   recognition framework or require identical whole-frame pixels.
@@ -233,6 +234,15 @@ Approval of this backlog does not start the bot or authorize live development in
   `.local-captures/lb03-atlas-entry-20260918T185758Z/`.
   This does not prove real lighting transitions, Supply/Nova live entry, or prolonged service
   operation; LB-04 through LB-08 remain planned.
+- **Verified live:** A zero-input preflight bound Tavern, then one navigation-only canary
+  entered Tavern and returned Home with two navigation inputs and zero recruits. The bounded
+  service soak completed two eligible cycles: 15 native inputs, four free recruits, verified
+  cooldown/count persistence, and verified Home return after each cycle. It stopped cleanly at
+  the configured four-recruit ceiling after 772.8 seconds, with no route fault, paid input,
+  duplicate recruit, ownership leak, or startup-VIP-ledger change. Gates are disabled at
+  generation 16. Evidence: `.local-captures/lb03-live-admission-20260918T224056406651Z/`.
+  This proves repeated eligible cycles. The user accepted the safety-ceiling result as LB-03
+  live closure; the full 1,800-second prolonged soak was not executed and must not be claimed.
 
 ## LB-04 — Persist only useful repeatability state
 
@@ -272,6 +282,9 @@ Approval of this backlog does not start the bot or authorize live development in
   - Gathering through one shared route with resource-specific settings.
   - Lairs, shops, Hero Upgrade/Duel, building, technology, donations, speedups, boosts,
     Pit income, and Buy Box, preserving existing decisions and resolving actual policy gaps.
+  Any selected flow that enters a mapped Home building must reuse
+  `docs/atlas-home-entry-design.md` and name its mapped building plus expected successor;
+  it must not redesign entry around building-name OCR or add a flow-specific binder.
   Maintenance success is not automatically Daily completion. Ready rewards need not wait for
   a new challenge. Do not replace Supply's existing approved hold semantics with the abandoned
   one-Food implementation.
@@ -333,7 +346,9 @@ Approval of this backlog does not start the bot or authorize live development in
 - **Evidence:** `.local-captures/lb02-live/attempt4-20260916T012252Z/attempt4-result.json`
   records one successful visible VIP close rejected by the unrelated Home-nav template check.
 - **Relationship:** Concrete shared-popup slice of LB-03/LB-05. Ticket creation does not authorize
-  implementation, additional gameplay flows or an autonomous run.
+  implementation, additional gameplay flows or an autonomous run. This ticket is the canonical
+  contextual-popup contract for future flow integration: reuse its shared helper once implemented,
+  rather than adding per-flow dismissers.
 
 ## Disposition of the reviewed recovery tickets
 

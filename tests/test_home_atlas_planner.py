@@ -180,6 +180,23 @@ class MinimalPanPlannerTests(unittest.TestCase):
         self.assertEqual(binding.atlas_anchor, (330, 470))
         self.assertAlmostEqual(binding.screen_anchor[0], 330, delta=1)
 
+    def test_fractional_anchor_at_safe_boundary_keeps_valid_minimum_hit_region(self):
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        loc = replace(localization(), frame_sha256=frame_digest(frame))
+        target = replace(
+            building(polygon=((76, 400), (246, 400), (246, 600), (76, 600))),
+            interaction_anchor_override=(161.487, 500),
+        )
+        diagnostics = {}
+
+        binding = bind_visible_building(frame, loc, target, diagnostics=diagnostics)
+
+        self.assertIsNotNone(binding)
+        assert binding is not None
+        self.assertEqual((binding.target_roi[0], binding.target_roi[2]), (145, 178))
+        self.assertGreaterEqual(binding.target_roi[3] - binding.target_roi[1], 33)
+        self.assertEqual(diagnostics["reason"], "accepted")
+
     def test_geometry_binding_rejects_invalid_or_offscreen_anchor(self):
         frame = np.zeros((1280, 800, 3), np.uint8)
         loc = replace(localization(), frame_sha256=frame_digest(frame))

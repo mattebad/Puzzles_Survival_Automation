@@ -87,6 +87,12 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
         calls = []
 
         class Runtime:
+            def measure_device_state(self):
+                return "device"
+
+            def measure_foreground_package(self):
+                return "com.global.ztmslg"
+
             def dispatch_external_zoom(self, source, *, action_key, transport):
                 calls.append((source, action_key, transport))
                 transport()
@@ -98,23 +104,19 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
             def zoom_out_once(self):
                 self.calls += 1
 
-        source = SimpleNamespace(frame=object(), sha256="a" * 64)
+        source = SimpleNamespace(
+            frame=__import__("numpy").zeros((1280, 800, 3), dtype="uint8"),
+            sha256="a" * 64,
+            captured_monotonic=__import__("time").monotonic(),
+        )
         runtime = Runtime()
         transport = ScrcpyTransport()
-        with patch.object(
-            canary,
-            "recognize_home_nav",
-            return_value=SimpleNamespace(is_home=True),
-        ):
-            canary._dispatch_home_zoom_out(
-                runtime,
-                source,
-                zoom_transport=transport,
-            )
+
+        canary._dispatch_home_zoom_out(runtime, source, zoom_transport=transport)
 
         self.assertEqual(len(calls), 1)
         self.assertIs(calls[0][0], source)
-        self.assertEqual(calls[0][1], "supply-depot-home-zoom-out:aaaaaaaaaaaa")
+        self.assertEqual(calls[0][1], "home-zoom-out:" + "a" * 64)
         self.assertIs(calls[0][2].__self__, transport)
         self.assertIs(calls[0][2].__func__, ScrcpyTransport.zoom_out_once)
         self.assertEqual(transport.calls, 1)

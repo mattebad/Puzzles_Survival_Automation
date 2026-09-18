@@ -92,6 +92,7 @@ def zoomed_loc(digest: str = "z" * 64) -> LocalizationResult:
         loc(digest=digest, recognized=False),
         zoom_identity=ZoomIdentity.ZOOMED_IN,
         confidence=0.86,
+        ambiguity_state=AmbiguityState.NONE,
     )
 
 
@@ -252,6 +253,9 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
     ):
         runtime = Runtime()
         localizations = iter(localizations)
+        localize_current = lambda frame: replace(
+            next(localizations), frame_sha256=frame_digest(frame)
+        )
         if unchanged:
             runtime.frames[3] = runtime.frames[1]
         route = self._route(runtime, zoom_transport=transport)
@@ -263,7 +267,7 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
         with patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=world()), patch(
             "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer",
             return_value=SimpleNamespace(
-                localize=lambda _frame: next(localizations),
+                localize=localize_current,
                 canonical_reference=np.zeros((1280, 800, 3), dtype=np.uint8),
             ),
         ), patch(

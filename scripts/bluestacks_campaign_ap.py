@@ -171,14 +171,17 @@ def _dispatch_home_atlas_campaign_entry(
     entry_session = frames.parent / f"home-atlas-entry-{utc_stamp()}"
     runtime = LocalBlueStacksRuntime(runner, entry_session, execute=execute)
     runtime.max_inputs = min(runtime.max_inputs, int(maximum_inputs))
-    result = run_verified_campaign_home_atlas_entry(
-        runtime,
-        atlas_path=atlas_path,
-        maximum_pans=maximum_pans,
-        execute=execute,
-        settle_seconds=post_input_delay,
-        semantic_opened_check=_campaign_entry_semantically_opened,
-    )
+    result = {
+        **run_verified_campaign_home_atlas_entry(
+            runtime,
+            atlas_path=atlas_path,
+            maximum_pans=maximum_pans,
+            execute=execute,
+            settle_seconds=post_input_delay,
+            semantic_opened_check=_campaign_entry_semantically_opened,
+        ),
+        "navigation_input_count": runtime.input_count,
+    }
     append_event(
         events,
         {
@@ -433,7 +436,7 @@ def main(argv: list[str] | None = None) -> int:
                 write_navigation_only_evidence(session, result)
                 print(json.dumps(result, sort_keys=True, default=str))
                 return 3
-            navigation_inputs += 1 + len(entry.get("records", []))
+            navigation_inputs += int(entry.get("navigation_input_count", 0))
             if navigation_inputs > args.max_inputs:
                 raise RuntimeError("Campaign AP input budget exhausted during Home Atlas entry")
             controller.accept_dispatched(command)

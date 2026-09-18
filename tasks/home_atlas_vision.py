@@ -228,14 +228,6 @@ def _target_roi(
     inset_y = min(18.0, max(6.0, (visible[3] - visible[1]) / 8.0))
     width = int(math.floor(visible[2] - visible[0] - 2.0 * inset_x))
     height = int(math.floor(visible[3] - visible[1] - 2.0 * inset_y))
-    width = min(
-        width,
-        int(math.floor(2.0 * min(screen_anchor[0] - visible[0], visible[2] - screen_anchor[0]))),
-    )
-    height = min(
-        height,
-        int(math.floor(2.0 * min(screen_anchor[1] - visible[1], visible[3] - screen_anchor[1]))),
-    )
     details = {
         "body_bounds": body,
         "visible_bounds": visible,
@@ -248,9 +240,9 @@ def _target_roi(
         if _box_inside(tuple(float(value) for value in target), safe) and _box_inside_polygon(target, polygon):
             return target, None, details
         if width >= height:
-            width -= 2
+            width -= 1
         else:
-            height -= 2
+            height -= 1
     return None, "interaction_anchor_has_no_safe_hit_region", details
 
 

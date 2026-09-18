@@ -28,7 +28,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
-from scripts.home_atlas_bluestacks import bluestacks_direct_pan_contract
+from scripts.atlas_flow_startup import normalize_home_atlas_startup
 from scripts.navigation_development_boundary import DevelopmentSession
 from tasks.home_atlas import load_home_atlas
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
@@ -458,7 +458,18 @@ def run(
                 return runtime.capture(label)
 
             atlas = load_home_atlas(ATLAS_PATH)
-            safe, calibration = bluestacks_direct_pan_contract()
+            safe, calibration = normalize_home_atlas_startup(
+                session=session,
+                runtime=runtime,
+                capture=capture,
+                atlas=atlas,
+                atlas_path=ATLAS_PATH,
+                settle_seconds=settle_seconds,
+                evidence_records=result["steps"],
+                adb=str(BLUESTACKS_ADB),
+                serial=BLUESTACKS_SERIAL,
+                maximum_zoom_inputs=2,
+            )
             navigator = DirectPanNavigator(
                 atlas,
                 RESEARCH_LAB_ID,

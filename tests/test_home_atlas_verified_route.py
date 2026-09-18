@@ -820,7 +820,8 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 code = command_navigate_building(args)
             self.assertEqual(code, 3)
             payload = json.loads((runtime.session / "navigate-building-result.json").read_text(encoding="utf-8"))
-            self.assertEqual(payload["reason"], "source_localization_failed")
+            self.assertIn("Home Atlas startup blocked", payload["reason"])
+            self.assertEqual(payload["navigation_input_count"], 0)
 
         with tempfile.TemporaryDirectory() as directory:
             runtime = _FakeRuntime(Path(directory))

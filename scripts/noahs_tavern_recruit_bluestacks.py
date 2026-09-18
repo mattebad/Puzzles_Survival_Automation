@@ -21,7 +21,6 @@ if str(ROOT) not in sys.path:
 
 from tasks.noahs_tavern_recruit_runtime import NoahAction, NoahTavernRecruitRuntimeController
 from tasks.noahs_tavern_recruit_maintenance import (
-    MAINTENANCE_TASK_ID,
     NoahMaintenancePassResult,
     NoahMaintenanceState,
     TierPassEvidence,
@@ -126,9 +125,10 @@ def recognize_home_zoom_source(frame, *, home_classifier=None) -> tuple[bool, di
     if home_classifier is None:
         from scripts.startup_normalization import classify_home_base_live
 
-        home_classifier = lambda image: classify_home_base_live(
-            image, cash_mall_rejected=True, safe_os_surface=True
-        )
+        def home_classifier(image):
+            return classify_home_base_live(
+                image, cash_mall_rejected=True, safe_os_surface=True
+            )
     facts = dict(home_classifier(frame))
     overlay = bool(
         facts.get("overlay")
@@ -176,9 +176,15 @@ def noahs_tavern_navigation_route_declaration() -> NavigationRouteDeclaration:
     )
     return NavigationRouteDeclaration(
         allowed_source_states=frozenset({HOME_BASE_SCREEN, NOAHS_TAVERN_SCREEN}),
-        allowed_target_identities=frozenset({NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID, NOAHS_TAVERN_SAFE_EXIT_TARGET})
+        allowed_target_identities=frozenset(
+            {
+                NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID,
+                NOAHS_TAVERN_SAFE_EXIT_TARGET,
+                "home-zoom-out",
+            }
+        )
         | tier_targets,
-        allowed_gesture_classes=frozenset({"tap", "back"}),
+        allowed_gesture_classes=frozenset({"tap", "back", "zoom_out"}),
     )
 
 
@@ -889,9 +895,9 @@ def run_noahs_tavern_navigation_canary(args, identity=None) -> str:
         )
         return json.dumps(payload, sort_keys=True, default=str)
 
-    # This migration has exactly two authorized navigation inputs: Atlas-bound
-    # Tavern entry and one positively recognized Tavern safe exit.
-    runtime.max_inputs = min(runtime.max_inputs, 2)
+    # Reserve two bounded startup zoom inputs plus Atlas-bound Tavern entry
+    # and one positively recognized Tavern safe exit.
+    runtime.max_inputs = min(runtime.max_inputs, 4)
     route = NoahTavernNavigationCanaryRoute(
         runtime,
         settle_seconds=getattr(args, "settle_seconds", 1.0),
@@ -899,6 +905,14 @@ def run_noahs_tavern_navigation_canary(args, identity=None) -> str:
     )
     result = None
     try:
+        __import__(
+            "scripts.noah_atlas_startup",
+            fromlist=["bind_noah_route_startup"],
+        ).bind_noah_route_startup(
+            route,
+            runtime=runtime,
+            settle_seconds=getattr(args, "settle_seconds", 1.0),
+        )
         result = route.run()
     except BaseException as exc:
         finalize_navigation_evidence(

@@ -183,7 +183,20 @@ Tavern frame with OCR forbidden; 16 geometry/state negatives produced no input. 
 inspection preserved generation14 disabled gates, the original block/failure count, cooldowns,
 counts, released ownership and unresolved startup VIP ledger. Evidence:
 `.local-captures/lb03-atlas-entry-20260918T185758Z/`.
-No live LB-03 navigation or prolonged service proof has run yet. Retained Tavern evidence does
-not prove real lighting transitions, Supply/Nova live entry, or other buildings.
-Earlier retained Campaign/Supply results do not qualify this branch's service integration.
+That offline evidence alone did not prove live navigation or service behavior. Retained Tavern
+evidence still does not prove real lighting transitions, Supply/Nova live entry, or other
+buildings. Earlier Campaign/Supply results do not qualify this branch's service integration.
+
+The admitted LB-03 continuation passed a zero-input Tavern binding preflight and a two-input
+navigation-only Tavern round trip. Its supervised service soak then completed two eligible
+Recruitment cycles with natural cooldown waiting. Native events record 15 inputs and exactly
+four free recruits; each cycle persisted verified cooldown/count state and returned to Home.
+No paid input, duplicate recruit, popup recovery, or unrelated flow ran.
+
+The four-recruit safety ceiling stopped the soak after 772.8 seconds, before the requested
+1,800-second deadline. The user accepted this repeated-cycle proof as LB-03 live closure;
+it is not a completed 1,800-second prolonged soak. Cleanup left service and Recruitment disabled at generation 16, cleared the inspected LB-03
+block through successful terminal projection, released service/runtime ownership, and preserved
+the unresolved startup VIP record. Evidence:
+`.local-captures/lb03-live-admission-20260918T224056406651Z/`.
 
