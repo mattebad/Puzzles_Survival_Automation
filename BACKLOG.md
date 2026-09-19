@@ -318,7 +318,9 @@ Approval of this backlog does not start the bot or authorize live development in
 
 ## LB-09 — Handle known popup interruptions and resume the current flow
 
-- **Status:** Planned; explicitly requested after LB-02 attempt 4. Not part of the live retry.
+- **Status:** **Offline implemented and verified, uncommitted.** Live canary and natural-popup
+  proof remain pending and are not authorized. The frozen contract is recorded in
+  [`docs/lb09-contextual-popup-recovery-design.md`](docs/lb09-contextual-popup-recovery-design.md).
 - **Problem:** VIP dismissal exists, but shared recovery is startup-only, requires Home afterward,
   and is not automatically invoked by the canonical Recruitment service. A popup appearing
   mid-flow can invalidate the next input; successful dismissal is conflated with flow admission.
@@ -334,7 +336,8 @@ Approval of this backlog does not start the bot or authorize live development in
   when the same popup persists. Preserve dispatch accounting and existing stop/singleton guards.
   If interruption follows a consuming input, reconcile that input before continuing; never
   replay consumption because the popup was removed. Scope ordinary navigation failures locally.
-- **Code/docs:** `scripts/bluestacks_popup_recognition.py`, `scripts/startup_recovery.py`,
+- **Code/docs:** [`docs/lb09-contextual-popup-recovery-design.md`](docs/lb09-contextual-popup-recovery-design.md),
+  `scripts/bluestacks_popup_recognition.py`, `scripts/startup_recovery.py`,
   `scripts/bluestacks_native_runtime.py`, shared navigation boundaries, native flow runners,
   and `automation_service/recruitment.py`. Reuse existing contracts; do not add a parallel
   popup framework, per-flow copies, or a new global unresolved-action gate.
@@ -345,10 +348,18 @@ Approval of this backlog does not start the bot or authorize live development in
   consumption. Report dismissal success separately when resumption remains blocked.
 - **Evidence:** `.local-captures/lb02-live/attempt4-20260916T012252Z/attempt4-result.json`
   records one successful visible VIP close rejected by the unrelated Home-nav template check.
-- **Relationship:** Concrete shared-popup slice of LB-03/LB-05. Ticket creation does not authorize
-  implementation, additional gameplay flows or an autonomous run. This ticket is the canonical
-  contextual-popup contract for future flow integration: reuse its shared helper once implemented,
-  rather than adding per-flow dismissers.
+- **Offline verification:** The current uncommitted candidate covers the exact helper, one
+  contextual Close, fresh target/frame rebinding, phase-aware pending recruit/result handling,
+  stale-command invalidation, safe-return re-observation, and navigation-versus-recruitment
+  accounting. The focused command passed 135 tests with 1 skipped; the additional changed-route
+  command passed 50 tests. Python compilation and `git diff --check` passed; Python LSP was
+  unavailable. These are focused checks, not a full-suite result. Independent helper,
+  accounting, integration, and route reviews passed after the safe-return stale-Back finding was
+  repaired.
+- **Relationship:** Concrete shared-popup slice of LB-03/LB-05. Offline implementation is complete,
+  but live canary and natural-popup proof require separate authorization. This ticket remains the
+  canonical contextual-popup contract for future flow integration: reuse its shared helper rather
+  than adding per-flow dismissers.
 
 ## Disposition of the reviewed recovery tickets
 

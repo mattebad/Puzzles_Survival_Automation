@@ -21,7 +21,8 @@ from scripts.bluestacks_native_runtime import (
 )
 from scripts.navigation_development_boundary import ORCHESTRATOR_DIR
 from scripts.bluestacks_popup_recognition import (
-    MAX_VIP_POPUP_INPUTS, recognize_reset_popup, vip_popup_handled,
+    MAX_VIP_POPUP_INPUTS, classify_popup_recovery, recognize_reset_popup,
+    vip_popup_handled,
 )
 from scripts.startup_surface_recognition import (
     SCARLETT_EXPECTED_SUCCESSOR,
@@ -96,6 +97,16 @@ class StartupRecoveryPlan:
 
     def to_mapping(self) -> dict[str, object]:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class ContextualPopupRecoveryResult:
+    settled_frame: CapturedNativeFrame | None
+    dismissed: bool | None
+    popup_absent: bool | None
+    resume_ready: bool
+    input_count: int
+    reason: str
 
 
 def classify_startup_frame(
@@ -185,6 +196,481 @@ def _roi_hash(frame: np.ndarray, roi: tuple[int, int, int, int]) -> str:
     x0, y0, x1, y1 = roi
     pixels = np.ascontiguousarray(frame[y0:y1, x0:x1]).tobytes()
     return hashlib.sha256(pixels).hexdigest()
+
+
+def _contextual_exception_is_control(exc: BaseException) -> bool:
+    """Keep stop/checkpoint/cancellation exceptions out of recovery mapping."""
+
+    if isinstance(exc, (KeyboardInterrupt, SystemExit, GeneratorExit, StopIteration, StopAsyncIteration)):
+        return True
+    marker = f"{type(exc).__name__} {exc}".casefold()
+    return any(token in marker for token in ("stop", "checkpoint", "cancel", "abort"))
+
+
+def _contextual_native_frame(frame: object) -> bool:
+    image = getattr(frame, "frame", None)
+    return bool(
+        isinstance(image, np.ndarray)
+        and image.dtype == np.uint8
+        and image.ndim == 3
+        and image.shape == (1280, 800, 3)
+    )
+
+
+def _contextual_target(detail: object) -> tuple[int, int, int, int] | None:
+    if not isinstance(detail, dict):
+        return None
+    target = detail.get("target")
+    if not isinstance(target, (tuple, list)) or len(target) != 4:
+        return None
+    if not all(isinstance(value, int) and not isinstance(value, bool) for value in target):
+        return None
+    bounds = tuple(target)
+    x0, y0, x1, y1 = bounds
+    if not (0 <= x0 < x1 <= 800 and 0 <= y0 < y1 <= 1280):
+        return None
+    return bounds
+
+
+def _contextual_exact_vip(detail: object) -> bool:
+    """Require the exact recognizer identity without duplicating OCR policy."""
+
+    if not isinstance(detail, dict) or not bool(detail.get("recognized")):
+        return False
+    if detail.get("popup_identity") != "VIP_POINTS_GET_PTS":
+        return False
+    if detail.get("target_identity") != VIP_RESET_TARGET:
+        return False
+    for field in (
+        "title_identity",
+        "body_identity",
+        "literal_close",
+        "geometry_valid",
+        "panel_present",
+    ):
+        if field in detail and not bool(detail[field]):
+            return False
+    return _contextual_target(detail) is not None
+
+
+def _contextual_runtime_count(runtime: object) -> int | None:
+    value = getattr(runtime, "input_count", None)
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _contextual_runtime_has_key(runtime: object, action_key: str) -> bool:
+    for attribute in ("action_keys", "keys"):
+        values = getattr(runtime, attribute, None)
+        if values is None:
+            continue
+        try:
+            if action_key in values:
+                return True
+        except TypeError:
+            continue
+    return False
+
+def _contextual_runtime_state_changed(
+    runtime: object,
+    *,
+    before_count: int | None,
+    action_key: str,
+) -> bool:
+    after_count = _contextual_runtime_count(runtime)
+    if before_count is not None and after_count is not None and after_count != before_count:
+        return True
+    return _contextual_runtime_has_key(runtime, action_key)
+
+
+def _contextual_runtime_denied(runtime: object, action_key: str) -> bool:
+    if _contextual_runtime_has_key(runtime, action_key):
+        return True
+    count = _contextual_runtime_count(runtime)
+    maximum = getattr(runtime, "max_inputs", None)
+    if count is None or maximum is None:
+        return False
+    try:
+        return count >= int(maximum)
+    except (TypeError, ValueError):
+        return False
+
+
+def _contextual_input_delta(runtime: object, before: int | None) -> int:
+    after = _contextual_runtime_count(runtime)
+    if before is not None and after is not None:
+        return max(0, min(1, after - before))
+    return 0
+
+
+def _contextual_result(
+    *,
+    settled_frame: CapturedNativeFrame | None,
+    dismissed: bool | None,
+    popup_absent: bool | None,
+    resume_ready: bool,
+    input_count: int,
+    reason: str,
+) -> ContextualPopupRecoveryResult:
+    return ContextualPopupRecoveryResult(
+        settled_frame=settled_frame,
+        dismissed=dismissed,
+        popup_absent=popup_absent,
+        resume_ready=bool(resume_ready),
+        input_count=max(0, min(1, int(input_count))),
+        reason=reason,
+    )
+
+
+def recover_contextual_vip_popup(
+    runtime: LocalBlueStacksRuntime,
+    captured: CapturedNativeFrame,
+    *,
+    source_context: str,
+    recognize_successor: Callable[[np.ndarray], bool],
+    action_key: str,
+    settle_seconds: float = 0.8,
+    sleep: Callable[[float], None] = time.sleep,
+) -> ContextualPopupRecoveryResult:
+    """Dismiss one exact VIP popup without owning route state or a durable ledger."""
+
+    if not isinstance(source_context, str) or not source_context.strip():
+        raise ValueError("source_context is required")
+    if not isinstance(action_key, str) or not action_key.strip():
+        raise ValueError("action_key is required")
+    if not _contextual_native_frame(captured):
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_revalidation_failed",
+        )
+
+    try:
+        initial_detail = recognize_reset_popup(captured.frame)
+    except BaseException as exc:
+        if _contextual_exception_is_control(exc):
+            raise
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_revalidation_failed",
+        )
+    if (
+        not isinstance(initial_detail, dict)
+        or "recognized" not in initial_detail
+    ):
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_revalidation_failed",
+        )
+    if not bool(initial_detail.get("recognized")):
+        if initial_detail.get("reason") == "profile_dimensions_mismatch":
+            return _contextual_result(
+                settled_frame=None,
+                dismissed=False,
+                popup_absent=None,
+                resume_ready=False,
+                input_count=0,
+                reason="vip_popup_revalidation_failed",
+            )
+        try:
+            successor = bool(recognize_successor(captured.frame))
+        except BaseException as exc:
+            if _contextual_exception_is_control(exc):
+                raise
+            successor = False
+        return _contextual_result(
+            settled_frame=captured,
+            dismissed=False,
+            popup_absent=True,
+            resume_ready=successor,
+            input_count=0,
+            reason="exact_vip_popup_absent",
+        )
+
+    try:
+        initial_classification = classify_popup_recovery(
+            initial_detail,
+            source_context=source_context,
+        )
+    except BaseException as exc:
+        if _contextual_exception_is_control(exc):
+            raise
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_revalidation_failed",
+        )
+    if (
+        not _contextual_exact_vip(initial_detail)
+        or not bool(getattr(initial_classification, "allows_dismissal", False))
+    ):
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_dismissal_not_allowed",
+        )
+    if _contextual_runtime_denied(runtime, action_key):
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_dispatch_not_authorized",
+        )
+
+    try:
+        dispatch_before = runtime.capture("contextual-vip-popup-dispatch-before")
+    except BaseException as exc:
+        if _contextual_exception_is_control(exc):
+            raise
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_revalidation_failed",
+        )
+    if not _contextual_native_frame(dispatch_before):
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_revalidation_failed",
+        )
+    try:
+        dispatch_detail = recognize_reset_popup(dispatch_before.frame)
+    except BaseException as exc:
+        if _contextual_exception_is_control(exc):
+            raise
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_revalidation_failed",
+        )
+    if not isinstance(dispatch_detail, dict):
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_revalidation_failed",
+        )
+    if (
+        not _contextual_exact_vip(dispatch_detail)
+        or dispatch_detail.get("popup_identity")
+        != initial_detail.get("popup_identity")
+        or dispatch_detail.get("target_identity")
+        != initial_detail.get("target_identity")
+    ):
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_revalidation_failed",
+        )
+    target = _contextual_target(dispatch_detail)
+    if target is None:
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_revalidation_failed",
+        )
+    if _contextual_runtime_denied(runtime, action_key):
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_dispatch_not_authorized",
+        )
+
+    before_count = _contextual_runtime_count(runtime)
+    tap_error: BaseException | None = None
+    try:
+        runtime.tap(
+            dispatch_before,
+            target_identity=VIP_RESET_TARGET,
+            target_roi=target,
+            action_key=action_key,
+            action_class="navigation",
+            consequential=False,
+        )
+    except BaseException as exc:
+        if _contextual_exception_is_control(exc):
+            raise
+        tap_error = exc
+
+    input_delta = _contextual_input_delta(runtime, before_count)
+    transport_started = bool(
+        _contextual_runtime_state_changed(
+            runtime,
+            before_count=before_count,
+            action_key=action_key,
+        )
+        or (
+            tap_error is not None
+            and (
+                bool(getattr(tap_error, "dispatched", False))
+                or bool(getattr(tap_error, "uncertain", False))
+            )
+        )
+    )
+    if tap_error is not None and not transport_started:
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=False,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=0,
+            reason="vip_popup_dispatch_not_authorized",
+        )
+    if tap_error is not None:
+        reason = "vip_popup_transport_uncertain"
+        try:
+            sleep(max(0.0, float(settle_seconds)))
+            uncertain_post = runtime.capture("contextual-vip-popup-post")
+        except BaseException as exc:
+            if _contextual_exception_is_control(exc):
+                raise
+            uncertain_post = None
+        if _contextual_native_frame(uncertain_post):
+            runtime.reconcile(action_key, "unresolved", uncertain_post, reason)
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=None,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=1,
+            reason=reason,
+        )
+
+    input_count = 1 if input_delta == 0 else input_delta
+    try:
+        sleep(max(0.0, float(settle_seconds)))
+        post = runtime.capture("contextual-vip-popup-post")
+    except BaseException as exc:
+        if _contextual_exception_is_control(exc):
+            raise
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=True,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=input_count,
+            reason="vip_popup_post_capture_failed",
+        )
+    if not _contextual_native_frame(post):
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=True,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=input_count,
+            reason="vip_popup_post_capture_failed",
+        )
+    try:
+        post_detail = recognize_reset_popup(post.frame)
+    except BaseException as exc:
+        if _contextual_exception_is_control(exc):
+            raise
+        runtime.reconcile(
+            action_key,
+            "unresolved",
+            post,
+            "vip_popup_post_capture_failed",
+        )
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=True,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=input_count,
+            reason="vip_popup_post_capture_failed",
+        )
+    if (
+        not isinstance(post_detail, dict)
+        or "recognized" not in post_detail
+        or post_detail.get("reason") == "profile_dimensions_mismatch"
+    ):
+        runtime.reconcile(
+            action_key,
+            "unresolved",
+            post,
+            "vip_popup_post_capture_failed",
+        )
+        return _contextual_result(
+            settled_frame=None,
+            dismissed=True,
+            popup_absent=None,
+            resume_ready=False,
+            input_count=input_count,
+            reason="vip_popup_post_capture_failed",
+        )
+    if _contextual_exact_vip(post_detail):
+        reason = "vip_popup_persisted"
+        runtime.reconcile(action_key, "unresolved", post, reason)
+        return _contextual_result(
+            settled_frame=post,
+            dismissed=True,
+            popup_absent=False,
+            resume_ready=False,
+            input_count=input_count,
+            reason=reason,
+        )
+
+    try:
+        successor = bool(recognize_successor(post.frame))
+    except BaseException as exc:
+        if _contextual_exception_is_control(exc):
+            raise
+        successor = False
+    reason = (
+        "popup_dismissed_resume_ready"
+        if successor
+        else "popup_dismissed_context_not_ready"
+    )
+    runtime.reconcile(action_key, "confirmed", post, reason)
+    return _contextual_result(
+        settled_frame=post,
+        dismissed=True,
+        popup_absent=True,
+        resume_ready=successor,
+        input_count=input_count,
+        reason=reason,
+    )
 
 
 def _popup_observation(captured: CapturedNativeFrame, detail: dict[str, object]) -> Observation:

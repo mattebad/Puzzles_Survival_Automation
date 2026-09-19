@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 import tempfile
 
@@ -337,7 +338,15 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
                 result_timeout=0.1,
                 atlas_binding=bind_atlas,
             )
-            outcome = route.run(max_steps=10)
+            with patch(
+                "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+                side_effect=lambda runtime, captured, **kwargs: __import__(
+                    "scripts.startup_recovery", fromlist=["ContextualPopupRecoveryResult"]
+                ).ContextualPopupRecoveryResult(
+                    captured, False, True, True, 0, "exact_vip_popup_absent"
+                ),
+            ):
+                outcome = route.run(max_steps=10)
             self.assertEqual(outcome.status, "completed", outcome.reason)
             self.assertEqual(len(sealed.inputs), 8)  # open, three free singles, three closes, terminal back
             self.assertEqual(sealed.physical_transport_calls, 0)
@@ -397,7 +406,15 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
             atlas_binding=lambda captured: (10, 20, 30, 40),
             post_input_delay=0.0,
         )
-        blocked = route.run(max_steps=1)
+        with patch(
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            side_effect=lambda runtime, captured, **kwargs: __import__(
+                "scripts.startup_recovery", fromlist=["ContextualPopupRecoveryResult"]
+            ).ContextualPopupRecoveryResult(
+                captured, False, True, True, 0, "exact_vip_popup_absent"
+            ),
+        ):
+            blocked = route.run(max_steps=1)
         self.assertEqual(blocked.status, "blocked")
         self.assertEqual(blocked.reason, "maximum controller steps exceeded")
         self.assertEqual(

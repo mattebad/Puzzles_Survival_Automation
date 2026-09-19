@@ -17,8 +17,10 @@ from scripts.bluestacks_native_runtime import (
     NATIVE_RUNTIME_PROFILE_ID,
 )
 from scripts.startup_recovery import (
+    ContextualPopupRecoveryResult,
     StartupRecoveryError,
     classify_startup_frame,
+    recover_contextual_vip_popup,
     recover_known_startup_overlay,
 )
 from scripts.startup_surface_recognition import (
@@ -38,11 +40,16 @@ from scripts.startup_surface_recognition import (
 TARGET = (263, 781, 537, 869)
 
 
-def popup(*, target=TARGET) -> dict[str, object]:
+def popup(
+    *,
+    target=TARGET,
+    popup_identity: str = "VIP_POINTS_GET_PTS",
+    target_identity: str = "reset-popup-close",
+) -> dict[str, object]:
     return {
         "recognized": True,
-        "popup_identity": "VIP_POINTS_GET_PTS",
-        "target_identity": "reset-popup-close",
+        "popup_identity": popup_identity,
+        "target_identity": target_identity,
         "target": target,
         "target_center": (400, 825),
     }
@@ -85,6 +92,35 @@ class FakeRuntime:
         self.reconciliations.append(status)
 
 
+class ContextualRuntime(FakeRuntime):
+    def __init__(
+        self,
+        root: Path,
+        *,
+        max_inputs: int = 12,
+        capture_failures: set[str] | None = None,
+        deny_input: bool = False,
+        uncertain_transport: bool = False,
+    ) -> None:
+        super().__init__(root, max_inputs=max_inputs)
+        self.capture_failures = capture_failures or set()
+        self.deny_input = deny_input
+        self.uncertain_transport = uncertain_transport
+        self.tap_calls: list[dict[str, object]] = []
+        self.capture_labels: list[str] = []
+
+    def capture(self, label: str) -> CapturedNativeFrame:
+        self.capture_labels.append(label)
+        if label in self.capture_failures:
+            raise RuntimeError(f"capture failed: {label}")
+        return super().capture(label)
+    def tap(self, source, **kwargs) -> None:
+        self.tap_calls.append(dict(kwargs))
+        if self.deny_input:
+            raise RuntimeError("input denied")
+        super().tap(source, **kwargs)
+        if self.uncertain_transport:
+            raise RuntimeError("transport completion uncertain")
 class StartupRecoveryTests(unittest.TestCase):
     def _recover(self, runtime: FakeRuntime, **kwargs):
         return recover_known_startup_overlay(
@@ -578,6 +614,312 @@ class StartupRecoveryTests(unittest.TestCase):
                         sleep=lambda _seconds: None,
                     )
         self.assertEqual(runtime.input_count, 1)
+
+
+    def test_contextual_absent_popup_returns_current_frame_without_input(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ContextualRuntime(Path(directory) / "runtime")
+            captured = runtime.capture("contextual-source")
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                return_value={"recognized": False},
+            ):
+                result = recover_contextual_vip_popup(
+                    runtime,
+                    captured,
+                    source_context="home-or-tavern",
+                    recognize_successor=lambda _frame: True,
+                    action_key="noah:popup-close:home-or-tavern:source",
+                    sleep=lambda _seconds: None,
+                )
+        self.assertIsInstance(result, ContextualPopupRecoveryResult)
+        self.assertIs(result.settled_frame, captured)
+        self.assertFalse(result.dismissed)
+        self.assertTrue(result.popup_absent)
+        self.assertTrue(result.resume_ready)
+        self.assertEqual(result.input_count, 0)
+        self.assertEqual(result.reason, "exact_vip_popup_absent")
+        self.assertEqual(runtime.input_count, 0)
+
+    def test_contextual_close_rebinds_moving_target_and_accepts_home_or_tavern(self) -> None:
+        moved = (275, 786, 550, 868)
+        for source_context in ("home-or-tavern", "home-normalization"):
+            with self.subTest(source_context=source_context), tempfile.TemporaryDirectory() as directory:
+                runtime = ContextualRuntime(Path(directory) / "runtime")
+                captured = runtime.capture("contextual-source")
+                with patch(
+                    "scripts.startup_recovery.recognize_reset_popup",
+                    side_effect=(
+                        popup(),
+                        popup(target=moved),
+                        {"recognized": False},
+                    ),
+                ):
+                    result = recover_contextual_vip_popup(
+                        runtime,
+                        captured,
+                        source_context=source_context,
+                        recognize_successor=lambda _frame: True,
+                        action_key=f"noah:popup-close:{source_context}:source",
+                        sleep=lambda _seconds: None,
+                    )
+                self.assertEqual(runtime.input_count, 1)
+                self.assertEqual(runtime.tap_calls[0]["target_identity"], "reset-popup-close")
+                self.assertEqual(runtime.tap_calls[0]["action_class"], "navigation")
+                self.assertFalse(runtime.tap_calls[0]["consequential"])
+                self.assertEqual(runtime.reconciliations, ["confirmed"])
+                self.assertEqual(runtime.tap_calls[0]["target_roi"], moved)
+                self.assertTrue(result.dismissed)
+                self.assertTrue(result.popup_absent)
+                self.assertTrue(result.resume_ready)
+                self.assertEqual(result.reason, "popup_dismissed_resume_ready")
+
+    def test_contextual_persistent_popup_is_unresolved_without_second_close(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ContextualRuntime(Path(directory) / "runtime")
+            captured = runtime.capture("contextual-source")
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                side_effect=(popup(), popup(), popup()),
+            ):
+                result = recover_contextual_vip_popup(
+                    runtime,
+                    captured,
+                    source_context="home-or-tavern",
+                    recognize_successor=lambda _frame: True,
+                    action_key="noah:popup-close:home-or-tavern:source",
+                    sleep=lambda _seconds: None,
+                )
+        self.assertEqual(runtime.input_count, 1)
+        self.assertEqual(len(runtime.tap_calls), 1)
+        self.assertEqual(runtime.reconciliations, ["unresolved"])
+        self.assertTrue(result.dismissed)
+        self.assertFalse(result.popup_absent)
+        self.assertFalse(result.resume_ready)
+        self.assertEqual(result.reason, "vip_popup_persisted")
+
+    def test_contextual_revalidation_failure_does_not_dispatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ContextualRuntime(
+                Path(directory) / "runtime",
+                capture_failures={"contextual-vip-popup-dispatch-before"},
+            )
+            captured = runtime.capture("contextual-source")
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                return_value=popup(),
+            ):
+                result = recover_contextual_vip_popup(
+                    runtime,
+                    captured,
+                    source_context="home-or-tavern",
+                    recognize_successor=lambda _frame: True,
+                    action_key="noah:popup-close:home-or-tavern:source",
+                    sleep=lambda _seconds: None,
+                )
+        self.assertEqual(result.reason, "vip_popup_revalidation_failed")
+        self.assertFalse(result.dismissed)
+        self.assertIsNone(result.popup_absent)
+        self.assertEqual(result.input_count, 0)
+        self.assertEqual(runtime.input_count, 0)
+        self.assertEqual(runtime.tap_calls, [])
+
+    def test_contextual_input_denial_is_distinct_from_uncertain_transport(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ContextualRuntime(Path(directory) / "runtime", deny_input=True)
+            captured = runtime.capture("contextual-source")
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                side_effect=(popup(), popup()),
+            ):
+                result = recover_contextual_vip_popup(
+                    runtime,
+                    captured,
+                    source_context="home-or-tavern",
+                    recognize_successor=lambda _frame: True,
+                    action_key="noah:popup-close:home-or-tavern:source",
+                    sleep=lambda _seconds: None,
+                )
+        self.assertEqual(result.reason, "vip_popup_dispatch_not_authorized")
+        self.assertFalse(result.dismissed)
+        self.assertIsNone(result.popup_absent)
+        self.assertEqual(result.input_count, 0)
+        self.assertEqual(runtime.input_count, 0)
+
+    def test_contextual_uncertain_transport_consumes_one_slot_without_retry(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ContextualRuntime(
+                Path(directory) / "runtime",
+                uncertain_transport=True,
+            )
+            captured = runtime.capture("contextual-source")
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                side_effect=(popup(), popup()),
+            ):
+                result = recover_contextual_vip_popup(
+                    runtime,
+                    captured,
+                    source_context="home-or-tavern",
+                    recognize_successor=lambda _frame: True,
+                    action_key="noah:popup-close:home-or-tavern:source",
+                    sleep=lambda _seconds: None,
+                )
+        self.assertIsNone(result.dismissed)
+        self.assertIsNone(result.popup_absent)
+        self.assertFalse(result.resume_ready)
+        self.assertEqual(result.input_count, 1)
+        self.assertEqual(result.reason, "vip_popup_transport_uncertain")
+        self.assertEqual(runtime.input_count, 1)
+        self.assertEqual(runtime.reconciliations, ["unresolved"])
+        self.assertEqual(len(runtime.tap_calls), 1)
+
+    def test_contextual_post_capture_failure_preserves_known_dismissal(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ContextualRuntime(
+                Path(directory) / "runtime",
+                capture_failures={"contextual-vip-popup-post"},
+            )
+            captured = runtime.capture("contextual-source")
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                side_effect=(popup(), popup()),
+            ):
+                result = recover_contextual_vip_popup(
+                    runtime,
+                    captured,
+                    source_context="home-or-tavern",
+                    recognize_successor=lambda _frame: True,
+                    action_key="noah:popup-close:home-or-tavern:source",
+                    sleep=lambda _seconds: None,
+                )
+        self.assertTrue(result.dismissed)
+        self.assertIsNone(result.popup_absent)
+        self.assertFalse(result.resume_ready)
+        self.assertEqual(result.input_count, 1)
+        self.assertEqual(result.reason, "vip_popup_post_capture_failed")
+        self.assertEqual(runtime.input_count, 1)
+        self.assertEqual(runtime.reconciliations, [])
+
+    def test_contextual_unexpected_successor_confirms_absence_but_blocks_resume(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ContextualRuntime(Path(directory) / "runtime")
+            captured = runtime.capture("contextual-source")
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                side_effect=(popup(), popup(), {"recognized": False}),
+            ):
+                result = recover_contextual_vip_popup(
+                    runtime,
+                    captured,
+                    source_context="home-or-tavern",
+                    recognize_successor=lambda _frame: False,
+                    action_key="noah:popup-close:home-or-tavern:source",
+                    sleep=lambda _seconds: None,
+                )
+        self.assertTrue(result.dismissed)
+        self.assertTrue(result.popup_absent)
+        self.assertFalse(result.resume_ready)
+        self.assertEqual(result.reason, "popup_dismissed_context_not_ready")
+        self.assertEqual(runtime.reconciliations, ["confirmed"])
+
+    def test_contextual_dismissal_uses_one_fresh_pre_and_post_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ContextualRuntime(Path(directory) / "runtime")
+            captured = runtime.capture("contextual-source")
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                side_effect=(popup(), popup(), {"recognized": False}),
+            ):
+                result = recover_contextual_vip_popup(
+                    runtime,
+                    captured,
+                    source_context="home-or-tavern",
+                    recognize_successor=lambda _frame: True,
+                    action_key="noah:popup-close:home-or-tavern:source",
+                    sleep=lambda _seconds: None,
+                )
+        self.assertTrue(result.dismissed)
+        self.assertEqual(
+            runtime.capture_labels,
+            [
+                "contextual-source",
+                "contextual-vip-popup-dispatch-before",
+                "contextual-vip-popup-post",
+            ],
+        )
+
+    def test_contextual_popup_identity_change_blocks_before_transport(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ContextualRuntime(Path(directory) / "runtime")
+            captured = runtime.capture("contextual-source")
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                side_effect=(popup(), popup(popup_identity="OTHER_MODAL")),
+            ):
+                result = recover_contextual_vip_popup(
+                    runtime,
+                    captured,
+                    source_context="home-or-tavern",
+                    recognize_successor=lambda _frame: True,
+                    action_key="noah:popup-close:home-or-tavern:source",
+                    sleep=lambda _seconds: None,
+                )
+        self.assertEqual(result.reason, "vip_popup_revalidation_failed")
+        self.assertFalse(result.dismissed)
+        self.assertIsNone(result.popup_absent)
+        self.assertEqual(runtime.input_count, 0)
+        self.assertEqual(runtime.tap_calls, [])
+
+    def test_contextual_budget_denial_skips_fresh_capture_and_input(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ContextualRuntime(Path(directory) / "runtime", max_inputs=1)
+            runtime.input_count = 1
+            captured = runtime.capture("contextual-source")
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                return_value=popup(),
+            ):
+                result = recover_contextual_vip_popup(
+                    runtime,
+                    captured,
+                    source_context="home-or-tavern",
+                    recognize_successor=lambda _frame: True,
+                    action_key="noah:popup-close:home-or-tavern:source",
+                    sleep=lambda _seconds: None,
+                )
+        self.assertEqual(result.reason, "vip_popup_dispatch_not_authorized")
+        self.assertFalse(result.dismissed)
+        self.assertIsNone(result.popup_absent)
+        self.assertEqual(runtime.capture_labels, ["contextual-source"])
+        self.assertEqual(runtime.input_count, 1)
+
+    def test_contextual_stop_exception_propagates_without_later_capture(self) -> None:
+        class StopRuntime(ContextualRuntime):
+            def capture(self, label: str) -> CapturedNativeFrame:
+                if label == "contextual-vip-popup-dispatch-before":
+                    self.capture_labels.append(label)
+                    raise RuntimeError("stop requested")
+                return super().capture(label)
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = StopRuntime(Path(directory) / "runtime")
+            captured = runtime.capture("contextual-source")
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                return_value=popup(),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "stop requested"):
+                    recover_contextual_vip_popup(
+                        runtime,
+                        captured,
+                        source_context="home-or-tavern",
+                        recognize_successor=lambda _frame: True,
+                        action_key="noah:popup-close:home-or-tavern:source",
+                        sleep=lambda _seconds: None,
+                    )
+        self.assertEqual(runtime.input_count, 0)
+        self.assertEqual(runtime.capture_labels, ["contextual-source", "contextual-vip-popup-dispatch-before"])
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from scripts.bluestacks_popup_recognition import (
     MAX_VIP_POPUP_INPUTS,
@@ -41,6 +42,36 @@ class VipPointsPopupTests(unittest.TestCase):
         changed[790:825, 350:450] = 0
         detail = recognize_reset_popup(changed)
         self.assertFalse(detail["literal_close"])
+        self.assertFalse(detail["recognized"])
+    def test_wrong_title_identity_is_rejected(self):
+        changed = self.frame.copy()
+        changed[390:440, 260:540] = 0
+        detail = recognize_reset_popup(changed)
+        self.assertFalse(detail["title_identity"])
+        self.assertFalse(detail["recognized"])
+
+    def test_wrong_body_identity_is_rejected(self):
+        changed = self.frame.copy()
+        changed[480:720, 120:680] = 0
+        detail = recognize_reset_popup(changed)
+        self.assertFalse(detail["body_identity"])
+        self.assertFalse(detail["recognized"])
+
+    def test_scaled_frame_is_rejected_as_non_native(self):
+        scaled = cv2.resize(self.frame, (400, 640), interpolation=cv2.INTER_AREA)
+        detail = recognize_reset_popup(scaled)
+        self.assertFalse(detail["recognized"])
+        self.assertEqual(detail["reason"], "profile_dimensions_mismatch")
+
+    def test_popup_geometry_drift_is_rejected(self):
+        drifted = cv2.warpAffine(
+            self.frame,
+            np.float32([[1.0, 0.0, 80.0], [0.0, 1.0, 0.0]]),
+            (800, 1280),
+            borderValue=(0, 0, 0),
+        )
+        detail = recognize_reset_popup(drifted)
+        self.assertFalse(detail["geometry_valid"])
         self.assertFalse(detail["recognized"])
 
     def test_generic_orange_button_is_rejected(self):

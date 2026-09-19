@@ -22,9 +22,11 @@ recognition remain the entry contract.
   owner/run/input lock. The unresolved startup VIP record is unchanged.
 - Evidence: `.local-captures/lb03-live-admission-20260918T224056406651Z/`.
 - The accepted follow-up candidate is committed and pushed at `827a85b`.
-- LB-04 through LB-08 remain planned and untouched. LB-09 is ready next.
+- LB-04 through LB-08 remain planned and untouched. LB-09 offline implementation is complete and
+  verified in an uncommitted candidate; live canary and natural-popup proof remain pending and are
+  not authorized.
 - Do not resume S1c, contact prior agents, or retry the historical Campaign r2 attempt.
-- No paid input, duplicate recruit, popup recovery, unrelated flow, or post-soak live input ran.
+- No paid input, duplicate recruit, live popup recovery, unrelated flow, or post-soak live input ran.
 
 ## First live attempt — historical
 
@@ -357,7 +359,27 @@ and the startup VIP unresolved record unchanged. Evidence:
 `.local-captures/lb03-live-admission-20260918T224056406651Z/`.
 
 Limitations: full 1,800-second duration, real night/day transition, and live Supply/Nova or
-other-building entry remain unproved. The accepted checkpoint is pushed; LB-09 is ready next.
+other-building entry remain unproved. The accepted checkpoint is pushed.
+
+## LB-09 offline implementation — verified, uncommitted
+
+`docs/lb09-contextual-popup-recovery-design.md` records the frozen store-free contextual VIP
+helper, its tri-state dismissal/absence/readiness result, one-Close session bound, fresh-target
+revalidation, route-scoped action keys, and Recruitment accounting. The helper and Recruitment
+integration are implemented on top of the parent HEAD and remain uncommitted. The active route
+owns successor recognition; startup Scarlett/commercial handling and the unresolved startup VIP ledger
+remain isolated.
+
+The implementation covers the phase-aware `pending_action_key`/`pending_result` contract,
+stale-command invalidation, safe-return re-observation, and navigation-versus-recruitment
+accounting. Independent helper, accounting, integration, and route reviews passed after the
+safe-return stale-Back finding was repaired. Offline verification passed: the focused command
+passed 135 tests with 1 skipped, and the additional changed-route command passed 50 tests.
+Python compilation and `git diff --check` passed; Python LSP was unavailable. These are focused
+checks, not a full-suite result.
+
+No live canary, natural-popup proof, or live popup recovery was run. No commit/push, production
+registration, scheduler enablement, runtime input, or runtime-state change is claimed.
 
 ## Existing machine-readable state
 
@@ -366,17 +388,29 @@ Current enablement/ownership below was checked after the bounded LB-03 service s
 Static canonical registration was not changed. The legacy `production_registration` field
 retains the unchanged JSON-registry posture (`NOT_REGISTERED`), not the canonical service
 registry. Offline fixtures and retained live evidence remain distinct.
-
 <!-- CURRENT_HANDOFF_STATE_BEGIN -->
 {
   "schema_version": 3,
   "branch": "refactor/lean-bot-backlog",
-  "head_binding": "827a85b8e685bc15aaf03c559a5a7df66718d876",
+  "head_binding": "aac1c10308a0f7213ab728d0ef231811bb9a1d7f",
   "last_product_candidate_head": "827a85b8e685bc15aaf03c559a5a7df66718d876",
   "ahead_behind": {
     "source": "compute_from_git"
   },
-  "attributable_dirty_paths": [],
+  "attributable_dirty_paths": [
+    "BACKLOG.md",
+    "CURRENT_HANDOFF.md",
+    "docs/lb09-contextual-popup-recovery-design.md",
+    "scripts/noahs_tavern_recruit_bluestacks.py",
+    "scripts/startup_recovery.py",
+    "tests/test_bluestacks_integrated_routes.py",
+    "tests/test_flow_delivery_recruitment_bluestacks.py",
+    "tests/test_noahs_tavern_recruit.py",
+    "tests/test_noahs_tavern_recruit_maintenance.py",
+    "tests/test_service_recruitment.py",
+    "tests/test_startup_recovery.py",
+    "tests/test_vip_points_popup.py"
+  ],
   "task_start_worktree": {
     "tracked_dirty_paths": [
       "AGENTS.md",
@@ -392,28 +426,28 @@ registry. Offline fixtures and retained live evidence remain distinct.
     ".local-reference/",
     "evidence/"
   ],
-  "current_task_id": "LB-03",
-  "current_task_state": "closed_live_accepted_checkpoint_pushed",
+  "current_task_id": "LB-09",
+  "current_task_state": "offline_implemented_verified_uncommitted",
   "next_task_id": "LB-09",
-  "next_task_activation_status": "ready",
-  "active_task_or_flow": "none",
-  "active_delivery_stage": "checkpoint_pushed",
+  "next_task_activation_status": "commit_push_authorization_required_live_separate_not_authorized",
+  "active_task_or_flow": "LB-09 contextual VIP popup recovery",
+  "active_delivery_stage": "offline_verified_uncommitted",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
-  "unresolved_action_state": "none",
-  "latest_focused_validation_result": "PASS: 488 tests, 6 skipped; zero-input preflight, two-input canary, two service cycles, 15 soak inputs, 4 free recruits",
-  "latest_architecture_validation_result": "No formal governance/architecture validation; reused the existing scheduler, runner, controller and storage",
+  "unresolved_action_state": "startup_vip_action_unresolved_preserved",
+  "latest_focused_validation_result": "PASS: focused LB-09 command — 135 tests passed, 1 skipped; additional changed-route command — 50 tests passed; Python compilation and git diff --check pass; Python LSP unavailable; not a full-suite result",
+  "latest_architecture_validation_result": "PASS: independent helper, accounting, integration, and route reviews; safe-return stale-Back finding repaired; startup VIP ledger and native/route accounting remain isolated",
   "latest_full_suite_result": "PASS: 488 tests, 6 skipped",
-  "current_live_attempt_state": "stopped_cleanly_at_four_recruit_safety_ceiling_after_772_8_seconds",
-  "current_evidence_or_session_reference": ".local-captures/lb03-live-admission-20260918T224056406651Z/soak-20260918T224734538294Z/soak-result.json",
-  "last_safe_completed_step": "Committed and pushed the live-accepted LB-03 follow-up checkpoint at 827a85b; generation16 disabled/unblocked state remains preserved",
-  "exact_next_permitted_action": "Begin LB-09 contextual VIP popup handling without live input unless separately authorized.",
-  "current_blocker": "none",
+  "current_live_attempt_state": "not_started_not_authorized",
+  "current_evidence_or_session_reference": "docs/lb09-contextual-popup-recovery-design.md",
+  "last_safe_completed_step": "Implemented and offline-verified the LB-09 helper and Recruitment integration; no runtime input; awaiting explicit commit/push authorization",
+  "exact_next_permitted_action": "Obtain explicit LB-09 commit/push authorization; live canary and natural-popup proof remain separate and not authorized",
+  "current_blocker": "awaiting_explicit_commit_push_authorization; live_canary_not_authorized",
   "prohibited_repeated_action": "Do not repeat consumed recruits before recognized eligibility, trust generic zero counters over native evidence, reset gameplay state or retry automatically; preserve VIP unresolved record",
-  "stage_revision": "lb03-atlas-entry-checkpoint-pushed",
-  "stage_type": "closed",
+  "stage_revision": "lb09-offline-implemented-verified-uncommitted",
+  "stage_type": "offline_verification",
   "product_precondition": "met",
   "failure_class": "none",
   "budgets": {
@@ -441,20 +475,20 @@ registry. Offline fixtures and retained live evidence remain distinct.
     "historical_journals": "retained_immutable"
   },
   "evidence": {
-    "evidence_requirement": "SATISFIED",
-    "evidence_requirement_reason": "The user accepted two live eligible cycles, 15 soak inputs, four free recruits, persistence and Home return as LB-03 closure despite the intentional 772.8-second safety stop.",
-    "active_evidence_manifest": ".local-captures/lb03-live-admission-20260918T224056406651Z/candidate-manifest.json",
+    "evidence_requirement": "LIVE_CANARY_AND_NATURAL_POPUP_PROOF_PENDING",
+    "evidence_requirement_reason": "Offline implementation and verification are complete; live canary and natural-popup proof remain pending and are not authorized.",
+    "active_evidence_manifest": null,
     "monitoring_issue": "none",
     "do_not_recursively_inspect_parent_evidence_tree": true
   },
   "control_owner": "parent_agent",
   "control_parent_conversation_id": "lean-recruitment-service",
-  "deferred_independent_review": "No mandatory role review; parent completed diff, geometry, affected-suite, live-event and stopped-state verification",
+  "deferred_independent_review": "Independent helper, accounting, integration, and route reviews passed after the safe-return stale-Back repair; no further mandatory review",
   "stage_7_ordered_plan": [],
   "next_three_atomic_tasks": [
-    "Begin LB-09 contextual VIP popup handling",
-    "Reuse shared popup dismissal only after exact title/body/context matching",
-    "Keep live input and future commit/push behind separate authorization checkpoints"
+    "Obtain explicit LB-09 commit/push authorization; do not start live gameplay",
+    "If authorized, stage only the attributable LB-09 paths listed above and create/push the checkpoint",
+    "Keep live canary and natural-popup proof separate; run only after separate authorization"
   ]
 }
 <!-- CURRENT_HANDOFF_STATE_END -->

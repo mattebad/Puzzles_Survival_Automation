@@ -4,12 +4,17 @@ from __future__ import annotations
 from contextlib import ExitStack, closing
 from dataclasses import replace
 from pathlib import Path
+import json
 import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from automation_service.recruitment import RecruitmentRunner, recruitment_reset
+from automation_service.recruitment import (
+    RecruitmentRunner,
+    recruitment_next_due,
+    recruitment_reset,
+)
 from automation_service.registry import RECRUITMENT_FLOW_ID
 from automation_service.service import AutomationService
 from automation_service.state import BotStateManager
@@ -217,6 +222,54 @@ class ServiceRecruitmentTests(unittest.TestCase):
         self.serve(lambda report: (reports.append(report), self.stop.set()))
         self.assertEqual(reports[-1]["status"], "paused")
         self.assertEqual(len(self.runtimes), 1)
+
+    def test_popup_navigation_does_not_advance_unresolved_next_due(self):
+        identity = SchedulerIdentity(
+            "account",
+            "server",
+            recruitment_reset(self.stop.now),
+            MAINTENANCE_TASK_ID,
+        )
+        maintenance = NoahMaintenanceState.for_identity(identity)
+        completed_at = self.stop.now
+        completed = {
+            "status": "completed",
+            "terminal_home_verified": True,
+            "effect_reconciliation_required": False,
+            "identical_retry_denied": False,
+            "time_basis": "utc",
+            "completed_at_utc": completed_at,
+            "maintenance_state": json.loads(maintenance.to_json()),
+            "recruitment_transport_count": 1,
+            "recruitment_action_count": 1,
+            "contextual_popup_recoveries": [
+                {
+                    "source_sha256": "a" * 64,
+                    "settled_sha256": "b" * 64,
+                    "source_context": "recruit-result-advanced",
+                    "dismissed": True,
+                    "popup_absent": True,
+                    "resume_ready": True,
+                    "input_count": 1,
+                    "reason": "popup_dismissed_resume_ready",
+                }
+            ],
+        }
+        next_due = recruitment_next_due(
+            completed, identity, started_at=completed_at - 1
+        )
+        self.assertEqual(next_due, completed_at + 30)
+
+        unresolved = dict(
+            completed,
+            status="unresolved",
+            terminal_home_verified=False,
+            effect_reconciliation_required=True,
+            identical_retry_denied=True,
+        )
+        with self.assertRaises(ValueError):
+            recruitment_next_due(unresolved, identity, started_at=completed_at - 1)
+        self.assertEqual(next_due, completed_at + 30)
 
     def test_idle_stop_releases_owner_and_emergency_stop_prevents_input(self):
         self.state.update_schedule(RECRUITMENT_FLOW_ID, next_due_at_utc=self.stop.now + 600)
