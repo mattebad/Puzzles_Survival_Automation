@@ -318,7 +318,7 @@ Approval of this backlog does not start the bot or authorize live development in
 
 ## LB-09 — Handle known popup interruptions and resume the current flow
 
-- **Status:** **Offline implemented and verified, uncommitted.** Live canary and natural-popup
+- **Status:** **Offline implemented, verified, and checkpointed at `36e7af0`.** Live canary and natural-popup
   proof remain pending and are not authorized. The frozen contract is recorded in
   [`docs/lb09-contextual-popup-recovery-design.md`](docs/lb09-contextual-popup-recovery-design.md).
 - **Problem:** VIP dismissal exists, but shared recovery is startup-only, requires Home afterward,
@@ -348,7 +348,7 @@ Approval of this backlog does not start the bot or authorize live development in
   consumption. Report dismissal success separately when resumption remains blocked.
 - **Evidence:** `.local-captures/lb02-live/attempt4-20260916T012252Z/attempt4-result.json`
   records one successful visible VIP close rejected by the unrelated Home-nav template check.
-- **Offline verification:** The current uncommitted candidate covers the exact helper, one
+- **Offline verification:** The checkpointed candidate covers the exact helper, one
   contextual Close, fresh target/frame rebinding, phase-aware pending recruit/result handling,
   stale-command invalidation, safe-return re-observation, and navigation-versus-recruitment
   accounting. The focused command passed 135 tests with 1 skipped; the additional changed-route

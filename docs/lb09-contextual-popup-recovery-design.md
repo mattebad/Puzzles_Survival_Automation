@@ -4,7 +4,7 @@
 
 This document freezes the LB-09 contract and records its offline verification checkpoint. The
 store-free helper and existing Noah's Tavern Recruitment integration are implemented in the
-current uncommitted candidate. Live canary and natural-popup proof remain pending and are not
+checkpoint committed at `36e7af0`. Live canary and natural-popup proof remain pending and are not
 authorized. This work does not start live gameplay, enable a scheduler, change popup
 recognition thresholds, or generalize recovery to unknown surfaces.
 
@@ -300,7 +300,7 @@ one extra navigation transport without treating it as Recruitment completion.
 - Persistent exact popup: no second Close.
 - Popup absent with unexpected successor: dismissal remains recorded, but resumption blocks.
 
-The frozen contract's offline checkpoint is satisfied in the current uncommitted candidate:
+The frozen contract's offline checkpoint is satisfied in the committed `36e7af0` candidate:
 
 - Exact `VIP_POINTS_GET_PTS` title/body recognition, literal `Close`, retained native geometry,
   and the dismissal/absence/readiness tri-state outcomes are covered offline.
@@ -313,4 +313,4 @@ The frozen contract's offline checkpoint is satisfied in the current uncommitted
 - Independent helper, accounting, integration, and route reviews passed after the safe-return
   stale-Back finding was repaired.
 - No live canary or natural-popup proof was run. This checkpoint does not claim live popup
-  recovery, commit/push, production registration, scheduler enablement, or natural-popup proof.
+  recovery, production registration, scheduler enablement, or natural-popup proof.
