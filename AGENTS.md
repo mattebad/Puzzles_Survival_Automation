@@ -31,6 +31,14 @@ Existing gameplay approvals and concrete runtime safety limits are not revoked b
 
 - Prefer existing implementations and storage. Fix the smallest complete behavior, not a symptom.
   Avoid speculative abstractions, universal authority migrations, and duplicated state systems.
+- For Home-building entry, follow `docs/atlas-home-entry-design.md`: use fresh Atlas
+  localization, the mapped building's interaction anchor, `bind_visible_building`, and
+  route-owned successor recognition. Do not add an OCR-gated or flow-specific building binder.
+- For known popups, reuse the shared recognition/recovery seams in
+  `scripts/bluestacks_popup_recognition.py` and `scripts/startup_recovery.py`. Do not add
+  per-flow coordinate dismissers or a generic Close/Back fallback. After dismissal, recapture
+  and let the active route verify its expected context; LB-09 is the canonical contextual
+  mid-flow recovery contract.
 - Keep the bot serial: one process controls one emulator and executes one flow at a time.
   Development paperwork, Git state, and agent orchestration do not belong in the bot runtime.
 - Change shared helpers only for demonstrated needs. Retire duplicate code when its replacement

@@ -22,11 +22,32 @@ recognition remain the entry contract.
   owner/run/input lock. The unresolved startup VIP record is unchanged.
 - Evidence: `.local-captures/lb03-live-admission-20260918T224056406651Z/`.
 - The accepted follow-up candidate is committed and pushed at `827a85b`.
-- LB-04 through LB-08 remain planned and untouched. LB-09 offline implementation is complete and
-  verified and checkpointed at `36e7af0`; live canary and natural-popup proof remain pending and
-  are not authorized.
+- LB-04 through LB-08 remain planned and untouched. LB-09 Home/startup contextual popup
+  recovery is live-proven from a naturally occurring popup. The separate cooldown-tier loop,
+  stale-frame performance issue, ineffective short-pan selection, and lazy Home-analysis cache
+  defect are repaired. Tavern/non-Home and post-consumption popup proof remain pending.
+- The latest bounded Recruitment route completed with 7 inputs: one effective 92px Home pan,
+  Tavern entry, one Basic free recruit, result Close, and verified safe return Home. No popup,
+  paid input, duplicate recruit, or scheduler activation occurred.
+- Final affected verification ran serially: 163 focused, 10 service/delivery, and 38 integration
+  tests passed (211 total). Evidence: `.local-captures/lb09-panfix-rerun-20260919T041106Z/`.
 - Do not resume S1c, contact prior agents, or retry the historical Campaign r2 attempt.
-- No paid input, duplicate recruit, live popup recovery, unrelated flow, or post-soak live input ran.
+
+## LB-09 pan and successor-analysis repair
+
+The retained 42px drag failure was an unhandled native dead zone, not successful camera motion.
+The direct-pan planner now excludes policy candidates below the calibrated 65px effective floor,
+selects the next safe viewport, and fails closed instead of reporting an unexecuted residual as a
+binding state. A recognized Home frame can now lazily enrich its cached analysis with Atlas
+localization when zoom/pan successor verification requires it.
+
+The first post-repair run dispatched one bounded zoom input, then exposed and retained the cache
+defect before any pan or recruit. Offline replay of that exact successor produced canonical Home
+localization (confidence 0.9903, residual 0.116px). The materially changed rerun completed in
+76 seconds with 7/12 inputs, accepted a measured 92px pan, bound Tavern from fresh Atlas geometry
+(confidence 0.9968, residual 0.039px), performed one eligible Basic free recruit, and verified
+terminal Home. The popup was absent throughout, so this is route/pan proof rather than new
+Tavern or post-consumption popup-interruption proof.
 
 ## First live attempt — historical
 
@@ -361,7 +382,7 @@ and the startup VIP unresolved record unchanged. Evidence:
 Limitations: full 1,800-second duration, real night/day transition, and live Supply/Nova or
 other-building entry remain unproved. The accepted checkpoint is pushed.
 
-## LB-09 offline implementation — verified and checkpointed
+## LB-09 live verification — Home context proven, route blocked
 
 `docs/lb09-contextual-popup-recovery-design.md` records the frozen store-free contextual VIP
 helper, its tri-state dismissal/absence/readiness result, one-Close session bound, fresh-target
@@ -378,9 +399,18 @@ passed 135 tests with 1 skipped, and the additional changed-route command passed
 Python compilation and `git diff --check` passed; Python LSP was unavailable. These are focused
 checks, not a full-suite result.
 
-No live canary, natural-popup proof, or live popup recovery was run. The implementation checkpoint
-is committed at `36e7af0`; no production registration, scheduler enablement, runtime input, or
-runtime-state change is claimed.
+A naturally occurring exact `VIP_POINTS_GET_PTS` popup covered Home. The route dispatched one
+route-scoped contextual Close, captured a fresh popup-free recognized Home frame, reconciled
+`popup_dismissed_resume_ready`, recomputed Atlas entry, entered Tavern, and performed exactly one
+Basic free recruit plus its normal result Close and verified cooldown. No duplicate recruit or
+startup-ledger mutation occurred.
+
+The broader pass is not accepted: it then alternated Int./Advanced tier selections even though
+each selected tier showed cooldown, reached the existing 12-input ceiling, and stopped in Tavern
+without a terminal Home return. No retry ran. Service/Recruitment remained disabled at generation
+16 with no active run, lease, or runtime-input lock. Tavern/non-Home and post-consumption popup
+recovery remain unproved. Evidence:
+`.local-captures/lb09-live-canary-20260919T021900Z/live-verification.json`.
 
 ## Existing machine-readable state
 
@@ -393,12 +423,16 @@ registry. Offline fixtures and retained live evidence remain distinct.
 {
   "schema_version": 3,
   "branch": "refactor/lean-bot-backlog",
-  "head_binding": "36e7af0319fa47f833d02ae70573e7ca78569436",
+  "head_binding": "5c8431e8c4502a8df57b734137b967c05540ffa8",
   "last_product_candidate_head": "827a85b8e685bc15aaf03c559a5a7df66718d876",
   "ahead_behind": {
     "source": "compute_from_git"
   },
-  "attributable_dirty_paths": [],
+  "attributable_dirty_paths": [
+    "BACKLOG.md",
+    "CURRENT_HANDOFF.md",
+    "docs/lb09-contextual-popup-recovery-design.md"
+  ],
   "task_start_worktree": {
     "tracked_dirty_paths": [
       "AGENTS.md",
@@ -415,34 +449,34 @@ registry. Offline fixtures and retained live evidence remain distinct.
     "evidence/"
   ],
   "current_task_id": "LB-09",
-  "current_task_state": "offline_implemented_verified_checkpointed",
+  "current_task_state": "home_context_live_proven_route_passed",
   "next_task_id": "LB-09",
-  "next_task_activation_status": "live_separate_not_authorized",
+  "next_task_activation_status": "non_home_popup_proof_waits_for_natural_occurrence",
   "active_task_or_flow": "LB-09 contextual VIP popup recovery",
-  "active_delivery_stage": "offline_verified_checkpointed",
+  "active_delivery_stage": "live_route_passed",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "startup_vip_action_unresolved_preserved",
-  "latest_focused_validation_result": "PASS: focused LB-09 command — 135 tests passed, 1 skipped; additional changed-route command — 50 tests passed; Python compilation and git diff --check pass; Python LSP unavailable; not a full-suite result",
+  "latest_focused_validation_result": "PASS: 211 serialized affected tests (163 focused + 10 service/delivery + 38 integration); Python compilation and git diff --check pass; not a full-suite result",
   "latest_architecture_validation_result": "PASS: independent helper, accounting, integration, and route reviews; safe-return stale-Back finding repaired; startup VIP ledger and native/route accounting remain isolated",
   "latest_full_suite_result": "PASS: 488 tests, 6 skipped",
-  "current_live_attempt_state": "not_started_not_authorized",
-  "current_evidence_or_session_reference": "docs/lb09-contextual-popup-recovery-design.md",
-  "last_safe_completed_step": "Committed the offline-verified LB-09 helper and Recruitment integration at 36e7af0; no runtime input",
-  "exact_next_permitted_action": "Obtain separate authorization before any LB-09 live canary; natural-popup proof remains pending",
-  "current_blocker": "live_canary_not_authorized",
+  "current_live_attempt_state": "route_completed_popup_absent",
+  "current_evidence_or_session_reference": ".local-captures/lb09-panfix-rerun-20260919T041106Z/noahs-tavern-unified-recruitment-20260919T041110785460Z/unified-recruitment-result.json",
+  "last_safe_completed_step": "Bounded Recruitment route completed one Basic free recruit and verified terminal Home after measured Atlas pan progress",
+  "exact_next_permitted_action": "No further live input is required; checkpoint the repaired route while preserving pending non-Home popup proof",
+  "current_blocker": "non_home_and_post_consumption_popup_proof_pending",
   "prohibited_repeated_action": "Do not repeat consumed recruits before recognized eligibility, trust generic zero counters over native evidence, reset gameplay state or retry automatically; preserve VIP unresolved record",
-  "stage_revision": "lb09-offline-implemented-verified-checkpointed",
-  "stage_type": "offline_verification",
+  "stage_revision": "lb09-home-context-live-proven-route-passed",
+  "stage_type": "live_verification",
   "product_precondition": "met",
-  "failure_class": "none",
+  "failure_class": "none_current_route",
   "budgets": {
     "stage_revisions_used": 0,
     "managed_turns_used": 0,
-    "live_attempts_used": 10,
-    "runtime_inputs_used": 34
+    "live_attempts_used": 11,
+    "runtime_inputs_used": 46
   },
   "retained_terminal_disposition": {
     "task_id": "runtime-reliability-stage-10-phase-5-campaign-ap-r2",
@@ -463,10 +497,10 @@ registry. Offline fixtures and retained live evidence remain distinct.
     "historical_journals": "retained_immutable"
   },
   "evidence": {
-    "evidence_requirement": "LIVE_CANARY_AND_NATURAL_POPUP_PROOF_PENDING",
-    "evidence_requirement_reason": "Offline implementation and verification are complete; live canary and natural-popup proof remain pending and are not authorized.",
-    "active_evidence_manifest": null,
-    "monitoring_issue": "none",
+    "evidence_requirement": "HOME_CONTEXT_PROVEN_ROUTE_PASSED_NON_HOME_POPUP_PENDING",
+    "evidence_requirement_reason": "Natural Home popup recovery is proven and the repaired popup-free Recruitment route completed with terminal Home; Tavern/non-Home and post-consumption popup recovery remain unproved.",
+    "active_evidence_manifest": ".local-captures/lb09-panfix-rerun-20260919T041106Z/noahs-tavern-unified-recruitment-20260919T041110785460Z/unified-recruitment-result.json",
+    "monitoring_issue": "none in latest bounded run; exact popup remained absent",
     "do_not_recursively_inspect_parent_evidence_tree": true
   },
   "control_owner": "parent_agent",
@@ -474,9 +508,10 @@ registry. Offline fixtures and retained live evidence remain distinct.
   "deferred_independent_review": "Independent helper, accounting, integration, and route reviews passed after the safe-return stale-Back repair; no further mandatory review",
   "stage_7_ordered_plan": [],
   "next_three_atomic_tasks": [
-    "Keep live canary and natural-popup proof separate; do not start live gameplay",
-    "Obtain separate authorization before any bounded live canary",
-    "If later authorized, preserve gates, ownership, startup VIP ledger, and retained evidence"
-  ]
+    "Checkpoint the repaired bounded route without additional live input",
+    "Preserve the exact-popup-only contract and existing startup VIP ledger",
+    "Collect Tavern/non-Home or post-consumption popup proof only when it occurs naturally"
+  ],
+  "latest_live_validation_result": "PASS: 7/12 inputs; measured 92px Home pan, fresh Tavern Atlas binding, one Basic free recruit, result closure, and verified terminal Home; exact VIP popup absent"
 }
 <!-- CURRENT_HANDOFF_STATE_END -->

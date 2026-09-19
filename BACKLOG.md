@@ -318,8 +318,9 @@ Approval of this backlog does not start the bot or authorize live development in
 
 ## LB-09 — Handle known popup interruptions and resume the current flow
 
-- **Status:** **Offline implemented, verified, and checkpointed at `36e7af0`.** Live canary and natural-popup
-  proof remain pending and are not authorized. The frozen contract is recorded in
+- **Status:** **Home/startup contextual popup recovery and the repaired popup-free route are
+  live-proven.** Offline implementation remains checkpointed at `36e7af0`. Tavern/non-Home and
+  post-consumption popup recovery remain unproved. The frozen contract is recorded in
   [`docs/lb09-contextual-popup-recovery-design.md`](docs/lb09-contextual-popup-recovery-design.md).
 - **Problem:** VIP dismissal exists, but shared recovery is startup-only, requires Home afterward,
   and is not automatically invoked by the canonical Recruitment service. A popup appearing
@@ -356,10 +357,26 @@ Approval of this backlog does not start the bot or authorize live development in
   unavailable. These are focused checks, not a full-suite result. Independent helper,
   accounting, integration, and route reviews passed after the safe-return stale-Back finding was
   repaired.
+- **Live verification:** One naturally occurring exact `VIP_POINTS_GET_PTS` popup at Home was
+  dismissed through the contextual `home-normalization` seam. Retained events prove one
+  route-scoped Close, a fresh popup-free recognized Home frame, reconciliation reason
+  `popup_dismissed_resume_ready`, fresh Atlas/Tavern entry, and exactly one Basic free recruit
+  plus its result Close and verified cooldown. No duplicate recruit or startup-ledger mutation
+  occurred. That initial pass then hit the existing 12-input ceiling in a separate cooldown-tier
+  loop. Evidence: `.local-captures/lb09-live-canary-20260919T021900Z/live-verification.json`.
+- **Follow-up repair and live pass:** The cooldown bookkeeping guard, post-capture performance,
+  ineffective short-pan selection, and lazy cached Home-analysis enrichment were repaired. The
+  planner rejects sub-65px policy candidates and chose an effective 92px pan in the latest native
+  run. That bounded route used 7/12 inputs, accepted measured pan progress, bound Tavern from fresh
+  Atlas geometry, performed one eligible Basic free recruit, closed its result, and verified
+  terminal Home. No exact VIP popup appeared, so this adds route/pan proof but not Tavern/non-Home
+  or post-consumption popup-interruption proof. Final serialized affected verification passed
+  163 focused + 10 service/delivery + 38 integration tests. Evidence:
+  `.local-captures/lb09-panfix-rerun-20260919T041106Z/`.
 - **Relationship:** Concrete shared-popup slice of LB-03/LB-05. Offline implementation is complete,
-  but live canary and natural-popup proof require separate authorization. This ticket remains the
-  canonical contextual-popup contract for future flow integration: reuse its shared helper rather
-  than adding per-flow dismissers.
+  Home/startup contextual recovery is live-proven, and the current popup-free Recruitment route
+  passes. Tavern/non-Home and post-consumption popup proof remain pending. This ticket remains the
+  canonical contextual-popup contract: reuse its shared helper rather than adding per-flow dismissers.
 
 ## Disposition of the reviewed recovery tickets
 

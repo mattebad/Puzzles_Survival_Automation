@@ -4,9 +4,29 @@
 
 This document freezes the LB-09 contract and records its offline verification checkpoint. The
 store-free helper and existing Noah's Tavern Recruitment integration are implemented in the
-checkpoint committed at `36e7af0`. Live canary and natural-popup proof remain pending and are not
-authorized. This work does not start live gameplay, enable a scheduler, change popup
-recognition thresholds, or generalize recovery to unknown surfaces.
+checkpoint committed at `36e7af0`. A naturally occurring exact popup at Home was dismissed once
+and resumed from a fresh recognized Home frame. That initial route then stopped at its existing input ceiling because cooldown-only
+Int./Advanced tier selection oscillated. The cooldown bookkeeping guard now accepts positively
+identified cooldown observations with an unavailable attempt count while continuing to reject
+ambiguous non-cooldown unknown counts.
+
+The 2026-09-19 performance follow-up cached immutable Atlas reference features, extracted live
+frame features once, reused analysis for the same retained frame object, and removed full-frame
+Home OCR from normalization. The retained failure frame benchmark fell to 2.812 seconds of
+post-capture work under the unchanged 30-second freshness limit. Its first canary dispatched a
+navigation pan 3.674 seconds after capture, then stopped because a 42px native drag produced only
+0.048px of measured camera movement. The planner now excludes policy candidates below the
+calibrated 65px effective floor and fails closed instead of treating an unexecuted residual as a
+binding state. Cached cheap Home recognition can also be enriched lazily with Atlas localization
+when zoom/pan successor verification needs it.
+
+Final serialized affected verification passed 163 focused, 10 service/delivery, and 38 integration
+tests. The materially changed bounded live route used 7/12 inputs, accepted measured progress from
+an effective 92px pan, bound Tavern from fresh Atlas geometry, performed one eligible Basic free
+recruit, closed the result, and verified terminal Home. No exact VIP popup occurred in that run;
+Tavern/non-Home and post-consumption popup recovery therefore remain unproved. Evidence is under
+`.local-captures/lb09-panfix-rerun-20260919T041106Z/`. This work does not enable a scheduler,
+change popup recognition thresholds, or generalize recovery to unknown surfaces.
 
 The first implementation supports only the exact `VIP_POINTS_GET_PTS` modal already recognized
 by `recognize_reset_popup`. Startup Scarlett/commercial recovery and the existing startup VIP
@@ -201,6 +221,14 @@ uses the same current frame. When a popup is dismissed, every localization, plan
 binding, and ROI derived before dismissal is discarded. The normal loop restarts from
 `settled_frame` and recomputes the decision.
 
+For one retained frame object, the popup successor and the normalization loop share Home facts,
+Atlas localization, and the conflict result. The cache is cleared when a different frame object
+is analyzed, so a later recapture cannot inherit a prior frame's authorization. When the
+dedicated Home classifier does not prove Home, the conflict check OCRs only the Tavern header,
+tier title, and result Close crops; full-frame 3x Home OCR is not run during normalization. Full
+Tavern OCR remains unchanged after entry, where tier, attempts, cooldown, and action semantics
+are required.
+
 ### Tavern route observations
 
 `NoahTavernIntegratedRoute._observe` becomes the single popup-aware observation seam. Its
@@ -312,5 +340,10 @@ The frozen contract's offline checkpoint is satisfied in the committed `36e7af0`
   unavailable. These are focused checks, not a full-suite result.
 - Independent helper, accounting, integration, and route reviews passed after the safe-return
   stale-Back finding was repaired.
-- No live canary or natural-popup proof was run. This checkpoint does not claim live popup
-  recovery, production registration, scheduler enablement, or natural-popup proof.
+- Live Home-context proof passed for one naturally occurring exact popup: one contextual Close,
+  fresh popup absence, fresh Home readiness, fresh Atlas/Tavern entry, and no duplicate recruit.
+  The broader pass hit the 12-input ceiling after one verified Basic recruit because cooldown-only
+  Int./Advanced tier selection oscillated; it did not return Home. Tavern/non-Home and
+  post-consumption popup recovery remain unproved. Evidence:
+  `.local-captures/lb09-live-canary-20260919T021900Z/live-verification.json`.
+- Production registration and scheduler enablement remain unchanged and disabled.

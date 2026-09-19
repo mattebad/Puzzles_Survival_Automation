@@ -34,6 +34,15 @@ ambiguous, stale, overlaid, unsupported, repeated, no-progress, or exhausted rec
 closed. Observation-only preflights remain zero-transport and may report that normalization is
 required; they do not replace the live flow's normalization responsibility.
 
+Atlas reference images are immutable for one localizer instance, so their SIFT features are
+computed once during localizer construction, before a live source capture starts its freshness
+budget. Each captured frame is feature-extracted once and its descriptors are matched against
+all accepted references. A caller may reuse a supplied current-frame localization only after the
+normalizer rechecks its digest, ambiguity, stale, and overlay fields. The 30-second navigation
+freshness guard remains unchanged. On the retained 2026-09-19 failure frame, reference
+precomputation took 4.094 seconds before capture; post-capture Home classification, Atlas
+localization, narrow conflict OCR, and reused-localization planning totaled 2.812 seconds.
+
 ### Atlas interaction anchor
 
 Follow the existing navigation-anchor model:
@@ -121,3 +130,20 @@ and the unresolved startup VIP record is unchanged. This is live Tavern and repe
 accepted by the user as LB-03 live closure, not a completed 1,800-second prolonged soak. It
 still does not establish real lighting transitions or live Supply, Nova, or other-building entry. Evidence is retained under
 `.local-captures/lb03-live-admission-20260918T224056406651Z/`.
+
+
+## Post-closure reliability repair
+
+A retained 2026-09-19 live run proved that a planned 42px native drag could be accepted by the
+transport while producing only 0.048px of measured camera motion. The BlueStacks calibration now
+uses a 65px effective floor, and the recovery-aware direct-pan planner filters subminimum
+candidates before scoring a destination. It selects the next safe, executable viewport and fails
+closed when none exists; it no longer reports a residual below the effective gesture floor as a
+binding state.
+
+The same follow-up repaired lazy Home-analysis caching so a frame accepted by the cheap Home
+classifier can still obtain Atlas localization for zoom/pan successor verification. Serialized
+verification passed 211 affected tests. A bounded native Recruitment run then accepted measured
+progress from a 92px pan, bound Tavern with confidence 0.9968 and residual 0.039px, performed one
+eligible Basic free recruit, and verified terminal Home in 7/12 inputs. Evidence:
+`.local-captures/lb09-panfix-rerun-20260919T041106Z/`.
