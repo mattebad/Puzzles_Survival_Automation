@@ -878,6 +878,25 @@ def _build_rejection_evidence(rejected: list[_ScoredCandidate]) -> tuple[
     best_items = tuple(best_by_reason[reason] for reason in sorted(best_by_reason))
     return count_items, best_items, tuple(extras)
 
+def _bounded_drag_delta(
+    residual: Point,
+    calibration: GestureCalibration,
+) -> tuple[int, int]:
+    dx, dy = residual
+    raw_drag = (
+        -dx / calibration.camera_px_per_drag_x,
+        -dy / calibration.camera_px_per_drag_y,
+    )
+    scale = min(
+        1.0,
+        calibration.maximum_drag_x / max(abs(raw_drag[0]), 1e-9),
+        calibration.maximum_drag_y / max(abs(raw_drag[1]), 1e-9),
+    )
+    return (
+        int(round(raw_drag[0] * scale)),
+        int(round(raw_drag[1] * scale)),
+    )
+
 
 def _plan_with_policy(
     atlas: HomeAtlas,
@@ -886,6 +905,7 @@ def _plan_with_policy(
     safe_region: SafeInteractionRegion,
     *,
     seen_destinations: Iterable[tuple[int, int]] | None = None,
+    calibration: GestureCalibration | None = None,
 ) -> BuildingViewportPlan:
     policy = safe_region.planning_policy
     assert policy is not None
@@ -954,6 +974,14 @@ def _plan_with_policy(
         if evaluated.hard_fail is not None:
             failed.append(evaluated)
             continue
+        if calibration is not None:
+            residual = (
+                evaluated.desired[0] - current[0],
+                evaluated.desired[1] - current[1],
+            )
+            if math.hypot(*_bounded_drag_delta(residual, calibration)) < calibration.minimum_drag_px:
+                failed.append(replace(evaluated, hard_fail="gesture_below_effective_minimum"))
+                continue
         passed.append(evaluated)
 
     counts, best_by_reason, extras = _build_rejection_evidence(failed)
@@ -1010,12 +1038,20 @@ def _plan_building_viewport_impl(
     safe_region: SafeInteractionRegion,
     *,
     seen_destinations: Iterable[tuple[int, int]] | None = None,
+    calibration: GestureCalibration | None = None,
 ) -> BuildingViewportPlan:
     """Private planner that can reject already-visited destination origins."""
 
     if safe_region.planning_policy is None:
         return _legacy_plan_building_viewport(atlas, localization, building_id, safe_region)
-    return _plan_with_policy(atlas, localization, building_id, safe_region, seen_destinations=seen_destinations)
+    return _plan_with_policy(
+        atlas,
+        localization,
+        building_id,
+        safe_region,
+        seen_destinations=seen_destinations,
+        calibration=calibration,
+    )
 
 
 def plan_building_viewport(
@@ -1050,27 +1086,42 @@ def _plan_direct_pan_impl(
     *,
     seen_destinations: Iterable[tuple[int, int]] | None = None,
 ) -> DirectPanPlan:
+    calibration_matches = (
+        calibration.platform == localization.platform
+        and calibration.profile_id == localization.profile_id
+    )
     viewport = _plan_building_viewport_impl(
         atlas,
         localization,
         building_id,
         safe_region,
         seen_destinations=seen_destinations,
+        calibration=calibration if calibration_matches else None,
     )
     if viewport.disposition is not PlanDisposition.PAN:
         disposition = PlanDisposition.BIND if viewport.disposition is PlanDisposition.ALREADY_SAFE else viewport.disposition
         return DirectPanPlan(disposition, viewport.reason, viewport)
-    if calibration.platform != localization.platform or calibration.profile_id != localization.profile_id:
+    if not calibration_matches:
         return DirectPanPlan(PlanDisposition.REJECTED, "gesture_calibration_profile_mismatch", viewport)
     dx, dy = viewport.residual_atlas
-    raw_drag = (-dx / calibration.camera_px_per_drag_x, -dy / calibration.camera_px_per_drag_y)
-    scale = min(1.0, calibration.maximum_drag_x / max(abs(raw_drag[0]), 1e-9), calibration.maximum_drag_y / max(abs(raw_drag[1]), 1e-9))
-    drag = (raw_drag[0] * scale, raw_drag[1] * scale)
+    drag = _bounded_drag_delta((dx, dy), calibration)
     length = math.hypot(*drag)
     if length < calibration.minimum_drag_px:
-        return DirectPanPlan(PlanDisposition.BIND, "residual_below_minimum_gesture", viewport, (dx, dy), (0.0, 0.0), predicted_remaining_displacement=(dx, dy))
+        blocked = replace(
+            viewport,
+            disposition=PlanDisposition.REJECTED,
+            reason="gesture_below_effective_minimum",
+        )
+        return DirectPanPlan(
+            PlanDisposition.REJECTED,
+            "gesture_below_effective_minimum",
+            blocked,
+            (dx, dy),
+            (0.0, 0.0),
+            predicted_remaining_displacement=(dx, dy),
+        )
     start = calibration.drag_origin
-    end = (int(round(start[0] + drag[0])), int(round(start[1] + drag[1])))
+    end = (start[0] + drag[0], start[1] + drag[1])
     x0, y0, x1, y1 = calibration.drag_bounds
     if not (x0 <= start[0] <= x1 and y0 <= start[1] <= y1 and x0 <= end[0] <= x1 and y0 <= end[1] <= y1):
         return DirectPanPlan(PlanDisposition.REJECTED, "gesture_outside_native_bounds", viewport, (dx, dy))

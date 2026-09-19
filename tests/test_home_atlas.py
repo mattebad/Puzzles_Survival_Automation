@@ -5,10 +5,12 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import cv2
 import numpy as np
 
+import tasks.home_atlas_vision as home_atlas_vision
 from tasks.home_atlas import (
     AmbiguityState,
     AtlasViewport,
@@ -239,6 +241,30 @@ class HomeAtlasVisionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 BlueStacksHomeLocalizer(wrong, manifest)
 
+    def test_localizer_reuses_reference_features_and_extracts_candidate_once(self):
+        frame = synthetic_home()
+        atlas = atlas_contract()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cv2.imwrite(str(root / "tile.png"), frame)
+            manifest = root / "atlas.json"
+            manifest.write_text("{}", encoding="utf-8")
+            with patch.object(
+                home_atlas_vision,
+                "_features",
+                wraps=home_atlas_vision._features,
+            ) as features:
+                localizer = BlueStacksHomeLocalizer(atlas, manifest)
+                self.assertEqual(features.call_count, 1)
+
+                first = localizer.localize(frame)
+                self.assertTrue(first.recognized)
+                self.assertEqual(features.call_count, 2)
+
+                second = localizer.localize(frame)
+                self.assertTrue(second.recognized)
+                self.assertEqual(features.call_count, 3)
+
 
 class ClosedLoopNavigatorTests(unittest.TestCase):
     def test_visible_target_requires_current_frame_semantic_binding(self):
@@ -298,6 +324,7 @@ class ClosedLoopNavigatorTests(unittest.TestCase):
         navigator = ClosedLoopBuildingNavigator(atlas_contract(), "home.building.supply_depot")
         repeated = localization()
         navigator.next_command(repeated)
+
         self.assertEqual(navigator.next_command(repeated).reason, "repeated_viewport")
 
         navigator = ClosedLoopBuildingNavigator(atlas_contract(), "home.building.supply_depot")

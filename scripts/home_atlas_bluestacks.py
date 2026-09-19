@@ -554,9 +554,17 @@ class BlueStacksLocalizeFirstHomeDriver:
     def _seen_recovery_frames(self) -> set[str]:
         return self.startup_normalizer._seen_recovery_frames
 
-    def observe(self, frame: np.ndarray) -> HomeDriverStep:
+    def observe(
+        self,
+        frame: np.ndarray,
+        *,
+        localization: LocalizationResult | None = None,
+    ) -> HomeDriverStep:
         digest = frame_digest(frame)
-        startup = self.startup_normalizer.observe(frame)
+        startup = self.startup_normalizer.observe(
+            frame,
+            localization=localization,
+        )
         if startup.disposition is AtlasStartupDisposition.RECOVER_ZOOM:
             return HomeDriverStep(
                 HomeDriverDisposition.RECOVER_ZOOM,
@@ -3543,7 +3551,8 @@ def bluestacks_direct_pan_contract() -> tuple[SafeInteractionRegion, GestureCali
         drag_bounds=(250, 250, 650, 950),
         camera_px_per_drag_x=2.1,
         camera_px_per_drag_y=2.1,
-        minimum_drag_px=35.0,
+        # Retained native evidence: 42 px was ignored, while 66 px and larger moved the camera.
+        minimum_drag_px=65.0,
         maximum_drag_x=150.0,
         maximum_drag_y=180.0,
         minimum_progress_px=8.0,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+import math
 from types import SimpleNamespace
 import tempfile
 import unittest
@@ -147,6 +148,73 @@ class MinimalPanPlannerTests(unittest.TestCase):
         plan = plan_direct_pan(atlas(), localization(), "home.building.bank", SAFE, bliss)
         self.assertEqual(plan.reason, "gesture_calibration_profile_mismatch")
         self.assertNotEqual(blue.profile_id, bliss.profile_id)
+
+    def test_bluestacks_policy_skips_high_score_ineffective_small_pan(self):
+        root = Path(__file__).resolve().parents[1]
+        atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+        world = load_home_atlas(atlas_path)
+        safe, calibration = bluestacks_direct_pan_contract()
+        retained = replace(
+            localization(89.54631042480469, 207.6580810546875),
+            confidence=0.9835247173905373,
+            supporting_landmarks=("viewport-003", "viewport-015", "viewport-014"),
+            residual_px=0.19770339131355286,
+        )
+
+        unconstrained = plan_building_viewport(
+            world,
+            retained,
+            "home.building.noahs_tavern",
+            safe,
+        )
+        unconstrained_drag = math.hypot(
+            unconstrained.residual_atlas[0] / calibration.camera_px_per_drag_x,
+            unconstrained.residual_atlas[1] / calibration.camera_px_per_drag_y,
+        )
+        self.assertLess(unconstrained_drag, calibration.minimum_drag_px)
+
+        executable = plan_direct_pan(
+            world,
+            retained,
+            "home.building.noahs_tavern",
+            safe,
+            calibration,
+        )
+        self.assertEqual(executable.disposition, PlanDisposition.PAN)
+        self.assertGreaterEqual(
+            math.hypot(
+                executable.drag_end[0] - executable.drag_start[0],
+                executable.drag_end[1] - executable.drag_start[1],
+            ),
+            calibration.minimum_drag_px,
+        )
+        self.assertNotEqual(
+            executable.viewport.desired_camera_origin,
+            unconstrained.desired_camera_origin,
+        )
+        self.assertIn(
+            "gesture_below_effective_minimum",
+            dict(executable.viewport.rejection_counts),
+        )
+
+    def test_subminimum_legacy_pan_fails_closed_instead_of_claiming_bind(self):
+        calibration = replace(
+            CALIBRATION,
+            minimum_drag_px=400.0,
+            maximum_drag_x=500.0,
+            maximum_drag_y=500.0,
+        )
+
+        plan = plan_direct_pan(
+            atlas(),
+            localization(),
+            "home.building.bank",
+            SAFE,
+            calibration,
+        )
+
+        self.assertEqual(plan.disposition, PlanDisposition.REJECTED)
+        self.assertEqual(plan.reason, "gesture_below_effective_minimum")
 
     def test_geometry_binding_uses_anchor_without_reading_labels(self):
         frame = np.zeros((1280, 800, 3), np.uint8)

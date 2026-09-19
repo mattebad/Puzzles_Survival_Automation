@@ -138,6 +138,7 @@ def recognize_noahs_tavern_frame(
     captured_monotonic: float | None = None,
     stale: bool = False,
     ocr: Callable[[np.ndarray, int], str] | None = None,
+    include_home_ocr: bool = True,
 ) -> NoahTavernObservation:
     """Recognize only positively identified native Tavern/result frames."""
 
@@ -248,6 +249,23 @@ def recognize_noahs_tavern_frame(
             safe_close_visible=close_visible,
             safe_close_roi=RESULT_CLOSE_ROI,
             premium_result_control_visible=bool(_PAID_RE.search(_text(frame, RESULT_PAID_ROI, ocr=ocr))),
+        )
+    if not include_home_ocr:
+        return NoahTavernObservation(
+            screen_state=UNKNOWN_SCREEN,
+            selected_tier=None,
+            tiers=tuple(
+                NoahTierObservation(
+                    tier=tier,
+                    daily_attempt_maximum=TIER_ATTEMPT_MAXIMUMS[tier],
+                    attempts_remaining=None,
+                )
+                for tier in RecruitTier
+            ),
+            frame_sha256=digest,
+            captured_monotonic=captured_monotonic,
+            stale=stale,
+            recognized=False,
         )
     home_text = _text(frame, TAVERN_OVERLAY_ROI, psm=11, ocr=ocr)
     home_boxes = _ocr_boxes(frame) if ocr is None else []

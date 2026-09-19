@@ -448,9 +448,9 @@ def _features(frame: np.ndarray):
     return detector.detectAndCompute(gray, mask)
 
 
-def _matched_points(candidate: np.ndarray, reference: np.ndarray):
-    key_candidate, desc_candidate = _features(candidate)
-    key_reference, desc_reference = _features(reference)
+def _matched_feature_points(candidate_features, reference_features):
+    key_candidate, desc_candidate = candidate_features
+    key_reference, desc_reference = reference_features
     if desc_candidate is None or desc_reference is None:
         return np.empty((0, 2), np.float32), np.empty((0, 2), np.float32), 0
     pairs = cv2.BFMatcher(cv2.NORM_L2).knnMatch(desc_candidate, desc_reference, k=2)
@@ -460,6 +460,10 @@ def _matched_points(candidate: np.ndarray, reference: np.ndarray):
     candidate_points = np.float32([key_candidate[item.queryIdx].pt for item in good])
     reference_points = np.float32([key_reference[item.trainIdx].pt for item in good])
     return candidate_points, reference_points, len(good)
+
+
+def _matched_points(candidate: np.ndarray, reference: np.ndarray):
+    return _matched_feature_points(_features(candidate), _features(reference))
 
 
 def _project(matrix: np.ndarray, points: np.ndarray) -> np.ndarray:
@@ -483,7 +487,6 @@ def _overlap_ratio(matrix: np.ndarray) -> float:
     x1, y1 = np.minimum(projected.max(axis=0), (800, 1280))
     return float(max(0, x1 - x0) * max(0, y1 - y0) / (800 * 1280))
 
-
 def register_home_frame(
     candidate: np.ndarray,
     reference: np.ndarray,
@@ -491,12 +494,16 @@ def register_home_frame(
     maximum_residual_px: float = 4.5,
     minimum_inliers: int = 18,
     minimum_overlap: float = 0.22,
+    candidate_features=None,
+    reference_features=None,
 ) -> RegistrationResult:
     """Select the simplest transform supported by measured feature residuals."""
 
     if not native_frame_guard(candidate) or not native_frame_guard(reference):
         return RegistrationResult(False, "none", None, 0.0, math.inf, 0, 0, 0.0, "non_native_frame")
-    source, destination, matches = _matched_points(candidate, reference)
+    candidate_features = candidate_features if candidate_features is not None else _features(candidate)
+    reference_features = reference_features if reference_features is not None else _features(reference)
+    source, destination, matches = _matched_feature_points(candidate_features, reference_features)
     if matches < minimum_inliers:
         return RegistrationResult(False, "none", None, 0.0, math.inf, 0, matches, 0.0, "insufficient_landmarks")
 
@@ -611,6 +618,7 @@ class BlueStacksHomeLocalizer:
         self.atlas = atlas
         self.root = atlas_manifest_path.resolve().parent
         self.references: list[tuple[str, np.ndarray, np.ndarray]] = []
+        self.reference_features: dict[str, object] = {}
         for viewport in atlas.viewports:
             if not viewport.accepted:
                 continue
@@ -618,6 +626,7 @@ class BlueStacksHomeLocalizer:
             if not native_frame_guard(image):
                 raise ValueError(f"atlas viewport is missing or non-native: {viewport.image_path}")
             self.references.append((viewport.viewport_id, image, _as_matrix(viewport.transform_to_atlas)))
+            self.reference_features[viewport.viewport_id] = _features(image)
         if not self.references:
             raise ValueError("atlas contains no accepted BlueStacks viewports")
         self.canonical_reference = self.references[0][1]
@@ -643,8 +652,14 @@ class BlueStacksHomeLocalizer:
 
         candidates: list[tuple[float, float, str, np.ndarray, RegistrationResult]] = []
         wrong_zoom_matches: list[tuple[float, float, ZoomIdentity]] = []
+        candidate_features = _features(frame)
         for viewport_id, reference, reference_to_atlas in self.references:
-            result = register_home_frame(frame, reference)
+            result = register_home_frame(
+                frame,
+                reference,
+                candidate_features=candidate_features,
+                reference_features=self.reference_features[viewport_id],
+            )
             if result.accepted and result.transform_candidate_to_reference is not None:
                 scale = _matrix_scale(result.transform_candidate_to_reference)
                 zoom_identity = _zoom_identity_from_scale(scale)

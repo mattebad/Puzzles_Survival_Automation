@@ -48,6 +48,29 @@ class AtlasStartupNormalizerTests(unittest.TestCase):
         self.assertIs(step.disposition, AtlasStartupDisposition.READY)
         self.assertEqual(step.source_frame_sha256, frame_digest(frame))
 
+    def test_current_frame_localization_can_be_reused_without_recomputing(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        provided = _localizer(
+            {
+                "recognized": True,
+                "zoom_identity": ZoomIdentity.FULLY_ZOOMED_OUT,
+                "confidence": 0.9,
+            }
+        ).localize(frame)
+
+        class FailingLocalizer:
+            canonical_reference = frame
+
+            def localize(self, _frame):
+                raise AssertionError("localization was recomputed")
+
+        step = BlueStacksAtlasStartupNormalizer(FailingLocalizer()).observe(
+            frame,
+            localization=provided,
+        )
+
+        self.assertIs(step.disposition, AtlasStartupDisposition.READY)
+
     def test_supported_noncanonical_zoom_is_recoverable(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         for identity in (ZoomIdentity.ZOOMED_IN, ZoomIdentity.INTERMEDIATE):

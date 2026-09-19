@@ -137,7 +137,7 @@ class NoahTavernRecruitRuntimeController:
 
     def _remember_tier(self, observation: NoahTavernObservation, tier: RecruitTier) -> None:
         item = observation.tier(tier)
-        if item.attempts_remaining is None:
+        if item.attempts_remaining is None and not item.cooldown_active:
             return
         self.progress.inspected_tiers.add(tier)
         prior = self.progress.tiers.get(tier)

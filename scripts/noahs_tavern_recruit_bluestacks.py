@@ -167,6 +167,59 @@ def _atlas_canonical_home(localization, observation) -> bool:
     )
 
 
+def _analyze_home_frame(
+    frame,
+    *,
+    home_driver,
+    cache: dict[int, dict[str, object]],
+    require_atlas: bool = False,
+) -> dict[str, object]:
+    """Cache cheap Home proof while allowing later Atlas-dependent enrichment."""
+
+    key = id(frame)
+    cached = cache.get(key)
+    if cached is not None and cached.get("frame") is frame:
+        if not require_atlas or (
+            cached.get("localization") is not None
+            and cached.get("observation") is not None
+        ):
+            return cached
+        recognized = bool(cached["home_recognized"])
+        facts = dict(cached["home_facts"])
+    else:
+        recognized, facts = recognize_home_zoom_source(frame)
+
+    if not recognized or require_atlas:
+        try:
+            localization = home_driver.localizer.localize(frame)
+            observation = recognize_noahs_tavern_frame(
+                frame,
+                captured_monotonic=time.monotonic(),
+                include_home_ocr=False,
+            )
+            atlas_home = _atlas_canonical_home(localization, observation)
+        except (OSError, ValueError, TypeError, cv2.error, MemoryError) as exc:
+            localization = None
+            observation = None
+            atlas_home = False
+            facts = {**facts, "analysis_error": f"{type(exc).__name__}: {exc}"}
+    else:
+        localization = None
+        observation = None
+        atlas_home = False
+
+    result = {
+        "frame": frame,
+        "home_recognized": recognized,
+        "home_facts": facts,
+        "localization": localization,
+        "observation": observation,
+        "atlas_canonical_home": atlas_home,
+    }
+    cache.clear()
+    cache[key] = result
+    return result
+
 def noahs_tavern_navigation_route_declaration() -> NavigationRouteDeclaration:
     """Noah's Tavern adapter route declaration for the shared navigation-development boundary.
 
@@ -1513,16 +1566,22 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
     )
     contextual_session = _ContextualPopupSession()
 
+    home_analysis_cache: dict[int, dict[str, object]] = {}
+
+    def analyze_home(frame, *, require_atlas: bool = False) -> dict[str, object]:
+        return _analyze_home_frame(
+            frame,
+            home_driver=home_driver,
+            cache=home_analysis_cache,
+            require_atlas=require_atlas,
+        )
+
     def home_successor(frame) -> bool:
-        recognized, _facts = recognize_home_zoom_source(frame)
-        if recognized:
-            return True
-        try:
-            localization = home_driver.localizer.localize(frame)
-            observation = recognize_noahs_tavern_frame(frame, captured_monotonic=time.monotonic())
-            return _atlas_canonical_home(localization, observation)
-        except (OSError, ValueError, TypeError, cv2.error, MemoryError):
-            return False
+        analysis = analyze_home(frame)
+        return bool(
+            analysis["home_recognized"]
+            or analysis["atlas_canonical_home"]
+        )
 
     zoom_guard = NavigationGuardedRuntime(
         runtime,
@@ -1558,12 +1617,21 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
         ):
             raise RuntimeError(f"contextual Home normalization blocked: {recovery.reason}")
         source = recovery.settled_frame
-        source_home_recognized, source_home_facts = recognize_home_zoom_source(source.frame)
-        step = home_driver.observe(source.frame)
-        source_screen = recognize_noahs_tavern_frame(
-            source.frame, captured_monotonic=source.captured_monotonic
-        )
-        atlas_canonical_home = _atlas_canonical_home(step.localization, source_screen)
+        source_analysis = analyze_home(source.frame)
+        source_home_recognized = bool(source_analysis["home_recognized"])
+        source_home_facts = source_analysis["home_facts"]
+        source_localization = source_analysis["localization"]
+        source_screen = source_analysis["observation"]
+        if source_home_recognized:
+            step = home_driver.observe(source.frame)
+        elif source_localization is not None and source_screen is not None:
+            step = home_driver.observe(
+                source.frame,
+                localization=source_localization,
+            )
+        else:
+            raise RuntimeError("Home analysis did not produce trustworthy localization")
+        atlas_canonical_home = bool(source_analysis["atlas_canonical_home"])
         if not source_home_recognized and not atlas_canonical_home:
             raise RuntimeError("home zoom normalization requires positively recognized Home source")
         row: dict[str, object] = {
@@ -1606,12 +1674,14 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             if getattr(args, "settle_seconds", 1.0) > 0:
                 time.sleep(getattr(args, "settle_seconds", 1.0))
             settled = runtime.capture(f"home-pan-{ordinal:02d}-settled")
-            settled_home_recognized, settled_home_facts = recognize_home_zoom_source(settled.frame)
-            after_localization = home_driver.localizer.localize(settled.frame)
-            settled_observation = recognize_noahs_tavern_frame(
-                settled.frame, captured_monotonic=settled.captured_monotonic
-            )
-            settled_atlas_home = _atlas_canonical_home(after_localization, settled_observation)
+            settled_analysis = analyze_home(settled.frame, require_atlas=True)
+            settled_home_recognized = bool(settled_analysis["home_recognized"])
+            settled_home_facts = settled_analysis["home_facts"]
+            after_localization = settled_analysis["localization"]
+            settled_observation = settled_analysis["observation"]
+            if after_localization is None or settled_observation is None:
+                raise RuntimeError("Home pan successor analysis was unavailable")
+            settled_atlas_home = bool(settled_analysis["atlas_canonical_home"])
             if not settled_home_recognized and not settled_atlas_home:
                 raise RuntimeError("home Atlas pan successor Home state was not positively recognized")
             progress = home_driver.record_pan_progress(step.localization, after_localization)
@@ -1652,17 +1722,23 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                 time.sleep(getattr(args, "settle_seconds", 1.0))
             settled = runtime.capture(f"home-zoom-normalization-{ordinal:02d}-settled")
             immediate_observation = recognize_noahs_tavern_frame(
-                immediate_post.frame, captured_monotonic=immediate_post.captured_monotonic
+                immediate_post.frame,
+                captured_monotonic=immediate_post.captured_monotonic,
+                include_home_ocr=False,
             )
-            settled_observation = recognize_noahs_tavern_frame(
-                settled.frame, captured_monotonic=settled.captured_monotonic
+            immediate_home_recognized, immediate_home_facts = recognize_home_zoom_source(
+                immediate_post.frame
             )
-            immediate_home_recognized, immediate_home_facts = recognize_home_zoom_source(immediate_post.frame)
-            settled_home_recognized, settled_home_facts = recognize_home_zoom_source(settled.frame)
+            settled_analysis = analyze_home(settled.frame, require_atlas=True)
+            settled_observation = settled_analysis["observation"]
+            settled_home_recognized = bool(settled_analysis["home_recognized"])
+            settled_home_facts = settled_analysis["home_facts"]
             if settled.sha256 == source.sha256:
                 raise RuntimeError("home zoom normalization produced no measured frame progress")
-            settled_localization = home_driver.localizer.localize(settled.frame)
-            settled_atlas_home = _atlas_canonical_home(settled_localization, settled_observation)
+            settled_localization = settled_analysis["localization"]
+            if settled_localization is None or settled_observation is None:
+                raise RuntimeError("Home zoom successor analysis was unavailable")
+            settled_atlas_home = bool(settled_analysis["atlas_canonical_home"])
             if not settled_home_recognized and not settled_atlas_home:
                 raise RuntimeError("home zoom normalization successor Home state was not positively recognized")
             row.update(
@@ -1691,7 +1767,9 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                     frame = runtime.capture(label)
                     row[f"{phase}_sha256"] = frame.sha256
                     observation = recognize_noahs_tavern_frame(
-                        frame.frame, captured_monotonic=frame.captured_monotonic
+                        frame.frame,
+                        captured_monotonic=frame.captured_monotonic,
+                        include_home_ocr=False,
                     )
                     home_recognized, home_facts = recognize_home_zoom_source(frame.frame)
                     row[f"{phase}_screen_state"] = observation.screen_state

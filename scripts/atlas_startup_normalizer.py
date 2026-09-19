@@ -92,9 +92,14 @@ class BlueStacksAtlasStartupNormalizer:
             f"home_localization_ambiguous:{self._zoom_value(localization)}",
         )
 
-    def observe(self, frame: np.ndarray) -> AtlasStartupResult:
+    def observe(
+        self,
+        frame: np.ndarray,
+        *,
+        localization: LocalizationResult | None = None,
+    ) -> AtlasStartupResult:
         digest = frame_digest(frame)
-        localization = self.localizer.localize(frame)
+        localization = localization or self.localizer.localize(frame)
         if not self._current_and_unambiguous(localization, digest):
             return self._blocked(localization, digest)
         if (
