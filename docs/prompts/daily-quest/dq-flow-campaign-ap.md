@@ -1,6 +1,6 @@
 # DQ-FLOW-CAMPAIGN-AP
 
-Repository authority: catalog owns `consume_ap`; matrix owns resource policy/status; backlog owns task.
+Repository authority: catalog owns `consume_ap`; matrix owns resource policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record.
 Main Quest Claim excluded.
 
 Scope: Consume 20 AP through Campaign route. Reuse Daily inventory, AP counter, Campaign

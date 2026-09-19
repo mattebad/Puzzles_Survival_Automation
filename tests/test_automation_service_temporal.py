@@ -6,6 +6,7 @@ import unittest
 from automation_service.temporal import (
     CandidateEvidence,
     CaptureProvenance,
+    TemporalError,
     TemporalObservation,
     TemporalPerception,
     TemporalPolicy,
@@ -24,6 +25,7 @@ def provenance(ordinal: int, captured: float = 10.0, session: str = "session") -
         1280,
         digest,
         digest[::-1],
+        digest,
     )
 
 
@@ -159,6 +161,53 @@ class AutomationServiceTemporalTests(unittest.TestCase):
             candidate,
         )
         self.assertIsNone(temporal.settled_candidate(now_monotonic=20.0))
+    def test_animation_variant_transport_digests_settle_when_stable_roi_agrees(self) -> None:
+        candidate = CandidateEvidence("home", 0.99, 0.0)
+        temporal = TemporalPerception(TemporalPolicy(consecutive_agreement=2, settle_polls=2))
+        first = replace(provenance(1), stable_roi_digest="home-roi")
+        second = replace(provenance(2), stable_roi_digest="home-roi")
+        self.assertFalse(
+            temporal.observe(
+                TemporalObservation(first, candidate, transient=False),
+                now_monotonic=10.1,
+            ).settled
+        )
+        settled = temporal.observe(
+            TemporalObservation(second, candidate, transient=False),
+            now_monotonic=10.2,
+        )
+        self.assertTrue(settled.settled)
+        self.assertEqual(settled.reason_code, "SETTLED")
+
+    def test_late_older_capture_cannot_settle_after_newer(self) -> None:
+        candidate = CandidateEvidence("home", 0.99, 0.0)
+        temporal = TemporalPerception(TemporalPolicy(consecutive_agreement=2, settle_polls=2))
+        self.assertFalse(
+            temporal.observe(
+                TemporalObservation(provenance(2), candidate, transient=False),
+                now_monotonic=10.0,
+            ).settled
+        )
+        late = temporal.observe(
+            TemporalObservation(provenance(1), candidate, transient=False),
+            now_monotonic=10.0,
+        )
+        self.assertEqual(late.reason_code, "OUT_OF_ORDER_CAPTURE")
+        self.assertIsNone(temporal.settled_candidate(now_monotonic=10.0))
+        newer = temporal.observe(
+            TemporalObservation(provenance(3), candidate, transient=False),
+            now_monotonic=10.0,
+        )
+        self.assertFalse(newer.settled)
+
+    def test_temporal_candidate_and_masks_snapshot_mutable_inputs(self) -> None:
+        negative = ["clear"]
+        candidate = CandidateEvidence("home", 0.99, negative_evidence=negative)
+        negative.append("overlay")
+        self.assertEqual(candidate.negative_evidence, ("clear",))
+        masks = [{"name": "static"}]
+        with self.assertRaises(TemporalError):
+            TemporalObservation(provenance(1), candidate, stable_roi_masks=masks)
 
 
 if __name__ == "__main__":

@@ -117,8 +117,8 @@ class ServiceRecruitmentTests(unittest.TestCase):
         self.runner = RecruitmentRunner(adb="FORBIDDEN", serial="offline-guard", output_directory=self.root,
                                         maintenance_path=self.maintenance_path, utc_clock=lambda: self.stop.now)
         self.service = AutomationService(mode="supervised", state=self.state, recruitment_runner=self.runner)
-        self.state.set_service_enabled(True)
-        self.state.set_flow_enabled(RECRUITMENT_FLOW_ID, True)
+        self.service.set_service_enabled(True)
+        self.service.set_flow_enabled(RECRUITMENT_FLOW_ID, True)
         identity = SchedulerIdentity("account", "server", recruitment_reset(self.stop.now), MAINTENANCE_TASK_ID)
         maintenance = NoahMaintenanceState.for_identity(identity)
         maintenance.tiers[RecruitTier.INT] = PersistedTierState(0, self.stop.now + 86400, 86400, "deferred")
@@ -138,6 +138,10 @@ class ServiceRecruitmentTests(unittest.TestCase):
         self.stack.enter_context(patch.object(native.LocalBlueStacksRuntime, "connect", side_effect=connect))
         self.stack.enter_context(patch("scripts.bluestacks_native_runtime.ADBRunner", side_effect=AssertionError("live transport forbidden")))
         self.stack.enter_context(patch.object(native, "recognize_home_zoom_source", return_value=(True, {})))
+        self.stack.enter_context(patch(
+            "scripts.startup_recovery.recognize_reset_popup",
+            return_value={"recognized": False, "reason": "not_recognized"},
+        ))
         self.stack.enter_context(patch.object(native, "recognize_noahs_tavern_frame",
             side_effect=lambda *a, **k: self.runtimes[-1].recognizer(*a, **k)))
         step = SimpleNamespace(disposition=SimpleNamespace(value="bind"), reason="offline-home",
@@ -173,6 +177,12 @@ class ServiceRecruitmentTests(unittest.TestCase):
         self.assertEqual(reports[0]["result"]["maintenance_state"]["basic_daily_count"], 1)
         due = self.state.get_flow(RECRUITMENT_FLOW_ID).next_due_at_utc
         self.assertEqual(due, self.stop.now + 600)
+        run_budget = self.state._db.execute(
+            "SELECT max_inputs, max_actions FROM runs "
+            "WHERE flow_id=? ORDER BY claimed_at_utc DESC LIMIT 1",
+            (RECRUITMENT_FLOW_ID,),
+        ).fetchone()
+        self.assertEqual((run_budget["max_inputs"], run_budget["max_actions"]), (12, 3))
         self.assertEqual(self.runtimes[0]._screen(), "HOME_BASE")
         self.assertEqual([kind for kind, _ in self.runtimes[0].calls], ["tap", "tap", "tap", "back"])
         # Restart reads persisted due state; no new route until the deadline.

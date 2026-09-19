@@ -8,15 +8,14 @@ cycles, and releases its run on every terminal/close path.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import hashlib
 import inspect
 import math
+import re
 import time
 from typing import Any, Callable, Mapping, Protocol
 from uuid import uuid4
-
 from .state import BotStateManager, DispatchValidation, RunRecord, RunState
-from .screens import CaptureCycle
+from .screens import CaptureCycle, _freeze, _payload_sha256
 
 
 class SessionError(RuntimeError):
@@ -132,6 +131,9 @@ class RuntimeSession:
         self._closed = False
         self._fenced = False
         self._emergency_requested = False
+        self._lease_acquired = False
+        self._acquired_lease_fence: tuple[str, str, int] | None = None
+        self._lease_released = False
         self._capture_ordinal = 0
         self._last_capture: CaptureCycle | None = None
 
@@ -228,6 +230,65 @@ class RuntimeSession:
             self.run_token = str(run_token)
         if self.lease_generation is None and lease_generation is not None:
             self.lease_generation = int(lease_generation)
+    def _record_acquired_lease(self, lease: Any) -> bool:
+        """Remember ownership acquired by this admission attempt."""
+
+        owner = getattr(lease, "owner_instance_id", None)
+        process_token = getattr(lease, "process_start_token", None)
+        generation = getattr(lease, "lease_generation", None)
+        if (
+            owner != self.owner_instance_id
+            or process_token is None
+            or type(generation) is not int
+            or generation < 1
+        ):
+            return False
+        self.process_start_token = str(process_token)
+        self.lease_generation = generation
+        self._lease_acquired = True
+        self._acquired_lease_fence = (
+            self.owner_instance_id,
+            self.process_start_token,
+            generation,
+        )
+        self._lease_released = False
+        return True
+
+    def _matching_lease_expired(self) -> bool:
+        """Return whether this session's current lease generation is expired."""
+
+        if self.lease_generation is None:
+            return False
+        get_lease = getattr(self.state_manager, "get_service_lease", None)
+        if not callable(get_lease):
+            return False
+        try:
+            lease = get_lease()
+        except Exception:
+            return False
+        return bool(
+            getattr(lease, "owner_instance_id", None) == self.owner_instance_id
+            and getattr(lease, "process_start_token", None) == self.process_start_token
+            and getattr(lease, "lease_generation", None) == self.lease_generation
+            and (
+                getattr(lease, "expires_at_utc", None) is None
+                or float(getattr(lease, "expires_at_utc")) <= self._utc()
+            )
+        )
+    def _run_fence_matches(self, run: Any) -> bool:
+        """Require the session's full run fence before releasing its lease."""
+
+        for attribute, expected in (
+            ("owner_instance_id", self.owner_instance_id),
+            ("process_start_token", self.process_start_token),
+            ("lease_generation", self.lease_generation),
+            ("run_token", self.run_token),
+        ):
+            actual = getattr(run, attribute, None)
+            if actual is not None and actual != expected:
+                return False
+        return True
+
 
     def _adopt_matching_lease(self) -> None:
         """Adopt a lease acquired before this session was constructed.
@@ -306,6 +367,7 @@ class RuntimeSession:
                                 process_id=getattr(self.state_manager, "process_id", None),
                                 lease_ttl_seconds=self.lease_ttl_seconds,
                                 now_utc_epoch=self._utc(),
+                                _allow_existing_lease=False,
                             )
                         except Exception:
                             lease = None
@@ -316,8 +378,7 @@ class RuntimeSession:
                             and type(getattr(lease, "lease_generation", None)) is int
                             and getattr(lease, "lease_generation", 0) >= 1
                         ):
-                            self.process_start_token = str(lease.process_start_token)
-                            self.lease_generation = int(lease.lease_generation)
+                            self._record_acquired_lease(lease)
                 claim_kwargs.update(self._token_kwargs())
             if self.run_token is not None:
                 claim_kwargs["run_token"] = self.run_token
@@ -332,8 +393,8 @@ class RuntimeSession:
             # the same owner/process identity and retry once with the new
             # generation.  A different owner or process token can never be
             # reacquired and therefore still fails closed.
-            if run is None and self.lease_generation is not None:
-                acquire_lease = getattr(self.state_manager, "acquire_service_lease", None)
+            acquire_lease = getattr(self.state_manager, "acquire_service_lease", None)
+            if run is None and self.lease_generation is not None and self._matching_lease_expired():
                 if callable(acquire_lease):
                     process_token = self.process_start_token
                     if process_token is None:
@@ -346,6 +407,7 @@ class RuntimeSession:
                             lease_ttl_seconds=self.lease_ttl_seconds,
                             process_id=getattr(self.state_manager, "process_id", None),
                             now_utc_epoch=self._utc(),
+                            _allow_existing_lease=False,
                         )
                     except Exception:
                         lease = None
@@ -359,8 +421,7 @@ class RuntimeSession:
                             and type(lease_generation) is int
                             and lease_generation >= 1
                         ):
-                            self.process_start_token = str(lease_process)
-                            self.lease_generation = lease_generation
+                            self._record_acquired_lease(lease)
                             claim_kwargs.update(self._token_kwargs())
                             run = self._authority_call(
                                 self.state_manager.claim_occurrence,
@@ -370,6 +431,10 @@ class RuntimeSession:
                             )
         except Exception:
             self._emergency_requested = True
+            self._release_service_lease(acquired_only=True)
+            return None
+        if run is None:
+            self._release_service_lease(acquired_only=True)
             return None
         if run is not None:
             self._run = run
@@ -523,9 +588,8 @@ class RuntimeSession:
             except Exception:
                 pass
         self._release_service_lease()
-
     def capture(self, label: str | None = None) -> CaptureCycle:
-        """Capture once and expose one immutable event to all recognition stages."""
+        """Capture once and allocate immutable provenance for this session event."""
 
         if self._closed:
             raise SessionError("session is closed")
@@ -535,19 +599,26 @@ class RuntimeSession:
             raise SessionError("capture requires a running run")
         self._capture_ordinal += 1
         sample = self._capture_adapter(label)
+        if isinstance(sample, CaptureCycle) and sample.runtime_session_id not in {"", self.session_id}:
+            raise SessionError("capture cycle belongs to another runtime session")
         if isinstance(sample, CaptureCycle):
-            cycle = sample
-            if cycle.capture_ordinal == 0:
-                cycle = CaptureCycle(
-                    capture_id=cycle.capture_id,
-                    frame_hash=cycle.frame_hash,
-                    payload=cycle.payload,
-                    captured_monotonic=cycle.captured_monotonic or self._monotonic(),
-                    capture_ordinal=self._capture_ordinal,
-                    width=cycle.width,
-                    height=cycle.height,
-                    metadata=cycle.metadata,
-                )
+            if sample.runtime_session_id and sample.capture_ordinal != self._capture_ordinal:
+                raise SessionError("capture cycle is not the requested session event")
+            cycle = CaptureCycle(
+                capture_id=sample.capture_id,
+                frame_hash=sample.frame_hash,
+                payload=sample.payload,
+                captured_monotonic=sample.captured_monotonic or self._monotonic(),
+                capture_ordinal=self._capture_ordinal,
+                width=sample.width,
+                height=sample.height,
+                metadata=sample.metadata,
+                runtime_session_id=self.session_id,
+                transport_sha256=sample.transport_sha256,
+                semantic_sha256=sample.semantic_sha256,
+                stable_roi_digest=sample.stable_roi_digest,
+                payload_sha256=sample.payload_sha256,
+            )
         else:
             cycle = self._cycle_from_sample(sample)
         self._last_capture = cycle
@@ -639,18 +710,35 @@ class RuntimeSession:
 
     finish = release
 
-    def _release_service_lease(self) -> None:
+    def _release_service_lease(self, *, acquired_only: bool = False) -> None:
         """Best-effort release guarded by the session's exact lease tokens."""
 
-        if self.lease_generation is None:
+        if self._lease_released or self.lease_generation is None:
+            return
+        if acquired_only and not self._lease_acquired:
+            return
+        if self._run is None and not self._lease_acquired:
+            return
+        if self._run is not None and not self._run_fence_matches(self._run):
             return
         release = getattr(self.state_manager, "release_service_lease", None)
         if not callable(release):
             return
+        tokens = self._token_kwargs(include_run=self._run is not None)
+        if self._run is not None:
+            tokens["run_id"] = getattr(self._run, "run_id", None)
+        if self._run is None and self._acquired_lease_fence is not None:
+            owner, process_token, generation = self._acquired_lease_fence
+            tokens.update(
+                owner_instance_id=owner,
+                process_start_token=process_token,
+                lease_generation=generation,
+            )
         try:
-            self._authority_call(release, **self._token_kwargs())
+            self._authority_call(release, **tokens)
         except Exception:
-            pass
+            return
+        self._lease_released = True
 
     @staticmethod
     def _terminal_state(outcome: str) -> RunState:
@@ -687,28 +775,44 @@ class RuntimeSession:
             payload = self._attribute(sample, "png", None)
         if payload is None:
             payload = self._attribute(sample, "frame", sample)
+        frozen_payload = _freeze(payload)
+        payload_digest = self._hash_payload(frozen_payload)
+        supplied_payload_digest = self._attribute(sample, "payload_sha256", None)
+        payload_sha256 = str(supplied_payload_digest) if supplied_payload_digest else payload_digest
         supplied_hash = self._attribute(sample, "frame_sha256", None) or self._attribute(sample, "sha256", None)
-        frame_hash = str(supplied_hash) if supplied_hash else self._hash_payload(payload)
+        frame_hash = str(supplied_hash) if supplied_hash else payload_digest
+        transport_sha256 = (
+            self._attribute(sample, "transport_sha256", None)
+            or payload_sha256
+            or self._attribute(sample, "transport_digest", None)
+            or supplied_hash
+            or payload_digest
+        )
+        semantic_sha256 = (
+            self._attribute(sample, "semantic_sha256", None)
+            or self._attribute(sample, "semantic_digest", None)
+            or payload_digest
+        )
+        stable_roi_digest = self._attribute(sample, "stable_roi_digest", None)
         width, height = self._dimensions(sample, payload)
-        metadata: dict[str, Any] = {"sample": sample}
+        metadata: dict[str, Any] = {}
         if envelope is not None:
             metadata["envelope"] = envelope
         return CaptureCycle(
             capture_id=capture_id,
             frame_hash=frame_hash,
-            payload=payload,
+            payload=frozen_payload,
             captured_monotonic=self._monotonic(),
             capture_ordinal=self._capture_ordinal,
+            runtime_session_id=self.session_id,
             width=width,
             height=height,
             metadata=metadata,
+            transport_sha256=str(transport_sha256),
+            semantic_sha256=str(semantic_sha256),
+            stable_roi_digest=stable_roi_digest,
+            payload_sha256=payload_sha256,
         )
-
-    @staticmethod
-    def _attribute(value: Any, name: str, default: Any) -> Any:
-        if isinstance(value, Mapping):
-            return value.get(name, default)
-        return getattr(value, name, default)
 
     @classmethod
     def _dimensions(cls, sample: Any, payload: Any) -> tuple[int | None, int | None]:
@@ -719,19 +823,21 @@ class RuntimeSession:
         if shape is not None and len(shape) >= 2:
             height = height or int(shape[0])
             width = width or int(shape[1])
+        envelope = cls._attribute(sample, "envelope", None)
+        profile = cls._attribute(envelope, "profile_id", "") if envelope is not None else ""
+        match = re.search(r"(?<!\d)(\d+)\s*[xX]\s*(\d+)(?!\d)", str(profile))
+        if match:
+            width = width or int(match.group(1))
+            height = height or int(match.group(2))
         return width, height
-
     @staticmethod
     def _hash_payload(payload: Any) -> str:
-        if isinstance(payload, bytes):
-            raw = payload
-        elif isinstance(payload, bytearray):
-            raw = bytes(payload)
-        elif hasattr(payload, "tobytes") and callable(payload.tobytes):
-            raw = payload.tobytes()
-        else:
-            raw = repr(payload).encode("utf-8", "replace")
-        return hashlib.sha256(raw).hexdigest()
+        return _payload_sha256(_freeze(payload))
+    @staticmethod
+    def _attribute(value: Any, name: str, default: Any = None) -> Any:
+        if isinstance(value, Mapping):
+            return value.get(name, default)
+        return getattr(value, name, default)
 
 
 __all__ = ["CaptureAdapter", "RuntimeSession", "SessionError", "SessionFence"]

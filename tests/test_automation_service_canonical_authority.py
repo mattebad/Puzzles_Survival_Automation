@@ -48,7 +48,7 @@ from automation_service.service import (
     registry_flow_spec,
     registry_scheduler_components,
 )
-from automation_service.state import ActionState, BotStateManager, RunState
+from automation_service.state import ActionState, BotStateManager, RunState, StateError
 
 
 FLOW_ID = "CANONICAL-FLOW"
@@ -56,7 +56,6 @@ RESET_ID = "reset-1"
 PRODUCT_ID = "canonical-product"
 PRODUCT_REVISION = "canonical-product-v1"
 PROFILE_ID = "canonical-offline-profile"
-
 
 def descriptor(
     flow_id: str = FLOW_ID,
@@ -135,10 +134,10 @@ def perception_with_evidence() -> PerceptionEnvelope:
             ),
         ),
     )
-
-
 class ProbeHandler:
     """A zero-transport handler that exposes scheduler selection calls."""
+
+    selection_only = False
 
     def __init__(self, flow_descriptor: FlowDescriptor) -> None:
         self.flow_descriptor = flow_descriptor
@@ -167,6 +166,34 @@ class ProbeHandler:
     def recover(self, reason_code: str) -> NormalizedResult:
         return NormalizedResult(NormalizedOutcome.BLOCKED, reason_code)
 
+    def summarize(self):
+        return {"flow_id": self.flow_descriptor.flow_id, "plan_calls": self.plan_calls}
+
+
+class FencedObservationHandler(ProbeHandler):
+    """A fake runner whose zero-input completion is an observed no-op."""
+
+    def __init__(self, flow_descriptor: FlowDescriptor, state: BotStateManager) -> None:
+        super().__init__(flow_descriptor)
+        self.state = state
+        self.flow_spec = FlowSpec(
+            flow_descriptor.flow_id, observation_only_completion=True
+        )
+        self.running_seen = False
+
+    def plan(self, _facts: SchedulerFacts, _perception=None) -> NormalizedResult:
+        self.plan_calls += 1
+        row = self.state._db.execute(
+            "SELECT state FROM runs WHERE flow_id=? ORDER BY claimed_at_utc DESC LIMIT 1",
+            (self.flow_descriptor.flow_id,),
+        ).fetchone()
+        self.running_seen = row is not None and row["state"] == RunState.RUNNING.value
+        return NormalizedResult(
+            NormalizedOutcome.ALREADY_COMPLETE,
+            "OFFLINE_ALREADY_COMPLETED_OBSERVED",
+            verified=True,
+            observed_progress={"transport_count": 0, "runner_verified": True},
+        )
     def summarize(self):
         return {"flow_id": self.flow_descriptor.flow_id, "plan_calls": self.plan_calls}
 
@@ -351,8 +378,23 @@ class CanonicalAutomationAuthorityTests(unittest.TestCase):
                 state.set_flow_enabled(WORLD_FLOW_ID, True, now_utc_epoch=103.0)
                 report = service.run(WORLD_FLOW_ID, world_facts(now=104.0), live=True)
                 self.assertIsNotNone(report.candidate)
-                self.assertEqual(report.result.reason_code, "WORLD_NAVIGATION_PARENT_CANARY_REQUIRED")
-                self.assertEqual(report.result.observed_progress["transport_count"], 0)
+                self.assertIsNone(report.result)
+                self.assertEqual(
+                    report.reason_code, "WORLD_NAVIGATION_PARENT_CANARY_REQUIRED"
+                )
+                flow_state = state.get_flow(WORLD_FLOW_ID)
+                self.assertIsNotNone(flow_state)
+                self.assertEqual(flow_state.next_occurrence_key, 0)
+                with contextlib.closing(sqlite3.connect(state.db_path)) as connection:
+                    self.assertEqual(
+                        tuple(
+                            connection.execute(
+                                "SELECT (SELECT COUNT(*) FROM runs), "
+                                "(SELECT COUNT(*) FROM actions)"
+                            ).fetchone()
+                        ),
+                        (0, 0),
+                    )
             finally:
                 state.close()
     def test_observe_is_structurally_zero_input(self) -> None:
@@ -417,6 +459,132 @@ class CanonicalAutomationAuthorityTests(unittest.TestCase):
                 self.assertEqual(after_counts, (0, 0))
             finally:
                 state.close()
+
+    def test_verified_observation_only_completion_requires_fenced_running_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            state = initialize_manager(
+                path,
+                [
+                    FlowSpec(
+                        FLOW_ID,
+                        default_enabled=True,
+                        observation_only_completion=True,
+                    )
+                ],
+            )
+            flow_descriptor = descriptor()
+            handler = FencedObservationHandler(flow_descriptor, state)
+            coordinator = UtcPulseCoordinator(
+                state,
+                [flow_descriptor],
+                {FLOW_ID: handler},
+            )
+            try:
+                report = coordinator.pulse(facts(now=100.0))
+                self.assertIsNotNone(report.candidate)
+                self.assertIsNotNone(report.result)
+                assert report.result is not None
+                self.assertEqual(
+                    report.result.outcome.value,
+                    NormalizedOutcome.ALREADY_COMPLETE.value,
+                )
+                self.assertEqual(report.result.action_count, 0)
+                self.assertTrue(handler.running_seen)
+                flow_state = state.get_flow(FLOW_ID)
+                self.assertIsNotNone(flow_state)
+                self.assertEqual(flow_state.next_occurrence_key, 1)
+                assert report.candidate is not None
+                assert report.candidate.claim is not None
+                self.assertEqual(
+                    state.get_run(report.candidate.claim.run_id).state,
+                    RunState.SUCCEEDED,
+                )
+            finally:
+                state.close()
+    def test_zero_input_completion_rejects_missing_or_invalid_authority(self) -> None:
+        permitted = FlowSpec(FLOW_ID, observation_only_completion=True)
+        cases = (
+            ("permission absent", FlowSpec(FLOW_ID), True, NormalizedOutcome.ALREADY_COMPLETE),
+            ("foreign flow", FlowSpec("OTHER", observation_only_completion=True), True, NormalizedOutcome.ALREADY_COMPLETE),
+            ("unverified", permitted, False, NormalizedOutcome.ALREADY_COMPLETE),
+            ("truthy verification", permitted, "yes", NormalizedOutcome.ALREADY_COMPLETE),
+            ("unsupported completion", permitted, True, NormalizedOutcome.COMPLETE_FOR_RESET),
+        )
+        for label, flow_spec, verified, outcome in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as folder:
+                state = initialize_manager(
+                    Path(folder) / "state.sqlite3",
+                    [FlowSpec(FLOW_ID, default_enabled=True)],
+                )
+                try:
+                    flow_descriptor = descriptor()
+                    handler = FencedObservationHandler(flow_descriptor, state)
+                    handler.flow_spec = flow_spec
+                    result = NormalizedResult(outcome, "OBSERVED", verified=verified)
+                    coordinator = UtcPulseCoordinator(
+                        state, [flow_descriptor], {FLOW_ID: handler}
+                    )
+                    with patch.object(handler, "plan", return_value=result):
+                        report = coordinator.pulse(facts(now=100.0))
+                    self.assertIsNotNone(report.candidate)
+                    self.assertIsNotNone(report.candidate.claim)
+                    self.assertNotEqual(
+                        state.get_run(report.candidate.claim.run_id).state,
+                        RunState.SUCCEEDED,
+                    )
+                    self.assertEqual(state.get_flow(FLOW_ID).next_occurrence_key, 0)
+                finally:
+                    state.close()
+
+    def test_service_shadow_construction_does_not_seed_or_mutate_state(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            state = BotStateManager(path, owner_instance_id="shadow-owner")
+            try:
+                service = AutomationService(
+                    mode=ServiceMode.DISABLED,
+                    adapter=FakeDeviceAdapter(),
+                    state=state,
+                )
+                self.assertIsNone(state.get_flow(WORLD_FLOW_ID))
+                report = service.pulse(
+                    world_facts(), perception=perception_with_evidence(), shadow=True
+                )
+                self.assertEqual(report.reason_code, "SHADOW_NO_ELIGIBLE_TASK")
+                self.assertIsNone(report.candidate)
+                self.assertIsNone(state.get_flow(WORLD_FLOW_ID))
+                with contextlib.closing(sqlite3.connect(path)) as connection:
+                    counts = connection.execute(
+                        "SELECT (SELECT COUNT(*) FROM runs), "
+                        "(SELECT COUNT(*) FROM actions)"
+                    ).fetchone()
+                self.assertEqual(tuple(counts), (0, 0))
+            finally:
+                state.close()
+    def test_isolated_shadow_state_cannot_be_used_for_real_pulse(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "missing" / "state.sqlite3"
+            with BotStateManager(path, read_only=True) as state:
+                service = AutomationService(
+                    mode=ServiceMode.DRY_RUN,
+                    adapter=FakeDeviceAdapter(),
+                    state=state,
+                )
+                with self.assertRaisesRegex(
+                    ServiceError, "read-only state manager cannot initialize flows"
+                ):
+                    service.pulse(world_facts())
+                with self.assertRaisesRegex(
+                    ServiceError, "read-only state manager cannot initialize flows"
+                ):
+                    service.run(WORLD_FLOW_ID, world_facts(), live=True)
+                with self.assertRaisesRegex(
+                    StateError, "read-only state manager cannot execute a real pulse"
+                ):
+                    service.coordinator.pulse(world_facts())
+            self.assertFalse(path.exists())
+            self.assertFalse(path.parent.exists())
 
     def test_occurrence_key_is_deterministic_and_reset_scoped(self) -> None:
         self.assertEqual(

@@ -3,8 +3,7 @@
 Commit: retain the bounded task-local BlueStacks route, contracts, tests, and concise decisive
 evidence together; production registration and scheduler eligibility remain disabled.
 
-Repository authority: `BACKLOG.md` owns this task, the execution matrix remains authoritative for
-production registration, and the local evidence manifest owns retained BlueStacks evidence.
+Repository authority: `docs/archive/backlog-legacy.md` preserves the historical task record; the execution matrix remains authoritative for production registration, and the local evidence manifest owns retained BlueStacks evidence.
 
 Scope: separate Ruins Challenge Daily route only. Route: Home/Base → Ruins → fresh current-day
 rows → detail → Attack → zero-cost NPC Dispatch → explicit result → Ruins list → Home/Base. Source:

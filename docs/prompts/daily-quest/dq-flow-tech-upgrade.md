@@ -1,6 +1,6 @@
 # DQ-FLOW-TECH-UPGRADE
 
-Repository authority: catalog owns `upgrade_tech`; matrix owns disabled policy/status; backlog owns task.
+Repository authority: catalog owns `upgrade_tech`; matrix owns disabled policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record.
 Main Quest Claim excluded.
 
 Scope: Tech upgrade. Reuse tech identity and offline prerequisite model only. Route: Daily row →

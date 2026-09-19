@@ -32,6 +32,7 @@ from .contracts import (
     NormalizedResult,
     PerceptionEnvelope,
     SchedulerFacts,
+    SelectionPlan,
     SemanticActionIntent,
     ServiceMode,
 )
@@ -93,6 +94,7 @@ __all__ = [
     "ServiceError",
     "SchedulerFacts",
     "ScreenContext",
+    "SelectionPlan",
     "ServiceStatus",
     "SemanticActionIntent",
     "ServiceMode",

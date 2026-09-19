@@ -1,7 +1,6 @@
 # DQ-RUNTIME-INTEGRATION-GATE
 
-Repository authority: matrix owns promotion, registration, persistence, and scheduler eligibility;
-catalog remains observational. `BACKLOG.md` owns this future gate. Main Quest Claim excluded.
+Repository authority: matrix owns promotion, registration, persistence, and scheduler eligibility; `docs/archive/backlog-legacy.md` preserves this historical task record. Main Quest Claim excluded.
 
 Scope: future read-only gate verifying explicit task registration, fresh game-day identity,
 schema-v1/v2 journal compatibility, lease behavior, unresolved-action blocking, first-live

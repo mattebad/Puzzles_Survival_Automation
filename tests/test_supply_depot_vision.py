@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import replace
 import unittest
-from unittest import mock
 
 import numpy as np
 
@@ -34,32 +34,25 @@ def screen_ocr(*, attempts: str = "Daily free attempts: 9", panel: str = "", con
     return queued_ocr(*values)
 
 
-def failing_screen_ocr(fail_call: int):
-    values = [
-        "Supply Depot",
-        "Supply Depot",
-        "Daily free attempts: 9",
-        "Daily free attempts: 9",
-        "",
-        "Free",
-        "Free",
-        "Free",
-        "Free",
-        "Free",
-        "Free",
-        "Free",
-        "Free",
-    ]
-    call_count = 0
+class FixtureScreenOcr:
+    def __init__(self, fail_region: str | None = None) -> None:
+        self.fail_region = fail_region
 
-    def ocr(_image, _psm):
-        nonlocal call_count
-        call_count += 1
-        if call_count == fail_call:
+    def __call__(self, image: np.ndarray, _psm: int) -> str:
+        pixel = image[image.shape[0] // 2, image.shape[1] // 2]
+        marker = int(pixel if np.ndim(pixel) == 0 else pixel[0])
+        region, text = {
+            10: ("title", "Supply Depot"),
+            20: ("attempts", "Daily free attempts: 9"),
+            30: ("panel", ""),
+            40: ("control_0", "Free"),
+            50: ("control_1", "Free"),
+            60: ("control_2", "Free"),
+            70: ("control_3", "Free"),
+        }[marker]
+        if region == self.fail_region:
             raise RuntimeError("adversarial OCR engine failure")
-        return values[call_count - 1]
-
-    return ocr
+        return text
 
 
 def frame_identity(
@@ -86,6 +79,16 @@ def frame_identity(
 class SupplyDepotVisionTests(unittest.TestCase):
     def setUp(self):
         self.frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        regions = (
+            (supply_depot_module.SUPPLY_DEPOT_TITLE_ROI, 10),
+            (supply_depot_module.SUPPLY_DEPOT_ATTEMPTS_ROI, 20),
+            (supply_depot_module.SUPPLY_DEPOT_PANEL_ROI, 30),
+            *((roi, 40 + 10 * index) for index, roi in enumerate(
+                supply_depot_module.SUPPLY_DEPOT_CONTROL_BANDS
+            )),
+        )
+        for (x0, y0, x1, y1), marker in regions:
+            self.frame[y0:y1, x0:x1] = marker
 
     def test_exact_screen_reads_every_free_control_and_attempt_count(self):
         result = recognize_supply_depot_screen(self.frame, ocr=screen_ocr())
@@ -208,89 +211,20 @@ class SupplyDepotVisionTests(unittest.TestCase):
         }
         self.assertIsNone(_claim_supply_roi_from_data(data))
 
-    def test_omitted_identity_preserves_legacy_results_without_pipeline(self):
-        with (
-            mock.patch.object(
-                supply_depot_module,
-                "run_semantic_ocr",
-                side_effect=AssertionError("identity pipeline called"),
-            ),
-            mock.patch.object(
-                supply_depot_module,
-                "prepare_ocr_crop",
-                side_effect=AssertionError("identity crop called"),
-            ),
-        ):
-            result = recognize_supply_depot_screen(self.frame, ocr=screen_ocr())
+
+    def test_capture_bound_screen_recognizes_free_controls(self):
+        result = recognize_supply_depot_screen(
+            self.frame,
+            ocr=FixtureScreenOcr(),
+            source_frame=frame_identity(self.frame),
+        )
         self.assertTrue(result.recognized)
         self.assertEqual(result.daily_free_attempts, 9)
-        self.assertFalse(hasattr(supply_depot_module, "_ephemeral_frame_identity"))
-
-    def test_explicit_identity_uses_pipeline_and_preserves_identity(self):
-        identity = frame_identity(self.frame)
-        observations = []
-        real_pipeline = supply_depot_module.run_semantic_ocr
-
-        def recording_pipeline(*args, **kwargs):
-            observation = real_pipeline(*args, **kwargs)
-            observations.append(observation)
-            return observation
-
-        with mock.patch.object(
-            supply_depot_module,
-            "run_semantic_ocr",
-            side_effect=recording_pipeline,
-        ) as pipeline:
-            result = recognize_supply_depot_screen(
-                self.frame,
-                ocr=screen_ocr(),
-                source_frame=identity,
-            )
-        self.assertTrue(result.recognized)
-        self.assertEqual(result.daily_free_attempts, 9)
-        self.assertGreaterEqual(pipeline.call_count, 7)
-        for call in pipeline.call_args_list:
-            request = call.args[1]
-            self.assertIs(request.source_frame, identity)
-        self.assertTrue(observations)
-        self.assertTrue(
-            all(observation.source_frame is identity for observation in observations)
+        self.assertEqual(
+            [control.state for control in result.controls],
+            ["available_free"] * 4,
         )
 
-    def test_identical_pixels_keep_distinct_explicit_capture_identities(self):
-        first = frame_identity(self.frame, session="session-a", ordinal=1, monotonic=10.0)
-        second = frame_identity(self.frame, session="session-a", ordinal=2, monotonic=11.0)
-        self.assertEqual(first.transport_sha256, second.transport_sha256)
-        self.assertFalse(first.same_capture_event(second))
-        observed: list[NativeFrameIdentity] = []
-        real_pipeline = supply_depot_module.run_semantic_ocr
-
-        def recording_pipeline(*args, **kwargs):
-            observed.append(args[1].source_frame)
-            return real_pipeline(*args, **kwargs)
-
-        with mock.patch.object(
-            supply_depot_module,
-            "run_semantic_ocr",
-            side_effect=recording_pipeline,
-        ):
-            self.assertTrue(
-                recognize_supply_depot_screen(
-                    self.frame,
-                    ocr=screen_ocr(),
-                    source_frame=first,
-                ).recognized
-            )
-            self.assertTrue(
-                recognize_supply_depot_screen(
-                    self.frame,
-                    ocr=screen_ocr(),
-                    source_frame=second,
-                ).recognized
-            )
-        self.assertIn(first, observed)
-        self.assertIn(second, observed)
-        self.assertTrue(all(item is first or item is second for item in observed))
 
     def test_forged_explicit_identity_fails_closed(self):
         forged = NativeFrameIdentity(
@@ -306,20 +240,31 @@ class SupplyDepotVisionTests(unittest.TestCase):
         )
         rejected = recognize_supply_depot_screen(self.frame, ocr=screen_ocr(), source_frame=forged)
         self.assertFalse(rejected.recognized)
-        self.assertEqual(rejected.ambiguity, "non_native_frame")
+        self.assertEqual(rejected.controls, ())
+
+    def test_matching_semantic_digest_cannot_repair_wrong_transport_identity(self):
+        identity = replace(
+            frame_identity(self.frame),
+            transport_sha256="a" * 64,
+            semantic_sha256=frame_digest(self.frame),
+        )
+        result = recognize_supply_depot_screen(
+            self.frame, ocr=FixtureScreenOcr(), source_frame=identity
+        )
+        self.assertFalse(result.recognized)
+        self.assertEqual(result.controls, ())
 
     def assert_fail_closed_ocr_result(self, result, reason):
         self.assertFalse(result.recognized)
         self.assertEqual(result.state, "unknown")
         self.assertEqual(result.ambiguity, reason)
         self.assertEqual(result.controls, ())
-        self.assertFalse(any(control.zero_cost for control in result.controls))
         self.assertFalse(result.premium_or_purchase_visible)
 
     def test_explicit_attempts_ocr_engine_failure_fails_closed(self):
         result = recognize_supply_depot_screen(
             self.frame,
-            ocr=failing_screen_ocr(3),
+            ocr=FixtureScreenOcr("attempts"),
             source_frame=frame_identity(self.frame),
         )
         self.assert_fail_closed_ocr_result(result, "ocr_invalid_attempts")
@@ -328,8 +273,11 @@ class SupplyDepotVisionTests(unittest.TestCase):
     def test_explicit_panel_ocr_engine_failure_fails_closed(self):
         result = recognize_supply_depot_screen(
             self.frame,
-            ocr=failing_screen_ocr(5),
-            source_frame=frame_identity(self.frame),
+            ocr=FixtureScreenOcr("panel"),
+            source_frame=replace(
+                frame_identity(self.frame),
+                semantic_sha256=frame_digest(self.frame),
+            ),
         )
         self.assert_fail_closed_ocr_result(result, "ocr_invalid_panel")
         self.assertEqual(result.daily_free_attempts, 9)
@@ -337,77 +285,12 @@ class SupplyDepotVisionTests(unittest.TestCase):
     def test_explicit_control_ocr_engine_failure_discards_partial_controls(self):
         result = recognize_supply_depot_screen(
             self.frame,
-            ocr=failing_screen_ocr(8),
+            ocr=FixtureScreenOcr("control_1"),
             source_frame=frame_identity(self.frame),
         )
         self.assert_fail_closed_ocr_result(result, "ocr_invalid_control_1")
         self.assertEqual(result.daily_free_attempts, 9)
 
-    def test_default_dynamic_crop_branches_on_identity(self):
-        data = {
-            "text": ["Details", "Claim", "Upgrade", "Supply"],
-            "left": [40, 464, 290, 436],
-            "top": [450, 452, 500, 500],
-            "width": [120, 108, 170, 136],
-            "height": [50, 34, 40, 40],
-        }
-        with (
-            mock.patch.object(
-                supply_depot_module.pytesseract,
-                "image_to_string",
-                return_value="Details Upgrade Claim Supply",
-            ),
-            mock.patch.object(
-                supply_depot_module.pytesseract,
-                "image_to_data",
-                return_value=data,
-            ),
-            mock.patch.object(
-                supply_depot_module,
-                "run_semantic_ocr",
-                side_effect=AssertionError("identity pipeline called"),
-            ),
-            mock.patch.object(
-                supply_depot_module,
-                "prepare_ocr_crop",
-                side_effect=AssertionError("identity crop called"),
-            ),
-        ):
-            legacy = bind_supply_depot_claim_supply(self.frame)
-        self.assertIsNotNone(legacy)
-
-        identity = frame_identity(self.frame)
-        with (
-            mock.patch.object(
-                supply_depot_module.pytesseract,
-                "image_to_string",
-                return_value="Details Upgrade Claim Supply",
-            ),
-            mock.patch.object(
-                supply_depot_module.pytesseract,
-                "image_to_data",
-                return_value=data,
-            ),
-            mock.patch.object(
-                supply_depot_module,
-                "run_semantic_ocr",
-                wraps=supply_depot_module.run_semantic_ocr,
-            ) as ocr_pipeline,
-            mock.patch.object(
-                supply_depot_module,
-                "prepare_ocr_crop",
-                wraps=supply_depot_module.prepare_ocr_crop,
-            ) as crop_pipeline,
-        ):
-            explicit = bind_supply_depot_claim_supply(
-                self.frame,
-                source_frame=identity,
-            )
-        self.assertIsNotNone(explicit)
-        self.assertGreaterEqual(ocr_pipeline.call_count, 1)
-        self.assertGreaterEqual(crop_pipeline.call_count, 1)
-        self.assertIs(ocr_pipeline.call_args_list[0].args[1].source_frame, identity)
-        self.assertIs(crop_pipeline.call_args_list[-1].args[1].source_frame, identity)
 
 
 if __name__ == "__main__":

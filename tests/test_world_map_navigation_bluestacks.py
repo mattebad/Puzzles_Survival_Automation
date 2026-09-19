@@ -2413,13 +2413,7 @@ class WorldMapNavigationTests(unittest.TestCase):
         )
 
     def test_retained_world_frame_binds_hud_only_search_entry(self):
-        source = (
-            ROOT
-            / ".local-captures"
-            / "development-sessions"
-            / "observe-20260816T055857724262Z"
-            / "observe.png"
-        )
+        source = ROOT / "tests" / "fixtures" / "world_map" / "world-hud-1a2d8f02.png"
         if not source.is_file():
             self.fail(f"required retained World frame is absent: {source}")
         raw = source.read_bytes()
@@ -2663,13 +2657,7 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(gas_result.state, "UNKNOWN")
 
     def test_retained_search_menu_recognizes_without_footer_binding(self):
-        source = (
-            ROOT
-            / ".local-captures"
-            / "development-sessions"
-            / "observe-20260816T064109887154Z"
-            / "observe.png"
-        )
+        source = ROOT / "tests" / "fixtures" / "world_map" / "search-menu-cfa92c70.png"
         self.assertTrue(
             source.is_file(), f"required Search menu frame absent: {source}"
         )

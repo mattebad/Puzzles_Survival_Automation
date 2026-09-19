@@ -8,6 +8,7 @@ from .contracts import (
     FlowDescriptor,
     NormalizedOutcome,
     NormalizedResult,
+    SelectionPlan,
     RecurrenceClass,
     RecurrenceProjection,
     PerceptionEnvelope,
@@ -45,6 +46,7 @@ from .registry import (
 
 class FlowHandler(Protocol):
     """Handlers own action semantics; shared context and scheduling stay outside."""
+    selection_only: bool
 
     def describe(self) -> FlowDescriptor: ...
 
@@ -58,7 +60,7 @@ class FlowHandler(Protocol):
         self,
         facts: SchedulerFacts,
         perception: PerceptionEnvelope | None = None,
-    ) -> SemanticActionIntent | Any: ...
+    ) -> SelectionPlan | SemanticActionIntent | NormalizedResult | Any: ...
 
     def revalidate(
         self,
@@ -82,6 +84,7 @@ class FlowHandler(Protocol):
 class DisabledHandler:
     """Explicit placeholder for flows that are not production-registered."""
 
+    selection_only = True
     def revalidate(
         self, facts: SchedulerFacts, perception: PerceptionEnvelope | None = None
     ) -> bool:
@@ -100,8 +103,12 @@ class DisabledHandler:
 
     def plan(
         self, facts: SchedulerFacts, perception: PerceptionEnvelope | None = None
-    ) -> None:
-        return None
+    ) -> SelectionPlan:
+        return SelectionPlan(
+            "HANDLER_DISABLED",
+            verified=False,
+            observed_progress={"transport_count": 0},
+        )
 
     def reconcile(
         self, plan: Any, perception: PerceptionEnvelope | None = None
@@ -124,11 +131,12 @@ class DisabledHandler:
 class WorldNavigationSelectionHandler:
     """Zero-transport selector for the one registered World phase canary.
 
-    This handler exists only to hand a parent a terminal scheduler selection.
-    It has no runtime, target, route, or transport capability.
+    This handler only describes a parent-owned selection.  It has no runtime,
+    target, route, or transport capability and cannot consume a run.
     """
 
     handler_id = WORLD_HANDLER_ID
+    selection_only = True
 
     def __init__(self, snapshot: RegisteredDispatchSnapshot) -> None:
         if not isinstance(snapshot, RegisteredDispatchSnapshot):
@@ -190,17 +198,15 @@ class WorldNavigationSelectionHandler:
         self,
         facts: SchedulerFacts,
         perception: PerceptionEnvelope | None = None,
-    ) -> NormalizedResult:
+    ) -> SelectionPlan:
         self.plan_calls += 1
         if not self.eligibility(facts, perception):
-            return NormalizedResult(
-                NormalizedOutcome.BLOCKED,
+            return SelectionPlan(
                 "WORLD_NAVIGATION_SELECTION_GATES_FAILED",
                 verified=False,
                 observed_progress={"transport_count": 0},
             )
-        return NormalizedResult(
-            NormalizedOutcome.COMPLETE_FOR_RESET,
+        return SelectionPlan(
             "WORLD_NAVIGATION_PARENT_CANARY_REQUIRED",
             verified=True,
             observed_progress={
@@ -259,7 +265,7 @@ class NovaPraiseSelectionHandler:
     """Zero-transport selector for the registered Nova Praise promotion."""
 
     handler_id = NOVA_HANDLER_ID
-
+    selection_only = True
     def __init__(self, snapshot: RegisteredDispatchSnapshot) -> None:
         if not isinstance(snapshot, RegisteredDispatchSnapshot):
             raise TypeError("Nova selection requires a typed registration snapshot")
@@ -320,18 +326,16 @@ class NovaPraiseSelectionHandler:
         self,
         facts: SchedulerFacts,
         perception: PerceptionEnvelope | None = None,
-    ) -> NormalizedResult:
+    ) -> SelectionPlan:
         self.plan_calls += 1
         if not self.eligibility(facts, perception):
-            return NormalizedResult(
-                NormalizedOutcome.BLOCKED,
+            return SelectionPlan(
                 "NOVA_PRAISE_SELECTION_GATES_FAILED",
                 verified=False,
                 observed_progress={"transport_count": 0},
             )
         snapshot = self._snapshot.to_mapping()
-        return NormalizedResult(
-            NormalizedOutcome.COMPLETE_FOR_RESET,
+        return SelectionPlan(
             "NOVA_PRAISE_PARENT_CANARY_REQUIRED",
             verified=True,
             observed_progress={
@@ -349,7 +353,6 @@ class NovaPraiseSelectionHandler:
                 "dispatch_registration": dict(snapshot),
             },
         )
-
     def reconcile(
         self,
         plan: SemanticActionIntent | Any,
@@ -392,7 +395,7 @@ class RecruitmentMaintenanceSelectionHandler:
     """Zero-transport selector for the Recruitment cooldown canary."""
 
     handler_id = RECRUITMENT_HANDLER_ID
-
+    selection_only = True
     def __init__(self, snapshot: RegisteredDispatchSnapshot) -> None:
         if not isinstance(snapshot, RegisteredDispatchSnapshot):
             raise TypeError(
@@ -472,21 +475,19 @@ class RecruitmentMaintenanceSelectionHandler:
         self,
         facts: SchedulerFacts,
         perception: PerceptionEnvelope | None = None,
-    ) -> NormalizedResult:
+    ) -> SelectionPlan:
         self.plan_calls += 1
         if not self.eligibility(facts, perception):
-            return NormalizedResult(
-                NormalizedOutcome.BLOCKED,
+            return SelectionPlan(
                 "RECRUITMENT_MAINTENANCE_SELECTION_GATES_FAILED",
                 verified=False,
                 observed_progress={"transport_count": 0},
             )
         projection = facts.projections[RECRUITMENT_FLOW_ID]
         snapshot = self._snapshot.to_mapping()
-        return NormalizedResult(
-            NormalizedOutcome.BLOCKED,
-            "RECRUITMENT_RUNNER_NOT_CONFIGURED",
-            verified=False,
+        return SelectionPlan(
+            "RECRUITMENT_MAINTENANCE_PARENT_CANARY_REQUIRED",
+            verified=True,
             observed_progress={
                 "transport_count": 0,
                 "accepted_product": RECRUITMENT_PRODUCT_ID,
@@ -542,6 +543,7 @@ class CampaignApSelectionHandler:
     """Zero-transport selector for the Campaign AP canary."""
 
     handler_id = CAMPAIGN_HANDLER_ID
+    selection_only = True
     minimum_observed_ap = 14.0
 
     def __init__(self, snapshot: RegisteredDispatchSnapshot) -> None:
@@ -626,19 +628,17 @@ class CampaignApSelectionHandler:
         self,
         facts: SchedulerFacts,
         perception: PerceptionEnvelope | None = None,
-    ) -> NormalizedResult:
+    ) -> SelectionPlan:
         self.plan_calls += 1
         if not self.eligibility(facts, perception):
-            return NormalizedResult(
-                NormalizedOutcome.BLOCKED,
+            return SelectionPlan(
                 "CAMPAIGN_AP_SELECTION_GATES_FAILED",
                 verified=False,
                 observed_progress={"transport_count": 0},
             )
         projection = facts.projections[CAMPAIGN_FLOW_ID]
         snapshot = self._snapshot.to_mapping()
-        return NormalizedResult(
-            NormalizedOutcome.COMPLETE_FOR_RESET,
+        return SelectionPlan(
             "CAMPAIGN_AP_PARENT_CANARY_REQUIRED",
             verified=True,
             observed_progress={

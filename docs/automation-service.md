@@ -1,9 +1,10 @@
 # Automation service
 
-`automation_service/` composes the existing Python flows with canonical SQLite service state.
-The Windows/BlueStacks recruitment slice uses `UtcPulseCoordinator` for eligibility, claims,
-and terminal projection, then calls `run_noahs_tavern_unified_recruitment` and the existing
-`NoahTavernIntegratedRoute`. Other canonical handlers remain selectors, not gameplay runners.
+`automation_service/` is a thin local/offline composition package. It reuses the existing
+`safe_action_core` policy, executor, store, action lifecycle, and
+`SQLiteSchedulerInvocationRepository`; `tasks.scheduler_task_result` supplies normalized
+scheduler-aware results, while `tasks.perception_bundle`, native-frame replay, and existing
+Campaign/Home semantics remain the source contracts.
 
 ## Boundaries
 
@@ -11,15 +12,51 @@ and terminal projection, then calls `run_noahs_tavern_unified_recruitment` and t
 - The service scheduler uses UTC epoch `next_eligible_at` values. It never interprets
   `tasks.scheduler.TaskState.next_due_monotonic` and does not compose two schedulers.
 - Fake and replay adapters have zero transport.
-- The semantic BlueStacks adapter retains its `SafeActionExecutor` contract. Recruitment
-  instead uses its existing ordinary native runner under the shared `RuntimeInputLock`.
-  No arbitrary shell, coordinate, or remote-command endpoint is added.
-- Canonical registration is static code; service/flow enablement remains in `BotStateManager`
-  and defaults off. The historical JSON registry and development queue are not runtime authority.
+- The BlueStacks adapter is supervised-only, requires a flow-bound single-use admission token,
+  and can dispatch only through `SafeActionExecutor` with a bound core request/capability. The
+  service CLI has no arbitrary ADB, coordinate, shell, tap, remote, or automatic endpoint.
+- Production registration and scheduler eligibility remain disabled in
+  `tasks/flow_delivery_disabled_production_registry.json`.
 - Campaign composition delegates destination policy and atlas navigation to existing
   `tasks.campaign_auto_battle` / `tasks.campaign_atlas` contracts. It never authorizes AP,
   Challenge, Auto Battle, Sweep, Blitz, Auto Complete, or AP refill.
 - Retention operations classify records only; deletion remains in the dedicated evidence workflow.
+- Canonical capture cycles snapshot payload and metadata before hashing. Typed observations
+  must bind the requested session, capture ordinal, dimensions, timestamp, and payload,
+  transport, and semantic digests; a cached or hash-only result cannot gain that binding.
+- Conflicting screen, overlay, or target matches fail closed. Pre-transport target rebinding
+  requires a newer capture ordinal, non-regressing capture time, current age within the existing
+  temporal policy, and matching source/target stable ROIs. Equal clock ticks are permitted
+  because fresh capture ordinals distinguish events on coarse-resolution clocks.
+- Actual OCR requires one `CropRoiRequest` carrying capture identity, ROI, mode, and an
+  explicit real-monotonic deadline. The padded raw ROI is capped at 262144 pixels;
+  full-frame and out-of-bounds crops are rejected. Crop-only validation needs no OCR deadline.
+- `run_semantic_ocr` owns the sole OCR process boundary. Windows Job Objects and Linux
+  process groups contain helpers; success and timeout both drain the tree and reap its root.
+  A 250ms cleanup reserve is deducted from the execution budget. Timeout is `UNKNOWN/OCR_DEADLINE`.
+- `ScreenDefinition.ocr` is a spawn-picklable `(pixels, psm) -> str` engine;
+  `ocr_request` supplies the fixed request or a capture/deadline factory.
+  `ocr_recognizer` is pure interpretation of the completed OCR observation and current capture,
+  not another OCR callback. Existing provenance normalization still applies.
+- Existing capture-bound Supply Depot calls never repair identity or fall back after denial.
+  No-identity legacy OCR and other direct native consumers remain held for F17; this
+  shared-seam repair does not authorize native route adoption.
+- Full-frame animation variance is not a source/target change when authoritative stable ROIs
+  still match. Unsupported mutable payload types fail closed rather than losing shape or type.
+- Denied sessions preserve borrowed service leases. Fresh admission leases are released
+  only by their exact owner/process/generation fence, including after claim rollback.
+  Run-associated release also checks the run token atomically, so a retried or different
+  active run cannot lose ownership to an older session's cleanup.
+- `reset_bounded` requires a canonical ready-batch ID and revision. The first persisted
+  limit governs the entire reset; later batches do not receive another allowance.
+  Ordinals, batch identity, timer anchors, and retry identity survive restart.
+- Batch/revision changes require a persisted successful predecessor plus changed-UI
+  and reconciliation facts. Failed or unresolved predecessors cannot authorize advancement.
+  Retired batch IDs and retired revisions cannot be replayed; the current pair may consume
+  its remaining ordinals. Capture hashes and rescans are not batch authority.
+- Retries retain occurrence identity and use a nonzero UTC backoff (at least two seconds).
+  Durable exhaustion reports `RESET_BOUNDED_EXHAUSTED` or `RETRY_EXHAUSTED`;
+  UTC rollback blocks claims. A running old-reset occurrence cannot consume the new reset.
 
 ## Local checks
 
@@ -36,46 +73,54 @@ PYTHONDONTWRITEBYTECODE=1 python -m unittest \
   tests.test_automation_service_operations
 ```
 
-Status and replay remain non-authorizing:
+The CLI is local and non-authorizing:
 
 ```text
 PYTHONDONTWRITEBYTECODE=1 python -m automation_service --mode disabled status
 PYTHONDONTWRITEBYTECODE=1 python -m automation_service --adapter replay observe
 ```
 
-## Windows recruitment service
+### Read-only shadow scheduling (REC-F05)
 
-Live execution requires separate permission, existing service/Recruitment enablement, and
-explicit local serial/account/server configuration. Merely invoking `serve` does not enable
-anything. After authorization, the invocation shape is:
+`shadow`, non-live `run`, and service construction for observation do not seed flow
+rows or claim occurrences. CLI shadow opens existing canonical state read-only; an
+absent path stays absent and uses an isolated, query-only in-memory schema. Neither
+form can execute a real pulse, reserve actions, or acquire a service lease.
 
-```text
-python -m automation_service --mode supervised --adapter bluestacks serve --live --serial <private-local-serial> --account-id <account> --server-id <server>
-```
+Existing enabled/due rows can produce a candidate without starting its handler.
+Service, flow, run, action, lease, and clock facts remain unchanged. Initialization
+belongs to explicit control and real-execution entrypoints, including the retained
+offline `pnsctl` scheduler pulse. Both persisted execution gates still apply.
 
-Use the existing Python environment with OpenCV, NumPy, Pillow, and pytesseract/Tesseract
-available for the native runner. `--state-path` is a global option; `serve` also accepts
-`--adb` and `--output-directory`. A sibling `<state-stem>.recruitment.sqlite3` uses the existing
-maintenance repository for Basic counts and independent tier cooldowns. No old session or
-operational state is automatically imported.
+This is an offline boundary repair, not native acceptance or scheduler enablement.
 
-- One process owns the shared runtime input lock for its lifetime; only recruitment executes.
-- Selection cannot report recruitment completion. Verified native results and Home return
-  determine the next UTC due time. Frame freshness remains monotonic.
-- Basic is capped at five free singles per UTC game day; Int./Advanced cooldowns survive reset.
-  Paid, premium, item-backed and 10x recruitment remain prohibited.
-- Successful passes return Home. The service waits outside the flow until due, checking stop
-  and enablement at most every 30 seconds while idle.
-- Ctrl+C/SIGTERM stop the loop. `service-disable`/`emergency-stop` prevent further native inputs
-  at capture/dispatch checkpoints. An in-flight bounded transport call may finish first.
-- An interrupted, unknown, or failed pass leaves a persistent Recruitment-only inspection block.
-  Do not clear it and retry blindly; inspect the retained session and consuming outcome first.
-  The block is cleared automatically only after verified canonical terminal projection.
-- Results are emitted as JSON. Development manifests, Git state, handoffs and agent receipts
-  are not runtime dependencies.
+### Non-consuming selectors (REC-F06)
 
-Focused guarded integration: `python -m unittest tests.test_service_recruitment`.
-Its scripted recognition/transport exercises the real runner and controller, not live gameplay.
+World, Nova, Recruitment, Campaign, and disabled handlers return `SelectionPlan`,
+not gameplay completion. Repeated eligible selections remain available across
+restarts without creating runs/actions or consuming an occurrence. The offline
+`pnsctl` pulse can therefore report a selected candidate with `result: null`.
+
+Real-runner planning remains behind claim and dispatch fences. A verified
+zero-action `ALREADY_COMPLETE` result is accepted only when the handler's matching
+`FlowSpec.observation_only_completion` explicitly permits it; registration and
+selection alone never establish gameplay success.
+
+### Executor-bound Recruitment exception
+
+The supervised Windows/BlueStacks Recruitment service is the one current consuming
+handler exception. Its ordinary registry handler remains a non-consuming
+`SelectionPlan`; only explicit supervised `serve --live` composition installs
+`RecruitmentExecutionHandler`. The coordinator must claim and fence the run before
+calling that handler, use its bounded 12-input/3-recruit budget, and project the
+verified terminal result through the same canonical state manager.
+
+The runner redeems currently eligible zero-cost Basic, Intermediate, and Advanced
+recruits, persists verified per-tier UTC cooldown state, returns to canonical Home,
+and derives the next due time from the earliest retained eligibility. Unknown,
+uncertain, paid, duplicated, stale-target, or non-Home terminal outcomes block
+instead of advancing maintenance state. This code path remains dormant while
+registration, service, and Recruitment scheduling are disabled.
 
 ## Packaging and eventual deployment
 
@@ -89,114 +134,13 @@ roadmap slice; Codex/Cursor is not a NAS production dependency.
 
 ## Readiness versus admission
 
-Offline tests do not establish live recognition, transport reliability, or unattended gameplay.
-LB-02's first authorized live service attempt temporarily enabled the gates but blocked on
-ADB readiness before any game input; gates were restored disabled and the inspection block
-retained. See `CURRENT_HANDOFF.md` for the preflight recognition/allocation failure and evidence.
-The subsequent offline repair changed only independent Home navigation OCR to sparse-text mode:
-the retained frame passes that classifier and Atlas, while Tavern semantic recognition remains
-UNKNOWN. The actual recruitment preflight gates on that Tavern recognizer, not the repaired
-classifier, so its `current_source_not_recognized` failure remains unresolved on this frame.
-Existing-server inspection found the device available again, but neither the original
-allocation cause nor device stability is established. `OPENCV_FOR_THREADS_NUM=1` still reported
-24 OpenCV threads in the available build; it is not a verified memory/thread bound.
-The separately authorized attempt 2 connected and navigated to the Advanced Tavern page,
-but its next-frame recognition failed before any recruitment. Three navigation inputs occurred;
-no Home return was performed. Gates were restored disabled and the new inspection block retained.
-The header/title crop geometry correction is now applied and verified with real retained-frame
-OCR/controller replay and 44 focused tests. No new spelling alias or grayscale workaround.
-Authorized attempt 3 made one camera pan, then blocked at building-label binding before Tavern
-entry; the corrected Tavern recognizer was not reached. Gates were restored disabled (generation
-6), ownership released, and the new inspection block retained. No recruit or cooldown transition.
-Exact-frame offline replay shows strong Atlas localization but failed label OCR from noisy/
-clipped crops; complete isolated label-line OCR succeeds. Independent Home OCR is not this final
-binder's veto. The shared label extractor is now repaired and verified offline against five
-Tavern frames plus Bank/Fighter Camp; 185 affected tests pass. Binding failures now distinguish
-`home_atlas_localization_failed`, `home_atlas_label_not_read`, and `home_atlas_target_unsafe`,
-with frame-linked bounds, raw OCR and crop artifacts. The real unified failure path was checked
-using input-forbidden replay. No post-repair live proof yet: preserve the existing inspection
-block, gates and state until a separately authorized bounded run. Do not retry automatically.
-Authorized attempt 4 used the existing shared VIP startup recovery before the service. One
-exact Close removed the popup, but Home-nav template correlation 0.336 missed the 0.90 floor;
-recovery recorded `unresolved:unexpected_successor`. Main visually confirmed Home afterward,
-not runtime admission. The service never started and the repaired binding was not exercised.
-The canonical service does not automatically invoke the `pnsctl` shared startup recovery path.
-Preserve the startup action record and existing Recruitment block; diagnose the retained
-successor offline rather than repeating Close. All gates remain disabled at generation 6.
-Shared popup interruption and context-aware resumption are tracked in active backlog LB-09,
-not yet implemented. Authorized attempt 5 used fresh normal Home admission and one real service
-pass: repaired Tavern binding passed, one free Advanced recruit visibly produced Griffin Frag x1,
-and the post-Close screen showed Free in 1d 23:59:54. Automatic verification nevertheless stopped
-at `recruit_postcondition_not_proven`; maintenance state remained empty and Home return failed.
-Native events prove the recruit dispatch despite zero-dispatch result flags/canonical counters.
-Treat it as consumed, retain the inspection block, and investigate offline before any retry.
-The inspected failure budget was re-armed via state API; final failures=1 and gates disabled at
-generation 8. Operator cleanup required a finalizer after a closed-database error; ownership is
-released. No consuming action was repeated.
-The cooldown/control interpretation bug is now repaired offline: “Free in…” plus Recruit 1x
-does not qualify as a free button, and a parsed positive timer remains an active cooldown.
-Real retained before/result/after replay passes the unchanged controller, persists/restores
-the Advanced cooldown in temporary SQLite and prevents duplicate recruitment; 72 tests pass.
-Operational maintenance was not backfilled, the inspection block remains, and there is no
-post-fix live/Home-return proof. Existing persistence still uses the full tier cooldown policy
-interval. Zero-dispatch failure flags, operator cleanup and LB-09 remain separate work.
-Authorized attempt6 reached a free Intermediate result showing 5K Nova EXP x1, then stopped at
-`recruit_result_not_recognized` before Close. OCR read that reward correctly, but the then-current
-predicate admitted only “frag” or “antiserum” text. Four captures retained the same result.
-No new cooldown/count persistence or Home return was established, and Advanced cooldown was
-not observed in this pass. Both consumed free attempts remain non-repeatable without inspection.
-Gates are disabled at generation10; failures2/max3, new block retained, ownership released,
-process exited0 cleanly. End-to-end completion remains unverified.
-Reward-independent completion is now repaired offline. Only pending authorized free context
-permits one Close, identified by literal label OCR within the existing red control. Success is
-a fresh same-tier Free-in cooldown with free disabled; one consumed count comes from the
-pre-action count, independent of reward text, quest progress or post-screen count OCR.
-Native Nova/blank-reward Close and complete Advanced replay pass; temporary SQLite persistence,
-restart and synthetic Basic4->3/Int1->0 are verified. 78 affected tests pass.
-No operational backfill, live Close/retry, Home-return proof or block clearance followed.
-Evidence: `.local-captures/lb02-cooldown-success-contract-20260916T025512Z/delivery-result.json`.
-Attempt7 now establishes one completed live pass: Basic free recruit, one Close, positive cooldown,
-Int/Advanced cooldown deferral without repeats, and verified safe Home return. Six native inputs.
-Basic count1/remaining4 and all tier deadlines persisted; next due2026-09-16T04:11:47.161664Z.
-Main verified generation12 disabled gates, failures0, released ownership and clean service exit.
-The initial launcher failed before service import; only one actual service pass ran.
-Generic scheduler Home/action-count fields still do not prove gameplay completion; native
-route/events do. Later-due/unattended execution was not exercised live. VIP record unchanged.
-Evidence: `.local-captures/lb02-live/attempt7-20260916T035700Z/attempt7-result.json`
-and adjacent `parent-verification.json`.
-A subsequent authorized30-minute soak stopped on its first pass after27.328s:
-`home_atlas_label_not_read`, before any input. Main sees Home/Tavern label in the retained frame.
-Two captures, zero recruits; scheduler state and VIP ledger unchanged. Gates disabled at
-generation14, failures1/max3, new block retained, ownership released and process exited0.
-This does not establish prolonged or repeated-cycle reliability.
-Evidence: `.local-captures/lb02-live/soak-20260916T042200Z/soak-result.json`
-and adjacent `parent-verification.json`.
+Offline tests establish composition readiness only. They do not promote registry entries, alter
+the queue scheduler flag, or admit runtime input. The supervised Campaign navigation proving slice
+is complete: three consecutive post-repair cycles covered 1-20-9, 1-15-9, and 2-2-9, within nine
+successful retained results overall. This proves only the BlueStacks navigation boundary; no
+family is production-enabled, registered, scheduler-eligible, or Bliss-validated.
 
-The LB-03 offline candidate now removes building-name OCR from Home-entry authority. A fresh
-canonical Atlas localization projects a distinct interaction anchor and an anchor-centred hit
-region that must remain inside the building footprint and HUD-safe geometry. Route-owned
-successor recognition still gates Tavern, Supply, Nova and other destinations. The duplicate
-Supply Home-building binder is removed; Claim Supply/radial OCR remains destination semantics.
-The settled affected command passed 369 tests with 4 skipped. Five retained positives include
-the exact failed-soak frame, two other Tavern camera positions, native Bank, and a label-erased
-Tavern frame with OCR forbidden; 16 geometry/state negatives produced no input. Read-only
-inspection preserved generation14 disabled gates, the original block/failure count, cooldowns,
-counts, released ownership and unresolved startup VIP ledger. Evidence:
-`.local-captures/lb03-atlas-entry-20260918T185758Z/`.
-That offline evidence alone did not prove live navigation or service behavior. Retained Tavern
-evidence still does not prove real lighting transitions, Supply/Nova live entry, or other
-buildings. Earlier Campaign/Supply results do not qualify this branch's service integration.
-
-The admitted LB-03 continuation passed a zero-input Tavern binding preflight and a two-input
-navigation-only Tavern round trip. Its supervised service soak then completed two eligible
-Recruitment cycles with natural cooldown waiting. Native events record 15 inputs and exactly
-four free recruits; each cycle persisted verified cooldown/count state and returned to Home.
-No paid input, duplicate recruit, popup recovery, or unrelated flow ran.
-
-The four-recruit safety ceiling stopped the soak after 772.8 seconds, before the requested
-1,800-second deadline. The user accepted this repeated-cycle proof as LB-03 live closure;
-it is not a completed 1,800-second prolonged soak. Cleanup left service and Recruitment disabled at generation 16, cleared the inspected LB-03
-block through successful terminal projection, released service/runtime ownership, and preserved
-the unresolved startup VIP record. Evidence:
-`.local-captures/lb03-live-admission-20260918T224056406651Z/`.
+The redundant standalone `scripts/supply_depot_bluestacks.py` adapter is retired after offline
+call-graph review, independent verification, and focused validation. Supply Depot continues to use
+the verified Home Atlas route; free-only gameplay contracts remain evidence-gated and disabled.
 

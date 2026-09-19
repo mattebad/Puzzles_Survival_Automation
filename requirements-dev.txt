@@ -1,0 +1,10 @@
+# Developer/offline checks support Python 3.11 and newer.
+# These are not production dependencies. scripts/check.py needs no Tesseract
+# executable or device runtime. The broader World-map fixture replay tests
+# require Tesseract on PATH; CI installs it separately from these Python packages.
+numpy==2.4.6
+opencv-python-headless==4.14.0.94
+Pillow==12.3.0
+pytesseract==0.3.13
+packaging==26.3
+jsonschema==4.26.0

@@ -308,11 +308,13 @@ def _canonical_registry_scheduler_components(
     repository: BotStateManager,
     *,
     clock,
+    initialize: bool = True,
 ):
     """Compose scheduler solely from static canonical facts and SQLite state."""
 
     registrations = CANONICAL_FLOW_REGISTRY
-    repository.initialize_flows(entry.spec for entry in registrations)
+    if initialize and not getattr(repository, "read_only", False):
+        repository.initialize_flows(entry.spec for entry in registrations)
     descriptors = canonical_descriptors()
     handlers = {
         entry.flow_id: entry.build_handler() for entry in registrations
@@ -331,12 +333,15 @@ def registry_scheduler_components(
     state_manager: BotStateManager | None = None,
     path=None,
     clock=time.time,
+    initialize: bool = True,
 ):
     """Build canonical components from ``BotStateManager``.
 
     ``path`` names the retired JSON registration authority and is rejected for
     canonical state managers.  Unmigrated repository callers can opt into the
-    separate :func:`legacy_registry_scheduler_components` API.
+    separate :func:`legacy_registry_scheduler_components` API.  Canonical
+    initialization is explicit for callers that perform real/control work;
+    read-only managers always skip it.
     """
 
     if repository is not None and state_manager is not None and repository is not state_manager:
@@ -350,13 +355,17 @@ def registry_scheduler_components(
                 "canonical scheduler rejects legacy registry path; "
                 "use legacy_registry_scheduler_components for unmigrated callers"
             )
-        return _canonical_registry_scheduler_components(repository, clock=clock)
+        return _canonical_registry_scheduler_components(
+            repository, clock=clock, initialize=initialize
+        )
     if path is None:
         raise ValueError(
             "canonical scheduler requires BotStateManager; "
             "use legacy_registry_scheduler_components for unmigrated callers"
         )
     return legacy_registry_scheduler_components(repository, path=path, clock=clock)
+
+
 
 
 # Public descriptive aliases used by offline callers and focused contract checks.
@@ -367,7 +376,12 @@ build_scheduler_components = registry_scheduler_components
 
 
 class AutomationService:
-    """Composition root backed by the canonical SQLite runtime authority."""
+    """Composition root backed by the canonical SQLite runtime authority.
+
+    Construction composes static scheduler facts only.  Flow initialization
+    occurs at explicit status/control or real-execution boundaries, never while
+    preparing an observation.
+    """
 
     def __init__(
         self,
@@ -396,7 +410,7 @@ class AutomationService:
         if self.coordinator is None and self.state is not None:
             with _state_boundary():
                 _entries, _descriptors, _handlers, self.coordinator = (
-                    registry_scheduler_components(self.state)
+                    registry_scheduler_components(self.state, initialize=False)
                 )
         if self.state is None and self.coordinator is not None:
             candidate_state = getattr(self.coordinator, "repository", None)
@@ -436,6 +450,16 @@ class AutomationService:
             lease_held=lambda: False,
         )
 
+    def _initialize_canonical_state(self) -> None:
+        """Seed static flow rows only for a mutating control/run path."""
+
+        if self.state is None:
+            raise ServiceError("state manager is not configured")
+        if getattr(self.state, "read_only", False):
+            raise ServiceError("read-only state manager cannot initialize flows")
+        with _state_boundary():
+            self.state.initialize_flows(canonical_flow_specs())
+
     def status(self) -> ServiceStatus:
         # Route identity is static code authority; enablement and blocks are
         # read from the persisted state manager below.
@@ -452,7 +476,8 @@ class AutomationService:
                 flow_enabled={flow_id: False for flow_id in flow_ids},
             )
         with _state_boundary():
-            self.state.initialize_flows(canonical_flow_specs())
+            if not getattr(self.state, "read_only", False):
+                self.state.initialize_flows(canonical_flow_specs())
             service = self.state.get_service()
             states = {
                 flow_id: self.state.get_flow(flow_id) for flow_id in flow_ids
@@ -501,6 +526,7 @@ class AutomationService:
     ):
         if self.state is None:
             raise ServiceError("state manager is not configured")
+        self._initialize_canonical_state()
         with _state_boundary():
             result = self.state.set_flow_enabled(
                 flow_id, enabled, now_utc_epoch=now_utc_epoch
@@ -512,6 +538,7 @@ class AutomationService:
     def enable_flow(self, flow_id: str, *, now_utc_epoch: float | None = None):
         if self.state is None:
             raise ServiceError("state manager is not configured")
+        self._initialize_canonical_state()
         with _state_boundary():
             result = self.state.set_flow_enabled(
                 flow_id, True, now_utc_epoch=now_utc_epoch
@@ -523,6 +550,7 @@ class AutomationService:
     def disable_flow(self, flow_id: str, *, now_utc_epoch: float | None = None):
         if self.state is None:
             raise ServiceError("state manager is not configured")
+        self._initialize_canonical_state()
         with _state_boundary():
             result = self.state.set_flow_enabled(
                 flow_id, False, now_utc_epoch=now_utc_epoch
@@ -540,6 +568,7 @@ class AutomationService:
     ):
         if self.state is None:
             raise ServiceError("state manager is not configured")
+        self._initialize_canonical_state()
         with _state_boundary():
             return self.state.set_service_enabled(
                 enabled,
@@ -580,6 +609,8 @@ class AutomationService:
             raise ServiceError(
                 "supervised mode requires the executor-bound BlueStacks adapter"
             )
+        if not shadow:
+            self._initialize_canonical_state()
         try:
             return self.coordinator.pulse(
                 facts, perception=perception, shadow=shadow
@@ -724,6 +755,7 @@ class AutomationService:
                 raise
         if self.state is None:
             raise ServiceError("live runs require canonical state manager")
+        self._initialize_canonical_state()
         request_id = (
             operator_request_id.strip()
             if isinstance(operator_request_id, str) and operator_request_id.strip()

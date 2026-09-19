@@ -15,6 +15,7 @@ from automation_service import (
     SchedulerFacts,
     SemanticActionIntent,
 )
+from automation_service.contracts import FlowSpec, RecurrenceClass, RecurrenceProjection, SelectionPlan
 from automation_service.registry import (
     ENTRY_FIELDS,
     NOVA_FLOW_ID,
@@ -60,6 +61,17 @@ def nova_registered_registry_payload() -> dict:
 
 
 class AutomationServiceContractTests(unittest.TestCase):
+    def test_invalid_attempt_caps_and_missing_recurrence_authority_are_rejected(self) -> None:
+        for limit in (0, True):
+            with self.subTest(limit=limit), self.assertRaises(ValueError):
+                FlowSpec("flow", max_attempts=limit)
+        with self.assertRaises(ValueError):
+            RecurrenceProjection(RecurrenceClass.QUEUE_GENERATION)
+        with self.assertRaises(ValueError):
+            RecurrenceProjection(
+                RecurrenceClass.AP_REGENERATION, observed_at_utc=100.0
+            )
+
     def test_typed_contracts_preserve_separate_facts_and_cost_dimensions(self) -> None:
         descriptor = FlowDescriptor("flow", "owner", "family", "variant", "daily_once")
         facts = PerceptionEnvelope(
@@ -105,6 +117,26 @@ class AutomationServiceContractTests(unittest.TestCase):
     def test_unresolved_normalizes_to_global_block(self) -> None:
         result = NormalizedResult(NormalizedOutcome.UNRESOLVED, "UNKNOWN_RESULT")
         self.assertTrue(result.unresolved_action)
+
+    def test_selection_plan_rejects_transport_evidence(self) -> None:
+        with self.assertRaises(ValueError):
+            SelectionPlan("ROUTE_SELECTED", observed_progress={"transport_count": 1})
+
+
+    def test_ordinary_and_milestone_claim_identities_do_not_alias(self) -> None:
+        ordinary = SemanticActionIntent(
+            "claim",
+            "daily-row-claim",
+            "daily",
+            "ordinary_claimed",
+        )
+        milestone = SemanticActionIntent(
+            "claim",
+            "daily-milestone-claim",
+            "activity_milestones",
+            "milestone_claimed",
+        )
+        self.assertNotEqual(ordinary.action_key, milestone.action_key)
 
     def test_registry_closure_disables_every_exact_binding(self) -> None:
         entries = load_disabled_registry()

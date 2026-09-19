@@ -278,11 +278,11 @@
   "registration_state": "disabled",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r12",
-    "product_authority_digest": "b0261467cc5fe15ae52b773341e6c1b5d8498e425d75ca3527aeb9ca7f79fca3",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r13",
+    "product_authority_digest": "13a3b12051a89f25e926875fc9d085aa5c220c6eb3904375d147e34f302a67d6",
     "product_record_id": "use_resource_item",
-    "product_record_revision": "use_resource_item-v1",
-    "product_record_digest": "ce28b70ba87f73f0df72322f070ca8e9d06dcba970fab9d2697e36c9643b53e8",
+    "product_record_revision": "use_resource_item-v2",
+    "product_record_digest": "e51bdc251eea52d3b2dd7b4dfe369597ab3fbbb0c6b3706e0270af56f0ae3d09",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

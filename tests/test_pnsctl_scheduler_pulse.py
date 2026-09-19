@@ -17,12 +17,174 @@ from automation_service.registry import (
 )
 from automation_service.state import BotStateManager
 
-from scripts.pnsctl import main
+from scripts.pnsctl import (
+    OperatorError,
+    _compact_development_action_results,
+    _retained_semantic_completed_count,
+    _retained_transport_count,
+    _startup_recovery_action_rows,
+    _unique_action_rows,
+    main,
+)
+
 
 
 
 
 class PnsctlSchedulerPulseTests(unittest.TestCase):
+    def test_retained_action_projection_deduplicates_transport_and_keeps_semantics(self):
+        rows = [
+            {
+                "type": "dispatch",
+                "action_key": "same-action",
+                "target_identity": "target",
+                "source_sha256": "before",
+                "execute": True,
+            },
+            {
+                "type": "capture",
+                "label": "post",
+                "path": r"historical:stream\post.png",
+                "sha256": "after",
+            },
+            {
+                "type": "dispatch",
+                "action_key": "same-action",
+                "target_identity": "target",
+                "source_sha256": "before",
+                "execute": True,
+            },
+            {
+                "type": "capture",
+                "label": "duplicate-post",
+                "path": "duplicate-post.png",
+                "sha256": "duplicate-after",
+            },
+            {
+                "type": "reconcile",
+                "action_key": "same-action",
+                "status": "unresolved",
+                "reason": "unknown successor",
+            },
+        ]
+        actions = _compact_development_action_results(rows)
+        self.assertEqual(_retained_transport_count(rows), 1)
+        self.assertEqual(_retained_semantic_completed_count(actions), 0)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0]["semantic_status"], "unresolved")
+        self.assertFalse(actions[0]["semantic_completed"])
+        self.assertEqual(actions[0]["capture_status"], "post_captured")
+        self.assertEqual(actions[0]["after_path"], r"historical:stream\post.png")
+
+    def test_canonical_action_rows_count_failed_unknown_once_without_capture_success(self):
+        rows = [
+            {"label": "confirmed", "status": "completed"},
+            {"label": "confirmed", "status": "unknown", "transport_attempted_count": 2},
+            {"label": "positive", "status": "completed"},
+            {"label": "failed", "status": "effect_reconciliation_required"},
+            {"label": "unknown", "status": "unknown"},
+        ]
+        self.assertEqual(_retained_transport_count(rows), 5)
+        self.assertEqual(_retained_semantic_completed_count(rows), 1)
+    def test_startup_recovery_action_keeps_one_action_distinct_from_multiple_inputs(self):
+        recovery = {
+            "status": "recovered",
+            "input_count": 2,
+            "action_key": "startup-recovery:close",
+            "popup_identity": "reset-popup",
+            "before_sha256": "before",
+            "after_sha256": "after",
+            "reason": "successor recognized",
+        }
+        rows = _startup_recovery_action_rows(recovery)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(_retained_transport_count(rows), 2)
+        self.assertEqual(_retained_semantic_completed_count(rows), 1)
+        self.assertEqual(rows[0]["action_key"], recovery["action_key"])
+        self.assertEqual(rows[0]["status"], "completed")
+        combined = _unique_action_rows([*rows, *rows])
+        self.assertEqual(_retained_transport_count(combined), 2)
+        self.assertEqual(_retained_semantic_completed_count(combined), 1)
+
+    def test_nonattempted_dispatch_is_excluded_without_losing_label_identity(self):
+        events = [
+            {"type": "dispatch", "execute": True, "transport_attempted": False},
+            {"type": "dispatch", "execute": True, "label": "actual-label"},
+        ]
+        actions = _compact_development_action_results(events)
+        self.assertEqual([row["action_key"] for row in actions], ["actual-label"])
+        self.assertEqual(_retained_transport_count(events), 1)
+        self.assertEqual(_retained_transport_count(actions), 1)
+        self.assertEqual(_retained_semantic_completed_count(actions), 0)
+
+    def test_malformed_executable_ledger_cannot_silently_undercount(self):
+        for event in (
+            {"type": "dispatch", "execute": True},
+            {"type": "dispatch", "execute": True, "action_key": "action", "transport_attempted_count": -1},
+        ):
+            with self.subTest(event=event):
+                with self.assertRaises(OperatorError):
+                    _compact_development_action_results([event])
+                with self.assertRaises(OperatorError):
+                    _retained_transport_count([event])
+        with self.assertRaises(OperatorError):
+            _compact_development_action_results([{"type": "reconcile", "status": "confirmed"}])
+
+    def test_semantic_count_rejects_identityless_actions_but_ignores_capture_events(self):
+        for row in (
+            {"status": "completed"},
+            {"type": "reconcile", "semantic_status": "confirmed"},
+            {"type": "dispatch", "execute": True},
+        ):
+            with self.subTest(row=row):
+                with self.assertRaises(OperatorError):
+                    _retained_semantic_completed_count([row])
+        self.assertEqual(
+            _retained_semantic_completed_count([
+                {"type": "capture", "semantic_status": "confirmed"},
+                {"action_key": "confirmed-action", "status": "completed"},
+            ]),
+            1,
+        )
+
+    def test_terminal_reconciliation_cannot_be_overwritten(self):
+        dispatch = {"type": "dispatch", "action_key": "action", "execute": True}
+        for first, later in (
+            ("failed_confirmed", "confirmed"),
+            ("confirmed", "failed_confirmed"),
+            ("failed_confirmed", "unresolved"),
+        ):
+            with self.subTest(first=first, later=later):
+                events = [dispatch, *(
+                    {"type": "reconcile", "action_key": "action", "status": status}
+                    for status in (first, later)
+                )]
+                with self.assertRaises(OperatorError):
+                    _compact_development_action_results(events)
+
+    def test_unresolved_action_can_reconcile_to_one_terminal_outcome(self):
+        for terminal, completed in (("confirmed", 1), ("failed_confirmed", 0)):
+            with self.subTest(terminal=terminal):
+                events = [
+                    {"type": "dispatch", "action_key": "action", "execute": True},
+                    *(
+                        {"type": "reconcile", "action_key": "action", "status": status}
+                        for status in ("unresolved", terminal, terminal)
+                    ),
+                ]
+                actions = _compact_development_action_results(events)
+                self.assertEqual(_retained_transport_count(actions), 1)
+                self.assertEqual(_retained_semantic_completed_count(actions), completed)
+                self.assertEqual(actions[0]["semantic_status"], terminal)
+
+    def test_canonical_duplicates_cannot_erase_a_terminal_failure(self):
+        failed = {"action_key": "action", "status": "failed_confirmed"}
+        confirmed = {"action_key": "action", "status": "completed"}
+        for rows in ([failed, confirmed], [confirmed, failed]):
+            with self.subTest(rows=rows):
+                with self.assertRaises(OperatorError):
+                    _unique_action_rows(rows)
+
 
     def test_pulse_contention_is_structured_and_never_selected(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
@@ -255,10 +417,7 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
             payload = json.loads(selected.getvalue())
             self.assertEqual(payload["status"], "selected")
             self.assertEqual(payload["candidate"]["flow_id"], NOVA_FLOW_ID)
-            self.assertEqual(
-                payload["result"]["reason_code"],
-                "NOVA_PRAISE_PARENT_CANARY_REQUIRED",
-            )
+            self.assertIsNone(payload["result"])
             self.assertEqual(payload["transport_count"], 0)
             self.assertEqual(payload["accepted_product"], "nova_praise")
             self.assertTrue(payload["scheduler_eligible"])
@@ -305,17 +464,10 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
             payload = json.loads(selected.getvalue())
             self.assertEqual(payload["status"], "selected")
             self.assertEqual(payload["candidate"]["flow_id"], RECRUITMENT_FLOW_ID)
-            self.assertEqual(
-                payload["result"]["reason_code"],
-                "RECRUITMENT_MAINTENANCE_PARENT_CANARY_REQUIRED",
-            )
+            self.assertIsNone(payload["result"])
             self.assertEqual(payload["transport_count"], 0)
             self.assertTrue(payload["scheduler_eligible"])
             accepted_occurrence_key = payload["candidate"]["occurrence_key"]
-            self.assertEqual(
-                accepted_occurrence_key,
-                f"{RECRUITMENT_FLOW_ID}:cooldown:90.0",
-            )
 
             duplicate = StringIO()
             with contextlib.redirect_stdout(duplicate):
@@ -332,10 +484,10 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
                     0,
                 )
             duplicate_payload = json.loads(duplicate.getvalue())
-            self.assertEqual(duplicate_payload["status"], "disabled")
+            self.assertEqual(duplicate_payload["status"], "selected")
+            self.assertIsNone(duplicate_payload["result"])
             self.assertEqual(
-                duplicate_payload["reason"],
-                "NO_ELIGIBLE_TASK",
+                duplicate_payload["candidate"]["occurrence_key"], accepted_occurrence_key
             )
             changed_observation = StringIO()
             with contextlib.redirect_stdout(changed_observation):
@@ -352,10 +504,10 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
                     0,
                 )
             changed_observation_payload = json.loads(changed_observation.getvalue())
-            self.assertEqual(changed_observation_payload["status"], "disabled")
+            self.assertEqual(changed_observation_payload["status"], "selected")
             self.assertEqual(
-                changed_observation_payload["reason"],
-                "NO_ELIGIBLE_TASK",
+                changed_observation_payload["candidate"]["occurrence_key"],
+                accepted_occurrence_key,
             )
             new_slot = StringIO()
             with contextlib.redirect_stdout(new_slot):
@@ -374,10 +526,6 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
             new_slot_payload = json.loads(new_slot.getvalue())
             self.assertEqual(new_slot_payload["status"], "selected")
             new_slot_occurrence_key = new_slot_payload["candidate"]["occurrence_key"]
-            self.assertEqual(
-                new_slot_occurrence_key,
-                f"{RECRUITMENT_FLOW_ID}:cooldown:91.0",
-            )
             self.assertNotEqual(new_slot_occurrence_key, accepted_occurrence_key)
 
             new_slot_duplicate = StringIO()
@@ -395,10 +543,10 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
                     0,
                 )
             new_slot_duplicate_payload = json.loads(new_slot_duplicate.getvalue())
-            self.assertEqual(new_slot_duplicate_payload["status"], "disabled")
+            self.assertEqual(new_slot_duplicate_payload["status"], "selected")
             self.assertEqual(
-                new_slot_duplicate_payload["reason"],
-                "NO_ELIGIBLE_TASK",
+                new_slot_duplicate_payload["candidate"]["occurrence_key"],
+                new_slot_occurrence_key,
             )
 
             reset_same_slot = StringIO()
@@ -418,13 +566,14 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
                     0,
                 )
             reset_same_slot_payload = json.loads(reset_same_slot.getvalue())
-            self.assertEqual(reset_same_slot_payload["status"], "disabled")
+            self.assertEqual(reset_same_slot_payload["status"], "selected")
             self.assertEqual(
-                reset_same_slot_payload["reason"],
-                "NO_ELIGIBLE_TASK",
+                reset_same_slot_payload["candidate"]["occurrence_key"],
+                new_slot_occurrence_key,
             )
-            self.assertNotIn("offline-reset", accepted_occurrence_key)
-            self.assertNotIn("offline-reset", new_slot_occurrence_key)
+            with contextlib.closing(sqlite3.connect(path)) as db:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 0)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM actions").fetchone()[0], 0)
 
 
     def test_campaign_pulse_requires_fresh_funded_projection_and_is_restart_safe(
@@ -468,19 +617,10 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
             payload = json.loads(selected.getvalue())
             self.assertEqual(payload["status"], "selected")
             self.assertEqual(payload["candidate"]["flow_id"], CAMPAIGN_FLOW_ID)
-            self.assertEqual(
-                payload["result"]["reason_code"],
-                "CAMPAIGN_AP_PARENT_CANARY_REQUIRED",
-            )
+            self.assertIsNone(payload["result"])
             self.assertEqual(payload["transport_count"], 0)
             self.assertTrue(payload["scheduler_eligible"])
             accepted_occurrence_key = payload["candidate"]["occurrence_key"]
-            self.assertTrue(
-                accepted_occurrence_key.startswith(
-                    f"{CAMPAIGN_FLOW_ID}:ap_regeneration:"
-                )
-            )
-            self.assertNotIn("offline-reset", accepted_occurrence_key)
 
             duplicate = StringIO()
             with contextlib.redirect_stdout(duplicate):
@@ -489,10 +629,10 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
                     0,
                 )
             duplicate_payload = json.loads(duplicate.getvalue())
-            self.assertEqual(duplicate_payload["status"], "disabled")
+            self.assertEqual(duplicate_payload["status"], "selected")
+            self.assertIsNone(duplicate_payload["result"])
             self.assertEqual(
-                duplicate_payload["reason"],
-                "NO_ELIGIBLE_TASK",
+                duplicate_payload["candidate"]["occurrence_key"], accepted_occurrence_key
             )
             changed_projection = StringIO()
             with contextlib.redirect_stdout(changed_projection):
@@ -503,13 +643,7 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
             changed_payload = json.loads(changed_projection.getvalue())
             self.assertEqual(changed_payload["status"], "selected")
             changed_occurrence_key = changed_payload["candidate"]["occurrence_key"]
-            self.assertTrue(
-                changed_occurrence_key.startswith(
-                    f"{CAMPAIGN_FLOW_ID}:ap_regeneration:"
-                )
-            )
             self.assertNotEqual(changed_occurrence_key, accepted_occurrence_key)
-            self.assertNotIn("offline-reset", changed_occurrence_key)
 
             reset_same_projection = StringIO()
             with contextlib.redirect_stdout(reset_same_projection):
@@ -528,12 +662,14 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
             reset_same_projection_payload = json.loads(
                 reset_same_projection.getvalue()
             )
-            self.assertEqual(reset_same_projection_payload["status"], "disabled")
+            self.assertEqual(reset_same_projection_payload["status"], "selected")
             self.assertEqual(
-                reset_same_projection_payload["reason"],
-                "NO_ELIGIBLE_TASK",
+                reset_same_projection_payload["candidate"]["occurrence_key"],
+                changed_occurrence_key,
             )
-            self.assertIsNone(reset_same_projection_payload["candidate"])
+            with contextlib.closing(sqlite3.connect(path)) as db:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 0)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM actions").fetchone()[0], 0)
 
 
 

@@ -1,6 +1,6 @@
 # DQ-FLOW-ENHANCE-MODULE
 
-Repository authority: catalog owns `enhance_module`; matrix owns policy/status; backlog owns task. Main
+Repository authority: catalog owns `enhance_module`; matrix owns policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record. Main
 Quest Claim excluded.
 
 Scope: Module enhancement, sharing only genuine enhancement primitives with gear/chip. Reuse

@@ -2,7 +2,7 @@
 
 Repository authority: catalog owns reconciled Daily objective identity and evidence; execution
 matrix owns current status, policy, promotion, registration, persistence, and scheduler fields;
-`BACKLOG.md` owns task ownership. Main Quest Claim is excluded.
+`docs/archive/backlog-legacy.md` preserves the historical task record. Main Quest Claim is excluded.
 
 Scope: exactly one matrix entry per proven catalog key, plus typed support flows for selected Daily
 inventory, generalized row Claim, milestone Claim, persistence, one-pulse scheduler, and runtime

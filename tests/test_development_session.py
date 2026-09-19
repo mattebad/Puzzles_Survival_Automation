@@ -805,6 +805,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                 "_run_shared_startup_recovery",
                 return_value={
                     "status": "surface_dismissed_successor_captured",
+                    "action_key": "startup-recovery:scarlett-close",
                     "input_count": 1,
                     "recovery_input_count": 1,
                     "route_input_count": 0,
@@ -893,6 +894,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                 "_run_shared_startup_recovery",
                 return_value={
                     "status": "surface_dismissed_successor_captured",
+                    "action_key": "startup-recovery:scarlett-close",
                     "reason": "positive_postcondition",
                     "input_count": 1,
                     "recovery_input_count": 1,
@@ -990,6 +992,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                 "_run_shared_startup_recovery",
                 return_value={
                     "status": "evidence_required",
+                    "action_key": "startup-recovery:scarlett-close",
                     "reason": "evidence_required_unknown_scarlett_successor",
                     "input_count": 1,
                     "recovery_input_count": 1,
@@ -1033,7 +1036,12 @@ class DevelopmentSessionTests(unittest.TestCase):
     def test_pnsctl_flow_session_avoids_queue_and_preserves_checkpoint_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            checkpoints = tuple(root / name for name in ("BACKLOG.md", "queue.json", "handoff.md"))
+            checkpoints = (
+                root / "docs" / "archive" / "backlog-legacy.md",
+                root / "queue.json",
+                root / "handoff.md",
+            )
+            checkpoints[0].parent.mkdir(parents=True)
             for path in checkpoints:
                 path.write_text(path.name, encoding="utf-8")
             child = root / "child"
@@ -1113,12 +1121,9 @@ class DevelopmentSessionTests(unittest.TestCase):
                 (Path(result["session_directory"]) / "summary.json").read_text(encoding="utf-8")
             )
             self.assertTrue(summary["ownership_released"])
-            self.assertEqual(
-                summary["control_memory"]["startup_recovery_plan"]["status"],
-                "unclassified",
-            )
-            self.assertIn("repair recognition or recovery", summary["next_action"])
-            self.assertIn(str(child), summary["next_action"])
+            self.assertEqual(summary["status"], "blocked")
+            self.assertEqual(result["transport_attempted_count"], 1)
+            self.assertEqual(result["semantic_completed_count"], 0)
             action = json.loads(
                 (Path(result["session_directory"]) / "actions.jsonl").read_text(
                     encoding="utf-8"
@@ -1127,7 +1132,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             self.assertEqual(action["action_class"], "ordinary_development")
             self.assertEqual(action["before_sha256"], "a" * 64)
             self.assertEqual(action["after_sha256"], "b" * 64)
-            self.assertEqual(action["status"], "post_captured")
+            self.assertFalse(action["semantic_completed"])
 
     def test_nova_live_admission_consumes_registration_before_runtime_and_rejects_repeat(
         self,

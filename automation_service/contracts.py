@@ -56,6 +56,13 @@ class RecurrenceProjection:
     repeat_limit: int | None = None
     window_open_at: float | None = None
     window_close_at: float | None = None
+    # A canonical ready-batch observation, never a frame/capture identity.
+    # Transition facts do not replace the persisted reconciliation required
+    # before advancing to another batch.
+    ready_batch_id: str | None = None
+    revision_within_reset: int | None = None
+    ui_changed: bool = False
+    reconciled: bool = False
 
     def __post_init__(self) -> None:
         values = (
@@ -101,6 +108,23 @@ class RecurrenceProjection:
             RecurrenceClass.STAMINA_REGENERATION,
         } and (self.observed_balance is None or self.observed_at_utc is None):
             raise ValueError("resource regeneration requires a fresh timestamped observed balance")
+        if self.revision_within_reset is not None and (
+            type(self.revision_within_reset) is not int
+            or self.revision_within_reset < 0
+        ):
+            raise ValueError("ready-batch revision must be a non-negative integer")
+        if self.ready_batch_id is not None and (
+            not isinstance(self.ready_batch_id, str) or not self.ready_batch_id.strip()
+        ):
+            raise ValueError("ready-batch identity cannot be blank")
+        if type(self.ui_changed) is not bool or type(self.reconciled) is not bool:
+            raise ValueError("ready-batch transition facts must be bools")
+        if (
+            self.recurrence_class is RecurrenceClass.RESET_BOUNDED
+            and self.ready_batch_id is not None
+            and self.revision_within_reset is None
+        ):
+            raise ValueError("reset-bounded ready batch requires a revision")
 
     @property
     def is_time_projection(self) -> bool:
@@ -191,6 +215,7 @@ class FlowDescriptor:
             "daily_once": RecurrenceClass.DAILY_ONCE_PER_RESET,
             "daily_once_per_reset": RecurrenceClass.DAILY_ONCE_PER_RESET,
             "reset_pulse": RecurrenceClass.DAILY_ONCE_PER_RESET,
+            "reset_bounded": RecurrenceClass.RESET_BOUNDED,
             "cooldown_pulse": RecurrenceClass.COOLDOWN,
             "timer": RecurrenceClass.TIMER,
         }.get(self.cadence)
@@ -403,6 +428,54 @@ class SemanticActionIntent:
             return self.core_intent.action_key
         return f"{self.task_id}:{self.semantic_action}"
 
+@dataclass(frozen=True)
+class SelectionPlan:
+    """Descriptive selector output that cannot consume a gameplay occurrence.
+
+    Selection confirms only eligibility and static/perception facts.  A scheduler
+    may expose this plan to a caller, but MUST NOT claim or terminalize a run
+    from it.
+    """
+
+    reason_code: str
+    verified: bool = True
+    observed_progress: Mapping[str, Any] = field(default_factory=dict)
+    consequence: Mapping[str, Any] = field(default_factory=dict)
+    evidence_refs: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.reason_code, str) or not self.reason_code.strip():
+            raise ValueError("selection plans require a reason code")
+        if type(self.verified) is not bool:
+            raise ValueError("selection plan verified must be a bool")
+        transport_count = self.observed_progress.get("transport_count", 0)
+        if type(transport_count) is not int or transport_count != 0:
+            raise ValueError("selection plans must have zero transport")
+
+    @property
+    def non_consuming(self) -> bool:
+        return True
+
+    @property
+    def action_count(self) -> int:
+        return 0
+
+    @property
+    def transport_count(self) -> int:
+        return 0
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "kind": "selection_plan",
+            "non_consuming": True,
+            "reason_code": self.reason_code,
+            "verified": self.verified,
+            "observed_progress": dict(self.observed_progress),
+            "consequence": dict(self.consequence),
+            "evidence_refs": list(self.evidence_refs),
+            "action_count": 0,
+            "transport_count": 0,
+        }
 
 @dataclass(frozen=True)
 class NormalizedResult:
@@ -449,6 +522,8 @@ class FlowSpec:
     cadence: str = "manual"
     max_wait_seconds: float | None = None
     max_attempts: int = 3
+    observation_only_completion: bool = False
+    retry_backoff_seconds: float = 2.0
 
     def __post_init__(self) -> None:
         if not isinstance(self.flow_id, str) or not self.flow_id.strip():
@@ -467,3 +542,10 @@ class FlowSpec:
             raise ValueError("flow spec max wait must be a non-negative finite number")
         if type(self.max_attempts) is not int or self.max_attempts < 1:
             raise ValueError("flow spec max attempts must be positive")
+        if type(self.retry_backoff_seconds) is bool or (
+            not math.isfinite(float(self.retry_backoff_seconds))
+            or self.retry_backoff_seconds < 2.0
+        ):
+            raise ValueError("flow spec retry backoff must be finite and at least two seconds")
+        if type(self.observation_only_completion) is not bool:
+            raise ValueError("observation_only_completion must be a bool")

@@ -1,7 +1,6 @@
 # DQ-FLOW-WORLD-STAMINA-ENGINE
 
-Repository authority: matrix owns shared primitive status/policy; catalog owns only objective identity;
-backlog owns task. Main Quest Claim excluded.
+Repository authority: matrix owns shared primitive status/policy; catalog owns only objective identity; `docs/archive/backlog-legacy.md` preserves the historical task record. Main Quest Claim excluded.
 
 Scope: offline shared world navigation and stamina/AP accounting primitive for proven Zombie Lair,
 gathering, and future world flows. Hunt Zombie and Headquarters candidates are not Daily scope.

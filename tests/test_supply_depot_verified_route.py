@@ -1064,7 +1064,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                         self.session / f"{label}.png",
                     )
 
-            with self.assertRaises(PerceptionBundleError) as raised:
+            with _open_store(Path(directory)) as store, self.assertRaises(PerceptionBundleError) as raised:
                 dispatch_verified_supply_depot_radial_tap(
                     runtime=_StaleRuntime(),
                     immediate_before=captured,
@@ -1076,7 +1076,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                     navigation_session_id="nav-stale",
                     lease_owner="owner",
                     policy=_policy(),
-                    store=SafetyStore(Path(directory) / "stale.sqlite3"),
+                    store=store,
                     monotonic_clock=lambda: float(identity.capture_ordinal) + 0.2,
                     wall_clock=lambda: _TEST_WALL,
                     rebind_radial=_rebind_from_frame,
@@ -1215,7 +1215,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
             captured = runtime.capture("exit-missing")
             identity = _identity(runtime, captured)
             # Facility exit requires positive facility recognition on fresh frame.
-            with patch(
+            with _open_store(Path(directory)) as store, patch(
                 "scripts.home_atlas_bluestacks.recognize_supply_depot_screen",
                 side_effect=lambda frame, *, source_frame=None: SimpleNamespace(
                     recognized=False,
@@ -1234,7 +1234,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                         navigation_session_id="nav-exit-missing",
                         lease_owner="owner",
                         policy=_policy(),
-                        store=SafetyStore(Path(directory) / "missing.sqlite3"),
+                        store=store,
                         home_successor_recognizer=lambda *a, **k: None,
                         monotonic_clock=_MonoClock(runtime),
                         wall_clock=lambda: _TEST_WALL,

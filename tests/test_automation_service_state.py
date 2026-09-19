@@ -1,5 +1,6 @@
 """Focused behavioral coverage for the canonical automation-service authority."""
 
+from contextlib import closing
 from pathlib import Path
 import os
 import sqlite3
@@ -15,6 +16,7 @@ from automation_service.state import (
     REPOSITORY_ROOT,
     RunState,
     StateBusyError,
+    StateError,
     TerminalProjectionError,
     resolve_state_path,
 )
@@ -176,6 +178,109 @@ class AutomationServiceStateTests(unittest.TestCase):
                 self.assertEqual(states[0].next_occurrence_key, 0)
             finally:
                 manager.close()
+    def test_read_only_decodes_prior_schema_without_migration(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "prior.sqlite3"
+            with closing(sqlite3.connect(path)) as connection:
+                connection.executescript(
+                    """
+                    CREATE TABLE flow_state (
+                        flow_id TEXT PRIMARY KEY,
+                        enabled INTEGER NOT NULL,
+                        generation INTEGER NOT NULL,
+                        blocked INTEGER NOT NULL,
+                        blocked_reason TEXT,
+                        priority INTEGER NOT NULL,
+                        cadence TEXT NOT NULL,
+                        max_wait_seconds REAL,
+                        max_attempts INTEGER NOT NULL,
+                        next_occurrence_key INTEGER NOT NULL,
+                        next_occurrence_basis TEXT,
+                        next_occurrence_kind TEXT NOT NULL,
+                        next_due_at_utc REAL,
+                        schedule_anchor_utc REAL,
+                        reset_id TEXT,
+                        retry_not_before_utc REAL,
+                        eligible_since_utc REAL,
+                        last_started_at_utc REAL,
+                        last_completed_at_utc REAL,
+                        last_outcome TEXT,
+                        last_accepted_projection_key TEXT,
+                        consecutive_failures INTEGER NOT NULL,
+                        row_version INTEGER NOT NULL
+                    );
+                    CREATE TABLE runs (
+                        run_id TEXT PRIMARY KEY,
+                        flow_id TEXT NOT NULL,
+                        occurrence_key TEXT NOT NULL,
+                        occurrence_basis TEXT NOT NULL,
+                        occurrence_kind TEXT NOT NULL,
+                        occurrence_ordinal INTEGER NOT NULL,
+                        reset_id TEXT NOT NULL,
+                        claimed_flow_generation INTEGER NOT NULL,
+                        service_generation INTEGER NOT NULL,
+                        owner_instance_id TEXT NOT NULL,
+                        process_start_token TEXT NOT NULL,
+                        lease_generation INTEGER NOT NULL,
+                        run_token TEXT NOT NULL,
+                        mode TEXT NOT NULL,
+                        state TEXT NOT NULL,
+                        claimed_at_utc REAL NOT NULL,
+                        started_at_utc REAL,
+                        heartbeat_at_utc REAL,
+                        stop_requested_at_utc REAL,
+                        terminal_at_utc REAL,
+                        max_inputs INTEGER NOT NULL,
+                        max_actions INTEGER NOT NULL,
+                        consumed_inputs INTEGER NOT NULL,
+                        consumed_actions INTEGER NOT NULL,
+                        terminal_outcome TEXT,
+                        terminal_reason TEXT,
+                        row_version INTEGER NOT NULL
+                    );
+                    """
+                )
+                connection.execute(
+                    "INSERT INTO flow_state VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        "flow", 1, 0, 0, None, 1, "daily", None, 3, 0,
+                        "reset-1", "daily", None, None, "reset-1", None, 1,
+                        None, None, None, None, 0, 1,
+                    ),
+                )
+                connection.execute(
+                    "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        "run", "flow", "flow:reset-1:0", "reset-1", "daily", 0,
+                        "reset-1", 0, 0, "owner", "process", 1, "token",
+                        "scheduled", "SUCCEEDED", 1.0, None, 1.0, None, 1.0,
+                        1, 1, 1, 1, "SUCCEEDED", "done", 2,
+                    ),
+                )
+                connection.commit()
+            before = path.read_bytes()
+            readonly = BotStateManager(
+                path,
+                owner_instance_id="readonly",
+                read_only=True,
+            )
+            try:
+                flow = readonly.get_flow("flow")
+                run = readonly.get_run("run")
+                self.assertIsNotNone(flow)
+                self.assertIsNotNone(run)
+                assert flow is not None
+                assert run is not None
+                self.assertEqual(flow.retry_backoff_seconds, 2.0)
+                self.assertIsNone(flow.next_ready_batch_id)
+                self.assertIsNone(flow.last_ready_batch_id)
+                self.assertIsNone(run.ready_batch_id)
+                self.assertIsNone(run.revision_within_reset)
+                with self.assertRaises(StateError):
+                    readonly.update_schedule("flow", next_occurrence_key=1)
+            finally:
+                readonly.close()
+            self.assertEqual(path.read_bytes(), before)
 
     def test_lease_takeover_fences_stale_owner(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -208,6 +313,91 @@ class AutomationServiceStateTests(unittest.TestCase):
                     stale.close()
             finally:
                 manager.close()
+    def test_denied_implicit_claim_releases_only_its_fresh_lease(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manager, generation = bootstrap_manager(Path(folder) / "state.sqlite3")
+            try:
+                self.assertTrue(
+                    manager.release_service_lease(
+                        owner_instance_id="owner-a",
+                        process_start_token="process-a",
+                        lease_generation=generation,
+                    )
+                )
+                manager.set_flow_enabled(FLOW_ID, False, now_utc_epoch=101.0)
+                before = manager.get_service_lease()
+                self.assertIsNone(
+                    manager.claim_occurrence(
+                        FLOW_ID,
+                        RESET_ID,
+                        now_utc_epoch=102.0,
+                        max_inputs=4,
+                        max_actions=4,
+                    )
+                )
+                after = manager.get_service_lease()
+                self.assertIsNone(after.owner_instance_id)
+                self.assertIsNone(after.process_start_token)
+                self.assertEqual(after.lease_generation, before.lease_generation + 2)
+                self.assertEqual(after.row_version, before.row_version + 2)
+            finally:
+                manager.close()
+
+    def test_lease_and_run_fences_reject_every_mismatching_identity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manager, generation = bootstrap_manager(Path(folder) / "state.sqlite3")
+            try:
+                lease_before = manager.get_service_lease()
+                for kwargs in (
+                    {"owner_instance_id": "owner-b"},
+                    {"process_start_token": "process-b"},
+                    {"lease_generation": generation + 1},
+                ):
+                    release_kwargs = {
+                        "owner_instance_id": "owner-a",
+                        "process_start_token": "process-a",
+                        "lease_generation": generation,
+                    }
+                    release_kwargs.update(kwargs)
+                    self.assertFalse(manager.release_service_lease(**release_kwargs))
+                    lease_after = manager.get_service_lease()
+                    self.assertEqual(lease_after.owner_instance_id, lease_before.owner_instance_id)
+                    self.assertEqual(lease_after.process_start_token, lease_before.process_start_token)
+                    self.assertEqual(lease_after.lease_generation, lease_before.lease_generation)
+
+                run = claim(manager, generation)
+                self.assertIsNotNone(run)
+                assert run is not None
+                for kwargs in (
+                    {"owner_instance_id": "owner-b"},
+                    {"process_start_token": "process-b"},
+                    {"run_token": "stale-run-token"},
+                    {"lease_generation": generation + 1},
+                ):
+                    auth = run_auth(run)
+                    auth.update(kwargs)
+                    self.assertIsNone(
+                        manager.transition_run(
+                            run.run_id,
+                            RunState.RUNNING,
+                            expected_state=RunState.CLAIMED,
+                            **auth,
+                            now_utc_epoch=102.0,
+                        )
+                    )
+                    self.assertEqual(manager.get_service_lease().owner_instance_id, "owner-a")
+                self.assertIsNotNone(
+                    manager.transition_run(
+                        run.run_id,
+                        RunState.RUNNING,
+                        expected_state=RunState.CLAIMED,
+                        **run_auth(run),
+                        now_utc_epoch=103.0,
+                    )
+                )
+            finally:
+                manager.close()
+
 
     def test_owner_and_run_tokens_are_required_for_action_mutation(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -283,6 +473,7 @@ class AutomationServiceStateTests(unittest.TestCase):
                 run = claim(manager, generation)
                 self.assertIsNotNone(run)
                 assert run is not None
+
                 run = start_running(manager, run)
                 action = manager.reserve_action(run.run_id, "refund-cancel", "tap", input_cost=2, **run_auth(run), now_utc_epoch=102.0)
                 self.assertIsNotNone(action)
@@ -306,6 +497,79 @@ class AutomationServiceStateTests(unittest.TestCase):
                 self.assertEqual(manager.get_run(run.run_id).consumed_inputs, 1)
             finally:
                 manager.close()
+    def test_invalid_implicit_claim_releases_lease_after_transaction_rollback(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manager, generation = bootstrap_manager(Path(folder) / "state.sqlite3")
+            try:
+                self.assertTrue(
+                    manager.release_service_lease(
+                        owner_instance_id="owner-a",
+                        process_start_token="process-a",
+                        lease_generation=generation,
+                    )
+                )
+                with self.assertRaisesRegex(ValueError, "run_token must be non-empty text"):
+                    manager.claim_occurrence(
+                        FLOW_ID,
+                        RESET_ID,
+                        now_utc_epoch=102.0,
+                        max_inputs=4,
+                        max_actions=4,
+                        run_token="",
+                    )
+                lease = manager.get_service_lease()
+                self.assertIsNone(lease.owner_instance_id)
+                self.assertIsNone(lease.process_start_token)
+                self.assertEqual(lease.lease_generation, generation + 3)
+            finally:
+                manager.close()
+    def test_implicit_admission_stale_snapshot_cannot_clear_borrowed_lease(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manager, generation = bootstrap_manager(Path(folder) / "state.sqlite3")
+            try:
+                self.assertTrue(
+                    manager.release_service_lease(
+                        owner_instance_id="owner-a",
+                        process_start_token="process-a",
+                        lease_generation=generation,
+                    )
+                )
+                original_get = manager.get_service_lease
+                original_acquire = manager.acquire_service_lease
+                snapshot = original_get()
+                interleaved = False
+
+                def stale_snapshot():
+                    nonlocal interleaved
+                    if not interleaved:
+                        interleaved = True
+                        self.assertIsNotNone(
+                            original_acquire(
+                                owner_instance_id="shared-owner",
+                                process_start_token="shared-process",
+                                now_utc_epoch=102.0,
+                            )
+                        )
+                    return snapshot
+
+                manager.get_service_lease = stale_snapshot  # type: ignore[method-assign]
+                self.assertIsNone(
+                    manager.claim_occurrence(
+                        FLOW_ID,
+                        RESET_ID,
+                        now_utc_epoch=102.0,
+                        max_inputs=4,
+                        max_actions=4,
+                    )
+                )
+                manager.get_service_lease = original_get  # type: ignore[method-assign]
+                current = manager.get_service_lease()
+                self.assertEqual(current.owner_instance_id, "shared-owner")
+                self.assertEqual(current.process_start_token, "shared-process")
+                self.assertEqual(current.lease_generation, generation + 2)
+            finally:
+                manager.close()
+
 
     def test_terminal_projection_reports_compare_and_set_failure(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -1070,7 +1334,15 @@ class AutomationServiceStateTests(unittest.TestCase):
             FLOW_ID, "r1", 0, occurrence_kind="bounded_repeat",
             repeat_sequence="seq-1", repeat_ordinal=1,
         )
-        self.assertNotEqual(bounded_1, bounded_2)
+        bounded_reset_a = BotStateManager.occurrence_key(
+            FLOW_ID, "r1", 0, occurrence_kind="reset_bounded",
+            ready_batch_id="ready-a", revision_within_reset=0,
+        )
+        bounded_reset_b = BotStateManager.occurrence_key(
+            FLOW_ID, "r1", 0, occurrence_kind="reset_bounded",
+            ready_batch_id="ready-b", revision_within_reset=1,
+        )
+        self.assertNotEqual(bounded_reset_a, bounded_reset_b)
         queue = BotStateManager.occurrence_key(
             FLOW_ID, "r1", 0, occurrence_kind="queue_generation",
             queue_generation="q1",

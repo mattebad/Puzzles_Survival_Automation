@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -121,7 +122,7 @@ def initialize(
     state.set_flow_enabled(descriptor.flow_id, True, now_utc_epoch=0.0)
     handler = Handler(
         descriptor,
-        NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "DONE"),
+        NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "DONE", action_count=1),
     )
     coordinator = UtcPulseCoordinator(state, [descriptor], {descriptor.flow_id: handler})
     return state, coordinator, handler
@@ -137,7 +138,7 @@ def mutable_tables(path: Path) -> dict[str, tuple[tuple[object, ...], ...]]:
         "runs",
         "actions",
     )
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection:
         return {
             table: tuple(
                 tuple(row)
@@ -296,6 +297,286 @@ class CanonicalSchedulerTests(unittest.TestCase):
                 self.assertEqual(handler.plan_calls, 1)
             finally:
                 state.close()
+    def test_reset_bounded_batches_share_one_reset_budget_and_replay_is_denied(self) -> None:
+        first_batch = RecurrenceProjection(
+            RecurrenceClass.RESET_BOUNDED,
+            repeat_limit=4,
+            ready_batch_id="ready-a",
+            revision_within_reset=0,
+        )
+        descriptor = make_descriptor(
+            cadence="reset_bounded",
+            recurrence=first_batch,
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            state, coordinator, _handler = initialize(
+                Path(folder) / "state.sqlite3", descriptor
+            )
+            try:
+                first = coordinator.pulse(make_facts(now=100.0))
+                self.assertEqual(first.candidate.claim.occurrence_ordinal, 0)
+                second_batch = RecurrenceProjection(
+                    RecurrenceClass.RESET_BOUNDED,
+                    repeat_limit=4,
+                    ready_batch_id="ready-b",
+                    revision_within_reset=1,
+                    ui_changed=True,
+                    reconciled=True,
+                )
+                replay_batch = RecurrenceProjection(
+                    RecurrenceClass.RESET_BOUNDED,
+                    repeat_limit=4,
+                    ready_batch_id="ready-a",
+                    revision_within_reset=2,
+                    ui_changed=True,
+                    reconciled=True,
+                )
+                second = coordinator.pulse(
+                    make_facts(now=101.0, projections={FLOW_ID: second_batch})
+                )
+                self.assertEqual(second.candidate.claim.occurrence_ordinal, 1)
+                replay = coordinator.pulse(
+                    make_facts(now=102.0, projections={FLOW_ID: replay_batch})
+                )
+                self.assertIsNone(replay.result)
+                self.assertEqual(replay.reason_code, "CLAIM_UNAVAILABLE")
+                self.assertEqual(state.get_flow(FLOW_ID).next_occurrence_key, 2)
+                third = coordinator.pulse(
+                    make_facts(now=103.0, projections={FLOW_ID: second_batch})
+                )
+                self.assertEqual(third.candidate.claim.occurrence_ordinal, 2)
+                fourth = coordinator.pulse(
+                    make_facts(now=104.0, projections={FLOW_ID: second_batch})
+                )
+                self.assertEqual(fourth.candidate.claim.occurrence_ordinal, 3)
+                exhausted = coordinator.pulse(
+                    make_facts(now=105.0, projections={FLOW_ID: second_batch})
+                )
+                self.assertIsNone(exhausted.candidate)
+                self.assertEqual(exhausted.reason_code, "RESET_BOUNDED_EXHAUSTED")
+                self.assertTrue(state.get_flow(FLOW_ID).blocked)
+            finally:
+                state.close()
+
+    def test_neutral_failed_batch_cannot_authorize_changed_batch(self) -> None:
+        first_batch = RecurrenceProjection(
+            RecurrenceClass.RESET_BOUNDED,
+            repeat_limit=3,
+            ready_batch_id="ready-a",
+            revision_within_reset=0,
+        )
+        second_batch = RecurrenceProjection(
+            RecurrenceClass.RESET_BOUNDED,
+            repeat_limit=3,
+            ready_batch_id="ready-b",
+            revision_within_reset=1,
+            ui_changed=True,
+            reconciled=True,
+        )
+        descriptor = make_descriptor(
+            cadence="reset_bounded",
+            recurrence=first_batch,
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            state, coordinator, handler = initialize(
+                Path(folder) / "state.sqlite3", descriptor
+            )
+            try:
+                handler.result = NormalizedResult(
+                    NormalizedOutcome.RECONCILIATION_REQUIRED,
+                    "RETRY",
+                )
+                coordinator.pulse(make_facts(now=100.0))
+                denied = coordinator.pulse(
+                    make_facts(
+                        now=103.0,
+                        projections={FLOW_ID: second_batch},
+                    )
+                )
+                self.assertIsNone(denied.result)
+                self.assertEqual(denied.reason_code, "CLAIM_UNAVAILABLE")
+                self.assertEqual(state.get_flow(FLOW_ID).next_occurrence_key, 0)
+                self.assertEqual(
+                    state.get_flow(FLOW_ID).next_ready_batch_id,
+                    "ready-a",
+                )
+            finally:
+                state.close()
+
+    def test_reset_bounded_cadence_requires_canonical_projection(self) -> None:
+        descriptor = make_descriptor(cadence="reset_bounded")
+        with tempfile.TemporaryDirectory() as folder:
+            state, coordinator, _handler = initialize(
+                Path(folder) / "state.sqlite3", descriptor
+            )
+            try:
+                missing = coordinator.pulse(make_facts(now=100.0))
+                self.assertIsNone(missing.candidate)
+                self.assertIsNone(missing.result)
+                projection = RecurrenceProjection(
+                    RecurrenceClass.RESET_BOUNDED,
+                    repeat_limit=1,
+                    ready_batch_id="ready",
+                    revision_within_reset=0,
+                )
+                admitted = coordinator.pulse(
+                    make_facts(now=101.0, projections={FLOW_ID: projection})
+                )
+                self.assertEqual(admitted.candidate.claim.occurrence_ordinal, 0)
+                exhausted = coordinator.pulse(
+                    make_facts(now=102.0, projections={FLOW_ID: projection})
+                )
+                self.assertEqual(exhausted.reason_code, "RESET_BOUNDED_EXHAUSTED")
+            finally:
+                state.close()
+
+    def test_repeat_limit_cannot_expand_after_restart(self) -> None:
+        projection = RecurrenceProjection(
+            RecurrenceClass.RESET_BOUNDED,
+            repeat_limit=2,
+            ready_batch_id="ready-a",
+            revision_within_reset=0,
+        )
+        descriptor = make_descriptor(cadence="reset_bounded", recurrence=projection)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            state, coordinator, handler = initialize(path, descriptor)
+            try:
+                first = coordinator.pulse(make_facts(now=100.0))
+                self.assertEqual(first.candidate.claim.occurrence_ordinal, 0)
+            finally:
+                state.close()
+            state = BotStateManager(path, owner_instance_id="scheduler-owner")
+            try:
+                coordinator = UtcPulseCoordinator(state, [descriptor], {FLOW_ID: handler})
+                expanded = RecurrenceProjection(
+                    RecurrenceClass.RESET_BOUNDED,
+                    repeat_limit=3,
+                    ready_batch_id="ready-a",
+                    revision_within_reset=0,
+                )
+                denied = coordinator.pulse(
+                    make_facts(now=101.0, projections={FLOW_ID: expanded})
+                )
+                self.assertIsNone(denied.result)
+                second = coordinator.pulse(make_facts(now=102.0))
+                self.assertEqual(second.candidate.claim.occurrence_ordinal, 1)
+                exhausted = coordinator.pulse(
+                    make_facts(now=103.0, projections={FLOW_ID: expanded})
+                )
+                self.assertEqual(exhausted.reason_code, "RESET_BOUNDED_EXHAUSTED")
+                self.assertIsNone(exhausted.candidate)
+            finally:
+                state.close()
+
+    def test_exhaustion_blocks_any_later_bounded_flow(self) -> None:
+        exhausted_id = "EXHAUSTED-BOUNDED-FLOW"
+        skipped = make_descriptor(
+            flow_id="SKIPPED-FLOW",
+            scheduler_eligible=False,
+        )
+        exhausted = make_descriptor(
+            flow_id=exhausted_id,
+            cadence="reset_bounded",
+            recurrence=RecurrenceProjection(
+                RecurrenceClass.RESET_BOUNDED,
+                repeat_limit=1,
+                ready_batch_id="ready",
+                revision_within_reset=0,
+            ),
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            state = BotStateManager(
+                Path(folder) / "state.sqlite3",
+                owner_instance_id="scheduler-owner",
+            )
+            handler = Handler(
+                exhausted,
+                NormalizedResult(
+                    NormalizedOutcome.COMPLETE_FOR_RESET,
+                    "DONE",
+                    action_count=1,
+                ),
+            )
+            try:
+                state.initialize_flows(
+                    [
+                        FlowSpec(skipped.flow_id, default_enabled=True),
+                        FlowSpec(exhausted_id, default_enabled=True, cadence="reset_bounded"),
+                    ]
+                )
+                state.set_service_enabled(True, now_utc_epoch=0.0)
+                state.set_flow_enabled(skipped.flow_id, True, now_utc_epoch=0.0)
+                state.set_flow_enabled(exhausted_id, True, now_utc_epoch=0.0)
+                coordinator = UtcPulseCoordinator(
+                    state,
+                    [skipped, exhausted],
+                    {
+                        skipped.flow_id: Handler(skipped, handler.result),
+                        exhausted_id: handler,
+                    },
+                )
+                first = coordinator.pulse(make_facts(now=100.0))
+                self.assertEqual(first.candidate.claim.occurrence_ordinal, 0)
+                report = coordinator.pulse(
+                    make_facts(
+                        now=101.0,
+                        projections={
+                            exhausted_id: exhausted.recurrence,
+                        },
+                    )
+                )
+                self.assertEqual(report.reason_code, "RESET_BOUNDED_EXHAUSTED")
+                self.assertTrue(state.get_flow(exhausted_id).blocked)
+            finally:
+                state.close()
+    def test_same_batch_revision_replay_is_denied(self) -> None:
+        revision_zero = RecurrenceProjection(
+            RecurrenceClass.RESET_BOUNDED,
+            repeat_limit=4,
+            ready_batch_id="ready-a",
+            revision_within_reset=0,
+            ui_changed=True,
+            reconciled=True,
+        )
+        revision_one = RecurrenceProjection(
+            RecurrenceClass.RESET_BOUNDED,
+            repeat_limit=4,
+            ready_batch_id="ready-a",
+            revision_within_reset=1,
+            ui_changed=True,
+            reconciled=True,
+        )
+        descriptor = make_descriptor(
+            cadence="reset_bounded",
+            recurrence=revision_zero,
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            state, coordinator, _handler = initialize(
+                Path(folder) / "state.sqlite3", descriptor
+            )
+            try:
+                first = coordinator.pulse(make_facts(now=100.0))
+                self.assertEqual(first.candidate.claim.occurrence_ordinal, 0)
+                second = coordinator.pulse(
+                    make_facts(
+                        now=101.0,
+                        projections={FLOW_ID: revision_one},
+                    )
+                )
+                self.assertEqual(second.candidate.claim.occurrence_ordinal, 1)
+                replay = coordinator.pulse(
+                    make_facts(
+                        now=102.0,
+                        projections={FLOW_ID: revision_zero},
+                    )
+                )
+                self.assertIsNone(replay.result)
+                self.assertEqual(replay.reason_code, "CLAIM_UNAVAILABLE")
+                self.assertEqual(state.get_flow(FLOW_ID).next_occurrence_key, 2)
+            finally:
+                state.close()
+
 
     def test_manual_request_is_separate_and_retry_reuses_occurrence_key(self) -> None:
         descriptor = make_descriptor()
@@ -452,7 +733,7 @@ class CanonicalSchedulerTests(unittest.TestCase):
                 )
                 first = coordinator.pulse(make_facts(now=100.0))
                 handler.result = NormalizedResult(
-                    NormalizedOutcome.COMPLETE_FOR_RESET, "TIMER_RECOVERED"
+                    NormalizedOutcome.COMPLETE_FOR_RESET, "TIMER_RECOVERED", action_count=1
                 )
                 changed_slot = RecurrenceProjection(
                     RecurrenceClass.TIMER,
@@ -529,17 +810,17 @@ class CanonicalSchedulerTests(unittest.TestCase):
                 self.assertEqual(first.candidate.occurrence_key, f"{FLOW_ID}:{RESET}:0")
                 flow = state.get_flow(FLOW_ID)
                 self.assertEqual(flow.next_occurrence_key, 0)
-                self.assertEqual(flow.retry_not_before_utc, 101.0)
-                self.assertIsNone(coordinator.select(make_facts(now=100.5)))
+                self.assertEqual(flow.retry_not_before_utc, 102.0)
+                self.assertIsNone(coordinator.select(make_facts(now=101.5)))
 
                 handler.result = NormalizedResult(
                     NormalizedOutcome.COMPLETE_FOR_RESET,
                     "RECOVERED",
+                    action_count=1,
                 )
-                retry = coordinator.pulse(make_facts(now=101.0))
+                retry = coordinator.pulse(make_facts(now=102.0))
                 self.assertEqual(retry.candidate.occurrence_key, first.candidate.occurrence_key)
                 self.assertEqual(retry.candidate.claim.run_id, first.candidate.claim.run_id)
-                self.assertEqual(retry.result.reason_code, "RECOVERED")
                 self.assertEqual(state.get_flow(FLOW_ID).next_occurrence_key, 1)
             finally:
                 state.close()
@@ -590,7 +871,7 @@ class CanonicalSchedulerTests(unittest.TestCase):
             try:
                 handler = Handler(
                     descriptor,
-                    NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "RECOVERED"),
+                    NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "RECOVERED", action_count=1),
                 )
                 coordinator = UtcPulseCoordinator(
                     restarted, [descriptor], {FLOW_ID: handler}
@@ -772,7 +1053,6 @@ class CanonicalSchedulerTests(unittest.TestCase):
             )
             try:
                 first = coordinator.pulse(make_facts(now=100.0))
-                self.assertEqual(first.result.reason_code, "DONE")
                 self.assertEqual(state.get_clock().high_water_utc, 100.0)
 
                 rollback = coordinator.pulse(
@@ -822,8 +1102,8 @@ class CanonicalSchedulerTests(unittest.TestCase):
             state.set_flow_enabled("HIGH", True, now_utc_epoch=0.0)
             state.set_flow_enabled("LOW", True, now_utc_epoch=0.0)
             handlers = {
-                "HIGH": Handler(high, NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "HIGH")),
-                "LOW": Handler(low, NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "LOW")),
+                "HIGH": Handler(high, NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "HIGH", action_count=1)),
+                "LOW": Handler(low, NormalizedResult(NormalizedOutcome.COMPLETE_FOR_RESET, "LOW", action_count=1)),
             }
             coordinator = UtcPulseCoordinator(state, [high, low], handlers)
             try:

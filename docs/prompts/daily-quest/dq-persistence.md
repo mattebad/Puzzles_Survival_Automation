@@ -1,7 +1,7 @@
 # DQ-PERSISTENCE
 
 Repository authority: matrix owns persistence integration and promotion; catalog remains
-observational. `BACKLOG.md` owns this task. Main Quest Claim is excluded.
+observational. `docs/archive/backlog-legacy.md` preserves the historical task record. Main Quest Claim is excluded.
 
 Scope: dormant Daily task-state persistence keyed by game-day identity, objective key, and flow.
 Reusable components: Phase F task state, safety store, unresolved-action guard. Route: offline

@@ -17,6 +17,7 @@ from .handlers import RecruitmentMaintenanceSelectionHandler
 class RecruitmentExecutionHandler(RecruitmentMaintenanceSelectionHandler):
     """Use existing eligibility, then execute only after the canonical run fence."""
 
+    selection_only = False
     max_inputs = 12
     max_actions = 3
 
@@ -26,6 +27,7 @@ class RecruitmentExecutionHandler(RecruitmentMaintenanceSelectionHandler):
 
     def execute_run(self, run, facts, perception=None):
         return self._execute(run, facts)
+
 
 def recruitment_reset(now: float) -> str:
     # Approved game reset is midnight UTC.

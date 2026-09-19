@@ -1,7 +1,6 @@
 # DQ-FLOW-STAMINA
 
-Repository authority: catalog owns `consume_stamina`; matrix owns disabled policy/status; backlog owns
-task. Main Quest Claim excluded.
+Repository authority: catalog owns `consume_stamina`; matrix owns disabled policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record. Main Quest Claim excluded.
 
 Scope: Consume 20 Stamina. Reuse world/stamina accounting primitive only for offline contract.
 Route: Daily row → future eligible world action. Source: current row and stamina counter; target:

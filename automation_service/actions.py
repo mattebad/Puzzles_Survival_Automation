@@ -150,6 +150,10 @@ class ActionExecutor:
         if not isinstance(intent, SemanticActionIntent):
             raise TypeError("intent must be a SemanticActionIntent")
         source = source_observation or source
+        if source is not None and not isinstance(source, ScreenObservation):
+            if self.session.run is not None:
+                return self._blocked_before_transport("INVALID_SOURCE_OBSERVATION", source=None)
+            return self._blocked("INVALID_SOURCE_OBSERVATION")
         if intent.flow_id is not None and intent.flow_id != self.session.flow_id:
             if self.session.run is not None:
                 return self._blocked_before_transport("FLOW_MISMATCH", source=source)
@@ -212,9 +216,11 @@ class ActionExecutor:
             reason = f"PRE_DISPATCH_CAPTURE_FAILED:{type(exc).__name__}"
             return self._blocked_before_transport(reason, source=source)
         if pre.is_unknown:
-            reason = pre.reason_code or "UNKNOWN_PRE_DISPATCH"
-            return self._blocked_before_transport(reason, source=source, pre_dispatch=pre)
-
+            return self._blocked_before_transport(
+                pre.reason_code or "UNKNOWN_SCREEN",
+                source=source,
+                pre_dispatch=pre,
+            )
         try:
             target_identity = intent.target_identity
             if not target_identity:
@@ -222,8 +228,14 @@ class ActionExecutor:
             target = pre.target(target_identity)
             if target is None:
                 return self._blocked_before_transport("TARGET_NOT_RECOGNIZED", source=source, pre_dispatch=pre)
+            if not target.complete_identity:
+                return self._blocked_before_transport("INCOMPLETE_TARGET_IDENTITY", source=source, pre_dispatch=pre)
             if source is not None:
-                valid, reason = source.revalidate_target(pre, target_identity)
+                valid, reason = source.revalidate_target(
+                    pre,
+                    target_identity,
+                    now_monotonic=self._monotonic(),
+                )
                 if not valid:
                     return self._blocked_before_transport(reason, source=source, pre_dispatch=pre)
         except Exception as exc:
@@ -344,6 +356,7 @@ class ActionExecutor:
                 valid, final_reason = authoritative_source.revalidate_target(
                     final_observation,
                     target_identity,
+                    now_monotonic=self._monotonic(),
                 )
                 if valid:
                     final_reason = None

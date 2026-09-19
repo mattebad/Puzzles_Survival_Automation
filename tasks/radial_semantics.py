@@ -9,7 +9,7 @@ capability grant, adapter geometry, OCR thresholds, or profile-specific taps.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 import math
 from types import MappingProxyType
@@ -219,7 +219,7 @@ class RadialControlObservation:
     owner_facility_semantic_id: str
     ambiguity_state: RadialAmbiguityState = RadialAmbiguityState.NONE
     supporting_evidence: tuple[str, ...] = ()
-    metadata: Mapping[str, str] = MappingProxyType({})
+    metadata: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -298,7 +298,7 @@ class HomeRadialSemantics:
     controls: Tuple[RadialControlObservation, ...]
     ambiguity_state: RadialAmbiguityState = RadialAmbiguityState.NONE
     supporting_evidence: tuple[str, ...] = ()
-    metadata: Mapping[str, str] = MappingProxyType({})
+    metadata: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(

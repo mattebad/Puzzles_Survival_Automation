@@ -17,7 +17,7 @@ from typing import Any, Mapping, Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
-BACKLOG_PATH = REPO_ROOT / "BACKLOG.md"
+BACKLOG_PATH = REPO_ROOT / "docs" / "archive" / "backlog-legacy.md"
 QUEUE_PATH = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 POLICY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.json"
 COVERAGE_PATH = REPO_ROOT / "tasks" / "flow_delivery_coverage.json"
@@ -190,7 +190,7 @@ def recent_commits(limit: int = MAX_RECENT_COMMITS) -> list[str]:
 def parse_backlog_sections(text: str) -> dict[str, dict[str, Any]]:
     matches = list(TASK_HEADING_RE.finditer(text))
     if not matches:
-        raise ContextPacketError("BACKLOG.md contains no task headings")
+        raise ContextPacketError("docs/archive/backlog-legacy.md contains no task headings")
     sections: dict[str, dict[str, Any]] = {}
     for index, match in enumerate(matches):
         task_id = match.group(1)
@@ -229,7 +229,7 @@ def build_backlog_index(
 ) -> dict[str, Any]:
     backlog_text = backlog_path.read_text(encoding="utf-8")
     if "\r\n" in backlog_text:
-        raise ContextPacketError("BACKLOG.md must use LF line endings")
+        raise ContextPacketError("docs/archive/backlog-legacy.md must use LF line endings")
     sections = parse_backlog_sections(backlog_text)
     queue = _read_json(queue_path)
     referenced: dict[str, list[str]] = {}
@@ -257,7 +257,7 @@ def build_backlog_index(
         )
     payload = {
         "schema_version": INDEX_SCHEMA_VERSION,
-        "backlog_path": "BACKLOG.md",
+        "backlog_path": "docs/archive/backlog-legacy.md",
         "backlog_sha256": _sha256_text(backlog_text),
         "generated_from_head": repo_head(),
         "task_count": len(tasks),

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "backlog_path": "BACKLOG.md",
+  "backlog_path": "docs/archive/backlog-legacy.md",
   "backlog_sha256": "b07f3addb0c346bed9561cbc726d73db4440c839eea7f5d578ae5b8f306ac758",
-  "generated_from_head": "c0235490f32dedba2c794ce702509052940caf52",
+  "generated_from_head": "5f9f8bc0e2447f18ce3e0eaeefa54d8569cc772c",
   "task_count": 32,
   "tasks": [
     {

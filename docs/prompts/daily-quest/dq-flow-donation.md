@@ -1,7 +1,6 @@
 # DQ-FLOW-DONATION
 
-Repository authority: catalog owns `donate_alliance_tech`; matrix owns disabled policy/status; backlog owns
-task. Main Quest Claim excluded.
+Repository authority: catalog owns `donate_alliance_tech`; matrix owns disabled policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record. Main Quest Claim excluded.
 
 Scope: Alliance tech donation. Reuse Alliance route and offline donation model only. Route: Daily
 row → Alliance tech. Source: row, tech target, donation inventory; target: exact donate control;

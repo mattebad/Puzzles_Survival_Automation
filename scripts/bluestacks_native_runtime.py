@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import time
 from typing import Protocol
 
@@ -41,6 +42,41 @@ NativeBox = tuple[int, int, int, int]
 NATIVE_WIDTH = 800
 NATIVE_HEIGHT = 1280
 NATIVE_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+
+_PORTABLE_FILENAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+_WINDOWS_RESERVED_FILENAME_COMPONENTS = frozenset(
+    {
+        "AUX",
+        "CON",
+        "NUL",
+        "PRN",
+        *(f"COM{index}" for index in range(1, 10)),
+        *(f"LPT{index}" for index in range(1, 10)),
+    }
+)
+
+
+def portable_filename_component(value: object, *, field: str) -> str:
+    """Return a safe new filename component without changing its identity.
+
+    New runtime paths are deliberately stricter than historical evidence paths:
+    path separators, drive/ADS syntax, traversal components, and empty values
+    are normalized or rejected before any device or file operation.  Other
+    punctuation is collapsed to ``-`` so ordinary labels remain readable and
+    portable.
+    """
+
+    if not isinstance(value, str) or not value.strip():
+        raise RuntimeError(f"{field} filename component is required")
+    original = value.strip()
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "-", original).strip(".-")
+    if not safe or safe in {".", ".."}:
+        raise RuntimeError(f"{field} filename component is ambiguous")
+    if not _PORTABLE_FILENAME_RE.fullmatch(safe):
+        raise RuntimeError(f"{field} filename component is not portable")
+    if safe.upper().split(".", 1)[0] in _WINDOWS_RESERVED_FILENAME_COMPONENTS:
+        raise RuntimeError(f"{field} filename component is a reserved Windows name")
+    return safe
 
 
 def reject_real_money_confirmation(target_identity: str, action_key: str = "") -> None:
@@ -260,6 +296,7 @@ class LocalBlueStacksRuntime:
         workflow: str,
         execute: bool,
     ) -> "LocalBlueStacksRuntime":
+        safe_workflow = portable_filename_component(workflow, field="workflow")
         if not is_permitted_local_bluestacks_serial(serial):
             raise RuntimeError("serial is not a permitted local BlueStacks endpoint")
         runner = ADBRunner(adb, serial)
@@ -269,7 +306,7 @@ class LocalBlueStacksRuntime:
         foreground = parse_foreground_package(runner.shell_text("dumpsys", "window", "windows"))
         if foreground != EXPECTED_PACKAGE:
             raise RuntimeError(f"unexpected foreground package: {foreground!r}")
-        session = output_directory / f"{workflow}-{utc_stamp()}"
+        session = output_directory / f"{safe_workflow}-{utc_stamp()}"
         return cls(runner, session, execute=execute)
 
     def _event(self, kind: str, payload: dict[str, object]) -> None:
@@ -290,17 +327,26 @@ class LocalBlueStacksRuntime:
     def capture(self, label: str) -> CapturedNativeFrame:
         if self.checkpoint is not None:
             self.checkpoint()
+        safe_label = portable_filename_component(label, field="capture label")
         payload = self.runner.capture_png()
         captured = time.monotonic()
         self.ordinal += 1
-        path = self.frames / f"{self.ordinal:04d}-{label}.png"
-        path.write_bytes(payload)
+        path = self.frames / f"{self.ordinal:04d}-{safe_label}.png"
         result = captured_native_frame_from_png(
             payload,
             captured_monotonic=captured,
             path=path,
         )
-        self._event("capture", {"label": label, "path": str(path), "sha256": result.sha256})
+        path.write_bytes(payload)
+        self._event(
+            "capture",
+            {
+                "label": label,
+                "filename_component": safe_label,
+                "path": str(path),
+                "sha256": result.sha256,
+            },
+        )
         return result
 
     def _authorize_dispatch(

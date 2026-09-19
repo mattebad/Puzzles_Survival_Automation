@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+import time
 import unittest
 
 import cv2
@@ -27,6 +28,7 @@ from tasks.native_frame_mutation import (
 )
 from tasks.semantic_ocr_crop import (
     CropRoiRequest,
+    DEFAULT_OCR_TIMEOUT_SECONDS,
     OcrMode,
     ObservationStatus,
     run_semantic_ocr,
@@ -151,8 +153,12 @@ class NativeFrameMutationTests(unittest.TestCase):
             assert frame is not None
             observation = run_semantic_ocr(
                 frame,
-                CropRoiRequest(stale.claimed_source_frame, (40, 40, 120, 80)),
-                ocr_mode=OcrMode.UNIFORM_BLOCK,
+                CropRoiRequest(
+                    stale.claimed_source_frame,
+                    (40, 40, 120, 80),
+                    ocr_mode=OcrMode.UNIFORM_BLOCK,
+                    deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS,
+                ),
                 ocr_engine=lambda _image, _psm: "must-not-authorize",
             )
             self.assertEqual(observation.status, ObservationStatus.INVALID)

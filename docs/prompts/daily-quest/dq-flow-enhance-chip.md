@@ -1,6 +1,6 @@
 # DQ-FLOW-ENHANCE-CHIP
 
-Repository authority: catalog owns `enhance_chip`; matrix owns policy/status; backlog owns task. Main Quest
+Repository authority: catalog owns `enhance_chip`; matrix owns policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record. Main Quest
 Claim excluded.
 
 Scope: Chip enhancement, parameterized over selected chip and chip-specific postcondition.

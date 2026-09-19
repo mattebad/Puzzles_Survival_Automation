@@ -765,9 +765,12 @@ def _checkpoint_hashes() -> dict[str, str]:
 
 
 def _development_session_directory(invocation_id: str) -> Path:
-    safe = re.sub(r"[^A-Za-z0-9_.-]+", "-", invocation_id).strip("-")
-    if not safe:
-        raise OperatorError("development session invocation ID is invalid")
+    from scripts.bluestacks_native_runtime import portable_filename_component
+
+    try:
+        safe = portable_filename_component(invocation_id, field="development session invocation ID")
+    except RuntimeError as exc:
+        raise OperatorError(str(exc)) from exc
     return DEVELOPMENT_SESSION_ROOT / safe
 
 
@@ -810,61 +813,259 @@ def _run_shared_startup_recovery(
     payload["total_input_count"] = int(result.input_count)
     return payload
 
+def _canonical_action_identity(row: Mapping[str, Any]) -> str | None:
+    """Return the identity recorded by the action/input ledger, if present."""
+
+    for field in ("action_key", "label"):
+        value = row.get(field)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+def _action_transport_attempts(row: Mapping[str, Any]) -> int:
+    attempted = row.get("transport_attempted_count", 1)
+    if type(attempted) is not int or attempted < 1:
+        raise OperatorError("action ledger transport attempt count is invalid")
+    return attempted
+
+
+def _startup_recovery_action_rows(
+    result: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Project one startup recovery action without collapsing its input budget."""
+
+    if not isinstance(result, Mapping):
+        return []
+    try:
+        input_count = int(
+            result.get("input_count")
+            or result.get("recovery_input_count")
+            or 0
+        )
+    except (TypeError, ValueError):
+        return []
+    if input_count <= 0:
+        return []
+    identity = _canonical_action_identity(result)
+    if identity is None:
+        raise OperatorError("startup recovery transport is missing an action identity")
+    status = str(result.get("status") or "unknown")
+    semantic_status = (
+        "confirmed"
+        if status in {"surface_dismissed_successor_captured", "recovered"}
+        else "unknown"
+    )
+    after_sha256 = result.get("after_sha256")
+    return [
+        {
+            "ordinal": 0,
+            "action_class": "navigation",
+            "action_key": identity,
+            "target_identity": (
+                result.get("safe_exit_target_identity")
+                or result.get("popup_identity")
+            ),
+            "before_sha256": result.get("before_sha256"),
+            "after_sha256": after_sha256,
+            "after_path": None,
+            "transport_attempted": True,
+            "transport_attempted_count": input_count,
+            "semantic_status": semantic_status,
+            "semantic_completed": semantic_status == "confirmed",
+            "semantic_reason": result.get("reason"),
+            "reason": result.get("reason") or "startup recovery semantic outcome is unknown",
+            "effect_reconciliation_required": semantic_status != "confirmed",
+            "capture_status": (
+                "post_captured" if after_sha256 else "post_capture_missing"
+            ),
+            "status": (
+                "completed" if semantic_status == "confirmed" else "effect_reconciliation_required"
+            ),
+            "recovery": True,
+        }
+    ]
+
+
+def _unique_action_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Keep one latest canonical row per action identity."""
+
+    unique: list[dict[str, Any]] = []
+    positions: dict[str, int] = {}
+    for row in rows:
+        identity = _canonical_action_identity(row)
+        if identity is None:
+            raise OperatorError("action ledger row is missing an action identity")
+        replacement = dict(row)
+        previous_position = positions.get(identity)
+        if previous_position is None:
+            positions[identity] = len(unique)
+            unique.append(replacement)
+            continue
+        previous = unique[previous_position]
+        previous_status = previous.get("semantic_status", previous.get("status"))
+        replacement_status = replacement.get("semantic_status", replacement.get("status"))
+        if previous_status == "completed":
+            previous_status = "confirmed"
+        if replacement_status == "completed":
+            replacement_status = "confirmed"
+        if (
+            previous_status in {"confirmed", "failed_confirmed"}
+            and previous_status != replacement_status
+        ):
+            raise OperatorError("action ledger contains conflicting terminal outcomes")
+        replacement["transport_attempted_count"] = max(
+            _action_transport_attempts(previous), _action_transport_attempts(replacement)
+        )
+        unique[previous_position] = replacement
+    return unique
+
+
 
 def _compact_development_action_results(
     event_rows: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Pair each retained dispatch with its next native capture."""
+    """Project canonical dispatch rows without treating captures as success.
 
-    actions: list[dict[str, Any]] = []
-    pending: dict[str, Any] | None = None
-    for event in event_rows:
-        kind = event.get("type")
-        if kind == "dispatch" and event.get("execute") is not False:
-            if pending is not None:
-                actions.append(pending)
-            pending = {
-                "ordinal": len(actions) + 1,
-                "action_class": "ordinary_development",
-                "action_key": event.get("action_key"),
-                "target_identity": event.get("target_identity"),
-                "before_sha256": event.get("source_sha256"),
-                "after_sha256": None,
-                "after_path": None,
-                "status": "post_capture_missing",
-            }
-        elif kind == "capture" and pending is not None:
-            pending["after_sha256"] = event.get("sha256")
-            pending["after_path"] = event.get("path")
-            pending["status"] = "post_captured"
-            actions.append(pending)
-            pending = None
-    if pending is not None:
-        actions.append(pending)
-    return actions
-
-
-def _retained_transport_count(event_rows: Sequence[Mapping[str, Any]]) -> int:
-    """Count only retained, executable transport rows once.
-
-    Semantic/planning/capture rows are observability and never contribute to the
-    session's authoritative input count.
+    ``events.jsonl`` is an evidence projection, not a second action ledger.
+    Only executable dispatch rows create actions.  A later capture records
+    post-capture provenance; only an explicit reconciliation row can establish
+    semantic completion.
     """
 
-    seen: set[str] = set()
-    count = 0
-    for row in event_rows:
-        if row.get("type") != "dispatch" or row.get("execute") is False:
-            continue
-        identity = str(
-            row.get("action_key")
-            or f"{row.get('source_sha256', '')}:{row.get('target_identity', '')}:{count}"
+    dispatches: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    pending: str | None = None
+    reconciliations: dict[str, Mapping[str, Any]] = {}
+    for event in event_rows:
+        kind = event.get("type")
+        if kind == "dispatch":
+            if event.get("execute") is False or event.get("transport_attempted") is False:
+                pending = None
+                continue
+            identity = _canonical_action_identity(event)
+            if identity is None:
+                raise OperatorError("executable dispatch is missing an action identity")
+            if identity not in dispatches:
+                dispatches[identity] = {
+                    "ordinal": len(order) + 1,
+                    "action_class": "ordinary_development",
+                    "action_key": identity,
+                    "target_identity": event.get("target_identity"),
+                    "before_sha256": event.get("source_sha256"),
+                    "after_sha256": None,
+                    "after_path": None,
+                    "transport_attempted": True,
+                    "transport_attempted_count": _action_transport_attempts(event),
+                }
+                order.append(identity)
+            else:
+                dispatches[identity]["transport_attempted_count"] = max(
+                    dispatches[identity]["transport_attempted_count"],
+                    _action_transport_attempts(event),
+                )
+            pending = identity
+        elif kind == "capture" and pending is not None:
+            action = dispatches[pending]
+            if action["after_sha256"] is None:
+                action["after_sha256"] = event.get("sha256")
+                action["after_path"] = event.get("path")
+            pending = None
+        elif kind == "reconcile":
+            identity = _canonical_action_identity(event)
+            if identity is None:
+                raise OperatorError("reconciliation is missing an action identity")
+            previous = reconciliations.get(identity)
+            if (
+                previous is not None
+                and previous.get("status") in {"confirmed", "failed_confirmed"}
+                and event.get("status") != previous.get("status")
+            ):
+                raise OperatorError("action ledger contains conflicting terminal reconciliations")
+            reconciliations[identity] = event
+
+    actions: list[dict[str, Any]] = []
+    for identity in order:
+        action = dispatches[identity]
+        reconciliation = reconciliations.get(identity)
+        semantic_status = (
+            str(reconciliation.get("status") or "unknown")
+            if reconciliation is not None
+            else "unknown"
         )
-        if identity in seen:
-            raise OperatorError("duplicate retained transport is not countable")
-        seen.add(identity)
-        count += 1
-    return count
+        if semantic_status not in {"confirmed", "failed_confirmed", "unresolved"}:
+            semantic_status = "unknown"
+        action["semantic_status"] = semantic_status
+        action["semantic_completed"] = semantic_status == "confirmed"
+        action["semantic_reason"] = (
+            reconciliation.get("reason") if reconciliation is not None else None
+        )
+        action["reason"] = action["semantic_reason"] or "semantic postcondition is not confirmed"
+        action["effect_reconciliation_required"] = semantic_status in {"unknown", "unresolved"}
+        action["capture_status"] = (
+            "post_captured"
+            if action["after_sha256"] is not None
+            else "post_capture_missing"
+        )
+        action["status"] = (
+            "completed" if semantic_status == "confirmed"
+            else "effect_reconciliation_required" if action["effect_reconciliation_required"]
+            else "unknown"
+        )
+        actions.append(action)
+    return actions
+
+def _retained_transport_count(event_rows: Sequence[Mapping[str, Any]]) -> int:
+    """Count canonical transport attempts once per action identity."""
+
+    attempts_by_identity: dict[str, int] = {}
+    for row in event_rows:
+        kind = row.get("type")
+        if kind is not None:
+            if kind != "dispatch" or row.get("execute") is False:
+                continue
+            if row.get("transport_attempted") is False:
+                continue
+        else:
+            # DevelopmentSession action rows are the canonical input ledger.
+            if row.get("transport_attempted") is False:
+                continue
+            status = str(row.get("status") or "").strip().lower()
+            if status in {"failed_before_dispatch", "not_dispatched", "cancelled"}:
+                continue
+        identity = _canonical_action_identity(row)
+        if identity is None:
+            raise OperatorError("retained transport is missing an action identity")
+        attempts_by_identity[identity] = max(
+            attempts_by_identity.get(identity, 0), _action_transport_attempts(row)
+        )
+    return sum(attempts_by_identity.values())
+
+
+def _retained_semantic_completed_count(
+    action_rows: Sequence[Mapping[str, Any]],
+) -> int:
+    """Count explicit positive semantic outcomes once per canonical action."""
+
+    semantic_by_identity: dict[str, str] = {}
+    for row in action_rows:
+        if row.get("type") not in {None, "dispatch", "reconcile"}:
+            continue
+        identity = _canonical_action_identity(row)
+        if identity is None:
+            raise OperatorError("semantic action ledger row is missing an action identity")
+        semantic_status = row.get("semantic_status")
+        if semantic_status is None:
+            if row.get("type") is not None:
+                # A capture after transport is not a semantic result.
+                continue
+            semantic_status = row.get("status")
+        semantic_by_identity[identity] = str(semantic_status or "").strip().lower()
+    return sum(
+        status in {"confirmed", "completed"}
+        for status in semantic_by_identity.values()
+    )
 
 
 def _consume_delegated_receipt(
@@ -3891,12 +4092,20 @@ def development_session_run_flow(
                         if row:
                             event_rows.append(row)
             retained_action_rows = _compact_development_action_results(event_rows)
-            action_rows = list(session.actions) or retained_action_rows
-            route_retained_count = (
-                _retained_transport_count(event_rows)
-                if transport_evidence_available
-                else int(session.input_count)
+            canonical_action_rows = list(session.actions)
+            route_action_rows = canonical_action_rows or retained_action_rows
+            startup_action_rows = _startup_recovery_action_rows(
+                startup_recovery_result
             )
+            action_rows = _unique_action_rows(
+                [*startup_action_rows, *route_action_rows]
+            )
+            if route_action_rows:
+                route_retained_count = _retained_transport_count(route_action_rows)
+            elif transport_evidence_available:
+                route_retained_count = _retained_transport_count(event_rows)
+            else:
+                route_retained_count = int(session.input_count)
             if flow_id == "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY":
                 campaign_retained = result.get("campaign_transport_count")
                 if type(campaign_retained) is not int or campaign_retained < 0:
@@ -3930,6 +4139,7 @@ def development_session_run_flow(
                 raise OperatorError(
                     "development session input count does not match retained transports"
                 )
+            semantic_completed_count = _retained_semantic_completed_count(action_rows)
             dispatch_count = session.input_count
             session.actions = action_rows
             if action_rows:
@@ -3962,16 +4172,23 @@ def development_session_run_flow(
                     f"inspect {child_text or session_directory} and repair recognition or recovery "
                     f"for {session.blocker} before rerunning materially changed behavior"
                 )
+            if action_rows and semantic_completed_count < len(action_rows) and session.terminal_status is None:
+                session.terminal_status = "blocked"
+                session.blocker = "action semantic outcome is not confirmed"
+                session.next_action = "observe-only effect reconciliation; identical retry is denied"
             if _checkpoint_hashes() != checkpoint_before:
                 raise OperatorError(
                     "ordinary development session mutated a checkpoint artifact"
                 )
             wrapper = {
-                "status": result.get("status", "unknown"),
+                "status": session.terminal_status or result.get("status", "unknown"),
                 "flow_id": flow_id,
                 "session_directory": str(session_directory),
                 "runtime_session_directory": child_text,
                 "input_count": dispatch_count,
+                "transport_attempted_count": dispatch_count,
+                "action_count": len(action_rows),
+                "semantic_completed_count": semantic_completed_count,
                 "recovery_input_count": startup_recovery_input_count,
                 "route_input_count": route_retained_count,
                 "total_input_count": dispatch_count,
@@ -7280,11 +7497,13 @@ def automation_service_scheduler_pulse_offline(args: argparse.Namespace) -> int:
         RecurrenceProjection,
         SchedulerFacts,
     )
+    from automation_service.registry import canonical_flow_specs
     from automation_service.service import AutomationService
     from automation_service.state import BotStateManager, resolve_state_path
 
     state_path = Path(resolve_state_path(args.state_path))
     with BotStateManager(state_path) as state:
+        state.initialize_flows(canonical_flow_specs())
         service = AutomationService(mode="dry_run", state=state)
         flow_id = getattr(args, "flow_id", None)
         if flow_id is None:

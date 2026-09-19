@@ -9,6 +9,7 @@ from automation_service.contracts import (
     RecurrenceProjection,
     PerceptionEnvelope,
     SchedulerFacts,
+    SelectionPlan,
 )
 from automation_service.handlers import (
     CampaignApSelectionHandler,
@@ -75,6 +76,16 @@ class AutomationServiceHandlerTests(unittest.TestCase):
             NOVA_HANDLER_ID,
             NOVA_PROFILE_ID,
             NOVA_PHASE_MODE,
+        )
+
+    def _world_snapshot(self) -> RegisteredDispatchSnapshot:
+        return self._snapshot(
+            WORLD_FLOW_ID,
+            WORLD_PRODUCT_ID,
+            WORLD_PRODUCT_REVISION,
+            WORLD_HANDLER_ID,
+            WORLD_PROFILE_ID,
+            WORLD_PHASE_MODE,
         )
 
     def _recruitment_snapshot(self) -> RegisteredDispatchSnapshot:
@@ -159,7 +170,11 @@ class AutomationServiceHandlerTests(unittest.TestCase):
         handler = DisabledHandler(descriptor)
         self.assertEqual(handler.describe(), descriptor)
         self.assertFalse(handler.eligibility(SchedulerFacts("a", "s", "r", 1.0)))
-        self.assertEqual(handler.plan(SchedulerFacts("a", "s", "r", 1.0)), None)
+        selection = handler.plan(SchedulerFacts("a", "s", "r", 1.0))
+        self.assertIsInstance(selection, SelectionPlan)
+        self.assertTrue(selection.non_consuming)
+        self.assertEqual(selection.action_count, 0)
+        self.assertEqual(selection.transport_count, 0)
         self.assertEqual(handler.reconcile(None).outcome, NormalizedOutcome.BLOCKED)
         self.assertEqual(handler.recover("UNKNOWN").outcome, NormalizedOutcome.BLOCKED)
         self.assertEqual(handler.summarize()["mode"], "disabled")
@@ -177,6 +192,43 @@ class AutomationServiceHandlerTests(unittest.TestCase):
         self.assertFalse(handler.describe().scheduler_eligible)
         self.assertFalse(handler.eligibility(SchedulerFacts("a", "s", "r", 1.0)))
 
+    def test_all_registered_selectors_return_non_consuming_plans(self) -> None:
+        cases = (
+            (
+                WorldNavigationSelectionHandler(self._world_snapshot()),
+                SchedulerFacts(
+                    "account",
+                    "server",
+                    "reset",
+                    100.0,
+                    health_ok=True,
+                    accepted_product=WORLD_PRODUCT_ID,
+                    product_revision=WORLD_PRODUCT_REVISION,
+                    registration_status="REGISTERED",
+                    scheduler_eligible=True,
+                    owner_available=True,
+                    clock_ok=True,
+                    reset_agreement=True,
+                ),
+            ),
+            (NovaPraiseSelectionHandler(self._nova_snapshot()), self._nova_facts()),
+            (
+                RecruitmentMaintenanceSelectionHandler(self._recruitment_snapshot()),
+                self._recruitment_facts(),
+            ),
+            (
+                CampaignApSelectionHandler(self._campaign_snapshot()),
+                self._campaign_facts(),
+            ),
+        )
+        for handler, facts in cases:
+            with self.subTest(flow_id=handler.describe().flow_id):
+                plan = handler.plan(facts)
+                self.assertIsInstance(plan, SelectionPlan)
+                self.assertTrue(plan.non_consuming)
+                self.assertEqual(plan.action_count, 0)
+                self.assertEqual(plan.transport_count, 0)
+
     def test_nova_handler_is_zero_transport_and_requires_parent_canary(self) -> None:
         handler = NovaPraiseSelectionHandler(self._nova_snapshot())
         descriptor = handler.describe()
@@ -186,7 +238,8 @@ class AutomationServiceHandlerTests(unittest.TestCase):
         self.assertEqual(descriptor.product_revision, NOVA_PRODUCT_REVISION)
         self.assertEqual(descriptor.registration_status, "REGISTERED")
         result = handler.plan(self._nova_facts())
-        self.assertEqual(result.outcome, NormalizedOutcome.COMPLETE_FOR_RESET)
+        self.assertIsInstance(result, SelectionPlan)
+        self.assertTrue(result.non_consuming)
         self.assertEqual(result.reason_code, "NOVA_PRAISE_PARENT_CANARY_REQUIRED")
         self.assertEqual(result.action_count, 0)
         self.assertEqual(result.observed_progress["transport_count"], 0)
@@ -210,10 +263,9 @@ class AutomationServiceHandlerTests(unittest.TestCase):
         for overrides in mismatches:
             with self.subTest(overrides=overrides):
                 self.assertFalse(handler.eligibility(self._nova_facts(**overrides)))
-                self.assertEqual(
-                    handler.plan(self._nova_facts(**overrides)).outcome,
-                    NormalizedOutcome.BLOCKED,
-                )
+                selection = handler.plan(self._nova_facts(**overrides))
+                self.assertIsInstance(selection, SelectionPlan)
+                self.assertFalse(selection.verified)
         perception = PerceptionEnvelope(
             "capture",
             "home",
@@ -244,8 +296,12 @@ class AutomationServiceHandlerTests(unittest.TestCase):
         self.assertEqual(descriptor.cadence, "cooldown_pulse")
         self.assertFalse(descriptor.reset_scoped)
         result = handler.plan(self._recruitment_facts())
-        self.assertEqual(result.outcome, NormalizedOutcome.BLOCKED)
-        self.assertFalse(result.verified)
+        self.assertIsInstance(result, SelectionPlan)
+        self.assertTrue(result.non_consuming)
+        self.assertEqual(
+            result.reason_code,
+            "RECRUITMENT_MAINTENANCE_PARENT_CANARY_REQUIRED",
+        )
         self.assertEqual(result.action_count, 0)
         self.assertEqual(result.observed_progress["transport_count"], 0)
 
@@ -288,7 +344,8 @@ class AutomationServiceHandlerTests(unittest.TestCase):
         )
         self.assertFalse(descriptor.reset_scoped)
         result = handler.plan(self._campaign_facts())
-        self.assertEqual(result.outcome, NormalizedOutcome.COMPLETE_FOR_RESET)
+        self.assertIsInstance(result, SelectionPlan)
+        self.assertTrue(result.non_consuming)
         self.assertEqual(result.reason_code, "CAMPAIGN_AP_PARENT_CANARY_REQUIRED")
         self.assertEqual(result.action_count, 0)
         self.assertEqual(result.observed_progress["projection_observed_balance"], 14.0)

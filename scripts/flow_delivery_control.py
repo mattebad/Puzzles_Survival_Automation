@@ -2785,9 +2785,9 @@ class FlowDeliveryController:
         *,
         owner: str,
         delegation_id: str,
-        agent: str = "pns-flow-implementer",
+        agent: str,
     ) -> dict[str, Any]:
-        """Reserve the sole writer lane for one optional coding delegation."""
+        """Reserve the sole writer lane for one explicitly attributed delegation."""
         _require_nonempty_string(delegation_id, "delegation_id")
         _require_nonempty_string(agent, "agent")
         lease = self._require_lease(owner)
@@ -3590,7 +3590,11 @@ def parser() -> argparse.ArgumentParser:
     begin_delegation = sub.add_parser("begin-delegation")
     begin_delegation.add_argument("--owner", required=True)
     begin_delegation.add_argument("--delegation-id", required=True)
-    begin_delegation.add_argument("--agent", default="pns-flow-implementer")
+    begin_delegation.add_argument(
+        "--agent",
+        required=True,
+        help="Explicit free-form delegation attribution; no default persona is used",
+    )
     end_delegation = sub.add_parser("end-delegation")
     end_delegation.add_argument("--owner", required=True)
     end_delegation.add_argument("--delegation-id", required=True)

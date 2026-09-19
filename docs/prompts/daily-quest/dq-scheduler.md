@@ -1,7 +1,7 @@
 # DQ-SCHEDULER
 
 Repository authority: matrix owns scheduler eligibility; catalog never authorizes scheduling.
-`BACKLOG.md` owns this task. Main Quest Claim excluded.
+`docs/archive/backlog-legacy.md` preserves the historical task record. Main Quest Claim excluded.
 
 Scope: deterministic offline one-pulse Daily scheduler with persisted task state. Reusable
 components: Phase F scheduler, task-state store, runtime integration gate. Route: eligibility
