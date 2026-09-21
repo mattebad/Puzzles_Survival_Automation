@@ -1,3 +1,0 @@
-poll=0 Keyboard-interactive authentication prompts from server:
-End of keyboard-interactive prompts from server
-shut off

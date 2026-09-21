@@ -1,1 +1,0 @@
-state=device System.Object[] Physical density: 160 free mesa         mInputRestricted=false System.Object[]

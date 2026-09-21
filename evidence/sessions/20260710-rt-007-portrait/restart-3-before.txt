@@ -1,6 +1,0 @@
-Physical size: 1280x800
-Override size: 800x1280
-Physical density: 160
-free
-default
-ignoreOrientationRequest false for displayId=0
