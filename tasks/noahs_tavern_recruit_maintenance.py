@@ -250,6 +250,7 @@ class NoahTavernMaintenanceController:
         before: NoahTavernObservation,
         *,
         now: float | None = None,
+        next_eligible_at: float | None = None,
     ) -> None:
         """Persist one verified result transition from the executable controller path."""
 
@@ -257,9 +258,17 @@ class NoahTavernMaintenanceController:
         if consumed_remaining is None:
             raise ValueError("verified transition requires an authorized free source")
         clock = self.now if now is None else now
+        nominal = TIER_COOLDOWN_SECONDS[tier]
+        deadline = clock + nominal
+        if (
+            next_eligible_at is not None
+            and math.isfinite(next_eligible_at)
+            and clock < next_eligible_at <= clock + nominal + 30
+        ):
+            deadline = next_eligible_at
         self.state.tiers[tier] = PersistedTierState(
             consumed_remaining,
-            clock + TIER_COOLDOWN_SECONDS[tier],
+            deadline,
             TIER_COOLDOWN_SECONDS[tier],
             "action_performed",
         )

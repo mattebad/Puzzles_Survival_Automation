@@ -143,11 +143,13 @@ class HomeAtlasVisionTests(unittest.TestCase):
         self.assertEqual(payload["production_registration"], "NOT_REGISTERED")
         self.assertFalse(payload["scheduler_eligibility"])
         supply = atlas.lookup_building("home.building.supply_depot")
-        self.assertEqual(supply.center, (1246.7, 976.1))
+        self.assertTrue(np.allclose(supply.center, (1246.7, 976.1), atol=1e-9))
         self.assertIn("supply depot label", " ".join(supply.semantic_proof).lower())
         self.assertEqual(atlas.lookup_building("home.building.noahs_tavern").interaction_anchor, (355.0, 757.5))
         self.assertEqual(atlas.lookup_building("home.building.research_lab").interaction_anchor, (835.0, 520.0))
-        self.assertEqual(supply.interaction_anchor, (1246.7, 976.1))
+        self.assertTrue(
+            np.allclose(supply.interaction_anchor, (1246.7, 976.1), atol=1e-9)
+        )
         image = cv2.imread(str(manifest.parent / atlas.image_path), cv2.IMREAD_COLOR)
         self.assertEqual(image.shape[:2], (atlas.height, atlas.width))
 
@@ -176,6 +178,19 @@ class HomeAtlasVisionTests(unittest.TestCase):
         self.assertGreater(int(hud_mask().sum()), 0)
         with self.assertRaises(ValueError):
             mask_home_hud(frame[:1000])
+
+    def test_interaction_box_inside_legacy_safe_bounds_still_rejects_event_hud(self):
+        projected = np.asarray(
+            ((500.0, 200.0), (650.0, 200.0), (650.0, 500.0), (500.0, 500.0)),
+            dtype=np.float64,
+        )
+        target, reason, _details = home_atlas_vision._target_roi(
+            projected,
+            (550.0, 350.0),
+            {"minimum_safe_subregion": (45, 45)},
+        )
+        self.assertIsNone(target)
+        self.assertEqual(reason, "interaction_anchor_has_no_safe_hit_region")
 
     def test_translation_registration_and_low_confidence_rejection(self):
         reference = synthetic_home()

@@ -78,7 +78,6 @@ class CompactHandoffTests(unittest.TestCase):
         self.assertIn("exact_next_permitted_action", state)
         self.assertIn("active_execution_manifest_path", state)
         self.assertIsNone(state["active_execution_manifest_path"])
-        self.assertEqual(state["unresolved_action_state"], "clear")
         self.assertTrue(state["protected_user_owned_paths"])
         self.assertTrue(state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"])
 

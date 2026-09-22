@@ -193,6 +193,61 @@ class NoahContractTests(unittest.TestCase):
         self.assertEqual(runtime.max_inputs, 12)
 
 
+    def test_insufficient_recruit_result_home_budget_returns_home_without_recruit(self):
+        source = ContextualPopupRouteTests.frame("a" * 64, 1)
+        rebound = ContextualPopupRouteTests.frame("b" * 64, 2)
+        immediate_post = ContextualPopupRouteTests.frame("c" * 64, 3)
+        settled_home = ContextualPopupRouteTests.frame("d" * 64, 4)
+        runtime = ContextualPopupRouteTests.Runtime(
+            [source, rebound, immediate_post, settled_home]
+        )
+        runtime.max_inputs = 12
+        runtime.input_count = 10
+        runtime.measure_device_state = lambda: "device"
+        runtime.measure_foreground_package = lambda: "com.global.ztmslg"
+
+        fixtures = NoahFixtures()
+        tavern = fixtures.tavern()
+        home = replace(
+            tavern,
+            screen_state=HOME_BASE_SCREEN,
+            selected_tier=None,
+            frame_sha256="d" * 64,
+        )
+        observations = {1: tavern, 2: tavern, 4: home}
+        route = NoahTavernIntegratedRoute(
+            runtime,
+            controller=NoahTavernRecruitRuntimeController(now=100.0),
+            recognizer=lambda frame, **_kwargs: observations[int(frame[0, 0, 0])],
+            post_input_delay=0.0,
+        )
+
+        def popup_absent(_runtime, captured, **_kwargs):
+            return ContextualPopupRecoveryResult(
+                captured,
+                False,
+                True,
+                True,
+                0,
+                "exact_vip_popup_absent",
+            )
+
+        with patch(
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            side_effect=popup_absent,
+        ), patch.object(
+            runtime,
+            "tap",
+            side_effect=AssertionError("Insufficient input budget must not dispatch a recruit"),
+        ):
+            result = route.run(max_steps=1)
+
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(result.reason, "verified_safe_return_home")
+        self.assertEqual(result.recruitment_dispatch_count, 0)
+        self.assertEqual(len(runtime.backs), 1)
+        self.assertLessEqual(runtime.input_count, runtime.max_inputs)
+
     def test_shared_preflow_fallback_honors_outer_route_reserve(self):
         runtime = SimpleNamespace(max_inputs=11)
 
@@ -553,6 +608,32 @@ class NoahRuntimeTests(unittest.TestCase):
         self.assertEqual(controller.next_command(self.rec(basic)).action, NoahAction.SELECT_TIER)
         self.assertEqual(controller.next_command(self.rec(self.f.tavern(selected=RecruitTier.INT, digest="e" * 64))).action, NoahAction.RECRUIT_FREE)
 
+    def test_verified_cooldown_is_persisted_in_utc(self):
+        utc_now = 1_800_000_000.0
+        controller = NoahTavernRecruitRuntimeController(
+            now=100.0,
+            utc_clock=lambda: utc_now,
+        )
+        before = self.f.tavern()
+        self.assertEqual(
+            controller.next_command(self.rec(before)).action,
+            NoahAction.RECRUIT_FREE,
+        )
+        result = self.f.result()
+        self.assertEqual(
+            controller.next_command(self.rec(result)).action,
+            NoahAction.CLOSE_RESULT,
+        )
+        self.assertTrue(
+            controller.accept_postcondition(self.rec(result), self.f.after(before))
+        )
+        self.assertEqual(
+            controller.maintenance_controller.state.tiers[
+                RecruitTier.BASIC
+            ].next_eligible_at,
+            utc_now + 28.0,
+        )
+
     def test_cooldown_without_attempt_count_is_inspected_once(self):
         controller = NoahTavernRecruitRuntimeController(now=100.0)
         before = self.f.tavern(basic_remaining=5)
@@ -737,6 +818,13 @@ class NoahRuntimeTests(unittest.TestCase):
         tavern = SimpleNamespace(recognized=True, screen_state=NOAHS_TAVERN_SCREEN)
         self.assertTrue(_atlas_canonical_home(localization, unknown))
         self.assertFalse(_atlas_canonical_home(localization, tavern))
+        self.assertFalse(
+            _atlas_canonical_home(
+                localization,
+                unknown,
+                {"state": HOME_BASE_SCREEN, "recognized": True, "blocking_unknown_modal": True},
+            )
+        )
 
 
 class ContextualPopupRouteTests(unittest.TestCase):
@@ -824,6 +912,33 @@ class ContextualPopupRouteTests(unittest.TestCase):
         self.assertEqual(runtime.taps, [])
         self.assertEqual(route.contextual_session.records[0]["source_sha256"], "a" * 64)
         self.assertEqual(route.contextual_session.records[0]["settled_sha256"], "b" * 64)
+
+    def test_post_dismissal_recognition_uses_settled_capture_timestamp(self):
+        source = replace(self.frame("c" * 64, 3), captured_monotonic=100.0)
+        settled = replace(self.frame("d" * 64, 4), captured_monotonic=222.0)
+        runtime = self.Runtime([source])
+        timestamps = []
+
+        def recognize(_frame, *, captured_monotonic, **_kwargs):
+            timestamps.append(captured_monotonic)
+            return replace(self.f.tavern(), captured_monotonic=captured_monotonic)
+
+        def recover(_runtime, _captured, *, recognize_successor, **_kwargs):
+            self.assertTrue(recognize_successor(settled))
+            return ContextualPopupRecoveryResult(
+                settled, True, True, True, 1, "popup_dismissed_resume_ready"
+            )
+
+        route = NoahTavernIntegratedRoute(runtime, recognizer=recognize, post_input_delay=0.0)
+        with patch(
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            side_effect=recover,
+        ):
+            captured, recognition = route._observe("post-dismissal")
+
+        self.assertIs(captured, settled)
+        self.assertEqual(timestamps, [222.0])
+        self.assertEqual(recognition.observation.captured_monotonic, 222.0)
 
     def test_second_exact_popup_hits_one_dismissal_bound_without_helper_or_input(self):
         source = self.frame("c" * 64, 3)

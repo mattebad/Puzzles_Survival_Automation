@@ -129,9 +129,16 @@ def recognize_home_zoom_source(frame, *, home_classifier=None) -> tuple[bool, di
         from scripts.startup_normalization import classify_home_base_live
 
         def home_classifier(image):
-            return classify_home_base_live(
-                image, cash_mall_rejected=True, safe_os_surface=True
+            facts = dict(
+                classify_home_base_live(
+                    image, cash_mall_rejected=True, safe_os_surface=True
+                )
             )
+            modal = recognize_reset_popup(image)
+            facts["blocking_unknown_modal"] = bool(
+                modal.get("recognized") or modal.get("blocking_unknown_modal")
+            )
+            return facts
     facts = dict(home_classifier(frame))
     overlay = bool(
         facts.get("overlay")
@@ -153,13 +160,20 @@ def record_home_zoom_recovery_input(home_driver, step) -> None:
     home_driver.record_zoom_input_dispatched(step.source_frame_sha256)
 
 
-def _atlas_canonical_home(localization, observation) -> bool:
+def _atlas_canonical_home(localization, observation, home_facts=None) -> bool:
     """Accept strong canonical Atlas proof absent a positive conflicting screen."""
 
+    facts = dict(home_facts or {})
+    blocking_overlay = bool(
+        facts.get("overlay")
+        or facts.get("blocking_unknown_modal")
+        or facts.get("manual_only_state")
+    )
     return bool(
         localization.recognized
         and localization.zoom_identity is ZoomIdentity.FULLY_ZOOMED_OUT
         and not localization.overlay
+        and not blocking_overlay
         and not (
             observation.recognized
             and observation.screen_state != HOME_BASE_SCREEN
@@ -173,6 +187,7 @@ def _analyze_home_frame(
     home_driver,
     cache: dict[int, dict[str, object]],
     require_atlas: bool = False,
+    captured_monotonic: float | None = None,
 ) -> dict[str, object]:
     """Cache cheap Home proof while allowing later Atlas-dependent enrichment."""
 
@@ -194,10 +209,14 @@ def _analyze_home_frame(
             localization = home_driver.localizer.localize(frame)
             observation = recognize_noahs_tavern_frame(
                 frame,
-                captured_monotonic=time.monotonic(),
+                captured_monotonic=(
+                    time.monotonic()
+                    if captured_monotonic is None
+                    else captured_monotonic
+                ),
                 include_home_ocr=False,
             )
-            atlas_home = _atlas_canonical_home(localization, observation)
+            atlas_home = _atlas_canonical_home(localization, observation, facts)
         except (OSError, ValueError, TypeError, cv2.error, MemoryError) as exc:
             localization = None
             observation = None
@@ -296,7 +315,7 @@ def _contextual_recovery(
     captured: CapturedNativeFrame,
     *,
     source_context: str,
-    recognize_successor: Callable[[object], bool],
+    recognize_successor: Callable[[CapturedNativeFrame], bool],
     session: _ContextualPopupSession | None = None,
     settle_seconds: float = 0.8,
     sleep: Callable[[float], None] = time.sleep,
@@ -374,6 +393,7 @@ class NoahTavernIntegratedRouteResult(IntegratedRouteResult):
 
     contextual_popup_recoveries: tuple[dict[str, object], ...] = ()
     pre_dispatch_dismissed: bool = False
+    recruitment_dispatch_count: int = 0
 
     def to_mapping(self) -> dict[str, object]:
         return {
@@ -383,6 +403,7 @@ class NoahTavernIntegratedRouteResult(IntegratedRouteResult):
             "session": self.session,
             "contextual_popup_recoveries": [dict(item) for item in self.contextual_popup_recoveries],
             "pre_dispatch_dismissed": self.pre_dispatch_dismissed,
+            "recruitment_dispatch_count": self.recruitment_dispatch_count,
         }
 
 class NoahTavernIntegratedRoute:
@@ -419,6 +440,7 @@ class NoahTavernIntegratedRoute:
         self.contextual_session = contextual_session or _ContextualPopupSession()
         self._last_contextual_result: ContextualPopupRecoveryResult | None = None
         self._last_pre_dispatch_dismissed = False
+        self.recruitment_dispatch_count = 0
 
     def _default_atlas_binding(self, captured: CapturedNativeFrame):
         """Canonical production Atlas binding for the current native frame."""
@@ -460,6 +482,7 @@ class NoahTavernIntegratedRoute:
             str(self.runtime.session),
             tuple(dict(item) for item in self.contextual_session.records),
             pre_dispatch_dismissed,
+            self.recruitment_dispatch_count,
         )
 
     def _pending_tier(self) -> RecruitTier | None:
@@ -559,6 +582,20 @@ class NoahTavernIntegratedRoute:
             )
         )
 
+    def _remaining_input_budget(self) -> int | None:
+        """Return the native route's remaining transport slots when exposed."""
+
+        maximum = getattr(self.runtime, "max_inputs", None)
+        consumed = getattr(self.runtime, "input_count", None)
+        if type(maximum) is not int or type(consumed) is not int:
+            return None
+        return max(0, maximum - consumed)
+
+    def _required_recruit_input_reserve(self) -> int:
+        # Recruit + result Close + terminal Home, plus the one still-available
+        # contextual dismissal. Once that one-shot is used, three slots suffice.
+        return 3 + (0 if self.contextual_session.dismissal_used else 1)
+
     def _contextual_failure_result(self, actions: int) -> NoahTavernIntegratedRouteResult:
         result = self._last_contextual_result
         reason = result.reason if result is not None else "contextual_popup_recovery_failed"
@@ -574,14 +611,16 @@ class NoahTavernIntegratedRoute:
         source_context = self._contextual_source_context()
         cache: dict[str, object] = {}
 
-        def successor(frame) -> bool:
+        def successor(successor_frame: CapturedNativeFrame) -> bool:
             observation = self.recognizer(
-                frame,
-                captured_monotonic=captured.captured_monotonic,
+                successor_frame.frame,
+                captured_monotonic=successor_frame.captured_monotonic,
             )
-            cache["frame"] = frame
+            cache["frame"] = successor_frame.frame
             cache["observation"] = observation
-            return self._context_successor(source_context, observation, frame)
+            return self._context_successor(
+                source_context, observation, successor_frame.frame
+            )
 
         result = _contextual_recovery(
             self.runtime,
@@ -607,17 +646,19 @@ class NoahTavernIntegratedRoute:
         self._last_pre_dispatch_dismissed = False
         cache: dict[str, object] = {"frame": captured.frame, "observation": recognition.observation}
 
-        def successor(frame) -> bool:
-            if frame is captured.frame:
+        def successor(successor_frame: CapturedNativeFrame) -> bool:
+            if successor_frame is captured:
                 observation = recognition.observation
             else:
                 observation = self.recognizer(
-                    frame,
-                    captured_monotonic=captured.captured_monotonic,
+                    successor_frame.frame,
+                    captured_monotonic=successor_frame.captured_monotonic,
                 )
-            cache["frame"] = frame
+            cache["frame"] = successor_frame.frame
             cache["observation"] = observation
-            return self._context_successor(source_context, observation, frame)
+            return self._context_successor(
+                source_context, observation, successor_frame.frame
+            )
 
         result = _contextual_recovery(
             self.runtime,
@@ -840,6 +881,16 @@ class NoahTavernIntegratedRoute:
                     continue
                 captured, recognition = prepared
 
+            if command.action == NoahAction.RECRUIT_FREE:
+                remaining = self._remaining_input_budget()
+                if remaining is not None and remaining < self._required_recruit_input_reserve():
+                    self.controller.progress = command_progress
+                    self.controller.now = command_now
+                    safe_return = self._return_home(captured, recognition, actions)
+                    if safe_return.pre_dispatch_dismissed:
+                        continue
+                    return safe_return
+
             if command.action == NoahAction.OPEN_TAVERN:
                 target_roi = self.atlas_binding(captured)
                 if target_roi is None:
@@ -871,6 +922,7 @@ class NoahTavernIntegratedRoute:
                     target_roi=command.target_roi or (0, 0, 0, 0),
                     action_key=action_key,
                 )
+                self.recruitment_dispatch_count += 1
                 self.pending_action_key = action_key
                 self.pending_result = None
                 self.result_close_dispatched = False
@@ -1198,6 +1250,17 @@ class NoahTavernNavigationCanaryRoute:
             return False
         except (OSError, ValueError, TypeError):
             localization = None
+        if self._runtime_is_live():
+            try:
+                _home_recognized, home_facts = recognize_home_zoom_source(captured.frame)
+            except (OSError, ValueError, TypeError, cv2.error, MemoryError):
+                return False
+            if bool(
+                home_facts.get("overlay")
+                or home_facts.get("blocking_unknown_modal")
+                or home_facts.get("manual_only_state")
+            ):
+                return False
         if (
             localization is not None
             and localization.recognized
@@ -1568,16 +1631,21 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
 
     home_analysis_cache: dict[int, dict[str, object]] = {}
 
-    def analyze_home(frame, *, require_atlas: bool = False) -> dict[str, object]:
+    def analyze_home(
+        captured: CapturedNativeFrame,
+        *,
+        require_atlas: bool = False,
+    ) -> dict[str, object]:
         return _analyze_home_frame(
-            frame,
+            captured.frame,
             home_driver=home_driver,
             cache=home_analysis_cache,
             require_atlas=require_atlas,
+            captured_monotonic=captured.captured_monotonic,
         )
 
-    def home_successor(frame) -> bool:
-        analysis = analyze_home(frame)
+    def home_successor(successor_frame: CapturedNativeFrame) -> bool:
+        analysis = analyze_home(successor_frame)
         return bool(
             analysis["home_recognized"]
             or analysis["atlas_canonical_home"]
@@ -1617,7 +1685,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
         ):
             raise RuntimeError(f"contextual Home normalization blocked: {recovery.reason}")
         source = recovery.settled_frame
-        source_analysis = analyze_home(source.frame)
+        source_analysis = analyze_home(source)
         source_home_recognized = bool(source_analysis["home_recognized"])
         source_home_facts = source_analysis["home_facts"]
         source_localization = source_analysis["localization"]
@@ -1674,7 +1742,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             if getattr(args, "settle_seconds", 1.0) > 0:
                 time.sleep(getattr(args, "settle_seconds", 1.0))
             settled = runtime.capture(f"home-pan-{ordinal:02d}-settled")
-            settled_analysis = analyze_home(settled.frame, require_atlas=True)
+            settled_analysis = analyze_home(settled, require_atlas=True)
             settled_home_recognized = bool(settled_analysis["home_recognized"])
             settled_home_facts = settled_analysis["home_facts"]
             after_localization = settled_analysis["localization"]
@@ -1729,7 +1797,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             immediate_home_recognized, immediate_home_facts = recognize_home_zoom_source(
                 immediate_post.frame
             )
-            settled_analysis = analyze_home(settled.frame, require_atlas=True)
+            settled_analysis = analyze_home(settled, require_atlas=True)
             settled_observation = settled_analysis["observation"]
             settled_home_recognized = bool(settled_analysis["home_recognized"])
             settled_home_facts = settled_analysis["home_facts"]
@@ -1965,7 +2033,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             "route_input_count": route_input_count,
             "total_input_count": recovery_input_count + route_input_count,
             "terminal_home_verified": result.status == "completed" and result.reason == "verified_safe_return_home",
-            "recruitment_dispatch_count": result.actions_completed,
+            "recruitment_dispatch_count": result.recruitment_dispatch_count,
             "claim_dispatched": False,
             "transport_mode": "native_bluestacks_ordinary_development",
             "identity": identity.__dict__,
@@ -2027,8 +2095,11 @@ def run_noahs_tavern_recruitment_continuation(args, identity: SchedulerIdentity 
     contextual_session = _ContextualPopupSession()
     current = runtime.capture("continuation-tavern-source")
 
-    def continuation_successor(frame) -> bool:
-        observed = recognize_noahs_tavern_frame(frame, captured_monotonic=current.captured_monotonic)
+    def continuation_successor(successor_frame: CapturedNativeFrame) -> bool:
+        observed = recognize_noahs_tavern_frame(
+            successor_frame.frame,
+            captured_monotonic=successor_frame.captured_monotonic,
+        )
         return bool(observed.recognized and observed.screen_state == NOAHS_TAVERN_SCREEN)
 
     recovery = _contextual_recovery(
@@ -2055,12 +2126,15 @@ def run_noahs_tavern_recruitment_continuation(args, identity: SchedulerIdentity 
 
     store = SafetyStore(runtime.session / "maintenance-state.sqlite3")
     repository = SQLiteSchedulerInvocationRepository(store)
+    utc_clock = getattr(args, "utc_clock", None)
+    controller_now = utc_clock() if callable(utc_clock) else current.captured_monotonic
     try:
         controller = NoahTavernRecruitRuntimeController(
-            now=current.captured_monotonic,
+            now=controller_now,
             maintenance_state=state,
             repository=repository,
             scheduler_identity=identity,
+            utc_clock=utc_clock if callable(utc_clock) else None,
         )
         route = NoahTavernIntegratedRoute(
             runtime, max_recruits=1, controller=controller,
@@ -2076,11 +2150,13 @@ def run_noahs_tavern_recruitment_continuation(args, identity: SchedulerIdentity 
             "session_directory": str(runtime.session),
             "input_count": runtime.input_count,
             "terminal_home_verified": result.status == "completed" and result.reason == "verified_safe_return_home",
-            "recruitment_dispatch_count": result.actions_completed,
+            "recruitment_dispatch_count": result.recruitment_dispatch_count,
             "claim_dispatched": False,
             "continuation_of": str(prior_session),
             "identity": identity.__dict__,
             "maintenance_state": json.loads(final_state.to_json()),
+            "time_basis": "utc" if callable(utc_clock) else "monotonic",
+            "completed_at_utc": utc_clock() if callable(utc_clock) else None,
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
             "evidence_events": str(runtime.events),
@@ -2145,9 +2221,15 @@ def reconcile_noahs_tavern_retained_recruit(args, identity: SchedulerIdentity | 
     session.mkdir(parents=True, exist_ok=False)
     store = SafetyStore(session / "maintenance-state.sqlite3")
     repository = SQLiteSchedulerInvocationRepository(store)
+    utc_clock = getattr(args, "utc_clock", None)
+    controller_now = utc_clock() if callable(utc_clock) else time.monotonic()
     try:
         controller = NoahTavernRecruitRuntimeController(
-            now=time.monotonic(), maintenance_state=state, repository=repository, scheduler_identity=identity
+            now=controller_now,
+            maintenance_state=state,
+            repository=repository,
+            scheduler_identity=identity,
+            utc_clock=utc_clock if callable(utc_clock) else None,
         )
         controller.progress.awaiting_postcondition = True
         controller.progress.awaiting_tier = RecruitTier.ADV
@@ -2165,6 +2247,8 @@ def reconcile_noahs_tavern_retained_recruit(args, identity: SchedulerIdentity | 
             "terminal_home_verified": True,
             "identity": identity.__dict__,
             "maintenance_state": json.loads(state.to_json()),
+            "time_basis": "utc" if callable(utc_clock) else "monotonic",
+            "completed_at_utc": utc_clock() if callable(utc_clock) else None,
             "state_session": str(session),
             "evidence_session": str(evidence_session),
             "terminal_home_session": str(terminal_session),

@@ -161,6 +161,20 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
         self.assertEqual(result.state.tiers[RecruitTier.INT].next_eligible_at, 200.0)
         self.assertEqual(result.state.basic_daily_count, 1)
 
+    def test_verified_transition_preserves_earliest_observed_cooldown_deadline(self):
+        controller = NoahTavernMaintenanceController(self.state, now=100.0)
+        before = self.f.before(RecruitTier.BASIC)
+        controller.record_verified_transition(
+            RecruitTier.BASIC,
+            before,
+            now=108.0,
+            next_eligible_at=700.0,
+        )
+        self.assertEqual(
+            controller.state.tiers[RecruitTier.BASIC].next_eligible_at,
+            700.0,
+        )
+
     def test_basic_maximum_is_idempotent_and_int_adv_still_run(self):
         state = NoahMaintenanceState.for_identity(self.identity)
         state.basic_daily_count = 5

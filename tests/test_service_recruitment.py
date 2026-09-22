@@ -176,13 +176,20 @@ class ServiceRecruitmentTests(unittest.TestCase):
         self.assertEqual(reports[0]["result"]["actions_completed"], 1)
         self.assertEqual(reports[0]["result"]["maintenance_state"]["basic_daily_count"], 1)
         due = self.state.get_flow(RECRUITMENT_FLOW_ID).next_due_at_utc
-        self.assertEqual(due, self.stop.now + 600)
+        persisted_due = reports[0]["result"]["maintenance_state"]["tiers"][
+            RecruitTier.BASIC.value
+        ]["next_eligible_at"]
+        self.assertEqual(due, persisted_due)
         run_budget = self.state._db.execute(
-            "SELECT max_inputs, max_actions FROM runs "
+            "SELECT max_inputs, max_actions, consumed_inputs, consumed_actions FROM runs "
             "WHERE flow_id=? ORDER BY claimed_at_utc DESC LIMIT 1",
             (RECRUITMENT_FLOW_ID,),
         ).fetchone()
         self.assertEqual((run_budget["max_inputs"], run_budget["max_actions"]), (12, 3))
+        self.assertEqual(
+            (run_budget["consumed_inputs"], run_budget["consumed_actions"]),
+            (4, 1),
+        )
         self.assertEqual(self.runtimes[0]._screen(), "HOME_BASE")
         self.assertEqual([kind for kind, _ in self.runtimes[0].calls], ["tap", "tap", "tap", "back"])
         # Restart reads persisted due state; no new route until the deadline.
@@ -191,10 +198,15 @@ class ServiceRecruitmentTests(unittest.TestCase):
             self.service = AutomationService(mode="supervised", state=restarted, recruitment_runner=self.runner)
             self.serve(emit)
         self.assertEqual(len(self.runtimes), 2)
-        self.assertEqual(sum(self.stop.waits), 600)
+        # The route preserves the observed 00:09:52 cooldown instead of
+        # replacing it with the nominal ten-minute policy duration.
+        self.assertEqual(sum(self.stop.waits), 592)
         self.assertTrue(all(0 < delay <= 30 for delay in self.stop.waits))
         self.assertEqual(reports[1]["result"]["maintenance_state"]["basic_daily_count"], 2)
-        self.assertEqual(self.state.get_flow(RECRUITMENT_FLOW_ID).next_due_at_utc, due + 600)
+        self.assertEqual(
+            self.state.get_flow(RECRUITMENT_FLOW_ID).next_due_at_utc,
+            reports[1]["result"]["maintenance_state"]["tiers"][RecruitTier.BASIC.value]["next_eligible_at"],
+        )
         # Midnight resets only Basic's count; independent long cooldowns survive.
         self.stop.now = (self.stop.now // 86400 + 1) * 86400
         self.stop.stopped = False
@@ -226,6 +238,15 @@ class ServiceRecruitmentTests(unittest.TestCase):
         self.serve(lambda report: (reports.append(report), self.stop.set()))
         self.assertEqual(reports[0]["status"], "blocked")
         self.assertEqual(len(self.runtimes[0].calls), 3)
+        run_budget = self.state._db.execute(
+            "SELECT consumed_inputs, consumed_actions FROM runs "
+            "WHERE flow_id=? ORDER BY claimed_at_utc DESC LIMIT 1",
+            (RECRUITMENT_FLOW_ID,),
+        ).fetchone()
+        self.assertEqual(
+            (run_budget["consumed_inputs"], run_budget["consumed_actions"]),
+            (3, 1),
+        )
         self.assertTrue(self.state.get_flow(RECRUITMENT_FLOW_ID).blocked)
         self.assertIsNone(self.state.get_flow(RECRUITMENT_FLOW_ID).next_due_at_utc)
         self.stop.stopped = False

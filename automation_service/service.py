@@ -672,6 +672,22 @@ class AutomationService:
                 try:
                     checkpoint()
                     result = self.recruitment_runner(identity, previous_reset, checkpoint)
+                    consumed_inputs = result.get("total_input_count", result.get("input_count"))
+                    consumed_actions = result.get("recruitment_dispatch_count")
+                    if type(consumed_inputs) is not int or type(consumed_actions) is not int:
+                        raise ServiceError("RECRUITMENT_CONSUMPTION_ACCOUNTING_MISSING")
+                    recorded = state.record_executor_consumption(
+                        run.run_id,
+                        consumed_inputs=consumed_inputs,
+                        consumed_actions=consumed_actions,
+                        owner_instance_id=run.owner_instance_id,
+                        process_start_token=run.process_start_token,
+                        run_token=run.run_token,
+                        lease_generation=run.lease_generation,
+                        now_utc_epoch=clock(),
+                    )
+                    if recorded is None:
+                        raise ServiceError("RECRUITMENT_CONSUMPTION_ACCOUNTING_REJECTED")
                     due = recruitment_next_due(result, identity, facts.now_utc_epoch)
                     checkpoint()
                     return NormalizedResult(

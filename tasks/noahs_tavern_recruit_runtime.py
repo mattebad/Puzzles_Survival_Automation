@@ -215,7 +215,7 @@ class NoahTavernRecruitRuntimeController:
             if observed.cooldown_active and observed.next_eligible_timestamp is not None:
                 self.maintenance_controller.state.tiers[obs.selected_tier] = PersistedTierState(
                     observed.attempts_remaining if observed.attempts_remaining is not None else prior.attempts_remaining,
-                    max(observed.next_eligible_timestamp, prior.next_eligible_at or 0),
+                    observed.next_eligible_timestamp,
                     prior.cooldown_seconds,
                     "deferred",
                 )
@@ -326,7 +326,12 @@ class NoahTavernRecruitRuntimeController:
             last_postcondition_state="verified",
         )
         policy_now = self.now if self.utc_clock is not None else (after_close.captured_monotonic or self.now)
-        self.maintenance_controller.record_verified_transition(tier, before, now=policy_now)
+        self.maintenance_controller.record_verified_transition(
+            tier,
+            before,
+            now=policy_now,
+            next_eligible_at=after_tier.next_eligible_timestamp,
+        )
         self.persist_maintenance_state(now=policy_now)
         self.progress.awaiting_postcondition = False
         self.progress.awaiting_tier = None

@@ -144,6 +144,16 @@ def _box_inside(
     )
 
 
+def _box_overlaps_hud(box: tuple[float, float, float, float]) -> bool:
+    """Reject positive-area overlap with any fixed native HUD mask."""
+
+    x0, y0, x1, y1 = box
+    return any(
+        max(x0, hx0) < min(x1, hx1) and max(y0, hy0) < min(y1, hy1)
+        for hx0, hy0, hx1, hy1 in HUD_MASK_RECTS
+    )
+
+
 def _centered_box(center: Point, width: int, height: int) -> tuple[int, int, int, int]:
     x0 = int(round(center[0] - width / 2.0))
     y0 = int(round(center[1] - height / 2.0))
@@ -237,7 +247,12 @@ def _target_roi(
     minimum_target_width, minimum_target_height = _MINIMUM_TARGET_SIZE
     while width >= minimum_target_width and height >= minimum_target_height:
         target = _centered_box(screen_anchor, width, height)
-        if _box_inside(tuple(float(value) for value in target), safe) and _box_inside_polygon(target, polygon):
+        target_box = tuple(float(value) for value in target)
+        if (
+            _box_inside(target_box, safe)
+            and not _box_overlaps_hud(target_box)
+            and _box_inside_polygon(target, polygon)
+        ):
             return target, None, details
         if width >= height:
             width -= 1

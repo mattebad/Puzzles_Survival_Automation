@@ -4,25 +4,56 @@
 {
   "schema_version": 3,
   "branch": "refactor/lean-bot-backlog",
-  "head_binding": "9e54b21d193e32335ce7954628f16724252095a8",
-  "last_product_candidate_head": "9e54b21d193e32335ce7954628f16724252095a8",
+  "head_binding": "efea01c368c4448dc93d6e8163591bac0a5ff663",
+  "last_product_candidate_head": "efea01c368c4448dc93d6e8163591bac0a5ff663",
   "merge_boundary": {
     "pull_request": 15,
     "base_head": "69a262150d5c4847df23175c4820602d2d432339",
-    "candidate_head": "9e54b21d193e32335ce7954628f16724252095a8",
-    "state": "resolved_and_verified_pending_commit_and_push",
+    "candidate_head": "efea01c368c4448dc93d6e8163591bac0a5ff663",
+    "state": "offline_review_corrections_commit_and_push_authorized",
     "runtime_or_authority_changes": true,
-    "pending_action": "obtain commit/push authorization"
+    "pending_action": "User authorized committing and pushing the scoped review corrections to origin/refactor/lean-bot-backlog; determine delivery status from Git. candidate_head records the reviewed baseline, not the subsequent correction commit."
   },
   "ahead_behind": {
     "source": "compute_from_git"
   },
   "attributable_dirty_paths": [
-    "main merge resolution; compute from git"
+    "CURRENT_HANDOFF.md",
+    "automation_service/service.py",
+    "automation_service/state.py",
+    "scripts/bluestacks_popup_recognition.py",
+    "scripts/home_atlas_bluestacks.py",
+    "scripts/noahs_tavern_recruit_bluestacks.py",
+    "scripts/startup_recovery.py",
+    "tasks/home_atlas_vision.py",
+    "tasks/noahs_tavern_recruit_maintenance.py",
+    "tasks/noahs_tavern_recruit_runtime.py",
+    "tests/test_flow_delivery_token_context_hygiene.py",
+    "tests/test_governance_validation.py",
+    "tests/test_home_atlas.py",
+    "tests/test_noahs_tavern_recruit.py",
+    "tests/test_noahs_tavern_recruit_maintenance.py",
+    "tests/test_service_recruitment.py",
+    "tests/test_startup_recovery.py"
   ],
   "task_start_worktree": {
     "tracked_dirty_paths": [
-      "Stop-PnS-OMP.ps1"
+      "automation_service/service.py",
+      "automation_service/state.py",
+      "scripts/bluestacks_popup_recognition.py",
+      "scripts/check.py",
+      "scripts/home_atlas_bluestacks.py",
+      "scripts/noahs_tavern_recruit_bluestacks.py",
+      "scripts/startup_recovery.py",
+      "tasks/home_atlas_vision.py",
+      "tasks/noahs_tavern_recruit_maintenance.py",
+      "tasks/noahs_tavern_recruit_runtime.py",
+      "tests/test_governance_validation.py",
+      "tests/test_home_atlas.py",
+      "tests/test_noahs_tavern_recruit.py",
+      "tests/test_noahs_tavern_recruit_maintenance.py",
+      "tests/test_service_recruitment.py",
+      "tests/test_startup_recovery.py"
     ],
     "protected_untracked_paths": [
       ".local-captures/",
@@ -36,29 +67,29 @@
     ".local-reference/",
     "evidence/"
   ],
-  "current_task_id": "PR-15-MERGE-RECONCILIATION",
+  "current_task_id": "PR-15-OFFLINE-REVIEW-CORRECTIONS",
   "current_task_state": "in_progress",
   "next_task_id": "LB-09-NATURAL-POPUP-EVIDENCE",
   "next_task_activation_status": "dependency_blocked",
-  "active_task_or_flow": "PR #15 main reconciliation",
-  "active_delivery_stage": "ready_for_commit",
+  "active_task_or_flow": "PR #15 offline review corrections",
+  "active_delivery_stage": "scoped_offline_checks_verified_delivery_authorized",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "startup_vip_action_unresolved_preserved",
-  "latest_focused_validation_result": "Post-merge Python 3.12 verification passed: deterministic offline checks 327/327, scheduler boundary regressions 146/146, Recruitment service integration 5/5, compileall, and git diff --check",
-  "latest_architecture_validation_result": "Main SelectionPlan boundary retained; Recruitment remains the sole explicit executor-bound exception behind canonical claim and dispatch fences",
-  "latest_full_suite_result": "Pre-merge branch recorded 488 passed and 6 skipped; no post-merge full-suite claim",
-  "current_live_attempt_state": "not_run_during_merge_resolution",
+  "latest_focused_validation_result": "Windows Python 3.12: restored scripts/check.py 327/327; exact nine-module CI cleanup stage 117/117; Recruitment module 46/46. Cleanup previously failed the stale CompactHandoff clear-state assertion; retained unresolved VIP state was not cleared. Linux and CI Python 3.11 were not run locally.",
+  "latest_architecture_validation_result": "The retained uncommitted candidate includes service/state accounting and Recruitment, Atlas, popup, and cooldown production corrections. This bounded follow-up changes only the check list, handoff, and tests; it does not redesign runtime authority or qualify disabled gameplay.",
+  "latest_full_suite_result": "Historical only: pre-merge branch recorded 488 passed and 6 skipped; no post-correction full-suite claim",
+  "current_live_attempt_state": "not_run_during_offline_review_corrections",
   "current_evidence_or_session_reference": ".local-captures/lb09-panfix-rerun-20260919T041106Z/noahs-tavern-unified-recruitment-20260919T041110785460Z/unified-recruitment-result.json",
-  "last_safe_completed_step": "Resolved PR #15 conflicts against origin/main without runtime input, registration, scheduler enablement, or protected-evidence mutation",
-  "exact_next_permitted_action": "Obtain authorization, then commit and push the verified merge resolution",
-  "current_blocker": "none; Tavern/non-Home and post-consumption popup proof remain evidence_required until natural occurrence",
-  "prohibited_repeated_action": "Do not repeat Campaign r2 or synthesize popup evidence; do not enable registration or scheduling during merge resolution",
-  "stage_revision": "pr15-main-merge-reconciliation",
+  "last_safe_completed_step": "Restored the default smoke scope, reconciled handoff/lifecycle tests, and replaced the arithmetic reserve test with a popup-free actual-route boundary check; preserved prior production corrections and retained unresolved state",
+  "exact_next_permitted_action": "Commit the scoped corrections if uncommitted, push the branch if unpublished, and report verified delivery; no merge or runtime/live action is authorized",
+  "current_blocker": "No failure remains in the scoped offline checks. The retained startup VIP action remains unresolved, so the handoff is not represented as a clear/completed lifecycle. No new live qualification or unrelated gameplay blocker is inferred.",
+  "prohibited_repeated_action": "Do not clear or relabel the retained startup VIP unresolved action; do not synthesize popup evidence, enable registration or scheduling, merge, force-push, or perform runtime input",
+  "stage_revision": "pr15-offline-review-corrections",
   "stage_type": "offline_reconciliation",
-  "product_precondition": "met_for_offline_merge_only",
+  "product_precondition": "met_for_offline_corrections_only",
   "failure_class": "none",
   "budgets": {
     "stage_revisions_used": 0,
@@ -95,19 +126,19 @@
     "evidence_requirement": "NON_HOME_AND_POST_CONSUMPTION_POPUP_PROOF_PENDING",
     "evidence_requirement_reason": "Home-context popup recovery and the popup-free Recruitment route are live-proven; Tavern/non-Home and post-consumption interruption await natural occurrence.",
     "active_evidence_manifest": ".local-captures/lb09-panfix-rerun-20260919T041106Z/noahs-tavern-unified-recruitment-20260919T041110785460Z/unified-recruitment-result.json",
-    "monitoring_issue": "none; no live monitoring or input during merge resolution",
+    "monitoring_issue": "none; no live monitoring or input during offline review corrections",
     "do_not_recursively_inspect_parent_evidence_tree": true
   },
-  "control_parent_conversation_id": "pr15-main-merge-reconciliation",
-  "deferred_independent_review": "PR #15 remains draft; independent review requested separately and no approval is claimed",
+  "control_parent_conversation_id": "pr15-offline-review-corrections",
+  "deferred_independent_review": "No independent approval or remote CI result is claimed; local scoped verification does not authorize merge or live execution",
   "stage_7_ordered_plan": [],
   "next_three_atomic_tasks": [
-    "Obtain authorization before committing and pushing the verified merge resolution",
-    "Collect Tavern/non-Home or post-consumption popup proof only when it occurs naturally",
-    "Keep registration and scheduling disabled until separately authorized"
+    "Commit the verified scoped corrections if still uncommitted",
+    "Push origin/refactor/lean-bot-backlog if unpublished and verify remote delivery",
+    "Report delivery while preserving unresolved startup VIP state and disabled runtime controls"
   ],
   "stage_start_utc": "2026-09-19T04:24:00Z",
-  "continuation_checkpoint_utc": "2026-09-19T04:24:00Z"
+  "continuation_checkpoint_utc": "2026-09-22T17:12:38Z"
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 

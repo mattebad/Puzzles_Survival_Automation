@@ -158,6 +158,13 @@ def classify_startup_frame(
             recognition=dict(startup_detail),
         )
     detail = recognize_reset_popup(frame)
+    if detail.get("blocking_unknown_modal"):
+        return StartupRecoveryPlan(
+            "blocked", flow_id, None, None, False,
+            "blocking_unknown_startup_modal",
+            frame_sha256=frame_sha256,
+            recognition=dict(detail),
+        )
     if not detail.get("recognized"):
         return StartupRecoveryPlan(
             "clear", flow_id, None, None, False,
@@ -329,7 +336,7 @@ def recover_contextual_vip_popup(
     captured: CapturedNativeFrame,
     *,
     source_context: str,
-    recognize_successor: Callable[[np.ndarray], bool],
+    recognize_successor: Callable[[CapturedNativeFrame], bool],
     action_key: str,
     settle_seconds: float = 0.8,
     sleep: Callable[[float], None] = time.sleep,
@@ -385,8 +392,17 @@ def recover_contextual_vip_popup(
                 input_count=0,
                 reason="vip_popup_revalidation_failed",
             )
+        if bool(initial_detail.get("blocking_unknown_modal")):
+            return _contextual_result(
+                settled_frame=captured,
+                dismissed=False,
+                popup_absent=True,
+                resume_ready=False,
+                input_count=0,
+                reason="blocking_unknown_modal_present",
+            )
         try:
-            successor = bool(recognize_successor(captured.frame))
+            successor = bool(recognize_successor(captured))
         except BaseException as exc:
             if _contextual_exception_is_control(exc):
                 raise
@@ -651,8 +667,20 @@ def recover_contextual_vip_popup(
             reason=reason,
         )
 
+    if bool(post_detail.get("blocking_unknown_modal")):
+        reason = "blocking_unknown_modal_present"
+        runtime.reconcile(action_key, "confirmed", post, reason)
+        return _contextual_result(
+            settled_frame=post,
+            dismissed=True,
+            popup_absent=True,
+            resume_ready=False,
+            input_count=input_count,
+            reason=reason,
+        )
+
     try:
-        successor = bool(recognize_successor(post.frame))
+        successor = bool(recognize_successor(post))
     except BaseException as exc:
         if _contextual_exception_is_control(exc):
             raise
@@ -873,7 +901,11 @@ def _recover_scarlett_surface(
     action_key = f"{SCARLETT_BACK_ACTION_KEY}:{scope_digest}"
     store = action_store_factory() if action_store_factory is not None else SafetyStore(STARTUP_RECOVERY_STORE_PATH)
     owner = f"startup-recovery:{task_id}"
-    store.acquire_lease(owner, time.time(), 300.0)
+    try:
+        store.acquire_lease(owner, time.time(), 300.0)
+    except BaseException:
+        store.close()
+        raise
     try:
         prior = store.get_action_by_key(action_key)
         if prior is not None or store.has_action_block():
@@ -993,10 +1025,7 @@ def _recover_scarlett_surface(
         if not confirmed:
             raise StartupRecoveryError(f"startup recovery failed after dispatch: {result.status.value}:{terminal_reason}")
         return evidence
-    except BaseException:
-        _release_store(store, owner)
-        raise
-    else:
+    finally:
         _release_store(store, owner)
 
 

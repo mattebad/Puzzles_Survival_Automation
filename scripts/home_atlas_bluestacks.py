@@ -3541,7 +3541,7 @@ def bluestacks_direct_pan_contract() -> tuple[SafeInteractionRegion, GestureCali
         "home-default",
         BLUESTACKS_SAFE_INTERACTION_BOX,
         BLUESTACKS_INTERACTION_ANCHOR,
-        fixed_hud_masks=((0, 0, 800, 150), (0, 150, 138, 1020), (650, 150, 800, 1020), (0, 1020, 800, 1280)),
+        fixed_hud_masks=HUD_MASK_RECTS,
         planning_policy=planning_policy,
     )
     calibration = GestureCalibration(

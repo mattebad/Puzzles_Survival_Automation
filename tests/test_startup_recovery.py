@@ -331,6 +331,21 @@ class StartupRecoveryTests(unittest.TestCase):
         self.assertFalse(plan.input_authority)
 
 
+    def test_blocking_unknown_modal_is_not_classified_as_clear(self) -> None:
+        _frame, payload = self._scarlett_fixture()
+        with patch(
+            "scripts.startup_recovery.recognize_startup_surface",
+            return_value={"recognized": False, "commercial_looking": False},
+        ), patch(
+            "scripts.startup_recovery.recognize_reset_popup",
+            return_value={"recognized": False, "blocking_unknown_modal": True},
+        ):
+            plan = classify_startup_frame("FLOW", payload)
+        self.assertEqual(plan.status, "blocked")
+        self.assertEqual(plan.reason, "blocking_unknown_startup_modal")
+        self.assertFalse(plan.input_authority)
+        self.assertTrue(plan.recognition["blocking_unknown_modal"])
+
     def test_scarlett_one_input_captures_unknown_successor_without_dismissing_again(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
@@ -639,6 +654,29 @@ class StartupRecoveryTests(unittest.TestCase):
         self.assertTrue(result.resume_ready)
         self.assertEqual(result.input_count, 0)
         self.assertEqual(result.reason, "exact_vip_popup_absent")
+        self.assertEqual(runtime.input_count, 0)
+
+    def test_contextual_unknown_modal_never_promotes_vip_absence_to_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ContextualRuntime(Path(directory) / "runtime")
+            captured = runtime.capture("contextual-source")
+            successor_calls = []
+            with patch(
+                "scripts.startup_recovery.recognize_reset_popup",
+                return_value={"recognized": False, "blocking_unknown_modal": True},
+            ):
+                result = recover_contextual_vip_popup(
+                    runtime,
+                    captured,
+                    source_context="home-or-tavern",
+                    recognize_successor=lambda _frame: successor_calls.append(True) or True,
+                    action_key="noah:popup-close:home-or-tavern:source",
+                    sleep=lambda _seconds: None,
+                )
+        self.assertEqual(result.reason, "blocking_unknown_modal_present")
+        self.assertTrue(result.popup_absent)
+        self.assertFalse(result.resume_ready)
+        self.assertEqual(successor_calls, [])
         self.assertEqual(runtime.input_count, 0)
 
     def test_contextual_close_rebinds_moving_target_and_accepts_home_or_tavern(self) -> None:
