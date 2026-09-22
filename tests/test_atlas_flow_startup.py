@@ -117,6 +117,7 @@ class AtlasFlowStartupTests(unittest.TestCase):
                 startup, "BlueStacksHomeLocalizer", return_value=_localizer(states)
             ),
             patch.object(startup, "ScrcpyMotionEventZoomTransport", _Transport),
+            patch.object(startup, "is_clean_home_frame", return_value=True),
             patch.object(
                 startup,
                 "recognize_home_nav",

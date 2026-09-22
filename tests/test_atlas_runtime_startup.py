@@ -85,6 +85,7 @@ class AtlasRuntimeStartupTests(unittest.TestCase):
                 return_value=_localizer(states),
             ),
             patch.object(startup, "ScrcpyMotionEventZoomTransport", _Transport),
+            patch.object(startup, "is_clean_home_frame", return_value=True),
             patch.object(
                 startup,
                 "classify_home_base_live",

@@ -7,6 +7,7 @@ accepts only the repository's explicit local BlueStacks serial policy.
 
 from __future__ import annotations
 
+
 import argparse
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
@@ -58,6 +59,7 @@ from tasks.home_atlas_planner import (
     camera_origin,
     plan_direct_pan,
 )
+from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import (
     BLUESTACKS_INTERACTION_ANCHOR,
     BLUESTACKS_PLATFORM,
@@ -540,11 +542,9 @@ class BlueStacksLocalizeFirstHomeDriver:
             maximum_pans=maximum_pans,
         )
         self.maximum_zoom_inputs = min(maximum_zoom_inputs, 2)
-        self.startup_normalizer = BlueStacksAtlasStartupNormalizer(
-            self.localizer,
-            maximum_zoom_inputs=self.maximum_zoom_inputs,
-            zoom_classifier=lambda frame, reference: classify_zoom(frame, reference),
-        )
+        self.startup_normalizer = BlueStacksAtlasStartupNormalizer(self.localizer,
+        maximum_zoom_inputs=self.maximum_zoom_inputs,
+        zoom_classifier=lambda frame, reference: classify_zoom(frame, reference), home_is_clean=is_clean_home_frame)
 
     @property
     def zoom_inputs(self) -> int:
@@ -587,7 +587,7 @@ class BlueStacksLocalizeFirstHomeDriver:
             HomeContextLevel.HOME_LOCALIZED,
             HomeContextLevel.HOME_CANONICAL,
         }:
-            binding = bind_visible_building(frame, localization, self.building)
+            binding = bind_visible_building(frame, localization, self.building, home_is_clean=is_clean_home_frame)
             if binding is None:
                 plan = plan_direct_pan(
                     self.atlas,
@@ -2388,11 +2388,9 @@ def dispatch_verified_supply_depot_building_tap(
                     atlas, atlas_path
                 ).localize(fresh_capture.frame)
                 if fresh_localization.frame_sha256 == fresh_identity.semantic_sha256:
-                    fresh_binding = bind_visible_building(
-                        fresh_capture.frame,
-                        fresh_localization,
-                        atlas.lookup_building(SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY),
-                    )
+                    fresh_binding = bind_visible_building(fresh_capture.frame,
+                    fresh_localization,
+                    atlas.lookup_building(SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY), home_is_clean=is_clean_home_frame)
                 else:
                     fresh_binding = None
             except (KeyError, OSError, ValueError, TypeError):
@@ -2977,7 +2975,7 @@ def dispatch_verified_campaign_home_building_tap(
     )
     fresh_localization = localizer.localize(fresh_capture.frame)
     fresh_binding = (
-        bind_visible_building(fresh_capture.frame, fresh_localization, building)
+        bind_visible_building(fresh_capture.frame, fresh_localization, building, home_is_clean=is_clean_home_frame)
         if fresh_localization.recognized
         else None
     )
@@ -3232,7 +3230,7 @@ def run_verified_campaign_home_atlas_entry(
             immediate_before = runtime.capture(f"campaign-entry-{ordinal:02d}-immediate-before")
             derived_localization = localizer.localize(immediate_before.frame)
             derived_binding = (
-                bind_visible_building(immediate_before.frame, derived_localization, building)
+                bind_visible_building(immediate_before.frame, derived_localization, building, home_is_clean=is_clean_home_frame)
                 if derived_localization.recognized
                 else None
             )
@@ -3962,13 +3960,13 @@ def command_open_building(args) -> int:
     if not source_localization.recognized:
         print(json.dumps({"status": "blocked", "reason": "source_localization_failed", "localization": source_localization.__dict__}, sort_keys=True, default=str))
         return 3
-    source_binding = bind_visible_building(source.frame, source_localization, building)
+    source_binding = bind_visible_building(source.frame, source_localization, building, home_is_clean=is_clean_home_frame)
     if source_binding is None:
         print(json.dumps({"status": "blocked", "reason": "source_building_binding_failed", "localization": source_localization.__dict__}, sort_keys=True, default=str))
         return 3
     immediate_before = runtime.capture("open-building-immediate-before")
     before_localization = localizer.localize(immediate_before.frame)
-    before_binding = bind_visible_building(immediate_before.frame, before_localization, building)
+    before_binding = bind_visible_building(immediate_before.frame, before_localization, building, home_is_clean=is_clean_home_frame)
     if before_binding is None or before_binding.overlay_intersects or before_binding.ambiguous_overlap:
         print(json.dumps({"status": "blocked", "reason": "immediate_before_binding_failed"}, sort_keys=True))
         return 3
@@ -4202,7 +4200,7 @@ def _command_navigate_building_body(
         immediate_before = runtime.capture(f"navigate-{ordinal:02d}-immediate-before")
         derived_localization = localizer.localize(immediate_before.frame)
         derived_binding = (
-            bind_visible_building(immediate_before.frame, derived_localization, building)
+            bind_visible_building(immediate_before.frame, derived_localization, building, home_is_clean=is_clean_home_frame)
             if derived_localization.recognized
             else None
         )
@@ -4701,7 +4699,7 @@ def command_supply_depot_radial(args) -> int:
             ):
                 return None
             building = atlas.lookup_building(SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY)
-            return bind_visible_building(frame, localization, building)
+            return bind_visible_building(frame, localization, building, home_is_clean=is_clean_home_frame)
         except (KeyError, OSError, ValueError, TypeError):
             return None
 

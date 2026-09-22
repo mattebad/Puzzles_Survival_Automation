@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from scripts.startup_normalization import is_clean_home_frame
+
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -44,10 +46,8 @@ def normalize_home_atlas_startup(
     """Normalize clean Home to canonical zoom, then return direct-pan geometry."""
 
     localizer = BlueStacksHomeLocalizer(atlas, atlas_path)
-    normalizer = BlueStacksAtlasStartupNormalizer(
-        localizer,
-        maximum_zoom_inputs=maximum_zoom_inputs,
-    )
+    normalizer = BlueStacksAtlasStartupNormalizer(localizer,
+    maximum_zoom_inputs=maximum_zoom_inputs, home_is_clean=is_clean_home_frame)
     guarded = NavigationGuardedRuntime(
         runtime,
         NavigationRouteDeclaration(

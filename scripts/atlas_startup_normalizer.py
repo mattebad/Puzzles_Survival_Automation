@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import math
+from typing import Callable
 
 import numpy as np
+
 
 from tasks.home_atlas import AmbiguityState, LocalizationResult, ZoomIdentity
 from tasks.home_atlas_vision import (
@@ -39,10 +41,13 @@ class BlueStacksAtlasStartupNormalizer:
         localizer: BlueStacksHomeLocalizer,
         maximum_zoom_inputs: int = 2,
         zoom_classifier=None,
+        *,
+        home_is_clean: Callable[[np.ndarray], bool],
     ) -> None:
         if maximum_zoom_inputs < 1:
             raise ValueError("maximum_zoom_inputs must be positive")
         self.localizer = localizer
+        self.home_is_clean = home_is_clean
         self.zoom_classifier = zoom_classifier or classify_zoom
         self.maximum_zoom_inputs = min(maximum_zoom_inputs, 2)
         self.zoom_inputs = 0
@@ -102,6 +107,13 @@ class BlueStacksAtlasStartupNormalizer:
         localization = localization or self.localizer.localize(frame)
         if not self._current_and_unambiguous(localization, digest):
             return self._blocked(localization, digest)
+        if not self.home_is_clean(frame):
+            return AtlasStartupResult(
+                localization,
+                digest,
+                AtlasStartupDisposition.BLOCKED,
+                "source_not_positively_recognized_clean_home",
+            )
         if (
             localization.recognized
             and localization.zoom_identity is ZoomIdentity.FULLY_ZOOMED_OUT

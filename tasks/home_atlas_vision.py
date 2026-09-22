@@ -8,10 +8,11 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 import cv2
 import numpy as np
+
 
 from .home_atlas import (
     AmbiguityState,
@@ -266,6 +267,7 @@ def bind_visible_building(
     localization: LocalizationResult,
     building: SemanticBuilding,
     *,
+    home_is_clean: Callable[[np.ndarray], bool],
     diagnostics: dict[str, object] | None = None,
 ) -> BuildingBinding | None:
     """Bind a mapped building from fresh frame geometry, never label OCR."""
@@ -403,6 +405,9 @@ def bind_visible_building(
     }
     if target is None:
         reject("target_unsafe", target_reason or "target_geometry", **details)
+        return None
+    if not home_is_clean(frame):
+        reject("localization_failed", "source_not_positively_recognized_clean_home")
         return None
     _record_binding_diagnostic(
         diagnostics,

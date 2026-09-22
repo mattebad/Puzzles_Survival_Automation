@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+
 import argparse
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
@@ -34,6 +35,7 @@ from scripts.navigation_development_boundary import (
 )
 from tasks.home_atlas import ZoomIdentity, load_home_atlas
 from tasks.home_atlas_planner import PlanDisposition, camera_origin
+from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, BlueStacksHomeLocalizer, bind_visible_building, frame_digest
 from tasks.home_context import HomeReadyObservation
 from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
@@ -1103,7 +1105,7 @@ class TroopTrainingIntegratedRoute:
             if surface_rejection is not None:
                 return None, None, planner, surface_rejection
             localization = localizer.localize(immediate_before.frame)
-            binding = bind_visible_building(immediate_before.frame, localization, building) if localization.recognized else None
+            binding = bind_visible_building(immediate_before.frame, localization, building, home_is_clean=is_clean_home_frame) if localization.recognized else None
             plan = planner.plan(localization, binding)
             plan_record = {
                 "ordinal": ordinal,

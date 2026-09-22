@@ -15,7 +15,7 @@ from scripts.navigation_development_boundary import (
     NavigationRouteDeclaration,
     make_source_safety_facts,
 )
-from scripts.startup_normalization import classify_home_base_live
+from scripts.startup_normalization import classify_home_base_live, is_clean_home_frame
 
 
 class AtlasRuntimeStartupError(RuntimeError):
@@ -41,10 +41,8 @@ def normalize_runtime_home_atlas_startup(
         "scripts.home_atlas_bluestacks",
         fromlist=["BlueStacksHomeLocalizer"],
     ).BlueStacksHomeLocalizer(atlas, atlas_path)
-    normalizer = BlueStacksAtlasStartupNormalizer(
-        localizer,
-        maximum_zoom_inputs=maximum_zoom_inputs,
-    )
+    normalizer = BlueStacksAtlasStartupNormalizer(localizer,
+    maximum_zoom_inputs=maximum_zoom_inputs, home_is_clean=is_clean_home_frame)
     guarded = NavigationGuardedRuntime(
         runtime,
         NavigationRouteDeclaration(

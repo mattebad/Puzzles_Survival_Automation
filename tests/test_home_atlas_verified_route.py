@@ -276,6 +276,19 @@ def _ready() -> HomeReadyObservation:
 
 
 class HomeAtlasVerifiedRouteTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Route/geometry fixtures provide clean Home separately from Atlas pose.
+        clean_home = patch(
+            "scripts.home_atlas_bluestacks.is_clean_home_frame", return_value=True
+        )
+        clean_home.start()
+        self.addCleanup(clean_home.stop)
+        runtime_home = patch(
+            "scripts.atlas_runtime_startup.is_clean_home_frame", return_value=True
+        )
+        runtime_home.start()
+        self.addCleanup(runtime_home.stop)
+
     def test_headless_scrcpy_pinch_serializes_two_native_pointer_streams(self) -> None:
         messages = ScrcpyMotionEventZoomTransport.pinch_messages(steps=8)
 
@@ -665,7 +678,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer", return_value=fake_localizer
             ), patch("scripts.home_atlas_bluestacks.connect_runtime", return_value=runtime), patch(
                 "scripts.home_atlas_bluestacks.bind_visible_building",
-                side_effect=lambda frame, localization_arg, building_arg: replace(
+                side_effect=lambda frame, localization_arg, building_arg, *, home_is_clean: replace(
                     binding, frame_sha256=localization_arg.frame_sha256
                 ),
             ):
@@ -1490,7 +1503,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 localize=lambda frame: replace(loc, frame_sha256=frame_digest(frame))
             )
 
-            def _bind(frame, localization_arg, building_arg):
+            def _bind(frame, localization_arg, building_arg, *, home_is_clean):
                 return replace(binding, frame_sha256=localization_arg.frame_sha256)
 
             with patch(

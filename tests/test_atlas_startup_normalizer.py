@@ -34,17 +34,41 @@ def _localizer(state):
 
 
 class AtlasStartupNormalizerTests(unittest.TestCase):
+    def test_positive_overlay_blocks_canonical_startup_and_building_binding(self):
+        from dataclasses import replace
+        from scripts.startup_normalization import is_clean_home_frame
+        from tasks.home_atlas_vision import bind_visible_building
+        from tests.test_home_atlas_planner import building, localization
+
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        canonical = replace(localization(), frame_sha256=frame_digest(frame))
+        target = building(polygon=((300, 400), (440, 400), (440, 540), (300, 540)))
+        normalizer = BlueStacksAtlasStartupNormalizer(
+            _localizer({}), home_is_clean=is_clean_home_frame
+        )
+        with patch(
+            "scripts.startup_normalization.classify_home_base_live",
+            return_value={"state": "HOME_BASE", "recognized": True, "overlay": True},
+        ):
+            with self.subTest(admission="startup"):
+                step = normalizer.observe(frame, localization=canonical)
+                self.assertIs(step.disposition, AtlasStartupDisposition.BLOCKED)
+            with self.subTest(admission="building_binding"):
+                self.assertIsNone(
+                    bind_visible_building(
+                        frame, canonical, target, home_is_clean=is_clean_home_frame
+                    )
+                )
+
     def test_canonical_current_clean_home_is_ready(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-        step = BlueStacksAtlasStartupNormalizer(
-            _localizer(
-                {
-                    "recognized": True,
-                    "zoom_identity": ZoomIdentity.FULLY_ZOOMED_OUT,
-                    "confidence": 0.6,
-                }
-            )
-        ).observe(frame)
+        step = BlueStacksAtlasStartupNormalizer(_localizer(
+            {
+                "recognized": True,
+                "zoom_identity": ZoomIdentity.FULLY_ZOOMED_OUT,
+                "confidence": 0.6,
+            }
+        ), home_is_clean=lambda _frame: True).observe(frame)
         self.assertIs(step.disposition, AtlasStartupDisposition.READY)
         self.assertEqual(step.source_frame_sha256, frame_digest(frame))
 
@@ -64,7 +88,7 @@ class AtlasStartupNormalizerTests(unittest.TestCase):
             def localize(self, _frame):
                 raise AssertionError("localization was recomputed")
 
-        step = BlueStacksAtlasStartupNormalizer(FailingLocalizer()).observe(
+        step = BlueStacksAtlasStartupNormalizer(FailingLocalizer(), home_is_clean=lambda _frame: True).observe(
             frame,
             localization=provided,
         )
@@ -75,15 +99,13 @@ class AtlasStartupNormalizerTests(unittest.TestCase):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         for identity in (ZoomIdentity.ZOOMED_IN, ZoomIdentity.INTERMEDIATE):
             with self.subTest(identity=identity):
-                step = BlueStacksAtlasStartupNormalizer(
-                    _localizer(
-                        {
-                            "recognized": False,
-                            "zoom_identity": identity,
-                            "confidence": 0.92,
-                        }
-                    )
-                ).observe(frame)
+                step = BlueStacksAtlasStartupNormalizer(_localizer(
+                    {
+                        "recognized": False,
+                        "zoom_identity": identity,
+                        "confidence": 0.92,
+                    }
+                ), home_is_clean=lambda _frame: True).observe(frame)
                 self.assertIs(step.disposition, AtlasStartupDisposition.RECOVER_ZOOM)
                 self.assertEqual(step.recovery_input_ordinal, 1)
 
@@ -118,7 +140,7 @@ class AtlasStartupNormalizerTests(unittest.TestCase):
         ):
             for state in states:
                 with self.subTest(state=state):
-                    step = BlueStacksAtlasStartupNormalizer(_localizer(state)).observe(
+                    step = BlueStacksAtlasStartupNormalizer(_localizer(state), home_is_clean=lambda _frame: True).observe(
                         frame
                     )
                     self.assertIs(step.disposition, AtlasStartupDisposition.BLOCKED)
@@ -126,15 +148,12 @@ class AtlasStartupNormalizerTests(unittest.TestCase):
     def test_repeated_frame_and_maximum_input_exhaustion_block(self):
         first = np.zeros((1280, 800, 3), dtype=np.uint8)
         second = np.full((1280, 800, 3), 1, dtype=np.uint8)
-        normalizer = BlueStacksAtlasStartupNormalizer(
-            _localizer(
-                {
-                    "zoom_identity": ZoomIdentity.INTERMEDIATE,
-                    "confidence": 0.92,
-                }
-            ),
-            maximum_zoom_inputs=1,
-        )
+        normalizer = BlueStacksAtlasStartupNormalizer(_localizer(
+            {
+                "zoom_identity": ZoomIdentity.INTERMEDIATE,
+                "confidence": 0.92,
+            }
+        ), home_is_clean=lambda _frame: True, maximum_zoom_inputs=1,)
         planned = normalizer.observe(first)
         repeated = normalizer.observe(first)
         self.assertEqual(repeated.reason, "repeated_zoom_recovery_frame")
@@ -144,14 +163,12 @@ class AtlasStartupNormalizerTests(unittest.TestCase):
 
     def test_dispatch_accounting_requires_semantic_digest(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-        normalizer = BlueStacksAtlasStartupNormalizer(
-            _localizer(
-                {
-                    "zoom_identity": ZoomIdentity.ZOOMED_IN,
-                    "confidence": 0.92,
-                }
-            )
-        )
+        normalizer = BlueStacksAtlasStartupNormalizer(_localizer(
+            {
+                "zoom_identity": ZoomIdentity.ZOOMED_IN,
+                "confidence": 0.92,
+            }
+        ), home_is_clean=lambda _frame: True)
         planned = normalizer.observe(frame)
         with self.assertRaises(ValueError):
             normalizer.record_zoom_input_dispatched("png-byte-digest")
@@ -159,10 +176,7 @@ class AtlasStartupNormalizerTests(unittest.TestCase):
         self.assertEqual(normalizer.zoom_inputs, 1)
 
     def test_recovery_ceiling_is_two_even_for_legacy_larger_request(self):
-        normalizer = BlueStacksAtlasStartupNormalizer(
-            _localizer(ZoomIdentity.ZOOMED_IN),
-            maximum_zoom_inputs=4,
-        )
+        normalizer = BlueStacksAtlasStartupNormalizer(_localizer(ZoomIdentity.ZOOMED_IN), home_is_clean=lambda _frame: True, maximum_zoom_inputs=4,)
 
         self.assertEqual(normalizer.maximum_zoom_inputs, 2)
 

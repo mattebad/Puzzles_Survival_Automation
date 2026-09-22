@@ -6,6 +6,7 @@ before tapping. No registration, no scheduler, no Heavy ceremony.
 
 from __future__ import annotations
 
+
 import json
 import os
 import re
@@ -32,6 +33,7 @@ from scripts.atlas_flow_startup import normalize_home_atlas_startup
 from scripts.navigation_development_boundary import DevelopmentSession
 from tasks.home_atlas import load_home_atlas
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
+from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building
 from tasks.home_nav_recognition import recognize_home_nav
 from tasks.nova_praise_vision import recognize_nova_frame
@@ -176,9 +178,7 @@ def bind_research_lab(frame_bgr: np.ndarray) -> BoundControl | None:
     atlas, localization = _atlas_stack(frame_bgr)
     if not localization.recognized:
         return None
-    binding = bind_visible_building(
-        frame_bgr, localization, atlas.lookup_building(RESEARCH_LAB_ID)
-    )
+    binding = bind_visible_building(frame_bgr, localization, atlas.lookup_building(RESEARCH_LAB_ID), home_is_clean=is_clean_home_frame)
     if binding is None:
         return None
     return BoundControl(
@@ -193,9 +193,7 @@ def plan_research_lab_pan(frame_bgr: np.ndarray, navigator: DirectPanNavigator):
     atlas, localization = _atlas_stack(frame_bgr)
     if not localization.recognized:
         return None, None, None
-    binding = bind_visible_building(
-        frame_bgr, localization, atlas.lookup_building(RESEARCH_LAB_ID)
-    )
+    binding = bind_visible_building(frame_bgr, localization, atlas.lookup_building(RESEARCH_LAB_ID), home_is_clean=is_clean_home_frame)
     # Plan without accepting a clipped binding as complete — radial footprint matters.
     plan = navigator.plan(localization, None)
     return localization, binding, plan

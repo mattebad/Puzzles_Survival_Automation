@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+
 from dataclasses import asdict
 import json
 from pathlib import Path
@@ -24,6 +25,7 @@ from scripts.home_atlas_bluestacks import (
 from scripts.navigation_development_boundary import DevelopmentSession, NavigationGuardedRuntime, NavigationRouteDeclaration, make_source_safety_facts
 from tasks.home_atlas import load_home_atlas
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
+from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building, frame_digest
 from tasks.home_nav_recognition import recognize_home_nav
 from tasks.supply_depot import SupplyDepotHoldConfig
@@ -143,11 +145,9 @@ def _bind_home_building(runtime: LocalBlueStacksRuntime, captured):
         return localization, None
     return (
         localization,
-        bind_visible_building(
-            captured.frame,
-            localization,
-            atlas.lookup_building(SUPPLY_DEPOT_BUILDING_ID),
-        ),
+        bind_visible_building(captured.frame,
+        localization,
+        atlas.lookup_building(SUPPLY_DEPOT_BUILDING_ID), home_is_clean=is_clean_home_frame),
     )
 
 
@@ -187,10 +187,8 @@ def run(
     current_screen = _recognize(runtime, current, "supply-depot-source")
     if not current_screen.recognized:
 
-        startup_normalizer = BlueStacksAtlasStartupNormalizer(
-            BlueStacksHomeLocalizer(atlas, ATLAS_PATH),
-            maximum_zoom_inputs=2,
-        )
+        startup_normalizer = BlueStacksAtlasStartupNormalizer(BlueStacksHomeLocalizer(atlas, ATLAS_PATH),
+        maximum_zoom_inputs=2, home_is_clean=is_clean_home_frame)
         startup_frame = current
         startup_step = startup_normalizer.observe(startup_frame.frame)
         while startup_step.disposition is AtlasStartupDisposition.RECOVER_ZOOM:

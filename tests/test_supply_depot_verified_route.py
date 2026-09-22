@@ -410,7 +410,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                 return_value=_fake_supply_localizer(),
             ), patch(
                 "scripts.home_atlas_bluestacks.bind_visible_building",
-                side_effect=lambda frame, localization, building: _binding(frame),
+                side_effect=lambda frame, localization, building, *, home_is_clean: _binding(frame),
             ), patch(
                 "scripts.home_atlas_bluestacks.recognize_supply_depot_screen",
                 side_effect=lambda frame, *, source_frame=None: _successor(frame),

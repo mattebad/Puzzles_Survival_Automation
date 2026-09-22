@@ -6,6 +6,7 @@ the frame capture and transport functions; transport is enabled only by an expli
 
 from __future__ import annotations
 
+
 import argparse
 import copy
 from dataclasses import dataclass, field, replace
@@ -36,6 +37,7 @@ from tasks.noahs_tavern_recruit import (
 )
 from tasks.noahs_tavern_recruit_vision import recognize_noahs_tavern_frame
 from tasks.home_atlas import ZoomIdentity, load_home_atlas
+from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building, frame_digest
 from scripts.bluestacks_native_runtime import (
     CapturedNativeFrame,
@@ -1190,12 +1192,10 @@ class NoahTavernNavigationCanaryRoute:
             self._persist_atlas_binding_diagnostic(captured, diagnostics)
             return None
         binder_diagnostics: dict[str, object] = {}
-        binding = bind_visible_building(
-            captured.frame,
-            localization,
-            self.atlas.lookup_building(NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID),
-            diagnostics=binder_diagnostics,
-        )
+        binding = bind_visible_building(captured.frame,
+        localization,
+        self.atlas.lookup_building(NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID),
+        diagnostics=binder_diagnostics, home_is_clean=is_clean_home_frame)
         diagnostics.update(binder_diagnostics)
         if (
             binding is None

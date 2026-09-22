@@ -299,4 +299,3 @@ def noah_result_postcondition_verified(
             or after_tier.next_eligible_timestamp > after_close.captured_monotonic
         )
     )
-

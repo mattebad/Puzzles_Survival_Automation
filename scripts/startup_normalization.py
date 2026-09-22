@@ -488,6 +488,29 @@ def classify_home_base_live(
     }
 
 
+def is_clean_home_frame(frame: np.ndarray) -> bool:
+    """Require independent current-frame Home proof before Atlas grants navigation."""
+
+    home = classify_home_base_live(
+        frame, cash_mall_rejected=True, safe_os_surface=True
+    )
+    if (
+        home.get("state") != "HOME_BASE"
+        or not home.get("recognized")
+        or home.get("overlay")
+        or home.get("blocking_unknown_modal")
+        or home.get("manual_only_state")
+    ):
+        return False
+    from scripts.bluestacks_popup_recognition import recognize_reset_popup
+
+    popup = recognize_reset_popup(frame)
+    return (
+        popup.get("recognized") is False
+        and popup.get("blocking_unknown_modal") is False
+    )
+
+
 def write_annotation(frame: np.ndarray, decision: CashMallDecision, output: Path) -> None:
     annotated = frame.copy()
     x0, y0, x1, y1 = decision.target_roi

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+
 import argparse
 from dataclasses import replace
 import hashlib
@@ -21,6 +22,7 @@ from scripts.bluestacks_native_runtime import IntegratedRouteResult, LocalBlueSt
 from scripts.home_atlas_bluestacks import BlueStacksLocalizeFirstHomeDriver, HomeDriverDisposition, ScrcpyMotionEventZoomTransport
 from scripts.navigation_development_boundary import NavigationBoundaryError, NavigationGuardedRuntime, NavigationRouteDeclaration, make_source_safety_facts
 from tasks.home_atlas import load_home_atlas
+from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building
 from tasks.home_context import HomeReadyObservation
 from tasks.ruins_challenge import (
@@ -566,11 +568,9 @@ class RuinsIntegratedRoute:
         localization = BlueStacksHomeLocalizer(self.atlas, self.atlas_path).localize(captured.frame)
         if not localization.recognized:
             return None
-        binding = bind_visible_building(
-            captured.frame,
-            localization,
-            self.atlas.lookup_building(RUINS_HOME_ATLAS_BUILDING_ID),
-        )
+        binding = bind_visible_building(captured.frame,
+        localization,
+        self.atlas.lookup_building(RUINS_HOME_ATLAS_BUILDING_ID), home_is_clean=is_clean_home_frame)
         if (
             binding is None
             or binding.building_id != RUINS_HOME_ATLAS_BUILDING_ID

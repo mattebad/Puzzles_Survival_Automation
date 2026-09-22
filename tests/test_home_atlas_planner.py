@@ -74,6 +74,14 @@ def localization(x: float = 0, y: float = 0, digest: str = "a" * 64) -> Localiza
 
 
 class MinimalPanPlannerTests(unittest.TestCase):
+    def setUp(self):
+        # Synthetic route fixtures supply Home recognition independently of geometry.
+        clean_home = patch(
+            "scripts.atlas_runtime_startup.is_clean_home_frame", return_value=True
+        )
+        clean_home.start()
+        self.addCleanup(clean_home.stop)
+
     def test_target_already_safe_is_zero_pan_and_requires_binding(self):
         target = building(polygon=((300, 400), (440, 400), (440, 540), (300, 540)))
         plan = plan_direct_pan(atlas(target), localization(), target.semantic_id, SAFE, CALIBRATION)
@@ -223,7 +231,7 @@ class MinimalPanPlannerTests(unittest.TestCase):
             polygon=((300, 400), (440, 400), (440, 540), (300, 540)),
         )
         diagnostics = {}
-        binding = bind_visible_building(frame, loc, target, diagnostics=diagnostics)
+        binding = bind_visible_building(frame, loc, target, home_is_clean=lambda _frame: True, diagnostics=diagnostics)
         self.assertIsNotNone(binding)
         assert binding is not None
         self.assertEqual(binding.anchor_source, "polygon_centroid")
@@ -240,7 +248,7 @@ class MinimalPanPlannerTests(unittest.TestCase):
             navigation_anchor_override=(370, 470),
             interaction_anchor_override=(330, 470),
         )
-        binding = bind_visible_building(frame, loc, target)
+        binding = bind_visible_building(frame, loc, target, home_is_clean=lambda _frame: True)
         self.assertIsNotNone(binding)
         assert binding is not None
         self.assertEqual(target.navigation_anchor, (370, 470))
@@ -257,7 +265,7 @@ class MinimalPanPlannerTests(unittest.TestCase):
         )
         diagnostics = {}
 
-        binding = bind_visible_building(frame, loc, target, diagnostics=diagnostics)
+        binding = bind_visible_building(frame, loc, target, home_is_clean=lambda _frame: True, diagnostics=diagnostics)
 
         self.assertIsNotNone(binding)
         assert binding is not None
@@ -269,14 +277,14 @@ class MinimalPanPlannerTests(unittest.TestCase):
         frame = np.zeros((1280, 800, 3), np.uint8)
         loc = replace(localization(), frame_sha256=frame_digest(frame))
         offscreen = building(polygon=((900, 400), (1040, 400), (1040, 540), (900, 540)))
-        self.assertIsNone(bind_visible_building(frame, loc, offscreen))
+        self.assertIsNone(bind_visible_building(frame, loc, offscreen, home_is_clean=lambda _frame: True))
         malformed = replace(
             building(polygon=((300, 400), (440, 400), (440, 400), (300, 400))),
             interaction_anchor_override=(370, 400),
         )
-        self.assertIsNone(bind_visible_building(frame, loc, malformed))
+        self.assertIsNone(bind_visible_building(frame, loc, malformed, home_is_clean=lambda _frame: True))
         singular = replace(loc, screen_to_atlas=((0, 0, 0), (0, 0, 0), (0, 0, 1)))
-        self.assertIsNone(bind_visible_building(frame, singular, building()))
+        self.assertIsNone(bind_visible_building(frame, singular, building(), home_is_clean=lambda _frame: True))
 
     def test_hit_region_cannot_bridge_a_concave_footprint_gap(self):
         frame = np.zeros((1280, 800, 3), np.uint8)
@@ -290,7 +298,7 @@ class MinimalPanPlannerTests(unittest.TestCase):
         )
         # Four ROI corners can lie in the footprint while its right edge
         # crosses the gap. No minimum-sized region fits around this anchor.
-        self.assertIsNone(bind_visible_building(frame, loc, target))
+        self.assertIsNone(bind_visible_building(frame, loc, target, home_is_clean=lambda _frame: True))
 
     def test_retained_bad_label_frame_binds_tavern_geometry(self):
         root = Path(__file__).resolve().parents[1]
@@ -302,7 +310,7 @@ class MinimalPanPlannerTests(unittest.TestCase):
         self.assertIsNotNone(frame)
         localization = localizer.localize(frame)
         diagnostics = {}
-        binding = bind_visible_building(frame, localization, target, diagnostics=diagnostics)
+        binding = bind_visible_building(frame, localization, target, home_is_clean=lambda _frame: True, diagnostics=diagnostics)
         self.assertIsNotNone(binding)
         assert binding is not None
         self.assertEqual(binding.building_id, target.semantic_id)
@@ -322,7 +330,7 @@ class MinimalPanPlannerTests(unittest.TestCase):
                 self.assertIsNotNone(frame)
                 localization = localizer.localize(frame)
                 diagnostics = {}
-                binding = bind_visible_building(frame, localization, target, diagnostics=diagnostics)
+                binding = bind_visible_building(frame, localization, target, home_is_clean=lambda _frame: True, diagnostics=diagnostics)
                 self.assertIsNotNone(binding)
                 assert binding is not None
                 self.assertEqual(binding.building_id, target.semantic_id)
@@ -341,7 +349,7 @@ class MinimalPanPlannerTests(unittest.TestCase):
         for semantic_id in ("home.building.bank", "home.building.fighter_camp", "home.building.noahs_tavern"):
             with self.subTest(semantic_id=semantic_id):
                 diagnostics = {}
-                binding = bind_visible_building(frame, localization, world.lookup_building(semantic_id), diagnostics=diagnostics)
+                binding = bind_visible_building(frame, localization, world.lookup_building(semantic_id), home_is_clean=lambda _frame: True, diagnostics=diagnostics)
                 self.assertIsNotNone(binding)
                 assert binding is not None
                 self.assertEqual(binding.building_id, semantic_id)
@@ -353,14 +361,14 @@ class MinimalPanPlannerTests(unittest.TestCase):
         frame = np.zeros((1280, 800, 3), np.uint8)
         loc = replace(localization(), frame_sha256=frame_digest(frame))
         target = building()
-        self.assertIsNone(bind_visible_building(frame, replace(loc, stale=True), target))
-        self.assertIsNone(bind_visible_building(frame, replace(loc, ambiguity_state=AmbiguityState.CONFLICTING_TRANSFORMS), target))
-        self.assertIsNone(bind_visible_building(frame, replace(loc, profile_id="wrong-profile"), target))
-        self.assertIsNone(bind_visible_building(frame, replace(loc, confidence=0.2), target))
-        self.assertIsNone(bind_visible_building(frame, replace(loc, residual_px=float("nan")), target))
-        self.assertIsNone(bind_visible_building(frame, replace(loc, zoom_identity=ZoomIdentity.ZOOMED_IN), target))
-        self.assertIsNone(bind_visible_building(frame, replace(loc, overlay=True), target))
-        self.assertIsNone(bind_visible_building(frame, replace(loc, frame_sha256="b" * 64), target))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, stale=True), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, ambiguity_state=AmbiguityState.CONFLICTING_TRANSFORMS), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, profile_id="wrong-profile"), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, confidence=0.2), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, residual_px=float("nan")), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, zoom_identity=ZoomIdentity.ZOOMED_IN), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, overlay=True), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, frame_sha256="b" * 64), target, home_is_clean=lambda _frame: True))
 
     def test_project_owned_route_dry_run_issues_no_input(self):
         class Runtime:
@@ -432,7 +440,7 @@ class MinimalPanPlannerTests(unittest.TestCase):
                 "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer", return_value=fake_localizer
             ), patch("scripts.home_atlas_bluestacks.connect_runtime", return_value=runtime), patch(
                 "scripts.home_atlas_bluestacks.bind_visible_building",
-                side_effect=lambda frame, localization_arg, building_arg: replace(
+                side_effect=lambda frame, localization_arg, building_arg, *, home_is_clean: replace(
                     binding, frame_sha256=localization_arg.frame_sha256
                 ),
             ):
