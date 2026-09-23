@@ -1420,7 +1420,7 @@
           "displayed_row_index": 4,
           "skill_name": "Troop Size",
           "skill_category": "Economy",
-          "headline_effect_text": "Troop Size +1250",
+          "headline_effect_text": "Troop Size +12500",
           "effect_target": "Troop",
           "effect_stat": "Size",
           "passive": null,
@@ -1888,7 +1888,8 @@
     "source": "Puzzles & Survival Windows client; Heroes > Hero / Not Obtained > Troop Skill",
     "tactical_skill_scope": "Tactical Skill is shown in overview screenshots but its detail panel was skipped per user direction. Troop-skill counts exclude Tactical Skill.",
     "visual_qa": "GPT-6 Luna visually checked the titles, categories, headlines, progression values, and activation text across all 42 skill rows for the 14 heroes. Beepboop table abbreviations (M for minutes and K for thousands of troops) were clear in the source screenshots and are represented as raw values with units in the CSV.",
-    "roster_correction": "The initial owned-roster scan was incomplete. Scrolling through the full owned list revealed all five targets previously marked missing; coverage and counts reflect the complete scan."
+    "roster_correction": "The initial owned-roster scan was incomplete. Scrolling through the full owned list revealed all five targets previously marked missing; coverage and counts reflect the complete scan.",
+    "user_clarification": "User clarified that Beepboop No.7 Troop Size headline reads +12500, matching the 12.5K value in the +5 chart row. The prior +1250 transcription was corrected."
   },
   "screenshot_inventory": [
     {
