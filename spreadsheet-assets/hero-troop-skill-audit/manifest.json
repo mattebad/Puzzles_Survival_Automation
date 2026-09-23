@@ -1889,7 +1889,7 @@
     "tactical_skill_scope": "Tactical Skill is shown in overview screenshots but its detail panel was skipped per user direction. Troop-skill counts exclude Tactical Skill.",
     "visual_qa": "GPT-6 Luna visually checked the titles, categories, headlines, progression values, and activation text across all 42 skill rows for the 14 heroes. Beepboop table abbreviations (M for minutes and K for thousands of troops) were clear in the source screenshots and are represented as raw values with units in the CSV.",
     "roster_correction": "The initial owned-roster scan was incomplete. Scrolling through the full owned list revealed all five targets previously marked missing; coverage and counts reflect the complete scan.",
-    "user_clarification": "User clarified that Beepboop No.7 Troop Size headline reads +12500, matching the 12.5K value in the +5 chart row. The prior +1250 transcription was corrected."
+    "user_clarification": "Per user clarification, Beepboop No.7 Troop Size headline is +12500 (12.5K), matching the value shown for Beepboop at +5."
   },
   "screenshot_inventory": [
     {

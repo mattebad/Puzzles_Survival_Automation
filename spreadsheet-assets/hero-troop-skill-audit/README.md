@@ -13,7 +13,7 @@ Read-only capture of troop-skill panels in the Puzzles & Survival Windows client
 
 All 14 targets were found and captured: six in the owned Hero list and eight in Not Obtained. Each target has three non-Tactical skill rows, for 42 skill records. The five heroes initially reported missing (509 Patty Potts, 527 Mr. Crosshair, 557 BeepBoop No.7, 558 Morgan Strange, and 566 Luna) were in lower rows of the owned roster; the earlier roster scan had not gone far enough. Their screenshots and roster evidence are included.
 
-Beepboop No.7 has three Economy entries: Build Speed, Free Research Speedup, and Troop Size. No explicit `(Passive)` label appears on these panels, so `passive` is null in the manifest and blank in the CSV. Displayed units and numbers are transcribed as shown; no game meaning is inferred from the visual labels. The user clarified that the Troop Size headline reads +12500, matching 12.5K at +5 in the progression table; the earlier +1250 transcription has been corrected.
+Beepboop No.7 has three Economy entries: Build Speed, Free Research Speedup, and Troop Size. No explicit `(Passive)` label appears on these panels, so `passive` is null in the manifest and blank in the CSV. Displayed units and numbers are transcribed as shown; no game meaning is inferred from the visual labels. Per user clarification, the Troop Size headline is +12500 (12.5K), matching the value shown for Beepboop at +5.
 
 ## Files
 
