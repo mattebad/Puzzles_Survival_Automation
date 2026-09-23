@@ -13922,6 +13922,134 @@
     ],
     "note": "Other successful candidate images were not promoted because no confident card correspondence was established."
   },
+  "skill_effect_tracking_assessment": {
+    "spreadsheet_id": "1Ra1fAhZspm3zhiCgyj7LSLeQyVkCGPYacvikK341jc8",
+    "sheet": "Heroes",
+    "inspection_ranges": [
+      "A1:DF5",
+      "A42:DF42"
+    ],
+    "readable_per_skill_effect_descriptions_found": false,
+    "notes": "The inspected Heroes tab has classification and coded progression/build fields but no readable troop, tactical, passive, Sanctuary, or economy effect descriptions. Other workbook tabs were not comprehensively searched for a separate effect catalog.",
+    "google_sheets_modified": false
+  },
+  "user_provided_clarifications": [
+    {
+      "topic": "active_march_flag",
+      "status": "user_provided",
+      "statement": "The blue flag means the stats apply to the active march while the hero is active.",
+      "examples": [
+        "Hanyu: Fighter ATK, Rider ATK, and Troop DEF"
+      ],
+      "related_icon_ids": [
+        "icon_129",
+        "icon_132"
+      ]
+    },
+    {
+      "topic": "lee_sanctuary_and_passive_effects",
+      "status": "user_provided",
+      "statement": "Lee increases Protected Resources and Reinforcement March Speed as Sanctuary stats, and Troop ATK as a passive increase.",
+      "related_hero_ids": [
+        542
+      ],
+      "related_icon_ids": [
+        "icon_062",
+        "icon_130"
+      ],
+      "visual_icon_mapping_confirmed": false
+    },
+    {
+      "topic": "zzz_glyph",
+      "status": "user_provided",
+      "statement": "Zzz means a passive-stat increase or an economy-stat increase.",
+      "related_icon_ids": [
+        "icon_111",
+        "icon_131"
+      ]
+    },
+    {
+      "topic": "right_grid_glyphs",
+      "status": "user_provided_with_tentative_items",
+      "interpretations": [
+        {
+          "icon_id": "icon_042",
+          "visual": "blue gun",
+          "interpretation": "ATK increase",
+          "certainty": "user stated"
+        },
+        {
+          "icon_id": "icon_037",
+          "visual": "red heart",
+          "interpretation": "HP increase",
+          "certainty": "user believes"
+        },
+        {
+          "icon_id": "icon_019",
+          "visual": "yellow shield",
+          "interpretation": "DEF increase",
+          "certainty": "user stated"
+        },
+        {
+          "icon_id": "icon_016",
+          "visual": "troop-looking tile",
+          "interpretation": "troop-stat type",
+          "certainty": "user stated"
+        },
+        {
+          "icon_id": "icon_029",
+          "visual": "arrow tile",
+          "interpretation": "free speedup increase",
+          "certainty": "user stated"
+        },
+        {
+          "icon_id": "icon_005",
+          "visual": "gold crossed-weapon tile",
+          "interpretation": "Fighter stats",
+          "certainty": "user stated"
+        },
+        {
+          "icon_id": "icon_001",
+          "visual": "red cross",
+          "interpretation": "no stat",
+          "certainty": "user assumes"
+        }
+      ]
+    },
+    {
+      "topic": "hero_specific_attributes_and_lee_tactical_x",
+      "status": "user_provided_with_unresolved_item",
+      "statement": "Stat attributes vary by hero. Lee's troop skill effects are Protected Resources increase, Reinforcement March Speed increase, and Troop ATK passive increase.",
+      "unresolved": "The user is unsure why Lee's tactical skill displays an X in game.",
+      "related_hero_ids": [
+        542
+      ]
+    },
+    {
+      "topic": "t9_troop_skill_counts",
+      "status": "user_provided",
+      "statement": "Some T9 heroes have four troop skills rather than three.",
+      "example": {
+        "hero_id": 510,
+        "hero": "Kajisha",
+        "skills": [
+          "Rider ATK",
+          "Shooter ATK",
+          "Troop DEF",
+          "Troop HP"
+        ]
+      },
+      "visual_row_mapping_confirmed": false
+    }
+  ],
+  "open_semantics_after_user_clarifications": [
+    "What, if anything, do the observed blue-flag counts encode beyond active-march applicability?",
+    "Are the Atropos center-field structure motif and Lee/Samuel right-grid structure tile both Sanctuary-related, or do they represent different mechanics?",
+    "Is the heart tile definitely HP, and does the red cross mean no stat?",
+    "What does the X on Lee's tactical skill mean?",
+    "Which upper-badge symbols identify Fighter, Rider, or Shooter versus hero-specific or tier-specific marks?",
+    "How do the five visible T9 grid rows map to the three- or four-skill sets reported by the user?"
+  ],
   "scope_confirmations": {
     "google_sheets_modified": false,
     "hero_icons_directory_modified": false,

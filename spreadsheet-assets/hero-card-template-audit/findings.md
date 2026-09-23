@@ -4,6 +4,7 @@
 
 - 74 usable legacy Column F `IMAGE()` formulas pointed to `files.secure.website`; 74/74 original PNG files were retrieved. Each file has a distinct SHA-256. There were no failed source URLs.
 - The Data workbook contains 74 joined rows for those cards. Color, Tier / Skill, Type, and workbook row values are in `manifest.json` alongside the raw HeroIcons formula and URL.
+- A read-only follow-up of the `Heroes` tab header area and Lee's row found classification and coded progression/build fields, but no readable per-skill effect descriptions. Other workbook tabs were not comprehensively searched for a separate effect catalog; this inspection made no sheet changes.
 - Card canvases split into two native sizes: 71 cards are 485×321, and all three T9 examples (501 Celine, 510 Kajisha, 519 Gerald) are 485×402. The T9 cards have five right-grid rows; all other extracted cards have four. Contact sheets preserve these native dimensions.
 - Across the combat cards, the center field visibly has two blue flag-like marks on T1–T2 cards, three on T3–T8 cards, and four on the three T9 examples. These counts describe pixels only; no game meaning is assigned.
 - The common card shell has a left portrait/name panel, an adjacent badge area, a patterned center field, and a right-side grid. The grid is two columns wide and has four or five rows according to the card dimensions above.
@@ -18,16 +19,26 @@
 - The corpus has two repeated structural shells: a combat-march shell and a passive/special shell. The manifest documents 19 visual/classification subgroups beneath those shells. Some one-card subgroups are kept separate because the evidence does not support combining their grid recipes.
 - `Tr Stats` and `TROOP SIZE` labels align with repeated visual recipes, but the tile images alone do not prove the exact game effects encoded by each glyph.
 - Standalone source filenames are useful clues (`type-fighter`, `gray-healing`, `gray-passive-icon`, and similar), but they do not independently establish gameplay semantics. The manifest keeps those associations as high or medium confidence rather than confirmed facts.
-- The Zzz-like marks are likely associated with passive/special cards because they recur in those cards and a standalone `gray-passive-icon.png` exists. Whether they mean passive, sleeping, inactive, or another game state remains unverified.
+- The Zzz-like marks recur on passive/special cards and a standalone `gray-passive-icon.png` exists. Their meaning is clarified by the user below; this meaning is not established by a workbook label.
+
+## User-provided clarifications
+
+These interpretations were supplied by the user after reviewing the linked pictures. They are recorded as user-provided gameplay context, not as claims independently established by the workbook or image filenames.
+
+- The blue flag means the stats apply to the active march while the hero is active. The user cites Hanyu's Fighter ATK, Rider ATK, and Troop DEF as examples.
+- For Lee (542), the user identifies Protected Resources and Reinforcement March Speed increases as Sanctuary stats, and Troop ATK as a passive increase. The user describes Lee's troop skill card as showing those effects. This clarifies the effect categories, but does not by itself prove that the pictured structure-like motifs are Sanctuary icons.
+- Zzz means a passive-stat increase or an economy-stat increase.
+- The user identifies the blue gun as ATK, the shield as DEF, the arrow as free speedups, the gold crossed-weapon tile as Fighter stats, and the troop-looking tile as a troop-stat type. The user believes the heart tile means HP and assumes the red cross means no stat; those last two remain tentative.
+- Hero stat attributes vary by hero. The user says Lee's tactical skill displays an X in game but is unsure what the X means.
+- Some T9 heroes have four troop skills rather than three. For Kajisha, the user lists Rider ATK, Shooter ATK, Troop DEF, and Troop HP. This does not establish a one-to-one mapping between the five visible right-grid rows and skill count.
 
 ## Needs user confirmation
 
-1. What do the blue flag-like center marks represent, and what do their observed counts (2, 3, or 4) encode, if anything?
-2. Are the isometric structure/base-like images sanctuary-related? If so, do the center-field Atropos motif and the Lee/Samuel right-grid tile refer to the same mechanic or different variants?
-3. What is the precise gameplay meaning of the Zzz-like badge and repeated center-field Zzz pattern?
-4. Do the blue pistol-like, red heart, yellow shield, troop, arrow, and crossed-weapon tiles specifically mean ATK, HP, DEF, troop size, or another effect? Their visual resemblance and source filenames do not settle this.
-5. Why do heroes with the same `Tr Stats` classification have different grid recipes, including Lee's structure tile? Are these hero-specific stats, conditional/passive variants, or another distinction?
-6. Is the T9 fifth grid row a meaningful additional attribute row, or a separate card-layout variant? The fifth row is visually confirmed; its gameplay purpose is not.
-7. Which upper-badge symbols are authoritative Fighter/Rider/Shooter markers versus hero-specific or tier-specific marks? The three supplied T9 examples have distinct visible tile recipes, but the workbook does not label those glyphs.
+1. What, if anything, do the observed blue-flag counts (2, 3, or 4) encode beyond the user's clarification that the flag marks active-march applicability?
+2. Are the center-field Atropos structure motif and the Lee/Samuel right-grid structure tile both Sanctuary-related, or do they represent different mechanics?
+3. The heart-as-HP interpretation remains tentative, and the red-cross-as-no-stat interpretation is an assumption. Can either be established from the game?
+4. What does the X on Lee's tactical skill mean?
+5. Which upper-badge symbols are authoritative Fighter/Rider/Shooter markers versus hero-specific or tier-specific marks?
+6. How does the five-row T9 card grid represent the three- or four-skill sets reported by the user? The card pixels and user clarification establish the layouts and skill counts separately, but not their exact row-to-skill mapping.
 
 No newer Column F template was designed or generated as part of this corpus.

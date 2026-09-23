@@ -5,7 +5,7 @@ This directory contains original Column F hero card images and lossless visual e
 ## Sources
 
 - **Copy of Icon Links** — workbook `1DLY7kfoEnVjmP9fMgaL1J5b64prJ4bAklBnEzAjAJcw`, tab `HeroIcons`, read-only range `C1:G105`. Each legacy card URL was taken from the `IMAGE()` formula in column F.
-- **Data workbook** — workbook `1Ra1fAhZspm3zhiCgyj7LSLeQyVkCGPYacvikK341jc8`, tab `Heroes`, read-only range `A1:E107`. Metadata was joined by hero ID.
+- **Data workbook** — workbook `1Ra1fAhZspm3zhiCgyj7LSLeQyVkCGPYacvikK341jc8`, tab `Heroes`, read-only range `A1:E107` for metadata joins. A follow-up read-only header/context check covered `A1:DF5` and Lee's row 42.
 - A subset of standalone icon candidates was read from the `Icons` tab in the first workbook. Their source cells and original URLs are in `manifest.json`.
 
 ## Extraction method
@@ -31,6 +31,8 @@ To reproduce the download, take each `original_url` in `manifest.json`, request 
 All 74 original legacy card URLs in scope downloaded successfully; none failed. Every retrieved card is a unique byte sequence. Seventy-one originals are 485×321; the three T9 cards (501 Celine, 510 Kajisha, 519 Gerald) are 485×402. No asset was missing from this original-host scope. Candidate standalone icon downloads used for comparison also succeeded; candidates without a confident card correspondence were not added to `icons/`.
 
 GitHub-referenced/generated Column F images were excluded from this legacy source set. Existing portrait assets under `spreadsheet-assets/hero-icons/` were not changed. No Google Sheet was modified.
+
+The follow-up check of the `Heroes` tab found classifications and coded progression/build fields, but no readable per-skill effect descriptions for troop, tactical, passive, Sanctuary, or economy effects. Other workbook tabs were not comprehensively searched for a separate effect catalog.
 
 ## Verification
 
