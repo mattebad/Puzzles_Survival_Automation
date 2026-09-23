@@ -13982,7 +13982,7 @@
           "icon_id": "icon_037",
           "visual": "red heart",
           "interpretation": "HP increase",
-          "certainty": "user believes"
+          "certainty": "user confirmed"
         },
         {
           "icon_id": "icon_019",
@@ -14011,16 +14011,16 @@
         {
           "icon_id": "icon_001",
           "visual": "red cross",
-          "interpretation": "no stat",
-          "certainty": "user assumes"
+          "interpretation": "ambiguous mark appearing on tactical-skill displays",
+          "certainty": "user explicitly unsure; previous no-stat guess is not confirmed"
         }
       ]
     },
     {
       "topic": "hero_specific_attributes_and_lee_tactical_x",
       "status": "user_provided_with_unresolved_item",
-      "statement": "Stat attributes vary by hero. Lee's troop skill effects are Protected Resources increase, Reinforcement March Speed increase, and Troop ATK passive increase.",
-      "unresolved": "The user is unsure why Lee's tactical skill displays an X in game.",
+      "statement": "Stat attributes vary by hero. Lee's troop skill effects are Protected Resources increase, Reinforcement March Speed increase, and Troop ATK passive increase. All heroes have tactical skills.",
+      "unresolved": "A red-cross/X mark appears on Lee's and other heroes' tactical-skill displays; its meaning is unknown and does not indicate that the hero lacks a tactical skill.",
       "related_hero_ids": [
         542
       ]
@@ -14045,8 +14045,7 @@
   "open_semantics_after_user_clarifications": [
     "What, if anything, do the observed blue-flag counts encode beyond active-march applicability?",
     "Are the Atropos center-field structure motif and Lee/Samuel right-grid structure tile both Sanctuary-related, or do they represent different mechanics?",
-    "Is the heart tile definitely HP, and does the red cross mean no stat?",
-    "What does the X on Lee's tactical skill mean?",
+    "What does the red-cross/X mark on tactical-skill displays mean? The user says all heroes have tactical skills and does not know why the mark appears.",
     "Which upper-badge symbols identify Fighter, Rider, or Shooter versus hero-specific or tier-specific marks?",
     "How do the five visible T9 grid rows map to the three- or four-skill sets reported by the user?"
   ],

@@ -28,17 +28,16 @@ These interpretations were supplied by the user after reviewing the linked pictu
 - The blue flag means the stats apply to the active march while the hero is active. The user cites Hanyu's Fighter ATK, Rider ATK, and Troop DEF as examples.
 - For Lee (542), the user identifies Protected Resources and Reinforcement March Speed increases as Sanctuary stats, and Troop ATK as a passive increase. The user describes Lee's troop skill card as showing those effects. This clarifies the effect categories, but does not by itself prove that the pictured structure-like motifs are Sanctuary icons.
 - Zzz means a passive-stat increase or an economy-stat increase.
-- The user identifies the blue gun as ATK, the shield as DEF, the arrow as free speedups, the gold crossed-weapon tile as Fighter stats, and the troop-looking tile as a troop-stat type. The user believes the heart tile means HP and assumes the red cross means no stat; those last two remain tentative.
-- Hero stat attributes vary by hero. The user says Lee's tactical skill displays an X in game but is unsure what the X means.
+- The user identifies the blue gun as ATK, the shield as DEF, the arrow as free speedups, the gold crossed-weapon tile as Fighter stats, and the troop-looking tile as a troop-stat type. The user confirms the heart tile means HP. The red-cross/X mark remains ambiguous.
+- Hero stat attributes vary by hero. All heroes have tactical skills. The user sees a red-cross/X mark on Lee's and other heroes' tactical-skill displays but does not know what it means; it should not be interpreted as a missing tactical skill.
 - Some T9 heroes have four troop skills rather than three. For Kajisha, the user lists Rider ATK, Shooter ATK, Troop DEF, and Troop HP. This does not establish a one-to-one mapping between the five visible right-grid rows and skill count.
 
 ## Needs user confirmation
 
 1. What, if anything, do the observed blue-flag counts (2, 3, or 4) encode beyond the user's clarification that the flag marks active-march applicability?
 2. Are the center-field Atropos structure motif and the Lee/Samuel right-grid structure tile both Sanctuary-related, or do they represent different mechanics?
-3. The heart-as-HP interpretation remains tentative, and the red-cross-as-no-stat interpretation is an assumption. Can either be established from the game?
-4. What does the X on Lee's tactical skill mean?
-5. Which upper-badge symbols are authoritative Fighter/Rider/Shooter markers versus hero-specific or tier-specific marks?
-6. How does the five-row T9 card grid represent the three- or four-skill sets reported by the user? The card pixels and user clarification establish the layouts and skill counts separately, but not their exact row-to-skill mapping.
+3. What does the red-cross/X mark on tactical-skill displays mean? The user says all heroes have tactical skills and does not know why the mark appears.
+4. Which upper-badge symbols are authoritative Fighter/Rider/Shooter markers versus hero-specific or tier-specific marks?
+5. How does the five-row T9 card grid represent the three- or four-skill sets reported by the user? The card pixels and user clarification establish the layouts and skill counts separately, but not their exact row-to-skill mapping.
 
 No newer Column F template was designed or generated as part of this corpus.
