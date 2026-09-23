@@ -13938,6 +13938,7 @@
       "topic": "active_march_flag",
       "status": "user_provided",
       "statement": "The blue flag means the stats apply to the active march while the hero is active.",
+      "count_has_additional_meaning": false,
       "examples": [
         "Hanyu: Fighter ATK, Rider ATK, and Troop DEF"
       ],
@@ -13949,7 +13950,7 @@
     {
       "topic": "lee_sanctuary_and_passive_effects",
       "status": "user_provided",
-      "statement": "Lee increases Protected Resources and Reinforcement March Speed as Sanctuary stats, and Troop ATK as a passive increase.",
+      "statement": "The structure icons themselves indicate Sanctuary. The Atropos center-field and Lee/Samuel right-grid versions map to different troop skills. Lee increases Protected Resources and Reinforcement March Speed as Sanctuary stats, and Troop ATK as a passive increase.",
       "related_hero_ids": [
         542
       ],
@@ -13957,7 +13958,8 @@
         "icon_062",
         "icon_130"
       ],
-      "visual_icon_mapping_confirmed": false
+      "visual_icon_mapping_confirmed": true,
+      "specific_skill_mapping_details_provided": false
     },
     {
       "topic": "zzz_glyph",
@@ -14011,8 +14013,8 @@
         {
           "icon_id": "icon_001",
           "visual": "red cross",
-          "interpretation": "ambiguous mark appearing on tactical-skill displays",
-          "certainty": "user explicitly unsure; previous no-stat guess is not confirmed"
+          "interpretation": "no in-game meaning; creator intent unknown",
+          "certainty": "user confirmed no gameplay meaning"
         }
       ]
     },
@@ -14020,7 +14022,8 @@
       "topic": "hero_specific_attributes_and_lee_tactical_x",
       "status": "user_provided_with_unresolved_item",
       "statement": "Stat attributes vary by hero. Lee's troop skill effects are Protected Resources increase, Reinforcement March Speed increase, and Troop ATK passive increase. All heroes have tactical skills.",
-      "unresolved": "A red-cross/X mark appears on Lee's and other heroes' tactical-skill displays; its meaning is unknown and does not indicate that the hero lacks a tactical skill.",
+      "statement_about_tactical_skills": "All heroes have tactical skills. The red-cross/X mark appears on Lee's and other heroes' tactical-skill displays but does not indicate a missing skill.",
+      "unresolved": "The creator's intent for the red-cross/X artwork is unknown; the user confirms it has no in-game meaning.",
       "related_hero_ids": [
         542
       ]
@@ -14042,13 +14045,12 @@
       "visual_row_mapping_confirmed": false
     }
   ],
-  "open_semantics_after_user_clarifications": [
-    "What, if anything, do the observed blue-flag counts encode beyond active-march applicability?",
-    "Are the Atropos center-field structure motif and Lee/Samuel right-grid structure tile both Sanctuary-related, or do they represent different mechanics?",
-    "What does the red-cross/X mark on tactical-skill displays mean? The user says all heroes have tactical skills and does not know why the mark appears.",
-    "Which upper-badge symbols identify Fighter, Rider, or Shooter versus hero-specific or tier-specific marks?",
-    "How do the five visible T9 grid rows map to the three- or four-skill sets reported by the user?"
+  "open_semantics_after_user_clarifications": [],
+  "nonblocking_unknowns_after_user_clarifications": [
+    "The creator's intent for the red-cross/X artwork is unknown, although the user confirms it has no in-game meaning.",
+    "The exact mapping between the five visible T9 grid rows and the reported three- or four-skill sets is unresolved; the user does not know this mapping."
   ],
+  "current_follow_up_focus": "New heroes; no further clarification of legacy semantics is required for the current focus.",
   "scope_confirmations": {
     "google_sheets_modified": false,
     "hero_icons_directory_modified": false,
