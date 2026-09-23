@@ -1,0 +1,15 @@
+hero_id,expected_name,displayed_name,ownership_state,source_list,found,troop_skill_count,skills_captured,complete,notes
+509,Patty Potts,,,,false,,0,false,Not listed in either Hero or Not Obtained roster after one careful re-scan with filters set to All.
+518,Zane Reeves,Zane Reeves,owned,Hero,true,3,3,true,Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.
+527,Mr. Crosshair,,,,false,,0,false,Not listed in either Hero or Not Obtained roster after one careful re-scan with filters set to All.
+556,Optimus Prime / Victor,Victor,unowned,Not Obtained,true,3,3,true,Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.
+557,BeepBoop No.7 / Don Don,,,,false,,0,false,Not listed in either Hero or Not Obtained roster after one careful re-scan with filters set to All.
+558,Bumblebee / Morgan Strange,,,,false,,0,false,Not listed in either Hero or Not Obtained roster after one careful re-scan with filters set to All.
+559,Alexander,Alexander,unowned,Not Obtained,true,3,3,true,Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.
+560,Lilian,Lilian,unowned,Not Obtained,true,3,3,true,Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.
+561,Starscream / Kang Si-Yeon,Kang Si-yeon,unowned,Not Obtained,true,3,3,true,Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.
+562,Megatron / Grigory Voronov,Grigory Voronov,unowned,Not Obtained,true,3,3,true,Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.
+563,Kyra Rodriguez,Kyra Rodriguez,unowned,Not Obtained,true,3,3,true,Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.
+564,Chiyo Momiji,Chiyo Momiji,unowned,Not Obtained,true,3,3,true,Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.
+565,Arthur Montbatten,Arthur Montbatten,unowned,Not Obtained,true,3,3,true,Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.
+566,Luna,,,,false,,0,false,Not listed in either Hero or Not Obtained roster after one careful re-scan with filters set to All.

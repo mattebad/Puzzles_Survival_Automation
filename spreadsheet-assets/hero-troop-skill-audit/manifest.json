@@ -1,0 +1,1561 @@
+{
+  "schema_version": 1,
+  "source": "Puzzles & Survival Windows client; Heroes > Hero / Not Obtained > Troop Skill",
+  "scope_note": "Tactical Skill row is excluded from troop skill detail capture per user direction; overview screenshots retain the full visible list.",
+  "heroes": [
+    {
+      "hero_id": 518,
+      "hero_name_expected": "Zane Reeves",
+      "hero_name_displayed": "Zane Reeves",
+      "ownership_state": "owned",
+      "source_list": "Hero",
+      "troop_skill_count": 3,
+      "displayed_troop_skill_row_count": 4,
+      "excluded_rows": [
+        "Tactical Skill — omitted per user direction"
+      ],
+      "overview_screenshot": "screenshots/518_zane_reeves/overview.png",
+      "skills": [
+        {
+          "skill_index": 1,
+          "displayed_row_index": 2,
+          "skill_name": "Rider HP",
+          "skill_category": "Military",
+          "headline_effect_text": "Rider HP +240%",
+          "effect_target": "Rider",
+          "effect_stat": "HP",
+          "passive": false,
+          "activation_text": "Takes effect when the hero joins rally battle.",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 63,
+              "+3": 93,
+              "+4": 123,
+              "+5": 192,
+              "+6": 240,
+              "+7": 360,
+              "+8": 600
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 240,
+              "+6": 300,
+              "+7": 450,
+              "+8": 750
+            }
+          },
+          "screenshot": "screenshots/518_zane_reeves/skill_01.png"
+        },
+        {
+          "skill_index": 2,
+          "displayed_row_index": 3,
+          "skill_name": "Rider DEF",
+          "skill_category": "Military",
+          "headline_effect_text": "Rider DEF +240%",
+          "effect_target": "Rider",
+          "effect_stat": "DEF",
+          "passive": false,
+          "activation_text": "Takes effect when the hero joins rally battle.",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 63,
+              "+3": 93,
+              "+4": 123,
+              "+5": 192,
+              "+6": 240,
+              "+7": 360,
+              "+8": 600
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 240,
+              "+6": 300,
+              "+7": 450,
+              "+8": 750
+            }
+          },
+          "screenshot": "screenshots/518_zane_reeves/skill_02.png"
+        },
+        {
+          "skill_index": 3,
+          "displayed_row_index": 4,
+          "skill_name": "Rider ATK",
+          "skill_category": "Military",
+          "headline_effect_text": "Rider ATK +240%",
+          "effect_target": "Rider",
+          "effect_stat": "ATK",
+          "passive": false,
+          "activation_text": "Takes effect when the hero joins rally battle.",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 63,
+              "+3": 93,
+              "+4": 123,
+              "+5": 192,
+              "+6": 240,
+              "+7": 360,
+              "+8": 600
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 240,
+              "+6": 300,
+              "+7": 450,
+              "+8": 750
+            }
+          },
+          "screenshot": "screenshots/518_zane_reeves/skill_03.png"
+        }
+      ],
+      "found": true,
+      "skills_captured": 3,
+      "complete": true
+    },
+    {
+      "hero_id": 556,
+      "hero_name_expected": "Optimus Prime / Victor",
+      "hero_name_displayed": "Victor",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "troop_skill_count": 3,
+      "displayed_troop_skill_row_count": 4,
+      "excluded_rows": [
+        "Tactical Skill — omitted per user direction"
+      ],
+      "overview_screenshot": "screenshots/556_victor/overview.png",
+      "skills": [
+        {
+          "skill_index": 1,
+          "displayed_row_index": 2,
+          "skill_name": "Troop HP (Passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop HP +250%",
+          "effect_target": "Troop",
+          "effect_stat": "HP",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/556_victor/skill_01.png"
+        },
+        {
+          "skill_index": 2,
+          "displayed_row_index": 3,
+          "skill_name": "Troop DEF (passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop DEF +250%",
+          "effect_target": "Troop",
+          "effect_stat": "DEF",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.(Lv.3 required)",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/556_victor/skill_02.png"
+        },
+        {
+          "skill_index": 3,
+          "displayed_row_index": 4,
+          "skill_name": "Troop ATK (passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop ATK +250%",
+          "effect_target": "Troop",
+          "effect_stat": "ATK",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.(Lv.13 required)",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/556_victor/skill_03.png"
+        }
+      ],
+      "found": true,
+      "skills_captured": 3,
+      "complete": true
+    },
+    {
+      "hero_id": 559,
+      "hero_name_expected": "Alexander",
+      "hero_name_displayed": "Alexander",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "troop_skill_count": 3,
+      "displayed_troop_skill_row_count": 4,
+      "excluded_rows": [
+        "Tactical Skill — omitted per user direction"
+      ],
+      "overview_screenshot": "screenshots/559_alexander/overview.png",
+      "skills": [
+        {
+          "skill_index": 1,
+          "displayed_row_index": 2,
+          "skill_name": "Troop HP (Passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop HP +250%",
+          "effect_target": "Troop",
+          "effect_stat": "HP",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/559_alexander/skill_01.png"
+        },
+        {
+          "skill_index": 2,
+          "displayed_row_index": 3,
+          "skill_name": "Troop DEF (passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop DEF +250%",
+          "effect_target": "Troop",
+          "effect_stat": "DEF",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.(Lv.3 required)",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/559_alexander/skill_02.png"
+        },
+        {
+          "skill_index": 3,
+          "displayed_row_index": 4,
+          "skill_name": "Troop ATK (passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop ATK +250%",
+          "effect_target": "Troop",
+          "effect_stat": "ATK",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.(Lv.13 required)",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/559_alexander/skill_03.png"
+        }
+      ],
+      "found": true,
+      "skills_captured": 3,
+      "complete": true
+    },
+    {
+      "hero_id": 560,
+      "hero_name_expected": "Lilian",
+      "hero_name_displayed": "Lilian",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "troop_skill_count": 3,
+      "displayed_troop_skill_row_count": 4,
+      "excluded_rows": [
+        "Tactical Skill — omitted per user direction"
+      ],
+      "overview_screenshot": "screenshots/560_lilian/overview.png",
+      "skills": [
+        {
+          "skill_index": 1,
+          "displayed_row_index": 2,
+          "skill_name": "Troop HP (Passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop HP +250%",
+          "effect_target": "Troop",
+          "effect_stat": "HP",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/560_lilian/skill_01.png"
+        },
+        {
+          "skill_index": 2,
+          "displayed_row_index": 3,
+          "skill_name": "Troop DEF (passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop DEF +250%",
+          "effect_target": "Troop",
+          "effect_stat": "DEF",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.(Lv.3 required)",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/560_lilian/skill_02.png"
+        },
+        {
+          "skill_index": 3,
+          "displayed_row_index": 4,
+          "skill_name": "Troop ATK (passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop ATK +250%",
+          "effect_target": "Troop",
+          "effect_stat": "ATK",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.(Lv.13 required)",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/560_lilian/skill_03.png"
+        }
+      ],
+      "found": true,
+      "skills_captured": 3,
+      "complete": true
+    },
+    {
+      "hero_id": 561,
+      "hero_name_expected": "Starscream / Kang Si-Yeon",
+      "hero_name_displayed": "Kang Si-yeon",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "troop_skill_count": 3,
+      "displayed_troop_skill_row_count": 4,
+      "excluded_rows": [
+        "Tactical Skill — omitted per user direction"
+      ],
+      "overview_screenshot": "screenshots/561_kang_si_yeon/overview.png",
+      "skills": [
+        {
+          "skill_index": 1,
+          "displayed_row_index": 2,
+          "skill_name": "Troop HP (Passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop HP +250%",
+          "effect_target": "Troop",
+          "effect_stat": "HP",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/561_kang_si_yeon/skill_01.png"
+        },
+        {
+          "skill_index": 2,
+          "displayed_row_index": 3,
+          "skill_name": "Troop DEF (passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop DEF +250%",
+          "effect_target": "Troop",
+          "effect_stat": "DEF",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.(Lv.3 required)",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/561_kang_si_yeon/skill_02.png"
+        },
+        {
+          "skill_index": 3,
+          "displayed_row_index": 4,
+          "skill_name": "Troop ATK (passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop ATK +250%",
+          "effect_target": "Troop",
+          "effect_stat": "ATK",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.(Lv.13 required)",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/561_kang_si_yeon/skill_03.png"
+        }
+      ],
+      "found": true,
+      "skills_captured": 3,
+      "complete": true
+    },
+    {
+      "hero_id": 562,
+      "hero_name_expected": "Megatron / Grigory Voronov",
+      "hero_name_displayed": "Grigory Voronov",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "troop_skill_count": 3,
+      "displayed_troop_skill_row_count": 4,
+      "excluded_rows": [
+        "Tactical Skill — omitted per user direction"
+      ],
+      "overview_screenshot": "screenshots/562_grigory_voronov/overview.png",
+      "skills": [
+        {
+          "skill_index": 1,
+          "displayed_row_index": 2,
+          "skill_name": "Troop HP (Passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop HP +250%",
+          "effect_target": "Troop",
+          "effect_stat": "HP",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/562_grigory_voronov/skill_01.png"
+        },
+        {
+          "skill_index": 2,
+          "displayed_row_index": 3,
+          "skill_name": "Troop DEF (passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop DEF +250%",
+          "effect_target": "Troop",
+          "effect_stat": "DEF",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.(Lv.3 required)",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/562_grigory_voronov/skill_02.png"
+        },
+        {
+          "skill_index": 3,
+          "displayed_row_index": 4,
+          "skill_name": "Troop ATK (passive)",
+          "skill_category": "Economy",
+          "headline_effect_text": "Troop ATK +250%",
+          "effect_target": "Troop",
+          "effect_stat": "ATK",
+          "passive": true,
+          "activation_text": "Own the hero to activate this effect.(Lv.13 required)",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 21,
+              "+3": 31,
+              "+4": 41,
+              "+5": 64,
+              "+6": 82,
+              "+7": 120,
+              "+8": 200
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 80,
+              "+6": 102.5,
+              "+7": 150,
+              "+8": 250
+            }
+          },
+          "screenshot": "screenshots/562_grigory_voronov/skill_03.png"
+        }
+      ],
+      "found": true,
+      "skills_captured": 3,
+      "complete": true
+    },
+    {
+      "hero_id": 563,
+      "hero_name_expected": "Kyra Rodriguez",
+      "hero_name_displayed": "Kyra Rodriguez",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "found": true,
+      "troop_skill_count": 3,
+      "skills_captured": 3,
+      "displayed_troop_skill_row_count": 4,
+      "excluded_rows": [
+        "Tactical Skill — omitted per user direction"
+      ],
+      "overview_screenshot": "screenshots/563_kyra_rodriguez/overview.png",
+      "complete": true,
+      "skills": [
+        {
+          "skill_index": 1,
+          "displayed_row_index": 2,
+          "skill_name": "Fighter HP",
+          "skill_category": "Military",
+          "headline_effect_text": "Fighter HP +750%",
+          "effect_target": "Fighter",
+          "effect_stat": "HP",
+          "passive": false,
+          "activation_text": "Takes effect when the hero joins rally battle.",
+          "activation_text_visual_confidence": "high",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 68,
+              "+3": 103,
+              "+4": 143,
+              "+5": 212,
+              "+6": 280,
+              "+7": 400,
+              "+8": 600
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 280,
+              "+6": 350,
+              "+7": 500,
+              "+8": 750
+            }
+          },
+          "screenshot": "screenshots/563_kyra_rodriguez/skill_01.png"
+        },
+        {
+          "skill_index": 2,
+          "displayed_row_index": 3,
+          "skill_name": "Fighter DEF",
+          "skill_category": "Military",
+          "headline_effect_text": "Fighter DEF +750%",
+          "effect_target": "Fighter",
+          "effect_stat": "DEF",
+          "passive": false,
+          "activation_text": "Takes effect when the hero joins rally battle.(Lv.3 required)",
+          "activation_text_visual_confidence": "high",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 68,
+              "+3": 103,
+              "+4": 143,
+              "+5": 212,
+              "+6": 280,
+              "+7": 400,
+              "+8": 600
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 280,
+              "+6": 350,
+              "+7": 500,
+              "+8": 750
+            }
+          },
+          "screenshot": "screenshots/563_kyra_rodriguez/skill_02.png"
+        },
+        {
+          "skill_index": 3,
+          "displayed_row_index": 4,
+          "skill_name": "Fighter ATK",
+          "skill_category": "Military",
+          "headline_effect_text": "Fighter ATK +750%",
+          "effect_target": "Fighter",
+          "effect_stat": "ATK",
+          "passive": false,
+          "activation_text": "Takes effect when the hero joins rally battle.(Lv.13 required)",
+          "activation_text_visual_confidence": "high",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 68,
+              "+3": 103,
+              "+4": 143,
+              "+5": 212,
+              "+6": 280,
+              "+7": 400,
+              "+8": 600
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 280,
+              "+6": 350,
+              "+7": 500,
+              "+8": 750
+            }
+          },
+          "screenshot": "screenshots/563_kyra_rodriguez/skill_03.png"
+        }
+      ]
+    },
+    {
+      "hero_id": 564,
+      "hero_name_expected": "Chiyo Momiji",
+      "hero_name_displayed": "Chiyo Momiji",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "found": true,
+      "troop_skill_count": 3,
+      "skills_captured": 3,
+      "displayed_troop_skill_row_count": 4,
+      "excluded_rows": [
+        "Tactical Skill — omitted per user direction"
+      ],
+      "overview_screenshot": "screenshots/564_chiyo_momiji/overview.png",
+      "complete": true,
+      "skills": [
+        {
+          "skill_index": 1,
+          "displayed_row_index": 2,
+          "skill_name": "Shooter HP",
+          "skill_category": "Military",
+          "headline_effect_text": "Shooter HP +750%",
+          "effect_target": "Shooter",
+          "effect_stat": "HP",
+          "passive": false,
+          "activation_text": "Takes effect when the hero joins rally battle.",
+          "activation_text_visual_confidence": "high",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 68,
+              "+3": 103,
+              "+4": 143,
+              "+5": 212,
+              "+6": 280,
+              "+7": 400,
+              "+8": 600
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 280,
+              "+6": 350,
+              "+7": 500,
+              "+8": 750
+            }
+          },
+          "screenshot": "screenshots/564_chiyo_momiji/skill_01.png"
+        },
+        {
+          "skill_index": 2,
+          "displayed_row_index": 3,
+          "skill_name": "Shooter DEF",
+          "skill_category": "Military",
+          "headline_effect_text": "Shooter DEF +750%",
+          "effect_target": "Shooter",
+          "effect_stat": "DEF",
+          "passive": false,
+          "activation_text": "Takes effect when the hero joins rally battle.(Lv.3 required)",
+          "activation_text_visual_confidence": "high",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 68,
+              "+3": 103,
+              "+4": 143,
+              "+5": 212,
+              "+6": 280,
+              "+7": 400,
+              "+8": 600
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 280,
+              "+6": 350,
+              "+7": 500,
+              "+8": 750
+            }
+          },
+          "screenshot": "screenshots/564_chiyo_momiji/skill_02.png"
+        },
+        {
+          "skill_index": 3,
+          "displayed_row_index": 4,
+          "skill_name": "Shooter ATK",
+          "skill_category": "Military",
+          "headline_effect_text": "Shooter ATK +750%",
+          "effect_target": "Shooter",
+          "effect_stat": "ATK",
+          "passive": false,
+          "activation_text": "Takes effect when the hero joins rally battle.(Lv.13 required)",
+          "activation_text_visual_confidence": "high",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 68,
+              "+3": 103,
+              "+4": 143,
+              "+5": 212,
+              "+6": 280,
+              "+7": 400,
+              "+8": 600
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 280,
+              "+6": 350,
+              "+7": 500,
+              "+8": 750
+            }
+          },
+          "screenshot": "screenshots/564_chiyo_momiji/skill_03.png"
+        }
+      ]
+    },
+    {
+      "hero_id": 565,
+      "hero_name_expected": "Arthur Montbatten",
+      "hero_name_displayed": "Arthur Montbatten",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "found": true,
+      "troop_skill_count": 3,
+      "skills_captured": 3,
+      "displayed_troop_skill_row_count": 4,
+      "excluded_rows": [
+        "Tactical Skill — omitted per user direction"
+      ],
+      "overview_screenshot": "screenshots/565_arthur_montbatten/overview.png",
+      "complete": true,
+      "skills": [
+        {
+          "skill_index": 1,
+          "displayed_row_index": 2,
+          "skill_name": "Rider HP",
+          "skill_category": "Military",
+          "headline_effect_text": "Rider HP +750%",
+          "effect_target": "Rider",
+          "effect_stat": "HP",
+          "passive": false,
+          "activation_text": "Takes effect when the hero joins rally battle.",
+          "activation_text_visual_confidence": "high",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 68,
+              "+3": 103,
+              "+4": 143,
+              "+5": 212,
+              "+6": 280,
+              "+7": 400,
+              "+8": 600
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 280,
+              "+6": 350,
+              "+7": 500,
+              "+8": 750
+            }
+          },
+          "screenshot": "screenshots/565_arthur_montbatten/skill_01.png"
+        },
+        {
+          "skill_index": 2,
+          "displayed_row_index": 3,
+          "skill_name": "Rider DEF",
+          "skill_category": "Military",
+          "headline_effect_text": "Rider DEF +750%",
+          "effect_target": "Rider",
+          "effect_stat": "DEF",
+          "passive": false,
+          "activation_text": "Takes effect when the hero joins rally battle.(Lv.3 required)",
+          "activation_text_visual_confidence": "high",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 68,
+              "+3": 103,
+              "+4": 143,
+              "+5": 212,
+              "+6": 280,
+              "+7": 400,
+              "+8": 600
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 280,
+              "+6": 350,
+              "+7": 500,
+              "+8": 750
+            }
+          },
+          "screenshot": "screenshots/565_arthur_montbatten/skill_02.png"
+        },
+        {
+          "skill_index": 3,
+          "displayed_row_index": 4,
+          "skill_name": "Rider ATK",
+          "skill_category": "Military",
+          "headline_effect_text": "Rider ATK +750%",
+          "effect_target": "Rider",
+          "effect_stat": "ATK",
+          "passive": false,
+          "activation_text": "Takes effect when the hero joins rally battle.(Lv.13 required)",
+          "activation_text_visual_confidence": "high",
+          "base_star_tier": 6,
+          "promoted_star_tier": 7,
+          "enhance_values": {
+            "6_star": {
+              "+2": 68,
+              "+3": 103,
+              "+4": 143,
+              "+5": 212,
+              "+6": 280,
+              "+7": 400,
+              "+8": 600
+            },
+            "7_star": {
+              "+2": null,
+              "+3": null,
+              "+4": null,
+              "+5": 280,
+              "+6": 350,
+              "+7": 500,
+              "+8": 750
+            }
+          },
+          "screenshot": "screenshots/565_arthur_montbatten/skill_03.png"
+        }
+      ]
+    }
+  ],
+  "target_coverage": [
+    {
+      "hero_id": 509,
+      "expected_name": "Patty Potts",
+      "displayed_name": null,
+      "ownership_state": null,
+      "source_list": null,
+      "found": false,
+      "troop_skill_count": null,
+      "skills_captured": 0,
+      "complete": false,
+      "notes": "Not listed in either Hero or Not Obtained roster after one careful re-scan with filters set to All."
+    },
+    {
+      "hero_id": 518,
+      "expected_name": "Zane Reeves",
+      "displayed_name": "Zane Reeves",
+      "ownership_state": "owned",
+      "source_list": "Hero",
+      "found": true,
+      "troop_skill_count": 3,
+      "notes": "Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.",
+      "skills_captured": 3,
+      "complete": true
+    },
+    {
+      "hero_id": 527,
+      "expected_name": "Mr. Crosshair",
+      "displayed_name": null,
+      "ownership_state": null,
+      "source_list": null,
+      "found": false,
+      "troop_skill_count": null,
+      "skills_captured": 0,
+      "complete": false,
+      "notes": "Not listed in either Hero or Not Obtained roster after one careful re-scan with filters set to All."
+    },
+    {
+      "hero_id": 556,
+      "expected_name": "Optimus Prime / Victor",
+      "displayed_name": "Victor",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "found": true,
+      "troop_skill_count": 3,
+      "notes": "Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.",
+      "skills_captured": 3,
+      "complete": true
+    },
+    {
+      "hero_id": 557,
+      "expected_name": "BeepBoop No.7 / Don Don",
+      "displayed_name": null,
+      "ownership_state": null,
+      "source_list": null,
+      "found": false,
+      "troop_skill_count": null,
+      "skills_captured": 0,
+      "complete": false,
+      "notes": "Not listed in either Hero or Not Obtained roster after one careful re-scan with filters set to All."
+    },
+    {
+      "hero_id": 558,
+      "expected_name": "Bumblebee / Morgan Strange",
+      "displayed_name": null,
+      "ownership_state": null,
+      "source_list": null,
+      "found": false,
+      "troop_skill_count": null,
+      "skills_captured": 0,
+      "complete": false,
+      "notes": "Not listed in either Hero or Not Obtained roster after one careful re-scan with filters set to All."
+    },
+    {
+      "hero_id": 559,
+      "expected_name": "Alexander",
+      "displayed_name": "Alexander",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "found": true,
+      "troop_skill_count": 3,
+      "notes": "Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.",
+      "skills_captured": 3,
+      "complete": true
+    },
+    {
+      "hero_id": 560,
+      "expected_name": "Lilian",
+      "displayed_name": "Lilian",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "found": true,
+      "troop_skill_count": 3,
+      "notes": "Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.",
+      "skills_captured": 3,
+      "complete": true
+    },
+    {
+      "hero_id": 561,
+      "expected_name": "Starscream / Kang Si-Yeon",
+      "displayed_name": "Kang Si-yeon",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "found": true,
+      "troop_skill_count": 3,
+      "notes": "Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.",
+      "skills_captured": 3,
+      "complete": true
+    },
+    {
+      "hero_id": 562,
+      "expected_name": "Megatron / Grigory Voronov",
+      "displayed_name": "Grigory Voronov",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "found": true,
+      "troop_skill_count": 3,
+      "notes": "Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows.",
+      "skills_captured": 3,
+      "complete": true
+    },
+    {
+      "hero_id": 563,
+      "expected_name": "Kyra Rodriguez",
+      "displayed_name": "Kyra Rodriguez",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "found": true,
+      "troop_skill_count": 3,
+      "skills_captured": 3,
+      "complete": true,
+      "notes": "Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows."
+    },
+    {
+      "hero_id": 564,
+      "expected_name": "Chiyo Momiji",
+      "displayed_name": "Chiyo Momiji",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "found": true,
+      "troop_skill_count": 3,
+      "skills_captured": 3,
+      "complete": true,
+      "notes": "Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows."
+    },
+    {
+      "hero_id": 565,
+      "expected_name": "Arthur Montbatten",
+      "displayed_name": "Arthur Montbatten",
+      "ownership_state": "unowned",
+      "source_list": "Not Obtained",
+      "found": true,
+      "troop_skill_count": 3,
+      "skills_captured": 3,
+      "complete": true,
+      "notes": "Tactical Skill detail excluded per user direction; troop_skill_count counts non-Tactical rows."
+    },
+    {
+      "hero_id": 566,
+      "expected_name": "Luna",
+      "displayed_name": null,
+      "ownership_state": null,
+      "source_list": null,
+      "found": false,
+      "troop_skill_count": null,
+      "skills_captured": 0,
+      "complete": false,
+      "notes": "Not listed in either Hero or Not Obtained roster after one careful re-scan with filters set to All."
+    }
+  ],
+  "roster_scan": {
+    "owned_roster_count": 16,
+    "not_obtained_roster_count": 13,
+    "filters": {
+      "star_level": "All",
+      "unit_type": "All",
+      "battle_style": "All"
+    },
+    "re_scanned_both_lists": true,
+    "missing_target_ids": [
+      509,
+      527,
+      557,
+      558,
+      566
+    ],
+    "evidence": {
+      "owned": "screenshots/roster_owned_overview.png",
+      "not_obtained": "screenshots/roster_not_obtained_overview.png"
+    },
+    "note": "Each target was searched in Hero first, then Not Obtained; both rosters were carefully re-scanned once. The remaining five target names and supplied aliases were not visible in either list."
+  },
+  "capture_notes": {
+    "source": "Puzzles & Survival Windows client; Heroes > Hero / Not Obtained > Troop Skill",
+    "tactical_skill_scope": "Tactical Skill is shown in overview screenshots but its detail panel was skipped per user direction. Troop-skill counts exclude Tactical Skill.",
+    "visual_qa": "GPT-6 Luna visually checked all captured skill tables. It confirmed the table values, row labels, and exact Lv.3 / Lv.13 suffixes for the march heroes; no captured values remain uncertain."
+  },
+  "screenshot_inventory": [
+    {
+      "path": "screenshots/518_zane_reeves/overview.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 1129573,
+      "sha256": "776ec186cd3caed40e6b2d16cd9f0bfa1141455ca8d33a8612cc90f93eda33a0"
+    },
+    {
+      "path": "screenshots/518_zane_reeves/skill_01.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 449988,
+      "sha256": "f123234731cae1e6069dbc23661df5518630f342d181e56b41dcc532fb1a9a5b"
+    },
+    {
+      "path": "screenshots/518_zane_reeves/skill_02.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 450770,
+      "sha256": "01b1b710f46001430b43ead92aa131d71efe477040e9dd5a768956c77fe1a9ba"
+    },
+    {
+      "path": "screenshots/518_zane_reeves/skill_03.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 449748,
+      "sha256": "67c1b0c09fc019d3e255da4f0fea5266a2f2c4ddfd71abb4f99ca8722ffd5dea"
+    },
+    {
+      "path": "screenshots/556_victor/overview.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 1395242,
+      "sha256": "2757ab11ed6285a60b4d2dc4e99c8b02a966eff51fba1326481ec1f530e85032"
+    },
+    {
+      "path": "screenshots/556_victor/skill_01.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 431924,
+      "sha256": "145f116133d4bfb4fba0e63c9139b99bbda53096425b53c3cfc6fb3f4eaf7dac"
+    },
+    {
+      "path": "screenshots/556_victor/skill_02.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 482690,
+      "sha256": "7eb409866c81905d88cd9790c25636334463e2c6e938ffcb1176b4e208c05187"
+    },
+    {
+      "path": "screenshots/556_victor/skill_03.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 482958,
+      "sha256": "151c3372f721d1148257c7e14ab68eacf8e3420646630c24678a190641b57453"
+    },
+    {
+      "path": "screenshots/559_alexander/overview.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 1354565,
+      "sha256": "f522e282fe428d5a2bef653893310502c74cf0995b46916c19e9d15bbf06e633"
+    },
+    {
+      "path": "screenshots/559_alexander/skill_01.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 462236,
+      "sha256": "b9c85dd56eb031e8e6f127fb93088ee15be82a9030bfb9d66d3e3e2b20791e83"
+    },
+    {
+      "path": "screenshots/559_alexander/skill_02.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 473165,
+      "sha256": "decd4a1657dc4ea31aab58f741653143616f8ae2927b7abf2275fc93a5c320be"
+    },
+    {
+      "path": "screenshots/559_alexander/skill_03.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 473360,
+      "sha256": "7f574d0287e787958647d47ed99c4cbc45a1973f744644d1dbeac97764a66820"
+    },
+    {
+      "path": "screenshots/560_lilian/overview.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 1248932,
+      "sha256": "a358d65252285b7203cd20bee8221ea53aed371621a2158f192d9af1db381e18"
+    },
+    {
+      "path": "screenshots/560_lilian/skill_01.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 475197,
+      "sha256": "d6f1ac193f75a2298da5a54f64349f7ce4ff8b572d924ac01a29bcb86d8ef5db"
+    },
+    {
+      "path": "screenshots/560_lilian/skill_02.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 492902,
+      "sha256": "4d4650fad6c1fadcbf1bba74a42e72777402b34490203c93427907ad16135356"
+    },
+    {
+      "path": "screenshots/560_lilian/skill_03.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 493212,
+      "sha256": "32d4e77364a190370efa0093b956df29dcd28b947b7451073099ea3494e685d1"
+    },
+    {
+      "path": "screenshots/561_kang_si_yeon/overview.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 1255101,
+      "sha256": "5fd4c49ed96c48ba4d515971535cf2a6866e0e433fb29e042f2be7337dd28946"
+    },
+    {
+      "path": "screenshots/561_kang_si_yeon/skill_01.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 436982,
+      "sha256": "0e85b38ddfc96166eb1cb60318c0a77f73276ded77dc0d4f9d849fad5b2d7acf"
+    },
+    {
+      "path": "screenshots/561_kang_si_yeon/skill_02.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 445792,
+      "sha256": "9101ac3088979ddfde2faaa0bba156569dd7a6f67858f702a589c4b4b71ce7b1"
+    },
+    {
+      "path": "screenshots/561_kang_si_yeon/skill_03.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 443715,
+      "sha256": "65eb68f6551cf7ba9f406f94cfe9689c469866fb3d2331a29e54a674684da195"
+    },
+    {
+      "path": "screenshots/562_grigory_voronov/overview.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 1351152,
+      "sha256": "14473ab6008e1a5561326bbe799ed9c65501c8c4004a46f712cd8e6220bb927b"
+    },
+    {
+      "path": "screenshots/562_grigory_voronov/skill_01.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 467091,
+      "sha256": "7cdf7191ef4f406c883b2de5c071d648d029aa417b8f4e7694dd5f0a43548325"
+    },
+    {
+      "path": "screenshots/562_grigory_voronov/skill_02.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 486021,
+      "sha256": "8a793fadec839e23f69b46eb35a8bbeb31b2126785ed05e51434e78307afd15b"
+    },
+    {
+      "path": "screenshots/562_grigory_voronov/skill_03.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 474374,
+      "sha256": "795103b9ac189c0b0675f990141d85c1b9e038c8410cdacf58edf4588046d6d4"
+    },
+    {
+      "path": "screenshots/563_kyra_rodriguez/overview.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 1223630,
+      "sha256": "1fbd871f4378310fb321801b289a1e6d657856002587ad673db7f2ad32f42fb6"
+    },
+    {
+      "path": "screenshots/563_kyra_rodriguez/skill_01.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 466122,
+      "sha256": "977536ca127515654bb97ea17c4f2faf40b6f73c654abc6d4fc27f2dbed588ff"
+    },
+    {
+      "path": "screenshots/563_kyra_rodriguez/skill_02.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 461746,
+      "sha256": "79ee229385891de89b846c832f4d03c32c2af40581ab57a4d334f842dab4acc7"
+    },
+    {
+      "path": "screenshots/563_kyra_rodriguez/skill_03.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 463257,
+      "sha256": "ce0f77c14b17f7d6a781f715daeace24f829edb8a3666fa42b7c1586644a2b25"
+    },
+    {
+      "path": "screenshots/564_chiyo_momiji/overview.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 1225682,
+      "sha256": "c97cd91ba488918a55125cce2ae344e49a8ee54e34a0edce347b7e99a9b794f3"
+    },
+    {
+      "path": "screenshots/564_chiyo_momiji/skill_01.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 475745,
+      "sha256": "91de466a6081928775b7a05d51e306b7ba7411c9ef12627e1b05e9e96ec2472d"
+    },
+    {
+      "path": "screenshots/564_chiyo_momiji/skill_02.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 468786,
+      "sha256": "614add21cca5bfa7d9b443e64dc96ff3d09f098b362500a9384f7071d3f46991"
+    },
+    {
+      "path": "screenshots/564_chiyo_momiji/skill_03.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 470907,
+      "sha256": "9f78777fd43faafbdfc3f75ef9773e25b4efb9c54389e6816d86f4e281f804bf"
+    },
+    {
+      "path": "screenshots/565_arthur_montbatten/overview.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 1251987,
+      "sha256": "bf2807389b8a72588fccee1eacd7fd33c50f2074a8dbd0378e36d9bb3f2fe144"
+    },
+    {
+      "path": "screenshots/565_arthur_montbatten/skill_01.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 470654,
+      "sha256": "0f7b496f7ca3e2d4602ab03a86d6b9772c81942eea533e5a5d852af3fbec4c6b"
+    },
+    {
+      "path": "screenshots/565_arthur_montbatten/skill_02.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 462810,
+      "sha256": "05097aaaea3d821d27d22ddec35ea4c1dc9efc49678a559340fa146147a8b950"
+    },
+    {
+      "path": "screenshots/565_arthur_montbatten/skill_03.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 469260,
+      "sha256": "e4cb63de5a1ddb1803a44d6fc3337a008c9a52be3b7eb62f3e9e17c3e76dd065"
+    },
+    {
+      "path": "screenshots/roster_not_obtained_overview.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 1306675,
+      "sha256": "636ed3858066ee0f500b0939431d7621a856dd6b9be08d3436b3284879b2716d"
+    },
+    {
+      "path": "screenshots/roster_owned_overview.png",
+      "width": 674,
+      "height": 1300,
+      "bytes": 1606883,
+      "sha256": "e0c5449a5369ddf6e6191d45fd5592c2d735a9f741c3693cfa67a49f4b686840"
+    }
+  ]
+}
