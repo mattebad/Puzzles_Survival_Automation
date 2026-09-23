@@ -31,10 +31,6 @@ class GovernanceValidationTests(unittest.TestCase):
         state = validate_governance.parse_handoff()
         self.assertNotEqual(state["current_task_id"], state["next_task_id"])
         self.assertEqual(
-            state["next_task_activation_status"],
-            "awaiting_explicit_activation",
-        )
-        self.assertEqual(
             state["exact_next_permitted_action"],
             state["exact_next_permitted_action"].strip(),
         )
@@ -84,14 +80,6 @@ class GovernanceValidationTests(unittest.TestCase):
         self.assertIn("docs/archive/**", patterns)
         self.assertNotIn("autonomous_iteration_prompt.md", patterns)
 
-    def test_declared_successor_remains_inactive(self):
-        state = validate_governance.parse_handoff()
-        self.assertIsInstance(state["next_task_id"], str)
-        self.assertEqual(
-            state["next_task_activation_status"],
-            "awaiting_explicit_activation",
-        )
-        self.assertEqual(state["active_task_or_flow"], "none")
 
     def test_active_stage_evidence_contract_is_complete(self):
         state = validate_governance.parse_handoff()
@@ -109,6 +97,19 @@ class GovernanceValidationTests(unittest.TestCase):
             },
         )
 
+    def test_current_handoff_retains_unresolved_action_binding(self):
+        state = validate_governance.parse_handoff()
+        self.assertEqual(
+            state["unresolved_action_state"],
+            "startup_vip_action_unresolved_preserved",
+        )
+        unresolved_ids = state["journals_and_lease"][
+            "active_prepared_input_sent_unresolved_action_ids"
+        ]
+        self.assertEqual(len(unresolved_ids), 1)
+        self.assertTrue(unresolved_ids[0].strip())
+
+
     def test_existing_gov_and_mvp_contracts_remain_structurally_valid(self):
         backlog = (ROOT / "docs" / "archive" / "backlog-legacy.md").read_text(encoding="utf-8")
         for task_id in ("GOV-DURABLE-STATE", "MVP-QUEST-TO-CLAIM"):
@@ -124,31 +125,38 @@ class GovernanceValidationTests(unittest.TestCase):
             validate_governance.task_block(backlog, "NOT-A-REAL-TASK")
 
     def test_completed_state_is_canonical_and_passed_is_rejected(self):
+        completed = self._completed_state()
         text = (ROOT / "CURRENT_HANDOFF.md").read_text(encoding="utf-8")
-        current_state = validate_governance.parse_handoff()["current_task_state"]
-        completed = text.replace(
-            f'"current_task_state": "{current_state}"',
-            '"current_task_state": "completed"',
-            1,
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            completed_path = Path(directory) / "completed.md"
-            completed_path.write_text(completed, encoding="utf-8")
-            self.assertEqual(
-                validate_governance.parse_handoff(completed_path)["current_task_state"],
-                "completed",
-            )
-            passed_path = Path(directory) / "passed.md"
-            passed_path.write_text(
-                completed.replace(
-                    '"current_task_state": "completed"',
-                    '"current_task_state": "passed"',
-                    1,
-                ),
+        begin = "<!-- CURRENT_HANDOFF_STATE_BEGIN -->"
+        end = "<!-- CURRENT_HANDOFF_STATE_END -->"
+
+        def write_fixture(path, state):
+            prefix, remainder = text.split(begin, 1)
+            _, suffix = remainder.split(end, 1)
+            path.write_text(
+                prefix
+                + begin
+                + "\n"
+                + json.dumps(state, indent=2)
+                + "\n"
+                + end
+                + suffix,
                 encoding="utf-8",
             )
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "handoff.md"
+            write_fixture(path, completed)
+            self.assertEqual(
+                validate_governance.parse_handoff(path)["current_task_state"],
+                "completed",
+            )
+
+            passed = copy.deepcopy(completed)
+            passed["current_task_state"] = "passed"
+            write_fixture(path, passed)
             with self.assertRaises(validate_governance.GovernanceValidationError):
-                validate_governance.parse_handoff(passed_path)
+                validate_governance.parse_handoff(path)
 
     def test_schema_three_rejects_empty_evidence_requirement(self):
         text = (ROOT / "CURRENT_HANDOFF.md").read_text(encoding="utf-8")
@@ -177,8 +185,55 @@ class GovernanceValidationTests(unittest.TestCase):
                 validate_governance.parse_handoff(path)
 
 
-    def _assert_repository_rejects(self, mutate):
+    @staticmethod
+    def _completed_state():
         state = copy.deepcopy(validate_governance.parse_handoff())
+        state.update(
+            {
+                "current_task_state": "completed",
+                "active_task_or_flow": "none",
+                "active_execution_manifest_path": None,
+                "development_lease_state": "absent",
+                "runtime_ownership_state": "none",
+                "writable_agent_state": "none",
+                "unresolved_action_state": "clear",
+            }
+        )
+        state["journals_and_lease"].update(
+            {
+                "development_lease_status": "absent",
+                "active_prepared_input_sent_unresolved_action_ids": [],
+            }
+        )
+        validate_governance.validate_lifecycle_relations(state)
+        return state
+
+    @staticmethod
+    def _awaiting_activation_state():
+        state = copy.deepcopy(validate_governance.parse_handoff())
+        state.update(
+            {
+                "next_task_activation_status": "awaiting_explicit_activation",
+                "active_task_or_flow": "none",
+                "active_execution_manifest_path": None,
+                "runtime_ownership_state": "none",
+            }
+        )
+        state["registration_and_scheduler"].update(
+            {
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+            }
+        )
+        validate_governance.validate_lifecycle_relations(state)
+        return state
+
+    def _assert_repository_rejects(self, mutate, *, base_state=None):
+        state = copy.deepcopy(
+            validate_governance.parse_handoff()
+            if base_state is None
+            else base_state
+        )
         mutate(state)
         with patch.object(validate_governance, "parse_handoff", return_value=state):
             with self.assertRaises(validate_governance.GovernanceValidationError):
@@ -219,7 +274,10 @@ class GovernanceValidationTests(unittest.TestCase):
         }
         for name, mutate in mutations.items():
             with self.subTest(name=name):
-                self._assert_repository_rejects(mutate)
+                self._assert_repository_rejects(
+                    mutate,
+                    base_state=self._completed_state(),
+                )
 
     def test_awaiting_activation_rejects_active_flow_or_runtime_authority(self):
         mutations = {
@@ -237,7 +295,10 @@ class GovernanceValidationTests(unittest.TestCase):
         }
         for name, mutate in mutations.items():
             with self.subTest(name=name):
-                self._assert_repository_rejects(mutate)
+                self._assert_repository_rejects(
+                    mutate,
+                    base_state=self._awaiting_activation_state(),
+                )
 
     def test_legacy_backlog_state_evidence_and_successor_are_still_relational(self):
         cases = {

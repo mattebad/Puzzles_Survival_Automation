@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+import math
 from types import SimpleNamespace
 import tempfile
 import unittest
@@ -19,6 +20,7 @@ from tasks.home_atlas import (
     HomeAtlas,
     LocalizationResult,
     PlatformProfile,
+    load_home_atlas,
     SemanticBuilding,
     ZoomIdentity,
 )
@@ -35,6 +37,7 @@ from tasks.home_atlas_planner import (
 from tasks.home_atlas_vision import (
     BLUESTACKS_PLATFORM,
     BLUESTACKS_PROFILE_ID,
+    BlueStacksHomeLocalizer,
     bind_visible_building,
     frame_digest,
 )
@@ -71,6 +74,15 @@ def localization(x: float = 0, y: float = 0, digest: str = "a" * 64) -> Localiza
 
 
 class MinimalPanPlannerTests(unittest.TestCase):
+    def setUp(self):
+        # Synthetic route fixtures supply Home recognition independently of geometry.
+        for module in ("atlas_runtime_startup", "home_atlas_bluestacks"):
+            clean_home = patch(
+                f"scripts.{module}.is_clean_home_frame", return_value=True
+            )
+            clean_home.start()
+            self.addCleanup(clean_home.stop)
+
     def test_target_already_safe_is_zero_pan_and_requires_binding(self):
         target = building(polygon=((300, 400), (440, 400), (440, 540), (300, 540)))
         plan = plan_direct_pan(atlas(target), localization(), target.semantic_id, SAFE, CALIBRATION)
@@ -135,7 +147,7 @@ class MinimalPanPlannerTests(unittest.TestCase):
         coordinate_only = BuildingBinding(target.semantic_id, (320, 420, 420, 520), loc.frame_sha256, 0.9, ())
         self.assertEqual(controller.plan(loc, coordinate_only).reason, "current_frame_building_binding_rejected")
         controller = DirectPanNavigator(world, target.semantic_id, SAFE, CALIBRATION)
-        semantic = replace(coordinate_only, semantic_evidence=("current-frame OCR: Bank",))
+        semantic = replace(coordinate_only, semantic_evidence=("current-frame Atlas projection",))
         self.assertEqual(controller.plan(loc, semantic).disposition, PlanDisposition.COMPLETE)
 
     def test_bluestacks_and_bliss_calibration_are_separate(self):
@@ -146,32 +158,218 @@ class MinimalPanPlannerTests(unittest.TestCase):
         self.assertEqual(plan.reason, "gesture_calibration_profile_mismatch")
         self.assertNotEqual(blue.profile_id, bliss.profile_id)
 
-    def test_generic_binder_requires_current_frame_semantics(self):
+    def test_bluestacks_policy_skips_high_score_ineffective_small_pan(self):
+        root = Path(__file__).resolve().parents[1]
+        atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+        world = load_home_atlas(atlas_path)
+        safe, calibration = bluestacks_direct_pan_contract()
+        retained = replace(
+            localization(89.54631042480469, 207.6580810546875),
+            confidence=0.9835247173905373,
+            supporting_landmarks=("viewport-003", "viewport-015", "viewport-014"),
+            residual_px=0.19770339131355286,
+        )
+
+        unconstrained = plan_building_viewport(
+            world,
+            retained,
+            "home.building.noahs_tavern",
+            safe,
+        )
+        unconstrained_drag = math.hypot(
+            unconstrained.residual_atlas[0] / calibration.camera_px_per_drag_x,
+            unconstrained.residual_atlas[1] / calibration.camera_px_per_drag_y,
+        )
+        self.assertLess(unconstrained_drag, calibration.minimum_drag_px)
+
+        executable = plan_direct_pan(
+            world,
+            retained,
+            "home.building.noahs_tavern",
+            safe,
+            calibration,
+        )
+        self.assertEqual(executable.disposition, PlanDisposition.PAN)
+        self.assertGreaterEqual(
+            math.hypot(
+                executable.drag_end[0] - executable.drag_start[0],
+                executable.drag_end[1] - executable.drag_start[1],
+            ),
+            calibration.minimum_drag_px,
+        )
+        self.assertNotEqual(
+            executable.viewport.desired_camera_origin,
+            unconstrained.desired_camera_origin,
+        )
+        self.assertIn(
+            "gesture_below_effective_minimum",
+            dict(executable.viewport.rejection_counts),
+        )
+
+    def test_subminimum_legacy_pan_fails_closed_instead_of_claiming_bind(self):
+        calibration = replace(
+            CALIBRATION,
+            minimum_drag_px=400.0,
+            maximum_drag_x=500.0,
+            maximum_drag_y=500.0,
+        )
+
+        plan = plan_direct_pan(
+            atlas(),
+            localization(),
+            "home.building.bank",
+            SAFE,
+            calibration,
+        )
+
+        self.assertEqual(plan.disposition, PlanDisposition.REJECTED)
+        self.assertEqual(plan.reason, "gesture_below_effective_minimum")
+
+    def test_geometry_binding_uses_anchor_without_reading_labels(self):
         frame = np.zeros((1280, 800, 3), np.uint8)
         loc = replace(localization(), frame_sha256=frame_digest(frame))
-        target = building(polygon=((300, 400), (440, 400), (440, 540), (300, 540)))
-        self.assertIsNone(bind_visible_building(frame, loc, target, ocr=lambda image, psm: "unknown"))
-        binding = bind_visible_building(frame, loc, target, ocr=lambda image, psm: "Bank")
+        target = building(
+            polygon=((300, 400), (440, 400), (440, 540), (300, 540)),
+        )
+        diagnostics = {}
+        binding = bind_visible_building(frame, loc, target, home_is_clean=lambda _frame: True, diagnostics=diagnostics)
         self.assertIsNotNone(binding)
-        self.assertIn("current-frame OCR", binding.semantic_evidence[0])
-        focused = bind_visible_building(
-            frame,
-            loc,
-            target,
-            ocr=lambda image, psm: "Bank" if psm in (8, 13) else "unknown",
-        )
-        self.assertIsNotNone(focused)
+        assert binding is not None
+        self.assertEqual(binding.anchor_source, "polygon_centroid")
+        self.assertEqual(binding.atlas_anchor, target.interaction_anchor)
+        self.assertLessEqual(abs((binding.target_roi[0] + binding.target_roi[2]) / 2 - binding.screen_anchor[0]), 1)
+        self.assertLessEqual(abs((binding.target_roi[1] + binding.target_roi[3]) / 2 - binding.screen_anchor[1]), 1)
+        self.assertNotIn("ocr_calls", diagnostics)
 
-        pit = replace(
-            target,
-            semantic_id="home.building.pit",
-            display_identity="Pit",
-            recognition={"bluestacks": {"label": "Pit"}},
-            platform_binding_policy={"bluestacks": {"label": "Pit"}},
+    def test_explicit_interaction_anchor_stays_separate_from_navigation_anchor(self):
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        loc = replace(localization(), frame_sha256=frame_digest(frame))
+        target = replace(
+            building(polygon=((300, 400), (440, 400), (440, 540), (300, 540))),
+            navigation_anchor_override=(370, 470),
+            interaction_anchor_override=(330, 470),
         )
-        self.assertIsNone(
-            bind_visible_building(frame, loc, pit, ocr=lambda image, psm: "Hospital")
+        binding = bind_visible_building(frame, loc, target, home_is_clean=lambda _frame: True)
+        self.assertIsNotNone(binding)
+        assert binding is not None
+        self.assertEqual(target.navigation_anchor, (370, 470))
+        self.assertEqual(target.interaction_anchor, (330, 470))
+        self.assertEqual(binding.atlas_anchor, (330, 470))
+        self.assertAlmostEqual(binding.screen_anchor[0], 330, delta=1)
+
+    def test_fractional_anchor_at_safe_boundary_keeps_valid_minimum_hit_region(self):
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        loc = replace(localization(), frame_sha256=frame_digest(frame))
+        target = replace(
+            building(polygon=((76, 400), (246, 400), (246, 600), (76, 600))),
+            interaction_anchor_override=(161.487, 500),
         )
+        diagnostics = {}
+
+        binding = bind_visible_building(frame, loc, target, home_is_clean=lambda _frame: True, diagnostics=diagnostics)
+
+        self.assertIsNotNone(binding)
+        assert binding is not None
+        self.assertEqual((binding.target_roi[0], binding.target_roi[2]), (145, 178))
+        self.assertGreaterEqual(binding.target_roi[3] - binding.target_roi[1], 33)
+        self.assertEqual(diagnostics["reason"], "accepted")
+
+    def test_geometry_binding_rejects_invalid_or_offscreen_anchor(self):
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        loc = replace(localization(), frame_sha256=frame_digest(frame))
+        offscreen = building(polygon=((900, 400), (1040, 400), (1040, 540), (900, 540)))
+        self.assertIsNone(bind_visible_building(frame, loc, offscreen, home_is_clean=lambda _frame: True))
+        malformed = replace(
+            building(polygon=((300, 400), (440, 400), (440, 400), (300, 400))),
+            interaction_anchor_override=(370, 400),
+        )
+        self.assertIsNone(bind_visible_building(frame, loc, malformed, home_is_clean=lambda _frame: True))
+        singular = replace(loc, screen_to_atlas=((0, 0, 0), (0, 0, 0), (0, 0, 1)))
+        self.assertIsNone(bind_visible_building(frame, singular, building(), home_is_clean=lambda _frame: True))
+
+    def test_hit_region_cannot_bridge_a_concave_footprint_gap(self):
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        loc = replace(localization(), frame_sha256=frame_digest(frame))
+        target = replace(
+            building(polygon=(
+                (300, 400), (500, 400), (500, 450), (350, 450),
+                (350, 550), (500, 550), (500, 600), (300, 600),
+            )),
+            interaction_anchor_override=(340, 500),
+        )
+        # Four ROI corners can lie in the footprint while its right edge
+        # crosses the gap. No minimum-sized region fits around this anchor.
+        self.assertIsNone(bind_visible_building(frame, loc, target, home_is_clean=lambda _frame: True))
+
+    def test_retained_bad_label_frame_binds_tavern_geometry(self):
+        root = Path(__file__).resolve().parents[1]
+        atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+        world = load_home_atlas(atlas_path)
+        target = world.lookup_building("home.building.noahs_tavern")
+        localizer = BlueStacksHomeLocalizer(world, atlas_path)
+        frame = cv2.imread(str(root / "tests" / "fixtures" / "home_atlas_noahs_tavern_attempt3.png"), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        localization = localizer.localize(frame)
+        diagnostics = {}
+        binding = bind_visible_building(frame, localization, target, home_is_clean=lambda _frame: True, diagnostics=diagnostics)
+        self.assertIsNotNone(binding)
+        assert binding is not None
+        self.assertEqual(binding.building_id, target.semantic_id)
+        self.assertEqual(binding.frame_sha256, frame_digest(frame))
+        self.assertEqual(diagnostics["reason"], "accepted")
+        self.assertEqual(diagnostics["anchor_source"], "explicit_override")
+
+    def test_native_geometry_binding_handles_two_retained_camera_offsets(self):
+        root = Path(__file__).resolve().parents[1]
+        atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+        world = load_home_atlas(atlas_path)
+        target = world.lookup_building("home.building.noahs_tavern")
+        localizer = BlueStacksHomeLocalizer(world, atlas_path)
+        for name in ("home_atlas_noahs_tavern_attempt3.png", "home_atlas_noahs_tavern_attempt2.png"):
+            with self.subTest(name=name):
+                frame = cv2.imread(str(root / "tests" / "fixtures" / name), cv2.IMREAD_COLOR)
+                self.assertIsNotNone(frame)
+                localization = localizer.localize(frame)
+                diagnostics = {}
+                binding = bind_visible_building(frame, localization, target, home_is_clean=lambda _frame: True, diagnostics=diagnostics)
+                self.assertIsNotNone(binding)
+                assert binding is not None
+                self.assertEqual(binding.building_id, target.semantic_id)
+                self.assertEqual(binding.frame_sha256, frame_digest(frame))
+                self.assertEqual(diagnostics["reason"], "accepted")
+                self.assertNotIn("ocr_calls", diagnostics)
+
+    def test_native_preflight_geometry_binding_handles_bank_and_neighbors(self):
+        root = Path(__file__).resolve().parents[1]
+        atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
+        world = load_home_atlas(atlas_path)
+        frame = cv2.imread(str(root / "tests" / "fixtures" / "home_atlas_preflight_bank.png"), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        localizer = BlueStacksHomeLocalizer(world, atlas_path)
+        localization = localizer.localize(frame)
+        for semantic_id in ("home.building.bank", "home.building.fighter_camp", "home.building.noahs_tavern"):
+            with self.subTest(semantic_id=semantic_id):
+                diagnostics = {}
+                binding = bind_visible_building(frame, localization, world.lookup_building(semantic_id), home_is_clean=lambda _frame: True, diagnostics=diagnostics)
+                self.assertIsNotNone(binding)
+                assert binding is not None
+                self.assertEqual(binding.building_id, semantic_id)
+                self.assertEqual(binding.frame_sha256, frame_digest(frame))
+                self.assertEqual(diagnostics["reason"], "accepted")
+                self.assertNotIn("ocr_calls", diagnostics)
+
+    def test_geometry_binding_rejects_stale_ambiguous_and_wrong_profile(self):
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        loc = replace(localization(), frame_sha256=frame_digest(frame))
+        target = building()
+        self.assertIsNone(bind_visible_building(frame, replace(loc, stale=True), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, ambiguity_state=AmbiguityState.CONFLICTING_TRANSFORMS), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, profile_id="wrong-profile"), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, confidence=0.2), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, residual_px=float("nan")), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, zoom_identity=ZoomIdentity.ZOOMED_IN), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, overlay=True), target, home_is_clean=lambda _frame: True))
+        self.assertIsNone(bind_visible_building(frame, replace(loc, frame_sha256="b" * 64), target, home_is_clean=lambda _frame: True))
 
     def test_project_owned_route_dry_run_issues_no_input(self):
         class Runtime:
@@ -236,14 +434,14 @@ class MinimalPanPlannerTests(unittest.TestCase):
             sample = runtime.capture("seed")
             digest = frame_digest(sample.frame)
             loc = replace(localization(), frame_sha256=digest)
-            binding = BuildingBinding(target.semantic_id, (320, 420, 420, 520), digest, 0.95, ("current-frame OCR: Bank",))
+            binding = BuildingBinding(target.semantic_id, (320, 420, 420, 520), digest, 0.95, ("current-frame Atlas projection: Bank",))
             args = SimpleNamespace(execute=True, yes=True, atlas=Path(directory) / "atlas.json", building_id=target.semantic_id, maximum_pans=4, settle_seconds=0, adb="unused", serial="emulator-5554", output_directory=Path(directory))
             fake_localizer = SimpleNamespace(localize=lambda frame: replace(loc, frame_sha256=frame_digest(frame)))
             with patch("scripts.home_atlas_bluestacks.load_home_atlas", return_value=world), patch(
                 "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer", return_value=fake_localizer
             ), patch("scripts.home_atlas_bluestacks.connect_runtime", return_value=runtime), patch(
                 "scripts.home_atlas_bluestacks.bind_visible_building",
-                side_effect=lambda frame, localization_arg, building_arg: replace(
+                side_effect=lambda frame, localization_arg, building_arg, *, home_is_clean: replace(
                     binding, frame_sha256=localization_arg.frame_sha256
                 ),
             ):

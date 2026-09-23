@@ -159,7 +159,11 @@ class NoahTavernNavigationDeclarationTests(unittest.TestCase):
         declaration = noahs_tavern_navigation_route_declaration()
         declaration.validate()
         self.assertEqual(declaration.consequence_class, "navigation_only")
-        self.assertEqual(declaration.allowed_gesture_classes, frozenset({"tap", "back"}))
+        self.assertEqual(
+            declaration.allowed_gesture_classes,
+            frozenset({"tap", "back", "zoom_out"}),
+        )
+        self.assertIn("home-zoom-out", declaration.allowed_target_identities)
         self.assertIn(NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID, declaration.allowed_target_identities)
         self.assertIn(NOAHS_TAVERN_SAFE_EXIT_TARGET, declaration.allowed_target_identities)
         self.assertNotIn("system-back", declaration.allowed_target_identities)
@@ -178,6 +182,29 @@ class NoahTavernNavigationDeclarationTests(unittest.TestCase):
 
 
 class NoahTavernNavigationRouteTests(unittest.TestCase):
+    def setUp(self):
+        # These tests script semantic screens, not native image localization.
+        localizer = SimpleNamespace(localize=lambda _frame: SimpleNamespace(recognized=False))
+        patcher = patch("scripts.noahs_tavern_recruit_bluestacks.BlueStacksHomeLocalizer", return_value=localizer)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_localization_allocation_failure_blocks_without_further_input(self):
+        import cv2
+
+        runtime = ScriptedTavernRuntime(["UNKNOWN"])
+        localizer = SimpleNamespace(localize=lambda _frame: None)
+        route = NoahTavernNavigationCanaryRoute(
+            runtime, recognizer=runtime.recognizer, home_localizer=localizer,
+            settle_seconds=0.0,
+        )
+        source = runtime.capture("unknown")
+        with patch.object(localizer, "localize", side_effect=cv2.error("allocation failed")):
+            result = route._return_home(source, _observation("UNKNOWN", source.captured_monotonic))
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(runtime.calls, [])
+        self.assertIn("allocation failed", result.records[0]["error"])
+
     def test_navigation_round_trip_home_to_tavern_to_home(self) -> None:
         stub = ScriptedTavernRuntime(["HOME_BASE", "NOAHS_TAVERN", "HOME_BASE"])
         route = NoahTavernNavigationCanaryRoute(
@@ -462,5 +489,56 @@ class NoahTavernNavigationPnsctlTests(unittest.TestCase):
                     supervised_live_opt_in=False,
                 )
             )
+
+
+class NoahAtlasStartupBindingTests(unittest.TestCase):
+    def test_startup_binding_seeds_route_evidence_and_input_count(self) -> None:
+        from scripts.noah_atlas_startup import bind_noah_route_startup
+
+        localizer = object()
+        startup_records = [{"phase": "atlas_startup_zoom_normalization"}]
+        route = SimpleNamespace(
+            atlas=object(),
+            atlas_path=Path("atlas.json"),
+            home_localizer=None,
+            _home_localizer_injected=False,
+            records=[],
+            input_count=0,
+        )
+        runtime = SimpleNamespace(input_count=1)
+        with patch(
+            "scripts.noah_atlas_startup.prepare_noah_home_atlas_startup",
+            return_value=(localizer, startup_records),
+        ):
+            bind_noah_route_startup(route, runtime=runtime, settle_seconds=0.0)
+
+        self.assertIs(route.home_localizer, localizer)
+        self.assertTrue(route._home_localizer_injected)
+        self.assertEqual(route.records, startup_records)
+        self.assertEqual(route.input_count, 1)
+
+    def test_blocked_startup_retains_evidence_and_propagates(self) -> None:
+        from scripts.atlas_runtime_startup import AtlasRuntimeStartupError
+        from scripts.noah_atlas_startup import bind_noah_route_startup
+
+        record = {"phase": "atlas_startup_zoom_normalization", "disposition": "blocked"}
+        route = SimpleNamespace(
+            atlas=object(),
+            atlas_path=Path("atlas.json"),
+            records=[],
+            input_count=0,
+        )
+        runtime = SimpleNamespace(input_count=1)
+        with patch(
+            "scripts.noah_atlas_startup.prepare_noah_home_atlas_startup",
+            side_effect=AtlasRuntimeStartupError("blocked", [record]),
+        ):
+            with self.assertRaises(AtlasRuntimeStartupError):
+                bind_noah_route_startup(route, runtime=runtime, settle_seconds=0.0)
+
+        self.assertEqual(route.records, [record])
+        self.assertEqual(route.input_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

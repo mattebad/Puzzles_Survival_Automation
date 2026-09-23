@@ -8,11 +8,11 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 import cv2
 import numpy as np
-import pytesseract
+
 
 from .home_atlas import (
     AmbiguityState,
@@ -20,9 +20,12 @@ from .home_atlas import (
     HomeAtlas,
     LocalizationResult,
     Matrix3,
+    Point,
     Polygon,
     SemanticBuilding,
     ZoomIdentity,
+    point_in_polygon,
+    polygon_is_valid,
 )
 
 
@@ -72,7 +75,10 @@ class ZoomClassification:
 
 
 def native_frame_guard(frame: np.ndarray) -> bool:
-    return bool(frame is not None and frame.shape == (1280, 800, 3))
+    return bool(
+        getattr(frame, "shape", None) == (1280, 800, 3)
+        and getattr(frame, "dtype", None) == np.uint8
+    )
 
 
 def frame_digest(frame: np.ndarray) -> str:
@@ -82,22 +88,178 @@ def frame_digest(frame: np.ndarray) -> str:
     return hashlib.sha256(payload.tobytes()).hexdigest()
 
 
-def _normalized_label(value: str) -> str:
-    return " ".join("".join(character if character.isalnum() else " " for character in value.lower()).split())
+def _record_binding_diagnostic(
+    diagnostics: dict[str, object] | None,
+    *,
+    reason: str,
+    **details: object,
+) -> None:
+    if diagnostics is None:
+        return
+    diagnostics.clear()
+    diagnostics.update({"reason": reason, **details})
 
 
-def _contains_label(text: str, label: str) -> bool:
-    """Match a normalized label on token boundaries, including multiword labels."""
+_MINIMUM_TARGET_SIZE = (33, 33)
+_MINIMUM_LOCALIZATION_CONFIDENCE = 0.80
+_MAXIMUM_LOCALIZATION_RESIDUAL_PX = 4.5
 
-    return bool(label) and f" {label} " in f" {text} "
+
+def _matrix_inverse(matrix: Matrix3) -> np.ndarray:
+    candidate = np.asarray(matrix, dtype=np.float64)
+    if candidate.shape != (3, 3) or not np.all(np.isfinite(candidate)):
+        raise ValueError("localization transform is not finite 3x3")
+    determinant = float(np.linalg.det(candidate))
+    if not math.isfinite(determinant) or abs(determinant) < 1e-9:
+        raise ValueError("localization transform is singular")
+    inverse = np.linalg.inv(candidate)
+    if not np.all(np.isfinite(inverse)):
+        raise ValueError("localization inverse transform is not finite")
+    return inverse
 
 
-def _project_building(localization: LocalizationResult, building: SemanticBuilding) -> np.ndarray:
-    if not localization.recognized or localization.screen_to_atlas is None:
-        raise ValueError("building binding requires a recognized current localization")
-    inverse = np.linalg.inv(np.asarray(localization.screen_to_atlas, dtype=np.float64))
-    points = np.asarray(building.polygon, dtype=np.float32).reshape(-1, 1, 2)
-    return cv2.perspectiveTransform(points, inverse).reshape(-1, 2)
+def _project_points(inverse: np.ndarray, points: Iterable[Point]) -> np.ndarray:
+    source = np.asarray(tuple(points), dtype=np.float64)
+    if source.ndim != 2 or source.shape[1] != 2 or not len(source):
+        raise ValueError("projection points are invalid")
+    homogeneous = np.column_stack((source, np.ones(len(source), dtype=np.float64)))
+    projected = homogeneous @ inverse.T
+    weights = projected[:, 2]
+    if np.any(~np.isfinite(projected)) or np.any(np.abs(weights) < 1e-9):
+        raise ValueError("projection contains invalid homogeneous coordinates")
+    result = projected[:, :2] / weights[:, None]
+    if not np.all(np.isfinite(result)):
+        raise ValueError("projection contains non-finite coordinates")
+    return result
+
+
+def _box_inside(
+    box: tuple[float, float, float, float],
+    outer: tuple[float, float, float, float],
+) -> bool:
+    return (
+        outer[0] <= box[0]
+        and box[2] <= outer[2]
+        and outer[1] <= box[1]
+        and box[3] <= outer[3]
+    )
+
+
+def _box_overlaps_hud(box: tuple[float, float, float, float]) -> bool:
+    """Reject positive-area overlap with any fixed native HUD mask."""
+
+    x0, y0, x1, y1 = box
+    return any(
+        max(x0, hx0) < min(x1, hx1) and max(y0, hy0) < min(y1, hy1)
+        for hx0, hy0, hx1, hy1 in HUD_MASK_RECTS
+    )
+
+
+def _centered_box(center: Point, width: int, height: int) -> tuple[int, int, int, int]:
+    x0 = int(round(center[0] - width / 2.0))
+    y0 = int(round(center[1] - height / 2.0))
+    return (x0, y0, x0 + width, y0 + height)
+
+
+def _box_inside_polygon(box: tuple[int, int, int, int], polygon: Polygon) -> bool:
+    x0, y0, x1, y1 = box
+    if not all(
+        point_in_polygon(point, polygon)
+        for point in (
+            (float(x0), float(y0)),
+            (float(x1), float(y0)),
+            (float(x1), float(y1)),
+            (float(x0), float(y1)),
+        )
+    ):
+        return False
+    # Corners alone miss a concave notch entering between them. Clip each
+    # footprint edge against the open rectangle; boundary contact is allowed.
+    for index, start in enumerate(polygon):
+        end = polygon[(index + 1) % len(polygon)]
+        entry, exit = 0.0, 1.0
+        for coordinate, delta, lower, upper in (
+            (start[0], end[0] - start[0], x0, x1),
+            (start[1], end[1] - start[1], y0, y1),
+        ):
+            if delta == 0:
+                if not lower < coordinate < upper:
+                    break
+            else:
+                first = (lower - coordinate) / delta
+                last = (upper - coordinate) / delta
+                entry = max(entry, min(first, last))
+                exit = min(exit, max(first, last))
+        else:
+            if entry < exit:
+                return False
+    return True
+
+
+def _target_roi(
+    projected: np.ndarray,
+    screen_anchor: Point,
+    policy: dict[str, object],
+) -> tuple[tuple[int, int, int, int] | None, str | None, dict[str, object]]:
+    polygon = tuple((float(x), float(y)) for x, y in projected)
+    body = (
+        float(np.min(projected[:, 0])),
+        float(np.min(projected[:, 1])),
+        float(np.max(projected[:, 0])),
+        float(np.max(projected[:, 1])),
+    )
+    safe = tuple(float(value) for value in BLUESTACKS_SAFE_INTERACTION_BOX)
+    visible = (
+        max(body[0], safe[0]),
+        max(body[1], safe[1]),
+        min(body[2], safe[2]),
+        min(body[3], safe[3]),
+    )
+    minimum = policy.get("minimum_safe_subregion", (45, 45))
+    if not isinstance(minimum, (list, tuple)) or len(minimum) != 2:
+        return None, "invalid_safe_region_policy", {"body_bounds": body, "visible_bounds": visible}
+    try:
+        minimum_width, minimum_height = float(minimum[0]), float(minimum[1])
+    except (TypeError, ValueError):
+        return None, "invalid_safe_region_policy", {"body_bounds": body, "visible_bounds": visible}
+    if not all(math.isfinite(value) and value > 0 for value in (minimum_width, minimum_height)):
+        return None, "invalid_safe_region_policy", {"body_bounds": body, "visible_bounds": visible}
+    if visible[2] <= visible[0] or visible[3] <= visible[1]:
+        return None, "target_coverage_outside_safe_region", {"body_bounds": body, "visible_bounds": visible}
+    # Only the anchored hit region must be HUD-free, not the entire building.
+    # Keep its centre fixed even when the footprint extends beyond the safe scene.
+    if visible[2] - visible[0] < minimum_width or visible[3] - visible[1] < minimum_height:
+        return None, "target_coverage_outside_safe_region", {"body_bounds": body, "visible_bounds": visible}
+    if not (
+        visible[0] <= screen_anchor[0] <= visible[2]
+        and visible[1] <= screen_anchor[1] <= visible[3]
+    ):
+        return None, "interaction_anchor_outside_safe_region", {"body_bounds": body, "visible_bounds": visible}
+    inset_x = min(18.0, max(6.0, (visible[2] - visible[0]) / 8.0))
+    inset_y = min(18.0, max(6.0, (visible[3] - visible[1]) / 8.0))
+    width = int(math.floor(visible[2] - visible[0] - 2.0 * inset_x))
+    height = int(math.floor(visible[3] - visible[1] - 2.0 * inset_y))
+    details = {
+        "body_bounds": body,
+        "visible_bounds": visible,
+        "inset": (inset_x, inset_y),
+        "minimum_safe_subregion": (minimum_width, minimum_height),
+    }
+    minimum_target_width, minimum_target_height = _MINIMUM_TARGET_SIZE
+    while width >= minimum_target_width and height >= minimum_target_height:
+        target = _centered_box(screen_anchor, width, height)
+        target_box = tuple(float(value) for value in target)
+        if (
+            _box_inside(target_box, safe)
+            and not _box_overlaps_hud(target_box)
+            and _box_inside_polygon(target, polygon)
+        ):
+            return target, None, details
+        if width >= height:
+            width -= 1
+        else:
+            height -= 1
+    return None, "interaction_anchor_has_no_safe_hit_region", details
 
 
 def bind_visible_building(
@@ -105,82 +267,174 @@ def bind_visible_building(
     localization: LocalizationResult,
     building: SemanticBuilding,
     *,
-    ocr=None,
+    home_is_clean: Callable[[np.ndarray], bool],
+    diagnostics: dict[str, object] | None = None,
 ) -> BuildingBinding | None:
-    """BlueStacks renderer binding for an atlas-predicted building label.
+    """Bind a mapped building from fresh frame geometry, never label OCR."""
 
-    Projection narrows the current-frame search only.  A present renderer-local
-    semantic label is still required and the returned interaction ROI must lie
-    wholly inside the fixed-HUD-free region.
-    """
+    def reject(reason: str, predicate: str, **details: object) -> None:
+        _record_binding_diagnostic(diagnostics, reason=reason, predicate=predicate, **details)
 
-    if (
-        not native_frame_guard(frame)
-        or localization.profile_id != BLUESTACKS_PROFILE_ID
-        or localization.frame_sha256 != frame_digest(frame)
-        or not building.interaction_eligible
-    ):
+    if not native_frame_guard(frame):
+        reject("localization_failed", "native_frame_guard")
         return None
-    policy = building.platform_binding_policy.get("bluestacks", building.recognition.get("bluestacks", {}))
-    if not isinstance(policy, dict) or not policy.get("label"):
-        return None
-    expected = _normalized_label(str(policy["label"]))
-    declared_aliases = policy.get("label_aliases", ())
-    if not isinstance(declared_aliases, (list, tuple)) or not all(isinstance(item, str) and item.strip() for item in declared_aliases):
-        return None
-    accepted_labels = (expected, *(_normalized_label(item) for item in declared_aliases))
-    projected = _project_building(localization, building)
-    px0, py0 = np.floor(projected.min(axis=0)).astype(int)
-    px1, py1 = np.ceil(projected.max(axis=0)).astype(int)
-    search = (max(0, px0 - 18), max(0, py1 - 75), min(800, px1 + 18), min(1280, py1 + 45))
-    if search[0] >= search[2] or search[1] >= search[3]:
-        return None
-    crop = cv2.cvtColor(frame[search[1]:search[3], search[0]:search[2]], cv2.COLOR_BGR2GRAY)
-    threshold = cv2.threshold(crop, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-    reader = ocr or (lambda image, psm: pytesseract.image_to_string(image, config=f"--psm {psm}"))
-    readings = []
-    for variant in (crop, threshold):
-        enlarged = cv2.resize(variant, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
-        readings.extend(reader(enlarged, psm) for psm in (6, 7, 11, 12))
-    text = _normalized_label(" ".join(readings))
-    if not any(_contains_label(text, label) for label in accepted_labels):
-        # Small renderer labels can disappear inside the broader projected
-        # building crop.  Re-read only the independently projected label band;
-        # this remains current-frame semantic proof, never geometry-only authority.
-        center_x = (px0 + px1) // 2
-        focused = (
-            max(0, center_x - 46),
-            max(0, py1 - 34),
-            min(800, center_x + 34),
-            min(1280, py1 + 2),
+    if localization.platform != BLUESTACKS_PLATFORM or localization.profile_id != BLUESTACKS_PROFILE_ID:
+        reject(
+            "localization_failed",
+            "platform_profile",
+            expected_platform=BLUESTACKS_PLATFORM,
+            actual_platform=localization.platform,
+            expected_profile_id=BLUESTACKS_PROFILE_ID,
+            actual_profile_id=localization.profile_id,
         )
-        if focused[0] < focused[2] and focused[1] < focused[3]:
-            focused_color = frame[focused[1]:focused[3], focused[0]:focused[2]]
-            focused_gray = cv2.cvtColor(focused_color, cv2.COLOR_BGR2GRAY)
-            focused_threshold = cv2.threshold(
-                focused_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU,
-            )[1]
-            for variant in (focused_color, focused_gray, focused_threshold):
-                enlarged = cv2.resize(variant, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
-                readings.extend(reader(enlarged, psm) for psm in (8, 13))
-            text = _normalized_label(" ".join(readings))
-    if not any(_contains_label(text, label) for label in accepted_labels):
         return None
-    sx0, sy0, sx1, sy1 = BLUESTACKS_SAFE_INTERACTION_BOX
-    ax0, ay0, ax1, ay1 = max(px0, sx0), max(py0, sy0), min(px1, sx1), min(py1, sy1)
-    if ax1 - ax0 < 45 or ay1 - ay0 < 45:
+    try:
+        current_digest = frame_digest(frame)
+    except (RuntimeError, ValueError):
+        reject("localization_failed", "frame_digest")
         return None
-    inset_x = min(18, max(6, (ax1 - ax0) // 8))
-    inset_y = min(18, max(6, (ay1 - ay0) // 8))
-    target = (ax0 + inset_x, ay0 + inset_y, ax1 - inset_x, ay1 - inset_y)
-    if target[0] >= target[2] or target[1] >= target[3]:
+    if localization.frame_sha256 != current_digest:
+        reject(
+            "localization_failed",
+            "current_frame_digest",
+            localization_frame_sha256=localization.frame_sha256,
+            current_frame_sha256=current_digest,
+        )
         return None
+    if (
+        not localization.recognized
+        or localization.zoom_identity is not ZoomIdentity.FULLY_ZOOMED_OUT
+        or localization.ambiguity_state is not AmbiguityState.NONE
+        or localization.stale
+        or localization.overlay
+    ):
+        reject(
+            "localization_failed",
+            "canonical_localization_state",
+            recognized=localization.recognized,
+            zoom_identity=getattr(localization.zoom_identity, "value", localization.zoom_identity),
+            ambiguity_state=getattr(localization.ambiguity_state, "value", localization.ambiguity_state),
+            stale=localization.stale,
+            overlay=localization.overlay,
+        )
+        return None
+    if (
+        not math.isfinite(float(localization.confidence))
+        or localization.confidence < _MINIMUM_LOCALIZATION_CONFIDENCE
+        or not localization.supporting_landmarks
+        or localization.residual_px is None
+        or not math.isfinite(float(localization.residual_px))
+        or localization.residual_px > _MAXIMUM_LOCALIZATION_RESIDUAL_PX
+    ):
+        reject(
+            "localization_failed",
+            "localization_quality",
+            confidence=localization.confidence,
+            supporting_landmarks=localization.supporting_landmarks,
+            residual_px=localization.residual_px,
+        )
+        return None
+    try:
+        viewport_valid = len(localization.viewport_polygon) >= 3 and all(
+            len(point) == 2
+            and all(math.isfinite(float(coordinate)) for coordinate in point)
+            for point in localization.viewport_polygon
+        )
+    except (TypeError, ValueError):
+        viewport_valid = False
+    if not viewport_valid:
+        reject("localization_failed", "viewport_polygon")
+        return None
+    if not building.interaction_eligible:
+        reject("target_unsafe", "interaction_eligible", building_id=building.semantic_id)
+        return None
+    if not math.isfinite(float(building.confidence)) or building.confidence < _MINIMUM_LOCALIZATION_CONFIDENCE:
+        reject("target_unsafe", "building_confidence", building_id=building.semantic_id, confidence=building.confidence)
+        return None
+    if building.safe_interaction_region_id != "home-default":
+        reject(
+            "target_unsafe",
+            "safe_interaction_region",
+            building_id=building.semantic_id,
+            safe_interaction_region_id=building.safe_interaction_region_id,
+        )
+        return None
+    policies = building.platform_binding_policy if isinstance(building.platform_binding_policy, dict) else {}
+    recognition = building.recognition if isinstance(building.recognition, dict) else {}
+    policy = policies.get("bluestacks", recognition.get("bluestacks", {}))
+    if not isinstance(policy, dict) or policy.get("actionable", True) is False:
+        reject("target_unsafe", "platform_actionability", building_id=building.semantic_id)
+        return None
+    if not polygon_is_valid(building.polygon):
+        reject("target_unsafe", "building_polygon", building_id=building.semantic_id)
+        return None
+    try:
+        atlas_anchor = building.interaction_anchor
+        if not all(math.isfinite(float(coordinate)) for coordinate in atlas_anchor):
+            raise ValueError("interaction anchor is not finite")
+        if not point_in_polygon(atlas_anchor, building.polygon):
+            reject(
+                "target_unsafe",
+                "interaction_anchor_inside_footprint",
+                building_id=building.semantic_id,
+                atlas_anchor=atlas_anchor,
+            )
+            return None
+        geometry = _project_points(
+            _matrix_inverse(localization.screen_to_atlas),
+            (*building.polygon, atlas_anchor),
+        )
+        projected = geometry[:-1]
+        screen_anchor = (float(geometry[-1, 0]), float(geometry[-1, 1]))
+    except (TypeError, ValueError, np.linalg.LinAlgError) as exc:
+        reject(
+            "localization_failed" if "transform" in str(exc) or "projection" in str(exc) else "target_unsafe",
+            "geometry_projection",
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        return None
+    target, target_reason, target_details = _target_roi(projected, screen_anchor, policy)
+    details = {
+        "building_id": building.semantic_id,
+        "anchor_source": "explicit_override" if building.interaction_anchor_override is not None else "polygon_centroid",
+        "atlas_anchor": atlas_anchor,
+        "screen_anchor": screen_anchor,
+        "projected_polygon": projected.tolist(),
+        "target_roi": target,
+        **target_details,
+    }
+    if target is None:
+        reject("target_unsafe", target_reason or "target_geometry", **details)
+        return None
+    if not home_is_clean(frame):
+        reject("localization_failed", "source_not_positively_recognized_clean_home")
+        return None
+    _record_binding_diagnostic(
+        diagnostics,
+        reason="accepted",
+        **details,
+        decisive_predicate={
+            "geometry_valid": True,
+            "anchor_inside_footprint": True,
+            "target_center_error_px": (
+                abs(((target[0] + target[2]) / 2.0) - screen_anchor[0]),
+                abs(((target[1] + target[3]) / 2.0) - screen_anchor[1]),
+            ),
+        },
+    )
     return BuildingBinding(
         building_id=building.semantic_id,
-        target_roi=tuple(int(value) for value in target),
+        target_roi=target,
         frame_sha256=localization.frame_sha256,
         confidence=min(localization.confidence, building.confidence, 0.98),
-        semantic_evidence=(f"current-frame OCR: {policy['label']}", "atlas-predicted building region", "BlueStacks renderer policy"),
+        semantic_evidence=(
+            "current-frame Atlas projection",
+            "interaction anchor inside mapped footprint",
+            "BlueStacks canonical localization",
+        ),
+        anchor_source=details["anchor_source"],
+        atlas_anchor=atlas_anchor,
+        screen_anchor=screen_anchor,
     )
 
 
@@ -214,9 +468,9 @@ def _features(frame: np.ndarray):
     return detector.detectAndCompute(gray, mask)
 
 
-def _matched_points(candidate: np.ndarray, reference: np.ndarray):
-    key_candidate, desc_candidate = _features(candidate)
-    key_reference, desc_reference = _features(reference)
+def _matched_feature_points(candidate_features, reference_features):
+    key_candidate, desc_candidate = candidate_features
+    key_reference, desc_reference = reference_features
     if desc_candidate is None or desc_reference is None:
         return np.empty((0, 2), np.float32), np.empty((0, 2), np.float32), 0
     pairs = cv2.BFMatcher(cv2.NORM_L2).knnMatch(desc_candidate, desc_reference, k=2)
@@ -226,6 +480,10 @@ def _matched_points(candidate: np.ndarray, reference: np.ndarray):
     candidate_points = np.float32([key_candidate[item.queryIdx].pt for item in good])
     reference_points = np.float32([key_reference[item.trainIdx].pt for item in good])
     return candidate_points, reference_points, len(good)
+
+
+def _matched_points(candidate: np.ndarray, reference: np.ndarray):
+    return _matched_feature_points(_features(candidate), _features(reference))
 
 
 def _project(matrix: np.ndarray, points: np.ndarray) -> np.ndarray:
@@ -249,7 +507,6 @@ def _overlap_ratio(matrix: np.ndarray) -> float:
     x1, y1 = np.minimum(projected.max(axis=0), (800, 1280))
     return float(max(0, x1 - x0) * max(0, y1 - y0) / (800 * 1280))
 
-
 def register_home_frame(
     candidate: np.ndarray,
     reference: np.ndarray,
@@ -257,12 +514,16 @@ def register_home_frame(
     maximum_residual_px: float = 4.5,
     minimum_inliers: int = 18,
     minimum_overlap: float = 0.22,
+    candidate_features=None,
+    reference_features=None,
 ) -> RegistrationResult:
     """Select the simplest transform supported by measured feature residuals."""
 
     if not native_frame_guard(candidate) or not native_frame_guard(reference):
         return RegistrationResult(False, "none", None, 0.0, math.inf, 0, 0, 0.0, "non_native_frame")
-    source, destination, matches = _matched_points(candidate, reference)
+    candidate_features = candidate_features if candidate_features is not None else _features(candidate)
+    reference_features = reference_features if reference_features is not None else _features(reference)
+    source, destination, matches = _matched_feature_points(candidate_features, reference_features)
     if matches < minimum_inliers:
         return RegistrationResult(False, "none", None, 0.0, math.inf, 0, matches, 0.0, "insufficient_landmarks")
 
@@ -377,6 +638,7 @@ class BlueStacksHomeLocalizer:
         self.atlas = atlas
         self.root = atlas_manifest_path.resolve().parent
         self.references: list[tuple[str, np.ndarray, np.ndarray]] = []
+        self.reference_features: dict[str, object] = {}
         for viewport in atlas.viewports:
             if not viewport.accepted:
                 continue
@@ -384,6 +646,7 @@ class BlueStacksHomeLocalizer:
             if not native_frame_guard(image):
                 raise ValueError(f"atlas viewport is missing or non-native: {viewport.image_path}")
             self.references.append((viewport.viewport_id, image, _as_matrix(viewport.transform_to_atlas)))
+            self.reference_features[viewport.viewport_id] = _features(image)
         if not self.references:
             raise ValueError("atlas contains no accepted BlueStacks viewports")
         self.canonical_reference = self.references[0][1]
@@ -409,8 +672,14 @@ class BlueStacksHomeLocalizer:
 
         candidates: list[tuple[float, float, str, np.ndarray, RegistrationResult]] = []
         wrong_zoom_matches: list[tuple[float, float, ZoomIdentity]] = []
+        candidate_features = _features(frame)
         for viewport_id, reference, reference_to_atlas in self.references:
-            result = register_home_frame(frame, reference)
+            result = register_home_frame(
+                frame,
+                reference,
+                candidate_features=candidate_features,
+                reference_features=self.reference_features[viewport_id],
+            )
             if result.accepted and result.transform_candidate_to_reference is not None:
                 scale = _matrix_scale(result.transform_candidate_to_reference)
                 zoom_identity = _zoom_identity_from_scale(scale)

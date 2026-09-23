@@ -13,6 +13,8 @@ import cv2
 import numpy as np
 
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, IntegratedRouteResult, LocalBlueStacksRuntime
+from scripts.startup_recovery import ContextualPopupRecoveryResult
+from tasks.noahs_tavern_recruit_runtime import NoahAction, NoahCommand
 from scripts.navigation_development_boundary import NavigationBoundaryError
 from scripts.noahs_tavern_recruit_bluestacks import NoahTavernIntegratedRoute
 from scripts.nova_praise_bluestacks import NovaPraiseIntegratedRoute
@@ -57,6 +59,7 @@ class FakeRuntime:
             frame = np.full((1280, 800, 3), ordinal, dtype=np.uint8)
             self.frames.append(CapturedNativeFrame(frame, b"png", f"{ordinal:064x}", time.monotonic(), Path(f"{ordinal}.png")))
         self.index = 0
+        self.events = []
         self.taps = []
         self.swipes = []
         self.backs = []
@@ -64,6 +67,7 @@ class FakeRuntime:
 
     def capture(self, label):
         frame = self.frames[self.index]
+        self.events.append(("capture", label, frame.sha256))
         self.index += 1
         return frame
 
@@ -74,12 +78,14 @@ class FakeRuntime:
         if continuation is not None:
             self.assert_in_flight(continuation)
         self.taps.append((source.sha256, kwargs))
+        self.events.append(("tap", source.sha256, kwargs))
 
     def back(self, source, **kwargs):
         continuation = kwargs.get("continuation_of")
         if continuation is not None:
             self.assert_in_flight(continuation)
         self.backs.append((source.sha256, kwargs))
+        self.events.append(("back", source.sha256, kwargs))
 
     def swipe(self, source, **kwargs):
         self.swipes.append((source.sha256, kwargs))
@@ -636,7 +642,6 @@ class IntegratedRouteTests(unittest.TestCase):
         result = replace(
             noah_observation(HERO_RECRUIT_RESULT_SCREEN, "c" * 64),
             result_tier=RecruitTier.BASIC,
-            result_identity="hero frag",
             safe_close_visible=True,
             safe_close_roi=(90, 975, 350, 1100),
         )
@@ -657,14 +662,97 @@ class IntegratedRouteTests(unittest.TestCase):
             result_timeout=1,
             atlas_binding=lambda captured: (bound_rois.append(captured.sha256) or (10, 10, 20, 20)),
         )
-        outcome = route.run()
+        with patch(
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            side_effect=lambda runtime, captured, **kwargs: __import__(
+                "scripts.startup_recovery", fromlist=["ContextualPopupRecoveryResult"]
+            ).ContextualPopupRecoveryResult(
+                captured, False, True, True, 0, "exact_vip_popup_absent"
+            ),
+        ):
+            outcome = route.run()
         self.assertEqual(outcome.status, "completed", outcome.reason)
         self.assertEqual(outcome.actions_completed, 1)
+        self.assertIsInstance(outcome.contextual_popup_recoveries, tuple)
+        self.assertTrue(all("source_context" in row for row in outcome.contextual_popup_recoveries))
         self.assertEqual(runtime.reconciliations, [])
         self.assertEqual(len([item for item in runtime.taps if item[1].get("consequential")]), 0)
         self.assertEqual(runtime.taps[0][1]["target_roi"], (10, 10, 20, 20))
         self.assertEqual(bound_rois, [runtime.frames[0].sha256])
         self.assertTrue(runtime.backs)
+    def test_safe_return_popup_dismissal_reobserves_before_back(self):
+        runtime = FakeRuntime()
+        tavern = noah_observation(NOAHS_TAVERN_SCREEN, "0" * 64, remaining=0)
+        home = noah_observation(HOME_BASE_SCREEN, "5" * 64)
+
+        def recognize(frame, **_kwargs):
+            marker = int(frame[0, 0, 0])
+            if marker == 5:
+                return home
+            return replace(tavern, frame_sha256=f"{marker:064x}")
+
+        recoveries = []
+
+        def contextual_recovery(_runtime, captured, **kwargs):
+            recoveries.append((captured.sha256, kwargs["source_context"]))
+            if len(recoveries) == 3:
+                runtime.tap(
+                    captured,
+                    target_identity="VIP_POINTS_GET_PTS",
+                    target_roi=(10, 10, 20, 20),
+                    action_key=kwargs["action_key"],
+                    action_class="navigation",
+                    consequential=False,
+                )
+                return ContextualPopupRecoveryResult(
+                    runtime.frames[2], True, True, True, 1, "popup_dismissed_resume_ready"
+                )
+            return ContextualPopupRecoveryResult(
+                captured, False, True, True, 0, "exact_vip_popup_absent"
+            )
+
+        route = NoahTavernIntegratedRoute(
+            runtime,
+            max_recruits=1,
+            recognizer=recognize,
+            post_input_delay=0.0,
+        )
+        with patch(
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            side_effect=contextual_recovery,
+        ), patch(
+            "scripts.noahs_tavern_recruit_bluestacks.recognize_reset_popup",
+            return_value={"recognized": False},
+        ), patch.object(
+            route.controller,
+            "next_command",
+            side_effect=lambda *_args, **_kwargs: NoahCommand(NoahAction.RETURN_HOME),
+        ):
+            outcome = route.run(max_steps=4)
+
+        self.assertEqual(outcome.status, "completed", outcome.reason)
+        self.assertEqual(outcome.actions_completed, 0)
+        self.assertEqual(len(recoveries), 6)
+        self.assertEqual(len(runtime.taps), 1)
+        self.assertEqual(runtime.taps[0][1]["target_identity"], "VIP_POINTS_GET_PTS")
+        self.assertTrue(runtime.taps[0][1]["action_key"].startswith("noah:popup-close:tavern-safe-return:"))
+        self.assertEqual(len(runtime.backs), 1)
+        tap_index = next(index for index, event in enumerate(runtime.events) if event[0] == "tap")
+        reobserve_index = next(
+            index
+            for index, event in enumerate(runtime.events)
+            if event[0] == "capture" and event[1] == "step-002-source"
+        )
+        back_index = next(index for index, event in enumerate(runtime.events) if event[0] == "back")
+        self.assertLess(tap_index, reobserve_index)
+        self.assertLess(reobserve_index, back_index)
+        safe_exit_sources = [
+            event[2]
+            for event in runtime.events
+            if event[0] == "capture" and event[1] == "tavern-safe-exit-immediate-before"
+        ]
+        self.assertEqual(len(safe_exit_sources), 2)
+        self.assertEqual(runtime.backs[0][0], safe_exit_sources[-1])
 
     def test_nova_route_cannot_bypass_centralized_action_boundary(self):
         runtime = FakeRuntime()

@@ -21,6 +21,19 @@ final production is NAS/Unraid-hosted. No current live readiness is claimed here
 controls, `ResourceEffectAuthority`, leases/fencing, manual-only states, and live gates remain
 unchanged and authoritative where they already apply.
 
+## Integrated Atlas and Recruitment status
+
+The `refactor/lean-bot-backlog` implementation adds Atlas-defined Home building entry and the
+executor-bound Windows/BlueStacks Recruitment slice. Atlas Tavern entry, repeated free-recruit
+operation, cooldown persistence, and verified Home return have live evidence. One naturally
+occurring exact VIP points popup was dismissed and resumed from Home; Tavern/non-Home and
+post-consumption popup interruption remain `evidence_required`.
+
+This implementation does not register or enable Recruitment in production. The canonical
+Recruitment selector remains non-consuming unless the explicitly configured supervised service
+installs `RecruitmentExecutionHandler` behind the existing claim and dispatch fences. Legacy
+LB-04 through LB-08 are not implied complete by this integration.
+
 ## Historical boundary
 
 The [legacy backlog archive](docs/archive/backlog-legacy.md) preserves the original 148 third-level

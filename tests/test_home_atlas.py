@@ -5,10 +5,12 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import cv2
 import numpy as np
 
+import tasks.home_atlas_vision as home_atlas_vision
 from tasks.home_atlas import (
     AmbiguityState,
     AtlasViewport,
@@ -141,8 +143,13 @@ class HomeAtlasVisionTests(unittest.TestCase):
         self.assertEqual(payload["production_registration"], "NOT_REGISTERED")
         self.assertFalse(payload["scheduler_eligibility"])
         supply = atlas.lookup_building("home.building.supply_depot")
-        self.assertEqual(supply.center, (1246.7, 976.1))
+        self.assertTrue(np.allclose(supply.center, (1246.7, 976.1), atol=1e-9))
         self.assertIn("supply depot label", " ".join(supply.semantic_proof).lower())
+        self.assertEqual(atlas.lookup_building("home.building.noahs_tavern").interaction_anchor, (355.0, 757.5))
+        self.assertEqual(atlas.lookup_building("home.building.research_lab").interaction_anchor, (835.0, 520.0))
+        self.assertTrue(
+            np.allclose(supply.interaction_anchor, (1246.7, 976.1), atol=1e-9)
+        )
         image = cv2.imread(str(manifest.parent / atlas.image_path), cv2.IMREAD_COLOR)
         self.assertEqual(image.shape[:2], (atlas.height, atlas.width))
 
@@ -171,6 +178,19 @@ class HomeAtlasVisionTests(unittest.TestCase):
         self.assertGreater(int(hud_mask().sum()), 0)
         with self.assertRaises(ValueError):
             mask_home_hud(frame[:1000])
+
+    def test_interaction_box_inside_legacy_safe_bounds_still_rejects_event_hud(self):
+        projected = np.asarray(
+            ((500.0, 200.0), (650.0, 200.0), (650.0, 500.0), (500.0, 500.0)),
+            dtype=np.float64,
+        )
+        target, reason, _details = home_atlas_vision._target_roi(
+            projected,
+            (550.0, 350.0),
+            {"minimum_safe_subregion": (45, 45)},
+        )
+        self.assertIsNone(target)
+        self.assertEqual(reason, "interaction_anchor_has_no_safe_hit_region")
 
     def test_translation_registration_and_low_confidence_rejection(self):
         reference = synthetic_home()
@@ -236,6 +256,30 @@ class HomeAtlasVisionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 BlueStacksHomeLocalizer(wrong, manifest)
 
+    def test_localizer_reuses_reference_features_and_extracts_candidate_once(self):
+        frame = synthetic_home()
+        atlas = atlas_contract()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cv2.imwrite(str(root / "tile.png"), frame)
+            manifest = root / "atlas.json"
+            manifest.write_text("{}", encoding="utf-8")
+            with patch.object(
+                home_atlas_vision,
+                "_features",
+                wraps=home_atlas_vision._features,
+            ) as features:
+                localizer = BlueStacksHomeLocalizer(atlas, manifest)
+                self.assertEqual(features.call_count, 1)
+
+                first = localizer.localize(frame)
+                self.assertTrue(first.recognized)
+                self.assertEqual(features.call_count, 2)
+
+                second = localizer.localize(frame)
+                self.assertTrue(second.recognized)
+                self.assertEqual(features.call_count, 3)
+
 
 class ClosedLoopNavigatorTests(unittest.TestCase):
     def test_visible_target_requires_current_frame_semantic_binding(self):
@@ -295,6 +339,7 @@ class ClosedLoopNavigatorTests(unittest.TestCase):
         navigator = ClosedLoopBuildingNavigator(atlas_contract(), "home.building.supply_depot")
         repeated = localization()
         navigator.next_command(repeated)
+
         self.assertEqual(navigator.next_command(repeated).reason, "repeated_viewport")
 
         navigator = ClosedLoopBuildingNavigator(atlas_contract(), "home.building.supply_depot")

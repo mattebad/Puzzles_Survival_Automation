@@ -92,6 +92,7 @@ def zoomed_loc(digest: str = "z" * 64) -> LocalizationResult:
         loc(digest=digest, recognized=False),
         zoom_identity=ZoomIdentity.ZOOMED_IN,
         confidence=0.86,
+        ambiguity_state=AmbiguityState.NONE,
     )
 
 
@@ -226,6 +227,13 @@ class TroopTrainingEntryContractTests(unittest.TestCase):
 
 
 class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
+    def setUp(self):
+        clean_home = patch(
+            "scripts.home_atlas_bluestacks.is_clean_home_frame", return_value=True
+        )
+        clean_home.start()
+        self.addCleanup(clean_home.stop)
+
     def _route(self, runtime: Runtime, *, entry_only=False, atlas=None, zoom_transport=None):
         return TroopTrainingIntegratedRoute(
             runtime,
@@ -252,6 +260,9 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
     ):
         runtime = Runtime()
         localizations = iter(localizations)
+        localize_current = lambda frame: replace(
+            next(localizations), frame_sha256=frame_digest(frame)
+        )
         if unchanged:
             runtime.frames[3] = runtime.frames[1]
         route = self._route(runtime, zoom_transport=transport)
@@ -263,7 +274,7 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
         with patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=world()), patch(
             "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer",
             return_value=SimpleNamespace(
-                localize=lambda _frame: next(localizations),
+                localize=localize_current,
                 canonical_reference=np.zeros((1280, 800, 3), dtype=np.uint8),
             ),
         ), patch(
@@ -282,7 +293,7 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
         zero_localizer = SimpleNamespace(localize=lambda _frame: zero_loc)
         with patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=world()), patch(
             "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer", return_value=zero_localizer
-        ), patch("scripts.troop_training_bluestacks.bind_visible_building", side_effect=lambda _frame, localization, _building: semantic_binding(target, localization)):
+        ), patch("scripts.troop_training_bluestacks.bind_visible_building", side_effect=lambda _frame, localization, _building, *, home_is_clean: semantic_binding(target, localization)):
             captured, binding, planner, error = self._route(zero_runtime)._navigate_selected_facility(target)
         self.assertIsNone(error)
         self.assertIsNotNone(captured)
@@ -295,7 +306,7 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
         pan_localizer = SimpleNamespace(localize=lambda _frame: next(locations))
         bind_calls = []
 
-        def bind(_frame, localization, _building):
+        def bind(_frame, localization, _building, *, home_is_clean):
             bind_calls.append(localization.frame_sha256)
             return semantic_binding(target, localization) if localization.screen_to_atlas[0][2] == 300 else None
 
@@ -336,7 +347,7 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
         target = first_enabled_entry_target(config())
         bind_calls = []
 
-        def bind(_frame, localization, _building):
+        def bind(_frame, localization, _building, *, home_is_clean):
             bind_calls.append(localization)
             return semantic_binding(target, localization)
 

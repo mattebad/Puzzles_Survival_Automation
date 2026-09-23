@@ -7,6 +7,7 @@ accepts only the repository's explicit local BlueStacks serial policy.
 
 from __future__ import annotations
 
+
 import argparse
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
@@ -43,6 +44,10 @@ from safe_action_core import (
     SafetyStore,
     TransportResult,
 )
+from scripts.atlas_startup_normalizer import (
+    AtlasStartupDisposition,
+    BlueStacksAtlasStartupNormalizer,
+)
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
 from tasks.home_atlas import BuildingBinding, LocalizationResult, ZoomIdentity, load_home_atlas
 from tasks.home_atlas_planner import (
@@ -54,6 +59,7 @@ from tasks.home_atlas_planner import (
     camera_origin,
     plan_direct_pan,
 )
+from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import (
     BLUESTACKS_INTERACTION_ANCHOR,
     BLUESTACKS_PLATFORM,
@@ -151,7 +157,6 @@ from tasks.bluestacks_home_safe_exit import (
     safe_exit_evidence_snapshot,
 )
 from tasks.supply_depot_vision import (
-    bind_supply_depot_building,
     bind_supply_depot_claim_supply,
     recognize_supply_depot_screen,
 )
@@ -252,8 +257,21 @@ def build_navigate_perception_bundle(
     identity: NativeFrameIdentity,
     localization: LocalizationResult,
     binding: BuildingBinding | None,
+    *,
+    frame: np.ndarray,
 ) -> FramePerceptionBundle:
-    """Compose and classify a navigate-building bundle without capturing."""
+    """Compose and classify a navigate-building bundle from one current frame."""
+
+    if not native_frame_guard(frame):
+        raise PerceptionBundleError("NON_NATIVE_OR_INVALID")
+    try:
+        current_digest = frame_digest(frame)
+    except (RuntimeError, ValueError) as exc:
+        raise PerceptionBundleError("INVALID_DIGEST") from exc
+    if current_digest != identity.semantic_sha256:
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
+    if not is_clean_home_frame(frame):
+        raise PerceptionBundleError("CONTEXT_NOT_CANONICAL_HOME")
 
     bundle = (
         bundle_from_identity(identity)
@@ -514,7 +532,7 @@ class BlueStacksLocalizeFirstHomeDriver:
         *,
         localizer=None,
         maximum_pans: int = 8,
-        maximum_zoom_inputs: int = 4,
+        maximum_zoom_inputs: int = 2,
     ) -> None:
         if maximum_zoom_inputs < 1:
             raise ValueError("maximum_zoom_inputs must be positive")
@@ -536,20 +554,53 @@ class BlueStacksLocalizeFirstHomeDriver:
             calibration,
             maximum_pans=maximum_pans,
         )
-        self.maximum_zoom_inputs = maximum_zoom_inputs
-        self.zoom_inputs = 0
-        self._seen_recovery_frames: set[str] = set()
-        self._planned_recovery_source: str | None = None
+        self.maximum_zoom_inputs = min(maximum_zoom_inputs, 2)
+        self.startup_normalizer = BlueStacksAtlasStartupNormalizer(self.localizer,
+        maximum_zoom_inputs=self.maximum_zoom_inputs,
+        zoom_classifier=lambda frame, reference: classify_zoom(frame, reference), home_is_clean=is_clean_home_frame)
 
-    def observe(self, frame: np.ndarray) -> HomeDriverStep:
+    @property
+    def zoom_inputs(self) -> int:
+        return self.startup_normalizer.zoom_inputs
+
+    @property
+    def _seen_recovery_frames(self) -> set[str]:
+        return self.startup_normalizer._seen_recovery_frames
+
+    def observe(
+        self,
+        frame: np.ndarray,
+        *,
+        localization: LocalizationResult | None = None,
+    ) -> HomeDriverStep:
         digest = frame_digest(frame)
-        localization = self.localizer.localize(frame)
+        startup = self.startup_normalizer.observe(
+            frame,
+            localization=localization,
+        )
+        if startup.disposition is AtlasStartupDisposition.RECOVER_ZOOM:
+            return HomeDriverStep(
+                HomeDriverDisposition.RECOVER_ZOOM,
+                startup.reason,
+                startup.source_frame_sha256,
+                startup.localization,
+                recovery_input_ordinal=startup.recovery_input_ordinal,
+            )
+        if startup.disposition is not AtlasStartupDisposition.READY:
+            return HomeDriverStep(
+                HomeDriverDisposition.BLOCKED,
+                startup.reason,
+                startup.source_frame_sha256,
+                startup.localization,
+            )
+
+        localization = startup.localization
         localized = localize_home(self.ready, localization)
         if localized.level in {
             HomeContextLevel.HOME_LOCALIZED,
             HomeContextLevel.HOME_CANONICAL,
         }:
-            binding = bind_visible_building(frame, localization, self.building)
+            binding = bind_visible_building(frame, localization, self.building, home_is_clean=is_clean_home_frame)
             if binding is None:
                 plan = plan_direct_pan(
                     self.atlas,
@@ -578,76 +629,15 @@ class BlueStacksLocalizeFirstHomeDriver:
                 plan,
             )
 
-        zoom_identity = localization.zoom_identity
-        zoom_confidence = localization.confidence
-        recoverable_zoom = zoom_identity in {
-            ZoomIdentity.ZOOMED_IN,
-            ZoomIdentity.INTERMEDIATE,
-        }
-        corroborated_zoom = False
-        geometry_confirmed_zoom = False
-        if not recoverable_zoom or zoom_confidence < 0.85:
-            zoom = classify_zoom(frame, self.localizer.canonical_reference)
-            geometry_confirmed_zoom = bool(
-                zoom.identity in {ZoomIdentity.ZOOMED_IN, ZoomIdentity.INTERMEDIATE}
-                and getattr(zoom, "scale", None) is not None
-                and 0.20 <= zoom.scale < 0.965
-                and getattr(zoom, "residual_px", None) is not None
-                and zoom.residual_px <= 0.35
-                and len(getattr(zoom, "supporting_landmarks", ())) >= 12
-            )
-            if not recoverable_zoom:
-                zoom_identity = zoom.identity
-                zoom_confidence = zoom.confidence
-                recoverable_zoom = zoom_identity in {
-                    ZoomIdentity.ZOOMED_IN,
-                    ZoomIdentity.INTERMEDIATE,
-                }
-            else:
-                corroborated_zoom = bool(
-                    zoom.identity is zoom_identity
-                    and zoom_confidence >= 0.70
-                    and zoom.confidence >= 0.70
-                )
-        if (
-            recoverable_zoom
-            and (zoom_confidence >= 0.85 or corroborated_zoom or geometry_confirmed_zoom)
-        ):
-            if digest in self._seen_recovery_frames:
-                return HomeDriverStep(
-                    HomeDriverDisposition.BLOCKED,
-                    "repeated_zoom_recovery_frame",
-                    digest,
-                    localization,
-                )
-            if self.zoom_inputs >= self.maximum_zoom_inputs:
-                return HomeDriverStep(
-                    HomeDriverDisposition.BLOCKED,
-                    "maximum_zoom_recovery_inputs",
-                    digest,
-                    localization,
-                )
-            self._seen_recovery_frames.add(digest)
-            self._planned_recovery_source = digest
-            return HomeDriverStep(
-                HomeDriverDisposition.RECOVER_ZOOM,
-                "unsupported_zoom_requires_bounded_canonical_recovery",
-                digest,
-                localization,
-                recovery_input_ordinal=self.zoom_inputs + 1,
-            )
         return HomeDriverStep(
             HomeDriverDisposition.BLOCKED,
-            f"home_localization_ambiguous:{zoom_identity.value}",
+            f"home_context_not_localized:{localized.level.value}",
             digest,
             localization,
         )
 
     def record_zoom_input_dispatched(self, source_frame_sha256: str) -> None:
-        if source_frame_sha256 != self._planned_recovery_source:
-            raise ValueError("zoom input does not match the planned current frame")
-        self.zoom_inputs += 1
-        self._planned_recovery_source = None
+        self.startup_normalizer.record_zoom_input_dispatched(source_frame_sha256)
 
     def record_pan_progress(
         self,
@@ -1211,6 +1201,7 @@ def dispatch_verified_navigate_pan(
     dry_run: bool = False,
     monotonic_clock: Callable[[], float] | None = None,
     wall_clock: Callable[[], float] | None = None,
+    on_pre_dispatch_admitted: Callable[[], None] | None = None,
 ) -> tuple[object, object | None, Observation, dict[str, object]]:
     """Issue one-shot capability against a fresh pre_dispatch frame and consume it.
 
@@ -1220,7 +1211,10 @@ def dispatch_verified_navigate_pan(
     the executor recapture (semantic rebind) and the transport swipe operate on
     that same fresh capture. Adapter-level ``runtime.swipe`` remains reachable only
     from the executor transport callback after capability consumption authorizes
-    dispatch. Direct bypass is rejected.
+    dispatch. Direct bypass is rejected. ``on_pre_dispatch_admitted`` runs only
+    after fresh-frame admission and immediately before capability issuance, so a
+    caller can durably prepare its navigation ledger without preparing a rejected
+    attempt.
     """
 
     # Finding 1: acquire a genuine fresh pre_dispatch frame. The planning
@@ -1241,6 +1235,8 @@ def dispatch_verified_navigate_pan(
         raise PerceptionBundleError("PRE_DISPATCH_FRAME_INVALID")
     if len(str(fresh_identity.semantic_sha256)) != 64:
         raise PerceptionBundleError("PRE_DISPATCH_DIGEST_INCONSISTENT")
+    if not is_clean_home_frame(fresh_capture.frame):
+        raise PerceptionBundleError("PRE_DISPATCH_HOME_NOT_CLEAN")
 
     # The capability is bound to THIS fresh pre_dispatch observation.
     pre_observation = build_navigate_pan_observation(
@@ -1254,6 +1250,8 @@ def dispatch_verified_navigate_pan(
         pre_observation,
         capture_completed_monotonic=pre_observation.capture_completed_monotonic - 0.05,
     )
+    if on_pre_dispatch_admitted is not None:
+        on_pre_dispatch_admitted()
 
     # Live captures use the process monotonic clock; offline callers inject a
     # capture-relative clock when their capture timestamps are synthetic.
@@ -1886,34 +1884,6 @@ def reject_direct_supply_depot_navigation_transport(
         raise RuntimeError("DIRECT_TRANSPORT_BYPASS_REJECTED")
 
 
-def bind_supply_depot_home_building(
-    frame: np.ndarray,
-    *,
-    atlas_path: Path | None,
-    source_frame: NativeFrameIdentity,
-) -> BuildingBinding | None:
-    """Bind the Supply Depot building only from a positively recognized Home frame."""
-
-    if atlas_path is None:
-        return None
-    try:
-        atlas = load_home_atlas(atlas_path)
-        localizer = BlueStacksHomeLocalizer(atlas, atlas_path)
-        localization = localizer.localize(frame)
-        if (
-            not localization.recognized
-            or localization.frame_sha256 != source_frame.semantic_sha256
-        ):
-            return None
-        building = atlas.lookup_building("home.building.supply_depot")
-        return bind_supply_depot_building(
-            frame,
-            localization,
-            building,
-            source_frame=source_frame,
-        )
-    except (KeyError, OSError, ValueError):
-        return None
 
 
 def recognize_supply_depot_home_successor(
@@ -2430,11 +2400,22 @@ def dispatch_verified_supply_depot_building_tap(
         label="supply-depot-building-pre-dispatch",
     )
     if rebind_building is None:
-        fresh_binding = bind_supply_depot_home_building(
-            fresh_capture.frame,
-            atlas_path=atlas_path,
-            source_frame=fresh_identity,
-        )
+        if atlas_path is None:
+            fresh_binding = None
+        else:
+            try:
+                atlas = load_home_atlas(atlas_path)
+                fresh_localization = BlueStacksHomeLocalizer(
+                    atlas, atlas_path
+                ).localize(fresh_capture.frame)
+                if fresh_localization.frame_sha256 == fresh_identity.semantic_sha256:
+                    fresh_binding = bind_visible_building(fresh_capture.frame,
+                    fresh_localization,
+                    atlas.lookup_building(SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY), home_is_clean=is_clean_home_frame)
+                else:
+                    fresh_binding = None
+            except (KeyError, OSError, ValueError, TypeError):
+                fresh_binding = None
     else:
         fresh_binding = rebind_building(fresh_capture.frame, fresh_identity)
     if (
@@ -3015,7 +2996,7 @@ def dispatch_verified_campaign_home_building_tap(
     )
     fresh_localization = localizer.localize(fresh_capture.frame)
     fresh_binding = (
-        bind_visible_building(fresh_capture.frame, fresh_localization, building)
+        bind_visible_building(fresh_capture.frame, fresh_localization, building, home_is_clean=is_clean_home_frame)
         if fresh_localization.recognized
         else None
     )
@@ -3197,7 +3178,28 @@ def run_verified_campaign_home_atlas_entry(
     building_id = require_campaign_home_atlas_building(path)
     atlas = load_home_atlas(path)
     building = atlas.lookup_building(building_id)
-    localizer = BlueStacksHomeLocalizer(atlas, path)
+    startup_module = __import__(
+        "scripts.atlas_runtime_startup",
+        fromlist=["normalize_runtime_home_atlas_startup"],
+    )
+    try:
+        localizer, startup_records = startup_module.normalize_runtime_home_atlas_startup(
+            runtime=runtime,
+            atlas=atlas,
+            atlas_path=path,
+            execute=execute,
+            settle_seconds=settle_seconds,
+            maximum_zoom_inputs=2,
+        )
+    except startup_module.AtlasRuntimeStartupError as exc:
+        return {
+            "status": "blocked_fail_closed",
+            "reason": str(exc),
+            "building_id": building_id,
+            "records": [],
+            "atlas_startup_records": list(exc.records),
+            "relocalization_residual_pixels": None,
+        }
     safe_region, _original_calibration = bluestacks_direct_pan_contract()
     records: list[dict[str, object]] = []
     nav_session = create_session(
@@ -3244,12 +3246,24 @@ def run_verified_campaign_home_atlas_entry(
             return None
         return float(math.hypot(remaining_displacement[0], remaining_displacement[1]))
 
+    def _terminal_result(result: dict[str, object]) -> dict[str, object]:
+        session_path = _persist_navigate_session(nav_session, runtime.session)
+        enriched = attach_navigate_terminal_reports(
+            result,
+            nav_session,
+            session_calibration=session_calibration,
+        )
+        enriched["navigation_session"] = str(session_path)
+        enriched["route_id"] = nav_session.route_id
+        return enriched
+
+
     try:
         for ordinal in range(maximum_pans + 1):
             immediate_before = runtime.capture(f"campaign-entry-{ordinal:02d}-immediate-before")
             derived_localization = localizer.localize(immediate_before.frame)
             derived_binding = (
-                bind_visible_building(immediate_before.frame, derived_localization, building)
+                bind_visible_building(immediate_before.frame, derived_localization, building, home_is_clean=is_clean_home_frame)
                 if derived_localization.recognized
                 else None
             )
@@ -3264,7 +3278,10 @@ def run_verified_campaign_home_atlas_entry(
             )
             try:
                 perception = build_navigate_perception_bundle(
-                    identity, derived_localization, derived_binding
+                    identity,
+                    derived_localization,
+                    derived_binding,
+                    frame=immediate_before.frame,
                 )
                 localization, binding = perception.checked_navigation_inputs()
             except PerceptionBundleError as exc:
@@ -3273,6 +3290,7 @@ def run_verified_campaign_home_atlas_entry(
                     "reason": getattr(exc, "reason_code", None) or str(exc),
                     "building_id": building_id,
                     "records": records,
+                    "atlas_startup_records": startup_records,
                     "relocalization_residual_pixels": last_residual,
                 }
             if not source_home_recorded:
@@ -3319,6 +3337,7 @@ def run_verified_campaign_home_atlas_entry(
                         "reason": "home atlas Campaign binding ready; tap not dispatched",
                         "building_id": building_id,
                         "records": records,
+                    "atlas_startup_records": startup_records,
                         "relocalization_residual_pixels": last_residual,
                     }
                 action_key = (
@@ -3348,6 +3367,7 @@ def run_verified_campaign_home_atlas_entry(
                         "reason": f"Campaign open capability denied: {issued.reason_code}",
                         "building_id": building_id,
                         "records": records,
+                    "atlas_startup_records": startup_records,
                         "relocalization_residual_pixels": last_residual,
                         "tap_telemetry": tap_telemetry,
                     }
@@ -3362,6 +3382,7 @@ def run_verified_campaign_home_atlas_entry(
                         ),
                         "building_id": building_id,
                         "records": records,
+                    "atlas_startup_records": startup_records,
                         "relocalization_residual_pixels": last_residual,
                         "executor_status": (
                             execution.status.value if execution is not None else None
@@ -3373,6 +3394,7 @@ def run_verified_campaign_home_atlas_entry(
                     "reason": "Home Atlas Campaign entry semantically confirmed",
                     "building_id": building_id,
                     "records": records,
+                    "atlas_startup_records": startup_records,
                     "relocalization_residual_pixels": last_residual,
                     "tap_telemetry": tap_telemetry,
                 }
@@ -3382,6 +3404,7 @@ def run_verified_campaign_home_atlas_entry(
                     "reason": plan.reason,
                     "building_id": building_id,
                     "records": records,
+                    "atlas_startup_records": startup_records,
                     "relocalization_residual_pixels": last_residual,
                 }
             if plan.disposition is PlanDisposition.PAN:
@@ -3391,6 +3414,7 @@ def run_verified_campaign_home_atlas_entry(
                         "reason": "Home Atlas pan lacked drag endpoints",
                         "building_id": building_id,
                         "records": records,
+                    "atlas_startup_records": startup_records,
                         "relocalization_residual_pixels": last_residual,
                     }
                 if not execute:
@@ -3403,6 +3427,7 @@ def run_verified_campaign_home_atlas_entry(
                         "reason": "home atlas pan calculated; not dispatched",
                         "building_id": building_id,
                         "records": records,
+                    "atlas_startup_records": startup_records,
                         "relocalization_residual_pixels": last_residual,
                     }
                 next_pan = nav_session.pan_ordinal + 1
@@ -3416,36 +3441,61 @@ def run_verified_campaign_home_atlas_entry(
                 )
                 action_key = make_pan_action_key(nav_session, gesture_fingerprint, next_pan)
                 action_id = f"{nav_session.navigation_session_id}:pan:{next_pan}"
-                record_pan_prepared(
-                    nav_session,
-                    action_key=action_key,
-                    source_frame=identity,
-                    target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
-                    requested=plan.requested_camera_displacement,
-                    predicted=plan.predicted_camera_displacement,
-                    gesture_fingerprint=gesture_fingerprint,
-                )
-                issued, execution, _pre_obs, pan_telemetry = dispatch_verified_navigate_pan(
-                    runtime=runtime,
-                    immediate_before=immediate_before,
-                    identity=identity,
-                    drag_start=plan.drag_start,
-                    drag_end=plan.drag_end,
-                    action_id=action_id,
-                    action_key=action_key,
-                    task_id=nav_session.authorization.task_id,
-                    navigation_session_id=nav_session.navigation_session_id,
-                    lease_owner=lease_owner,
-                    policy=policy,
-                    store=_ensure_store(),
-                    dry_run=False,
-                )
+                pan_admitted = False
+
+                def _prepare_pan() -> None:
+                    nonlocal pan_admitted
+                    record_pan_prepared(
+                        nav_session,
+                        action_key=action_key,
+                        source_frame=identity,
+                        target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
+                        requested=plan.requested_camera_displacement,
+                        predicted=plan.predicted_camera_displacement,
+                        gesture_fingerprint=gesture_fingerprint,
+                    )
+                    _persist_navigate_session(nav_session, runtime.session)
+                    pan_admitted = True
+
+                try:
+                    issued, execution, _pre_obs, pan_telemetry = dispatch_verified_navigate_pan(
+                        runtime=runtime,
+                        immediate_before=immediate_before,
+                        identity=identity,
+                        drag_start=plan.drag_start,
+                        drag_end=plan.drag_end,
+                        action_id=action_id,
+                        action_key=action_key,
+                        task_id=nav_session.authorization.task_id,
+                        navigation_session_id=nav_session.navigation_session_id,
+                        lease_owner=lease_owner,
+                        policy=policy,
+                        store=_ensure_store(),
+                        dry_run=False,
+                        on_pre_dispatch_admitted=_prepare_pan,
+                    )
+                except PerceptionBundleError as exc:
+                    if pan_admitted:
+                        raise
+                    reason_code = getattr(exc, "reason_code", None) or str(exc)
+                    mark_blocked(nav_session, reason=reason_code)
+                    return _terminal_result(
+                        {
+                            "status": "blocked_fail_closed",
+                            "reason": reason_code,
+                            "building_id": building_id,
+                            "records": records,
+                            "atlas_startup_records": startup_records,
+                            "relocalization_residual_pixels": last_residual,
+                        }
+                    )
                 if execution is None or execution.transport_calls < 1:
                     return {
                         "status": "blocked_fail_closed",
                         "reason": "verified Home Atlas pan capability denied or not dispatched",
                         "building_id": building_id,
                         "records": records,
+                    "atlas_startup_records": startup_records,
                         "relocalization_residual_pixels": last_residual,
                         "pan_telemetry": pan_telemetry,
                     }
@@ -3489,6 +3539,7 @@ def run_verified_campaign_home_atlas_entry(
                         "reason": f"Home Atlas pan produced no accepted progress: {progress.reason}",
                         "building_id": building_id,
                         "records": records,
+                    "atlas_startup_records": startup_records,
                         "relocalization_residual_pixels": last_residual,
                     }
                 continue
@@ -3499,6 +3550,7 @@ def run_verified_campaign_home_atlas_entry(
                 "reason": f"unsupported Home Atlas disposition: {plan.disposition}",
                 "building_id": building_id,
                 "records": records,
+                    "atlas_startup_records": startup_records,
                 "relocalization_residual_pixels": last_residual,
             }
         return {
@@ -3506,6 +3558,7 @@ def run_verified_campaign_home_atlas_entry(
             "reason": "Home Atlas Campaign entry exceeded maximum pans",
             "building_id": building_id,
             "records": records,
+                    "atlas_startup_records": startup_records,
             "relocalization_residual_pixels": last_residual,
         }
     finally:
@@ -3546,7 +3599,7 @@ def bluestacks_direct_pan_contract() -> tuple[SafeInteractionRegion, GestureCali
         "home-default",
         BLUESTACKS_SAFE_INTERACTION_BOX,
         BLUESTACKS_INTERACTION_ANCHOR,
-        fixed_hud_masks=((0, 0, 800, 150), (0, 150, 138, 1020), (650, 150, 800, 1020), (0, 1020, 800, 1280)),
+        fixed_hud_masks=HUD_MASK_RECTS,
         planning_policy=planning_policy,
     )
     calibration = GestureCalibration(
@@ -3556,7 +3609,8 @@ def bluestacks_direct_pan_contract() -> tuple[SafeInteractionRegion, GestureCali
         drag_bounds=(250, 250, 650, 950),
         camera_px_per_drag_x=2.1,
         camera_px_per_drag_y=2.1,
-        minimum_drag_px=35.0,
+        # Retained native evidence: 42 px was ignored, while 66 px and larger moved the camera.
+        minimum_drag_px=65.0,
         maximum_drag_x=150.0,
         maximum_drag_y=180.0,
         minimum_progress_px=8.0,
@@ -3939,19 +3993,40 @@ def command_open_building(args) -> int:
     atlas = load_home_atlas(args.atlas)
     building = atlas.lookup_building(args.building_id)
     runtime = connect_runtime(args, "home-atlas-open-building")
-    localizer = BlueStacksHomeLocalizer(atlas, args.atlas)
+    try:
+        localizer, startup_records = __import__(
+            "scripts.atlas_runtime_startup",
+            fromlist=["normalize_runtime_home_atlas_startup"],
+        ).normalize_runtime_home_atlas_startup(
+            runtime=runtime,
+            atlas=atlas,
+            atlas_path=args.atlas,
+            execute=True,
+            settle_seconds=args.settle_seconds,
+            maximum_zoom_inputs=2,
+        )
+    except RuntimeError as exc:
+        result = {
+            "status": "blocked",
+            "reason": str(exc),
+            "navigation_input_count": getattr(runtime, "input_count", 0),
+            "session": str(runtime.session),
+        }
+        _json(runtime.session / "open-building-result.json", result)
+        print(json.dumps(result, sort_keys=True, default=str))
+        return 3
     source = runtime.capture("open-building-source")
     source_localization = localizer.localize(source.frame)
     if not source_localization.recognized:
         print(json.dumps({"status": "blocked", "reason": "source_localization_failed", "localization": source_localization.__dict__}, sort_keys=True, default=str))
         return 3
-    source_binding = bind_supply_depot_building(source.frame, source_localization, building)
+    source_binding = bind_visible_building(source.frame, source_localization, building, home_is_clean=is_clean_home_frame)
     if source_binding is None:
         print(json.dumps({"status": "blocked", "reason": "source_building_binding_failed", "localization": source_localization.__dict__}, sort_keys=True, default=str))
         return 3
     immediate_before = runtime.capture("open-building-immediate-before")
     before_localization = localizer.localize(immediate_before.frame)
-    before_binding = bind_supply_depot_building(immediate_before.frame, before_localization, building)
+    before_binding = bind_visible_building(immediate_before.frame, before_localization, building, home_is_clean=is_clean_home_frame)
     if before_binding is None or before_binding.overlay_intersects or before_binding.ambiguous_overlap:
         print(json.dumps({"status": "blocked", "reason": "immediate_before_binding_failed"}, sort_keys=True))
         return 3
@@ -4010,6 +4085,8 @@ def command_open_building(args) -> int:
         "radial_immediate_post_sha256": radial_post.sha256 if radial_post is not None else None,
         "radial_settled_sha256": radial_settled.sha256 if radial_settled is not None else None,
         "session": str(runtime.session),
+        "atlas_startup_records": startup_records,
+        "navigation_input_count": getattr(runtime, "input_count", 0),
     }
     _json(runtime.session / "open-building-result.json", result)
     print(json.dumps(result, sort_keys=True, default=str))
@@ -4039,10 +4116,33 @@ def command_navigate_building(args) -> int:
         raise SystemExit("live navigate-building requires both --execute and --yes")
     atlas = load_home_atlas(args.atlas)
     building = atlas.lookup_building(args.building_id)
-    localizer = BlueStacksHomeLocalizer(atlas, args.atlas)
-    safe_region, _original_calibration = bluestacks_direct_pan_contract()
     runtime = connect_runtime(args, "home-atlas-navigate-building")
     records: list[dict[str, object]] = []
+    startup_module = __import__(
+        "scripts.atlas_runtime_startup",
+        fromlist=["normalize_runtime_home_atlas_startup"],
+    )
+    try:
+        localizer, startup_records = startup_module.normalize_runtime_home_atlas_startup(
+            runtime=runtime,
+            atlas=atlas,
+            atlas_path=args.atlas,
+            execute=args.execute,
+            settle_seconds=args.settle_seconds,
+            maximum_zoom_inputs=2,
+        )
+    except startup_module.AtlasRuntimeStartupError as exc:
+        result = {
+            "status": "blocked",
+            "reason": str(exc),
+            "atlas_startup_records": list(exc.records),
+            "navigation_input_count": getattr(runtime, "input_count", 0),
+            "session": str(runtime.session),
+        }
+        _json(runtime.session / "navigate-building-result.json", result)
+        print(json.dumps(result, sort_keys=True, default=str))
+        return 3
+    safe_region, _original_calibration = bluestacks_direct_pan_contract()
     nav_session = create_session(
         _navigate_authorization(args.building_id),
         runtime_capture_session_id=str(runtime.session),
@@ -4085,6 +4185,8 @@ def command_navigate_building(args) -> int:
         )
         enriched["production_registration"] = "NOT_REGISTERED"
         enriched["scheduler_eligibility"] = False
+        enriched["atlas_startup_records"] = startup_records
+        enriched["navigation_input_count"] = getattr(runtime, "input_count", 0)
         _json(runtime.session / "navigate-building-result.json", enriched)
         print(json.dumps(enriched, sort_keys=True, default=str))
         return code
@@ -4158,7 +4260,7 @@ def _command_navigate_building_body(
         immediate_before = runtime.capture(f"navigate-{ordinal:02d}-immediate-before")
         derived_localization = localizer.localize(immediate_before.frame)
         derived_binding = (
-            bind_visible_building(immediate_before.frame, derived_localization, building)
+            bind_visible_building(immediate_before.frame, derived_localization, building, home_is_clean=is_clean_home_frame)
             if derived_localization.recognized
             else None
         )
@@ -4172,7 +4274,12 @@ def _command_navigate_building_body(
                 ordinal=int(capture_ordinal),
                 label=f"navigate-{ordinal:02d}-immediate-before",
             )
-            perception = build_navigate_perception_bundle(identity, derived_localization, derived_binding)
+            perception = build_navigate_perception_bundle(
+                identity,
+                derived_localization,
+                derived_binding,
+                frame=immediate_before.frame,
+            )
             localization, binding = perception.checked_navigation_inputs()
         except PerceptionBundleError as exc:
             mark_blocked(nav_session, reason=exc.reason_code)
@@ -4262,31 +4369,57 @@ def _command_navigate_building_body(
             )
             action_key = make_pan_action_key(nav_session, gesture_fingerprint, next_pan)
             action_id = f"{nav_session.navigation_session_id}:pan:{next_pan}"
-            record_pan_prepared(
-                nav_session,
-                action_key=action_key,
-                source_frame=identity,
-                target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
-                requested=plan.requested_camera_displacement,
-                predicted=plan.predicted_camera_displacement,
-                gesture_fingerprint=gesture_fingerprint,
-            )
-            _persist_navigate_session(nav_session, runtime.session)
-            issued, execution, _pre_obs, pan_telemetry = dispatch_verified_navigate_pan(
-                runtime=runtime,
-                immediate_before=immediate_before,
-                identity=identity,
-                drag_start=plan.drag_start,
-                drag_end=plan.drag_end,
-                action_id=action_id,
-                action_key=action_key,
-                task_id=nav_session.authorization.task_id,
-                navigation_session_id=nav_session.navigation_session_id,
-                lease_owner=lease_owner,
-                policy=policy,
-                store=ensure_store(),
-                dry_run=False,
-            )
+            pan_admitted = False
+
+            def _prepare_pan() -> None:
+                nonlocal pan_admitted
+                record_pan_prepared(
+                    nav_session,
+                    action_key=action_key,
+                    source_frame=identity,
+                    target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
+                    requested=plan.requested_camera_displacement,
+                    predicted=plan.predicted_camera_displacement,
+                    gesture_fingerprint=gesture_fingerprint,
+                )
+                _persist_navigate_session(nav_session, runtime.session)
+                pan_admitted = True
+
+            try:
+                issued, execution, _pre_obs, pan_telemetry = dispatch_verified_navigate_pan(
+                    runtime=runtime,
+                    immediate_before=immediate_before,
+                    identity=identity,
+                    drag_start=plan.drag_start,
+                    drag_end=plan.drag_end,
+                    action_id=action_id,
+                    action_key=action_key,
+                    task_id=nav_session.authorization.task_id,
+                    navigation_session_id=nav_session.navigation_session_id,
+                    lease_owner=lease_owner,
+                    policy=policy,
+                    store=ensure_store(),
+                    dry_run=False,
+                    on_pre_dispatch_admitted=_prepare_pan,
+                )
+            except PerceptionBundleError as exc:
+                if pan_admitted:
+                    raise
+                reason_code = getattr(exc, "reason_code", None) or str(exc)
+                mark_blocked(nav_session, reason=reason_code)
+                _persist_navigate_session(nav_session, runtime.session)
+                return emit(
+                    {
+                        "status": "blocked",
+                        "reason": reason_code,
+                        "building_id": args.building_id,
+                        "records": records,
+                        "session": str(runtime.session),
+                        "navigation_session": str(session_path),
+                        "route_id": nav_session.route_id,
+                    },
+                    3,
+                )
             if execution is None:
                 pan_ledger = navigate_pan_execution_payload(
                     issued, None, pan_telemetry, semantic_verified=False
@@ -4635,6 +4768,32 @@ def command_supply_depot_radial(args) -> int:
             result.update(extra)
         return _emit(result, 3)
 
+    atlas_path = getattr(args, "atlas", None)
+    atlas = None
+    localizer = None
+
+    def _bind_supply_home(frame: np.ndarray, identity: NativeFrameIdentity):
+        nonlocal atlas, localizer
+        if atlas is None or localizer is None:
+            if atlas_path is None:
+                return None
+            try:
+                atlas = load_home_atlas(atlas_path)
+                localizer = BlueStacksHomeLocalizer(atlas, atlas_path)
+            except (KeyError, OSError, ValueError, TypeError):
+                return None
+        try:
+            localization = localizer.localize(frame)
+            if (
+                not localization.recognized
+                or localization.frame_sha256 != identity.semantic_sha256
+            ):
+                return None
+            building = atlas.lookup_building(SUPPLY_DEPOT_BUILDING_TARGET_IDENTITY)
+            return bind_visible_building(frame, localization, building, home_is_clean=is_clean_home_frame)
+        except (KeyError, OSError, ValueError, TypeError):
+            return None
+
     try:
         source = runtime.capture("radial-source")
         source_ordinal = getattr(runtime, "ordinal", None) or 1
@@ -4650,11 +4809,7 @@ def command_supply_depot_radial(args) -> int:
         )
         source_building_binding = None
         if source_radial_binding is None:
-            source_building_binding = bind_supply_depot_home_building(
-                source.frame,
-                atlas_path=getattr(args, "atlas", None),
-                source_frame=source_identity,
-            )
+            source_building_binding = _bind_supply_home(source.frame, source_identity)
             if source_building_binding is None:
                 return _blocked(
                     "source_radial_or_building_not_recognized",
@@ -4678,22 +4833,10 @@ def command_supply_depot_radial(args) -> int:
             ),
         )
         if source_radial_binding is None:
-            building_binding = bind_supply_depot_home_building(
-                immediate_before.frame,
-                atlas_path=getattr(args, "atlas", None),
-                source_frame=identity,
-            )
+            building_binding = _bind_supply_home(immediate_before.frame, identity)
             radial_binding = None
         else:
-            building_binding = (
-                bind_supply_depot_home_building(
-                    immediate_before.frame,
-                    atlas_path=getattr(args, "atlas", None),
-                    source_frame=identity,
-                )
-                if getattr(args, "atlas", None) is not None
-                else None
-            )
+            building_binding = _bind_supply_home(immediate_before.frame, identity)
             radial_binding = bind_supply_depot_claim_supply(
                 immediate_before.frame,
                 source_frame=identity,

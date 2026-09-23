@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+
 import argparse
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
@@ -34,6 +35,7 @@ from scripts.navigation_development_boundary import (
 )
 from tasks.home_atlas import ZoomIdentity, load_home_atlas
 from tasks.home_atlas_planner import PlanDisposition, camera_origin
+from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, BlueStacksHomeLocalizer, bind_visible_building, frame_digest
 from tasks.home_context import HomeReadyObservation
 from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
@@ -87,15 +89,15 @@ def _canonical_home_proof(
     *,
     training=None,
 ) -> bool:
-    """Prove a safe canonical Home surface without requiring four labels.
+    """Prove a safe canonical Home surface without requiring facility labels.
 
-    Facility OCR is useful for binding a specific building, but it is not a
-    stable Home predicate: panning can clip a label at the screen edge.  The
-    recovery contract instead requires the native HUD semantic, no recognized
+    Mapped-building geometry is the entry authority; facility label OCR is not a
+    stable Home predicate because panning can clip labels at the screen edge.
+    The recovery contract instead requires the native HUD semantic, no recognized
     training/modal surface, and a same-frame fully-zoomed-out Atlas match.
-    Non-array frames are accepted only for unit-test doubles that already
-    provide a positive Home observation; native runtime frames always take the
-    strict HUD/negative-surface path below.
+    Non-array frames are accepted only for unit-test doubles that already provide
+    a positive Home observation; native runtime frames always take the strict
+    HUD/negative-surface path below.
     """
 
     if training is None:
@@ -1103,7 +1105,7 @@ class TroopTrainingIntegratedRoute:
             if surface_rejection is not None:
                 return None, None, planner, surface_rejection
             localization = localizer.localize(immediate_before.frame)
-            binding = bind_visible_building(immediate_before.frame, localization, building) if localization.recognized else None
+            binding = bind_visible_building(immediate_before.frame, localization, building, home_is_clean=is_clean_home_frame) if localization.recognized else None
             plan = planner.plan(localization, binding)
             plan_record = {
                 "ordinal": ordinal,

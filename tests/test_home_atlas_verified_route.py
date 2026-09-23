@@ -185,6 +185,7 @@ class _FakeRuntime:
         self.ordinal = 0
         self._origin = (0.0, 0.0)
         self.progress_after_swipe = False
+        self.input_count = 0
         self.captured_frames: list[tuple[str, CapturedNativeFrame]] = []
 
     def capture(self, label: str) -> CapturedNativeFrame:
@@ -236,8 +237,19 @@ class _FakeRuntime:
                 "sha256": captured.sha256,
             }
         )
+        self.input_count += 1
         if self.progress_after_swipe:
             self._origin = (self._origin[0] + 300.0, self._origin[1] + 90.0)
+
+
+class _OverlayPreDispatchRuntime(_FakeRuntime):
+    """Keep planning captures clean while making the fresh PAN capture overlay-positive."""
+
+    def capture(self, label: str) -> CapturedNativeFrame:
+        captured = super().capture(label)
+        if label == "navigate-pan-pre-dispatch":
+            captured.frame[0, 0] = (255, 10, 10)
+        return captured
 
 
 def _args(directory: Path, *, building_id: str, execute: bool = True) -> SimpleNamespace:
@@ -252,6 +264,18 @@ def _args(directory: Path, *, building_id: str, execute: bool = True) -> SimpleN
         serial="emulator-5554",
         output_directory=Path(directory),
     )
+
+
+def _overlay_home_facts(frame, **_kwargs):
+    overlay = int(frame[0, 0, 0]) == 255
+    return {
+        "state": "HOME_BASE",
+        "recognized": True,
+        "overlay": overlay,
+        "blocking_unknown_modal": False,
+        "manual_only_state": False,
+    }
+
 
 
 def _policy_for(task_id: str) -> CentralPolicy:
@@ -276,6 +300,19 @@ def _ready() -> HomeReadyObservation:
 
 
 class HomeAtlasVerifiedRouteTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Route/geometry fixtures provide clean Home separately from Atlas pose.
+        clean_home = patch(
+            "scripts.home_atlas_bluestacks.is_clean_home_frame", return_value=True
+        )
+        clean_home.start()
+        self.addCleanup(clean_home.stop)
+        runtime_home = patch(
+            "scripts.atlas_runtime_startup.is_clean_home_frame", return_value=True
+        )
+        runtime_home.start()
+        self.addCleanup(runtime_home.stop)
+
     def test_headless_scrcpy_pinch_serializes_two_native_pointer_streams(self) -> None:
         messages = ScrcpyMotionEventZoomTransport.pinch_messages(steps=8)
 
@@ -665,7 +702,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer", return_value=fake_localizer
             ), patch("scripts.home_atlas_bluestacks.connect_runtime", return_value=runtime), patch(
                 "scripts.home_atlas_bluestacks.bind_visible_building",
-                side_effect=lambda frame, localization_arg, building_arg: replace(
+                side_effect=lambda frame, localization_arg, building_arg, *, home_is_clean: replace(
                     binding, frame_sha256=localization_arg.frame_sha256
                 ),
             ):
@@ -711,7 +748,12 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 0.95,
                 ("evidence",),
             )
-            bundle = build_navigate_perception_bundle(identity, loc, binding)
+            bundle = build_navigate_perception_bundle(
+                identity,
+                loc,
+                binding,
+                frame=captured.frame,
+            )
             first = bundle.checked_navigation_inputs()
             second = bundle.checked_navigation_inputs()
             self.assertEqual(first[0].frame_sha256, second[0].frame_sha256)
@@ -794,9 +836,412 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
             )
             foreign = replace(_localization("b" * 64), frame_sha256="b" * 64)
             with self.assertRaises(PerceptionBundleError) as raised:
-                build_navigate_perception_bundle(identity, foreign, None).checked_navigation_inputs()
+                build_navigate_perception_bundle(
+                    identity,
+                    foreign,
+                    None,
+                    frame=captured.frame,
+                ).checked_navigation_inputs()
             # Cross-capture localization digests fail closed at semantic join.
             self.assertEqual(raised.exception.reason_code, "SEMANTIC_DIGEST_MISMATCH")
+            foreign_frame = runtime.capture("foreign-frame")
+            matching_localization = replace(
+                _localization(identity.semantic_sha256),
+                frame_sha256=identity.semantic_sha256,
+            )
+            with self.assertRaises(PerceptionBundleError) as frame_mismatch:
+                build_navigate_perception_bundle(
+                    identity,
+                    matching_localization,
+                    None,
+                    frame=foreign_frame.frame,
+                )
+            self.assertEqual(frame_mismatch.exception.reason_code, "SEMANTIC_DIGEST_MISMATCH")
+
+
+    def test_planning_bundle_rejects_unclean_home_without_binding(self) -> None:
+        """A canonical-looking frame cannot plan through a rejected Home context."""
+
+        from scripts import home_atlas_bluestacks as home_atlas
+        from scripts import startup_normalization
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            captured = runtime.capture("unclean-planning")
+            identity = identity_from_captured(
+                captured,
+                session_id=str(runtime.session),
+                ordinal=1,
+                label="unclean-planning",
+            )
+            localization = replace(
+                _localization(frame_digest(captured.frame)),
+                frame_sha256=frame_digest(captured.frame),
+            )
+            with patch.object(
+                home_atlas,
+                "is_clean_home_frame",
+                wraps=startup_normalization.is_clean_home_frame,
+            ), patch(
+                "scripts.startup_normalization.classify_home_base_live",
+                return_value={
+                    "state": "HOME_BASE",
+                    "recognized": True,
+                    "overlay": True,
+                    "blocking_unknown_modal": False,
+                    "manual_only_state": False,
+                },
+            ), patch(
+                "scripts.bluestacks_popup_recognition.recognize_reset_popup",
+                return_value={"recognized": False, "blocking_unknown_modal": False},
+            ):
+                with self.assertRaises(PerceptionBundleError) as raised:
+                    build_navigate_perception_bundle(
+                        identity,
+                        localization,
+                        None,
+                        frame=captured.frame,
+                    )
+            self.assertEqual(raised.exception.reason_code, "CONTEXT_NOT_CANONICAL_HOME")
+
+    def test_clean_offscreen_pan_allows_missing_binding(self) -> None:
+        """Clean Home plus a legitimate offscreen target remains pannable."""
+
+        from scripts import home_atlas_bluestacks as home_atlas
+        from scripts import startup_normalization
+        from tasks.home_atlas_planner import DirectPanNavigator
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            captured = runtime.capture("clean-offscreen")
+            digest = frame_digest(captured.frame)
+            identity = identity_from_captured(
+                captured,
+                session_id=str(runtime.session),
+                ordinal=1,
+                label="clean-offscreen",
+            )
+            localization = replace(_localization(digest), frame_sha256=digest)
+            with patch.object(
+                home_atlas,
+                "is_clean_home_frame",
+                wraps=startup_normalization.is_clean_home_frame,
+            ), patch(
+                "scripts.startup_normalization.classify_home_base_live",
+                return_value={
+                    "state": "HOME_BASE",
+                    "recognized": True,
+                    "overlay": False,
+                    "blocking_unknown_modal": False,
+                    "manual_only_state": False,
+                },
+            ), patch(
+                "scripts.bluestacks_popup_recognition.recognize_reset_popup",
+                return_value={"recognized": False, "blocking_unknown_modal": False},
+            ):
+                bundle = build_navigate_perception_bundle(
+                    identity,
+                    localization,
+                    None,
+                    frame=captured.frame,
+                )
+                checked_localization, binding = bundle.checked_navigation_inputs()
+            safe_region, calibration = home_atlas.bluestacks_direct_pan_contract()
+            plan = DirectPanNavigator(
+                _atlas(_far_building()),
+                "home.building.bank",
+                safe_region,
+                calibration,
+            ).plan(checked_localization, binding)
+            self.assertIsNone(binding)
+            self.assertEqual(plan.disposition, PlanDisposition.PAN)
+
+    def test_fresh_overlay_rejected_before_pan_capability_or_transport(self) -> None:
+        """A clean PAN plan cannot authorize against an overlay-positive fresh frame."""
+
+        from scripts import home_atlas_bluestacks as home_atlas
+        from scripts import startup_normalization
+        from tasks.home_atlas_planner import DirectPanNavigator
+
+        def _home_facts(frame, **_kwargs):
+            overlay = int(frame[0, 0, 0]) == 2
+            return {
+                "state": "HOME_BASE",
+                "recognized": True,
+                "overlay": overlay,
+                "blocking_unknown_modal": False,
+                "manual_only_state": False,
+            }
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _FakeRuntime(Path(directory))
+            planning_capture = runtime.capture("clean-planning")
+            planning_digest = frame_digest(planning_capture.frame)
+            planning_identity = identity_from_captured(
+                planning_capture,
+                session_id=str(runtime.session),
+                ordinal=1,
+                label="clean-planning",
+            )
+            localization = replace(
+                _localization(planning_digest, x=120.0, y=80.0),
+                frame_sha256=planning_digest,
+            )
+            target = _building()
+            with patch.object(
+                home_atlas,
+                "is_clean_home_frame",
+                wraps=startup_normalization.is_clean_home_frame,
+            ), patch(
+                "scripts.startup_normalization.classify_home_base_live",
+                side_effect=_home_facts,
+            ), patch(
+                "scripts.bluestacks_popup_recognition.recognize_reset_popup",
+                return_value={"recognized": False, "blocking_unknown_modal": False},
+            ):
+                binding = home_atlas.bind_visible_building(
+                    planning_capture.frame,
+                    localization,
+                    target,
+                    home_is_clean=home_atlas.is_clean_home_frame,
+                )
+                self.assertIsNotNone(binding)
+                bundle = build_navigate_perception_bundle(
+                    planning_identity,
+                    localization,
+                    binding,
+                    frame=planning_capture.frame,
+                )
+                checked_localization, checked_binding = bundle.checked_navigation_inputs()
+                safe_region, calibration = home_atlas.bluestacks_direct_pan_contract()
+                plan = DirectPanNavigator(
+                    _atlas(target),
+                    target.semantic_id,
+                    safe_region,
+                    calibration,
+                ).plan(checked_localization, checked_binding)
+                self.assertEqual(plan.disposition, PlanDisposition.PAN)
+                self.assertIsNotNone(plan.drag_start)
+                self.assertIsNotNone(plan.drag_end)
+                before_input_count = runtime.input_count
+                policy = _policy_for("RUNTIME-RESUMABLE-NAVIGATION-SESSIONS")
+                with _open_safety_store(Path(directory)) as store:
+                    with patch.object(
+                        policy,
+                        "issue_capability",
+                        wraps=policy.issue_capability,
+                    ) as issue_capability, patch.object(
+                        policy,
+                        "consume_capability",
+                        wraps=policy.consume_capability,
+                    ) as consume_capability:
+                        with self.assertRaises(PerceptionBundleError) as raised:
+                            home_atlas.dispatch_verified_navigate_pan(
+                                runtime=runtime,
+                                immediate_before=planning_capture,
+                                identity=planning_identity,
+                                drag_start=plan.drag_start,
+                                drag_end=plan.drag_end,
+                                action_id="overlay-pan-1",
+                                action_key="overlay-pan-key-1",
+                                task_id="RUNTIME-RESUMABLE-NAVIGATION-SESSIONS",
+                                navigation_session_id="nav-overlay",
+                                lease_owner="owner",
+                                policy=policy,
+                                store=store,
+                                monotonic_clock=_MonoClock(runtime),
+                                wall_clock=lambda: _TEST_WALL,
+                            )
+                self.assertEqual(raised.exception.reason_code, "PRE_DISPATCH_HOME_NOT_CLEAN")
+                self.assertEqual(issue_capability.call_count, 0)
+                self.assertEqual(consume_capability.call_count, 0)
+                self.assertEqual(runtime.swipes, [])
+                self.assertEqual(runtime.input_count, before_input_count)
+    def test_campaign_home_entry_fresh_overlay_blocks_without_prepared_pan(self) -> None:
+        """Production Campaign caller turns fresh Home admission denial into a terminal block."""
+
+        from scripts import home_atlas_bluestacks as home_atlas
+        from scripts import startup_normalization
+        from scripts.home_atlas_bluestacks import (
+            CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            run_verified_campaign_home_atlas_entry,
+        )
+
+        campaign = _building(
+            semantic_id=CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            polygon=((900, 900), (1040, 900), (1040, 1040), (900, 1040)),
+        )
+        world = _atlas(campaign)
+        issue_calls: list[object] = []
+        consume_calls: list[object] = []
+        issue_impl = CentralPolicy.issue_capability
+        consume_impl = CentralPolicy.consume_capability
+
+        def _issue(self, request, **kwargs):
+            issue_calls.append(request)
+            return issue_impl(self, request, **kwargs)
+
+        def _consume(self, capability, request):
+            consume_calls.append((capability, request))
+            return consume_impl(self, capability, request)
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _OverlayPreDispatchRuntime(Path(directory))
+            sample = runtime.capture("seed")
+            digest = frame_digest(sample.frame)
+            loc = replace(_localization(digest), frame_sha256=digest)
+            fake_localizer = SimpleNamespace(
+                localize=lambda frame: replace(loc, frame_sha256=frame_digest(frame))
+            )
+            with patch(
+                "scripts.home_atlas_bluestacks.require_campaign_home_atlas_building",
+                return_value=CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+            ), patch(
+                "scripts.home_atlas_bluestacks.load_home_atlas",
+                return_value=world,
+            ), patch(
+                "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer",
+                return_value=fake_localizer,
+            ), patch(
+                "scripts.home_atlas_bluestacks.bind_visible_building",
+                return_value=None,
+            ), patch.object(
+                home_atlas,
+                "is_clean_home_frame",
+                wraps=startup_normalization.is_clean_home_frame,
+            ), patch(
+                "scripts.startup_normalization.classify_home_base_live",
+                side_effect=_overlay_home_facts,
+            ), patch(
+                "scripts.bluestacks_popup_recognition.recognize_reset_popup",
+                return_value={"recognized": False, "blocking_unknown_modal": False},
+            ), patch(
+                "scripts.home_atlas_bluestacks.time.monotonic",
+                side_effect=lambda: float(runtime.ordinal) + 0.2,
+            ), patch.object(
+                CentralPolicy,
+                "issue_capability",
+                new=_issue,
+            ), patch.object(
+                CentralPolicy,
+                "consume_capability",
+                new=_consume,
+            ):
+                result = run_verified_campaign_home_atlas_entry(
+                    runtime,
+                    atlas_path=Path(directory) / "atlas.json",
+                    maximum_pans=1,
+                    execute=True,
+                    settle_seconds=0,
+                    semantic_opened_check=lambda _frame: False,
+                )
+
+            self.assertEqual(result["status"], "blocked_fail_closed")
+            self.assertEqual(result["reason"], "PRE_DISPATCH_HOME_NOT_CLEAN")
+            self.assertEqual(issue_calls, [])
+            self.assertEqual(consume_calls, [])
+            self.assertEqual(runtime.swipes, [])
+            self.assertEqual(runtime.input_count, 0)
+            self.assertIn("navigation_observability", result)
+            session_path = Path(result["navigation_session"])
+            self.assertTrue(session_path.is_file())
+            loaded = load_session(session_path)
+            self.assertEqual(loaded.outcome.value, "blocked")
+            self.assertEqual(loaded.terminal_reason, "PRE_DISPATCH_HOME_NOT_CLEAN")
+            self.assertIsNotNone(loaded.route_result)
+            self.assertEqual(loaded.route_result.status, "blocked")
+            self.assertEqual(loaded.route_result.reason, "PRE_DISPATCH_HOME_NOT_CLEAN")
+            self.assertEqual(loaded.action_ledger, [])
+            self.assertEqual(loaded.pending_suppressions, [])
+            self.assertEqual(loaded.pending_gesture_suppressions, [])
+
+    def test_navigate_building_fresh_overlay_blocks_without_prepared_pan(self) -> None:
+        """CLI caller persists a blocked terminal and never admits the rejected PAN."""
+
+        from scripts import home_atlas_bluestacks as home_atlas
+        from scripts import startup_normalization
+
+        world = _atlas(_far_building())
+        issue_calls: list[object] = []
+        consume_calls: list[object] = []
+        issue_impl = CentralPolicy.issue_capability
+        consume_impl = CentralPolicy.consume_capability
+
+        def _issue(self, request, **kwargs):
+            issue_calls.append(request)
+            return issue_impl(self, request, **kwargs)
+
+        def _consume(self, capability, request):
+            consume_calls.append((capability, request))
+            return consume_impl(self, capability, request)
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = _OverlayPreDispatchRuntime(Path(directory))
+            sample = runtime.capture("seed")
+            digest = frame_digest(sample.frame)
+            loc = replace(_localization(digest), frame_sha256=digest)
+            fake_localizer = SimpleNamespace(
+                localize=lambda frame: replace(loc, frame_sha256=frame_digest(frame))
+            )
+            args = _args(directory, building_id=_far_building().semantic_id)
+            with patch(
+                "scripts.home_atlas_bluestacks.load_home_atlas",
+                return_value=world,
+            ), patch(
+                "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer",
+                return_value=fake_localizer,
+            ), patch(
+                "scripts.home_atlas_bluestacks.connect_runtime",
+                return_value=runtime,
+            ), patch(
+                "scripts.home_atlas_bluestacks.bind_visible_building",
+                return_value=None,
+            ), patch.object(
+                home_atlas,
+                "is_clean_home_frame",
+                wraps=startup_normalization.is_clean_home_frame,
+            ), patch(
+                "scripts.startup_normalization.classify_home_base_live",
+                side_effect=_overlay_home_facts,
+            ), patch(
+                "scripts.bluestacks_popup_recognition.recognize_reset_popup",
+                return_value={"recognized": False, "blocking_unknown_modal": False},
+            ), patch(
+                "scripts.home_atlas_bluestacks.time.monotonic",
+                side_effect=lambda: float(runtime.ordinal) + 0.2,
+            ), patch.object(
+                CentralPolicy,
+                "issue_capability",
+                new=_issue,
+            ), patch.object(
+                CentralPolicy,
+                "consume_capability",
+                new=_consume,
+            ):
+                code = command_navigate_building(args)
+
+            self.assertEqual(code, 3)
+            payload = json.loads(
+                (runtime.session / "navigate-building-result.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(payload["status"], "blocked")
+            self.assertEqual(payload["reason"], "PRE_DISPATCH_HOME_NOT_CLEAN")
+            self.assertEqual(payload["navigation_input_count"], 0)
+            self.assertEqual(issue_calls, [])
+            self.assertEqual(consume_calls, [])
+            self.assertEqual(runtime.swipes, [])
+            self.assertEqual(runtime.input_count, 0)
+            loaded = load_session(runtime.session / "navigate-session.json")
+            self.assertEqual(loaded.outcome.value, "blocked")
+            self.assertEqual(loaded.terminal_reason, "PRE_DISPATCH_HOME_NOT_CLEAN")
+            self.assertIsNotNone(loaded.route_result)
+            self.assertEqual(loaded.route_result.status, "blocked")
+            self.assertEqual(loaded.route_result.reason, "PRE_DISPATCH_HOME_NOT_CLEAN")
+            self.assertEqual(loaded.action_ledger, [])
+            self.assertEqual(loaded.pending_suppressions, [])
+            self.assertEqual(loaded.pending_gesture_suppressions, [])
+
+
 
     def test_cross_session_state(self) -> None:
         a = create_bluestacks_session_calibration("session-a")
@@ -820,7 +1265,8 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 code = command_navigate_building(args)
             self.assertEqual(code, 3)
             payload = json.loads((runtime.session / "navigate-building-result.json").read_text(encoding="utf-8"))
-            self.assertEqual(payload["reason"], "source_localization_failed")
+            self.assertIn("Home Atlas startup blocked", payload["reason"])
+            self.assertEqual(payload["navigation_input_count"], 0)
 
         with tempfile.TemporaryDirectory() as directory:
             runtime = _FakeRuntime(Path(directory))
@@ -1489,7 +1935,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 localize=lambda frame: replace(loc, frame_sha256=frame_digest(frame))
             )
 
-            def _bind(frame, localization_arg, building_arg):
+            def _bind(frame, localization_arg, building_arg, *, home_is_clean):
                 return replace(binding, frame_sha256=localization_arg.frame_sha256)
 
             with patch(

@@ -2363,6 +2363,75 @@ class BotStateManager:
                 (now, run_id, int(row["row_version"])),
             )
             return None if result.rowcount != 1 else self._run(db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone())
+    def record_executor_consumption(
+        self,
+        run_id: str,
+        *,
+        consumed_inputs: int,
+        consumed_actions: int,
+        owner_instance_id: str | None = None,
+        process_start_token: str | None = None,
+        run_token: str | None = None,
+        lease_generation: int | None = None,
+        now_utc_epoch: float | None = None,
+    ) -> RunRecord | None:
+        """Reconcile executor-bound native totals without creating duplicate actions."""
+
+        _nonnegative_int(consumed_inputs, "consumed_inputs")
+        _nonnegative_int(consumed_actions, "consumed_actions")
+        if (
+            owner_instance_id is None
+            or process_start_token is None
+            or run_token is None
+            or type(lease_generation) is not int
+            or lease_generation < 1
+        ):
+            return None
+        run_id = _text(run_id, "run_id")
+        owner = _text(owner_instance_id, "owner_instance_id")
+        process_token = _text(process_start_token, "process_start_token")
+        token = _text(run_token, "run_token")
+        now = _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
+        assert now is not None
+        with self._transaction() as db:
+            run = db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+            if run is None or run["state"] != RunState.RUNNING.value:
+                return None
+            if (
+                run["owner_instance_id"] != owner
+                or run["process_start_token"] != process_token
+                or run["run_token"] != token
+                or int(run["lease_generation"]) != lease_generation
+                or self._lease_matches(
+                    db,
+                    owner_instance_id=owner,
+                    process_start_token=process_token,
+                    lease_generation=lease_generation,
+                    now_utc_epoch=now,
+                ) is not None
+            ):
+                return None
+            if (
+                consumed_inputs < int(run["consumed_inputs"])
+                or consumed_actions < int(run["consumed_actions"])
+                or consumed_inputs > int(run["max_inputs"])
+                or consumed_actions > int(run["max_actions"])
+            ):
+                return None
+            if (
+                consumed_inputs != int(run["consumed_inputs"])
+                or consumed_actions != int(run["consumed_actions"])
+            ):
+                db.execute(
+                    """UPDATE runs
+                       SET consumed_inputs = ?, consumed_actions = ?, row_version = row_version + 1
+                       WHERE run_id = ?""",
+                    (consumed_inputs, consumed_actions, run_id),
+                )
+            return self._run(
+                db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+            )
+
     def reserve_action(
         self,
         run_id: str,

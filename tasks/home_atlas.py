@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Iterable
 
@@ -83,6 +84,7 @@ class SemanticBuilding:
     interaction_eligible: bool = True
     safe_interaction_region_id: str = "home-default"
     platform_binding_policy: dict[str, object] = field(default_factory=dict)
+    interaction_anchor_override: Point | None = None
 
     @property
     def center(self) -> Point:
@@ -90,7 +92,17 @@ class SemanticBuilding:
 
     @property
     def navigation_anchor(self) -> Point:
-        return self.navigation_anchor_override or self.center
+        return self.navigation_anchor_override if self.navigation_anchor_override is not None else self.center
+
+    @property
+    def interaction_anchor(self) -> Point:
+        """Return the Atlas-space point authorized for interaction."""
+
+        return (
+            self.interaction_anchor_override
+            if self.interaction_anchor_override is not None
+            else self.center
+        )
 
 
 @dataclass(frozen=True)
@@ -157,6 +169,9 @@ class BuildingBinding:
     semantic_evidence: tuple[str, ...]
     overlay_intersects: bool = False
     ambiguous_overlap: bool = False
+    anchor_source: str = "polygon_centroid"
+    atlas_anchor: Point | None = None
+    screen_anchor: Point | None = None
 
 
 @dataclass(frozen=True)
@@ -215,6 +230,40 @@ def point_in_coverage(point: Point, polygons: Iterable[Polygon]) -> bool:
         if inside:
             return True
     return False
+
+
+def polygon_is_valid(polygon: Polygon) -> bool:
+    """Return whether a polygon is finite, non-degenerate, and usable."""
+
+    try:
+        if len(polygon) < 3:
+            return False
+    except TypeError:
+        return False
+    try:
+        if not all(
+            len(point) == 2
+            and math.isfinite(float(point[0]))
+            and math.isfinite(float(point[1]))
+            for point in polygon
+        ):
+            return False
+    except (IndexError, TypeError, ValueError):
+        return False
+    area = 0.0
+    previous = polygon[-1]
+    for current in polygon:
+        area += previous[0] * current[1] - current[0] * previous[1]
+        previous = current
+    return abs(area) > 1e-9
+
+
+def point_in_polygon(point: Point, polygon: Polygon) -> bool:
+    """Return whether a point lies inside or on the polygon boundary."""
+
+    if not polygon_is_valid(polygon):
+        return False
+    return point_in_coverage(point, (polygon,))
 
 
 def frame_sha256(png: bytes) -> str:
@@ -302,6 +351,18 @@ class ClosedLoopBuildingNavigator:
         if binding is not None:
             safe_x0, safe_y0, safe_x1, safe_y1 = self.safe_screen_box
             roi_x0, roi_y0, roi_x1, roi_y1 = binding.target_roi
+            anchor_matches = binding.atlas_anchor is None or binding.atlas_anchor == self.building.interaction_anchor
+            screen_anchor_safe = binding.screen_anchor is None or (
+                len(binding.screen_anchor) == 2
+                and all(math.isfinite(float(value)) for value in binding.screen_anchor)
+                and safe_x0 <= binding.screen_anchor[0] <= safe_x1
+                and safe_y0 <= binding.screen_anchor[1] <= safe_y1
+            )
+            center_matches = binding.screen_anchor is None or (
+                len(binding.screen_anchor) == 2
+                and abs((roi_x0 + roi_x1) / 2.0 - binding.screen_anchor[0]) <= 1.0
+                and abs((roi_y0 + roi_y1) / 2.0 - binding.screen_anchor[1]) <= 1.0
+            )
             if (
                 binding.building_id != self.building.semantic_id
                 or binding.frame_sha256 != localization.frame_sha256
@@ -312,6 +373,9 @@ class ClosedLoopBuildingNavigator:
                 or roi_x0 < safe_x0
                 or roi_y0 < safe_y0
                 or roi_x1 > safe_x1
+                or not anchor_matches
+                or not screen_anchor_safe
+                or not center_matches
                 or roi_y1 > safe_y1
             ):
                 return NavigationCommand(NavigationAction.STOP, "current_frame_building_binding_rejected", terminal=True)
@@ -358,13 +422,28 @@ class ClosedLoopBuildingNavigator:
 def _polygon(value: object) -> Polygon:
     if not isinstance(value, list) or len(value) < 3:
         raise ValueError("atlas polygon must contain at least three points")
-    return tuple((float(item[0]), float(item[1])) for item in value)
+    polygon = tuple((float(item[0]), float(item[1])) for item in value)
+    if not polygon_is_valid(polygon):
+        raise ValueError("atlas polygon must contain finite non-degenerate points")
+    return polygon
+
+
+def _point(value: object, *, field_name: str) -> Point:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise ValueError(f"{field_name} must contain exactly two coordinates")
+    point = (float(value[0]), float(value[1]))
+    if not all(math.isfinite(coordinate) for coordinate in point):
+        raise ValueError(f"{field_name} coordinates must be finite")
+    return point
 
 
 def _matrix(value: object) -> Matrix3:
     if not isinstance(value, list) or len(value) != 3 or any(len(row) != 3 for row in value):
         raise ValueError("atlas transform must be a 3x3 matrix")
-    return tuple(tuple(float(cell) for cell in row) for row in value)
+    matrix = tuple(tuple(float(cell) for cell in row) for row in value)
+    if not all(math.isfinite(cell) for row in matrix for cell in row):
+        raise ValueError("atlas transform must contain finite values")
+    return matrix
 
 
 def load_home_atlas(path: Path) -> HomeAtlas:
@@ -383,15 +462,23 @@ def load_home_atlas(path: Path) -> HomeAtlas:
     buildings = tuple(
         SemanticBuilding(
             **{
-                **{key: value for key, value in item.items() if key != "navigation_anchor"},
+                **{
+                    key: value
+                    for key, value in item.items()
+                    if key not in {"navigation_anchor", "interaction_anchor"}
+                },
                 "polygon": _polygon(item["polygon"]),
                 "supporting_source_frames": tuple(item["supporting_source_frames"]),
                 "expected_visual_variants": tuple(item.get("expected_visual_variants", ())),
                 "visibility_constraints": tuple(item.get("visibility_constraints", ())),
                 "semantic_proof": tuple(item.get("semantic_proof", ())),
                 "navigation_anchor_override": (
-                    (float(item["navigation_anchor"][0]), float(item["navigation_anchor"][1]))
+                    _point(item["navigation_anchor"], field_name="navigation_anchor")
                     if item.get("navigation_anchor") is not None else None
+                ),
+                "interaction_anchor_override": (
+                    _point(item["interaction_anchor"], field_name="interaction_anchor")
+                    if item.get("interaction_anchor") is not None else None
                 ),
                 "interaction_eligible": bool(item.get(
                     "interaction_eligible",
@@ -410,7 +497,7 @@ def load_home_atlas(path: Path) -> HomeAtlas:
         profile=profile,
         canonical_zoom_identity=str(payload["canonical_zoom_identity"]),
         coordinate_units=str(payload["coordinate_units"]),
-        origin=(float(payload["origin"][0]), float(payload["origin"][1])),
+        origin=_point(payload["origin"], field_name="origin"),
         width=int(payload["width"]),
         height=int(payload["height"]),
         image_path=str(payload["image_path"]),

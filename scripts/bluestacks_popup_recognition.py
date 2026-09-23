@@ -129,6 +129,11 @@ def recognize_reset_popup(frame: np.ndarray) -> dict[str, Any]:
     panel = crop(frame, VIP_POPUP_PANEL_REGION)
     panel_present = float(panel.mean()) > 20.0
     recognized = bool(title_identity and body_identity and literal_close and geometry_valid and panel_present)
+    # A current-frame modal with the same independently measured Close geometry
+    # remains blocking even when its semantic body is not the allowlisted VIP popup.
+    blocking_unknown_modal = bool(
+        not recognized and literal_close and geometry_valid and panel_present
+    )
     return {
         "recognized": recognized,
         "popup_identity": "VIP_POINTS_GET_PTS" if recognized else None,
@@ -143,6 +148,7 @@ def recognize_reset_popup(frame: np.ndarray) -> dict[str, Any]:
         "target_identity": "reset-popup-close" if recognized else None,
         "geometry_valid": geometry_valid,
         "panel_present": panel_present,
+        "blocking_unknown_modal": blocking_unknown_modal,
         "close_region": RESET_POPUP_CLOSE_REGION,
     }
 

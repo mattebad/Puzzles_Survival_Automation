@@ -3,26 +3,23 @@
 <!-- CURRENT_HANDOFF_STATE_BEGIN -->
 {
   "schema_version": 3,
-  "branch": "main",
-  "head_binding": "c0235490f32dedba2c794ce702509052940caf52",
-  "last_product_candidate_head": "961d2b8adc9391a13e23fcfd967c43e21e755602",
+  "branch": "refactor/lean-bot-backlog",
+  "head_binding": "eb5a6fa4b3b270a66708a0e9350786288c66ea2c",
+  "last_product_candidate_head": "804d9a25d12f41463e5a67912f0327f8dc6fa2d4",
   "merge_boundary": {
-    "pull_request": 4,
-    "merge_commit": "25f5de6b153afb6b75907b29e91fde5a1d04e122",
-    "merged_non_force_into": "main",
-    "merged_at": "2026-08-30",
-    "runtime_or_authority_changes": false,
-    "pending_action": null,
-    "github_review_metadata": "reviewDecision REVIEW_REQUIRED; no reviews or checks recorded"
+    "pull_request": 15,
+    "base_head": "69a262150d5c4847df23175c4820602d2d432339",
+    "candidate_head": "804d9a25d12f41463e5a67912f0327f8dc6fa2d4",
+    "state": "pan_correction_verified_publication_authorized",
+    "runtime_or_authority_changes": true,
+    "pending_action": "User authorized committing and pushing the scoped PAN admission and terminal-handling correction. This receipt records pre-publication verification; Git and PR #15 identify the resulting commit and remote publication. The SHA anchors and Actions run 35765739810 identify historical verified history, not CI proof for the new correction. Confirm Ubuntu/Windows CI on the resulting candidate before merge."
   },
   "ahead_behind": {
     "source": "compute_from_git"
   },
   "attributable_dirty_paths": [],
   "task_start_worktree": {
-    "tracked_dirty_paths": [
-      "Stop-PnS-OMP.ps1"
-    ],
+    "tracked_dirty_paths": [],
     "protected_untracked_paths": [
       ".local-captures/",
       ".local-reference/",
@@ -35,29 +32,29 @@
     ".local-reference/",
     "evidence/"
   ],
-  "current_task_id": "RUNTIME-RELIABILITY-MERGE-BOUNDARY",
-  "current_task_state": "completed",
-  "next_task_id": "HOME-ATLAS-LOCALIZATION-RESTORATION",
-  "next_task_activation_status": "awaiting_explicit_activation",
+  "current_task_id": "PR-15-ATLAS-PAN-HOME-ADMISSION",
+  "current_task_state": "in_progress",
+  "next_task_id": "LB-09-NATURAL-POPUP-EVIDENCE",
+  "next_task_activation_status": "dependency_blocked",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "complete",
+  "active_delivery_stage": "offline_pan_correction_publication_authorized",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
-  "unresolved_action_state": "clear",
-  "latest_focused_validation_result": "Post-merge reconciliation: governance 19/19 and authority consistency 36/36 passed; governance and flow-authority CLIs passed; backlog index regenerated with 32 tasks; token-context hygiene ran 20 tests with 17 passing and three unchanged baseline incompatibilities",
-  "latest_architecture_validation_result": "Solo GPT-5.6 Sol parent reviewed the reconciled union and one consolidated index-source repair; PR 4 merged non-force into main at 25f5de6; GitHub records REVIEW_REQUIRED with no independent review or checks recorded",
-  "latest_full_suite_result": "Not run; full repository discovery remains manual-only. Token-context hygiene baselines are an obsolete ready-flow fixture, the pre-existing Ultimate completed-versus-blocked assertion conflict, and the pre-existing active_runtime expectation mismatch",
-  "current_live_attempt_state": "not_applicable_for_completed_merge_boundary",
-  "current_evidence_or_session_reference": "No runtime evidence for the completed merge boundary; Campaign r2 terminal evidence is retained under retained_terminal_disposition",
-  "last_safe_completed_step": "PR 4 merged non-force into main at 25f5de6; Campaign AP r2 remains blocked_evidence_required with zero runtime input",
-  "exact_next_permitted_action": "Activate a new atomic Home localization task HOME-ATLAS-LOCALIZATION-RESTORATION; do not repeat Campaign r2",
-  "current_blocker": "none; Campaign r2 retained blocked_evidence_required disposition is not a merge-boundary blocker",
-  "prohibited_repeated_action": "Do not repeat Campaign r2; Home localization requires explicit atomic activation before any input",
-  "stage_revision": "runtime-reliability-merge-boundary",
+  "unresolved_action_state": "startup_vip_action_unresolved_preserved",
+  "latest_focused_validation_result": "Local Windows Python 3.12: 348 affected tests run, 346 passed and 2 skipped. Includes all four production fresh-overlay rejection paths, persisted blocked navigation/results, zero capability issue/consume and input, clean PAN preservation, prepare-before-transport ordering, and RuntimeError/matching typed transport-fault propagation. Scoped source/test compilation passed. Offline direct-canary smoke returned blocked with matching result.json and evidence_required summary.json, input_count 0 and zero swipes for Supply and Bioenhancer. Classifier facts/transport were controlled; no live visual-accuracy or current-working-tree CI claim.",
+  "latest_architecture_validation_result": "Digest-bound planning and fresh PAN clean-Home guards are preserved. Atlas records and persists PAN preparation only after fresh admission and before capability issuance/input; pre-admission rejection persists a blocked navigation outcome without a prepared ledger entry. Supply/Bioenhancer persist normal blocked/evidence_required terminal results before any input. Post-admission or post-accounting errors are not recast as no-dispatch rejection. Clean binding=None remains pannable; no historical ledger clearing, retry, or reopened accounting/geometry/governance design.",
+  "latest_full_suite_result": "Historical only: pre-merge branch recorded 488 passed and 6 skipped; no post-correction full-suite claim",
+  "current_live_attempt_state": "not_run_during_offline_review_corrections",
+  "current_evidence_or_session_reference": ".local-captures/lb09-panfix-rerun-20260919T041106Z/noahs-tavern-unified-recruitment-20260919T041110785460Z/unified-recruitment-result.json",
+  "last_safe_completed_step": "Integrated scoped Atlas and direct-canary terminal-handling task workers, repaired the synthetic persistence-ordering recognition fixture, passed the affected regression set, and exercised returned plus retained zero-input rejection outcomes offline",
+  "exact_next_permitted_action": "Commit and push the verified scoped PAN correction to the existing branch, confirm its remote receipt, and inspect exact-candidate CI; no merge or runtime/live action is authorized",
+  "current_blocker": "The reported PAN admission and rejection-completion gaps are closed in the exercised offline paths. Exact-candidate Ubuntu/Windows CI remains unverified; use Git and PR #15 for publication status. Native-runner return-time accounting remains accepted as fail-closed. The retained startup VIP action remains unresolved; current_task_state is not marked completed because that lifecycle requires clear unresolved state.",
+  "prohibited_repeated_action": "Do not clear or relabel the retained startup VIP unresolved action; do not synthesize popup evidence, enable registration or scheduling, merge, force-push, or perform runtime input",
+  "stage_revision": "pr15-atlas-pan-terminal-handling",
   "stage_type": "offline_reconciliation",
-  "product_precondition": "not_applicable",
+  "product_precondition": "met_for_offline_corrections_only",
   "failure_class": "none",
   "budgets": {
     "stage_revisions_used": 0,
@@ -85,32 +82,45 @@
   },
   "journals_and_lease": {
     "development_lease_status": "absent",
-    "active_prepared_input_sent_unresolved_action_ids": [],
+    "active_prepared_input_sent_unresolved_action_ids": [
+      "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE:startup-recovery:vip-reset-close:694e10fd13a56b5e"
+    ],
     "historical_journals": "retained_immutable"
   },
   "evidence": {
-    "evidence_requirement": "NOT_APPLICABLE",
-    "evidence_requirement_reason": "The completed RUNTIME-RELIABILITY-MERGE-BOUNDARY is an offline repository reconciliation with no runtime evidence; Campaign r2 terminal evidence is retained separately.",
-    "active_evidence_manifest": null,
-    "monitoring_issue": "none",
+    "evidence_requirement": "NON_HOME_AND_POST_CONSUMPTION_POPUP_PROOF_PENDING",
+    "evidence_requirement_reason": "Home-context popup recovery and the popup-free Recruitment route are live-proven; Tavern/non-Home and post-consumption interruption await natural occurrence.",
+    "active_evidence_manifest": ".local-captures/lb09-panfix-rerun-20260919T041106Z/noahs-tavern-unified-recruitment-20260919T041110785460Z/unified-recruitment-result.json",
+    "monitoring_issue": "none; no live monitoring or input during offline review corrections",
     "do_not_recursively_inspect_parent_evidence_tree": true
   },
-  "control_parent_conversation_id": "stage-10-phase-5-reproof-20260826",
-  "deferred_independent_review": "PR 4 is merged non-force into main at 25f5de6; GitHub records REVIEW_REQUIRED with no independent review or checks recorded, so no independent approval is claimed and no merge action remains pending",
-  "stage_7_ordered_plan": [
-    "Stage A startup-surface recovery r2 accepted and pushed",
-    "Stage B not_applicable for canonical Home successor",
-    "Campaign AP r2 blocked_evidence_required before input"
-  ],
+  "control_parent_conversation_id": "pr15-offline-review-corrections",
+  "deferred_independent_review": "User authorized the narrow PAN rejection-completion follow-up via task subagents. Two disjoint workers implemented Atlas and direct-canary terminal handling; parent integrated and verified actual caller outcomes, persistence ordering, and exception-stage distinctions. Cleared findings and remaining live-evidence limits are unchanged.",
+  "stage_7_ordered_plan": [],
   "next_three_atomic_tasks": [
-    "Activate HOME-ATLAS-LOCALIZATION-RESTORATION only after explicit activation; no Campaign r2 repeat",
-    "Keep Campaign r2 blocked_evidence_required without an identical retry",
-    "Keep all other flows inactive until the Home localization task reaches its terminal gate"
+    "Commit and push the verified scoped PAN correction to the existing branch",
+    "Confirm the remote candidate and inspect its Ubuntu/Windows CI without merging",
+    "Preserve unresolved startup VIP state and disabled runtime controls"
   ],
-  "stage_start_utc": "2026-08-26T21:43:00Z",
-  "continuation_checkpoint_utc": "2026-08-26T21:23:00Z"
+  "stage_start_utc": "2026-09-19T04:24:00Z",
+  "continuation_checkpoint_utc": "2026-09-23T05:20:25Z"
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
+
+## Atlas and Recruitment branch reconciliation
+
+PR #15 adds the later Atlas-defined Home entry and Windows/BlueStacks Recruitment work to the
+canonical structure now on `main`. The merge keeps ordinary registered handlers as non-consuming
+`SelectionPlan` providers. Recruitment remains the intentional executor-bound exception: only an
+explicit supervised service installs its execution handler, and canonical claim, dispatch, lease,
+input-budget, terminal-projection, and disabled-registration boundaries still apply.
+
+Retained live evidence proves Atlas Tavern entry, repeated free recruitment with cooldown
+persistence and verified Home return, one naturally occurring exact VIP popup recovery at Home,
+and a later 7/12-input popup-free regression pass. It does not prove Tavern/non-Home or
+post-consumption popup interruption. No live input, state mutation, registration, scheduler
+enablement, or evidence mutation occurred during this merge reconciliation.
+
 
 ## Durable Stage 10 disposition
 - Phases 1-3 are accepted and remain immutable.

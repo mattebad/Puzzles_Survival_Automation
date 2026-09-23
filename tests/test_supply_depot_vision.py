@@ -6,14 +6,11 @@ import unittest
 
 import numpy as np
 
-from tasks.home_atlas import AmbiguityState, LocalizationResult, SemanticBuilding, ZoomIdentity
-from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, frame_digest
+from tasks.home_atlas_vision import BLUESTACKS_PROFILE_ID, frame_digest
 from tasks.perception_bundle import NativeFrameIdentity
 from tasks import supply_depot_vision as supply_depot_module
 from tasks.supply_depot_vision import (
     _claim_supply_roi_from_data,
-    SUPPLY_DEPOT_BUILDING_ID,
-    bind_supply_depot_building,
     bind_supply_depot_claim_supply,
     recognize_supply_depot_screen,
 )
@@ -137,43 +134,6 @@ class SupplyDepotVisionTests(unittest.TestCase):
         self.assertIn("ambiguous_control", ambiguous.ambiguity)
         self.assertIn("daily_free_attempts_not_recognized", ambiguous.ambiguity)
 
-    def test_building_binding_requires_current_frame_localization_and_semantic_ocr(self):
-        localization = LocalizationResult(
-            recognized=True,
-            platform=BLUESTACKS_PLATFORM,
-            profile_id=BLUESTACKS_PROFILE_ID,
-            zoom_identity=ZoomIdentity.FULLY_ZOOMED_OUT,
-            screen_to_atlas=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
-            viewport_polygon=((0.0, 0.0), (800.0, 0.0), (800.0, 1280.0), (0.0, 1280.0)),
-            confidence=0.99,
-            supporting_landmarks=("terrain", "road", "wall"),
-            residual_px=0.1,
-            ambiguity_state=AmbiguityState.NONE,
-            map_edge_state="none",
-            frame_sha256=frame_digest(self.frame),
-            timestamp="2026-07-18T00:00:00+00:00",
-        )
-        building = SemanticBuilding(
-            semantic_id=SUPPLY_DEPOT_BUILDING_ID,
-            display_identity="Supply Depot",
-            polygon=((300.0, 400.0), (480.0, 400.0), (480.0, 560.0), (300.0, 560.0)),
-            confidence=0.99,
-            supporting_source_frames=("viewport-001",),
-            semantic_proof=("visible label",),
-        )
-        binding = bind_supply_depot_building(
-            self.frame,
-            localization,
-            building,
-            ocr=lambda _image, _psm: "Supply Depot",
-        )
-        self.assertIsNotNone(binding)
-        self.assertEqual(binding.building_id, SUPPLY_DEPOT_BUILDING_ID)
-        self.assertEqual(binding.frame_sha256, frame_digest(self.frame))
-
-        stale = LocalizationResult(**{**localization.__dict__, "frame_sha256": "0" * 64})
-        self.assertIsNone(bind_supply_depot_building(self.frame, stale, building, ocr=lambda _image, _psm: "Supply Depot"))
-        self.assertIsNone(bind_supply_depot_building(self.frame, localization, building, ocr=lambda _image, _psm: "Headquarters"))
 
     def test_radial_binding_separates_claim_supply_from_upgrade(self):
         binding = bind_supply_depot_claim_supply(

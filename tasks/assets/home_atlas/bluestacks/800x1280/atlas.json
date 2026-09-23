@@ -97,6 +97,7 @@
       },
       "interaction_eligible": true,
       "navigation_anchor": [1246.7, 976.1],
+      "interaction_anchor": [1246.7, 976.1],
       "platform_binding_policy": {
         "bluestacks": {
           "allow_safe_subregion_at_camera_edge": true,
@@ -770,6 +771,7 @@
         }
       },
       "semantic_id": "home.building.research_lab",
+      "interaction_anchor": [835, 520],
       "semantic_proof": [
         "visible Research Lab label and blue globe geometry in completed BlueStacks atlas"
       ],
@@ -1054,6 +1056,7 @@
         }
       },
       "semantic_id": "home.building.noahs_tavern",
+      "interaction_anchor": [355, 757.5],
       "semantic_proof": [
         "visible Noah's Tavern label in completed BlueStacks atlas"
       ],

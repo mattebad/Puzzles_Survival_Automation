@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Optional
+from typing import Callable, Optional
 
 from .noahs_tavern_recruit import (
     HERO_RECRUIT_RESULT_SCREEN,
@@ -14,9 +14,9 @@ from .noahs_tavern_recruit import (
     DailyQuestProgress,
     RecruitTier,
     TierState,
+    noah_consumed_attempts_remaining,
     noah_recruit_authorizeable,
     noah_result_postcondition_verified,
-    update_progress,
 )
 from .noahs_tavern_recruit_vision import TAVERN_FREE_ROI, TAVERN_CARDS_ROI
 from .noahs_tavern_recruit_maintenance import (
@@ -68,7 +68,7 @@ class NoahRecruitProgress:
 class NoahTavernRecruitRuntimeController:
     """One-command-at-a-time state machine with no Claim or scheduler promotion path."""
 
-    def __init__(self, *, now: float = 0.0, maintenance_state: NoahMaintenanceState | None = None, repository=None, scheduler_identity: SchedulerIdentity | None = None) -> None:
+    def __init__(self, *, now: float = 0.0, maintenance_state: NoahMaintenanceState | None = None, repository=None, scheduler_identity: SchedulerIdentity | None = None, utc_clock: Callable[[], float] | None = None) -> None:
         self.now = now
         self.progress = NoahRecruitProgress()
         self.maintenance_controller = NoahTavernMaintenanceController(
@@ -77,6 +77,19 @@ class NoahTavernRecruitRuntimeController:
         )
         self.repository = repository
         self.scheduler_identity = scheduler_identity
+        self.utc_clock = utc_clock
+
+    def _policy_observation(self, observation: NoahTavernObservation) -> NoahTavernObservation:
+        """Keep frame freshness monotonic; convert cooldown deadlines to policy UTC."""
+        if self.utc_clock is None:
+            return observation
+        self.now = self.utc_clock()
+        offset = self.now - observation.captured_monotonic
+        return replace(observation, tiers=tuple(
+            replace(item, next_eligible_timestamp=item.next_eligible_timestamp + offset)
+            if item.next_eligible_timestamp is not None else item
+            for item in observation.tiers
+        ))
 
     def persist_maintenance_state(self, *, now: float | None = None) -> None:
         """Persist current verified maintenance progress through the existing repository seam."""
@@ -124,7 +137,7 @@ class NoahTavernRecruitRuntimeController:
 
     def _remember_tier(self, observation: NoahTavernObservation, tier: RecruitTier) -> None:
         item = observation.tier(tier)
-        if item.attempts_remaining is None:
+        if item.attempts_remaining is None and not item.cooldown_active:
             return
         self.progress.inspected_tiers.add(tier)
         prior = self.progress.tiers.get(tier)
@@ -150,7 +163,7 @@ class NoahTavernRecruitRuntimeController:
     def next_command(self, recognition, *, now: float | None = None) -> NoahCommand:
         if now is not None:
             self.now = now
-        obs: NoahTavernObservation = recognition.observation
+        obs = self._policy_observation(recognition.observation)
         if not obs.recognized or obs.screen_state == "UNKNOWN" or obs.stale:
             return self._stop("unknown_or_stale_noahs_tavern_state")
         if obs.screen_state == HOME_BASE_SCREEN:
@@ -158,9 +171,29 @@ class NoahTavernRecruitRuntimeController:
                 return self._stop("home_tavern_target_not_current_frame_bound")
             return NoahCommand(NoahAction.OPEN_TAVERN, "noahs-tavern-building", obs.home_tavern_target_roi, reason="recognized_home_base")
         if obs.screen_state == HERO_RECRUIT_RESULT_SCREEN:
-            if not self.progress.awaiting_postcondition or self.progress.awaiting_tier is None:
+            if (
+                not self.progress.awaiting_postcondition
+                or self.progress.awaiting_tier is None
+                or not self.progress.dispatched_action_keys
+            ):
                 return self._stop("unexpected_recruit_result_without_dispatch")
-            if not obs.safe_close_visible or not obs.result_identity.strip():
+            if self.progress.awaiting_before is None or not noah_recruit_authorizeable(
+                self.progress.awaiting_before,
+                self.progress.awaiting_tier,
+            ):
+                return self._stop("pending_free_source_not_authorized")
+            if self.progress.result_observed:
+                return self._stop("result_close_already_requested")
+            if obs.overlay_state not in {"none", "none_observed"}:
+                return self._stop("unknown_or_overlaid_recruit_result_close")
+            if obs.result_tier is not None and obs.result_tier != self.progress.awaiting_tier:
+                return self._stop("recruit_result_tier_mismatch")
+            if (
+                not obs.safe_close_visible
+                or len(obs.safe_close_roi) != 4
+                or obs.safe_close_roi[0] >= obs.safe_close_roi[2]
+                or obs.safe_close_roi[1] >= obs.safe_close_roi[3]
+            ):
                 return self._stop("unknown_or_ambiguous_recruit_result_close")
             self.progress.result_observed = True
             return NoahCommand(NoahAction.CLOSE_RESULT, "noahs-tavern-result-close", obs.safe_close_roi, tier=self.progress.awaiting_tier, reason="recognized_safe_close")
@@ -174,6 +207,19 @@ class NoahTavernRecruitRuntimeController:
         if not obs.selected_tier:
             return self._stop("missing_selected_tier")
         self._remember_tier(obs, obs.selected_tier)
+        if self.utc_clock is not None:
+            from .noahs_tavern_recruit_maintenance import PersistedTierState
+
+            observed = obs.tier(obs.selected_tier)
+            prior = self.maintenance_controller.state.tiers[obs.selected_tier]
+            if observed.cooldown_active and observed.next_eligible_timestamp is not None:
+                self.maintenance_controller.state.tiers[obs.selected_tier] = PersistedTierState(
+                    observed.attempts_remaining if observed.attempts_remaining is not None else prior.attempts_remaining,
+                    observed.next_eligible_timestamp,
+                    prior.cooldown_seconds,
+                    "deferred",
+                )
+                self.persist_maintenance_state(now=self.now)
         # Shared persisted policy is authoritative for executable decisions. A stale frame cannot
         # bypass Basic's five-count cap or an Int./Advanced cooldown.
         if not self.maintenance_controller.current_tier_eligible(obs, obs.selected_tier, now=self.now):
@@ -196,7 +242,7 @@ class NoahTavernRecruitRuntimeController:
             )
             if cooldowns:
                 return NoahCommand(NoahAction.WAIT_COOLDOWN, scheduler_ready=True, next_eligible_timestamp=min(cooldowns), reason="all_shared_policy_tiers_deferred")
-            return self._stop("no_shared_policy_eligible_free_tier")
+            return NoahCommand(NoahAction.RETURN_HOME, reason="no_shared_policy_eligible_free_tier")
         current = self.progress.tiers.get(obs.selected_tier)
         if current and current.attempts_remaining and not current.cooldown_active:
             if recognition.frame_sha256 in self.progress.seen_frame_hashes:
@@ -243,30 +289,28 @@ class NoahTavernRecruitRuntimeController:
             return False
         result: NoahTavernObservation = result_recognition.observation
         tier = self.progress.awaiting_tier
+        before = self.progress.awaiting_before
         if result.result_tier is None:
             result = result.__class__(**{**result.__dict__, "result_tier": tier})
         if not noah_result_postcondition_verified(
-            self.progress.awaiting_before,
+            before,
             result,
             after_close,
             tier,
-            require_daily_progress=False,
-            require_attempt_decrement=False,
         ):
             self.progress.last_dispatch_state = "postcondition_unresolved"
             return False
-        normalized_after = after_close
-        after_tier = after_close.tier(tier)
-        if after_tier.attempts_remaining is None:
-            before_remaining = self.progress.awaiting_before.tier(tier).attempts_remaining
-            if before_remaining is None or before_remaining <= 0:
-                self.progress.last_dispatch_state = "postcondition_unresolved"
-                return False
-            normalized_tier = replace(after_tier, attempts_remaining=before_remaining - 1)
-            normalized_after = replace(
-                after_close,
-                tiers=tuple(normalized_tier if item.tier == tier else item for item in after_close.tiers),
-            )
+        consumed_remaining = noah_consumed_attempts_remaining(before, tier)
+        if consumed_remaining is None:
+            self.progress.last_dispatch_state = "postcondition_unresolved"
+            return False
+        normalized_after = self._policy_observation(after_close)
+        after_tier = normalized_after.tier(tier)
+        normalized_tier = replace(after_tier, attempts_remaining=consumed_remaining)
+        normalized_after = replace(
+            normalized_after,
+            tiers=tuple(normalized_tier if item.tier == tier else item for item in normalized_after.tiers),
+        )
         self._remember_tier(normalized_after, tier)
         self.progress.daily_quest.recruits_completed += 1
         self.progress.daily_quest.claim_dormant = True
@@ -281,8 +325,14 @@ class NoahTavernRecruitRuntimeController:
             last_dispatch_state="completed",
             last_postcondition_state="verified",
         )
-        self.maintenance_controller.record_verified_transition(tier, normalized_after, now=after_close.captured_monotonic or self.now)
-        self.persist_maintenance_state(now=after_close.captured_monotonic or self.now)
+        policy_now = self.now if self.utc_clock is not None else (after_close.captured_monotonic or self.now)
+        self.maintenance_controller.record_verified_transition(
+            tier,
+            before,
+            now=policy_now,
+            next_eligible_at=after_tier.next_eligible_timestamp,
+        )
+        self.persist_maintenance_state(now=policy_now)
         self.progress.awaiting_postcondition = False
         self.progress.awaiting_tier = None
         self.progress.awaiting_before = None

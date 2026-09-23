@@ -284,6 +284,7 @@ class LocalBlueStacksRuntime:
         if not 1 <= self.max_inputs <= 100:
             raise RuntimeError("PNS_DEVELOPMENT_MAX_INPUTS must be between 1 and 100")
         self.input_count = 0
+        self.checkpoint = None
 
     @classmethod
     def connect(
@@ -324,6 +325,8 @@ class LocalBlueStacksRuntime:
         return parse_foreground_package(self.runner.shell_text("dumpsys", "window", "windows"))
 
     def capture(self, label: str) -> CapturedNativeFrame:
+        if self.checkpoint is not None:
+            self.checkpoint()
         safe_label = portable_filename_component(label, field="capture label")
         payload = self.runner.capture_png()
         captured = time.monotonic()
@@ -357,6 +360,8 @@ class LocalBlueStacksRuntime:
         continuation_of: str | None,
         action_class: str = "navigation",
     ) -> None:
+        if self.checkpoint is not None:
+            self.checkpoint()
         reject_real_money_confirmation(target_identity, action_key)
         if not isinstance(action_class, str) or not action_class.strip():
             raise RuntimeError("action class is required")
@@ -402,6 +407,8 @@ class LocalBlueStacksRuntime:
             delegated.mark_reconciled(action_key, unresolved=True)
 
     def _dispatch_transport(self, action_key: str, transport) -> None:
+        if self.checkpoint is not None:
+            self.checkpoint()
         try:
             transport()
         except BaseException as exc:

@@ -21,6 +21,15 @@
   reuses `safe_action_core` and existing task contracts; legacy `scripts/` and
   `tasks/` remain under their existing safety boundaries, and evidence never
   authorizes execution.
+- Registered handlers remain non-consuming selectors unless an explicit execution
+  handler is installed behind the canonical claim and dispatch fences. Recruitment
+  is the only current executor-bound service exception; registration and scheduler
+  enablement remain separate runtime controls.
+- Home-building entry uses fresh Atlas localization, the mapped interaction anchor,
+  `bind_visible_building`, and route-owned successor recognition. Known popup
+  recovery reuses `scripts/bluestacks_popup_recognition.py` and
+  `scripts/startup_recovery.py`, then recaptures and lets the active route verify
+  its expected context.
 - Preserve runtime launchers and controllers, `ResourceEffectAuthority`, lease
   and fencing checks, registration/scheduler-disabled posture, and manual-only
   state handling. Do not create a parallel authority or compatibility bypass.

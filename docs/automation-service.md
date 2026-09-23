@@ -106,6 +106,22 @@ zero-action `ALREADY_COMPLETE` result is accepted only when the handler's matchi
 `FlowSpec.observation_only_completion` explicitly permits it; registration and
 selection alone never establish gameplay success.
 
+### Executor-bound Recruitment exception
+
+The supervised Windows/BlueStacks Recruitment service is the one current consuming
+handler exception. Its ordinary registry handler remains a non-consuming
+`SelectionPlan`; only explicit supervised `serve --live` composition installs
+`RecruitmentExecutionHandler`. The coordinator must claim and fence the run before
+calling that handler, use its bounded 12-input/3-recruit budget, and project the
+verified terminal result through the same canonical state manager.
+
+The runner redeems currently eligible zero-cost Basic, Intermediate, and Advanced
+recruits, persists verified per-tier UTC cooldown state, returns to canonical Home,
+and derives the next due time from the earliest retained eligibility. Unknown,
+uncertain, paid, duplicated, stale-target, or non-Home terminal outcomes block
+instead of advancing maintenance state. This code path remains dormant while
+registration, service, and Recruitment scheduling are disabled.
+
 ## Packaging and eventual deployment
 
 `docker/automation-service.Dockerfile` and `compose.automation-service.yml` provide a reproducible

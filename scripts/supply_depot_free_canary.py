@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+
 from dataclasses import asdict
 import json
 from pathlib import Path
@@ -9,6 +10,10 @@ import time
 from typing import Any
 
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+from scripts.atlas_startup_normalizer import (
+    AtlasStartupDisposition,
+    BlueStacksAtlasStartupNormalizer,
+)
 from scripts.home_atlas_bluestacks import (
     ScrcpyMotionEventZoomTransport,
     bluestacks_direct_pan_contract,
@@ -17,19 +22,22 @@ from scripts.home_atlas_bluestacks import (
     recognize_supply_depot_home_successor,
     require_binder_selected_safe_exit_roi,
 )
-from scripts.navigation_development_boundary import DevelopmentSession
+from scripts.navigation_development_boundary import DevelopmentSession, NavigationGuardedRuntime, NavigationRouteDeclaration, make_source_safety_facts
 from tasks.home_atlas import load_home_atlas
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
-from tasks.home_atlas_vision import BlueStacksHomeLocalizer
+from scripts.startup_normalization import is_clean_home_frame
+from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building, frame_digest
 from tasks.home_nav_recognition import recognize_home_nav
+from tasks.perception_bundle import PerceptionBundleError
 from tasks.supply_depot import SupplyDepotHoldConfig
 from tasks.supply_depot_vision import (
     SUPPLY_DEPOT_BUILDING_ID,
-    bind_supply_depot_building,
     bind_supply_depot_claim_supply,
     recognize_supply_depot_screen,
 )
 
+
+PAN_PRE_DISPATCH_REASON_CODE = "PRE_DISPATCH_HOME_NOT_CLEAN"
 
 ROOT = Path(__file__).resolve().parents[1]
 ATLAS_PATH = (
@@ -107,17 +115,24 @@ def _build_home_zoom_transport(runtime: LocalBlueStacksRuntime):
     )
 
 
-def _dispatch_home_zoom_out(
-    runtime: LocalBlueStacksRuntime,
-    before,
-    *,
-    zoom_transport,
-) -> None:
-    if not recognize_home_nav(before.frame).is_home:
-        raise RuntimeError("Home context lost before zoom")
-    runtime.dispatch_external_zoom(
+def _dispatch_home_zoom_out(runtime: LocalBlueStacksRuntime, before, *, zoom_transport) -> None:
+    guarded = NavigationGuardedRuntime(
+        runtime,
+        NavigationRouteDeclaration(
+            allowed_source_states=frozenset({"HOME_BASE"}),
+            allowed_target_identities=frozenset({"home-zoom-out"}),
+            allowed_gesture_classes=frozenset({"zoom_out"}),
+        ),
+    )
+    guarded.dispatch_zoom_out(
         before,
-        action_key=f"supply-depot-home-zoom-out:{before.sha256[:12]}",
+        make_source_safety_facts(
+            recognized=True,
+            source_state="HOME_BASE",
+            overlay_state="none_observed",
+            frame_sha256=before.sha256,
+            captured_monotonic=before.captured_monotonic,
+        ),
         transport=zoom_transport.zoom_out_once,
     )
 
@@ -133,12 +148,9 @@ def _bind_home_building(runtime: LocalBlueStacksRuntime, captured):
         return localization, None
     return (
         localization,
-        bind_supply_depot_building(
-            captured.frame,
-            localization,
-            atlas.lookup_building(SUPPLY_DEPOT_BUILDING_ID),
-            source_frame=identity,
-        ),
+        bind_visible_building(captured.frame,
+        localization,
+        atlas.lookup_building(SUPPLY_DEPOT_BUILDING_ID), home_is_clean=is_clean_home_frame),
     )
 
 
@@ -177,50 +189,113 @@ def run(
     current = session.observe(capture, label="supply-depot-source")
     current_screen = _recognize(runtime, current, "supply-depot-source")
     if not current_screen.recognized:
-        initial_localization = BlueStacksHomeLocalizer(atlas, ATLAS_PATH).localize(
-            current.frame
-        )
-        if not initial_localization.recognized:
-            home_context = recognize_home_nav(current.frame)
-            if not home_context.is_home:
-                result["reason"] = "source_is_not_home_or_supply_depot"
+
+        startup_normalizer = BlueStacksAtlasStartupNormalizer(BlueStacksHomeLocalizer(atlas, ATLAS_PATH),
+        maximum_zoom_inputs=2, home_is_clean=is_clean_home_frame)
+        startup_frame = current
+        startup_step = startup_normalizer.observe(startup_frame.frame)
+        while startup_step.disposition is AtlasStartupDisposition.RECOVER_ZOOM:
+            home_context = recognize_home_nav(startup_frame.frame)
+            if not home_context.is_home or getattr(home_context, "overlay", False):
+                result["reason"] = "home_zoom_source_not_recognized"
                 session.terminal_status = "evidence_required"
                 return result
-
             zoom_transport = _build_home_zoom_transport(runtime)
+            cached_before = [startup_frame]
+            successor = {}
 
-            def dispatch_zoom(before):
-                _dispatch_home_zoom_out(
-                    runtime,
-                    before,
-                    zoom_transport=zoom_transport,
+            def action_capture(label):
+                if cached_before:
+                    return cached_before.pop()
+                return capture(label)
+
+            def authorize_zoom(before, planned=startup_step):
+                if before is not startup_frame or planned.source_frame_sha256 != frame_digest(before.frame):
+                    raise RuntimeError("home_zoom_source_changed_before_dispatch")
+
+            def dispatch_zoom(before, planned=startup_step):
+                _dispatch_home_zoom_out(runtime, before, zoom_transport=zoom_transport)
+                startup_normalizer.record_zoom_input_dispatched(planned.source_frame_sha256)
+
+            def recognize_zoom(after):
+                if "immediate_post" not in successor:
+                    successor["immediate_post"] = after
+                    return "unknown"
+                successor["settled"] = after
+                successor["step"] = startup_normalizer.observe(after.frame)
+                if after.sha256 == startup_frame.sha256:
+                    successor["no_progress"] = True
+                    return "unknown"
+                if successor["step"].disposition is AtlasStartupDisposition.READY:
+                    return "home_canonical"
+                if successor["step"].disposition is AtlasStartupDisposition.RECOVER_ZOOM:
+                    return "home_zoom_recovery_required"
+                return "unknown"
+
+            def settled_successor():
+                if settle_seconds > 0:
+                    time.sleep(settle_seconds)
+                return capture("supply-depot-home-zoom-settled")
+
+            try:
+                action = session.run_action(
+                    action_class="navigation",
+                    label=f"supply-depot-home-zoom-out:{startup_step.recovery_input_ordinal}",
+                    capture=action_capture,
+                    dispatch=dispatch_zoom,
+                    recognize=recognize_zoom,
+                    authorize=authorize_zoom,
+                    consequence_class="navigation_only",
+                    settled_successor=settled_successor,
                 )
-
-            def recognize_zoom(_after):
-                time.sleep(settle_seconds)
-                settled = capture("supply-depot-home-zoom-settled")
-                localization = BlueStacksHomeLocalizer(
-                    atlas, ATLAS_PATH
-                ).localize(settled.frame)
-                return "home_canonical" if localization.recognized else "unknown"
-
-            action = session.run_action(
-                action_class="navigation",
-                label="supply-depot-home-zoom-out",
-                capture=capture,
-                dispatch=dispatch_zoom,
-                recognize=recognize_zoom,
-                consequence_class="navigation_only",
-            )
-            if action.status != "completed":
-                result["reason"] = "home_zoom_out_not_verified"
+            except Exception as exc:
+                result["reason"] = f"home_zoom_out_blocked:{type(exc).__name__}"
                 session.terminal_status = "evidence_required"
                 return result
+            result["steps"].append(
+                {
+                    "step": "home_atlas_zoom_normalization",
+                    "disposition": startup_step.disposition.value,
+                    "reason": startup_step.reason,
+                    "source_frame_sha256": startup_step.source_frame_sha256,
+                    "recovery_input_ordinal": startup_step.recovery_input_ordinal,
+                    "action_status": action.status,
+                    "settled_sha256": getattr(successor.get("settled"), "sha256", None),
+                }
+            )
+            next_step = successor.get("step")
+            if action.status != "completed" or next_step is None:
+                result["reason"] = (
+                    "home_zoom_out_no_progress"
+                    if successor.get("no_progress")
+                    else "home_zoom_out_not_verified"
+                )
+                session.terminal_status = "evidence_required"
+                return result
+            startup_frame = successor["settled"]
+            startup_step = next_step
+        result["steps"].append(
+            {
+                "step": "home_atlas_zoom_normalization",
+                "disposition": startup_step.disposition.value,
+                "reason": startup_step.reason,
+                "source_frame_sha256": startup_step.source_frame_sha256,
+                "recovery_input_ordinal": startup_step.recovery_input_ordinal,
+            }
+        )
+        if startup_step.disposition is not AtlasStartupDisposition.READY:
+            result["reason"] = f"home_zoom_normalization_blocked:{startup_step.reason}"
+            session.terminal_status = "evidence_required"
+            return result
 
         for pan_index in range(MAX_PANS):
             current = session.observe(
                 capture, label=f"supply-depot-pan-{pan_index}-source"
             )
+            if not is_clean_home_frame(current.frame):
+                result["reason"] = "home_not_clean_before_pan"
+                session.terminal_status = "evidence_required"
+                return result
             localization, binding = _bind_home_building(runtime, current)
             if not localization.recognized:
                 result["reason"] = "home_not_localized"
@@ -260,6 +335,10 @@ def run(
                     action_key=f"supply-depot-pan:{index}:{before.sha256[:12]}",
                     target_identity="home-camera-click-drag",
                 )
+            def authorize_pan(before):
+                if not is_clean_home_frame(before.frame):
+                    raise PerceptionBundleError(PAN_PRE_DISPATCH_REASON_CODE)
+
 
             def recognize_pan(_after, before_loc=localization):
                 time.sleep(settle_seconds)
@@ -270,14 +349,38 @@ def run(
                 progress = navigator.record_progress(before_loc, after_loc)
                 return "home_panned" if progress.accepted else "unknown"
 
-            action = session.run_action(
-                action_class="navigation",
-                label=f"supply-depot-pan-{pan_index}",
-                capture=capture,
-                dispatch=dispatch_pan,
-                recognize=recognize_pan,
-                consequence_class="navigation_only",
-            )
+            before_input_count = session.input_count
+            try:
+                action = session.run_action(
+                    action_class="navigation",
+                    label=f"supply-depot-pan-{pan_index}",
+                    capture=capture,
+                    dispatch=dispatch_pan,
+                    recognize=recognize_pan,
+                    authorize=authorize_pan,
+                    consequence_class="navigation_only",
+                )
+            except PerceptionBundleError as exc:
+                if (
+                    exc.reason_code != PAN_PRE_DISPATCH_REASON_CODE
+                    or session.input_count != before_input_count
+                ):
+                    raise
+                result.update(
+                    {
+                        "status": "blocked",
+                        "reason": exc.reason_code,
+                        "input_count": session.input_count,
+                        "transport_dispatched": False,
+                    }
+                )
+                session.terminal_status = "evidence_required"
+                session.blocker = exc.reason_code
+                (session_directory / "result.json").write_text(
+                    json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",
+                    encoding="utf-8",
+                )
+                return result
             if action.status != "completed":
                 result["reason"] = f"pan_no_progress:{pan_index}"
                 break

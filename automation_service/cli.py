@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 import sqlite3
 import sys
+import signal
+import threading
 import time
 from typing import Sequence
 
@@ -33,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--adapter",
-        choices=("fake", "replay"),
+        choices=("fake", "replay", "bluestacks"),
         default=os.environ.get("AUTOMATION_SERVICE_ADAPTER", "fake"),
     )
     parser.add_argument(
@@ -50,7 +52,13 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("health")
     subparsers.add_parser("observe")
     subparsers.add_parser("summary")
-    subparsers.add_parser("serve")
+    serve = subparsers.add_parser("serve")
+    serve.add_argument("--live", action="store_true", help="explicitly permit native recruitment execution")
+    serve.add_argument("--adb", default="adb")
+    serve.add_argument("--serial")
+    serve.add_argument("--account-id")
+    serve.add_argument("--server-id")
+    serve.add_argument("--output-directory", type=Path)
     enable = subparsers.add_parser("enable")
     enable.add_argument("flow_id")
     enable.add_argument("--now-utc-epoch", type=float, default=None)
@@ -220,13 +228,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         args = parser.parse_args(argv)
     except SystemExit as exc:
         return int(exc.code)
-    if args.mode == "supervised" and args.adapter != "bluestacks":
+    native_serve = args.command == "serve" and args.adapter == "bluestacks"
+    if args.adapter == "bluestacks" and (
+        not native_serve or args.mode != "supervised" or not args.live
+        or not args.serial or not args.account_id or not args.server_id
+    ):
+        print("BlueStacks requires supervised serve --live, --serial, --account-id and --server-id", file=sys.stderr)
+        return 2
+    if args.mode == "supervised" and not native_serve:
         print(
             "supervised mode requires the executor-bound BlueStacks adapter",
             file=sys.stderr,
         )
         return 2
-    adapter = _adapter(args.adapter)
+    adapter = None if native_serve else _adapter(args.adapter)
     state_path = Path(resolve_state_path(args.state_path))
     observation_only = args.command == "shadow" or (
         args.command == "run" and not args.live
@@ -412,24 +427,42 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 2
 
     if args.command == "serve":
+        stop = threading.Event()
+        previous_handlers = {}
         try:
+            for signum in (signal.SIGINT, signal.SIGTERM):
+                previous_handlers[signum] = signal.signal(signum, lambda *_: stop.set())
             with BotStateManager(state_path) as state:
-                service = AutomationService(
-                    mode=args.mode,
-                    adapter=adapter,
-                    state=state,
-                )
-                while True:
-                    health = service.health(
-                        current_state=service.mode.value,
-                        current_task=None,
+                runner = None
+                if native_serve:
+                    from .recruitment import RecruitmentRunner
+
+                    runner = RecruitmentRunner(
+                        adb=args.adb, serial=args.serial,
+                        output_directory=args.output_directory or state_path.parent / "recruitment-sessions",
+                        maintenance_path=state_path.with_suffix(".recruitment.sqlite3"),
                     )
-                    if not health.healthy:
-                        return 1
-                    time.sleep(30)
+                service = AutomationService(
+                    mode=args.mode, adapter=adapter, state=state, recruitment_runner=runner,
+                )
+                if native_serve:
+                    service.serve(
+                        account_id=args.account_id, server_id=args.server_id, stop=stop,
+                        emit=lambda result: print(json.dumps(result, sort_keys=True), flush=True),
+                    )
+                else:
+                    while not stop.is_set():
+                        health = service.health(current_state=service.mode.value, current_task=None)
+                        if not health.healthy:
+                            return 1
+                        stop.wait(30)
+                return 0
         except (ServiceError, StateBusyError, sqlite3.OperationalError, ValueError) as exc:
             print(json.dumps(_structured_error(exc), sort_keys=True))
             return 2
+        finally:
+            for signum, previous in previous_handlers.items():
+                signal.signal(signum, previous)
 
     observed_frame_id = None
     service = AutomationService(

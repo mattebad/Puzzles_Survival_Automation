@@ -68,6 +68,26 @@ class LocalBlueStacksRuntimeActionClassTests(unittest.TestCase):
         )
         return runtime, runner
 
+    def test_stop_between_authorization_and_transport_sends_no_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime, runner = self._runtime(root)
+            calls = 0
+
+            def checkpoint():
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    raise RuntimeError("stop requested")
+
+            runtime.checkpoint = checkpoint
+            with self.assertRaisesRegex(RuntimeError, "stop requested"):
+                runtime.tap(
+                    source_frame(root), target_identity="target-a",
+                    target_roi=(100, 200, 140, 240), action_key="target-a",
+                )
+            self.assertEqual(runner.taps, [])
+
     def _navigation_context(self, root: Path):
         controller = control.DelegatedRuntimeReceiptController(root / "receipts.sqlite3")
         controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]

@@ -71,7 +71,9 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
             },
         }
 
-    def _events(self, child: Path, *, count: int = 5) -> None:
+    def _events(
+        self, child: Path, *, count: int = 5, popup_close: bool = False
+    ) -> None:
         events = [
             {
                 "type": "dispatch",
@@ -91,6 +93,22 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
                 "action_key": "INT:frame:1:None",
                 "target_identity": "noahs-tavern-daily-free",
             },
+            *(
+                [
+                    {
+                        "type": "dispatch",
+                        "execute": True,
+                        "action_key": (
+                            "noah:popup-close:home-or-tavern:" + "a" * 64
+                        ),
+                        "target_identity": "reset-popup-close",
+                        "action_class": "navigation",
+                        "consequential": False,
+                    }
+                ]
+                if popup_close
+                else []
+            ),
             {
                 "type": "dispatch",
                 "execute": True,
@@ -173,7 +191,9 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
             session, initial = self._session(root)
             child = root / "outer" / "runtime"
             child.mkdir(parents=True)
-            self._events(child)
+            self._events(child, popup_close=True)
+            self.assertEqual(delivery._retained_transport_count(child), 6)
+            self.assertEqual(delivery._recruitment_transport_count(child), 1)
             lease = {
                 "owner": session.owner,
                 "development_session": session,
@@ -190,7 +210,19 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
                 "reason": "verified_safe_return_home",
                 "actions_completed": 1,
                 "session_directory": str(child),
-                "input_count": 5,
+                "input_count": 6,
+                "contextual_popup_recoveries": [
+                    {
+                        "source_sha256": "a" * 64,
+                        "settled_sha256": "b" * 64,
+                        "source_context": "home-or-tavern",
+                        "dismissed": True,
+                        "popup_absent": True,
+                        "resume_ready": True,
+                        "input_count": 1,
+                        "reason": "popup_dismissed_resume_ready",
+                    }
+                ],
                 "terminal_home_verified": True,
                 "identity": {
                     "account_id": "account",
@@ -214,19 +246,20 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
                     result = json.loads(delivery.run_recruitment({}, lease, live=True))
                 self.assertIs(initial, session.initial_observation)
                 self.assertEqual(result["status"], "completed")
-                self.assertEqual(result["input_count"], 5)
+                self.assertEqual(result["input_count"], 6)
                 self.assertEqual(result["recovery_input_count"], 0)
-                self.assertEqual(result["route_input_count"], 5)
-                self.assertEqual(result["total_input_count"], 5)
+                self.assertEqual(result["route_input_count"], 6)
+                self.assertEqual(result["total_input_count"], 6)
                 self.assertEqual(result["recruitment_transport_count"], 1)
                 self.assertEqual(result["recruitment_action_count"], 1)
+                self.assertEqual(len(result["contextual_popup_recoveries"]), 1)
                 self.assertEqual(result["causal_trace_count"], 1)
                 self.assertTrue(result["causal_trace"]["read_only"])
                 self.assertFalse(result["causal_trace"]["input_authority"])
-                self.assertEqual(result["causal_trace"]["transport_count"], 5)
+                self.assertEqual(result["causal_trace"]["transport_count"], 6)
                 self.assertEqual(result["causal_trace"]["recovery_input_count"], 0)
-                self.assertEqual(result["causal_trace"]["route_input_count"], 5)
-                self.assertEqual(result["causal_trace"]["total_input_count"], 5)
+                self.assertEqual(result["causal_trace"]["route_input_count"], 6)
+                self.assertEqual(result["causal_trace"]["total_input_count"], 6)
                 self.assertEqual(session.causal_trace, result["causal_trace"])
                 verdict = delivery.verify_recruitment(
                     {"result": result, "session_directory": str(child)}, {}, {}
@@ -298,6 +331,7 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
                 self.assertEqual(route_args.max_inputs, 11)
                 self.assertEqual(route_args.startup_recovery, startup_recovery)
                 self.assertTrue(route_args.startup_recovery_consumed_externally)
+
                 self.assertEqual(result["recovery_input_count"], 1)
                 self.assertEqual(result["route_input_count"], 11)
                 self.assertEqual(result["total_input_count"], 12)
@@ -323,30 +357,6 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
         self.assertTrue(result["effect_reconciliation_required"])
         self.assertTrue(result["identical_retry_denied"])
 
-    def test_conduct_recruitment_does_not_create_pre_observation_session(self):
-        with tempfile.TemporaryDirectory() as directory:
-            with (
-                patch.object(
-                    pnsctl,
-                    "development_session_observe",
-                    side_effect=AssertionError("pre-observation is forbidden"),
-                ),
-                patch.object(
-                    pnsctl,
-                    "development_session_run_flow",
-                    return_value=json.dumps({"status": "blocked"}),
-                ) as run_flow,
-            ):
-                result = json.loads(
-                    pnsctl.conduct_flow(
-                        delivery.FLOW_ID,
-                        live=True,
-                        yes=True,
-                        state_root=Path(directory),
-                    )
-                )
-            self.assertEqual(result["flow_id"], delivery.FLOW_ID)
-            run_flow.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -449,7 +449,8 @@ def classify_home_base_live(
     try:
         import pytesseract
 
-        navigation_text = pytesseract.image_to_string(navigation_roi, config="--psm 6").lower()
+        # Navigation labels are scattered among icons, not a uniform text block.
+        navigation_text = pytesseract.image_to_string(navigation_roi, config="--psm 11").lower()
         scene_text = pytesseract.image_to_string(scene_roi, config="--psm 6").lower()
     except Exception as exc:  # pragma: no cover - environment capability is deliberately fail-closed
         return {
@@ -485,6 +486,29 @@ def classify_home_base_live(
         if recognized
         else "Home/Base stable-region, OCR, OS, or source-negative checks did not all pass",
     }
+
+
+def is_clean_home_frame(frame: np.ndarray) -> bool:
+    """Require independent current-frame Home proof before Atlas grants navigation."""
+
+    home = classify_home_base_live(
+        frame, cash_mall_rejected=True, safe_os_surface=True
+    )
+    if (
+        home.get("state") != "HOME_BASE"
+        or not home.get("recognized")
+        or home.get("overlay")
+        or home.get("blocking_unknown_modal")
+        or home.get("manual_only_state")
+    ):
+        return False
+    from scripts.bluestacks_popup_recognition import recognize_reset_popup
+
+    popup = recognize_reset_popup(frame)
+    return (
+        popup.get("recognized") is False
+        and popup.get("blocking_unknown_modal") is False
+    )
 
 
 def write_annotation(frame: np.ndarray, decision: CashMallDecision, output: Path) -> None:

@@ -97,12 +97,9 @@ class NoahTavernObservation:
     overlay_state: str = "none"
     recognized: bool = False
     result_tier: Optional[RecruitTier] = None
-    result_identity: str = ""
     safe_close_visible: bool = False
     safe_close_roi: ROI = (0, 0, 0, 0)
     premium_result_control_visible: bool = False
-    daily_quest_completed: int = 0
-    daily_quest_required: int = NOAHS_TAVERN_REQUIRED_RECRUITS
     claim_visible: bool = False
     home_tavern_target_roi: Optional[ROI] = None
 
@@ -127,6 +124,7 @@ class DailyQuestProgress:
 _TIME_RE = re.compile(r"(?:(\d+)\s*d\s*)?(\d{1,3}):(\d{2})(?::(\d{2}))?", re.IGNORECASE)
 _MINUTES_RE = re.compile(r"(\d+)\s*(?:minutes?|mins?)", re.IGNORECASE)
 _HASH_RE = re.compile(r"^[0-9a-f]{64}$")
+_FREE_TIMER_RE = re.compile(r"\bfree\s+in\b", re.IGNORECASE)
 
 
 def parse_cooldown_seconds(text: str | None) -> Optional[int]:
@@ -190,6 +188,7 @@ def noah_recruit_authorizeable(
         and selected.quantity == 1
         and not selected.cooldown_active
         and selected.cooldown_duration_seconds in (None, 0)
+        and selected.next_eligible_timestamp is None
         and not selected.overlapping_target
         and _roi_inside(selected.target_roi, selected.panel_roi)
         and not observation.claim_visible
@@ -216,10 +215,22 @@ def noah_recruit_transaction_spec(observation: NoahTavernObservation, tier: Recr
         ),
         semantic_postconditions=(
             "hero_recruit_result_screen",
-            "exactly_one_tier_attempt_decrement",
+            "one_authorized_source_attempt_consumed",
             "tier_cooldown_active",
         ),
     )
+
+
+def noah_consumed_attempts_remaining(
+    before: NoahTavernObservation,
+    tier: RecruitTier,
+) -> Optional[int]:
+    """Derive the one consumed attempt from the authorized source frame."""
+
+    if not noah_recruit_authorizeable(before, tier):
+        return None
+    remaining = before.tier(tier).attempts_remaining
+    return remaining - 1 if remaining is not None else None
 
 
 def noah_result_postcondition_verified(
@@ -228,20 +239,30 @@ def noah_result_postcondition_verified(
     after_close: NoahTavernObservation | None,
     tier: RecruitTier,
     *,
-    require_daily_progress: bool = True,
-    require_attempt_decrement: bool = True,
     cooldown_tolerance_seconds: int = 0,
 ) -> bool:
-    """Require positive result, safe close, exact decrement, and cooldown."""
+    """Verify the complete authorized free-recruit result transition."""
 
-    if not (_valid_source(before) and result and after_close):
+    if not result or not after_close or noah_consumed_attempts_remaining(before, tier) is None:
         return False
     if (
         result.screen_state != HERO_RECRUIT_RESULT_SCREEN
-        or not result.recognized
+        or not _valid_source(result)
         or result.result_tier != tier
-        or not result.result_identity.strip()
+        or result.frame_sha256 == before.frame_sha256
+        or (
+            before.captured_monotonic is not None
+            and result.captured_monotonic is not None
+            and result.captured_monotonic < before.captured_monotonic
+        )
         or not result.safe_close_visible
+        or len(result.safe_close_roi) != 4
+        or not all(
+            isinstance(value, int)
+            for value in result.safe_close_roi
+        )
+        or result.safe_close_roi[0] >= result.safe_close_roi[2]
+        or result.safe_close_roi[1] >= result.safe_close_roi[3]
         or result.stale
         or result.overlay_state not in {"none", "none_observed"}
     ):
@@ -251,40 +272,30 @@ def noah_result_postcondition_verified(
         or after_close.selected_tier != tier
         or not _valid_source(after_close)
         or after_close.overlay_state not in {"none", "none_observed"}
+        or after_close.frame_sha256 in {before.frame_sha256, result.frame_sha256}
+        or (
+            result.captured_monotonic is not None
+            and after_close.captured_monotonic is not None
+            and after_close.captured_monotonic < result.captured_monotonic
+        )
     ):
         return False
-    before_tier = before.tier(tier)
     after_tier = after_close.tier(tier)
     parsed = parse_cooldown_seconds(after_tier.cooldown_text)
-    daily_progress_valid = (
-        after_close.daily_quest_completed == before.daily_quest_completed + 1
-        if require_daily_progress
-        else True
-    )
-    attempt_decrement_valid = (
-        before_tier.attempts_remaining is not None
-        and after_tier.attempts_remaining is not None
-        and before_tier.attempts_remaining - after_tier.attempts_remaining == 1
-        and after_tier.attempts_remaining >= 0
-    )
-    if not require_attempt_decrement and after_tier.attempts_remaining is None:
-        attempt_decrement_valid = before_tier.attempts_remaining is not None
     return bool(
-        attempt_decrement_valid
+        after_tier.recognized
         and after_tier.cooldown_active
+        and not after_tier.free_control_enabled
         and parsed is not None
+        and parsed > 0
         and after_tier.cooldown_duration_seconds is not None
-        and parsed is not None
+        and after_tier.cooldown_duration_seconds > 0
         and abs(after_tier.cooldown_duration_seconds - parsed) <= cooldown_tolerance_seconds
         and after_tier.next_eligible_timestamp is not None
-        and daily_progress_valid
+        and after_tier.next_eligible_timestamp > 0
+        and _FREE_TIMER_RE.search(" ".join((after_tier.cooldown_text or "").casefold().split())) is not None
+        and (
+            after_close.captured_monotonic is None
+            or after_tier.next_eligible_timestamp > after_close.captured_monotonic
+        )
     )
-
-
-def update_progress(progress: DailyQuestProgress, observation: NoahTavernObservation) -> None:
-    """Update aggregate state from a verified postcondition; never mutate Claim state."""
-
-    if not 0 <= observation.daily_quest_completed <= progress.required_recruits:
-        raise ValueError("invalid Daily Quest progress")
-    progress.recruits_completed = observation.daily_quest_completed
-    progress.claim_dormant = True

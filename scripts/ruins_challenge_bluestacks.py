@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+
 import argparse
 from dataclasses import replace
 import hashlib
@@ -20,9 +21,8 @@ if str(ROOT) not in sys.path:
 from scripts.bluestacks_native_runtime import IntegratedRouteResult, LocalBlueStacksRuntime, NativeRuntimePort
 from scripts.home_atlas_bluestacks import BlueStacksLocalizeFirstHomeDriver, HomeDriverDisposition, ScrcpyMotionEventZoomTransport
 from scripts.navigation_development_boundary import NavigationBoundaryError, NavigationGuardedRuntime, NavigationRouteDeclaration, make_source_safety_facts
-from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
-from tasks.campaign_auto_battle_vision import recognize_campaign_frame
 from tasks.home_atlas import load_home_atlas
+from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building
 from tasks.home_context import HomeReadyObservation
 from tasks.ruins_challenge import (
@@ -59,8 +59,7 @@ from scripts import bluestacks_popup_recognition
 RUINS_HOME_ATLAS_BUILDING_ID = "home.building.ruins"
 RUINS_LIST_SCROLL_TARGET = "ruins-list-scroll"
 MAXIMUM_RUINS_CHEST_SCROLLS = 3
-MAXIMUM_HOME_ZOOM_INPUTS = 4
-HOME_RECOGNITION_PROBE_STAGE = CampaignStage(1, 1, 1)
+MAXIMUM_HOME_ZOOM_INPUTS = 2
 _ORDINARY_RUINS_TARGETS = frozenset(
     {"ruins-attack", "ruins-dispatch", "ruins-result-continue", "ruins-reward-claim", "reset-popup-close"}
 )
@@ -231,30 +230,27 @@ class RuinsIntegratedRoute:
         return settled, None, 1
 
     def _recover_home_zoom_before_ruins_binding(self) -> tuple[object | None, str | None]:
-        """Reuse the accepted LocalizeFirst recovery before the current-frame bind."""
+        """Normalize supported Home zoom before binding Ruins; unknown states fail closed."""
         for ordinal in range(1, MAXIMUM_HOME_ZOOM_INPUTS + 1):
             before = self.runtime.capture(f"ruins-home-zoom-{ordinal:02d}-immediate-before")
             step = self.home_driver.observe(before.frame)
-            independent_home = (
-                recognize_campaign_frame(before.frame, HOME_RECOGNITION_PROBE_STAGE).observation.screen
-                is CampaignScreen.HOME_BASE
-            )
-            independently_authorized_unknown_zoom = bool(
-                independent_home
-                and step.disposition is HomeDriverDisposition.BLOCKED
-                and step.reason == "home_localization_ambiguous:unknown"
-            )
-            if step.disposition in {HomeDriverDisposition.COMPLETE, HomeDriverDisposition.BIND, HomeDriverDisposition.PAN}:
+            if step.disposition in {
+                HomeDriverDisposition.COMPLETE,
+                HomeDriverDisposition.BIND,
+                HomeDriverDisposition.PAN,
+            }:
                 return before, None
-            if step.disposition is HomeDriverDisposition.BLOCKED and not independently_authorized_unknown_zoom:
+            if step.disposition is HomeDriverDisposition.BLOCKED:
                 return None, f"home_zoom_recovery_blocked:{step.reason}"
-            if step.disposition is not HomeDriverDisposition.RECOVER_ZOOM and not independently_authorized_unknown_zoom:
+            if step.disposition is not HomeDriverDisposition.RECOVER_ZOOM:
                 return None, f"home_zoom_recovery_unsupported:{step.disposition.value}"
             try:
                 self.runtime.dispatch_zoom_out(
                     before,
                     make_source_safety_facts(
-                        recognized=True, source_state="HOME_BASE", frame_sha256=before.sha256,
+                        recognized=True,
+                        source_state="HOME_BASE",
+                        frame_sha256=before.sha256,
                         captured_monotonic=before.captured_monotonic,
                     ),
                     transport=(
@@ -263,24 +259,26 @@ class RuinsIntegratedRoute:
                         else None
                     ),
                 )
-                if step.disposition is HomeDriverDisposition.RECOVER_ZOOM:
-                    self.home_driver.record_zoom_input_dispatched(step.source_frame_sha256)
+                self.home_driver.record_zoom_input_dispatched(step.source_frame_sha256)
             except NavigationBoundaryError as exc:
                 return None, str(exc)
             except Exception as exc:
                 return None, f"android_zoom_transport_failed:{type(exc).__name__}:{exc}"
-            immediate_post = self.runtime.capture(f"ruins-home-zoom-{ordinal:02d}-immediate-post")
-            post_step = self.home_driver.observe(immediate_post.frame)
+            self.runtime.capture(f"ruins-home-zoom-{ordinal:02d}-immediate-post")
+            if self.post_input_delay > 0:
+                time.sleep(self.post_input_delay)
+            settled = self.runtime.capture(f"ruins-home-zoom-{ordinal:02d}-settled")
+            if settled.sha256 == before.sha256:
+                return None, "home_zoom_recovery_no_progress"
+            post_step = self.home_driver.observe(settled.frame)
             if post_step.disposition is HomeDriverDisposition.BLOCKED:
-                post_independent_home = (
-                    recognize_campaign_frame(immediate_post.frame, HOME_RECOGNITION_PROBE_STAGE).observation.screen
-                    is CampaignScreen.HOME_BASE
-                )
-                if post_independent_home and post_step.reason == "home_localization_ambiguous:unknown":
-                    continue
                 return None, f"home_zoom_post_reclassification_blocked:{post_step.reason}"
-            if post_step.disposition in {HomeDriverDisposition.COMPLETE, HomeDriverDisposition.BIND, HomeDriverDisposition.PAN}:
-                return immediate_post, None
+            if post_step.disposition in {
+                HomeDriverDisposition.COMPLETE,
+                HomeDriverDisposition.BIND,
+                HomeDriverDisposition.PAN,
+            }:
+                return settled, None
         return None, "home_zoom_recovery_exhausted"
 
     def _recover_known_chat_to_home(self, source) -> tuple[object | None, str | None, int]:
@@ -570,11 +568,9 @@ class RuinsIntegratedRoute:
         localization = BlueStacksHomeLocalizer(self.atlas, self.atlas_path).localize(captured.frame)
         if not localization.recognized:
             return None
-        binding = bind_visible_building(
-            captured.frame,
-            localization,
-            self.atlas.lookup_building(RUINS_HOME_ATLAS_BUILDING_ID),
-        )
+        binding = bind_visible_building(captured.frame,
+        localization,
+        self.atlas.lookup_building(RUINS_HOME_ATLAS_BUILDING_ID), home_is_clean=is_clean_home_frame)
         if (
             binding is None
             or binding.building_id != RUINS_HOME_ATLAS_BUILDING_ID
@@ -1027,17 +1023,6 @@ class RuinsIntegratedRoute:
                     str(self.runtime.session),
                 )
             if preparation.disposition is HomeDriverDisposition.BLOCKED:
-                independent_home = (
-                    recognize_campaign_frame(captured.frame, HOME_RECOGNITION_PROBE_STAGE).observation.screen
-                    is CampaignScreen.HOME_BASE
-                )
-                if independent_home and preparation.reason == "home_localization_ambiguous:unknown":
-                    return IntegratedRouteResult(
-                        "dry-run",
-                        "transport_disabled:home_zoom_recovery_required",
-                        0,
-                        str(self.runtime.session),
-                    )
                 return IntegratedRouteResult(
                     "blocked",
                     f"home_zoom_recovery_blocked:{preparation.reason}",

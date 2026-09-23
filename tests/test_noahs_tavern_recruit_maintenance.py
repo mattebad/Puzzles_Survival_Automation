@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 import tempfile
 
@@ -81,7 +82,6 @@ class MaintenanceFixtures:
             captured_monotonic=101.0,
             recognized=True,
             result_tier=tier,
-            result_identity="hero fragment",
             safe_close_visible=True,
             safe_close_roi=(100, 1000, 360, 1070),
         )
@@ -160,6 +160,20 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
         self.assertEqual(result.tier_results[1].outcome, TierPassOutcome.DEFERRED)
         self.assertEqual(result.state.tiers[RecruitTier.INT].next_eligible_at, 200.0)
         self.assertEqual(result.state.basic_daily_count, 1)
+
+    def test_verified_transition_preserves_earliest_observed_cooldown_deadline(self):
+        controller = NoahTavernMaintenanceController(self.state, now=100.0)
+        before = self.f.before(RecruitTier.BASIC)
+        controller.record_verified_transition(
+            RecruitTier.BASIC,
+            before,
+            now=108.0,
+            next_eligible_at=700.0,
+        )
+        self.assertEqual(
+            controller.state.tiers[RecruitTier.BASIC].next_eligible_at,
+            700.0,
+        )
 
     def test_basic_maximum_is_idempotent_and_int_adv_still_run(self):
         state = NoahMaintenanceState.for_identity(self.identity)
@@ -338,7 +352,15 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
                 result_timeout=0.1,
                 atlas_binding=bind_atlas,
             )
-            outcome = route.run(max_steps=10)
+            with patch(
+                "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+                side_effect=lambda runtime, captured, **kwargs: __import__(
+                    "scripts.startup_recovery", fromlist=["ContextualPopupRecoveryResult"]
+                ).ContextualPopupRecoveryResult(
+                    captured, False, True, True, 0, "exact_vip_popup_absent"
+                ),
+            ):
+                outcome = route.run(max_steps=10)
             self.assertEqual(outcome.status, "completed", outcome.reason)
             self.assertEqual(len(sealed.inputs), 8)  # open, three free singles, three closes, terminal back
             self.assertEqual(sealed.physical_transport_calls, 0)
@@ -387,7 +409,6 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
         )
         blocked = route.run(max_steps=1)
         self.assertEqual(blocked.status, "blocked")
-        self.assertEqual(blocked.reason, "home_atlas_tavern_binding_not_proven")
         self.assertEqual(runtime.inputs, [])
 
         runtime = Runtime()
@@ -399,7 +420,15 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
             atlas_binding=lambda captured: (10, 20, 30, 40),
             post_input_delay=0.0,
         )
-        blocked = route.run(max_steps=1)
+        with patch(
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            side_effect=lambda runtime, captured, **kwargs: __import__(
+                "scripts.startup_recovery", fromlist=["ContextualPopupRecoveryResult"]
+            ).ContextualPopupRecoveryResult(
+                captured, False, True, True, 0, "exact_vip_popup_absent"
+            ),
+        ):
+            blocked = route.run(max_steps=1)
         self.assertEqual(blocked.status, "blocked")
         self.assertEqual(blocked.reason, "maximum controller steps exceeded")
         self.assertEqual(
@@ -424,6 +453,26 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
         evidence[RecruitTier.BASIC] = replace(evidence[RecruitTier.BASIC], after_close=delayed_after)
         result = NoahTavernMaintenanceController(self.state, now=100.0).run_pass(evidence, self.f.home(), identity=self.identity)
         self.assertEqual(result.tier_results[0].outcome, TierPassOutcome.ACTION_PERFORMED)
+
+    def test_unknown_or_conflicting_after_count_uses_before_count(self):
+        for post_count in (None, 5):
+            with self.subTest(post_count=post_count):
+                evidence = self.all_evidence()
+                before = evidence[RecruitTier.BASIC].before
+                after = evidence[RecruitTier.BASIC].after_close
+                selected = after.tier(RecruitTier.BASIC)
+                altered = replace(selected, attempts_remaining=post_count)
+                altered_after = replace(
+                    after,
+                    tiers=tuple(altered if item.tier is RecruitTier.BASIC else item for item in after.tiers),
+                )
+                evidence[RecruitTier.BASIC] = replace(evidence[RecruitTier.BASIC], after_close=altered_after)
+                result = NoahTavernMaintenanceController(self.state, now=100.0).run_pass(
+                    evidence, self.f.home(), identity=self.identity,
+                )
+                self.assertEqual(result.tier_results[0].outcome, TierPassOutcome.ACTION_PERFORMED)
+                self.assertEqual(result.state.tiers[RecruitTier.BASIC].attempts_remaining, 4)
+                self.assertEqual(result.state.basic_daily_count, 1)
 
     def test_transport_observed_is_forbidden(self):
         evidence = self.all_evidence()

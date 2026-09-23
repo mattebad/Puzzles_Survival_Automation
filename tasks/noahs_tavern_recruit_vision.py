@@ -31,21 +31,24 @@ from .noahs_tavern_recruit import (
 PROFILE_SIZE = (800, 1280)
 Box = tuple[int, int, int, int]
 
-TAVERN_HEADER_ROI: Box = (180, 15, 620, 105)
-TAVERN_TITLE_ROI: Box = (150, 105, 650, 220)
+# Keep the complete header and title glyphs in separate native-coordinate bands.
+TAVERN_HEADER_ROI: Box = (180, 10, 620, 60)
+TAVERN_TITLE_ROI: Box = (150, 75, 650, 145)
 TAVERN_ATTEMPTS_ROI: Box = (45, 865, 450, 955)
 TAVERN_FREE_ROI: Box = (90, 925, 385, 1055)
 TAVERN_PAID_ROI: Box = (410, 925, 720, 1055)
 TAVERN_CARDS_ROI: Box = (0, 1070, 800, 1235)
 TAVERN_OVERLAY_ROI: Box = (0, 0, 800, 1280)
-RESULT_REWARD_ROI: Box = (250, 450, 560, 790)
 RESULT_CLOSE_ROI: Box = (90, 975, 350, 1100)
+# Exclude the button border/background from label OCR; input stays bound to the full control.
+RESULT_CLOSE_LABEL_ROI: Box = (155, 1000, 300, 1048)
 RESULT_PAID_ROI: Box = (420, 975, 720, 1100)
 
 _ATTEMPTS_RE = re.compile(r"daily\s+free\s+atte\w{0,6}\s*[:.]?\s*(\d+)", re.IGNORECASE)
 _ATTEMPTS_FALLBACK_RE = re.compile(r"atte\w{0,6}\s*[:.]?\s*(\d+)", re.IGNORECASE)
 _FREE_RE = re.compile(r"free\s+recruit\s*1x", re.IGNORECASE)
 _PAID_RE = re.compile(r"recruit\s*10x|recruit\s*1x", re.IGNORECASE)
+_CLOSE_RE = re.compile(r"\bclose\b", re.IGNORECASE)
 _CARD_ROIS = {
     RecruitTier.BASIC: (0, 1070, 252, 1235),
     RecruitTier.INT: (267, 1070, 503, 1235),
@@ -104,6 +107,17 @@ def _red_ratio(frame: np.ndarray, box: Box) -> float:
     return float(cv2.countNonZero(cv2.bitwise_or(low, high))) / float(low.size)
 
 
+def _result_close_visible(
+    frame: np.ndarray,
+    *,
+    ocr: Callable[[np.ndarray, int], str] | None = None,
+) -> bool:
+    """Require the literal Close label and the known red close-control geometry."""
+
+    close_text = _text(frame, RESULT_CLOSE_LABEL_ROI, ocr=ocr)
+    return bool(_CLOSE_RE.search(close_text) and _red_ratio(frame, RESULT_CLOSE_ROI) >= 0.08)
+
+
 def _tier_from_text(text: str) -> RecruitTier | None:
     # The native Tavern title occasionally OCRs ``Adv.`` as ``AQV.``.  This
     # correction is intentionally scoped to the title classifier and is only
@@ -124,6 +138,7 @@ def recognize_noahs_tavern_frame(
     captured_monotonic: float | None = None,
     stale: bool = False,
     ocr: Callable[[np.ndarray, int], str] | None = None,
+    include_home_ocr: bool = True,
 ) -> NoahTavernObservation:
     """Recognize only positively identified native Tavern/result frames."""
 
@@ -132,8 +147,6 @@ def recognize_noahs_tavern_frame(
     digest = hashlib.sha256(frame.tobytes()).hexdigest()
     header = _text(frame, TAVERN_HEADER_ROI, ocr=ocr)
     title = _text(frame, TAVERN_TITLE_ROI, ocr=ocr)
-    full = _text(frame, TAVERN_OVERLAY_ROI, psm=11, ocr=ocr)
-    diagnostics = {"header_text": header, "title_text": title, "full_text": full}
     if "noah" in header and "taver" in header and _tier_from_text(title) is not None:
         selected = _tier_from_text(title)
         cards = _text(frame, TAVERN_CARDS_ROI, psm=11, ocr=ocr)
@@ -151,15 +164,24 @@ def recognize_noahs_tavern_frame(
         cooldown = parse_cooldown_seconds(cooldown_text)
         free_text = _text(frame, TAVERN_FREE_ROI, ocr=ocr)
         paid_text = _text(frame, TAVERN_PAID_ROI, ocr=ocr)
-        free_visible = bool(_FREE_RE.search(free_text)) or ("free" in free_text and "recruit 1x" in free_text)
+        # ``Free in … Recruit 1x`` is the disabled cooldown slot, not the
+        # enabled ``Free Recruit 1x`` control.  Keep the exact label match
+        # separate from the timer so unrelated words cannot authorize a
+        # free action.
+        free_label_visible = bool(_FREE_RE.search(free_text))
+        cooldown_active = bool(cooldown is not None and cooldown > 0)
+        free_control_enabled = (
+            free_label_visible
+            and not cooldown_active
+            and _purple_ratio(frame, TAVERN_FREE_ROI) >= 0.04
+        )
         # The native 800x1280 counter occasionally OCRs its lone digit as ``|``.
         # For the one-attempt tiers only, the independently recognized enabled
         # Free Recruit 1x control is sufficient to establish that one remains.
-        if attempts is None and free_visible and TIER_ATTEMPT_MAXIMUMS[selected or RecruitTier.BASIC] == 1:
+        if attempts is None and free_control_enabled and TIER_ATTEMPT_MAXIMUMS[selected or RecruitTier.BASIC] == 1:
             attempts = 1
-        cooldown_active = not free_visible and bool(cooldown and cooldown > 0)
         # A cooldown frame shows the same Daily Free slot as disabled "Recruit 1x".
-        free_slot_visible = free_visible or cooldown_active
+        free_slot_visible = free_label_visible or cooldown_active
         target = TAVERN_FREE_ROI
         panel = (40, 840, 760, 1070)
         selected_obs = NoahTierObservation(
@@ -171,7 +193,7 @@ def recognize_noahs_tavern_frame(
             cooldown_active=cooldown_active,
             next_eligible_timestamp=(captured_monotonic + cooldown if captured_monotonic is not None and cooldown_active else None),
             free_control_visible=free_slot_visible,
-            free_control_enabled=free_visible and not cooldown_active and _purple_ratio(frame, TAVERN_FREE_ROI) >= 0.04,
+            free_control_enabled=free_control_enabled,
             target_roi=target,
             panel_roi=panel,
             target_identity=NOAHS_TAVERN_FREE_TARGET if free_slot_visible else "",
@@ -208,10 +230,8 @@ def recognize_noahs_tavern_frame(
             overlay_state="none",
             recognized=selected is not None and bool(visible_tiers),
         )
-    result_identity = _text(frame, RESULT_REWARD_ROI, psm=11, ocr=ocr)
-    close_visible = _red_ratio(frame, RESULT_CLOSE_ROI) >= 0.08
-    explicit_reward = "frag" in result_identity or "antiserum" in result_identity
-    if close_visible and explicit_reward:
+    close_visible = _result_close_visible(frame, ocr=ocr)
+    if close_visible:
         result_tier = None
         return NoahTavernObservation(
             screen_state=HERO_RECRUIT_RESULT_SCREEN,
@@ -224,12 +244,28 @@ def recognize_noahs_tavern_frame(
             captured_monotonic=captured_monotonic,
             stale=stale,
             overlay_state="none",
-            recognized=bool(result_identity),
+            recognized=True,
             result_tier=result_tier,
-            result_identity=result_identity,
             safe_close_visible=close_visible,
             safe_close_roi=RESULT_CLOSE_ROI,
             premium_result_control_visible=bool(_PAID_RE.search(_text(frame, RESULT_PAID_ROI, ocr=ocr))),
+        )
+    if not include_home_ocr:
+        return NoahTavernObservation(
+            screen_state=UNKNOWN_SCREEN,
+            selected_tier=None,
+            tiers=tuple(
+                NoahTierObservation(
+                    tier=tier,
+                    daily_attempt_maximum=TIER_ATTEMPT_MAXIMUMS[tier],
+                    attempts_remaining=None,
+                )
+                for tier in RecruitTier
+            ),
+            frame_sha256=digest,
+            captured_monotonic=captured_monotonic,
+            stale=stale,
+            recognized=False,
         )
     home_text = _text(frame, TAVERN_OVERLAY_ROI, psm=11, ocr=ocr)
     home_boxes = _ocr_boxes(frame) if ocr is None else []
