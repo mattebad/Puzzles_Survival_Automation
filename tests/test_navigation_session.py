@@ -1097,6 +1097,14 @@ class NavigationSessionTests(unittest.TestCase):
                 events.append(f"save:{session.checkpoint.value}:{ledger_status}")
                 return real_save(session, path, **kwargs)
 
+            # This persistence-ordering fixture supplies recognition separately from geometry.
+            for module in ("atlas_runtime_startup", "home_atlas_bluestacks"):
+                clean_home = patch(
+                    f"scripts.{module}.is_clean_home_frame", return_value=True
+                )
+                clean_home.start()
+                self.addCleanup(clean_home.stop)
+
             with patch("scripts.home_atlas_bluestacks.load_home_atlas", return_value=world), patch(
                 "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer", return_value=fake_localizer
             ), patch("scripts.home_atlas_bluestacks.connect_runtime", return_value=runtime), patch(

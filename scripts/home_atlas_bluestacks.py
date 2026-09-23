@@ -257,8 +257,21 @@ def build_navigate_perception_bundle(
     identity: NativeFrameIdentity,
     localization: LocalizationResult,
     binding: BuildingBinding | None,
+    *,
+    frame: np.ndarray,
 ) -> FramePerceptionBundle:
-    """Compose and classify a navigate-building bundle without capturing."""
+    """Compose and classify a navigate-building bundle from one current frame."""
+
+    if not native_frame_guard(frame):
+        raise PerceptionBundleError("NON_NATIVE_OR_INVALID")
+    try:
+        current_digest = frame_digest(frame)
+    except (RuntimeError, ValueError) as exc:
+        raise PerceptionBundleError("INVALID_DIGEST") from exc
+    if current_digest != identity.semantic_sha256:
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
+    if not is_clean_home_frame(frame):
+        raise PerceptionBundleError("CONTEXT_NOT_CANONICAL_HOME")
 
     bundle = (
         bundle_from_identity(identity)
@@ -1188,6 +1201,7 @@ def dispatch_verified_navigate_pan(
     dry_run: bool = False,
     monotonic_clock: Callable[[], float] | None = None,
     wall_clock: Callable[[], float] | None = None,
+    on_pre_dispatch_admitted: Callable[[], None] | None = None,
 ) -> tuple[object, object | None, Observation, dict[str, object]]:
     """Issue one-shot capability against a fresh pre_dispatch frame and consume it.
 
@@ -1197,7 +1211,10 @@ def dispatch_verified_navigate_pan(
     the executor recapture (semantic rebind) and the transport swipe operate on
     that same fresh capture. Adapter-level ``runtime.swipe`` remains reachable only
     from the executor transport callback after capability consumption authorizes
-    dispatch. Direct bypass is rejected.
+    dispatch. Direct bypass is rejected. ``on_pre_dispatch_admitted`` runs only
+    after fresh-frame admission and immediately before capability issuance, so a
+    caller can durably prepare its navigation ledger without preparing a rejected
+    attempt.
     """
 
     # Finding 1: acquire a genuine fresh pre_dispatch frame. The planning
@@ -1218,6 +1235,8 @@ def dispatch_verified_navigate_pan(
         raise PerceptionBundleError("PRE_DISPATCH_FRAME_INVALID")
     if len(str(fresh_identity.semantic_sha256)) != 64:
         raise PerceptionBundleError("PRE_DISPATCH_DIGEST_INCONSISTENT")
+    if not is_clean_home_frame(fresh_capture.frame):
+        raise PerceptionBundleError("PRE_DISPATCH_HOME_NOT_CLEAN")
 
     # The capability is bound to THIS fresh pre_dispatch observation.
     pre_observation = build_navigate_pan_observation(
@@ -1231,6 +1250,8 @@ def dispatch_verified_navigate_pan(
         pre_observation,
         capture_completed_monotonic=pre_observation.capture_completed_monotonic - 0.05,
     )
+    if on_pre_dispatch_admitted is not None:
+        on_pre_dispatch_admitted()
 
     # Live captures use the process monotonic clock; offline callers inject a
     # capture-relative clock when their capture timestamps are synthetic.
@@ -3225,6 +3246,18 @@ def run_verified_campaign_home_atlas_entry(
             return None
         return float(math.hypot(remaining_displacement[0], remaining_displacement[1]))
 
+    def _terminal_result(result: dict[str, object]) -> dict[str, object]:
+        session_path = _persist_navigate_session(nav_session, runtime.session)
+        enriched = attach_navigate_terminal_reports(
+            result,
+            nav_session,
+            session_calibration=session_calibration,
+        )
+        enriched["navigation_session"] = str(session_path)
+        enriched["route_id"] = nav_session.route_id
+        return enriched
+
+
     try:
         for ordinal in range(maximum_pans + 1):
             immediate_before = runtime.capture(f"campaign-entry-{ordinal:02d}-immediate-before")
@@ -3245,7 +3278,10 @@ def run_verified_campaign_home_atlas_entry(
             )
             try:
                 perception = build_navigate_perception_bundle(
-                    identity, derived_localization, derived_binding
+                    identity,
+                    derived_localization,
+                    derived_binding,
+                    frame=immediate_before.frame,
                 )
                 localization, binding = perception.checked_navigation_inputs()
             except PerceptionBundleError as exc:
@@ -3405,30 +3441,54 @@ def run_verified_campaign_home_atlas_entry(
                 )
                 action_key = make_pan_action_key(nav_session, gesture_fingerprint, next_pan)
                 action_id = f"{nav_session.navigation_session_id}:pan:{next_pan}"
-                record_pan_prepared(
-                    nav_session,
-                    action_key=action_key,
-                    source_frame=identity,
-                    target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
-                    requested=plan.requested_camera_displacement,
-                    predicted=plan.predicted_camera_displacement,
-                    gesture_fingerprint=gesture_fingerprint,
-                )
-                issued, execution, _pre_obs, pan_telemetry = dispatch_verified_navigate_pan(
-                    runtime=runtime,
-                    immediate_before=immediate_before,
-                    identity=identity,
-                    drag_start=plan.drag_start,
-                    drag_end=plan.drag_end,
-                    action_id=action_id,
-                    action_key=action_key,
-                    task_id=nav_session.authorization.task_id,
-                    navigation_session_id=nav_session.navigation_session_id,
-                    lease_owner=lease_owner,
-                    policy=policy,
-                    store=_ensure_store(),
-                    dry_run=False,
-                )
+                pan_admitted = False
+
+                def _prepare_pan() -> None:
+                    nonlocal pan_admitted
+                    record_pan_prepared(
+                        nav_session,
+                        action_key=action_key,
+                        source_frame=identity,
+                        target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
+                        requested=plan.requested_camera_displacement,
+                        predicted=plan.predicted_camera_displacement,
+                        gesture_fingerprint=gesture_fingerprint,
+                    )
+                    _persist_navigate_session(nav_session, runtime.session)
+                    pan_admitted = True
+
+                try:
+                    issued, execution, _pre_obs, pan_telemetry = dispatch_verified_navigate_pan(
+                        runtime=runtime,
+                        immediate_before=immediate_before,
+                        identity=identity,
+                        drag_start=plan.drag_start,
+                        drag_end=plan.drag_end,
+                        action_id=action_id,
+                        action_key=action_key,
+                        task_id=nav_session.authorization.task_id,
+                        navigation_session_id=nav_session.navigation_session_id,
+                        lease_owner=lease_owner,
+                        policy=policy,
+                        store=_ensure_store(),
+                        dry_run=False,
+                        on_pre_dispatch_admitted=_prepare_pan,
+                    )
+                except PerceptionBundleError as exc:
+                    if pan_admitted:
+                        raise
+                    reason_code = getattr(exc, "reason_code", None) or str(exc)
+                    mark_blocked(nav_session, reason=reason_code)
+                    return _terminal_result(
+                        {
+                            "status": "blocked_fail_closed",
+                            "reason": reason_code,
+                            "building_id": building_id,
+                            "records": records,
+                            "atlas_startup_records": startup_records,
+                            "relocalization_residual_pixels": last_residual,
+                        }
+                    )
                 if execution is None or execution.transport_calls < 1:
                     return {
                         "status": "blocked_fail_closed",
@@ -4214,7 +4274,12 @@ def _command_navigate_building_body(
                 ordinal=int(capture_ordinal),
                 label=f"navigate-{ordinal:02d}-immediate-before",
             )
-            perception = build_navigate_perception_bundle(identity, derived_localization, derived_binding)
+            perception = build_navigate_perception_bundle(
+                identity,
+                derived_localization,
+                derived_binding,
+                frame=immediate_before.frame,
+            )
             localization, binding = perception.checked_navigation_inputs()
         except PerceptionBundleError as exc:
             mark_blocked(nav_session, reason=exc.reason_code)
@@ -4304,31 +4369,57 @@ def _command_navigate_building_body(
             )
             action_key = make_pan_action_key(nav_session, gesture_fingerprint, next_pan)
             action_id = f"{nav_session.navigation_session_id}:pan:{next_pan}"
-            record_pan_prepared(
-                nav_session,
-                action_key=action_key,
-                source_frame=identity,
-                target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
-                requested=plan.requested_camera_displacement,
-                predicted=plan.predicted_camera_displacement,
-                gesture_fingerprint=gesture_fingerprint,
-            )
-            _persist_navigate_session(nav_session, runtime.session)
-            issued, execution, _pre_obs, pan_telemetry = dispatch_verified_navigate_pan(
-                runtime=runtime,
-                immediate_before=immediate_before,
-                identity=identity,
-                drag_start=plan.drag_start,
-                drag_end=plan.drag_end,
-                action_id=action_id,
-                action_key=action_key,
-                task_id=nav_session.authorization.task_id,
-                navigation_session_id=nav_session.navigation_session_id,
-                lease_owner=lease_owner,
-                policy=policy,
-                store=ensure_store(),
-                dry_run=False,
-            )
+            pan_admitted = False
+
+            def _prepare_pan() -> None:
+                nonlocal pan_admitted
+                record_pan_prepared(
+                    nav_session,
+                    action_key=action_key,
+                    source_frame=identity,
+                    target_identity=NAVIGATE_BUILDING_TARGET_IDENTITY,
+                    requested=plan.requested_camera_displacement,
+                    predicted=plan.predicted_camera_displacement,
+                    gesture_fingerprint=gesture_fingerprint,
+                )
+                _persist_navigate_session(nav_session, runtime.session)
+                pan_admitted = True
+
+            try:
+                issued, execution, _pre_obs, pan_telemetry = dispatch_verified_navigate_pan(
+                    runtime=runtime,
+                    immediate_before=immediate_before,
+                    identity=identity,
+                    drag_start=plan.drag_start,
+                    drag_end=plan.drag_end,
+                    action_id=action_id,
+                    action_key=action_key,
+                    task_id=nav_session.authorization.task_id,
+                    navigation_session_id=nav_session.navigation_session_id,
+                    lease_owner=lease_owner,
+                    policy=policy,
+                    store=ensure_store(),
+                    dry_run=False,
+                    on_pre_dispatch_admitted=_prepare_pan,
+                )
+            except PerceptionBundleError as exc:
+                if pan_admitted:
+                    raise
+                reason_code = getattr(exc, "reason_code", None) or str(exc)
+                mark_blocked(nav_session, reason=reason_code)
+                _persist_navigate_session(nav_session, runtime.session)
+                return emit(
+                    {
+                        "status": "blocked",
+                        "reason": reason_code,
+                        "building_id": args.building_id,
+                        "records": records,
+                        "session": str(runtime.session),
+                        "navigation_session": str(session_path),
+                        "route_id": nav_session.route_id,
+                    },
+                    3,
+                )
             if execution is None:
                 pan_ledger = navigate_pan_execution_payload(
                     issued, None, pan_telemetry, semantic_verified=False

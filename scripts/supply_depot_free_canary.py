@@ -28,6 +28,7 @@ from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building, frame_digest
 from tasks.home_nav_recognition import recognize_home_nav
+from tasks.perception_bundle import PerceptionBundleError
 from tasks.supply_depot import SupplyDepotHoldConfig
 from tasks.supply_depot_vision import (
     SUPPLY_DEPOT_BUILDING_ID,
@@ -35,6 +36,8 @@ from tasks.supply_depot_vision import (
     recognize_supply_depot_screen,
 )
 
+
+PAN_PRE_DISPATCH_REASON_CODE = "PRE_DISPATCH_HOME_NOT_CLEAN"
 
 ROOT = Path(__file__).resolve().parents[1]
 ATLAS_PATH = (
@@ -289,6 +292,10 @@ def run(
             current = session.observe(
                 capture, label=f"supply-depot-pan-{pan_index}-source"
             )
+            if not is_clean_home_frame(current.frame):
+                result["reason"] = "home_not_clean_before_pan"
+                session.terminal_status = "evidence_required"
+                return result
             localization, binding = _bind_home_building(runtime, current)
             if not localization.recognized:
                 result["reason"] = "home_not_localized"
@@ -328,6 +335,10 @@ def run(
                     action_key=f"supply-depot-pan:{index}:{before.sha256[:12]}",
                     target_identity="home-camera-click-drag",
                 )
+            def authorize_pan(before):
+                if not is_clean_home_frame(before.frame):
+                    raise PerceptionBundleError(PAN_PRE_DISPATCH_REASON_CODE)
+
 
             def recognize_pan(_after, before_loc=localization):
                 time.sleep(settle_seconds)
@@ -338,14 +349,38 @@ def run(
                 progress = navigator.record_progress(before_loc, after_loc)
                 return "home_panned" if progress.accepted else "unknown"
 
-            action = session.run_action(
-                action_class="navigation",
-                label=f"supply-depot-pan-{pan_index}",
-                capture=capture,
-                dispatch=dispatch_pan,
-                recognize=recognize_pan,
-                consequence_class="navigation_only",
-            )
+            before_input_count = session.input_count
+            try:
+                action = session.run_action(
+                    action_class="navigation",
+                    label=f"supply-depot-pan-{pan_index}",
+                    capture=capture,
+                    dispatch=dispatch_pan,
+                    recognize=recognize_pan,
+                    authorize=authorize_pan,
+                    consequence_class="navigation_only",
+                )
+            except PerceptionBundleError as exc:
+                if (
+                    exc.reason_code != PAN_PRE_DISPATCH_REASON_CODE
+                    or session.input_count != before_input_count
+                ):
+                    raise
+                result.update(
+                    {
+                        "status": "blocked",
+                        "reason": exc.reason_code,
+                        "input_count": session.input_count,
+                        "transport_dispatched": False,
+                    }
+                )
+                session.terminal_status = "evidence_required"
+                session.blocker = exc.reason_code
+                (session_directory / "result.json").write_text(
+                    json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",
+                    encoding="utf-8",
+                )
+                return result
             if action.status != "completed":
                 result["reason"] = f"pan_no_progress:{pan_index}"
                 break

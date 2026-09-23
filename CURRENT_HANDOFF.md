@@ -4,15 +4,15 @@
 {
   "schema_version": 3,
   "branch": "refactor/lean-bot-backlog",
-  "head_binding": "804d9a25d12f41463e5a67912f0327f8dc6fa2d4",
+  "head_binding": "eb5a6fa4b3b270a66708a0e9350786288c66ea2c",
   "last_product_candidate_head": "804d9a25d12f41463e5a67912f0327f8dc6fa2d4",
   "merge_boundary": {
     "pull_request": 15,
     "base_head": "69a262150d5c4847df23175c4820602d2d432339",
     "candidate_head": "804d9a25d12f41463e5a67912f0327f8dc6fa2d4",
-    "state": "review_corrections_published_and_verified",
+    "state": "pan_correction_verified_publication_authorized",
     "runtime_or_authority_changes": true,
-    "pending_action": "No implementation or source-delivery correction remains. Product candidate 804d9a2 is published and both Actions jobs passed in run 35765739810. These commit anchors identify the verified product candidate; later metadata-only receipt commits and their checks are identified by Git and PR #15."
+    "pending_action": "User authorized committing and pushing the scoped PAN admission and terminal-handling correction. This receipt records pre-publication verification; Git and PR #15 identify the resulting commit and remote publication. The SHA anchors and Actions run 35765739810 identify historical verified history, not CI proof for the new correction. Confirm Ubuntu/Windows CI on the resulting candidate before merge."
   },
   "ahead_behind": {
     "source": "compute_from_git"
@@ -32,27 +32,27 @@
     ".local-reference/",
     "evidence/"
   ],
-  "current_task_id": "PR-15-SHARED-ATLAS-HOME-ADMISSION",
+  "current_task_id": "PR-15-ATLAS-PAN-HOME-ADMISSION",
   "current_task_state": "in_progress",
   "next_task_id": "LB-09-NATURAL-POPUP-EVIDENCE",
   "next_task_activation_status": "dependency_blocked",
   "active_task_or_flow": "none",
-  "active_delivery_stage": "offline_review_delivered_and_verified",
+  "active_delivery_stage": "offline_pan_correction_publication_authorized",
   "active_execution_manifest_path": null,
   "development_lease_state": "absent",
   "runtime_ownership_state": "none",
   "writable_agent_state": "none",
   "unresolved_action_state": "startup_vip_action_unresolved_preserved",
-  "latest_focused_validation_result": "Product candidate 804d9a25d12f41463e5a67912f0327f8dc6fa2d4: Ubuntu and Windows Python 3.11 Actions passed, including PR-range whitespace and compilation, in https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/35765739810. Local Python 3.12: 282 affected tests run, 274 passed and 8 skipped; 22 final governance/handoff checks passed. One overlay-negative regression failed before and passed after the fix; retained-frame smoke verified clean Home admission and positive-overlay rejection.",
-  "latest_architecture_validation_result": "Shared startup and building binding require an explicit same-frame clean-Home predicate; geometry tests supply recognition separately, and executable callers use existing Home/modal classification. Accounting, cooldown, input reserve, HUD geometry, contextual timestamps, governance, and disabled gameplay designs are not reopened.",
+  "latest_focused_validation_result": "Local Windows Python 3.12: 348 affected tests run, 346 passed and 2 skipped. Includes all four production fresh-overlay rejection paths, persisted blocked navigation/results, zero capability issue/consume and input, clean PAN preservation, prepare-before-transport ordering, and RuntimeError/matching typed transport-fault propagation. Scoped source/test compilation passed. Offline direct-canary smoke returned blocked with matching result.json and evidence_required summary.json, input_count 0 and zero swipes for Supply and Bioenhancer. Classifier facts/transport were controlled; no live visual-accuracy or current-working-tree CI claim.",
+  "latest_architecture_validation_result": "Digest-bound planning and fresh PAN clean-Home guards are preserved. Atlas records and persists PAN preparation only after fresh admission and before capability issuance/input; pre-admission rejection persists a blocked navigation outcome without a prepared ledger entry. Supply/Bioenhancer persist normal blocked/evidence_required terminal results before any input. Post-admission or post-accounting errors are not recast as no-dispatch rejection. Clean binding=None remains pannable; no historical ledger clearing, retry, or reopened accounting/geometry/governance design.",
   "latest_full_suite_result": "Historical only: pre-merge branch recorded 488 passed and 6 skipped; no post-correction full-suite claim",
   "current_live_attempt_state": "not_run_during_offline_review_corrections",
   "current_evidence_or_session_reference": ".local-captures/lb09-panfix-rerun-20260919T041106Z/noahs-tavern-unified-recruitment-20260919T041110785460Z/unified-recruitment-result.json",
-  "last_safe_completed_step": "Committed and pushed shared Atlas admission and EOF corrections as 804d9a2, verified both Actions jobs successful, and updated PR #15 verification and unchanged live-evidence/accounting limits",
-  "exact_next_permitted_action": "Await user disposition of the verified PR; no further implementation, source-delivery, merge, or runtime/live action is authorized by this receipt",
-  "current_blocker": "None for the two requested offline review corrections: both are delivered and verified. Native-runner return-time accounting is accepted as fail-closed, not a merge blocker. The retained startup VIP action remains unresolved; current_task_state is not marked completed because that lifecycle requires clear unresolved state.",
+  "last_safe_completed_step": "Integrated scoped Atlas and direct-canary terminal-handling task workers, repaired the synthetic persistence-ordering recognition fixture, passed the affected regression set, and exercised returned plus retained zero-input rejection outcomes offline",
+  "exact_next_permitted_action": "Commit and push the verified scoped PAN correction to the existing branch, confirm its remote receipt, and inspect exact-candidate CI; no merge or runtime/live action is authorized",
+  "current_blocker": "The reported PAN admission and rejection-completion gaps are closed in the exercised offline paths. Exact-candidate Ubuntu/Windows CI remains unverified; use Git and PR #15 for publication status. Native-runner return-time accounting remains accepted as fail-closed. The retained startup VIP action remains unresolved; current_task_state is not marked completed because that lifecycle requires clear unresolved state.",
   "prohibited_repeated_action": "Do not clear or relabel the retained startup VIP unresolved action; do not synthesize popup evidence, enable registration or scheduling, merge, force-push, or perform runtime input",
-  "stage_revision": "pr15-shared-atlas-home-admission",
+  "stage_revision": "pr15-atlas-pan-terminal-handling",
   "stage_type": "offline_reconciliation",
   "product_precondition": "met_for_offline_corrections_only",
   "failure_class": "none",
@@ -95,15 +95,15 @@
     "do_not_recursively_inspect_parent_evidence_tree": true
   },
   "control_parent_conversation_id": "pr15-offline-review-corrections",
-  "deferred_independent_review": "Review requested exactly shared Atlas clean-Home admission and EOF whitespace corrections; no reopening of settled designs. Current-head Actions and remaining live-evidence limits are recorded in PR #15 verification.",
+  "deferred_independent_review": "User authorized the narrow PAN rejection-completion follow-up via task subagents. Two disjoint workers implemented Atlas and direct-canary terminal handling; parent integrated and verified actual caller outcomes, persistence ordering, and exception-stage distinctions. Cleared findings and remaining live-evidence limits are unchanged.",
   "stage_7_ordered_plan": [],
   "next_three_atomic_tasks": [
-    "Report the published product candidate and successful Ubuntu/Windows checks",
-    "Await explicit user merge disposition without reopening settled designs",
+    "Commit and push the verified scoped PAN correction to the existing branch",
+    "Confirm the remote candidate and inspect its Ubuntu/Windows CI without merging",
     "Preserve unresolved startup VIP state and disabled runtime controls"
   ],
   "stage_start_utc": "2026-09-19T04:24:00Z",
-  "continuation_checkpoint_utc": "2026-09-22T18:20:46Z"
+  "continuation_checkpoint_utc": "2026-09-23T05:20:25Z"
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 

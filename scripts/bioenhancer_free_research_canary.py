@@ -37,6 +37,10 @@ from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building
 from tasks.home_nav_recognition import recognize_home_nav
 from tasks.nova_praise_vision import recognize_nova_frame
+from tasks.perception_bundle import PerceptionBundleError
+
+
+PAN_PRE_DISPATCH_REASON_CODE = "PRE_DISPATCH_HOME_NOT_CLEAN"
 
 BLUESTACKS_ADB = Path(r"C:\Program Files\BlueStacks_nxt\HD-Adb.exe")
 BLUESTACKS_SERIAL = "emulator-5554"
@@ -193,6 +197,8 @@ def plan_research_lab_pan(frame_bgr: np.ndarray, navigator: DirectPanNavigator):
     atlas, localization = _atlas_stack(frame_bgr)
     if not localization.recognized:
         return None, None, None
+    if not is_clean_home_frame(frame_bgr):
+        return localization, None, None
     binding = bind_visible_building(frame_bgr, localization, atlas.lookup_building(RESEARCH_LAB_ID), home_is_clean=is_clean_home_frame)
     # Plan without accepting a clipped binding as complete — radial footprint matters.
     plan = navigator.plan(localization, None)
@@ -482,6 +488,13 @@ def run(
                 (session_directory / f"pan-{pan_i:02d}-before.png").write_bytes(before.png)
                 localization, binding, plan = plan_research_lab_pan(before.frame, navigator)
                 if plan is None:
+                    if localization is not None:
+                        result["reason"] = "home_not_clean_before_pan"
+                        (session_directory / "result.json").write_text(
+                            json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+                        )
+                        session.terminal_status = "evidence_required"
+                        return result
                     result["reason"] = "localization_failed_before_pan"
                     break
                 result["steps"].append(
@@ -501,7 +514,7 @@ def run(
                     result["reason"] = f"pan_blocked:{plan.reason}"
                     break
 
-                def dispatch_pan(frame=before, start=plan.drag_start, end=plan.drag_end, idx=pan_i):
+                def dispatch_pan(frame, start=plan.drag_start, end=plan.drag_end, idx=pan_i):
                     runtime.swipe(
                         frame,
                         start=start,
@@ -509,6 +522,10 @@ def run(
                         action_key=f"home-pan-research-lab:{idx}:{frame.sha256[:12]}",
                         target_identity="home-camera-click-drag",
                     )
+
+                def authorize_pan(frame):
+                    if not is_clean_home_frame(frame.frame):
+                        raise PerceptionBundleError(PAN_PRE_DISPATCH_REASON_CODE)
 
                 def recognize_pan(after, before_loc=localization, idx=pan_i):
                     time.sleep(settle_seconds)
@@ -525,14 +542,38 @@ def run(
                     )
                     return "home_panned" if progress.accepted else "unknown"
 
-                action = session.run_action(
-                    action_class="navigation",
-                    label=f"home-pan-research-lab-{pan_i}",
-                    capture=capture,
-                    dispatch=dispatch_pan,
-                    recognize=recognize_pan,
-                    consequence_class="navigation_only",
-                )
+                before_input_count = session.input_count
+                try:
+                    action = session.run_action(
+                        action_class="navigation",
+                        label=f"home-pan-research-lab-{pan_i}",
+                        capture=capture,
+                        dispatch=dispatch_pan,
+                        recognize=recognize_pan,
+                        authorize=authorize_pan,
+                        consequence_class="navigation_only",
+                    )
+                except PerceptionBundleError as exc:
+                    if (
+                        exc.reason_code != PAN_PRE_DISPATCH_REASON_CODE
+                        or session.input_count != before_input_count
+                    ):
+                        raise
+                    result.update(
+                        {
+                            "status": "blocked",
+                            "reason": exc.reason_code,
+                            "input_count": session.input_count,
+                            "transport_dispatched": False,
+                        }
+                    )
+                    session.terminal_status = "evidence_required"
+                    session.blocker = exc.reason_code
+                    (session_directory / "result.json").write_text(
+                        json.dumps(result, indent=2, sort_keys=True, default=str) + "\n",
+                        encoding="utf-8",
+                    )
+                    return result
                 if getattr(action, "status", None) != "completed":
                     result["reason"] = f"pan_no_progress:{pan_i}"
                     (session_directory / "result.json").write_text(

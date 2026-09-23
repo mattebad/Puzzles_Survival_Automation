@@ -9,10 +9,13 @@ import json
 import tempfile
 import unittest
 from unittest.mock import patch
+import numpy as np
+
 
 import scripts.pnsctl as pnsctl
 import scripts.flow_delivery_bioenhancer_bluestacks as delivery
 import scripts.navigation_development_boundary as boundary
+import scripts.bioenhancer_free_research_canary as canary
 from scripts.bioenhancer_free_research_canary import (
     _free_research_cooldown_visible,
     evaluate_free_research_postcondition,
@@ -31,6 +34,123 @@ from scripts.navigation_development_boundary import (
     DevelopmentInitialObservation,
     DevelopmentSession,
 )
+from scripts.bluestacks_native_runtime import CapturedNativeFrame
+from tasks.home_atlas_planner import PlanDisposition
+from tasks.perception_bundle import PerceptionBundleError
+
+
+class _PanRuntime:
+    execute = True
+
+    def __init__(self, session: Path, *, swipe_error: BaseException | None = None) -> None:
+        self.session = session
+        self.ordinal = 0
+        self.swipe_error = swipe_error
+        self.swipes: list[dict[str, object]] = []
+
+    def capture(self, label: str) -> CapturedNativeFrame:
+        self.ordinal += 1
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        frame[0, 0, 0] = self.ordinal
+        payload = f"frame-{self.ordinal}".encode()
+        return CapturedNativeFrame(
+            frame,
+            payload,
+            hashlib.sha256(payload).hexdigest(),
+            float(self.ordinal),
+            self.session / f"{label}.png",
+        )
+
+    def swipe(self, captured, *, start, end, action_key, target_identity) -> None:
+        if self.swipe_error is not None:
+            raise self.swipe_error
+        self.swipes.append(
+            {
+                "marker": int(captured.frame[0, 0, 0]),
+                "start": start,
+                "end": end,
+                "action_key": action_key,
+                "target_identity": target_identity,
+            }
+        )
+
+
+class _PanNavigator:
+    def __init__(self, plans) -> None:
+        self._plans = iter(plans)
+        self.plan_calls = 0
+
+    def plan(self, _localization, _binding):
+        self.plan_calls += 1
+        return next(self._plans)
+
+    def record_progress(self, _before, _after):
+        return SimpleNamespace(accepted=True, reason="progress_observed")
+
+
+def _run_bio_pan_case(
+    root: Path,
+    clean_home,
+    *,
+    swipe_error: BaseException | None = None,
+):
+    runtime = _PanRuntime(root / "runtime", swipe_error=swipe_error)
+    localization = SimpleNamespace(recognized=True, frame_sha256="localization")
+    localizer = SimpleNamespace(localize=lambda _frame: localization)
+    atlas = SimpleNamespace(lookup_building=lambda _building_id: SimpleNamespace())
+    pan_plan = SimpleNamespace(
+        disposition=PlanDisposition.PAN,
+        reason="calculated_direct_pan",
+        drag_start=(200, 600),
+        drag_end=(300, 600),
+    )
+    complete_plan = SimpleNamespace(
+        disposition=PlanDisposition.COMPLETE,
+        reason="current_frame_semantic_building_bound",
+        drag_start=None,
+        drag_end=None,
+    )
+    navigator = _PanNavigator((pan_plan, complete_plan, complete_plan))
+    result = None
+    error = None
+    terminal_status = None
+    with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+        with (
+            patch.object(canary, "load_home_atlas", return_value=atlas),
+            patch.object(canary, "normalize_home_atlas_startup", return_value=(object(), object())),
+            patch.object(canary, "DirectPanNavigator", return_value=navigator),
+            patch.object(canary, "BlueStacksHomeLocalizer", return_value=localizer),
+            patch.object(canary, "_atlas_stack", return_value=(atlas, localization)),
+            patch.object(canary, "bind_visible_building", return_value=None),
+            patch.object(canary, "bind_research_radial_option", return_value=None),
+            patch.object(canary, "bind_research_lab", return_value=None),
+            patch.object(canary, "is_clean_home_frame", side_effect=clean_home),
+        ):
+            with DevelopmentSession(
+                owner="bio-pan-test",
+                invocation_id="bio-pan-test",
+                session_directory=root / "session",
+                max_inputs=4,
+            ) as session:
+                try:
+                    result = canary.run(
+                        max_inputs=4,
+                        settle_seconds=0,
+                        session=session,
+                        runtime=runtime,
+                        session_directory=root / "session",
+                    )
+                except (RuntimeError, PerceptionBundleError) as exc:
+                    error = exc
+                input_count = session.input_count
+                terminal_status = session.terminal_status
+    persisted_path = root / "session" / "result.json"
+    persisted = (
+        json.loads(persisted_path.read_text(encoding="utf-8"))
+        if persisted_path.is_file()
+        else None
+    )
+    return result, error, runtime, navigator, input_count, persisted, terminal_status
 
 
 class BioenhancerFlowDeliveryTests(unittest.TestCase):
@@ -43,6 +163,128 @@ class BioenhancerFlowDeliveryTests(unittest.TestCase):
                 run_action=lambda **_kwargs: None,
             ),
         }
+    def test_pan_rejects_unclean_planning_home_before_planner(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (
+                result,
+                error,
+                runtime,
+                navigator,
+                input_count,
+                _persisted,
+                _terminal_status,
+            ) = _run_bio_pan_case(
+                Path(directory),
+                lambda frame: int(frame[0, 0, 0]) != 1,
+            )
+
+        self.assertIsNone(error)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["reason"], "home_not_clean_before_pan")
+        self.assertEqual(input_count, 0)
+        self.assertEqual(runtime.swipes, [])
+        self.assertEqual(navigator.plan_calls, 0)
+
+    def test_pan_rejects_unclean_fresh_home_before_transport(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (
+                result,
+                error,
+                runtime,
+                navigator,
+                input_count,
+                persisted,
+                terminal_status,
+            ) = _run_bio_pan_case(
+                Path(directory),
+                lambda frame: int(frame[0, 0, 0]) != 2,
+            )
+
+        self.assertIsNone(error)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["reason"], "PRE_DISPATCH_HOME_NOT_CLEAN")
+        self.assertEqual(persisted, result)
+        self.assertEqual(terminal_status, "evidence_required")
+        self.assertEqual(input_count, 0)
+        self.assertEqual(result["input_count"], 0)
+        self.assertFalse(result["transport_dispatched"])
+        self.assertEqual(runtime.swipes, [])
+        self.assertEqual(navigator.plan_calls, 1)
+
+    def test_pan_transport_runtime_error_still_propagates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (
+                result,
+                error,
+                runtime,
+                navigator,
+                input_count,
+                persisted,
+                _terminal_status,
+            ) = _run_bio_pan_case(
+                Path(directory),
+                lambda _frame: True,
+                swipe_error=RuntimeError("pan transport failed"),
+            )
+
+        self.assertIsNone(result)
+        self.assertIsInstance(error, RuntimeError)
+        self.assertIn("pan transport failed", str(error))
+        self.assertIsNone(persisted)
+        self.assertEqual(input_count, 1)
+        self.assertEqual(runtime.swipes, [])
+        self.assertEqual(navigator.plan_calls, 1)
+
+    def test_typed_pan_transport_error_after_input_is_not_reclassified(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (
+                result,
+                error,
+                runtime,
+                navigator,
+                input_count,
+                persisted,
+                _terminal_status,
+            ) = _run_bio_pan_case(
+                Path(directory),
+                lambda _frame: True,
+                swipe_error=PerceptionBundleError(
+                    "PRE_DISPATCH_HOME_NOT_CLEAN",
+                    "typed pan transport failed",
+                ),
+            )
+
+        self.assertIsNone(result)
+        self.assertIsInstance(error, PerceptionBundleError)
+        self.assertEqual(error.reason_code, "PRE_DISPATCH_HOME_NOT_CLEAN")
+        self.assertIn("typed pan transport failed", str(error))
+        self.assertIsNone(persisted)
+        self.assertEqual(input_count, 1)
+        self.assertEqual(runtime.swipes, [])
+        self.assertEqual(navigator.plan_calls, 1)
+
+    def test_clean_pan_remains_allowed_and_uses_fresh_frame(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (
+                result,
+                error,
+                runtime,
+                _navigator,
+                input_count,
+                _persisted,
+                _terminal_status,
+            ) = _run_bio_pan_case(
+                Path(directory),
+                lambda _frame: True,
+            )
+
+        self.assertIsNone(error)
+        self.assertIsNotNone(result)
+        self.assertEqual(input_count, 1)
+        self.assertEqual(len(runtime.swipes), 1)
+        self.assertEqual(runtime.swipes[0]["marker"], 2)
+
 
     def test_registry_binds_consequential_runner_without_promotion(self):
         contract = pnsctl._load_bluestacks_flow_registry()[FLOW_ID]

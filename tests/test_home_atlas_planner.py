@@ -76,11 +76,12 @@ def localization(x: float = 0, y: float = 0, digest: str = "a" * 64) -> Localiza
 class MinimalPanPlannerTests(unittest.TestCase):
     def setUp(self):
         # Synthetic route fixtures supply Home recognition independently of geometry.
-        clean_home = patch(
-            "scripts.atlas_runtime_startup.is_clean_home_frame", return_value=True
-        )
-        clean_home.start()
-        self.addCleanup(clean_home.stop)
+        for module in ("atlas_runtime_startup", "home_atlas_bluestacks"):
+            clean_home = patch(
+                f"scripts.{module}.is_clean_home_frame", return_value=True
+            )
+            clean_home.start()
+            self.addCleanup(clean_home.stop)
 
     def test_target_already_safe_is_zero_pan_and_requires_binding(self):
         target = building(polygon=((300, 400), (440, 400), (440, 540), (300, 540)))
