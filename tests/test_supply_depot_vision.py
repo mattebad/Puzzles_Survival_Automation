@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 import cv2
@@ -268,8 +269,24 @@ class SupplyDepotVisionTests(unittest.TestCase):
                 path = root / name
                 captured = captured_native_frame_from_png(path.read_bytes(), path=path, captured_monotonic=time.monotonic())
                 identity = identity_from_captured(captured, session_id="offline-supply-label", ordinal=1)
-                binding = bind_supply_depot_claim_supply(captured.frame, source_frame=identity, source_png=captured.png)
-                self.assertEqual(binding is not None, actionable)
+                diagnostics = {}
+                def trace(name):
+                    original = getattr(supply_depot_module, name)
+                    def observed(*args, **kwargs):
+                        try:
+                            value = original(*args, **kwargs)
+                        except ValueError as exc:
+                            diagnostics.setdefault(name, []).append(str(exc))
+                            raise
+                        diagnostics.setdefault(name, []).append(value)
+                        return value
+                    return observed
+                with ExitStack() as stack:
+                    for name in ("_ocr_roi_text", "_recognized_supply_radial_roi", "_claim_text_roi_from_data",
+                                 "_claim_label_row_from_data", "_supply_label_roi_from_data", "_claim_button_interior"):
+                        stack.enter_context(patch.object(supply_depot_module, name, side_effect=trace(name)))
+                    binding = bind_supply_depot_claim_supply(captured.frame, source_frame=identity, source_png=captured.png)
+                self.assertEqual(binding is not None, actionable, diagnostics)
                 if binding is not None:
                     self.assertLess(binding.target_roi[3], 864)
                     self.assertEqual((binding.target_roi[2] - binding.target_roi[0],
