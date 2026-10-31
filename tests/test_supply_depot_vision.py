@@ -139,6 +139,18 @@ class SupplyDepotVisionTests(unittest.TestCase):
         self.assertEqual(rejected.controls, ())
 
     def setUp(self):
+        self.native_ocr_diagnostics = []
+        original_ocr = supply_depot_module.run_semantic_ocr
+        def observe_ocr(*args, **kwargs):
+            result = original_ocr(*args, **kwargs)
+            self.native_ocr_diagnostics.append({
+                "roi": args[1].roi, "status": str(result.status),
+                "reason": result.reason_code, "text": result.text,
+            })
+            return result
+        observer = patch.object(supply_depot_module, "run_semantic_ocr", side_effect=observe_ocr)
+        observer.start()
+        self.addCleanup(observer.stop)
         self.frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         regions = (
             (supply_depot_module.SUPPLY_DEPOT_TITLE_ROI, 10),
@@ -286,7 +298,8 @@ class SupplyDepotVisionTests(unittest.TestCase):
                                  "_claim_label_row_from_data", "_supply_label_roi_from_data", "_claim_button_interior"):
                         stack.enter_context(patch.object(supply_depot_module, name, side_effect=trace(name)))
                     binding = bind_supply_depot_claim_supply(captured.frame, source_frame=identity, source_png=captured.png)
-                self.assertEqual(binding is not None, actionable, diagnostics)
+                self.assertEqual(binding is not None, actionable,
+                                 {"binding": diagnostics, "ocr": self.native_ocr_diagnostics})
                 if binding is not None:
                     self.assertLess(binding.target_roi[3], 864)
                     self.assertEqual((binding.target_roi[2] - binding.target_roi[0],
@@ -306,7 +319,8 @@ class SupplyDepotVisionTests(unittest.TestCase):
         path = Path(__file__).parent / "fixtures/supply_depot/native-hud-occluded-radial-20261029.png"
         captured = captured_native_frame_from_png(path.read_bytes(), path=path, captured_monotonic=time.monotonic())
         identity = identity_from_captured(captured, session_id="offline-supply-hud", ordinal=1)
-        self.assertTrue(recognize_supply_depot_radial(captured.frame, source_frame=identity, source_png=captured.png))
+        self.assertTrue(recognize_supply_depot_radial(captured.frame, source_frame=identity, source_png=captured.png),
+                        self.native_ocr_diagnostics)
         self.assertIsNone(bind_supply_depot_claim_supply(captured.frame, source_frame=identity, source_png=captured.png))
 
     def test_safe_label_subregion_rejects_full_occlusion_and_slivers(self):
