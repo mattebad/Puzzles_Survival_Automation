@@ -1,0 +1,32 @@
+{
+  "native-more-menu-caption-help-source-20261029.png": {
+    "source": ".local-captures/development-sessions/PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T090300931010Z/runtime/personal-might-discovery-20261029T090303937283Z/frames/0002-personal-might-rankings_page-immediate-before.png",
+    "sha256": "dffee7da67fc541d1dc4c11eb86adb58934ca89c6c13c4a48e16fe9d3b1a1fc8",
+    "observation": "More panel open. Caption-center tap6461154 produced Help successful and did not reach Rankings; this source supplies current trophy-body pixels."
+  },
+  "native-leaderboard-20261029.png": {
+    "source": ".local-captures/development-sessions/PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T091929809705Z/runtime/personal-might-discovery-20261029T091932999948Z/frames/0004-personal-might-rankings_page-settled.png",
+    "sha256": "b639c61f6874ccfd809112f5fe979fb3b991fbb9fc6c4f292da761b909c429e9",
+    "observation": "Native trophy navigation reached Leaderboard. Personal Might Rank is first row; each row has its own Check button."
+  },
+  "native-personal-might-rank-20261029.png": {
+    "source": ".local-captures/development-sessions/PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T092617369392Z/runtime/personal-might-discovery-20261029T092620381065Z/frames/0004-personal-might-personal_might_page-settled.png",
+    "sha256": "2408361f4e6fc1aa9451ea2bff67999765353c2be53d76b43bea66bc987c02e9",
+    "observation": "Personal Might Rank reached after first-row Check; gold thumb visible in Rank 1 row. No Praise input yet."
+  },
+  "native-personal-might-praised-rewards-20261029.png": {
+    "source": ".local-captures/development-sessions/PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T094829659146Z/runtime/personal-might-discovery-20261029T094832746727Z/frames/0005-personal-might-praise-settled.png",
+    "sha256": "ef620d41c00944714b3a3ca7add3a317e750dc4c82950178219b3c1307f9043a",
+    "observation": "Actual one Praise successor: gray disabled Rank 1 thumb and Obtained 30-min/10-min Omni Speedup x1 reward toasts. Original receipt remained unresolved pending semantic implementation."
+  },
+  "native-personal-might-disabled-20261031.png": {
+    "source": ".local-captures/automation-service-authorized/soak-20261031T040209703569Z-bfbd7785/personal-might/personal-might-20261031T041342092093Z-23fc03ed/personal-might-native-20261031T041342191685Z/frames/0016-personal-might-praise-settled-2.png",
+    "sha256": "81c608099f27ba478a4ba792c8ffaf69d6f1dd24fd2ee02b2027e92f4656aa46",
+    "observation": "Original settled-2 after exactly one controlled Praise; persistent disabled Rank 1 thumb, anti-aliased cuff, no transient reward toasts. Original canonical action unresolved; fixture grants no live authority."
+  },
+  "native-more-menu-fragmented-rankings-20261031.png": {
+    "source": ".local-captures/automation-service-authorized/soak-20261031T045234936709Z-328591ab/personal-might/personal-might-20261031T045511526465Z-1a2dc645/personal-might-native-20261031T045511617616Z/frames/0005-personal-might-more_menu-settled.png",
+    "sha256": "941e0814cd0464973599b4ce29d0f079a34a93986f43c7f7240d7e4ae6d1a1b9",
+    "observation": "Actual native More menu after one navigation input; Rankings caption OCR returned separate ra and nkings fragments. Friend/Settings and trophy body visible. Zero new Praise."
+  }
+}

@@ -63,6 +63,7 @@ from navigation_development_boundary import (
 )
 from scripts.bluestacks_popup_recognition import recognize_reset_popup
 from scripts.flow_delivery_evidence import require_operator_evidence
+from scripts.startup_normalization import is_clean_home_frame
 from world_map_navigation_bluestacks import _visual_popup_panel_candidates
 from tasks import campaign_atlas_vision, troop_training_vision
 from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
@@ -70,7 +71,6 @@ from tasks.campaign_auto_battle_vision import recognize_campaign_frame
 from tasks.home_atlas import ZoomIdentity
 from tasks.home_context import HomeReadyObservation
 from tasks.home_atlas_vision import classify_zoom
-from tasks.home_nav_recognition import recognize_home_nav
 from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
 from tasks.ultimate_challenge_daily import (
     FLOW_ID,
@@ -95,38 +95,15 @@ _ULTIMATE_HOME_ZOOM_TARGET_IDENTITY = "home-zoom-out"
 _UC_PORTAL_SEARCH_ROI = (400, 700, 700, 970)
 _UC_ENTRY_SEMANTIC_ROI = (400, 850, 700, 1030)
 _UC_TITLE_ROI = (120, 0, 680, 90)
+_HERO_LINEUP_TITLE_ROI = (200, 5, 620, 70)
 _HERO_LINEUP_SELECTED_CARD_ROIS = (
-    (29, 621, 168, 808),
-    (180, 620, 323, 810),
-    (332, 620, 475, 810),
-    (485, 620, 628, 810),
-    (639, 621, 778, 808),
+    (42, 570, 185, 710),
+    (185, 570, 328, 710),
+    (328, 570, 471, 710),
+    (471, 570, 614, 710),
+    (614, 570, 758, 710),
 )
-_HERO_LINEUP_CARD_GRID_BOXES = frozenset(
-    {
-        (84, 373, 750, 1050),
-        (84, 373, 729, 1050),
-        (84, 373, 715, 1050),
-        (85, 435, 750, 1050),
-        (101, 435, 750, 1050),
-        (85, 435, 729, 1050),
-        (106, 435, 750, 1050),
-        (85, 435, 715, 1050),
-        (101, 435, 729, 1050),
-        (106, 435, 729, 1050),
-        (101, 435, 715, 1050),
-        (106, 435, 715, 1050),
-        (84, 373, 750, 891),
-        (84, 373, 748, 891),
-        (85, 435, 750, 891),
-        (85, 435, 748, 891),
-        (101, 435, 750, 891),
-        (101, 435, 748, 891),
-        (106, 435, 750, 891),
-        (106, 435, 748, 891),
-    }
-)
-_HERO_LINEUP_SELECTED_COLOR_MINIMUM = 400
+_HERO_LINEUP_CHECK_MASK = REPO_ROOT / "tasks/assets/ultimate_challenge/800x1280/selected-check-mask.png"
 _FLEE_MODAL_ROI = (65, 365, 735, 745)
 _FLEE_MODAL_TEXT_ROI = (120, 450, 680, 590)
 _FLEE_FIGHT_SEARCH_ROI = (80, 590, 390, 740)
@@ -231,12 +208,13 @@ def _ocr_ordered_tokens(
 ) -> bool:
     """Require high-confidence OCR tokens in their native reading order."""
 
-    if frame is None or frame.shape[:2] != (1280, 800):
+    if frame is None or frame.shape != (1280, 800, 3):
         return False
     x0, y0, x1, y1 = region
     crop = frame[y0:y1, x0:x1]
     if crop.size == 0:
         return False
+    crop = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     enlarged = cv2.resize(
         crop,
         None,
@@ -379,9 +357,9 @@ def _unexpected_visual_popup(frame: np.ndarray) -> bool:
 
 
 def _home_nav_terminal(frame: np.ndarray) -> bool:
-    """Recognize template Home only when no unexpected popup is visible."""
+    """Recognize current Home semantics only when no unexpected popup is visible."""
 
-    return not _unexpected_visual_popup(frame) and recognize_home_nav(frame).is_home
+    return not _unexpected_visual_popup(frame) and is_clean_home_frame(frame)
 
 
 def _ultimate_home_zoom_route_declaration() -> NavigationRouteDeclaration:
@@ -652,7 +630,7 @@ def _normalize_ultimate_home_before_campaign(
     maximum_pans: int,
     post_input_delay: float,
 ) -> tuple[bool, dict[str, object]]:
-    """Normalize a fresh template Home in-session before Campaign Atlas binding."""
+    """Normalize fresh, clean Home in-session before Campaign Atlas binding."""
 
     records: list[dict[str, object]] = []
     detail: dict[str, object] = {
@@ -662,9 +640,8 @@ def _normalize_ultimate_home_before_campaign(
         "records": records,
         "zoom_records": records,
     }
-    home_nav = recognize_home_nav(source.frame)
-    if not home_nav.is_home or _unexpected_visual_popup(source.frame):
-        detail["reason"] = "fresh template Home was not positively recognized"
+    if not _home_nav_terminal(source.frame):
+        detail["reason"] = "fresh clean Home was not positively recognized"
         return False, detail
 
     try:
@@ -1285,45 +1262,47 @@ def _bind_red_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int] |
     return (320, 1195, 480, 1245)
 
 
-def _lineup_selected_card_color_counts(hsv: np.ndarray) -> tuple[int, ...]:
-    """Count the existing selected-color signature in each fixed card ROI."""
+def _lineup_has_five_selected_checks(hsv: np.ndarray) -> bool:
+    """Require a selection-check glyph in each slot, independent of hero artwork."""
 
-    selected = cv2.inRange(hsv, np.array([15, 120, 140]), np.array([40, 255, 255]))
-    return tuple(
-        int(np.count_nonzero(selected[y0:y1, x0:x1]))
-        for x0, y0, x1, y1 in _HERO_LINEUP_SELECTED_CARD_ROIS
-    )
-
-
-def _lineup_selected_card_union_area() -> int:
-    """Return the area of the independently bound five-card union."""
-
-    return sum(_roi_area(roi) for roi in _HERO_LINEUP_SELECTED_CARD_ROIS)
+    template = cv2.imread(str(_HERO_LINEUP_CHECK_MASK), cv2.IMREAD_GRAYSCALE)
+    if template is None:
+        return False
+    selected = cv2.inRange(hsv, np.array([15, 90, 150]), np.array([40, 255, 255]))
+    for x0, y0, x1, y1 in _HERO_LINEUP_SELECTED_CARD_ROIS:
+        count, labels, stats, _centroids = cv2.connectedComponentsWithStats(selected[y0:y1, x0:x1])
+        matches = 0
+        for index in range(1, count):
+            x, y, width, height, area = stats[index]
+            if not (30 <= width <= 65 and 24 <= height <= 55 and 200 <= area <= 1500):
+                continue
+            glyph = (labels[y:y + height, x:x + width] == index).astype(np.uint8) * 255
+            normalized = cv2.resize(glyph, (template.shape[1], template.shape[0]), interpolation=cv2.INTER_NEAREST)
+            if float(cv2.matchTemplate(normalized, template, cv2.TM_CCOEFF_NORMED)[0, 0]) >= 0.70:
+                matches += 1
+        if matches != 1:
+            return False
+    return True
 
 
 def _lineup_card_grid_candidate_matches(
     candidate: tuple[int, int, int, int],
 ) -> bool:
-    """Recognize only the measured nested card-grid contour artifact."""
+    """Exclude outer hero-grid edges only after all five checks are visible."""
 
-    if candidate not in _HERO_LINEUP_CARD_GRID_BOXES:
-        return False
-    selected_union_area = _lineup_selected_card_union_area()
-    if selected_union_area <= 0:
-        return False
-    intersection = sum(
-        _roi_intersection_area(candidate, roi)
-        for roi in _HERO_LINEUP_SELECTED_CARD_ROIS
-    )
-    return intersection / selected_union_area >= 0.78
+    x0, y0, x1, y1 = candidate
+    return 30 <= x0 <= 155 and 350 <= y0 <= 600 and 725 <= x1 <= 765 and 850 <= y1 <= 1125
 
 
 def _bind_lineup_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bind the gold Hero Lineup Challenge control from current native geometry."""
 
-    if frame is None or frame.shape[:2] != (1280, 800):
+    if frame is None or frame.shape != (1280, 800, 3):
         return None
-    if not _ocr_ordered_tokens(frame, _UC_TITLE_ROI, ("hero", "lineup")):
+    if not _ocr_ordered_tokens(frame, _HERO_LINEUP_TITLE_ROI, ("hero", "lineup")):
+        return None
+    popup = recognize_reset_popup(frame)
+    if popup.get("recognized") or popup.get("blocking_unknown_modal"):
         return None
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     gold = cv2.inRange(hsv, np.array([10, 80, 80]), np.array([35, 255, 255]))
@@ -1338,13 +1317,14 @@ def _bind_lineup_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int
         width = int(stats[index, cv2.CC_STAT_WIDTH])
         height = int(stats[index, cv2.CC_STAT_HEIGHT])
         cx, cy = centroids[index]
-        if area >= 18000 and width >= 240 and height >= 70 and 380 <= cx <= 420 and 1180 <= cy <= 1220 and x >= 240 and y >= 1140:
+        if 8000 <= area <= 40000 and 180 <= width <= 330 and 55 <= height <= 130 and 360 <= cx <= 440 and 1180 <= cy <= 1240 and x >= 220 and y >= 1140:
             candidates.append(index)
-    selected_counts = _lineup_selected_card_color_counts(hsv)
-    if len(candidates) != 1 or any(
-        count < _HERO_LINEUP_SELECTED_COLOR_MINIMUM
-        for count in selected_counts
-    ):
+    if len(candidates) != 1 or not _lineup_has_five_selected_checks(hsv):
+        return None
+    index = candidates[0]
+    x, y, width, height, _area = (int(value) for value in stats[index])
+    target = (x + 10, y + 8, x + width - 10, y + height - 8)
+    if not _ocr_ordered_tokens(frame, target, ("challenge",)):
         return None
     try:
         popup_candidates = _central_popup_candidates(frame)
@@ -1353,9 +1333,7 @@ def _bind_lineup_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int
     for popup in popup_candidates:
         if not _lineup_card_grid_candidate_matches(popup):
             return None
-    if len(selected_counts) != 5:
-        return None
-    return (300, 1175, 500, 1230)
+    return target
 
 
 def _continue_from_vip_reset_popup(
@@ -1878,6 +1856,28 @@ def _poll_zero_input_until(
     return latest, False, None
 
 
+def _retain_already_home_terminal(
+    runtime, home, *, session, events, reset_identity, completed_actions, event_type,
+) -> dict[str, object]:
+    """Retain a freshly recognized Home terminal without another input."""
+
+    home_frame, home_hash = _retain_top_level_frame(session, home, "canonical-home-terminal.png")
+    append_event(events, {"type": event_type, "home_sha256": home.sha256, "home_nav_recognized": True})
+    return {
+        "status": TERMINAL_COMPLETE_FOR_RESET,
+        "reason": "current canonical Home recognized without further input",
+        "completed_actions": list(completed_actions),
+        "home_sha256": home.sha256,
+        "home_frame": home_frame,
+        "home_frame_sha256": home_hash,
+        "home_nav_recognized": True,
+        "reset_identity": reset_identity,
+        "input_count": _runtime_input_count(runtime),
+        "navigation_input_count": _runtime_input_count(runtime),
+        "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0},
+    }
+
+
 def _run_measured_campaign_exit_home_route(
     *,
     runtime: LocalBlueStacksRuntime,
@@ -1939,6 +1939,11 @@ def _run_measured_campaign_exit_home_route(
         )
         return TERMINAL_BLOCKED, detail
     if not campaign_recognized:
+        if _home_nav_terminal(immediate_before.frame):
+            return TERMINAL_COMPLETE_FOR_RESET, _retain_already_home_terminal(
+                runtime, immediate_before, session=session, events=events,
+                reset_identity=reset_identity, completed_actions=completed_actions, event_type=event_type,
+            )
         detail["reason"] = "Campaign exit immediate-before was not positively recognized"
         return TERMINAL_BLOCKED, detail
 
@@ -1948,13 +1953,89 @@ def _run_measured_campaign_exit_home_route(
             "campaign-exit-base",
         )
         exit_score = float(exit_score)
-    except BaseException as exc:
-        detail.update(
-            {
-                "reason": "Campaign exit target was not measured on the current frame",
-                "measurement_error": f"{type(exc).__name__}: {exc}",
-            }
+    except RuntimeError as exc:
+        detail["measurement_error"] = f"{type(exc).__name__}: {exc}"
+        recognition = _classify_campaign_ui_open(immediate_before.frame)
+        request_roi = next((roi for name, roi in recognition.targets if name == "campaign-base-request"), None)
+        if (
+            not recognition.observation.recognized
+            or recognition.observation.screen is not CampaignScreen.TIER_MAP
+            or not _valid_native_roi(request_roi)
+        ):
+            detail["reason"] = "Campaign exit target was not measured on the current frame"
+            return TERMINAL_BLOCKED, detail
+        request_key = f"campaign-base-request:{immediate_before.sha256}"
+        input_count_before = _runtime_input_count(runtime)
+        action_keys_before = _runtime_action_keys(runtime)
+        detail["base_request_attempted"] = True
+        detail["base_request_action_key"] = request_key
+        try:
+            runtime.tap(immediate_before, target_identity="campaign-base-request", target_roi=request_roi,
+                        action_key=request_key, consequential=False)
+        except BaseException as request_error:
+            accounted = _runtime_tap_dispatch_was_accounted(
+                runtime, action_key=request_key, input_count_before=input_count_before,
+                action_keys_before=action_keys_before,
+            )
+            if accounted:
+                runtime.reconcile(request_key, "unresolved", immediate_before, "Campaign Base request transport failed")
+            detail.update(reason="Campaign Base request transport failed", runtime_accounted=accounted,
+                          base_request_sent=accounted,
+                          tap_error=f"{type(request_error).__name__}: {request_error}")
+            return TERMINAL_BLOCKED, detail
+        if not _runtime_tap_dispatch_was_accounted(
+            runtime, action_key=request_key, input_count_before=input_count_before,
+            action_keys_before=action_keys_before,
+        ):
+            detail["reason"] = "Campaign Base request was not runtime-accounted"
+            return TERMINAL_BLOCKED, detail
+        detail["base_request_sent"] = True
+
+        successor: dict[str, object] = {}
+
+        def exit_or_home(frame):
+            if _home_nav_terminal(frame):
+                successor["home"] = True
+                return True
+            if not _campaign_context_recognized(frame):
+                return False
+            try:
+                roi, score = campaign_atlas_vision.measured_survey_target(frame, "campaign-exit-base")
+            except RuntimeError:
+                return False
+            if not _valid_native_roi(roi):
+                return False
+            successor.update(exit_roi=roi, exit_score=float(score))
+            return True
+
+        after_request, recognized, poll_error = _poll_zero_input_until(
+            runtime, label="campaign-base-request-successor", predicate=exit_or_home,
+            attempts=6, settle_seconds=max(0.8, post_input_delay),
         )
+        if not recognized or after_request is None or poll_error is not None:
+            evidence = after_request or immediate_before
+            runtime.reconcile(request_key, "unresolved", evidence, "Campaign Base request successor was not recognized")
+            detail.update(reason="Campaign exit did not appear after one Base request",
+                          latest_capture_sha256=evidence.sha256)
+            return TERMINAL_BLOCKED, detail
+        completed_actions.append({"action": "tap_campaign_base_request", "target_roi": request_roi,
+                                  "before_sha256": immediate_before.sha256, "post_sha256": after_request.sha256})
+        if successor.get("home"):
+            home_detail = _retain_already_home_terminal(
+                runtime, after_request, session=session, events=events, reset_identity=reset_identity,
+                completed_actions=completed_actions, event_type=event_type,
+            )
+            runtime.reconcile(request_key, "confirmed", after_request, "Home recognized after Campaign Base request")
+            return TERMINAL_COMPLETE_FOR_RESET, {**detail, **home_detail}
+        runtime.reconcile(request_key, "confirmed", after_request, "Measured Campaign exit recognized after Base request")
+        immediate_before = after_request
+        exit_roi, exit_score = successor["exit_roi"], successor["exit_score"]
+        immediate_path, _ = _retain_top_level_frame(session, immediate_before, "campaign-exit-after-base.png")
+        detail.update(campaign_exit_immediate_before=immediate_path,
+                      campaign_exit_immediate_before_sha256=immediate_before.sha256)
+    except BaseException as exc:
+        detail.update(reason="Campaign exit target measurement failed",
+                      measurement_error=f"{type(exc).__name__}: {exc}")
         return TERMINAL_BLOCKED, detail
     if not _valid_native_roi(exit_roi):
         detail.update(
@@ -2325,8 +2406,11 @@ def _continue_from_exit_dialog(
             "recovery_input_count": recovery_input_count,
         }
     )
-    if terminal == TERMINAL_COMPLETE_FOR_RESET and recovery_input_count != 2:
-        exit_detail["reason"] = "exit-dialog recovery did not account exactly two inputs"
+    expected_inputs = len(exit_detail.get("completed_actions", ()))
+    if terminal == TERMINAL_COMPLETE_FOR_RESET and (
+        expected_inputs not in (2, 3) or recovery_input_count != expected_inputs
+    ):
+        exit_detail["reason"] = "exit-dialog recovery input count did not match Cancel and Campaign exit actions"
         return TERMINAL_BLOCKED, exit_detail
     return terminal, exit_detail
 
@@ -2341,7 +2425,7 @@ def _run_post_flee_home_route(
     runtime: LocalBlueStacksRuntime | None = None,
     completed_actions: list[dict[str, object]] | None = None,
 ) -> tuple[str, dict[str, object]]:
-    """Return UC main → Campaign tier map → measured exit → canonical Home."""
+    """Return UC main to Home, or resume terminal navigation from Campaign/Home."""
 
     runtime = runtime or LocalBlueStacksRuntime(runner, session / "runtime", execute=True)
     completed_actions = list(completed_actions or [])
@@ -2352,9 +2436,20 @@ def _run_post_flee_home_route(
         capture_label="post-flee-ultimate-immediate-before",
         frame_filename="post-flee-ultimate-immediate-before.png",
         event_type="post_flee_home_source",
-        event_payload={"state": "ultimate_challenge_main"},
+        event_payload={"state": "terminal_resume_source"},
     )
     if _recognize_ultimate_main(uc.frame) is None:
+        if _home_nav_terminal(uc.frame):
+            return TERMINAL_COMPLETE_FOR_RESET, _retain_already_home_terminal(
+                runtime, uc, session=session, events=events, reset_identity=reset_identity,
+                completed_actions=completed_actions, event_type="post_flee_home_route",
+            )
+        if _campaign_context_recognized(uc.frame):
+            return _run_measured_campaign_exit_home_route(
+                runtime=runtime, session=session, events=events, reset_identity=reset_identity,
+                post_input_delay=post_input_delay, completed_actions=completed_actions,
+                campaign_source=uc, event_type="post_flee_home_route",
+            )
         return TERMINAL_BLOCKED, {
             "reason": "post-Flee Ultimate Challenge main not positively recognized",
             "completed_actions": completed_actions,

@@ -1,23 +1,60 @@
 # Puzzles & Survival Automation
 
 Safety-first computer-vision automation for **Puzzles & Survival**. The repository contains an
-implemented `automation_service` kernel, retained BlueStacks development routes, and offline
-planning records for future migration. No route is live-ready or enabled by this documentation.
+implemented `automation_service` kernel, eight explicitly authorized BlueStacks routes, and
+offline planning records for future migration. Current route acceptance and remaining coverage
+are recorded in the [dated route report](docs/bluestacks-route-status-20261031.md) and
+[`BACKLOG.md`](BACKLOG.md); current runtime ownership is in
+[`CURRENT_HANDOFF.md`](CURRENT_HANDOFF.md). Documentation never enables a route.
 
 ## Current boundary
 
-- **Development:** BlueStacks, under supervised local development only.
+- **Current runtime:** Local BlueStacks, using explicitly authorized supervised service sessions.
+  Selected routes run serially when their persisted daily or cooldown gates permit them.
 - **Final production target:** NAS/Unraid-hosted runtime with its selected Android-focused VM/profile.
-- **Readiness:** The kernel is implemented, but route migration, current native acceptance, scheduler
-  acceptance, and explicit enablement remain separate gates. A historical success or passing offline
-  check does not claim live readiness.
+- **Readiness:** All eight routes have retained BlueStacks effect/Home evidence, with dated source
+  limits in the backlog. The October 30 source completed a two-hour serial cadence. The latest
+  October 31 source passed 20 minutes with 8 reports, 22 inputs, verified Home returns and disabled cleanup. Later cold
+  process restart and an actual pre-native UTC-reset deferral are live-accepted. Enhancement's
+  Gear, Chip and Module proof covers one physical Profile visit with an interrupted/resumed run;
+  a fully uninterrupted native family remains additional coverage. Historical receipts do not
+  accept later changed code.
 - Runtime launchers and controls, `ResourceEffectAuthority`, leases/fencing, manual-only states,
   and live gates remain safety authorities. Planning documents cannot enable or authorize them.
 
-The current 74-ticket plan starts at [`BACKLOG.md`](BACKLOG.md). Read the
+Current route evidence and the reconciled 74-ticket plan start at [`BACKLOG.md`](BACKLOG.md). Read the
 [`offline execution guide`](docs/backlog/execution-guide.md) and the linked ticket body before any
 future assignment. The original 148-record backlog is preserved in the
 [`legacy archive`](docs/archive/backlog-legacy.md); it is historical and non-authorizing.
+
+## Running the BlueStacks routes
+
+Use the supported `pnsctl` facade and the existing service/flow controls. The service checks due
+times, claims one route, verifies its outcome and return Home, then waits for the next eligible
+route. Campaign drains every affordable battle before its five-minute completion wait.
+Enhancement visits Profile once for Gear, Chip, and Module, then returns Home.
+
+After the Python setup below, this is the service command for all eight routes:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/pnsctl.py automation-service `
+  --mode supervised --adapter bluestacks `
+  --state-path .local-orchestrator/bot-state.sqlite3 serve --live `
+  --flow nova --flow recruitment --flow campaign --flow bioenhancer `
+  --flow supply --flow ultimate --flow enhancement --flow personal-might `
+  --campaign-stage 1-15-9 --campaign-cadence-seconds 300 `
+  --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 `
+  --account-id primary-account --server-id primary-server `
+  --output-directory .local-captures/automation-service-live
+```
+
+Account, server, device, state and output paths must match the intended local instance. This
+command preserves persisted service/flow enablement and blocks; it does not turn them on.
+Use `automation-service status` to inspect those controls, and the explicit `enable <flow_id>`,
+`disable <flow_id>`, `service-enable`, and `service-disable` commands to manage an authorized
+session. Do not start another controller while a live owner exists. Static code registration is separate from enablement; persisted service/flow controls are off
+after bounded tests, and permanent deployment remains unchanged. See [`the service guide`](docs/automation-service.md)
+for the control and execution boundaries.
 
 ## Target architecture and safety contract
 

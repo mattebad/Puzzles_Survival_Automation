@@ -1,0 +1,7 @@
+{
+  "source": ".local-captures\\automation-service-authorized\\soak-20261031T010226992135Z-13e55cf3\\campaign\\campaign-ap-1-15-9-20261031T010227935114Z\\frames\\0047-campaign-stage-challenge-immediate-before.png",
+  "sha256": "67480d0c1007a85e0600c89a4c0a41b25a605a36730c34b45bb34b786d3f7013",
+  "actual_visible_ap": 53,
+  "observed_stage_cost": 14,
+  "scope": "Unmodified retained native frame; original5x threshold misread the stage53 as93."
+}

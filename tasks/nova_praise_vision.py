@@ -202,7 +202,16 @@ def _crop(frame: np.ndarray, box: Box) -> np.ndarray:
 
 
 def _text(frame: np.ndarray, box: Box, *, psm: int = 6) -> str:
-    crop = cv2.resize(_crop(frame, box), None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+    # OCR the labels, excluding the animated header edges and Praise artwork.
+    text_box = box
+    if box == NOVA_HEADER_ROI:
+        text_box, psm = (260, 8, 540, 56), 7
+    elif box == NOVA_PRAISE_ROI:
+        text_box, psm = (270, 1060, 530, 1115), 7
+    crop = cv2.resize(_crop(frame, text_box), None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+    if box == NOVA_HEADER_ROI:
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        crop = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY)[1]
     cache_key = (hashlib.sha256(crop.tobytes()).hexdigest(), psm)
     cached = _TEXT_CACHE.get(cache_key)
     if cached is not None:
@@ -250,6 +259,70 @@ def _red_ratio(frame: np.ndarray, box: Box) -> float:
 def _attempts(text: str) -> int | None:
     match = _ATTEMPTS_RE.search(text)
     return int(match.group(1)) if match else None
+
+
+def _red_zero_attempts_glyph(frame: np.ndarray) -> bool | None:
+    """Read the exhausted counter's red digit without substituting OCR letters.
+
+    ``None`` means no red numeric glyph is present. A present but ambiguous,
+    clipped or non-zero glyph is false; it cannot supply a counter value.
+    """
+    crop = _crop(frame, NOVA_ATTEMPTS_ROI)
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    red = cv2.inRange(hsv, (0, 120, 100), (10, 255, 255))
+    red |= cv2.inRange(hsv, (170, 120, 100), (179, 255, 255))
+    _, _, stats, _ = cv2.connectedComponentsWithStats(red)
+    glyphs = [(int(x), int(y), int(w), int(h)) for x, y, w, h, area in stats[1:]
+              if h >= 5 and w >= 2 and area >= 6]
+    if not glyphs:
+        return None
+    if len(glyphs) != 1:
+        return False
+    x, y, width, height = glyphs[0]
+    if (not 8 <= width <= 28 or not 14 <= height <= 32
+            or x <= 0 or y <= 0 or x + width >= crop.shape[1] or y + height >= crop.shape[0]):
+        return False
+    # The value must follow the orange label on the same actual text baseline,
+    # rather than borrowing a red badge or circle elsewhere in the panel.
+    gold = cv2.inRange(hsv, (8, 70, 100), (42, 255, 255))
+    top, bottom = max(0, y - 6), min(crop.shape[0], y + height + 8)
+    label_y, label_x = np.where(gold[top:bottom, :x] > 0)
+    if (not label_x.size or int(label_x.max()) - int(label_x.min()) < 180
+            or not 2 <= x - int(label_x.max()) <= 25
+            or abs(top + int(label_y.min()) - y) > 6
+            or abs(top + int(label_y.max()) + 1 - (y + height)) > 8):
+        return False
+    glyph = red[y:y + height, x:x + width]
+    contours, hierarchy = cv2.findContours(glyph, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    if (hierarchy is None or len(contours) != 2
+            or sum(row[3] == -1 for row in hierarchy[0]) != 1
+            or sum(row[3] >= 0 for row in hierarchy[0]) != 1):
+        return False
+    # Keep the source mask intact. Both independent segmentation modes must
+    # read the digit; a ©/O in the full-row OCR is never converted to zero.
+    numeric = cv2.resize(255 - glyph, None, fx=6, fy=6, interpolation=cv2.INTER_NEAREST)
+    numeric = cv2.copyMakeBorder(numeric, 24, 24, 24, 24, cv2.BORDER_CONSTANT, value=255)
+    readings = [pytesseract.image_to_string(
+        numeric, config=f"--psm {psm}",
+    ).strip() for psm in (8, 13)]
+    return readings == ["0", "0"]
+
+
+def _attempts_from_frame(frame: np.ndarray, text: str) -> int | None:
+    label = re.fullmatch(r"interaction\s+attempts?\s+left\s*:\s*(.*?)", text.strip(), re.IGNORECASE)
+    if label is None:
+        parsed = _attempts(text)
+        return parsed if parsed != 0 else None
+    value = label.group(1).strip()
+    parsed = int(value) if re.fullmatch(r"\d+", value) else None
+    if parsed is None and (len(value) != 1 or any(character.isdigit() for character in value)):
+        return None
+    zero = _red_zero_attempts_glyph(frame)
+    if zero is False:
+        return None
+    if zero is True:
+        return 0 if parsed in (None, 0) else None
+    return parsed if parsed != 0 else None
 
 
 _RADIAL_ANCHOR_OFFSETS: dict[str, tuple[int, int]] = {
@@ -850,7 +923,7 @@ def recognize_nova_frame(
     else:
         is_nova = False
     if is_nova:
-        remaining = _attempts(attempts_text)
+        remaining = _attempts_from_frame(frame, attempts_text)
         cooldown_seconds = parse_cooldown_seconds(cooldown_text)
         praise_label = "praise" in _text(frame, NOVA_PRAISE_ROI)
         enabled = praise_label and _red_ratio(frame, NOVA_PRAISE_ROI) >= 0.08 and cooldown_seconds in (None, 0)

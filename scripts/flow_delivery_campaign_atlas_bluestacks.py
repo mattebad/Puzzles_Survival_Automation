@@ -580,6 +580,7 @@ def dismiss_campaign_vip_reset_popup(
     op: "_SurveyOperator",
     *,
     source_rel: str,
+    before,
 ) -> dict[str, Any]:
     """One AUXILIARY VIP Close via SafeActionExecutor before unsupported-start failure.
 
@@ -599,6 +600,15 @@ def dismiss_campaign_vip_reset_popup(
         }
 
     action_key = VIP_RESET_CLOSE_ACTION_KEY
+    planning_detail = bluestacks_popup_recognition.recognize_reset_popup(before.frame)
+    if not planning_detail.get("recognized") or not planning_detail.get("target"):
+        return {"status": "blocked", "reason": "vip_popup_not_recognized",
+                "transport_dispatched": False}
+    proposal_observation = _build_vip_reset_observation(
+        frame=before.frame, frame_sha256=before.sha256,
+        capture_completed_monotonic=before.captured_monotonic,
+        target_roi=tuple(int(v) for v in planning_detail["target"]),
+    )
     fresh, _fresh_prov = op.capture(f"{action_key}-immediate-before")
     detail = bluestacks_popup_recognition.recognize_reset_popup(fresh.frame)
     fresh_rel = _rel(op.session, fresh.path)
@@ -740,6 +750,7 @@ def dismiss_campaign_vip_reset_popup(
 
     try:
         result = op._execute_via_safe_action(
+            proposal_observation=proposal_observation,
             observation=observation,
             action_key=action_key,
             semantic_action=VIP_RESET_DISMISS_SEMANTIC_ACTION,
@@ -2325,6 +2336,7 @@ class _SurveyOperator:
         self,
         *,
         observation: Observation,
+        proposal_observation: Observation,
         action_key: str,
         semantic_action: str,
         transport_fn,
@@ -2334,13 +2346,8 @@ class _SurveyOperator:
     ):
         action_id = f"{FLOW_ID}:{action_key}:{uuid.uuid4().hex[:12]}"
         now = time.monotonic()
-        # Capability binds to the fresh observation. Executor proposal is slightly
-        # older so same-capture recapture rebuild remains IMMEDIATE_RECAPTURE fresh
-        # (Home Atlas pan binding), without weakening digest equality.
-        proposal_observation = replace(
-            observation,
-            capture_completed_monotonic=float(observation.capture_completed_monotonic) - 0.05,
-        )
+        # The caller supplies genuine planning P. Capability issuance and
+        # consumption bind to the separately captured immediate-before I.
         issue_request = _build_survey_policy_request(
             observation=observation,
             action_id=action_id,
@@ -2399,8 +2406,10 @@ class _SurveyOperator:
     ) -> tuple[Any, Any, str, Any]:
         # Planning ``before`` / ``before_rel`` only establish geometry/budget for the
         # caller. Capability issue and consume bind to one fresh immediate-before.
-        del before, before_prov, before_rel  # planning frame is not the issuance capture
+        del before_prov, before_rel
         fresh, fresh_prov = self.capture(f"{action_key}-immediate-before")
+        if self.recognize(before.frame).observation.screen != CampaignScreen.TIER_MAP:
+            raise RuntimeError("survey pan planning source is not TIER_MAP")
         if self.recognize(fresh.frame).observation.screen != CampaignScreen.TIER_MAP:
             raise RuntimeError("survey pan immediate-before is not TIER_MAP")
         fresh_rel = _rel(self.session, fresh.path)
@@ -2429,6 +2438,14 @@ class _SurveyOperator:
         )
         drag_start = (swipe[0], swipe[1])
         drag_end = (swipe[2], swipe[3])
+        proposal_observation = _build_survey_observation(
+            frame_sha256=before.sha256,
+            capture_completed_monotonic=before.captured_monotonic,
+            target_identity=target_identity,
+            target_roi=gesture_geometry_roi(drag_start, drag_end),
+            semantic_action=SURVEY_PAN_SEMANTIC_ACTION,
+            expected_postcondition=SURVEY_PAN_POSTCONDITION,
+        )
         observation = _build_survey_observation(
             frame_sha256=fresh.sha256,
             capture_completed_monotonic=fresh.captured_monotonic,
@@ -2513,6 +2530,7 @@ class _SurveyOperator:
 
         try:
             self._execute_via_safe_action(
+                proposal_observation=proposal_observation,
                 observation=observation,
                 action_key=action_key,
                 semantic_action=SURVEY_PAN_SEMANTIC_ACTION,
@@ -2599,8 +2617,22 @@ class _SurveyOperator:
         # measured ROI, recapture rebuild, and tap dispatch bind to one fresh
         # immediate-before identity. Never reuse the planning frame digest and never
         # live-grab again after issue.
-        del before, before_rel  # planning frame is not the issuance capture
+        del before_rel
         fresh, _fresh_prov = self.capture(f"{action_key}-immediate-before")
+        planning_recognition = self.recognize(before.frame)
+        if planning_recognition.observation.screen != CampaignScreen.TIER_MAP:
+            raise RuntimeError("survey tap planning source is not TIER_MAP")
+        planning_roi = require_bound_survey_target(
+            planning_recognition, identity, frame=before.frame
+        )
+        proposal_observation = _build_survey_observation(
+            frame_sha256=before.sha256,
+            capture_completed_monotonic=before.captured_monotonic,
+            target_identity=identity,
+            target_roi=planning_roi,
+            semantic_action=SURVEY_TAP_SEMANTIC_ACTION,
+            expected_postcondition=SURVEY_TAP_POSTCONDITION,
+        )
         fresh_recognition = self.recognize(fresh.frame)
         if fresh_recognition.observation.screen != CampaignScreen.TIER_MAP:
             raise RuntimeError("survey tap immediate-before is not TIER_MAP")
@@ -2714,6 +2746,7 @@ class _SurveyOperator:
 
         try:
             self._execute_via_safe_action(
+                proposal_observation=proposal_observation,
                 observation=observation,
                 action_key=action_key,
                 semantic_action=SURVEY_TAP_SEMANTIC_ACTION,
@@ -3010,7 +3043,7 @@ def _run_live_survey_when_admissible(
                 raise RuntimeError(
                     f"unsupported survey start screen: {before_screen.value}"
                 )
-            vip_dismiss = dismiss_campaign_vip_reset_popup(op, source_rel=source_rel)
+            vip_dismiss = dismiss_campaign_vip_reset_popup(op, source_rel=source_rel, before=before)
             vip_path = session / "vip-reset-dismiss.json"
             vip_path.write_text(
                 json.dumps(vip_dismiss, indent=2, sort_keys=True, default=str),

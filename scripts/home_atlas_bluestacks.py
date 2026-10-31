@@ -49,13 +49,17 @@ from scripts.atlas_startup_normalizer import (
     BlueStacksAtlasStartupNormalizer,
 )
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
-from tasks.home_atlas import BuildingBinding, LocalizationResult, ZoomIdentity, load_home_atlas
+from tasks.home_atlas import BuildingBinding, LocalizationResult, ZoomIdentity, load_home_atlas, point_in_coverage
 from tasks.home_atlas_planner import (
+    BuildingViewportPlan,
+    DirectPanPlan,
     DirectPanNavigator,
     GestureCalibration,
+    PanProgress,
     PlanDisposition,
     SafeInteractionRegion,
     ViewportPlanningPolicy,
+    _bounded_drag_delta,
     camera_origin,
     plan_direct_pan,
 )
@@ -69,6 +73,7 @@ from tasks.home_atlas_vision import (
     BlueStacksHomeLocalizer,
     bind_visible_building,
     classify_zoom,
+    _target_roi as _projected_mapped_hit_roi,
     frame_digest,
     hud_mask,
     native_frame_guard,
@@ -179,12 +184,6 @@ SUPPLY_DEPOT_EXIT_SEMANTIC_ACTION = "SUPPLY_DEPOT_SAFE_EXIT"
 SUPPLY_DEPOT_EXIT_TARGET_IDENTITY = "supply-depot-back-arrow"
 SUPPLY_DEPOT_EXIT_POSTCONDITION = "HOME_BASE"
 SUPPLY_DEPOT_EXIT_TARGET_ROI = (0, 0, 150, 105)
-SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI = (
-    int(BLUESTACKS_INTERACTION_ANCHOR[0] - 20),
-    int(BLUESTACKS_INTERACTION_ANCHOR[1] - 20),
-    int(BLUESTACKS_INTERACTION_ANCHOR[0] + 20),
-    int(BLUESTACKS_INTERACTION_ANCHOR[1] + 20),
-)
 SUPPLY_DEPOT_ROUTE_TASK_ID = "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION"
 _VERIFIED_SUPPLY_DEPOT_RADIAL_TRANSPORT_SEAL = object()
 _VERIFIED_SUPPLY_DEPOT_NAVIGATION_TRANSPORT_SEAL = object()
@@ -251,6 +250,43 @@ def bluestacks_frame_validation(
         orientation_ok=orientation_ok,
         supporting_evidence=tuple(evidence),
     )
+
+
+def _require_planning_capture_identity(captured: CapturedNativeFrame, identity: NativeFrameIdentity) -> None:
+    """Reject mismatched planning evidence instead of manufacturing a proposal."""
+
+    if bluestacks_frame_validation(identity).validity is not FrameValidityState.VALID_NATIVE:
+        raise PerceptionBundleError("PLANNING_FRAME_INVALID")
+    if (
+        identity.semantic_sha256 != frame_digest(captured.frame)
+        or identity.transport_sha256 != captured.sha256
+        or identity.capture_completed_monotonic != captured.captured_monotonic
+    ):
+        raise PerceptionBundleError("PLANNING_CAPTURE_IDENTITY_MISMATCH")
+
+
+def _captured_observation_once(observation: Observation) -> Callable[[], Observation]:
+    supplied = False
+
+    def observe() -> Observation:
+        nonlocal supplied
+        if supplied:
+            raise ValueError("pre-dispatch capture was already supplied")
+        supplied = True
+        return observation
+
+    return observe
+
+
+def _require_fresh_pre_dispatch_identity(
+    planning_identity: NativeFrameIdentity, fresh_identity: NativeFrameIdentity,
+) -> None:
+    if (
+        fresh_identity.runtime_session_id != planning_identity.runtime_session_id
+        or fresh_identity.capture_ordinal <= planning_identity.capture_ordinal
+        or fresh_identity.capture_completed_monotonic <= planning_identity.capture_completed_monotonic
+    ):
+        raise PerceptionBundleError("PRE_DISPATCH_FRAME_STALE")
 
 
 def build_navigate_perception_bundle(
@@ -545,6 +581,8 @@ class BlueStacksLocalizeFirstHomeDriver:
         self.building = atlas.lookup_building(building_id)
         self.localizer = localizer or BlueStacksHomeLocalizer(atlas, atlas_path)
         safe_region, calibration = bluestacks_direct_pan_contract()
+        if building_id == CAMPAIGN_HOME_ATLAS_BUILDING_ID:
+            safe_region = _campaign_home_entry_safe_region(safe_region)
         self.safe_region = safe_region
         self.calibration = calibration
         self.navigator = DirectPanNavigator(
@@ -558,6 +596,7 @@ class BlueStacksLocalizeFirstHomeDriver:
         self.startup_normalizer = BlueStacksAtlasStartupNormalizer(self.localizer,
         maximum_zoom_inputs=self.maximum_zoom_inputs,
         zoom_classifier=lambda frame, reference: classify_zoom(frame, reference), home_is_clean=is_clean_home_frame)
+        self.campaign_waypoint_used = False
 
     @property
     def zoom_inputs(self) -> int:
@@ -601,7 +640,11 @@ class BlueStacksLocalizeFirstHomeDriver:
             HomeContextLevel.HOME_CANONICAL,
         }:
             binding = bind_visible_building(frame, localization, self.building, home_is_clean=is_clean_home_frame)
-            if binding is None:
+            if self.building.semantic_id == CAMPAIGN_HOME_ATLAS_BUILDING_ID:
+                plan = _plan_mapped_home_entry(self.navigator, localization, binding,
+                    campaign_waypoint_used=self.campaign_waypoint_used)
+                self.campaign_waypoint_used |= plan.reason == "calculated_campaign_camera_waypoint"
+            elif binding is None:
                 plan = plan_direct_pan(
                     self.atlas,
                     localization,
@@ -612,7 +655,7 @@ class BlueStacksLocalizeFirstHomeDriver:
                 if plan.disposition is PlanDisposition.PAN:
                     plan = self.navigator.plan(localization, binding)
             else:
-                plan = self.navigator.plan(localization, binding)
+                plan = _plan_mapped_home_entry(self.navigator, localization, binding)
             disposition = {
                 PlanDisposition.COMPLETE: HomeDriverDisposition.COMPLETE,
                 PlanDisposition.BIND: HomeDriverDisposition.BIND,
@@ -1037,19 +1080,13 @@ def build_navigate_pan_observation(
     identity: NativeFrameIdentity,
     drag_start: tuple[int, int],
     drag_end: tuple[int, int],
-    capture_completed_monotonic: float | None = None,
 ) -> Observation:
     """Build a navigation-only Observation for Home Atlas camera pan capability binding."""
 
     roi = gesture_geometry_roi(drag_start, drag_end)
-    mono = (
-        float(identity.capture_completed_monotonic)
-        if capture_completed_monotonic is None
-        else float(capture_completed_monotonic)
-    )
     return Observation(
         frame_sha256=str(identity.semantic_sha256),
-        capture_completed_monotonic=mono,
+        capture_completed_monotonic=float(identity.capture_completed_monotonic),
         runtime_profile_id=BLUESTACKS_PROFILE_ID,
         width=int(identity.width),
         height=int(identity.height),
@@ -1202,6 +1239,7 @@ def dispatch_verified_navigate_pan(
     monotonic_clock: Callable[[], float] | None = None,
     wall_clock: Callable[[], float] | None = None,
     on_pre_dispatch_admitted: Callable[[], None] | None = None,
+    post_pan_observer: Callable[[], tuple[CapturedNativeFrame, NativeFrameIdentity, PanProgress | None]] | None = None,
 ) -> tuple[object, object | None, Observation, dict[str, object]]:
     """Issue one-shot capability against a fresh pre_dispatch frame and consume it.
 
@@ -1217,18 +1255,27 @@ def dispatch_verified_navigate_pan(
     attempt.
     """
 
-    # Finding 1: acquire a genuine fresh pre_dispatch frame. The planning
+    if post_pan_observer is None and not dry_run:
+        raise ValueError("live Home pan requires its route-owned post/progress observer")
+    _require_planning_capture_identity(immediate_before, identity)
+    if not is_clean_home_frame(immediate_before.frame):
+        raise PerceptionBundleError("PLANNING_HOME_NOT_CLEAN")
+    proposal_observation = build_navigate_pan_observation(
+        identity=identity, drag_start=drag_start, drag_end=drag_end,
+    )
+    # Acquire a genuine fresh pre_dispatch frame. The planning
     # ``immediate_before`` must never be treated as the issuance frame.
     fresh_capture = runtime.capture("navigate-pan-pre-dispatch")
     fresh_ordinal = getattr(runtime, "ordinal", None)
-    if fresh_ordinal is None:
-        fresh_ordinal = int(identity.capture_ordinal) + 1
+    if type(fresh_ordinal) is not int:
+        raise PerceptionBundleError("PRE_DISPATCH_CAPTURE_IDENTITY_REQUIRED")
     fresh_identity = identity_from_captured(
         fresh_capture,
         session_id=str(runtime.session),
         ordinal=int(fresh_ordinal),
         label="navigate-pan-pre-dispatch",
     )
+    _require_fresh_pre_dispatch_identity(identity, fresh_identity)
     # Fail closed on an inconsistent fresh capture before any capability issuance.
     fresh_validation = bluestacks_frame_validation(fresh_identity)
     if fresh_validation.validity is not FrameValidityState.VALID_NATIVE:
@@ -1243,12 +1290,6 @@ def dispatch_verified_navigate_pan(
         identity=fresh_identity,
         drag_start=drag_start,
         drag_end=drag_end,
-    )
-    # Keep a distinct prior proposal for executor freshness while preserving the
-    # real fresh-capture digest used by capability binding and the action journal.
-    proposal_observation = replace(
-        pre_observation,
-        capture_completed_monotonic=pre_observation.capture_completed_monotonic - 0.05,
     )
     if on_pre_dispatch_admitted is not None:
         on_pre_dispatch_admitted()
@@ -1295,34 +1336,48 @@ def dispatch_verified_navigate_pan(
         telemetry["dispatched"] = True
         return TransportResult(True, "HOME_ATLAS_PAN_DISPATCHED")
 
-    def recapture() -> Observation:
-        # Semantic rebind: build a NEW Observation from the same fresh
-        # pre_dispatch capture/identity used for issuance. Never return the
-        # issuance object by identity. Identical digest+monotonic let capability
-        # consume succeed only when the scene is unchanged; drift fails closed.
-        rebuilt = build_navigate_pan_observation(
-            identity=fresh_identity,
-            drag_start=drag_start,
-            drag_end=drag_end,
-        )
-        if rebuilt is pre_observation:
-            raise RuntimeError("RECAPTURE_MUST_REBUILD_DISTINCT_OBSERVATION")
-        return rebuilt
+    recapture = _captured_observation_once(pre_observation)
 
     def post_observe():
+        if post_pan_observer is None:
+            raise RuntimeError("Home pan successor observer is unavailable")
+        settled, settled_identity, progress = post_pan_observer()
+        _require_planning_capture_identity(settled, settled_identity)
+        if (
+            settled_identity.runtime_session_id != fresh_identity.runtime_session_id
+            or settled_identity.capture_ordinal <= fresh_identity.capture_ordinal
+            or settled_identity.capture_completed_monotonic <= fresh_identity.capture_completed_monotonic
+        ):
+            raise PerceptionBundleError("POST_DISPATCH_FRAME_STALE")
+        recognized = bool(
+            type(progress) is PanProgress
+            and progress.accepted is True
+            and math.isfinite(progress.progress_px)
+            and progress.progress_px > 0
+            and len(progress.measured_camera_displacement) == 2
+            and all(math.isfinite(value) for value in progress.measured_camera_displacement)
+            and math.hypot(*progress.measured_camera_displacement) > 0
+            and math.isclose(math.hypot(*progress.measured_camera_displacement),
+                             progress.progress_px, rel_tol=1e-6, abs_tol=1e-6)
+            and is_clean_home_frame(settled.frame)
+        )
+        telemetry.update(settled=settled, settled_identity=settled_identity,
+                         pan_progress=progress, verified=recognized)
         return (
             replace(
                 pre_observation,
-                frame_sha256=("f" if pre_observation.frame_sha256[0] != "f" else "e") * 64,
-                capture_completed_monotonic=pre_observation.capture_completed_monotonic + 0.1,
+                frame_sha256=settled_identity.semantic_sha256,
+                capture_completed_monotonic=settled_identity.capture_completed_monotonic,
                 target_identity=None,
                 target_roi=None,
+                source_state="HOME_BASE" if recognized else "UNKNOWN",
+                recognized=recognized,
+                evidence_refs=("native-settled-Home-and-measured-pan-progress",),
             ),
         )
 
     def reconcile(_intent, observation: Observation) -> bool:
-        # Transport-layer confirmation only; semantic pan progress is reconcile_pan.
-        return observation.source_state == "HOME_BASE"
+        return bool(telemetry.get("verified") is True and observation.recognized)
 
     executor = SafeActionExecutor(
         store,
@@ -1336,13 +1391,9 @@ def dispatch_verified_navigate_pan(
         wall_clock=wall,
         max_pre_dispatch_attempts=1,
     )
-    execute_request = build_navigate_pan_policy_request(
+    execute_request = replace(
+        issue_request,
         observation=proposal_observation,
-        action_id=action_id,
-        action_key=action_key,
-        task_id=task_id,
-        navigation_session_id=navigation_session_id,
-        lease_owner=lease_owner,
         monotonic_now=float(mono_clock()),
     )
     result = executor.execute(execute_request, issued.capability, dry_run=dry_run)
@@ -1572,16 +1623,15 @@ def _acquire_supply_depot_pre_dispatch(
 
     fresh_capture = runtime.capture(label)
     fresh_ordinal = getattr(runtime, "ordinal", None)
-    if fresh_ordinal is None:
-        fresh_ordinal = int(planning_identity.capture_ordinal) + 1
-    if int(fresh_ordinal) <= int(planning_identity.capture_ordinal):
-        raise PerceptionBundleError("PRE_DISPATCH_FRAME_STALE")
+    if type(fresh_ordinal) is not int:
+        raise PerceptionBundleError("PRE_DISPATCH_CAPTURE_IDENTITY_REQUIRED")
     fresh_identity = identity_from_captured(
         fresh_capture,
         session_id=str(runtime.session),
         ordinal=int(fresh_ordinal),
         label=label,
     )
+    _require_fresh_pre_dispatch_identity(planning_identity, fresh_identity)
     fresh_validation = bluestacks_frame_validation(fresh_identity)
     if fresh_validation.validity is not FrameValidityState.VALID_NATIVE:
         raise PerceptionBundleError("PRE_DISPATCH_FRAME_INVALID")
@@ -1625,138 +1675,6 @@ def reject_fixed_exit_roi_bypass(
         raise PerceptionBundleError("FIXED_EXIT_ROI_BYPASS_REJECTED")
     if intended != selected:
         raise PerceptionBundleError("SAFE_EXIT_ROI_MISMATCH")
-
-
-def build_supply_depot_safe_exit_probe(
-    identity: NativeFrameIdentity,
-    *,
-    building_binding: BuildingBinding | None = None,
-    radial_binding: BuildingBinding | None = None,
-) -> SafeExitBindingResult:
-    """Evaluate a real same-capture exterior-close candidate without authority.
-
-    The candidate is a known map-space close target around the existing
-    BlueStacks interaction anchor. Every exclusion category is populated from
-    fixed HUD geometry or the route's positively recognized current-frame
-    bindings. A category is marked empty only when the corresponding recognizer
-    explicitly found no such control on this frame.
-    """
-
-    if building_binding is not None and building_binding.frame_sha256 != identity.semantic_sha256:
-        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
-    if radial_binding is not None and radial_binding.frame_sha256 != identity.semantic_sha256:
-        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
-    bound = radial_binding or building_binding
-    if bound is None:
-        raise PerceptionBundleError("SAFE_EXIT_SOURCE_BINDING_REQUIRED")
-
-    def region(
-        category: ExclusionCategory,
-        region_id: str,
-        box: tuple[int, int, int, int],
-        *evidence: str,
-    ) -> ExclusionRegion:
-        return ExclusionRegion(
-            source_frame=identity,
-            category=category,
-            region_id=region_id,
-            box=box,
-            supporting_evidence=tuple(evidence),
-        )
-
-    hud_regions = tuple(
-        region(
-            ExclusionCategory.HUD,
-            f"fixed-hud-{index}",
-            tuple(rect),
-            "Home Atlas fixed HUD exclusion",
-        )
-        for index, rect in enumerate(HUD_MASK_RECTS)
-    )
-    building_regions = (
-        (
-            region(
-                ExclusionCategory.BUILDINGS,
-                "supply-depot-building-bound",
-                tuple(building_binding.target_roi),
-                "same-capture Supply Depot building binding",
-            ),
-        )
-        if building_binding is not None
-        else ()
-    )
-    radial_regions = (
-        (
-            region(
-                ExclusionCategory.RADIAL_CONTROLS,
-                "supply-depot-radial-control-bound",
-                tuple(radial_binding.target_roi),
-                "same-capture Supply Depot radial binding",
-            ),
-        )
-        if radial_binding is not None
-        else ()
-    )
-    semantic_regions = (
-        region(
-            ExclusionCategory.SEMANTIC_TARGETS,
-            "supply-depot-semantic-target-bound",
-            tuple(bound.target_roi),
-            "same-capture Supply Depot route target",
-        ),
-    )
-    interactive_regions = (
-        region(
-            ExclusionCategory.KNOWN_INTERACTIVE_REGIONS,
-            "supply-depot-known-interactive-target",
-            tuple(bound.target_roi),
-            "same-capture route interaction target",
-        ),
-    )
-    coverage_data = {
-        ExclusionCategory.HUD: (hud_regions, False),
-        ExclusionCategory.BUILDINGS: (
-            building_regions,
-            building_binding is None,
-        ),
-        ExclusionCategory.RADIAL_CONTROLS: (
-            radial_regions,
-            radial_binding is None,
-        ),
-        ExclusionCategory.SEMANTIC_TARGETS: (semantic_regions, False),
-        ExclusionCategory.KNOWN_INTERACTIVE_REGIONS: (interactive_regions, False),
-    }
-    coverage = tuple(
-        CategoryCoverageProof(
-            source_frame=identity,
-            category=category,
-            regions=regions,
-            observed_empty=observed_empty,
-        )
-        for category, (regions, observed_empty) in sorted(
-            coverage_data.items(), key=lambda item: item[0].value
-        )
-    )
-    inventory = ExclusionInventory(source_frame=identity, coverage=coverage)
-    return bind_bluestacks_home_safe_exit(
-        source_frame=identity,
-        permitted_safe_space=BLUESTACKS_SAFE_INTERACTION_BOX,
-        exclusion_inventory=inventory,
-        proposed_candidates=(
-            SafeExitCandidateProposal(
-                source_frame=identity,
-                candidate_id="supply-depot-exterior-close-anchor",
-                box=SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI,
-            ),
-        ),
-        metadata={
-            "route": "supply-depot-radial",
-            "dispatch_authority": "none",
-            "candidate_proposals": "known_map_space_exterior_close_anchor",
-            "building_binding": "bound" if building_binding is not None else "unavailable",
-            "radial_binding": "bound" if radial_binding is not None else "unavailable",
-        },
-    )
 
 
 def build_supply_depot_facility_safe_exit_probe(
@@ -2018,10 +1936,10 @@ def build_supply_depot_exit_observation(
 ) -> Observation:
     """Build the navigation-only facility safe-exit observation.
 
-    ``target_roi`` must be the binder-selected candidate box. The fixed
-    ``SUPPLY_DEPOT_EXIT_TARGET_ROI`` constant is never an independent dispatch
-    authority; it remains only as a non-authorizing probe proposal input via
-    ``SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI`` inside the shared binder.
+    ``target_roi`` must be the binder-selected facility Back-arrow candidate
+    box. The fixed ``SUPPLY_DEPOT_EXIT_TARGET_ROI`` constant is never an
+    independent dispatch authority; it remains only as the facility probe's
+    proposal input inside the shared binder.
     """
 
     return Observation(
@@ -2183,6 +2101,8 @@ def dispatch_verified_supply_depot_radial_tap(
     ]
     | None = None,
 ) -> tuple[object, object | None, Observation, dict[str, object]]:
+    _require_planning_capture_identity(immediate_before, identity)
+    proposal_observation = build_supply_depot_radial_observation(identity=identity, binding=binding)
     fresh_capture, fresh_identity = _acquire_supply_depot_pre_dispatch(
         runtime,
         planning_identity=identity,
@@ -2209,12 +2129,7 @@ def dispatch_verified_supply_depot_radial_tap(
         identity=fresh_identity,
         binding=fresh_binding,
     )
-    proposal_observation = replace(
-        pre_observation,
-        capture_completed_monotonic=(
-            pre_observation.capture_completed_monotonic - 0.05
-        ),
-    )
+
     mono_clock = monotonic_clock or time.monotonic
     wall = wall_clock or time.time
     issue_request = build_supply_depot_radial_policy_request(
@@ -2257,14 +2172,7 @@ def dispatch_verified_supply_depot_radial_tap(
         telemetry["dispatched"] = True
         return TransportResult(True, "SUPPLY_DEPOT_RADIAL_DISPATCHED")
 
-    def recapture() -> Observation:
-        rebuilt = build_supply_depot_radial_observation(
-            identity=fresh_identity,
-            binding=fresh_binding,
-        )
-        if rebuilt is pre_observation:
-            raise RuntimeError("RECAPTURE_MUST_REBUILD_DISTINCT_OBSERVATION")
-        return rebuilt
+    recapture = _captured_observation_once(pre_observation)
 
     def post_observe():
         immediate_post = runtime.capture("radial-immediate-post")
@@ -2349,13 +2257,9 @@ def dispatch_verified_supply_depot_radial_tap(
         wall_clock=wall,
         max_pre_dispatch_attempts=1,
     )
-    execute_request = build_supply_depot_radial_policy_request(
+    execute_request = replace(
+        issue_request,
         observation=proposal_observation,
-        action_id=action_id,
-        action_key=action_key,
-        task_id=task_id,
-        navigation_session_id=navigation_session_id,
-        lease_owner=lease_owner,
         monotonic_now=float(mono_clock()),
     )
     execution = executor.execute(
@@ -2394,6 +2298,8 @@ def dispatch_verified_supply_depot_building_tap(
     ]
     | None = None,
 ) -> tuple[object, object | None, Observation, dict[str, object]]:
+    _require_planning_capture_identity(immediate_before, identity)
+    proposal_observation = build_supply_depot_building_observation(identity=identity, binding=binding)
     fresh_capture, fresh_identity = _acquire_supply_depot_pre_dispatch(
         runtime,
         planning_identity=identity,
@@ -2432,12 +2338,7 @@ def dispatch_verified_supply_depot_building_tap(
         identity=fresh_identity,
         binding=fresh_binding,
     )
-    proposal_observation = replace(
-        pre_observation,
-        capture_completed_monotonic=(
-            pre_observation.capture_completed_monotonic - 0.05
-        ),
-    )
+
     mono_clock = monotonic_clock or time.monotonic
     wall = wall_clock or time.time
     issue_request = build_supply_depot_building_policy_request(
@@ -2480,14 +2381,7 @@ def dispatch_verified_supply_depot_building_tap(
         telemetry["dispatched"] = True
         return TransportResult(True, "SUPPLY_DEPOT_BUILDING_DISPATCHED")
 
-    def recapture() -> Observation:
-        rebuilt = build_supply_depot_building_observation(
-            identity=fresh_identity,
-            binding=fresh_binding,
-        )
-        if rebuilt is pre_observation:
-            raise RuntimeError("RECAPTURE_MUST_REBUILD_DISTINCT_OBSERVATION")
-        return rebuilt
+    recapture = _captured_observation_once(pre_observation)
 
     def post_observe():
         immediate_post = runtime.capture("supply-depot-building-immediate-post")
@@ -2571,13 +2465,9 @@ def dispatch_verified_supply_depot_building_tap(
         wall_clock=wall,
         max_pre_dispatch_attempts=1,
     )
-    execute_request = build_supply_depot_building_policy_request(
+    execute_request = replace(
+        issue_request,
         observation=proposal_observation,
-        action_id=action_id,
-        action_key=action_key,
-        task_id=task_id,
-        navigation_session_id=navigation_session_id,
-        lease_owner=lease_owner,
         monotonic_now=float(mono_clock()),
     )
     execution = executor.execute(
@@ -2617,6 +2507,18 @@ def dispatch_verified_supply_depot_exit_tap(
     # compatibility with the route command; facility exit no longer forges
     # Home exclusion digests onto the pre_dispatch frame.
     del building_binding, radial_binding
+    _require_planning_capture_identity(immediate_before, identity)
+    planning_screen = recognize_supply_depot_screen(immediate_before.frame, source_frame=identity)
+    if (
+        not bool(getattr(planning_screen, "recognized", False))
+        or getattr(planning_screen, "frame_sha256", None) != identity.semantic_sha256
+    ):
+        raise PerceptionBundleError("FACILITY_SCREEN_NOT_RECOGNIZED_PLANNING")
+    planning_exit = build_supply_depot_facility_safe_exit_probe(identity)
+    planning_exit_roi = require_binder_selected_safe_exit_roi(planning_exit)
+    proposal_observation = build_supply_depot_exit_observation(
+        identity=identity, recognized_screen=True, target_roi=planning_exit_roi,
+    )
     fresh_capture, fresh_identity = _acquire_supply_depot_pre_dispatch(
         runtime,
         planning_identity=identity,
@@ -2659,12 +2561,7 @@ def dispatch_verified_supply_depot_exit_tap(
         recognized_screen=True,
         target_roi=exit_roi,
     )
-    proposal_observation = replace(
-        pre_observation,
-        capture_completed_monotonic=(
-            pre_observation.capture_completed_monotonic - 0.05
-        ),
-    )
+
     mono_clock = monotonic_clock or time.monotonic
     wall = wall_clock or time.time
     issue_request = build_supply_depot_exit_policy_request(
@@ -2713,15 +2610,7 @@ def dispatch_verified_supply_depot_exit_tap(
         telemetry["dispatched"] = True
         return TransportResult(True, "SUPPLY_DEPOT_EXIT_DISPATCHED")
 
-    def recapture() -> Observation:
-        rebuilt = build_supply_depot_exit_observation(
-            identity=fresh_identity,
-            recognized_screen=True,
-            target_roi=exit_roi,
-        )
-        if rebuilt is pre_observation:
-            raise RuntimeError("RECAPTURE_MUST_REBUILD_DISTINCT_OBSERVATION")
-        return rebuilt
+    recapture = _captured_observation_once(pre_observation)
 
     def post_observe():
         immediate_post = runtime.capture("supply-depot-exit-immediate-post")
@@ -2818,13 +2707,9 @@ def dispatch_verified_supply_depot_exit_tap(
         wall_clock=wall,
         max_pre_dispatch_attempts=1,
     )
-    execute_request = build_supply_depot_exit_policy_request(
+    execute_request = replace(
+        issue_request,
         observation=proposal_observation,
-        action_id=action_id,
-        action_key=action_key,
-        task_id=task_id,
-        navigation_session_id=navigation_session_id,
-        lease_owner=lease_owner,
         monotonic_now=float(mono_clock()),
     )
     execution = executor.execute(
@@ -2841,6 +2726,328 @@ def dispatch_verified_supply_depot_exit_tap(
 
 # Canonical Home Atlas semantic id for Campaign facility entry (Campaign AP / destination nav).
 CAMPAIGN_HOME_ATLAS_BUILDING_ID = "home.building.campaign"
+_MAPPED_HOME_ENTRY_BINDING_IDS = frozenset({
+    CAMPAIGN_HOME_ATLAS_BUILDING_ID,
+    "home.building.research_lab",
+})
+
+
+def _campaign_home_entry_safe_region(safe: SafeInteractionRegion) -> SafeInteractionRegion:
+    """Campaign opens a page directly; plan its mapped hit region without a radial."""
+
+    return replace(safe, placement_anchor=(480, 450), planning_policy=None)
+
+
+def inward_rounded_camera_pan(
+    navigator: DirectPanNavigator, localization: LocalizationResult, plan: DirectPanPlan,
+) -> DirectPanPlan:
+    """Purely round a camera drag inward; callers retain all route authority."""
+
+    if (plan.disposition is not PlanDisposition.PAN
+            or plan.drag_start is None or plan.drag_end is None
+            or navigator.atlas.camera_origin_bounds is None):
+        return plan
+    try:
+        current = camera_origin(localization)
+        desired = plan.viewport.desired_camera_origin
+        bounds = navigator.atlas.camera_origin_bounds
+        scales = (navigator.calibration.camera_px_per_drag_x,
+                  navigator.calibration.camera_px_per_drag_y)
+        end = list(plan.drag_end)
+        changed = False
+        for axis in (0, 1):
+            low, high = bounds[axis], bounds[axis + 2]
+            if (desired is None or not low <= current[axis] <= high
+                    or not low <= desired[axis] <= high):
+                return plan
+            delta = -(end[axis] - plan.drag_start[axis]) * scales[axis]
+            if not math.isclose(delta, plan.predicted_camera_displacement[axis], abs_tol=1e-9):
+                return plan
+            predicted = current[axis] + delta
+            if low <= predicted <= high:
+                continue
+            # The planner rounds to integer native pixels. Correct only that
+            # half-pixel quantization error, never a larger geometric overshoot.
+            excess = low - predicted if predicted < low else predicted - high
+            ideal_end = plan.drag_start[axis] - plan.requested_camera_displacement[axis] / scales[axis]
+            if (excess > scales[axis] / 2.0 + 1e-9 or end[axis] != round(ideal_end)
+                    or delta * plan.requested_camera_displacement[axis] <= 0):
+                return plan
+            end[axis] += 1 if predicted > high else -1
+            changed = True
+        if not changed:
+            return plan
+        drag = tuple(end[axis] - plan.drag_start[axis] for axis in (0, 1))
+        if math.hypot(*drag) < navigator.calibration.minimum_drag_px:
+            return plan
+        predicted = tuple(-drag[axis] * scales[axis] for axis in (0, 1))
+        return replace(plan, drag_end=tuple(end), predicted_camera_displacement=predicted,
+                       predicted_remaining_displacement=tuple(
+                           plan.requested_camera_displacement[axis] - predicted[axis] for axis in (0, 1)))
+    except (TypeError, ValueError, IndexError, ZeroDivisionError, OverflowError):
+        return plan
+
+
+def _campaign_entry_pan_forecast(
+    navigator: DirectPanNavigator, localization: LocalizationResult, plan: DirectPanPlan,
+) -> dict[str, object] | None:
+    """Validate the desired hit region; intermediate pans may leave it offscreen.
+
+    This geometry-only forecast never creates a current building binding.
+    """
+
+    if (navigator.building_id != CAMPAIGN_HOME_ATLAS_BUILDING_ID
+            or plan.disposition is not PlanDisposition.PAN
+            or not localization.recognized or localization.stale or localization.overlay
+            or localization.zoom_identity is not ZoomIdentity.FULLY_ZOOMED_OUT
+            or localization.ambiguity_state.value != "none"
+            or navigator.atlas.camera_origin_bounds is None):
+        return None
+    try:
+        matrix = np.asarray(localization.screen_to_atlas, dtype=float)
+        if (matrix.shape != (3, 3) or not np.isfinite(matrix).all()
+                or not np.array_equal(matrix[2], (0.0, 0.0, 1.0))):
+            return None
+        building = navigator.atlas.lookup_building(navigator.building_id)
+        if not all(point_in_coverage(point, navigator.atlas.coverage_polygons) for point in building.polygon):
+            return None
+        current = camera_origin(localization)
+        desired = plan.viewport.desired_camera_origin
+        predicted = tuple(current[index] + plan.predicted_camera_displacement[index] for index in (0, 1))
+        min_x, min_y, max_x, max_y = navigator.atlas.camera_origin_bounds
+        rois = []
+        for origin in (desired, predicted):
+            if (origin is None or not all(math.isfinite(value) for value in origin)
+                    or not min_x <= origin[0] <= max_x or not min_y <= origin[1] <= max_y):
+                return None
+            # Project real Atlas geometry at a proposed camera origin. No frame,
+            # localization or observation is fabricated for this prediction.
+            points = np.asarray((*building.polygon, building.interaction_anchor), dtype=float)
+            projected = np.linalg.solve(matrix[:2, :2], (points - origin).T).T
+            roi, _, _ = _projected_mapped_hit_roi(
+                projected[:-1], tuple(projected[-1]), building.platform_binding_policy.get("bluestacks", {}),
+            )
+            if roi is None and origin == desired:
+                return None
+            # An intermediate camera step may still be en route. Its absent
+            # hit region never authorizes entry; the caller must measure/rebind.
+            if roi is not None:
+                sx0, sy0, sx1, sy1 = navigator.safe_region.screen_box
+                x0, y0, x1, y1 = roi
+                if (not sx0 <= x0 < x1 <= sx1 or not sy0 <= y0 < y1 <= sy1
+                        or any(x0 < hx1 and x1 > hx0 and y0 < hy1 and y1 > hy0
+                               for hx0, hy0, hx1, hy1 in navigator.safe_region.fixed_hud_masks)):
+                    if origin == desired:
+                        return None
+                    roi = None
+            rois.append(roi)
+        if math.dist(predicted, desired) >= math.dist(current, desired):
+            return None
+        return {"desired_hit_roi": rois[0], "predicted_hit_roi": rois[1],
+                "predicted_camera_origin": predicted, "input_authority": False}
+    except (TypeError, ValueError, IndexError, KeyError, np.linalg.LinAlgError):
+        return None
+
+
+def _campaign_current_hit_region_unavailable(
+    navigator: DirectPanNavigator, localization: LocalizationResult,
+) -> bool:
+    """Check the binder's current geometry without manufacturing a binding."""
+
+    try:
+        building = navigator.atlas.lookup_building(navigator.building_id)
+        matrix = np.asarray(localization.screen_to_atlas, dtype=float)
+        points = np.asarray((*building.polygon, building.interaction_anchor), dtype=float)
+        projected = np.linalg.solve(matrix[:2, :2], (points - matrix[:2, 2]).T).T
+        target, reason, _ = _projected_mapped_hit_roi(
+            projected[:-1], tuple(projected[-1]), building.platform_binding_policy.get("bluestacks", {}),
+        )
+        return target is None and reason == "interaction_anchor_has_no_safe_hit_region"
+    except (TypeError, ValueError, IndexError, np.linalg.LinAlgError):
+        return False
+
+
+def _campaign_camera_waypoint(
+    navigator: DirectPanNavigator, localization: LocalizationResult,
+) -> DirectPanPlan | None:
+    """Plan one calibrated camera placement; only fresh rebinding can open it.
+
+    Retain the existing (480, 320) placement when effective. At the right camera
+    edge its final approach can be too short, so derive the additional vertical
+    camera displacement needed for the unchanged native minimum drag. The exact
+    desired and intermediate hit regions must both pass the adapter forecast.
+    """
+
+    calibration = navigator.calibration
+    try:
+        if (calibration.platform != localization.platform or calibration.profile_id != localization.profile_id
+                or navigator.atlas.camera_origin_bounds is None
+                or not all(math.isfinite(value) and value > 0 for value in (
+                    calibration.camera_px_per_drag_x, calibration.camera_px_per_drag_y,
+                    calibration.minimum_drag_px, calibration.maximum_drag_x, calibration.maximum_drag_y))):
+            return None
+        matrix = np.asarray(localization.screen_to_atlas, dtype=float)
+        building = navigator.atlas.lookup_building(navigator.building_id)
+        current = camera_origin(localization)
+        bounds = navigator.atlas.camera_origin_bounds
+        if not all(bounds[axis] <= current[axis] <= bounds[axis + 2] for axis in (0, 1)):
+            return None
+        unclamped = np.asarray(building.navigation_anchor) - matrix[:2, :2] @ np.asarray((480, 320))
+        desired = tuple(max(bounds[axis], min(bounds[axis + 2], float(unclamped[axis]))) for axis in (0, 1))
+
+        def candidate(origin: tuple[float, float], requested_origin: tuple[float, float]) -> DirectPanPlan | None:
+            residual = tuple(origin[axis] - current[axis] for axis in (0, 1))
+            drag = _bounded_drag_delta(residual, calibration)
+            start = calibration.drag_origin
+            end = tuple(start[axis] + drag[axis] for axis in (0, 1))
+            displacement = tuple(-drag[axis] * scale for axis, scale in enumerate((
+                calibration.camera_px_per_drag_x, calibration.camera_px_per_drag_y)))
+            target_screen = tuple(np.linalg.solve(matrix[:2, :2], np.asarray(building.navigation_anchor) - origin))
+            clamped_axes = tuple(name for axis, name in enumerate(("x", "y"))
+                                 if abs(origin[axis] - requested_origin[axis]) > 1e-6)
+            viewport = BuildingViewportPlan(PlanDisposition.PAN, "calculated_campaign_camera_waypoint",
+                navigator.building_id, current, origin, requested_origin, target_screen, residual, clamped_axes)
+            plan = DirectPanPlan(PlanDisposition.PAN, "calculated_campaign_camera_waypoint", viewport,
+                residual, displacement, start, end,
+                tuple(residual[axis] - displacement[axis] for axis in (0, 1)))
+            plan = inward_rounded_camera_pan(navigator, localization, plan)
+            if math.dist(plan.drag_start, plan.drag_end) < calibration.minimum_drag_px:
+                return None
+            x0, y0, x1, y1 = calibration.drag_bounds
+            if not all(x0 <= x <= x1 and y0 <= y <= y1 for x, y in (plan.drag_start, plan.drag_end)):
+                return None
+            forecast = _campaign_entry_pan_forecast(navigator, localization, plan)
+            if forecast is None or forecast["predicted_hit_roi"] is None:
+                return None
+            return plan
+
+        plan = candidate(desired, tuple(float(value) for value in unclamped))
+        if plan is not None:
+            return plan
+        # Conservatively allow one pixel of inward rounding on the horizontal
+        # component, then derive the missing vertical length in native pixels.
+        residual = tuple(desired[axis] - current[axis] for axis in (0, 1))
+        horizontal = max(0, abs(_bounded_drag_delta(residual, calibration)[0]) - 1)
+        vertical = math.ceil(math.sqrt(max(0.0, calibration.minimum_drag_px ** 2 - horizontal ** 2)))
+        direction = 1.0 if residual[1] >= 0 else -1.0
+        extended_y = current[1] + direction * vertical * calibration.camera_px_per_drag_y
+        if not bounds[1] <= extended_y <= bounds[3] or abs(extended_y - current[1]) <= abs(residual[1]):
+            return None
+        return candidate((desired[0], extended_y), (float(unclamped[0]), extended_y))
+    except (TypeError, ValueError, IndexError, OverflowError, np.linalg.LinAlgError):
+        return None
+
+
+def _plan_mapped_home_entry(
+    navigator: DirectPanNavigator,
+    localization: LocalizationResult,
+    binding: BuildingBinding | None,
+    *,
+    campaign_waypoint_used: bool = False,
+) -> DirectPanPlan:
+    """Use a checked Campaign or Research Lab hit region before planning pans.
+
+    The route recognizes the page or radial after entry. A bound anchored hit
+    region does not need a hypothetical full-building radial envelope to fit.
+    The shared binder still owns source, projection, polygon and HUD validation.
+    """
+
+    if navigator.building_id in _MAPPED_HOME_ENTRY_BINDING_IDS and binding is not None:
+        building = navigator.atlas.lookup_building(navigator.building_id)
+        x0, y0, x1, y1 = binding.target_roi
+        sx0, sy0, sx1, sy1 = navigator.safe_region.screen_box
+        anchor = binding.screen_anchor
+        if (
+            localization.recognized
+            and localization.zoom_identity is ZoomIdentity.FULLY_ZOOMED_OUT
+            and not localization.stale
+            and not localization.overlay
+            and localization.ambiguity_state.value == "none"
+            and localization.platform == navigator.atlas.profile.platform
+            and localization.profile_id == navigator.atlas.profile.profile_id
+            and localization.confidence >= 0.80
+            and localization.supporting_landmarks
+            and localization.residual_px is not None
+            and math.isfinite(float(localization.residual_px))
+            and localization.residual_px <= 4.5
+            and binding.building_id == navigator.building_id
+            and binding.frame_sha256 == localization.frame_sha256
+            and binding.confidence >= 0.80
+            and binding.semantic_evidence
+            and not binding.overlay_intersects
+            and not binding.ambiguous_overlap
+            and binding.atlas_anchor == building.interaction_anchor
+            and anchor is not None
+            and all(math.isfinite(float(value)) for value in anchor)
+            and abs((x0 + x1) / 2.0 - anchor[0]) <= 1.0
+            and abs((y0 + y1) / 2.0 - anchor[1]) <= 1.0
+            and sx0 <= x0 < x1 <= sx1
+            and sy0 <= y0 < y1 <= sy1
+            and not any(
+                x0 < hx1 and x1 > hx0 and y0 < hy1 and y1 > hy0
+                for hx0, hy0, hx1, hy1 in navigator.safe_region.fixed_hud_masks
+            )
+            and navigator.atlas.camera_origin_bounds is not None
+            and all(point_in_coverage(point, navigator.atlas.coverage_polygons) for point in building.polygon)
+        ):
+            origin = camera_origin(localization)
+            viewport = BuildingViewportPlan(
+                PlanDisposition.ALREADY_SAFE,
+                "current_frame_mapped_home_target_bound",
+                navigator.building_id,
+                origin,
+                origin,
+                origin,
+                anchor,
+                (0.0, 0.0),
+            )
+            plan = DirectPanPlan(PlanDisposition.COMPLETE, "current_frame_semantic_building_bound", viewport)
+            navigator.last_plan = plan
+            return plan
+    if navigator.building_id == CAMPAIGN_HOME_ATLAS_BUILDING_ID:
+        proposed = inward_rounded_camera_pan(navigator, localization, plan_direct_pan(
+            navigator.atlas, localization, navigator.building_id,
+            navigator.safe_region, navigator.calibration,
+        ))
+        if (proposed.disposition is PlanDisposition.PAN
+                and _campaign_entry_pan_forecast(navigator, localization, proposed) is None):
+            reason = "campaign_hit_region_forecast_unsafe"
+            return replace(proposed, disposition=PlanDisposition.REJECTED, reason=reason,
+                           viewport=replace(proposed.viewport, disposition=PlanDisposition.REJECTED, reason=reason))
+        # Admit the real source exactly once through ordinary navigator guards.
+        plan = navigator.plan(localization, binding)
+        needs_waypoint = binding is None and (
+            plan.reason == "gesture_below_effective_minimum"
+            or (plan.disposition is PlanDisposition.BIND
+                and _campaign_current_hit_region_unavailable(navigator, localization))
+        )
+        if needs_waypoint:
+            reason = ("campaign_camera_waypoint_already_used" if campaign_waypoint_used else
+                      "maximum_pan_count" if navigator.pan_count >= navigator.maximum_pans else None)
+            waypoint = None if reason else _campaign_camera_waypoint(navigator, localization)
+            if waypoint is not None:
+                desired = waypoint.viewport.desired_camera_origin
+                predicted = tuple(camera_origin(localization)[axis] + waypoint.predicted_camera_displacement[axis]
+                                  for axis in (0, 1))
+                if any(tuple(round(value) for value in origin) in navigator.seen_viewports
+                       for origin in (desired, predicted)):
+                    reason = "destination_already_visited"
+                else:
+                    navigator.pan_count += 1
+                    navigator.last_plan = waypoint
+                    return waypoint
+            reason = reason or "campaign_camera_waypoint_unavailable"
+            return replace(plan, disposition=PlanDisposition.REJECTED, reason=reason,
+                           viewport=replace(plan.viewport, disposition=PlanDisposition.REJECTED, reason=reason))
+        if plan.disposition is PlanDisposition.PAN:
+            plan = inward_rounded_camera_pan(navigator, localization, plan)
+            if plan != proposed:
+                reason = "campaign_pan_plan_changed"
+                plan = replace(plan, disposition=PlanDisposition.REJECTED, reason=reason,
+                               viewport=replace(plan.viewport, disposition=PlanDisposition.REJECTED, reason=reason))
+            navigator.last_plan = plan
+        return plan
+    return navigator.plan(localization, binding)
 
 
 def campaign_home_atlas_building_id() -> str:
@@ -2876,18 +3083,16 @@ def build_campaign_home_building_observation(
     *,
     identity: NativeFrameIdentity,
     binding: BuildingBinding,
-    capture_completed_monotonic: float | None = None,
 ) -> Observation:
     """Navigation-only Observation for Campaign home.building.campaign open tap."""
 
-    mono = (
-        float(identity.capture_completed_monotonic)
-        if capture_completed_monotonic is None
-        else float(capture_completed_monotonic)
-    )
+    if binding.building_id != CAMPAIGN_HOME_ATLAS_BUILDING_ID:
+        raise PerceptionBundleError("BUILDING_OWNER_IDENTITY_MISMATCH")
+    if binding.frame_sha256 != identity.semantic_sha256:
+        raise PerceptionBundleError("SEMANTIC_DIGEST_MISMATCH")
     return Observation(
         frame_sha256=str(identity.semantic_sha256),
-        capture_completed_monotonic=mono,
+        capture_completed_monotonic=float(identity.capture_completed_monotonic),
         runtime_profile_id=BLUESTACKS_PROFILE_ID,
         width=int(identity.width),
         height=int(identity.height),
@@ -2967,16 +3172,19 @@ def dispatch_verified_campaign_home_building_tap(
 ) -> tuple[object, object | None, Observation, dict[str, object]]:
     """Issue Campaign building open through SafeActionExecutor; semantic open is caller-bound."""
 
+    _require_planning_capture_identity(immediate_before, identity)
+    proposal_observation = build_campaign_home_building_observation(identity=identity, binding=binding)
     fresh_capture = runtime.capture("campaign-home-building-pre-dispatch")
     fresh_ordinal = getattr(runtime, "ordinal", None)
-    if fresh_ordinal is None:
-        fresh_ordinal = int(identity.capture_ordinal) + 1
+    if type(fresh_ordinal) is not int:
+        raise PerceptionBundleError("PRE_DISPATCH_CAPTURE_IDENTITY_REQUIRED")
     fresh_identity = identity_from_captured(
         fresh_capture,
         session_id=str(runtime.session),
         ordinal=int(fresh_ordinal),
         label="campaign-home-building-pre-dispatch",
     )
+    _require_fresh_pre_dispatch_identity(identity, fresh_identity)
     fresh_validation = bluestacks_frame_validation(fresh_identity)
     if fresh_validation.validity is not FrameValidityState.VALID_NATIVE:
         raise PerceptionBundleError("PRE_DISPATCH_FRAME_INVALID")
@@ -3010,10 +3218,7 @@ def dispatch_verified_campaign_home_building_tap(
         identity=fresh_identity,
         binding=fresh_binding,
     )
-    proposal_observation = replace(
-        pre_observation,
-        capture_completed_monotonic=pre_observation.capture_completed_monotonic - 0.05,
-    )
+
     mono_clock = monotonic_clock or time.monotonic
     wall = wall_clock or time.time
     issue_request = build_campaign_home_building_policy_request(
@@ -3036,6 +3241,9 @@ def dispatch_verified_campaign_home_building_tap(
         "pre_dispatch_frame_sha256": fresh_identity.semantic_sha256,
         "pre_dispatch_capture_ordinal": fresh_identity.capture_ordinal,
         "settled_frame": None,
+        "executor_status": None,
+        "executor_reason": None,
+        "transport_calls": 0,
     }
     if not issued.authorized or issued.capability is None:
         return issued, None, pre_observation, telemetry
@@ -3056,14 +3264,7 @@ def dispatch_verified_campaign_home_building_tap(
         telemetry["dispatched"] = True
         return TransportResult(True, "CAMPAIGN_HOME_BUILDING_DISPATCHED")
 
-    def recapture() -> Observation:
-        rebuilt = build_campaign_home_building_observation(
-            identity=fresh_identity,
-            binding=fresh_binding,
-        )
-        if rebuilt is pre_observation:
-            raise RuntimeError("RECAPTURE_MUST_REBUILD_DISTINCT_OBSERVATION")
-        return rebuilt
+    recapture = _captured_observation_once(pre_observation)
 
     def post_observe():
         runtime.capture("campaign-home-building-immediate-post")
@@ -3115,16 +3316,15 @@ def dispatch_verified_campaign_home_building_tap(
         wall_clock=wall,
         max_pre_dispatch_attempts=1,
     )
-    execute_request = build_campaign_home_building_policy_request(
+    execute_request = replace(
+        issue_request,
         observation=proposal_observation,
-        action_id=action_id,
-        action_key=action_key,
-        task_id=task_id,
-        navigation_session_id=navigation_session_id,
-        lease_owner=lease_owner,
         monotonic_now=float(mono_clock()),
     )
     result = executor.execute(execute_request, issued.capability, dry_run=dry_run)
+    telemetry["executor_status"] = result.status.value
+    telemetry["executor_reason"] = result.reason
+    telemetry["transport_calls"] = result.transport_calls
     telemetry["transport_observed"] = bool(result.transport_calls > 0)
     telemetry["completed"] = bool(
         result.status is ActionStatus.CONFIRMED and telemetry.get("verified") is True
@@ -3201,6 +3401,7 @@ def run_verified_campaign_home_atlas_entry(
             "relocalization_residual_pixels": None,
         }
     safe_region, _original_calibration = bluestacks_direct_pan_contract()
+    safe_region = _campaign_home_entry_safe_region(safe_region)
     records: list[dict[str, object]] = []
     nav_session = create_session(
         _navigate_authorization(building_id),
@@ -3222,6 +3423,7 @@ def run_verified_campaign_home_atlas_entry(
     store: SafetyStore | None = None
     last_residual: float | None = None
     source_home_recorded = False
+    campaign_waypoint_used = False
 
     def _ensure_store() -> SafetyStore:
         nonlocal store
@@ -3284,6 +3486,16 @@ def run_verified_campaign_home_atlas_entry(
                     frame=immediate_before.frame,
                 )
                 localization, binding = perception.checked_navigation_inputs()
+                if binding is not None and derived_binding is not None:
+                    # The immutable observation retains the checked hit ROI but
+                    # predates Atlas anchor metadata. Preserve the same-capture
+                    # binder's geometry without replacing any checked fields.
+                    binding = replace(
+                        binding,
+                        anchor_source=derived_binding.anchor_source,
+                        atlas_anchor=derived_binding.atlas_anchor,
+                        screen_anchor=derived_binding.screen_anchor,
+                    )
             except PerceptionBundleError as exc:
                 return {
                     "status": "blocked_fail_closed",
@@ -3306,7 +3518,9 @@ def run_verified_campaign_home_atlas_entry(
                 source_home_recorded = True
             last_residual = _residual(localization.residual_px)
             controller.calibration = session_calibration.effective_gesture_calibration()
-            plan = controller.plan(localization, binding)
+            plan = _plan_mapped_home_entry(controller, localization, binding,
+                campaign_waypoint_used=campaign_waypoint_used)
+            campaign_waypoint_used |= plan.reason == "calculated_campaign_camera_waypoint"
             origin = (
                 camera_origin(localization)
                 if localization.recognized and localization.screen_to_atlas is not None
@@ -3365,6 +3579,7 @@ def run_verified_campaign_home_atlas_entry(
                     return {
                         "status": "blocked_fail_closed",
                         "reason": f"Campaign open capability denied: {issued.reason_code}",
+                        "transport_calls": 0,
                         "building_id": building_id,
                         "records": records,
                     "atlas_startup_records": startup_records,
@@ -3376,10 +3591,7 @@ def run_verified_campaign_home_atlas_entry(
                 ):
                     return {
                         "status": "blocked_fail_closed",
-                        "reason": (
-                            "Campaign Home Atlas tap transport did not yield "
-                            "semantic Campaign/TIER_MAP (or equivalent) bind"
-                        ),
+                        "reason": execution.reason,
                         "building_id": building_id,
                         "records": records,
                     "atlas_startup_records": startup_records,
@@ -3387,6 +3599,8 @@ def run_verified_campaign_home_atlas_entry(
                         "executor_status": (
                             execution.status.value if execution is not None else None
                         ),
+                        "executor_reason": execution.reason,
+                        "transport_calls": execution.transport_calls,
                         "tap_telemetry": tap_telemetry,
                     }
                 return {
@@ -3457,6 +3671,32 @@ def run_verified_campaign_home_atlas_entry(
                     _persist_navigate_session(nav_session, runtime.session)
                     pan_admitted = True
 
+                post_pan_state = {}
+
+                def _observe_pan_successor():
+                    record_pan_dispatched(nav_session, action_key)
+                    post_pan_state["dispatched"] = True
+                    _persist_navigate_session(nav_session, runtime.session)
+                    if settle_seconds > 0:
+                        time.sleep(settle_seconds)
+                    settled = runtime.capture(f"campaign-entry-{ordinal:02d}-settled")
+                    settled_localization = localizer.localize(settled.frame)
+                    settled_ordinal = getattr(runtime, "ordinal", None)
+                    if settled_ordinal is None:
+                        settled_ordinal = ordinal + 2
+                    settled_identity = identity_from_captured(
+                        settled,
+                        session_id=str(runtime.session),
+                        ordinal=int(settled_ordinal),
+                        label=f"campaign-entry-{ordinal:02d}-settled",
+                    )
+                    progress = controller.record_progress(localization, settled_localization)
+                    post_pan_state.update(
+                        settled=settled, settled_localization=settled_localization,
+                        settled_identity=settled_identity, progress=progress,
+                    )
+                    return settled, settled_identity, progress
+
                 try:
                     issued, execution, _pre_obs, pan_telemetry = dispatch_verified_navigate_pan(
                         runtime=runtime,
@@ -3473,6 +3713,7 @@ def run_verified_campaign_home_atlas_entry(
                         store=_ensure_store(),
                         dry_run=False,
                         on_pre_dispatch_admitted=_prepare_pan,
+                        post_pan_observer=_observe_pan_successor,
                     )
                 except PerceptionBundleError as exc:
                     if pan_admitted:
@@ -3499,21 +3740,19 @@ def run_verified_campaign_home_atlas_entry(
                         "relocalization_residual_pixels": last_residual,
                         "pan_telemetry": pan_telemetry,
                     }
-                record_pan_dispatched(nav_session, action_key)
-                if settle_seconds > 0:
-                    time.sleep(settle_seconds)
-                settled = runtime.capture(f"campaign-entry-{ordinal:02d}-settled")
-                settled_localization = localizer.localize(settled.frame)
-                settled_ordinal = getattr(runtime, "ordinal", None)
-                if settled_ordinal is None:
-                    settled_ordinal = ordinal + 2
-                settled_identity = identity_from_captured(
-                    settled,
-                    session_id=str(runtime.session),
-                    ordinal=int(settled_ordinal),
-                    label=f"campaign-entry-{ordinal:02d}-settled",
-                )
-                progress = controller.record_progress(localization, settled_localization)
+                if "settled" not in post_pan_state:
+                    if not post_pan_state.get("dispatched"):
+                        record_pan_dispatched(nav_session, action_key)
+                    mark_uncertain(nav_session, reason="pan_successor_not_retained")
+                    return _terminal_result({
+                        "status": "blocked_fail_closed", "reason": "pan_successor_not_retained",
+                        "building_id": building_id, "records": records,
+                        "atlas_startup_records": startup_records,
+                    })
+                settled = post_pan_state["settled"]
+                settled_localization = post_pan_state["settled_localization"]
+                settled_identity = post_pan_state["settled_identity"]
+                progress = post_pan_state["progress"]
                 last_residual = _residual(
                     settled_localization.residual_px,
                     progress.remaining_displacement,
@@ -3525,15 +3764,17 @@ def run_verified_campaign_home_atlas_entry(
                     measured=progress.measured_camera_displacement,
                     residual=progress.remaining_displacement,
                     progress_px=progress.progress_px,
-                    accepted=progress.accepted,
-                    reason=progress.reason,
+                    accepted=progress.accepted and execution.status is ActionStatus.CONFIRMED,
+                    reason=(execution.reason if progress.accepted and execution.status is not ActionStatus.CONFIRMED
+                            else progress.reason),
                     localization_confidence=(
                         settled_localization.confidence
                         if settled_localization.recognized
                         else None
                     ),
                 )
-                if not progress.accepted:
+                _persist_navigate_session(nav_session, runtime.session)
+                if execution.status is not ActionStatus.CONFIRMED or not progress.accepted:
                     return {
                         "status": "blocked_fail_closed",
                         "reason": f"Home Atlas pan produced no accepted progress: {progress.reason}",
@@ -4385,6 +4626,55 @@ def _command_navigate_building_body(
                 _persist_navigate_session(nav_session, runtime.session)
                 pan_admitted = True
 
+            post_pan_state = {}
+
+            def _observe_pan_successor():
+                record_pan_dispatched(nav_session, action_key)
+                post_pan_state["dispatched"] = True
+                _persist_navigate_session(nav_session, runtime.session)
+                pre_input_bundle = perception.invalidate_after_input()
+                immediate_post = runtime.capture(f"navigate-{ordinal:02d}-immediate-post")
+                time.sleep(args.settle_seconds)
+                settled = runtime.capture(f"navigate-{ordinal:02d}-settled")
+                settled_localization = localizer.localize(settled.frame)
+                settled_ordinal = getattr(runtime, "ordinal", None)
+                if settled_ordinal is None:
+                    settled_ordinal = ordinal + 3
+                settled_identity = identity_from_captured(
+                    settled,
+                    session_id=str(runtime.session),
+                    ordinal=int(settled_ordinal),
+                    label=f"navigate-{ordinal:02d}-settled",
+                )
+                settled_bundle = classify_and_attach(
+                    bundle_from_identity(settled_identity)
+                    .with_frame_validation(bluestacks_frame_validation(settled_identity))
+                    .with_localization(localization_from_result(settled_identity, settled_localization))
+                )
+                try:
+                    settled_localization_checked = settled_bundle.checked_navigation_inputs()[0]
+                    progress = controller.record_progress(localization, settled_localization_checked)
+                    accepted = progress.accepted
+                    progress_reason = progress.reason
+                    measured = progress.measured_camera_displacement
+                    residual = progress.remaining_displacement
+                    progress_px = progress.progress_px
+                except (PerceptionBundleError, ValueError) as exc:
+                    accepted = False
+                    progress_reason = getattr(exc, "reason_code", None) or str(exc) or "post_pan_localization_failed"
+                    measured = (0.0, 0.0)
+                    residual = (0.0, 0.0)
+                    progress_px = 0.0
+                    progress = None
+                post_pan_state.update(
+                    immediate_post=immediate_post, settled=settled,
+                    settled_localization=settled_localization, settled_identity=settled_identity,
+                    settled_bundle=settled_bundle, pre_input_bundle=pre_input_bundle,
+                    progress=progress, accepted=accepted, progress_reason=progress_reason,
+                    measured=measured, residual=residual, progress_px=progress_px,
+                )
+                return settled, settled_identity, progress
+
             try:
                 issued, execution, _pre_obs, pan_telemetry = dispatch_verified_navigate_pan(
                     runtime=runtime,
@@ -4401,6 +4691,7 @@ def _command_navigate_building_body(
                     store=ensure_store(),
                     dry_run=False,
                     on_pre_dispatch_admitted=_prepare_pan,
+                    post_pan_observer=_observe_pan_successor,
                 )
             except PerceptionBundleError as exc:
                 if pan_admitted:
@@ -4463,43 +4754,31 @@ def _command_navigate_building_body(
                     },
                     3,
                 )
-            record_pan_dispatched(nav_session, action_key)
             pan_transport_inputs += int(execution.transport_calls)
-            _persist_navigate_session(nav_session, runtime.session)
-            pre_input_bundle = perception.invalidate_after_input()
-            immediate_post = runtime.capture(f"navigate-{ordinal:02d}-immediate-post")
-            time.sleep(args.settle_seconds)
-            settled = runtime.capture(f"navigate-{ordinal:02d}-settled")
-            settled_localization = localizer.localize(settled.frame)
-            settled_ordinal = getattr(runtime, "ordinal", None)
-            if settled_ordinal is None:
-                settled_ordinal = ordinal + 3
-            settled_identity = identity_from_captured(
-                settled,
-                session_id=str(runtime.session),
-                ordinal=int(settled_ordinal),
-                label=f"navigate-{ordinal:02d}-settled",
-            )
-            settled_bundle = classify_and_attach(
-                bundle_from_identity(settled_identity)
-                .with_frame_validation(bluestacks_frame_validation(settled_identity))
-                .with_localization(localization_from_result(settled_identity, settled_localization))
-            )
-            try:
-                settled_localization_checked = settled_bundle.checked_navigation_inputs()[0]
-                progress = controller.record_progress(localization, settled_localization_checked)
-                accepted = progress.accepted
-                progress_reason = progress.reason
-                measured = progress.measured_camera_displacement
-                residual = progress.remaining_displacement
-                progress_px = progress.progress_px
-            except (PerceptionBundleError, ValueError) as exc:
-                accepted = False
-                progress_reason = getattr(exc, "reason_code", None) or str(exc) or "post_pan_localization_failed"
-                measured = (0.0, 0.0)
-                residual = (0.0, 0.0)
-                progress_px = 0.0
-                progress = None
+            if "settled" not in post_pan_state:
+                if not post_pan_state.get("dispatched"):
+                    record_pan_dispatched(nav_session, action_key)
+                mark_uncertain(nav_session, reason="pan_successor_not_retained")
+                _persist_navigate_session(nav_session, runtime.session)
+                return emit({
+                    "status": "blocked", "reason": "pan_successor_not_retained",
+                    "building_id": args.building_id, "records": records,
+                    "session": str(runtime.session), "navigation_session": str(session_path),
+                }, 3)
+            immediate_post = post_pan_state["immediate_post"]
+            settled = post_pan_state["settled"]
+            settled_localization = post_pan_state["settled_localization"]
+            settled_identity = post_pan_state["settled_identity"]
+            settled_bundle = post_pan_state["settled_bundle"]
+            pre_input_bundle = post_pan_state["pre_input_bundle"]
+            progress = post_pan_state["progress"]
+            accepted = post_pan_state["accepted"] and execution.status is ActionStatus.CONFIRMED
+            progress_reason = post_pan_state["progress_reason"]
+            if post_pan_state["accepted"] and execution.status is not ActionStatus.CONFIRMED:
+                progress_reason = execution.reason or "pan_executor_did_not_confirm"
+            measured = post_pan_state["measured"]
+            residual = post_pan_state["residual"]
+            progress_px = post_pan_state["progress_px"]
             reconcile_pan(
                 nav_session,
                 action_key,
@@ -4664,7 +4943,6 @@ def command_supply_depot_radial(args) -> int:
     store: SafetyStore | None = None
     radial_semantics = None
     radial_perception = None
-    safe_exit_result = None
     facility_safe_exit_result = None
     facility_exit_target_roi = None
     action_results: dict[str, dict[str, object]] = {}
@@ -4686,11 +4964,16 @@ def command_supply_depot_radial(args) -> int:
             enriched["radial_perception_bundle"] = bundle_evidence_snapshot(
                 radial_perception
             )
-        if safe_exit_result is not None:
-            # Early Home/radial probe remains non-authorizing route evidence.
-            enriched["home_safe_exit_probe"] = safe_exit_evidence_snapshot(
-                safe_exit_result
-            )
+        # Exterior-close recovery has no proven target on the Home map. Keep
+        # that state explicit without manufacturing a safe-exit inventory or
+        # candidate-shaped evidence record.
+        enriched["home_safe_exit_probe"] = {
+            "status": "unavailable",
+            "reason_code": "EXTERIOR_CLOSE_UNPROVEN",
+            "candidate": None,
+            "target_roi": None,
+            "authorize_dispatch": False,
+        }
         if facility_safe_exit_result is not None:
             # Exit-stage binder selection that governed the capability-bound tap.
             enriched["safe_exit_binding"] = safe_exit_evidence_snapshot(
@@ -4858,11 +5141,6 @@ def command_supply_depot_radial(args) -> int:
                 immediate_before=immediate_before,
             )
 
-        safe_exit_result = build_supply_depot_safe_exit_probe(
-            identity,
-            building_binding=building_binding,
-            radial_binding=radial_binding,
-        )
         record_source_home_verified(
             nav_session,
             frame=identity,

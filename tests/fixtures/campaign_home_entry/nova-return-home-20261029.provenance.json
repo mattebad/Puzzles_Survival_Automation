@@ -1,0 +1,12 @@
+{
+  "capture_kind": "byte-for-byte native source copy",
+  "frames": [
+    {
+      "fixture": "nova-return-home-20261029.png",
+      "height": 1280,
+      "source": ".local-captures/automation-service-authorized/campaign-20261029T104211889782Z/campaign-ap-1-15-9-20261029T104221432026Z/frames/0004-campaign-entry-00-immediate-before.png",
+      "transport_sha256": "cc984c1a52683d933dd9361482a269ba5b6e2dd7085317221a46be663a2c3a81",
+      "width": 800
+    }
+  ]
+}

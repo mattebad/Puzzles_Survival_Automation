@@ -1,0 +1,19 @@
+{
+  "capture_kind": "byte-for-byte native source pair copies; test events use separate test-only clock values",
+  "frames": [
+    {
+      "fixture": "campaign-home-rebind-proposal-20261029.png",
+      "source": ".local-captures/automation-service-authorized/soak-20261029T150917016817Z-8dbcae34/campaign/campaign-ap-1-15-9-20261029T150925950236Z/frames/0004-campaign-entry-00-immediate-before.png",
+      "transport_sha256": "56dc07ec0acfb19be7a0297bc60854db230fcaeecc73933d7e58c292278b5ad0",
+      "width": 800,
+      "height": 1280
+    },
+    {
+      "fixture": "campaign-home-rebind-immediate-20261029.png",
+      "source": ".local-captures/automation-service-authorized/soak-20261029T150917016817Z-8dbcae34/campaign/campaign-ap-1-15-9-20261029T150925950236Z/frames/0005-campaign-home-building-pre-dispatch.png",
+      "transport_sha256": "a630802433bd1cfcaa7cbb0bcfdf3d3e6944d43e470d6fcdc2356d67313ac863",
+      "width": 800,
+      "height": 1280
+    }
+  ]
+}

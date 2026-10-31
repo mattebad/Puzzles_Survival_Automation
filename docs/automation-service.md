@@ -1,10 +1,15 @@
 # Automation service
 
-`automation_service/` is a thin local/offline composition package. It reuses the existing
+`automation_service/` is the canonical local runtime composition package, with offline adapters
+and explicitly authorized BlueStacks execution. It reuses the existing
 `safe_action_core` policy, executor, store, action lifecycle, and
 `SQLiteSchedulerInvocationRepository`; `tasks.scheduler_task_result` supplies normalized
 scheduler-aware results, while `tasks.perception_bundle`, native-frame replay, and existing
 Campaign/Home semantics remain the source contracts.
+
+Current dated route acceptance, source limits and remaining reset coverage are in the
+[October31 status report](bluestacks-route-status-20261031.md). The latest source passed a
+20-minute serial cadence; accepted daily routes are not forced to repeat for coverage.
 
 ## Boundaries
 
@@ -15,11 +20,15 @@ Campaign/Home semantics remain the source contracts.
 - The BlueStacks adapter is supervised-only, requires a flow-bound single-use admission token,
   and can dispatch only through `SafeActionExecutor` with a bound core request/capability. The
   service CLI has no arbitrary ADB, coordinate, shell, tap, remote, or automatic endpoint.
-- Production registration and scheduler eligibility remain disabled in
-  `tasks/flow_delivery_disabled_production_registry.json`.
-- Campaign composition delegates destination policy and atlas navigation to existing
-  `tasks.campaign_auto_battle` / `tasks.campaign_atlas` contracts. It never authorizes AP,
-  Challenge, Auto Battle, Sweep, Blitz, Auto Complete, or AP refill.
+- The legacy production registry remains disabled in
+  `tasks/flow_delivery_disabled_production_registry.json`; canonical service admission does
+  not read that file. Its nine fixed flow specs report `REGISTERED`. SQLite service/flow
+  enablement is separate, defaults off, and is restored off after the bounded tests.
+- Campaign selection remains non-consuming. Explicit native service composition installs
+  the Campaign runner behind canonical claims and dispatch fences, reusing destination policy,
+  Atlas navigation, and `tasks.campaign_auto_battle` contracts. It spends affordable AP through
+  verified battles, then returns Home and waits 300 seconds after the whole drain. Sweep,
+  Blitz, Auto Complete, and AP refill remain excluded.
 - Retention operations classify records only; deletion remains in the dedicated evidence workflow.
 - Canonical capture cycles snapshot payload and metadata before hashing. Typed observations
   must bind the requested session, capture ordinal, dimensions, timestamp, and payload,
@@ -56,7 +65,55 @@ Campaign/Home semantics remain the source contracts.
   its remaining ordinals. Capture hashes and rescans are not batch authority.
 - Retries retain occurrence identity and use a nonzero UTC backoff (at least two seconds).
   Durable exhaustion reports `RESET_BOUNDED_EXHAUSTED` or `RETRY_EXHAUSTED`;
-  UTC rollback blocks claims. A running old-reset occurrence cannot consume the new reset.
+  UTC rollback blocks claims. Reset-scoped routes cannot consume a new reset from an old claim.
+  Campaign AP regeneration is not reset-scoped: its active drain retains the claimed identity
+  across UTC midnight, with ownership, lease and dispatch fences preserved. That boundary has
+  offline proof; a complete current-code live midnight crossing remains additional coverage.
+
+## Canonical `pnsctl` serve facade
+
+The supported live boundary is `scripts/pnsctl.py automation-service`. The thin facade forwards
+the remaining arguments unchanged to `automation_service.cli.main`. It validates the standard
+supervised mode, BlueStacks adapter, and canonical state path
+before serving, and it does not auto-enable, unblock, register, schedule, deploy, or bypass any
+existing control gate.
+
+The normal Campaign launch shape is:
+
+```text
+python scripts/pnsctl.py automation-service --mode supervised --adapter bluestacks --state-path .local-orchestrator/bot-state.sqlite3 serve --live --flow campaign --campaign-stage 1-15-9 --campaign-cadence-seconds 300 --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 --account-id primary-account --server-id primary-server --output-directory .local-captures/automation-service-live
+```
+
+Repeat `--flow` for other named routes; the README gives the complete eight-route command. Argument order does not
+choose scheduler order; due eligibility and existing controls do. The disabled-gates canonical CLI
+proof produced zero captures and zero new runs, so it is control evidence only and does not promote
+native route acceptance. Facade checks, the ordinary one-battle live-entrypoint retirement, and
+the scheduler/facade consumer checks are recorded separately; their counts are not additive.
+
+The explicitly authorized native composition supports Nova, Recruitment, Campaign, Bioenhancer,
+Supply, Ultimate, Enhancement, and Personal Might runners. The ordinary registered selectors
+remain non-consuming; passing `--flow` alone does not enable them. Current individual effect/Home
+acceptance, composite Enhancement proof, cooldown work and longer cadence limits are maintained
+in [`BACKLOG.md`](../BACKLOG.md), with volatile state in the handoff.
+
+Before invoking a due native runner, the owning service checks the foreground. A healthy game is
+left in its current context for route-owned recognition. An exact known BlueStacks launcher can
+receive one supported game activity start; the service then requires fresh clean Home or an exact
+startup overlay with a recovery owner. Actual launcher restoration followed by a Basic recruit
+and verified Home is accepted. Separate cold-process tests verified a full game-process exit,
+one corrected MAIN/LAUNCHER start and shared startup recovery to Home. The command matches
+the measured icon intent fields but originates from Android shell, while the icon originates
+from the BlueStacks launcher. The original Play Games prompt's cause remains unproved; the
+latest cold test required no manual Cancel. Account setup, login, CAPTCHA and unknown
+foregrounds stop for a human.
+
+If UTC reset changes during startup before the native runner enters, a genuine checkpoint reset
+signal can defer the old claim with zero gameplay consumption. Owner, control, clock, lease,
+dispatch and unresolved-action checks still apply; only successful canonical terminal projection
+can clear that claim's exact interruption marker. The service then admits a fresh identity on its
+normal loop. This lifecycle is offline-proven, including continuous execution without restart.
+Incomplete launch transport, invalid startup accounting and all after-runner reset failures retain
+inspection stops; the deferral does not claim a gameplay completion or verified Home.
 
 ## Local checks
 
@@ -108,8 +165,9 @@ selection alone never establish gameplay success.
 
 ### Executor-bound Recruitment exception
 
-The supervised Windows/BlueStacks Recruitment service is the one current consuming
-handler exception. Its ordinary registry handler remains a non-consuming
+The supervised Windows/BlueStacks Recruitment handler is the registered selector exception.
+The other explicit native runners are installed by service composition, not ordinary selector
+registration. Recruitment's ordinary registry handler remains a non-consuming
 `SelectionPlan`; only explicit supervised `serve --live` composition installs
 `RecruitmentExecutionHandler`. The coordinator must claim and fence the run before
 calling that handler, use its bounded 12-input/3-recruit budget, and project the
@@ -120,7 +178,7 @@ recruits, persists verified per-tier UTC cooldown state, returns to canonical Ho
 and derives the next due time from the earliest retained eligibility. Unknown,
 uncertain, paid, duplicated, stale-target, or non-Home terminal outcomes block
 instead of advancing maintenance state. This code path remains dormant while
-registration, service, and Recruitment scheduling are disabled.
+the service or Recruitment flow control is disabled; code registration alone cannot execute it.
 
 ## Packaging and eventual deployment
 
@@ -135,12 +193,13 @@ roadmap slice; Codex/Cursor is not a NAS production dependency.
 ## Readiness versus admission
 
 Offline tests establish composition readiness only. They do not promote registry entries, alter
-the queue scheduler flag, or admit runtime input. The supervised Campaign navigation proving slice
-is complete: three consecutive post-repair cycles covered 1-20-9, 1-15-9, and 2-2-9, within nine
-successful retained results overall. This proves only the BlueStacks navigation boundary; no
-family is production-enabled, registered, scheduler-eligible, or Bliss-validated.
+the queue scheduler flag, or admit runtime input. The earlier supervised Campaign navigation
+slice covered 1-20-9, 1-15-9, and 2-2-9; those receipts prove navigation only. Later consuming
+route acceptance is recorded separately in the backlog. Neither kind of proof production-enables,
+registers, or Bliss-validates a route.
 
 The redundant standalone `scripts/supply_depot_bluestacks.py` adapter is retired after offline
 call-graph review, independent verification, and focused validation. Supply Depot continues to use
-the verified Home Atlas route; free-only gameplay contracts remain evidence-gated and disabled.
+the Home Atlas route. Its current free-only effect/Home acceptance is recorded in the backlog;
+permanent service enablement and deployment remain unchanged, with runtime controls currently off.
 

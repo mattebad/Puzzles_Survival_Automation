@@ -62,6 +62,14 @@ class EnhancementObservation:
     runtime_profile_id: str = BLUESTACKS_RUNTIME_PROFILE_ID
     recognized: bool = True
     result_spatially_associated: bool = False
+    # Committed EXP; a selected material's displayed preview is separate.
+    item_exp_current: Optional[int] = None
+    item_exp_required: Optional[int] = None
+    # Each visible populated cell: (row-major slot, star count, selected, owned).
+    material_slot_facts: tuple[tuple[int, int, int, int], ...] = ()
+    item_exp_preview: int | None = None
+    selection_baseline_frame_sha256: str | None = None
+    selection_baseline_evidence_ref: str | None = None
 
 
 def _variant_identity(variant: str) -> str:
@@ -185,7 +193,67 @@ def enhancement_bluestacks_authorizeable(
         and material == f"{variant.lower()}-material-one-star"
         and observation.selected_tab == expected_kind
         and observation.selected_item_kind == expected_kind
+        and _native_exp_valid(observation)
+        and _native_selection_baseline_valid(observation)
+        and _native_selection_valid(observation, selected=1)
     )
+
+
+def _native_exp_valid(observation: EnhancementObservation) -> bool:
+    return bool(type(observation.item_level) is int and observation.item_level >= 0
+        and type(observation.item_exp_current) is int
+        and type(observation.item_exp_required) is int
+        and 0 <= observation.item_exp_current < observation.item_exp_required)
+
+
+def _native_selection_baseline_valid(observation: EnhancementObservation) -> bool:
+    """Require a distinct baseline and the actual same-level selection preview."""
+
+    refs = observation.evidence_refs
+    digest = observation.selection_baseline_frame_sha256
+    reference = observation.selection_baseline_evidence_ref
+    return bool(
+        type(observation.item_exp_preview) is int
+        and observation.item_exp_current < observation.item_exp_preview < observation.item_exp_required
+        and type(digest) is str and _SHA256_RE.fullmatch(digest)
+        and digest != "0" * 64 and digest != observation.source_frame_sha256
+        and type(reference) is str and reference and reference == reference.strip()
+        and isinstance(refs, tuple) and len(refs) >= 4
+        and all(type(ref) is str for ref in refs[:4])
+        and len(set(refs[:4])) == 4
+        # The adapter retains current, equipped-modal, baseline, quantity proof.
+        and refs[2] == reference
+    )
+
+
+def _native_slots(observation: EnhancementObservation) -> dict[int, tuple[int, int, int]] | None:
+    cells = observation.material_slot_facts
+    if not isinstance(cells, tuple) or not cells or len(cells) > 36:
+        return None
+    result = {}
+    for cell in cells:
+        if (not isinstance(cell, tuple) or len(cell) != 4
+                or any(type(value) is not int for value in cell)):
+            return None
+        slot, stars, selected, owned = cell
+        if slot < 0 or slot in result or not 0 <= stars <= 9 or not 0 <= selected <= owned:
+            return None
+        result[slot] = (stars, selected, owned)
+    return result
+
+
+def _native_selection_valid(observation: EnhancementObservation, *, selected: int) -> bool:
+    cells = _native_slots(observation)
+    if cells is None:
+        return False
+    one_star = [value for value in cells.values() if value[0] == 1]
+    return bool(len(one_star) == 1 and one_star[0][1] == selected
+        and one_star[0][2] >= selected
+        and type(observation.material_inventory_count) is int
+        and type(observation.material_quantity) is int and type(observation.quantity) is int
+        and observation.material_inventory_count == one_star[0][2]
+        and observation.material_quantity == selected and observation.quantity == selected
+        and all(value[1] == 0 for value in cells.values() if value[0] != 1))
 
 
 def enhancement_transaction_spec(
@@ -303,9 +371,32 @@ def enhancement_bluestacks_postcondition_verified(
         or after is None
         or after.target_provenance != BLUESTACKS_NATIVE_TARGET_PROVENANCE
         or after.runtime_profile_id != BLUESTACKS_RUNTIME_PROFILE_ID
+        or not _has_bluestacks_native_source(after)
+        or not _native_exp_valid(after)
+        or not _native_selection_valid(after, selected=0)
+        or after.item_exp_preview is not None
+        or after.selection_baseline_frame_sha256 is not None
+        or after.selection_baseline_evidence_ref is not None
+        or after.material_identity != before.material_identity
+        or after.material_known is not True or after.material_star != 1
+        or after.overlay_state not in {"none", "none_observed"}
+        or after.source_frame_sha256 == before.source_frame_sha256
     ):
         return False
-    return _enhancement_postcondition_verified(before, after, variant=variant)
+    previous, current = _native_slots(before), _native_slots(after)
+    if previous is None or current is None or previous.keys() != current.keys():
+        return False
+    for slot, (stars, _selected, owned) in previous.items():
+        next_stars, _next_selected, next_owned = current[slot]
+        if next_stars != stars or next_owned != owned - (1 if stars == 1 else 0):
+            return False
+    # Only same-level preview semantics have native proof. A level change must
+    # not bypass the committed EXP check merely because inventory decreased.
+    progress = (after.item_level == before.item_level
+        and after.item_exp_required == before.item_exp_required
+        and after.item_exp_current == before.item_exp_preview
+        and after.item_exp_current > before.item_exp_current)
+    return bool(progress and _enhancement_postcondition_verified(before, after, variant=variant))
 
 
 def enhancement_perform_one_pulse(

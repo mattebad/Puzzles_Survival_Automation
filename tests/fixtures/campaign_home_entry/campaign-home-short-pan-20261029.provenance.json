@@ -1,0 +1,12 @@
+{
+  "capture_kind": "byte-for-byte native source copy",
+  "frames": [
+    {
+      "fixture": "campaign-home-short-pan-20261029.png",
+      "source": ".local-captures/automation-service-authorized/soak-20261029T171434658731Z-7900d159/campaign/campaign-ap-1-15-9-20261029T171444996777Z/frames/0010-campaign-entry-02-immediate-before.png",
+      "transport_sha256": "86ea6fc768a5cabcfca25d6f67b3ae38ce2b8baf23049a3b5bb6aea03b9235d7",
+      "width": 800,
+      "height": 1280
+    }
+  ]
+}

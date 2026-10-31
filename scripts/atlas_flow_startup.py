@@ -23,7 +23,6 @@ from scripts.navigation_development_boundary import (
     make_source_safety_facts,
 )
 from tasks.home_atlas_vision import BlueStacksHomeLocalizer, frame_digest
-from tasks.home_nav_recognition import recognize_home_nav
 
 
 class AtlasStartupNormalizationError(RuntimeError):
@@ -74,8 +73,7 @@ def normalize_home_atlas_startup(
             return capture(label)
 
         def authorize_zoom(before, planned=step):
-            home = recognize_home_nav(before.frame)
-            if not home.is_home or getattr(home, "overlay", False):
+            if not is_clean_home_frame(before.frame):
                 raise AtlasStartupNormalizationError(
                     "Home Atlas zoom source is not positively recognized clean Home"
                 )

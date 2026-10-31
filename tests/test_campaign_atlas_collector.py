@@ -308,8 +308,8 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
             "campaign-exit-base",
             frame=frame,
         )
-        self.assertEqual(bound, CAMPAIGN_EXIT_ROI)
-        self.assertTrue(is_compile_time_static_survey_roi("campaign-exit-base", bound))
+        self.assertEqual(bound, (left + 25, top + 50, left + 77, top + 104))
+        self.assertFalse(is_compile_time_static_survey_roi("campaign-exit-base", bound))
 
         # Recognizer-only / no-frame static fallback remains rejected.
         with self.assertRaises(RuntimeError) as no_frame:
@@ -618,10 +618,6 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
         # Same fresh identity for issue + remeasure + rebuild; no second live grab.
         self.assertIn("frame_sha256=fresh.sha256", source)
         self.assertIn("capture_completed_monotonic=fresh.captured_monotonic", source)
-        self.assertIn(
-            "del before, before_rel  # planning frame is not the issuance capture",
-            source,
-        )
         self.assertNotIn(
             'self.capture(f"{action_key}-immediate-before")\n            immediate_recognition',
             source,
@@ -2288,7 +2284,7 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
                 self.ordinal = 0
                 self.taps: list[dict[str, object]] = []
                 self.captured_frames: list[tuple[str, CapturedNativeFrame]] = []
-                self._queue = [popup.copy(), clear.copy()]
+                self._queue = [popup.copy(), popup.copy(), clear.copy()]
 
             def capture(self, label: str) -> CapturedNativeFrame:
                 import time as time_module
@@ -2343,7 +2339,8 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
                     ],
                 ):
                     result = dismiss_campaign_vip_reset_popup(
-                        op, source_rel="runtime/frames/0001-source.png"
+                        op, source_rel="runtime/frames/0001-source.png",
+                        before=runtime.capture("vip-planning"),
                     )
             finally:
                 op.close()
@@ -2366,7 +2363,7 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
                 if label == "vip-reset-close-immediate-before"
             ]
             self.assertEqual(len(immediate), 1)
-            self.assertEqual(runtime.taps[0]["sha256"], runtime.captured_frames[0][1].sha256)
+            self.assertEqual(runtime.taps[0]["sha256"], runtime.captured_frames[1][1].sha256)
 
     def test_vip_reset_dismiss_wrong_text_zero_transport(self) -> None:
         import numpy as np
@@ -2417,7 +2414,8 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
             )
             try:
                 result = dismiss_campaign_vip_reset_popup(
-                    op, source_rel="runtime/frames/0001-source.png"
+                    op, source_rel="runtime/frames/0001-source.png",
+                    before=runtime.capture("vip-planning"),
                 )
             finally:
                 op.close()
@@ -2453,7 +2451,7 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
                 self.ordinal = 0
                 self.taps: list = []
                 self.captured_frames: list = []
-                self._queue = [popup.copy(), post_still]
+                self._queue = [popup.copy(), popup.copy(), post_still]
 
             def capture(self, label: str) -> CapturedNativeFrame:
                 import time as time_module
@@ -2498,7 +2496,8 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
                     ),
                 ):
                     result = dismiss_campaign_vip_reset_popup(
-                        op, source_rel="runtime/frames/0001-source.png"
+                        op, source_rel="runtime/frames/0001-source.png",
+                        before=runtime.capture("vip-planning"),
                     )
             finally:
                 op.close()
@@ -2539,7 +2538,7 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
             op.vip_popup_input_count = 1
             try:
                 result = dismiss_campaign_vip_reset_popup(
-                    op, source_rel="runtime/frames/0001-source.png"
+                    op, source_rel="runtime/frames/0001-source.png", before=None,
                 )
             finally:
                 op.close()

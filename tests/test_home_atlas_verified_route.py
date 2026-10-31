@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import inspect
 import json
+import math
 import struct
 import tempfile
 import unittest
@@ -53,7 +54,7 @@ from tasks.home_atlas import (
 )
 from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, frame_digest
 from tasks.home_context import HomeReadyObservation
-from tasks.home_atlas_planner import PlanDisposition
+from tasks.home_atlas_planner import PanProgress, PlanDisposition
 from tasks.navigation_session import (
     AuthorizationScope,
     create_session,
@@ -297,6 +298,23 @@ def _ready() -> HomeReadyObservation:
         False,
         False,
     )
+
+
+def _unit_pan_post_observer(runtime):
+    """Inject the settled-progress unit fixture; native progress has its own replay test."""
+
+    def observe():
+        settled = runtime.capture("unit-pan-settled")
+        identity = identity_from_captured(
+            settled, session_id=str(runtime.session), ordinal=runtime.ordinal,
+            label="unit-pan-settled",
+        )
+        return settled, identity, PanProgress(
+            True, "unit-measured-progress", (150.0, 50.0), (150.0, 50.0),
+            (0.0, 0.0), math.hypot(150.0, 50.0),
+        )
+
+    return observe
 
 
 class HomeAtlasVerifiedRouteTests(unittest.TestCase):
@@ -1038,6 +1056,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                         with self.assertRaises(PerceptionBundleError) as raised:
                             home_atlas.dispatch_verified_navigate_pan(
                                 runtime=runtime,
+                                post_pan_observer=_unit_pan_post_observer(runtime),
                                 immediate_before=planning_capture,
                                 identity=planning_identity,
                                 drag_start=plan.drag_start,
@@ -1298,6 +1317,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 policy = CentralPolicy(supervised_tasks=frozenset({"OTHER-TASK"}))
                 issued, execution, _obs, _telemetry = dispatch_verified_navigate_pan(
                     runtime=runtime,
+                    post_pan_observer=_unit_pan_post_observer(runtime),
                     immediate_before=captured,
                     identity=identity,
                     drag_start=(450, 500),
@@ -1320,6 +1340,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 policy2 = _policy_for("RUNTIME-RESUMABLE-NAVIGATION-SESSIONS")
                 issued2, execution2, obs, _telemetry2 = dispatch_verified_navigate_pan(
                     runtime=runtime,
+                    post_pan_observer=_unit_pan_post_observer(runtime),
                     immediate_before=captured,
                     identity=identity,
                     drag_start=(450, 500),
@@ -1467,6 +1488,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
             with _open_safety_store(Path(directory)) as store:
                 issued, execution, _obs, _telemetry = dispatch_verified_navigate_pan(
                     runtime=runtime,
+                    post_pan_observer=_unit_pan_post_observer(runtime),
                     immediate_before=captured,
                     identity=identity,
                     drag_start=(450, 500),
@@ -1498,6 +1520,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 policy = _policy_for("RUNTIME-RESUMABLE-NAVIGATION-SESSIONS")
                 kwargs = dict(
                     runtime=runtime,
+                    post_pan_observer=_unit_pan_post_observer(runtime),
                     immediate_before=captured,
                     identity=identity,
                     drag_start=(450, 500),
@@ -1558,9 +1581,9 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
             self.assertIs(ledger["transport_observed"], True)
             self.assertIs(ledger["verified"], False)
             self.assertIs(ledger["completed"], False)
-            self.assertIs(ledger["failed"], True)
-            self.assertIs(ledger["unresolved"], False)
-            self.assertEqual(ledger["executor_status"], "confirmed")
+            self.assertIs(ledger["failed"], False)
+            self.assertIs(ledger["unresolved"], True)
+            self.assertEqual(ledger["executor_status"], "unresolved")
             # The single pan record mirrors the same ledger fields.
             pan_record = payload["records"][-1]
             self.assertEqual(pan_record["action_ledger"], ledger)
@@ -1597,6 +1620,35 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
             self.assertEqual(payload["session_calibration"]["schema_name"], "navigation_session_calibration")
             self.assertIs(payload["session_calibration"]["authorize_dispatch"], False)
             self.assertIs(payload["session_calibration"]["persistence_authorized"], False)
+
+    def test_pan_successor_capture_failure_stops_after_one_transport(self) -> None:
+        class FailingSuccessorRuntime(_FakeRuntime):
+            def capture(self, label):
+                if label == "navigate-00-settled":
+                    raise RuntimeError("capture unavailable")
+                return super().capture(label)
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = FailingSuccessorRuntime(Path(directory))
+            localizer = SimpleNamespace(
+                localize=lambda frame: _localization(frame_digest(frame))
+            )
+            with patch("scripts.home_atlas_bluestacks.load_home_atlas", return_value=_atlas(_far_building())), patch(
+                "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer", return_value=localizer
+            ), patch("scripts.home_atlas_bluestacks.connect_runtime", return_value=runtime), patch(
+                "scripts.home_atlas_bluestacks.bind_visible_building", return_value=None
+            ), patch(
+                "scripts.home_atlas_bluestacks.time.monotonic",
+                side_effect=lambda: float(runtime.ordinal) + 0.2,
+            ):
+                code = command_navigate_building(_args(directory, building_id="home.building.bank"))
+            self.assertEqual(code, 3)
+            self.assertEqual(len(runtime.swipes), 1)
+            result = json.loads((runtime.session / "navigate-building-result.json").read_text(encoding="utf-8"))
+            self.assertEqual(result["reason"], "pan_successor_not_retained")
+            session = json.loads(Path(result["navigation_session"]).read_text(encoding="utf-8"))
+            self.assertEqual(len(session["action_ledger"]), 1)
+            self.assertEqual(session["action_ledger"][0]["status"], "dispatched")
 
     def test_calibration_observability(self) -> None:
         state = create_bluestacks_session_calibration("calib-obs-session")
@@ -1657,6 +1709,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
             with _open_safety_store(Path(directory)) as store:
                 issued, execution, obs, telemetry = dispatch_verified_navigate_pan(
                     runtime=runtime,
+                    post_pan_observer=_unit_pan_post_observer(runtime),
                     immediate_before=captured,
                     identity=identity,
                     drag_start=(450, 500),
@@ -1690,10 +1743,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                     telemetry["pre_dispatch_frame_sha256"], obs.frame_sha256
                 )
 
-    def test_recapture_rebuilds_distinct_semantic_observation(self) -> None:
-        # Finding 1 negative control: the executor recapture must rebuild a NEW
-        # Observation from the fresh pre_dispatch capture, never return the
-        # issuance object by identity, while matching digest+monotonic exactly.
+    def test_recapture_supplies_actual_issuance_observation_once(self) -> None:
         module = importlib.import_module("scripts.home_atlas_bluestacks")
         real_executor = module.SafeActionExecutor
         recorded: dict[str, object] = {}
@@ -1701,6 +1751,14 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
         def _spy(*args, **kwargs):
             instance = real_executor(*args, **kwargs)
             recorded["recapture"] = instance.recapture
+            original = instance.recapture
+
+            def observe():
+                observation = original()
+                recorded["observed"] = observation
+                return observation
+
+            instance.recapture = observe
             return instance
 
         with tempfile.TemporaryDirectory() as directory:
@@ -1713,6 +1771,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 with patch("scripts.home_atlas_bluestacks.SafeActionExecutor", _spy):
                     issued, execution, obs, _telemetry = dispatch_verified_navigate_pan(
                         runtime=runtime,
+                        post_pan_observer=_unit_pan_post_observer(runtime),
                         immediate_before=captured,
                         identity=identity,
                         drag_start=(450, 500),
@@ -1731,18 +1790,9 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 assert execution is not None
                 self.assertEqual(execution.status, ActionStatus.CONFIRMED)
                 recapture = recorded["recapture"]
-                first = recapture()
-                second = recapture()
-                # Distinct object each call and never the issuance observation.
-                self.assertIsNot(first, second)
-                self.assertIsNot(first, obs)
-                self.assertIsNot(second, obs)
-                # ...yet digest + monotonic match so consume can succeed unchanged.
-                self.assertEqual(first.frame_sha256, obs.frame_sha256)
-                self.assertEqual(
-                    first.capture_completed_monotonic, obs.capture_completed_monotonic
-                )
-                self.assertEqual(second.frame_sha256, obs.frame_sha256)
+                self.assertIs(recorded["observed"], obs)
+                with self.assertRaises(ValueError):
+                    recapture()
 
     def test_fresh_pre_dispatch_capture_distinct_from_planning_frame(self) -> None:
         # Finding 1: a genuine fresh pre_dispatch capture is acquired; the
@@ -1756,6 +1806,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
             with _open_safety_store(Path(directory)) as store:
                 issued, execution, obs, telemetry = dispatch_verified_navigate_pan(
                     runtime=runtime,
+                    post_pan_observer=_unit_pan_post_observer(runtime),
                     immediate_before=captured,
                     identity=identity,
                     drag_start=(450, 500),
@@ -1965,7 +2016,7 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
 
             self.assertNotEqual(result["status"], "opened")
             self.assertEqual(result["status"], "blocked_fail_closed")
-            self.assertIn("semantic Campaign/TIER_MAP", result["reason"])
+            self.assertEqual(result["executor_status"], "unresolved")
             self.assertEqual(len(runtime.taps), 1)
             self.assertEqual(runtime.taps[0]["target_identity"], CAMPAIGN_HOME_ATLAS_BUILDING_ID)
             telemetry = result["tap_telemetry"]

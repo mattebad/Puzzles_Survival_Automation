@@ -545,8 +545,8 @@ class DirectCommanderRouteTests(unittest.TestCase):
             )
             session = FakeSession(runtime)
             with patch(
-                "scripts.enhancement_bluestacks.recognize_home_nav",
-                return_value=SimpleNamespace(is_home=True),
+                "scripts.enhancement_bluestacks.is_clean_home_frame",
+                return_value=True,
             ), patch("scripts.enhancement_bluestacks.time.sleep") as sleep:
                 result = EnhancementIntegratedRoute(
                     runtime,
@@ -555,8 +555,8 @@ class DirectCommanderRouteTests(unittest.TestCase):
                     reset_identity="local-day",
                     ocr_engine=_ocr,
                 ).run()
-        self.assertEqual(result["status"], "evidence_required", result)
-        self.assertEqual(result["reason"], "SAFE_HOME_RETURN_EVIDENCE_REQUIRED")
+        self.assertEqual(result["status"], "blocked", result)
+        self.assertEqual(result["reason"], "ENHANCEMENT_VISIBLE_EXIT_NOT_BOUND")
         sleep.assert_called_once_with(1.0)
         immediate = [
             stage for stage in result["stages"]
@@ -607,8 +607,8 @@ class DirectCommanderRouteTests(unittest.TestCase):
 
             route._action = stop_after_gear_category
             with patch(
-                "scripts.enhancement_bluestacks.recognize_home_nav",
-                return_value=SimpleNamespace(is_home=True),
+                "scripts.enhancement_bluestacks.is_clean_home_frame",
+                return_value=True,
             ):
                 result = route.run()
 
@@ -631,8 +631,8 @@ class DirectCommanderRouteTests(unittest.TestCase):
             runtime = FakeRuntime(Path(folder), [0])
             session = FakeSession(runtime)
             with patch(
-                "scripts.enhancement_bluestacks.recognize_home_nav",
-                return_value=SimpleNamespace(is_home=False),
+                "scripts.enhancement_bluestacks.is_clean_home_frame",
+                return_value=False,
             ):
                 result = EnhancementIntegratedRoute(
                     runtime,
@@ -647,7 +647,7 @@ class DirectCommanderRouteTests(unittest.TestCase):
         self.assertEqual(session.input_count, 0)
         self.assertFalse(any(row.get("type") == "dispatch" for row in runtime.events))
 
-    def test_direct_route_retains_successor_and_blocks_unproven_home_return(self):
+    def test_direct_route_retains_successor_when_visible_exit_is_unbound(self):
         with tempfile.TemporaryDirectory() as folder:
             runtime = FakeRuntime(
                 Path(folder),
@@ -655,8 +655,8 @@ class DirectCommanderRouteTests(unittest.TestCase):
             )
             session = FakeSession(runtime)
             with patch(
-                "scripts.enhancement_bluestacks.recognize_home_nav",
-                return_value=SimpleNamespace(is_home=True),
+                "scripts.enhancement_bluestacks.is_clean_home_frame",
+                return_value=True,
             ):
                 result = EnhancementIntegratedRoute(
                     runtime,
@@ -665,8 +665,8 @@ class DirectCommanderRouteTests(unittest.TestCase):
                     reset_identity="local-day",
                     ocr_engine=_ocr,
                 ).run()
-        self.assertEqual(result["status"], "evidence_required", result)
-        self.assertEqual(result["reason"], "SAFE_HOME_RETURN_EVIDENCE_REQUIRED")
+        self.assertEqual(result["status"], "blocked", result)
+        self.assertEqual(result["reason"], "ENHANCEMENT_VISIBLE_EXIT_NOT_BOUND")
         self.assertEqual(result["resource_affecting_dispatch_count"], 1)
         self.assertEqual(result["dispatch_count"], len(session.actions))
         self.assertFalse(result["terminal_recognized"])
@@ -677,7 +677,7 @@ class DirectCommanderRouteTests(unittest.TestCase):
         self.assertEqual(result["category_results"][0]["status"], "completed")
         terminal_records = [
             stage for stage in result["stages"]
-            if stage.get("stage") == "enhancement-terminal"
+            if stage.get("stage") == "return-home-source-0"
         ]
         self.assertEqual(len(terminal_records), 1)
         self.assertTrue(terminal_records[0]["recognized"])
@@ -689,7 +689,7 @@ class DirectCommanderRouteTests(unittest.TestCase):
         self.assertEqual(dispatch_targets[-1], "enhancement-use")
         self.assertNotIn("android-back", dispatch_targets)
 
-    def test_retained_family_home_requires_safe_return_transition_proof(self):
+    def test_retained_family_fresh_home_completes_without_new_input(self):
         with tempfile.TemporaryDirectory() as folder:
             runtime = FakeRuntime(Path(folder), [1])
             session = FakeSession(runtime)
@@ -704,8 +704,8 @@ class DirectCommanderRouteTests(unittest.TestCase):
                 for variant in ORDERED_VARIANTS
             }
             with patch(
-                "scripts.enhancement_bluestacks.recognize_home_nav",
-                return_value=SimpleNamespace(is_home=True),
+                "scripts.enhancement_bluestacks.is_clean_home_frame",
+                return_value=True,
             ):
                 result = EnhancementIntegratedRoute(
                     runtime,
@@ -716,15 +716,14 @@ class DirectCommanderRouteTests(unittest.TestCase):
                     reset_identity="local-day",
                     ocr_engine=_ocr,
                 ).run()
-        self.assertEqual(result["status"], "evidence_required", result)
-        self.assertEqual(result["reason"], "SAFE_HOME_RETURN_TRANSITION_PROOF_REQUIRED")
+        self.assertEqual(result["status"], "completed", result)
         self.assertEqual(result["variant"], "family")
-        self.assertFalse(result["terminal_recognized"])
+        self.assertTrue(result["terminal_recognized"])
         self.assertEqual(result["dispatch_count"], 0)
         self.assertEqual(result["resource_affecting_dispatch_count"], 3)
         self.assertEqual(session.input_count, 0)
-        self.assertNotIn("postcondition_verified", result)
-        self.assertNotIn("state_transition", result)
+        self.assertTrue(result["postcondition_verified"])
+        self.assertTrue(result["state_transition"])
         self.assertEqual(
             [row["variant"] for row in result["category_results"]],
             list(ORDERED_VARIANTS),
@@ -733,8 +732,8 @@ class DirectCommanderRouteTests(unittest.TestCase):
     def test_home_requires_unique_profile_portrait_and_native_home(self):
         frame = np.ones((1280, 800, 3), dtype=np.uint8)
         with patch(
-            "scripts.enhancement_bluestacks.recognize_home_nav",
-            return_value=SimpleNamespace(is_home=True),
+            "scripts.enhancement_bluestacks.is_clean_home_frame",
+            return_value=True,
         ):
             missing = recognize_home_frame(frame, ocr_engine=lambda _f, _r: [])
             ambiguous = recognize_home_frame(
@@ -755,8 +754,8 @@ class DirectCommanderRouteTests(unittest.TestCase):
     def test_home_binds_profile_from_unique_level_and_vip_markers(self):
         frame = np.ones((1280, 800, 3), dtype=np.uint8)
         with patch(
-            "scripts.enhancement_bluestacks.recognize_home_nav",
-            return_value=SimpleNamespace(is_home=True),
+            "scripts.enhancement_bluestacks.is_clean_home_frame",
+            return_value=True,
         ):
             recognized = recognize_home_frame(
                 frame,
@@ -785,8 +784,8 @@ class DirectCommanderRouteTests(unittest.TestCase):
         )
         no_text = lambda _f, _r: []
         with patch(
-            "scripts.enhancement_bluestacks.recognize_home_nav",
-            return_value=SimpleNamespace(is_home=True),
+            "scripts.enhancement_bluestacks.is_clean_home_frame",
+            return_value=True,
         ):
             recognized = recognize_home_frame(frame, ocr_engine=no_text)
             flat = recognize_home_frame(
@@ -998,49 +997,29 @@ class DirectCommanderRouteTests(unittest.TestCase):
         self.assertEqual(material.reason, "MATERIAL_IDENTITY_UNKNOWN")
         self.assertNotEqual(item.item_identity, "gear-red-star-chest-armor")
 
-    def test_gear_detail_modal_resumes_directly_at_enhance(self):
-        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-
-        def modal_ocr(_frame, roi):
-            if roi == (0, 0, 800, 1280):
-                return [{"text": "S.O.F Suit", "bounds": (348, 321, 501, 356)}]
-            if roi == (0, 210, 800, 820):
-                return [
-                    {"text": "+15", "bounds": (344, 415, 385, 440)},
-                    {"text": "Basic Stats", "bounds": (334, 607, 485, 630)},
-                ]
-            if roi == (0, 760, 800, 1260):
-                return [
-                    {"text": "Promote", "bounds": (278, 938, 377, 975)},
-                    {"text": "Replace", "bounds": (424, 953, 518, 977)},
-                    {"text": "Unequip", "bounds": (566, 954, 667, 977)},
-                ]
-            return []
-
-        with patch(
-            "scripts.enhancement_bluestacks._classify_selected_category_visual",
-            return_value="gear",
-        ):
-            result = recognize_commander_stage(
-                frame,
-                variant="gear",
-                stage="item",
-                source_frame_sha256="7" * 64,
-                ocr_engine=modal_ocr,
-                game_day_id="day",
-            )
+    def test_gear_detail_modal_requires_visible_unique_enhance(self):
+        fixture = Path(__file__).parent / "fixtures/enhancement_item_modal/native-gear-sof-suit-20261029.png"
+        frame = cv2.imread(str(fixture))
+        result = recognize_commander_stage(frame, variant="gear", stage="item")
         self.assertTrue(result.recognized, result)
-        self.assertEqual(result.item_identity, "s.o.f suit")
-        self.assertEqual(result.item_level, 15)
-        self.assertEqual(result.open_target, (130, 950, 240, 980))
+        self.assertEqual((result.item_identity, result.item_level), ("s.o.f suit", 18))
+        button = result.diagnostics["footer_controls"]["enhance"]
+        center = ((button[0] + button[2]) // 2, (button[1] + button[3]) // 2)
+        self.assertTrue(result.open_target[0] <= center[0] < result.open_target[2])
+        self.assertTrue(result.open_target[1] <= center[1] < result.open_target[3])
+        missing = frame.copy()
+        missing[915:950, 150:260] = 0
+        denied = recognize_commander_stage(missing, variant="gear", stage="item")
+        self.assertFalse(denied.recognized, denied)
+        self.assertIsNone(denied.open_target)
 
     def test_immediate_before_rebind_blocks_stale_home_without_dispatch(self):
         with tempfile.TemporaryDirectory() as folder:
             runtime = FakeRuntime(Path(folder), [1, 2])
             session = FakeSession(runtime)
             with patch(
-                "scripts.enhancement_bluestacks.recognize_home_nav",
-                return_value=SimpleNamespace(is_home=True),
+                "scripts.enhancement_bluestacks.is_clean_home_frame",
+                return_value=True,
             ):
                 result = EnhancementIntegratedRoute(
                     runtime,
@@ -1064,8 +1043,8 @@ class DirectCommanderRouteTests(unittest.TestCase):
                 return [] if int(frame[0, 0, 0]) == 0 else _ocr(frame, roi)
 
             with patch(
-                "scripts.enhancement_bluestacks.recognize_home_nav",
-                return_value=SimpleNamespace(is_home=True),
+                "scripts.enhancement_bluestacks.is_clean_home_frame",
+                return_value=True,
             ):
                 result = EnhancementIntegratedRoute(
                     runtime,
@@ -1472,6 +1451,130 @@ class ContractAndReservationTests(unittest.TestCase):
             with self.assertRaises(pnsctl.OperatorError):
                 _continuation_reservation(root, "gear")
             self.assertTrue(reservation.exists())
+
+
+class EnhancementResetOccurrenceTests(unittest.TestCase):
+    OLD = "local-2026-10-28-enhancement-family"
+    CURRENT = "local-2026-10-29-enhancement-family"
+
+    def _state(self, root, reset, *, pending=False):
+        retained = root / "retained-runtime"
+        structure = _family_verifier_structure(retained)
+        result = structure["result"]
+        categories = {}
+        for proof in result["enhancement_result"]["category_results"]:
+            proof["before_observation"]["game_day_id"] = reset
+            proof["successor_observation"]["game_day_id"] = reset
+            if pending and proof["variant"] == "gear":
+                proof["status"] = "dispatch_bearing_unresolved"
+                proof["successor_observation"] = None
+            categories[proof["variant"]] = {**proof, "runtime_session": str(retained)}
+        (retained / "flow-delivery-result.json").write_text(json.dumps(result), encoding="utf-8")
+        (root / "family-progress.json").write_text(
+            json.dumps({"schema_version": 1, "flow_id": FLOW_ID, "categories": categories}),
+            encoding="utf-8",
+        )
+        return categories
+
+    def test_new_day_has_fresh_occurrence_and_preserves_legacy_and_previous_proof(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / FLOW_ID
+            self._state(root, "local-2026-08-18-enhancement-gear")
+            prior = root / "occurrences" / self.OLD
+            self._state(prior, self.OLD)
+            before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+            selected, reset, completed = delivery._select_family_state(root, self.CURRENT)
+            self.assertEqual(selected, root / "occurrences" / self.CURRENT)
+            self.assertEqual(reset, self.CURRENT)
+            self.assertEqual(completed, {})
+            self.assertFalse(selected.exists())
+            reservations = delivery._ensure_family_reservations(selected)
+            self.assertEqual(set(reservations), {"gear", "chip", "module"})
+            for path, raw in before.items():
+                self.assertEqual(path.read_bytes(), raw)
+
+    def test_same_day_returns_only_current_reset_completed_categories(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / FLOW_ID
+            current = root / "occurrences" / self.CURRENT
+            categories = self._state(current, self.CURRENT)
+            selected, reset, completed = delivery._select_family_state(root, self.CURRENT)
+            self.assertEqual((selected, reset), (current, self.CURRENT))
+            self.assertEqual(completed, categories)
+
+    def test_old_proof_cannot_be_adopted_inside_current_occurrence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / FLOW_ID
+            self._state(root / "occurrences" / self.CURRENT, self.OLD)
+            with self.assertRaisesRegex(pnsctl.OperatorError, "another reset"):
+                delivery._select_family_state(root, self.CURRENT)
+
+    def test_legacy_and_prior_unresolved_use_blocks_new_day_without_creating_state(self):
+        for legacy in (True, False):
+            with self.subTest(legacy=legacy), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder) / FLOW_ID
+                prior = root if legacy else root / "occurrences" / self.OLD
+                self._state(prior, self.OLD, pending=True)
+                original = (prior / "family-progress.json").read_bytes()
+                with self.assertRaisesRegex(pnsctl.OperatorError, "unresolved dispatch-bearing Use"):
+                    delivery._select_family_state(root, self.CURRENT)
+                self.assertFalse((root / "occurrences" / self.CURRENT).exists())
+                self.assertEqual((prior / "family-progress.json").read_bytes(), original)
+
+    def test_pending_recovery_uses_original_reset_without_creating_reservations(self):
+        for legacy in (True, False):
+            with self.subTest(legacy=legacy), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder) / FLOW_ID
+                prior = root if legacy else root / "occurrences" / self.OLD
+                self._state(prior, self.OLD, pending=True)
+                original = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+                selected, reset, completed = delivery._select_family_state(root, self.CURRENT, recovery_variant="gear")
+                self.assertEqual((selected, reset, completed), (prior, self.OLD, {}))
+                self.assertEqual(set(root.rglob("reservation-*.json")), set())
+                for path, raw in original.items():
+                    self.assertEqual(path.read_bytes(), raw)
+                self.assertFalse((root / "occurrences" / self.CURRENT).exists())
+
+    def test_missing_or_ambiguous_pending_recovery_fails_without_new_state(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / FLOW_ID
+            with self.assertRaisesRegex(pnsctl.OperatorError, "one retained pending"):
+                delivery._select_family_state(root, self.CURRENT, recovery_variant="gear")
+            self.assertFalse(root.exists())
+            self._state(root, self.OLD, pending=True)
+            self._state(root / "occurrences" / self.OLD, self.OLD, pending=True)
+            with self.assertRaisesRegex(pnsctl.OperatorError, "one retained pending"):
+                delivery._select_family_state(root, self.CURRENT, recovery_variant="gear")
+
+    def test_malformed_prior_progress_or_reservation_fails_before_new_occurrence(self):
+        for filename in ("family-progress.json", "reservation-gear.json"):
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder) / FLOW_ID
+                prior = root / "occurrences" / self.OLD
+                prior.mkdir(parents=True)
+                (prior / filename).write_text("{malformed", encoding="utf-8")
+                with self.assertRaises(pnsctl.OperatorError):
+                    delivery._select_family_state(root, self.CURRENT)
+                self.assertFalse((root / "occurrences" / self.CURRENT).exists())
+
+    def test_prior_reservation_without_effect_reconciliation_is_not_discarded(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / FLOW_ID
+            prior = root / "occurrences" / self.OLD
+            delivery._reserve(prior, "gear")
+            original = (prior / "reservation-gear.json").read_bytes()
+            with self.assertRaisesRegex(pnsctl.OperatorError, "lacks reconciled"):
+                delivery._select_family_state(root, self.CURRENT)
+            self.assertEqual((prior / "reservation-gear.json").read_bytes(), original)
+            self.assertFalse((root / "occurrences" / self.CURRENT).exists())
+
+    def test_reset_rejects_traversal_variant_suffix_and_invalid_calendar_date(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / FLOW_ID
+            for reset in ("../escape", "local-2026-10-29-enhancement-gear", "local-2026-02-31-enhancement-family"):
+                with self.subTest(reset=reset), self.assertRaises(pnsctl.OperatorError):
+                    delivery._select_family_state(root, reset)
+            self.assertFalse(root.exists())
 
     def test_reservation_budget_constant_remains_one_per_category(self):
         self.assertEqual(MAX_DISPATCH_BEARING_CANARY_RUNS_PER_CATEGORY, 1)

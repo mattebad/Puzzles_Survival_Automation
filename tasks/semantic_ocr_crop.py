@@ -193,6 +193,11 @@ class CropRoiRequest:
 
     ``ocr_mode`` and ``deadline_monotonic`` are optional only for the crop-preparation
     API.  ``run_semantic_ocr`` requires both values on this single request object.
+
+    Pass the original captured ``source_png`` when its encoder differs from
+    OpenCV's canonical PNG encoding. Its byte hash must match the capture's
+    transport digest, and its decoded pixels must equal ``frame``. The payload
+    is transient; retained provenance contains only its digest.
     """
 
     source_frame: NativeFrameIdentity
@@ -201,8 +206,11 @@ class CropRoiRequest:
     exclusion_masks: tuple[ExclusionMask, ...] = ()
     ocr_mode: OcrMode | None = None
     deadline_monotonic: float | None = None
+    source_png: bytes | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
+        if self.source_png is not None and type(self.source_png) is not bytes:
+            raise SemanticOcrCropError("INVALID_SOURCE_PAYLOAD")
         if not isinstance(self.source_frame, NativeFrameIdentity):
             raise SemanticOcrCropError("INVALID_SOURCE_FRAME")
         if not isinstance(self.padding, PaddingSpec):
@@ -365,7 +373,9 @@ def _boxes_intersect(a: Box, b: Box) -> bool:
     return ax0 < bx1 and bx0 < ax1 and ay0 < by1 and by0 < ay1
 
 
-def _validate_identity_against_frame(frame: np.ndarray, identity: NativeFrameIdentity) -> str:
+def _validate_identity_against_frame(
+    frame: np.ndarray, identity: NativeFrameIdentity, source_png: bytes | None = None
+) -> str:
     if not isinstance(frame, np.ndarray):
         raise SemanticOcrCropError("INVALID_FRAME")
     if frame.ndim not in (2, 3):
@@ -373,9 +383,28 @@ def _validate_identity_against_frame(frame: np.ndarray, identity: NativeFrameIde
     height, width = int(frame.shape[0]), int(frame.shape[1])
     if width != identity.width or height != identity.height:
         raise SemanticOcrCropError("FRAME_GEOMETRY_MISMATCH")
-    transport = compute_transport_digest(frame)
+    transport = (
+        hashlib.sha256(source_png).hexdigest()
+        if source_png is not None else compute_transport_digest(frame)
+    )
     if transport != identity.transport_sha256:
         raise SemanticOcrCropError("TRANSPORT_DIGEST_MISMATCH")
+    if source_png is not None:
+        if not source_png.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise SemanticOcrCropError("INVALID_SOURCE_PAYLOAD")
+        # Match the native capture adapter's color decoding, including PNGs
+        # whose encoder retained an unused alpha channel.
+        flags = cv2.IMREAD_GRAYSCALE if frame.ndim == 2 else cv2.IMREAD_COLOR
+        try:
+            decoded = cv2.imdecode(np.frombuffer(source_png, dtype=np.uint8), flags)
+        except cv2.error as exc:
+            raise SemanticOcrCropError("INVALID_SOURCE_PAYLOAD") from exc
+        if decoded is None:
+            raise SemanticOcrCropError("INVALID_SOURCE_PAYLOAD")
+        if decoded.shape != frame.shape:
+            raise SemanticOcrCropError("FRAME_GEOMETRY_MISMATCH")
+        if decoded.dtype != frame.dtype or not np.array_equal(decoded, frame):
+            raise SemanticOcrCropError("SOURCE_PIXELS_MISMATCH")
     return transport
 
 
@@ -878,7 +907,7 @@ def prepare_ocr_crop(
         raise SemanticOcrCropError("INVALID_REQUEST")
     validated_normalization = _validate_normalization_plan(normalization)
     identity = request.source_frame
-    transport = _validate_identity_against_frame(frame, identity)
+    transport = _validate_identity_against_frame(frame, identity, request.source_png)
     exclusion_boxes = _validate_masks_in_frame(identity, request.exclusion_masks)
     effective = _resolve_effective_roi(identity, request.roi, request.padding, exclusion_boxes)
     x0, y0, x1, y1 = effective

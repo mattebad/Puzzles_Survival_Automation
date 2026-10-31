@@ -36,6 +36,12 @@ authorization`, and `Completion`. Their order is for readability, not positional
 
 ## Status and authority boundaries
 
+`IMPLEMENTED_LOCAL` records code already present locally. `PARTIAL_LOCAL` records implemented
+overlap whose remaining ticket acceptance is listed in the dated reconciliation note. These
+labels do not imply committed/merged code, full native coverage, NAS acceptance, or enablement.
+Original scope and completion criteria remain the work still to assess; route evidence does
+not automatically close broader Daily, caller-retirement, or deployment requirements.
+
 `READY` means that a later offline assignment may be considered after dependencies, decisions, path
 locks, and an approved base are checked. `WAITING_DEPENDENCIES`, `BLOCKED_POLICY`, and
 `BLOCKED_NATIVE` remain explicit blockers. None of these labels starts work or changes runtime

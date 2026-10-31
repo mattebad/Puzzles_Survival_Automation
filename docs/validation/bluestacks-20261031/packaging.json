@@ -1,0 +1,23 @@
+{
+  "scope": "Formatting-only branch packaging; original native receipts and captures are unchanged. Historical source-as-run hashes remain historical.",
+  "input_authority": false,
+  "source_adjustments": [
+    {
+      "path": "automation_service/campaign.py",
+      "original_sha256": "7c62b78c03c4038243260d2c3c17d11779c31c41e028558a62b41f04c8f2636b",
+      "packaged_sha256": "2c293ad4e7013fecb0eae4a6d887269c216c380c0120fe4ad13044e410d02694",
+      "original_local_backup": ".local-orchestrator/update-backups/branch-packaging-20261031/automation_service/campaign.py",
+      "change": "Remove extra terminal blank lines only",
+      "python_ast_equal": true
+    },
+    {
+      "path": "tasks/campaign_ap_challenge.py",
+      "original_sha256": "25c685385eacde574f06e6463f2a416d961508775666af95d7348307f10e18f1",
+      "packaged_sha256": "f7cc9ee7dc53284dfae810fd4fa3e039a6840faf1b62bce682ef0452c5229605",
+      "original_local_backup": ".local-orchestrator/update-backups/branch-packaging-20261031/tasks/campaign_ap_challenge.py",
+      "change": "Remove extra terminal blank lines only",
+      "python_ast_equal": true
+    }
+  ],
+  "git_filters": "Python and active Markdown use LF. Native fixtures, assets and archived records remain byte-exact."
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+from contextlib import closing
 from pathlib import Path
 import tempfile
 import time
@@ -19,12 +20,12 @@ from scripts.bluestacks_native_runtime import (
 from scripts.startup_recovery import (
     ContextualPopupRecoveryResult,
     StartupRecoveryError,
+    StartupRecoveryResult,
     classify_startup_frame,
     recover_contextual_vip_popup,
     recover_known_startup_overlay,
 )
 from scripts.startup_surface_recognition import (
-    SCARLETT_CRITICAL_ROI_HASHES,
     SCARLETT_EXPECTED_SUCCESSOR,
     SCARLETT_FORBIDDEN_PURCHASE_ROIS,
     SCARLETT_FRAME_SHA256,
@@ -32,6 +33,7 @@ from scripts.startup_surface_recognition import (
     SCARLETT_SAFE_BACK_ROI,
     SCARLETT_SAFE_BACK_TARGET_IDENTITY,
     SCARLETT_THREE_DAY_PACK,
+    commercial_surface_signal,
     is_exact_scarlett_recognition,
     recognize_scarlett_three_day_pack,
 )
@@ -161,6 +163,65 @@ class StartupRecoveryTests(unittest.TestCase):
         self.assertEqual(unsupported.status, "blocked")
         self.assertIsNone(unsupported.recovery_owner)
 
+    def test_home_routes_recover_exact_vip_popup_before_route_execution(self) -> None:
+        fixture = (
+            Path(__file__).resolve().parents[1]
+            / "tasks/assets/navigation/800x1280/reset_popup_source.png"
+        ).read_bytes()
+        for flow_id in (
+            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+            "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+        ):
+            with self.subTest(flow_id=flow_id):
+                plan = classify_startup_frame(flow_id, fixture)
+                self.assertEqual(plan.status, "recovery_required")
+                self.assertEqual(plan.recovery_owner, "shared_home_startup_recovery")
+                self.assertFalse(plan.input_authority)
+
+    def test_operator_recovery_uses_clean_current_home_successor(self) -> None:
+        from scripts import pnsctl
+
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        home = {"state": "HOME_BASE", "recognized": True}
+        scenarios = (
+            (home, {"recognized": False, "blocking_unknown_modal": False}, True),
+            ({**home, "overlay": True}, {}, False),
+            (home, {"recognized": True, "blocking_unknown_modal": False}, False),
+            (home, {"recognized": False, "blocking_unknown_modal": True}, False),
+            ({"state": "UNKNOWN", "recognized": False}, {}, False),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = FakeRuntime(Path(directory) / "runtime")
+            runtime.max_inputs = 12
+
+            def recover(_runtime, *, recognize_successor, **_kwargs):
+                self.assertEqual(recognize_successor(frame), expected)
+                return StartupRecoveryResult(
+                    "recovered" if expected else "evidence_required",
+                    1, "VIP_POINTS_GET_PTS", "HOME_BASE" if expected else None,
+                    "a" * 64, "b" * 64, "startup-vip-close", "test successor",
+                )
+
+            for recognition, popup_detail, expected in scenarios:
+                with self.subTest(recognition=recognition, popup=popup_detail):
+                    with (
+                        patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", return_value=runtime),
+                        patch("scripts.startup_recovery.recover_known_startup_overlay", side_effect=recover),
+                        patch("scripts.startup_normalization.classify_home_base_live", return_value=recognition),
+                        patch("scripts.bluestacks_popup_recognition.recognize_reset_popup", return_value=popup_detail),
+                    ):
+                        result = pnsctl._run_shared_startup_recovery(
+                            flow_id="SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+                            task_id="supply-test", session_directory=Path(directory),
+                            max_inputs=10, recovery_scope="test",
+                        )
+                    self.assertEqual(result["recovery_input_count"], 1)
+                    self.assertEqual(result["route_input_count"], 0)
+                    self.assertEqual(result["status"], "recovered" if expected else "evidence_required")
+                    self.assertEqual(runtime.max_inputs, 1)
+
     @staticmethod
     def _scarlett_fixture() -> tuple[np.ndarray, bytes]:
         path = (
@@ -201,12 +262,16 @@ class StartupRecoveryTests(unittest.TestCase):
                 "full_page_real_money_promotion",
                 "visible_in_game_back_upper_left",
                 "purchase_regions_excluded",
+                "current_offer_benefits_and_three_day_rows",
+                "current_first_topup_notice",
             ),
             "safe_exit_target_identity": SCARLETT_SAFE_BACK_TARGET_IDENTITY,
             "safe_exit_roi": SCARLETT_SAFE_BACK_ROI,
             "forbidden_purchase_rois": SCARLETT_FORBIDDEN_PURCHASE_ROIS,
             "purchase_exclusion_verified": True,
-            "critical_roi_hashes": SCARLETT_CRITICAL_ROI_HASHES,
+            "critical_roi_hashes": (("title", "a" * 64),),
+            "page_context_verified": True,
+            "measured_back_roi": (47, 0, 128, 59),
             "expected_successor": SCARLETT_EXPECTED_SUCCESSOR,
             "max_inputs": SCARLETT_MAX_INPUTS,
             "target_count": 1,
@@ -272,12 +337,9 @@ class StartupRecoveryTests(unittest.TestCase):
                 "forbidden_purchase_rois": (),
                 "purchase_exclusion_verified": False,
             },
-            "wrong_stable_roi_signature": {
-                "critical_roi_hashes": (
-                    ("title", "0" * 64),
-                    *SCARLETT_CRITICAL_ROI_HASHES[1:],
-                )
-            },
+            "missing_current_page_context": {"page_context_verified": False},
+            "unmeasured_back": {"measured_back_roi": None},
+            "arrow_outside_safe_region": {"measured_back_roi": (100, 10, 185, 60)},
             "ambiguous_targets": {"target_count": 2},
         }
         for name, changes in variants.items():
@@ -306,18 +368,73 @@ class StartupRecoveryTests(unittest.TestCase):
             animated_result = recognize_scarlett_three_day_pack(animated, animated_payload)
         self.assertTrue(fixture_result["recognized"])
         self.assertTrue(animated_result["recognized"])
-        self.assertEqual(fixture_result["critical_roi_hashes"], animated_result["critical_roi_hashes"])
-        self.assertEqual(animated_result["critical_roi_hashes"], SCARLETT_CRITICAL_ROI_HASHES)
         self.assertEqual(animated_result["frame_sha256"], hashlib.sha256(animated_payload).hexdigest())
 
-    def test_scarlett_recognition_rejects_stable_surface_anchor_drift(self) -> None:
+    def test_scarlett_portrait_artwork_is_not_source_authority(self) -> None:
         frame, _payload = self._scarlett_fixture()
         drifted = frame.copy(); drifted[180:220, 300:340] = 0
         ok, encoded = cv2.imencode(".png", drifted); self.assertTrue(ok)
         with patch("scripts.startup_surface_recognition._title_text", return_value="Scarlett 3-Day Pack"):
             result = recognize_scarlett_three_day_pack(drifted, encoded.tobytes())
-        self.assertFalse(result["recognized"])
-        self.assertEqual(result["reason"], "stable_scarlett_roi_signature_mismatch")
+        self.assertTrue(result["recognized"])
+        self.assertTrue(is_exact_scarlett_recognition(result))
+
+    @staticmethod
+    def _current_scarlett_fixture() -> tuple[np.ndarray, bytes]:
+        path = Path(__file__).parent / "fixtures/startup/scarlett-current-20261029.png"
+        payload = path.read_bytes()
+        return cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR), payload
+
+    def test_current_and_old_native_scarlett_pages_share_semantic_back_binding(self) -> None:
+        old, old_payload = self._scarlett_fixture()
+        current, current_payload = self._current_scarlett_fixture()
+        self.assertNotEqual(hashlib.sha256(old_payload).hexdigest(), hashlib.sha256(current_payload).hexdigest())
+        for frame, payload in ((old, old_payload), (current, current_payload)):
+            with self.subTest(digest=hashlib.sha256(payload).hexdigest()):
+                result = recognize_scarlett_three_day_pack(frame, payload)
+                self.assertTrue(result["recognized"], result)
+                self.assertTrue(is_exact_scarlett_recognition(result))
+                self.assertEqual(result["safe_exit_roi"], SCARLETT_SAFE_BACK_ROI)
+                self.assertEqual(result["measured_back_roi"], (47, 0, 128, 59))
+
+    def test_current_scarlett_accepts_brightness_and_artwork_variance(self) -> None:
+        frame, payload = self._current_scarlett_fixture()
+        changed = cv2.convertScaleAbs(frame, alpha=0.9, beta=8)
+        changed[120:240, 350:690] = (37, 88, 122)
+        ok, encoded = cv2.imencode(".png", changed)
+        self.assertTrue(ok)
+        original = recognize_scarlett_three_day_pack(frame, payload)
+        result = recognize_scarlett_three_day_pack(changed, encoded.tobytes())
+        self.assertTrue(original["recognized"])
+        self.assertTrue(result["recognized"], result)
+        self.assertNotEqual(original["critical_roi_hashes"], result["critical_roi_hashes"])
+        self.assertTrue(is_exact_scarlett_recognition(result))
+
+    def test_scarlett_rejects_native_dialog_and_missing_or_unsafe_back(self) -> None:
+        frame, _payload = self._current_scarlett_fixture()
+        popup_frame = cv2.imread(str(Path(__file__).resolve().parents[1]
+                                     / "tasks/assets/navigation/800x1280/reset_popup_source.png"))
+        overlaid = frame.copy()
+        overlaid[350:920, 50:750] = popup_frame[350:920, 50:750]
+        destroyed = frame.copy()
+        destroyed[0:90, 0:180] = 0
+        moved = destroyed.copy()
+        moved[0:90, 200:380] = frame[0:90, 0:180]
+        wrong_page = frame.copy()
+        wrong_page[80:1280] = 0
+        confirmation = frame.copy()
+        cv2.rectangle(confirmation, (180, 710), (640, 900), (30, 30, 30), -1)
+        cv2.putText(confirmation, "Confirm", (240, 780), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.4, (255, 255, 255), 3)
+        cv2.putText(confirmation, "Cancel", (260, 855), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.4, (255, 255, 255), 3)
+        for name, candidate in (("native_dialog", overlaid), ("destroyed", destroyed),
+                                ("unsafe_moved", moved), ("wrong_page", wrong_page),
+                                ("confirmation", confirmation)):
+            with self.subTest(name=name):
+                ok, encoded = cv2.imencode(".png", candidate)
+                self.assertTrue(ok)
+                self.assertFalse(recognize_scarlett_three_day_pack(candidate, encoded.tobytes())["recognized"])
 
     def test_unknown_commercial_surface_blocks_before_route(self) -> None:
         _frame, payload = self._scarlett_fixture()
@@ -329,6 +446,58 @@ class StartupRecoveryTests(unittest.TestCase):
         self.assertEqual(plan.status, "blocked")
         self.assertEqual(plan.reason, "unknown_commercial_startup_surface")
         self.assertFalse(plan.input_authority)
+
+    @staticmethod
+    def _home_supply_radial_fixture() -> np.ndarray:
+        # Exact native source from observe-20261029T015823723191Z; historical
+        # PNG bytes are preserved as a replay fixture, never as live authority.
+        path = Path(__file__).parent / "fixtures/startup/home-supply-radial-event-hud.png"
+        frame = cv2.imread(str(path))
+        assert frame is not None
+        return frame
+
+    def test_native_home_event_offer_does_not_block_route_owned_radial_cleanup(self) -> None:
+        import pytesseract
+
+        frame = self._home_supply_radial_fixture()
+        original_ocr = pytesseract.image_to_string
+
+        def ocr(candidate, **kwargs):
+            # Preserve the observed full-frame OCR false positive despite
+            # nondeterministic detection of the small animated HUD label.
+            if candidate.shape == frame.shape:
+                return "Timed Top-Up"
+            return original_ocr(candidate, **kwargs)
+
+        with patch("pytesseract.image_to_string", side_effect=ocr):
+            signal = commercial_surface_signal(frame)
+        self.assertFalse(signal["commercial_looking"])
+
+    def test_central_purchase_still_blocks_over_native_home_context(self) -> None:
+        frame = self._home_supply_radial_fixture().copy()
+        cv2.rectangle(frame, (120, 400), (580, 650), (20, 20, 20), -1)
+        cv2.putText(frame, "Purchase $4.99", (130, 500),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.45, (255, 255, 255), 3)
+        signal = commercial_surface_signal(frame)
+        self.assertTrue(signal["commercial_looking"])
+        self.assertIn("purchase", signal["terms"])
+
+    def test_unknown_or_overlaid_source_retains_full_frame_commercial_stop(self) -> None:
+        frame = self._home_supply_radial_fixture()
+        for home in (
+            {"state": "UNKNOWN", "recognized": False},
+            {"state": "HOME_BASE", "recognized": True, "overlay": True},
+            {"state": "HOME_BASE", "recognized": True, "blocking_unknown_modal": True},
+        ):
+            with self.subTest(home=home):
+                with (
+                    patch("scripts.startup_normalization.classify_home_base_live", return_value=home),
+                    patch("pytesseract.image_to_string", return_value="Timed Top-Up") as ocr,
+                ):
+                    signal = commercial_surface_signal(frame)
+                self.assertTrue(signal["commercial_looking"])
+                self.assertIs(ocr.call_args.args[0], frame)
+                self.assertGreater(ocr.call_args.kwargs["timeout"], 0)
 
 
     def test_blocking_unknown_modal_is_not_classified_as_clear(self) -> None:
@@ -425,8 +594,10 @@ class StartupRecoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
             probe = self._scarlett_detail()
-            authorization = dict(probe, frame_sha256="1" * 64)
-            dispatch = dict(probe, frame_sha256="2" * 64)
+            authorization = dict(probe, frame_sha256="1" * 64,
+                                 critical_roi_hashes=(("title", "1" * 64),))
+            dispatch = dict(probe, frame_sha256="2" * 64,
+                            critical_roi_hashes=(("title", "2" * 64),))
             successor = {"recognized": False, "frame_sha256": "3" * 64}
             with patch("scripts.startup_recovery.recognize_startup_surface", side_effect=(probe, authorization, dispatch, successor)):
                 result = self._recover(runtime, task_id="RECRUITMENT-FREE-ATTEMPT-MAINTENANCE", recognize_successor=lambda _frame: False, sleep=lambda _seconds: None, expected_source_sha256="0" * 64)
@@ -452,6 +623,93 @@ class StartupRecoveryTests(unittest.TestCase):
                     )
         self.assertEqual(runtime.input_count, 1)
         self.assertEqual(runtime.reconciliations, ["unresolved"])
+
+    def _recover_known_with_store(self, runtime, store_path, kind, *, present_only=False,
+                                  recovery_scope="same-runtime-account-scope"):
+        options = dict(
+            task_id="TEST-STARTUP-FLOW", recovery_scope=recovery_scope,
+            recognize_successor=lambda _frame: True, sleep=lambda _seconds: None,
+            action_store_factory=lambda: SafetyStore(store_path),
+        )
+        if kind == "scarlett":
+            detail = self._scarlett_detail()
+            with patch(
+                "scripts.startup_recovery.recognize_startup_surface",
+                return_value=detail if present_only else None,
+                side_effect=None if present_only else (
+                    detail, detail, detail, {"recognized": False, "commercial_looking": False}
+                ),
+            ):
+                return recover_known_startup_overlay(runtime, **options)
+        with (
+            patch("scripts.startup_recovery.recognize_startup_surface", return_value={"recognized": False}),
+            patch("scripts.startup_recovery.recognize_reset_popup",
+                  return_value=popup() if present_only else None,
+                  side_effect=None if present_only else (
+                      popup(), popup(), popup(), {"recognized": False}
+                  )),
+        ):
+            return recover_known_startup_overlay(runtime, **options)
+
+    def test_known_startup_recovery_is_once_per_invocation_not_once_per_day(self):
+        for kind in ("scarlett", "vip"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                database = root / "shared-startup.sqlite3"
+                first = FakeRuntime(root / "first-invocation")
+                result = self._recover_known_with_store(first, database, kind)
+                self.assertEqual(result.input_count, 1)
+                self.assertIn(result.status, {"recovered", "surface_dismissed_successor_captured"})
+                with closing(SafetyStore(database)) as store:
+                    retained_first = dict(store.get_action_by_key(result.action_key))
+                with self.assertRaises(StartupRecoveryError):
+                    self._recover_known_with_store(first, database, kind, present_only=True)
+                self.assertEqual(first.input_count, 1)
+                later = FakeRuntime(root / "later-invocation")
+                later_result = self._recover_known_with_store(later, database, kind)
+                self.assertEqual(later_result.input_count, 1)
+                self.assertNotEqual(result.action_key, later_result.action_key)
+                with closing(SafetyStore(database)) as store:
+                    self.assertEqual(dict(store.get_action_by_key(result.action_key)), retained_first)
+                    self.assertEqual(store.get_action_by_key(later_result.action_key)["final_status"], "confirmed")
+
+    def test_new_startup_invocation_preserves_consequential_unresolved_block(self):
+        from tests.test_safe_action_core import intent, request, TEST_TASK_ID
+        from safe_action_core import CentralPolicy, TransportResult
+        from safe_action_core.store import LeaseError
+
+        for kind in ("scarlett", "vip"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                database = root / "shared-startup.sqlite3"
+                with closing(SafetyStore(database)) as store:
+                    store.prepare_action(intent(), CentralPolicy(supervised_tasks={TEST_TASK_ID}).evaluate(request()), time.time())
+                    store.mark_input_sent("action-1", time.time(), TransportResult(True, "synthetic transport"))
+                    store.mark_unresolved("action-1", time.time(), "unknown consequential result")
+                    retained = dict(store.get_action("action-1"))
+                runtime = FakeRuntime(root / "new-invocation")
+                with self.assertRaises(LeaseError):
+                    self._recover_known_with_store(runtime, database, kind, present_only=True)
+                self.assertEqual(runtime.input_count, 0)
+                with closing(SafetyStore(database)) as store:
+                    self.assertTrue(store.has_action_block())
+                    self.assertEqual(dict(store.get_action("action-1")), retained)
+
+    def test_vip_same_invocation_is_not_rearmed_by_midnight(self):
+        from datetime import datetime
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = FakeRuntime(root / "invocation")
+            database = root / "shared-startup.sqlite3"
+            with patch("scripts.startup_recovery.datetime") as clock:
+                clock.now.return_value = datetime(2026, 10, 29, 23, 59, 59)
+                self._recover_known_with_store(runtime, database, "vip", recovery_scope=None)
+                clock.now.return_value = datetime(2026, 10, 30, 0, 0, 1)
+                with self.assertRaises(StartupRecoveryError):
+                    self._recover_known_with_store(runtime, database, "vip", present_only=True,
+                                                   recovery_scope=None)
+            self.assertEqual(runtime.input_count, 1)
     def test_scarlett_unknown_commercial_successor_is_retained_as_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")

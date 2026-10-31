@@ -1,0 +1,8 @@
+{
+  "source": ".local-captures\\automation-service-authorized\\soak-20261031T004042721570Z-6f1c4005\\campaign\\campaign-ap-1-15-9-20261031T004303371350Z\\frames\\0110-campaign-route-076.png",
+  "sha256": "c85f17120be772cca691aa6b8e28c834d25570fc53c0f0c965e4b1a167453ace",
+  "observed_ap": 64,
+  "stage_cost": 14,
+  "preceding_confirmed_battles": 4,
+  "fifth_entry_dispatched": false
+}

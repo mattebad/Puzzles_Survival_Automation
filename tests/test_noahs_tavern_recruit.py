@@ -851,6 +851,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             self.frames = list(frames)
             self.taps = []
             self.backs = []
+            self.reconciles = []
             self.input_count = 0
             self.in_flight_action = None
 
@@ -866,7 +867,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             self.backs.append((captured, kwargs))
 
         def reconcile(self, *_args):
-            return None
+            self.reconciles.append(_args)
 
     def test_home_popup_returns_settled_frame_and_invalidates_old_target(self):
         home = replace(
@@ -992,6 +993,105 @@ class ContextualPopupRouteTests(unittest.TestCase):
         command = controller.next_command(recognition)
         self.assertEqual(command.action, NoahAction.CLOSE_RESULT)
         self.assertNotEqual(command.action, NoahAction.RECRUIT_FREE)
+
+    def test_integrated_route_reconciles_each_verified_input_once(self):
+        """The native-shaped route must journal navigation, free recruit, close, and Home."""
+
+        fixtures = self.f
+        before = fixtures.tavern(selected=RecruitTier.BASIC, basic_remaining=5, digest="c" * 64)
+        after = fixtures.after(before, tier=RecruitTier.BASIC, digest="f" * 64)
+        observations = {
+            1: replace(
+                before,
+                screen_state=HOME_BASE_SCREEN,
+                selected_tier=None,
+                frame_sha256="a" * 64,
+                home_tavern_target_roi=(100, 300, 260, 470),
+            ),
+            2: fixtures.tavern(selected=RecruitTier.BASIC, digest="b" * 64),
+            3: fixtures.result(RecruitTier.BASIC, digest="d" * 64),
+            4: fixtures.result(RecruitTier.BASIC, digest="e" * 64),
+            5: after,
+            6: after,
+            7: after,
+            8: replace(after, screen_state=HOME_BASE_SCREEN, selected_tier=None, frame_sha256="g" * 64),
+            9: replace(after, screen_state=HOME_BASE_SCREEN, selected_tier=None, frame_sha256="h" * 64),
+        }
+        runtime = self.Runtime([self.frame("x" * 64, marker) for marker in range(1, 10)])
+        runtime.measure_device_state = lambda: "device"
+        runtime.measure_foreground_package = lambda: "com.global.ztmslg"
+
+        def recognize(frame, **_kwargs):
+            return observations[int(frame[0, 0, 0])]
+
+        route = NoahTavernIntegratedRoute(
+            runtime,
+            max_recruits=1,
+            recognizer=recognize,
+            atlas_binding=lambda _captured: (100, 300, 260, 470),
+            post_input_delay=0.0,
+        )
+        absent = lambda _runtime, captured, **_kwargs: ContextualPopupRecoveryResult(
+            captured, False, True, True, 0, "exact_vip_popup_absent"
+        )
+        with patch(
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            side_effect=absent,
+        ):
+            result = route.run(max_steps=10)
+
+        self.assertEqual(
+            result.status,
+            "completed",
+            f"{result.reason}; awaiting={route.controller.progress.awaiting_tier!r}; taps={len(runtime.taps)}",
+        )
+        self.assertEqual(result.recruitment_dispatch_count, 1)
+        self.assertEqual(
+            [(item[0], item[1]) for item in runtime.reconciles],
+            [
+                (runtime.taps[0][1]["action_key"], "confirmed"),
+                (runtime.taps[1][1]["action_key"], "confirmed"),
+                (runtime.taps[2][1]["action_key"], "confirmed"),
+                (runtime.backs[0][1]["action_key"], "confirmed"),
+            ],
+        )
+
+    def test_integrated_route_keeps_missing_result_unresolved_without_retry(self):
+        home = replace(
+            self.f.tavern(selected=RecruitTier.BASIC, digest="a" * 64),
+            screen_state=HOME_BASE_SCREEN,
+            selected_tier=None,
+            home_tavern_target_roi=(100, 300, 260, 470),
+        )
+        tavern = self.f.tavern(selected=RecruitTier.BASIC, digest="b" * 64)
+        runtime = self.Runtime([self.frame("x" * 64, 1), self.frame("y" * 64, 2)])
+
+        def recognize(frame, **_kwargs):
+            return home if int(frame[0, 0, 0]) == 1 else tavern
+
+        route = NoahTavernIntegratedRoute(
+            runtime,
+            max_recruits=1,
+            recognizer=recognize,
+            atlas_binding=lambda _captured: (100, 300, 260, 470),
+            post_input_delay=0.0,
+            result_timeout=0.0,
+        )
+        absent = lambda _runtime, captured, **_kwargs: ContextualPopupRecoveryResult(
+            captured, False, True, True, 0, "exact_vip_popup_absent"
+        )
+        with patch(
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            side_effect=absent,
+        ):
+            result = route.run(max_steps=4)
+
+        self.assertEqual(result.status, "unresolved")
+        self.assertEqual(result.reason, "recruit_result_not_recognized")
+        self.assertEqual(result.recruitment_dispatch_count, 1)
+        self.assertEqual(len(runtime.taps), 2)
+        self.assertEqual(len(runtime.reconciles), 1)
+        self.assertEqual(runtime.reconciles[0][1], "confirmed")
     def test_resume_unresolved_result_preserves_phase_context_without_duplicate_recruit(self):
         before = self.f.tavern(selected=RecruitTier.ADV, digest="a" * 64)
         result = self.f.result(RecruitTier.ADV, digest="b" * 64)

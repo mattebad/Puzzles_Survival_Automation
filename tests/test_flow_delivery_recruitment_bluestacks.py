@@ -8,7 +8,7 @@ import hashlib
 import json
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from automation_service.registry import (
     RECRUITMENT_FLOW_ID,
@@ -29,6 +29,21 @@ from scripts.navigation_development_boundary import (
 
 
 class RecruitmentFlowDeliveryTests(unittest.TestCase):
+    def test_retained_verification_routes_to_recruitment_without_an_active_queue(self):
+        retained = {"flow_id": RECRUITMENT_FLOW_ID}
+        validator = Mock(return_value={"status": "verified", "flow_id": RECRUITMENT_FLOW_ID})
+        with (
+            patch.object(pnsctl, "_retained_flow_result", return_value=(Path("retained"), retained)),
+            patch.object(pnsctl, "_verify_flow_structure", return_value={"result": retained}),
+            patch.object(pnsctl, "_load_flow_delivery_state", side_effect=pnsctl.OperatorError("no active queue")),
+            patch.object(pnsctl, "_retained_troop_training_state", side_effect=AssertionError("wrong route")),
+            patch.dict(pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS, {delivery.VALIDATOR_ID: validator}),
+        ):
+            result = json.loads(pnsctl.bluestacks_verify_flow(Path("retained")))
+        self.assertEqual(result["status"], "verified")
+        self.assertEqual(result["flow_id"], RECRUITMENT_FLOW_ID)
+        validator.assert_called_once()
+
     def _registration(self) -> RegisteredDispatchSnapshot:
         return RegisteredDispatchSnapshot(
             flow_id=RECRUITMENT_FLOW_ID,

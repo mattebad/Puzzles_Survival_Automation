@@ -12,6 +12,7 @@ import unittest
 from types import MappingProxyType
 
 import numpy as np
+import cv2
 
 from tasks.perception_bundle import NativeFrameIdentity, bundle_from_identity
 from tasks import semantic_ocr_crop as crop_module
@@ -88,6 +89,39 @@ class SemanticOcrCropTests(unittest.TestCase):
     def setUp(self) -> None:
         self.frame = make_frame(seed=11)
         self.identity = make_identity(self.frame)
+
+    def test_original_png_encoding_and_pixels_are_bound_without_relabeling_identity(self):
+        payloads = [cv2.imencode(".png", self.frame, [cv2.IMWRITE_PNG_COMPRESSION, level])[1].tobytes() for level in (0, 9)]
+        self.assertNotEqual(payloads[0], payloads[1])
+        for payload in payloads:
+            identity = replace(self.identity, transport_sha256=hashlib.sha256(payload).hexdigest())
+            request = CropRoiRequest(identity, (200, 100, 360, 140), source_png=payload)
+            provenance, pixels = prepare_ocr_crop(self.frame, request)
+            self.assertIs(provenance.source_frame, identity)
+            self.assertEqual(provenance.transport_sha256, identity.transport_sha256)
+            np.testing.assert_array_equal(pixels, self.frame[100:140, 200:360])
+            self.assertNotIn("source_png", repr(request))
+            self.assertFalse(hasattr(provenance, "source_png"))
+
+    def test_original_payload_rejects_wrong_bytes_pixels_geometry_and_format(self):
+        payload = cv2.imencode(".png", self.frame, [cv2.IMWRITE_PNG_COMPRESSION, 0])[1].tobytes()
+        identity = replace(self.identity, transport_sha256=hashlib.sha256(payload).hexdigest())
+        changed = self.frame.copy()
+        changed[0, 0, 0] ^= 1
+        with self.assertRaisesRegex(SemanticOcrCropError, "SOURCE_PIXELS_MISMATCH"):
+            prepare_ocr_crop(changed, CropRoiRequest(identity, (200, 100, 360, 140), source_png=payload))
+        with self.assertRaisesRegex(SemanticOcrCropError, "TRANSPORT_DIGEST_MISMATCH"):
+            prepare_ocr_crop(self.frame, CropRoiRequest(identity, (200, 100, 360, 140), source_png=payload + b"changed"))
+        for bad, reason in (
+            (b"not-a-png", "INVALID_SOURCE_PAYLOAD"),
+            (cv2.imencode(".png", self.frame[:100, :100])[1].tobytes(), "FRAME_GEOMETRY_MISMATCH"),
+        ):
+            with self.subTest(reason=reason):
+                bound = replace(identity, transport_sha256=hashlib.sha256(bad).hexdigest())
+                with self.assertRaisesRegex(SemanticOcrCropError, reason):
+                    prepare_ocr_crop(self.frame, CropRoiRequest(bound, (200, 100, 360, 140), source_png=bad))
+        with self.assertRaisesRegex(SemanticOcrCropError, "INVALID_SOURCE_PAYLOAD"):
+            CropRoiRequest(identity, (200, 100, 360, 140), source_png=bytearray(payload))
 
     def test_roi_within_bounds_and_rejects_out_of_bounds(self) -> None:
         request = CropRoiRequest(self.identity, (200, 100, 360, 140))

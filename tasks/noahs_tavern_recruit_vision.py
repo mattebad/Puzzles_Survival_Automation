@@ -155,7 +155,8 @@ def recognize_noahs_tavern_frame(
             visible_tiers = tuple(RecruitTier)
         attempts_text = _text(frame, TAVERN_ATTEMPTS_ROI, ocr=ocr)
         attempts_match = _ATTEMPTS_RE.search(attempts_text) or _ATTEMPTS_FALLBACK_RE.search(attempts_text)
-        attempts = int(attempts_match.group(1)) if attempts_match else None
+        # The displayed Daily counter belongs to Basic even on the other tabs.
+        attempts = int(attempts_match.group(1)) if selected is RecruitTier.BASIC and attempts_match else None
         cooldown_text = attempts_text if parse_cooldown_seconds(attempts_text) else _text(frame, TAVERN_FREE_ROI, ocr=ocr)
         if parse_cooldown_seconds(cooldown_text) is None:
             alternate_timer = _normalize_cooldown_ocr(_text(frame, TAVERN_ATTEMPTS_ROI, psm=11, ocr=ocr))
@@ -175,10 +176,10 @@ def recognize_noahs_tavern_frame(
             and not cooldown_active
             and _purple_ratio(frame, TAVERN_FREE_ROI) >= 0.04
         )
-        # The native 800x1280 counter occasionally OCRs its lone digit as ``|``.
-        # For the one-attempt tiers only, the independently recognized enabled
-        # Free Recruit 1x control is sufficient to establish that one remains.
-        if attempts is None and free_control_enabled and TIER_ATTEMPT_MAXIMUMS[selected or RecruitTier.BASIC] == 1:
+        # Int./Advanced each have one independent free attempt. Establish it
+        # only from the enabled literal Free Recruit 1x control, never Basic's
+        # Daily counter, which may already be zero.
+        if free_control_enabled and selected in (RecruitTier.INT, RecruitTier.ADV):
             attempts = 1
         # A cooldown frame shows the same Daily Free slot as disabled "Recruit 1x".
         free_slot_visible = free_label_visible or cooldown_active

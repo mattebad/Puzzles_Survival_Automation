@@ -1,0 +1,24 @@
+{
+  "capture_kind": "byte-for-byte native source copies; no image edits",
+  "runtime_profile": "native-800x1280",
+  "frames": [
+    {
+      "fixture": "native-before-one.png",
+      "source": ".local-captures/automation-service-authorized/soak-20261029T162014072856Z-fe8c71ef/nova/nova-praise-one-free-pulse-20261029T162014281885Z/frames/0008-praise-central-immediate-before.png",
+      "transport_sha256": "b8305dd3eab139d5e833eb522e8e092e6c2084c39cbdfcacfd3f4bc58d72a35d",
+      "width": 800,
+      "height": 1280,
+      "captured_monotonic": 732007.312,
+      "timestamp": "2026-10-29T16:20:42.511035+00:00"
+    },
+    {
+      "fixture": "native-after-zero.png",
+      "source": ".local-captures/automation-service-authorized/soak-20261029T162014072856Z-fe8c71ef/nova/nova-praise-one-free-pulse-20261029T162014281885Z/frames/0011-praise-central-post-3.png",
+      "transport_sha256": "9555507e387cf32d658af2d3b84a2d73cfc68910651f82d402f8ae0239c07e9b",
+      "width": 800,
+      "height": 1280,
+      "captured_monotonic": 732017.484,
+      "timestamp": "2026-10-29T16:20:52.675659+00:00"
+    }
+  ]
+}

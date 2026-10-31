@@ -20,6 +20,7 @@ from .noahs_tavern_recruit import (
     NOAHS_TAVERN_SCREEN,
     NoahTavernObservation,
     RecruitTier,
+    TIER_ATTEMPT_MAXIMUMS,
     noah_consumed_attempts_remaining,
     noah_recruit_authorizeable,
     noah_result_postcondition_verified,
@@ -200,6 +201,55 @@ def _home_terminal_verified(observation: NoahTavernObservation | None) -> bool:
     )
 
 
+def basic_rollover_observation_pending(state: NoahMaintenanceState) -> bool:
+    """Identify the exact unused Basic rollover sentinel for bounded reinspection.
+
+    A verified recruit always replaces this sentinel with consumed quota, a
+    deadline, and ``action_performed``.  No other legacy or observed tier state
+    supports this pending-observation classification. The count may reflect a
+    transient native quota observation; this predicate never changes ownership.
+    """
+
+    return bool(
+        state.tiers[RecruitTier.BASIC]
+        == PersistedTierState(5, None, TIER_COOLDOWN_SECONDS[RecruitTier.BASIC], "reset_rollover")
+    )
+
+
+def _calibrate_basic_daily_count(
+    state: NoahMaintenanceState,
+    observation: NoahTavernObservation,
+) -> None:
+    """Adopt a positively recognized native Basic counter conservatively.
+
+    The vision adapter only supplies ``attempts_remaining`` for Basic when its
+    counter OCR is present (the one-attempt Int./Advanced fallback is not used
+    here).  Unknown, stale, overlaid, or non-Tavern observations therefore
+    cannot invent prior daily usage.  Calibration is monotonic so a restart or
+    cooldown observation can never erase persisted ownership.
+    """
+
+    if (
+        observation.screen_state != NOAHS_TAVERN_SCREEN
+        or observation.selected_tier is not RecruitTier.BASIC
+        or not observation.recognized
+        or observation.stale
+        or observation.overlay_state not in {"none", "none_observed"}
+        or not _HASH_RE.fullmatch(observation.frame_sha256 or "")
+    ):
+        return
+    selected = observation.tier(RecruitTier.BASIC)
+    if (
+        not selected.recognized
+        or selected.daily_attempt_maximum != TIER_ATTEMPT_MAXIMUMS[RecruitTier.BASIC]
+        or selected.attempts_remaining is None
+        or not 0 <= selected.attempts_remaining <= TIER_ATTEMPT_MAXIMUMS[RecruitTier.BASIC]
+    ):
+        return
+    inferred_count = TIER_ATTEMPT_MAXIMUMS[RecruitTier.BASIC] - selected.attempts_remaining
+    state.basic_daily_count = max(state.basic_daily_count, inferred_count)
+
+
 class NoahTavernMaintenanceController:
     """Evaluate one complete three-tab pass; never dispatch transport."""
 
@@ -211,6 +261,8 @@ class NoahTavernMaintenanceController:
         """Apply persisted ownership/cooldown policy to one fresh current-frame tier."""
 
         clock = self.now if now is None else now
+        if tier is RecruitTier.BASIC:
+            _calibrate_basic_daily_count(self.state, observation)
         state = self.state.tiers[tier]
         if tier is RecruitTier.BASIC and self.state.basic_daily_count >= 5:
             return False
@@ -257,6 +309,8 @@ class NoahTavernMaintenanceController:
         consumed_remaining = noah_consumed_attempts_remaining(before, tier)
         if consumed_remaining is None:
             raise ValueError("verified transition requires an authorized free source")
+        if tier is RecruitTier.BASIC:
+            _calibrate_basic_daily_count(self.state, before)
         clock = self.now if now is None else now
         nominal = TIER_COOLDOWN_SECONDS[tier]
         deadline = clock + nominal
@@ -321,6 +375,8 @@ class NoahTavernMaintenanceController:
                 blocked = True
                 break
             selected = before.tier(tier)
+            if tier is RecruitTier.BASIC:
+                _calibrate_basic_daily_count(candidate, before)
             persisted = candidate.tiers[tier]
             if tier is RecruitTier.BASIC and candidate.basic_daily_count >= 5:
                 tier_results.append(TierPassResult(tier, TierPassOutcome.ALREADY_COMPLETE, "basic_daily_maximum_reached"))
@@ -467,6 +523,45 @@ def replay_noahs_tavern_maintenance(
     if repository is not None:
         repository.apply_result(result.scheduler_result, now)
     return result, controller.state.to_json()
+
+
+def project_maintenance_terminal_home(
+    repository,
+    identity: SchedulerIdentity,
+    *,
+    terminal_home_verified: bool,
+    updated_at: float,
+) -> SchedulerInvocationState | None:
+    """Finalize only the existing pass's Home fact, never another tier transition.
+
+    Keep the transition revision: the existing store rejects this save if a
+    newer outcome advanced that revision after the read. Counters, cooldowns,
+    status, and unresolved-result ownership remain exactly as persisted.
+    """
+    if (not isinstance(identity, SchedulerIdentity)
+            or identity.task_id not in {MAINTENANCE_TASK_ID, DAILY_RECRUITMENT_TASK_ID}):
+        raise ValueError("terminal Home projection requires a Noah maintenance identity")
+    if type(terminal_home_verified) is not bool:
+        raise ValueError("terminal Home verification must be boolean")
+    if type(updated_at) not in (int, float) or not math.isfinite(updated_at) or updated_at < 0:
+        raise ValueError("terminal Home projection requires a finite observation time")
+    current = repository.get(identity)
+    if current is None:
+        return None
+    progress = json.loads(current.observed_progress_json)
+    if not isinstance(progress, dict):
+        raise ValueError("persisted Noah maintenance progress is not an object")
+    verified = bool(
+        terminal_home_verified and not current.unresolved_action
+        and current.status in {"deferred", "already_complete", "complete_for_reset"}
+    )
+    if progress.get("terminal_home_verified") is verified:
+        return current
+    progress["terminal_home_verified"] = verified
+    return repository.save(
+        replace(current, observed_progress_json=json.dumps(progress, sort_keys=True)),
+        updated_at,
+    )
 
 
 def rollover_maintenance_state(state: NoahMaintenanceState, new_reset_id: str) -> NoahMaintenanceState:

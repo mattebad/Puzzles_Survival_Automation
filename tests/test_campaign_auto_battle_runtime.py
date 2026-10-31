@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -12,8 +13,6 @@ from tasks.campaign_auto_battle import (
     CampaignRouteObservation,
     CampaignScreen,
     CampaignStage,
-    PRODUCTION_REPLAY_VERIFIED,
-    run_campaign_ap_production_zero_transport_replay,
 )
 from tasks.campaign_auto_battle_runtime import (
     CAMPAIGN_HOME_ATLAS_BUILDING_ID,
@@ -51,6 +50,47 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
             battle_timeout_seconds=180,
         )
         self.controller = CampaignRuntimeController(self.config)
+
+    def test_lost_atlas_support_reframes_once_after_strong_pan_then_requires_new_binding(self):
+        from tasks.campaign_atlas_chapter_nav import AtlasChapterNavDecision
+        from tasks.campaign_atlas_vision import hud_safe_pan_gesture
+        source = recognized(CampaignRouteObservation(screen=CampaignScreen.TIER_MAP, selected_tier=1,
+                            chapter_navigation_available=True, ap_current=99))
+        def plan(distance):
+            return AtlasChapterNavDecision("swipe", "atlas-directed pan", swipe=hud_safe_pan_gesture("right").as_swipe(),
+                pan_direction="right", localization_recognized=True, distance_to_screen_center_px=distance,
+                localization_support=("viewport-062",))
+        lost = AtlasChapterNavDecision("blocked", "no current atlas localization")
+        with patch("tasks.campaign_atlas_chapter_nav.resolve_atlas_chapter_navigation",
+                   side_effect=[plan(900), plan(700), lost, lost]):
+            first = self.controller._atlas_chapter_command(source, object())
+            self.controller.accept_dispatched(first)
+            stronger = self.controller._atlas_chapter_command(source, object())
+            self.controller.accept_dispatched(stronger)
+            reframe = self.controller._atlas_chapter_command(source, object())
+            self.assertEqual(reframe.kind, "swipe")
+            self.assertNotEqual(reframe.swipe, stronger.swipe)
+            self.assertIsNone(reframe.target_identity)
+            self.controller.accept_dispatched(reframe)
+            stopped = self.controller._atlas_chapter_command(source, object())
+            self.assertTrue(stopped.terminal)
+            self.assertEqual(stopped.action, CampaignAction.BLOCKED)
+
+    def test_localized_unbound_destination_does_not_receive_lost_support_reframe(self):
+        from tasks.campaign_atlas_chapter_nav import AtlasChapterNavDecision
+        from tasks.campaign_atlas_vision import hud_safe_pan_gesture
+        source = recognized(CampaignRouteObservation(screen=CampaignScreen.TIER_MAP, selected_tier=1,
+                            chapter_navigation_available=True, ap_current=99))
+        initial = AtlasChapterNavDecision("swipe", "atlas-directed pan", swipe=hud_safe_pan_gesture("right").as_swipe(),
+            pan_direction="right", localization_recognized=True, distance_to_screen_center_px=900,
+            localization_support=("viewport-062",))
+        unbound = AtlasChapterNavDecision("blocked", "current projected destination cannot be bound",
+            localization_recognized=True, distance_to_screen_center_px=500, localization_support=("viewport-062",))
+        with patch("tasks.campaign_atlas_chapter_nav.resolve_atlas_chapter_navigation", side_effect=[initial, unbound]):
+            self.controller.accept_dispatched(self.controller._atlas_chapter_command(source, object()))
+            stopped = self.controller._atlas_chapter_command(source, object())
+            self.assertTrue(stopped.terminal)
+            self.assertEqual(stopped.reason, unbound.reason)
 
     def test_route_uses_bound_targets_and_only_lineup_challenge(self):
         home = recognized(
@@ -546,16 +586,6 @@ class CampaignVisionReplayTests(unittest.TestCase):
         self.assertEqual(_fraction("120/120"), (120, 120))
         self.assertIsNone(_fraction("720/120"))
         self.assertIsNone(_fraction("0/0"))
-
-    @unittest.skipUnless(capture.is_dir(), "ignored local BlueStacks replay is unavailable")
-    def test_production_controller_zero_transport_replay_clears_gate(self):
-        result = run_campaign_ap_production_zero_transport_replay()
-        self.assertEqual(result.status, PRODUCTION_REPLAY_VERIFIED)
-        self.assertEqual(result.transport_count, 0)
-        self.assertFalse(result.dispatch_authorized)
-        self.assertEqual(result.battle_outcome, "victory")
-        self.assertEqual((result.ap_before, result.ap_after, result.ap_cost), (120, 100, 20))
-        self.assertEqual(result.terminal_screen, CampaignScreen.HOME_BASE.value)
 
     def test_project_templates_exist_and_have_expected_shapes(self):
         assets = Path("tasks/assets/campaign_auto_battle/800x1280")

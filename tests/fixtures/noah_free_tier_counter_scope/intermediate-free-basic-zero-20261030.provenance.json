@@ -1,0 +1,17 @@
+{
+  "capture_kind": "byte-for-byte retained native source copy",
+  "source": ".local-captures/automation-service-authorized/soak-20261030T075900167043Z-0102b911/recruitment/noahs-tavern-unified-recruitment-20261030T082100495396Z/frames/0011-step-003-source.png",
+  "fixture": "intermediate-free-basic-zero-20261030.png",
+  "transport_sha256": "afe5d41d1abc3e37a5c65a4453d76cfbcca5bd17c247dcdf8ac90f222bc91e06",
+  "decoded_frame_sha256": "9c366081dc6650ab76a621523a5e20afb82b13f64956e16383d0ed104865435d",
+  "width": 800,
+  "height": 1280,
+  "displayed_counter_native_ocr": "daily free attempts: 0",
+  "pre_fix_native_ocr": {
+    "selected_tier": "Int. Recruit",
+    "attempts_remaining": 0,
+    "free_control_enabled": true,
+    "authorizeable": false
+  },
+  "observation": "Offline native OCR recognizes selected Int. Recruit, displayed Daily free attempts 0 and enabled zero-cost Free Recruit 1x. The daily label is Basic ownership; Int. has one independently enabled free attempt. Historical capture and offline regression do not authorize live execution or prove a live recruit acceptance."
+}

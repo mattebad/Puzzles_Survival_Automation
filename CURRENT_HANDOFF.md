@@ -3,154 +3,207 @@
 <!-- CURRENT_HANDOFF_STATE_BEGIN -->
 {
   "schema_version": 3,
-  "branch": "refactor/lean-bot-backlog",
-  "head_binding": "eb5a6fa4b3b270a66708a0e9350786288c66ea2c",
-  "last_product_candidate_head": "804d9a25d12f41463e5a67912f0327f8dc6fa2d4",
-  "merge_boundary": {
-    "pull_request": 15,
-    "base_head": "69a262150d5c4847df23175c4820602d2d432339",
-    "candidate_head": "804d9a25d12f41463e5a67912f0327f8dc6fa2d4",
-    "state": "pan_correction_verified_publication_authorized",
-    "runtime_or_authority_changes": true,
-    "pending_action": "User authorized committing and pushing the scoped PAN admission and terminal-handling correction. This receipt records pre-publication verification; Git and PR #15 identify the resulting commit and remote publication. The SHA anchors and Actions run 35765739810 identify historical verified history, not CI proof for the new correction. Confirm Ubuntu/Windows CI on the resulting candidate before merge."
-  },
-  "ahead_behind": {
-    "source": "compute_from_git"
-  },
-  "attributable_dirty_paths": [],
-  "task_start_worktree": {
-    "tracked_dirty_paths": [],
-    "protected_untracked_paths": [
-      ".local-captures/",
-      ".local-reference/",
-      "evidence/"
-    ]
-  },
-  "protected_user_owned_paths": [
-    "Stop-PnS-OMP.ps1",
-    ".local-captures/",
-    ".local-reference/",
-    "evidence/"
-  ],
-  "current_task_id": "PR-15-ATLAS-PAN-HOME-ADMISSION",
+  "branch": "codex/bluestacks-route-reliability",
+  "head_binding": "67ef48c495f4786ce2243891a8b4728e43b95468",
+  "updated_utc": "2026-10-31T19:43:17.536338+00:00",
+  "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
-  "next_task_id": "LB-09-NATURAL-POPUP-EVIDENCE",
-  "next_task_activation_status": "dependency_blocked",
-  "active_task_or_flow": "none",
-  "active_delivery_stage": "offline_pan_correction_publication_authorized",
-  "active_execution_manifest_path": null,
-  "development_lease_state": "absent",
-  "runtime_ownership_state": "none",
-  "writable_agent_state": "none",
-  "unresolved_action_state": "startup_vip_action_unresolved_preserved",
-  "latest_focused_validation_result": "Local Windows Python 3.12: 348 affected tests run, 346 passed and 2 skipped. Includes all four production fresh-overlay rejection paths, persisted blocked navigation/results, zero capability issue/consume and input, clean PAN preservation, prepare-before-transport ordering, and RuntimeError/matching typed transport-fault propagation. Scoped source/test compilation passed. Offline direct-canary smoke returned blocked with matching result.json and evidence_required summary.json, input_count 0 and zero swipes for Supply and Bioenhancer. Classifier facts/transport were controlled; no live visual-accuracy or current-working-tree CI claim.",
-  "latest_architecture_validation_result": "Digest-bound planning and fresh PAN clean-Home guards are preserved. Atlas records and persists PAN preparation only after fresh admission and before capability issuance/input; pre-admission rejection persists a blocked navigation outcome without a prepared ledger entry. Supply/Bioenhancer persist normal blocked/evidence_required terminal results before any input. Post-admission or post-accounting errors are not recast as no-dispatch rejection. Clean binding=None remains pannable; no historical ledger clearing, retry, or reopened accounting/geometry/governance design.",
-  "latest_full_suite_result": "Historical only: pre-merge branch recorded 488 passed and 6 skipped; no post-correction full-suite claim",
-  "current_live_attempt_state": "not_run_during_offline_review_corrections",
-  "current_evidence_or_session_reference": ".local-captures/lb09-panfix-rerun-20260919T041106Z/noahs-tavern-unified-recruitment-20260919T041110785460Z/unified-recruitment-result.json",
-  "last_safe_completed_step": "Integrated scoped Atlas and direct-canary terminal-handling task workers, repaired the synthetic persistence-ordering recognition fixture, passed the affected regression set, and exercised returned plus retained zero-input rejection outcomes offline",
-  "exact_next_permitted_action": "Commit and push the verified scoped PAN correction to the existing branch, confirm its remote receipt, and inspect exact-candidate CI; no merge or runtime/live action is authorized",
-  "current_blocker": "The reported PAN admission and rejection-completion gaps are closed in the exercised offline paths. Exact-candidate Ubuntu/Windows CI remains unverified; use Git and PR #15 for publication status. Native-runner return-time accounting remains accepted as fail-closed. The retained startup VIP action remains unresolved; current_task_state is not marked completed because that lifecycle requires clear unresolved state.",
-  "prohibited_repeated_action": "Do not clear or relabel the retained startup VIP unresolved action; do not synthesize popup evidence, enable registration or scheduling, merge, force-push, or perform runtime input",
-  "stage_revision": "pr15-atlas-pan-terminal-handling",
-  "stage_type": "offline_reconciliation",
-  "product_precondition": "met_for_offline_corrections_only",
-  "failure_class": "none",
-  "budgets": {
-    "stage_revisions_used": 0,
-    "managed_turns_used": 0,
-    "live_attempts_used": 0,
-    "runtime_inputs_used": 0
-  },
-  "retained_terminal_disposition": {
-    "task_id": "runtime-reliability-stage-10-phase-5-campaign-ap-r2",
-    "state": "blocked_evidence_required",
-    "evidence_requirement": "EVIDENCE_REQUIRED",
-    "evidence_or_session_reference": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20260826T214745064655Z",
-    "budgets": {
-      "stage_revisions_used": 2,
-      "managed_turns_used": 0,
-      "live_attempts_used": 1,
-      "runtime_inputs_used": 0
-    },
-    "no_retry_disposition": "No identical Campaign r2 retry, repair, additional observation, or gameplay input is authorized"
-  },
+  "active_task_or_flow": "Local branch snapshot and review preparation; no live operator",
+  "authorization": "User requested cutting all session work onto a branch and assessing wrap-up before pushing/opening review. Local branch snapshot/commit and device-free checks are authorized; no new gameplay run, permanent enablement or publication during this preparation.",
+  "runtime_ownership_state": "No live operator. Root controller39912/94b22fec terminal completed; all9flow controls and service OFF, no lease owner/active/orphan run.",
+  "current_live_attempt_state": "Latest frozen source completed1200.057seconds,8reports/22inputs/allHome:2NovaPraises to0remain,2Basic recruits to5used/0remain,4zero-input Campaignchecks. Completed daily routes stayed gated.",
+  "current_evidence_or_session_reference": ".local-captures\\automation-service-authorized\\soak-20261031T050050678225Z-94b22fec",
+  "last_safe_completed_step": "Final read-only audit verified185unchanged source hashes,127nativecapture hashes,all5Basic native confirmations/persisted count5,7confirmedNovaactions, exactCampaign completion+300 and disabled cleanup.",
+  "current_blocker": "No runtime block. evidence_required: fully uninterrupted Enhancement at next realreset, continuously consuming native00UTC crossing, next-reset Tavern client refresh, live extra camera branches and definitive PlayGames prompt causality.",
+  "exact_next_permitted_action": "Use the existing sole-operator controller with current authorization. At November1 00UTC test one uninterrupted Gear/Chip/Module Profile visit and observe actual client free-recruit refresh; retain any consuming-reset crossing separately. No forced same-reset daily repeats or manual-only account/login automation.",
+  "unresolved_action_state": "Core/resource blocks clear. Original Personal Might Praise confirmed; failed original/native wrapper artifacts remain immutable.",
   "registration_and_scheduler": {
-    "production_registration": "NOT_REGISTERED",
-    "scheduler_enabled": false,
-    "active_runtime": "none"
+    "canonical_code_registration": "9 fixed registered specs; separate from enablement",
+    "permanent_production_scheduler_enabled": false,
+    "canonical_service_enabled": false,
+    "temporary_selected_flow_enabled": [],
+    "active_runtime": null,
+    "other_flows_enabled": false,
+    "exit_policy": "Bounded controller owns temporary controls and restores all OFF; no permanent deployment/enablement."
   },
   "journals_and_lease": {
-    "development_lease_status": "absent",
-    "active_prepared_input_sent_unresolved_action_ids": [
-      "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE:startup-recovery:vip-reset-close:694e10fd13a56b5e"
-    ],
-    "historical_journals": "retained_immutable"
+    "historical_journals": "retained immutable",
+    "active_action_state": "No unresolved Core/resource effects, active/orphan run or owner; native Recruitment count5 is persisted.",
+    "development_lease_status": "No active development/runtime operator; bounded cleanup verified."
   },
-  "evidence": {
-    "evidence_requirement": "NON_HOME_AND_POST_CONSUMPTION_POPUP_PROOF_PENDING",
-    "evidence_requirement_reason": "Home-context popup recovery and the popup-free Recruitment route are live-proven; Tavern/non-Home and post-consumption interruption await natural occurrence.",
-    "active_evidence_manifest": ".local-captures/lb09-panfix-rerun-20260919T041106Z/noahs-tavern-unified-recruitment-20260919T041110785460Z/unified-recruitment-result.json",
-    "monitoring_issue": "none; no live monitoring or input during offline review corrections",
-    "do_not_recursively_inspect_parent_evidence_tree": true
+  "route_state": {
+    "nova": {
+      "accepted": "October31 all7freePraises confirmed/Home; remaining0.",
+      "remaining": 0,
+      "next_due_utc": 1793491200
+    },
+    "campaign": {
+      "accepted": "Latest repaired Campaign source full drain19+1-14=6,1win/13inputs/Home; earlier current agreement reader46+1-42=5,3wins/24inputs/Home.",
+      "cadence": "300seconds after whole-route completion; no wait between affordable battles.",
+      "stage": "1-15-9",
+      "cost_per_battle": 14,
+      "latest_home_ap": 11,
+      "latest_completed_at_utc": 1793423904.0808675,
+      "next_due_utc": 1793424204.0808675,
+      "latest_ap_basis": "Fresh canonical observation from current fixed reader; retained frame available in report home_ap_observation.",
+      "latest_full_drain_report": ".local-captures/automation-service-authorized/soak-20261031T044409742700Z-f0eeb16e/report-0001.json",
+      "current_source_cadence": "1200.057seconds,8reports/22inputs overall; Campaign4zero-input lowAP checks, everyHome and exact+300; prior7200-second source acceptance remains historical.",
+      "followup_initial_home_ap": 120,
+      "current_source_full_drain": "Latest Campaign-specific source full19+1-14=6/Home. Extra fallback original native frames replay offline; live pass used chapter anchors."
+    },
+    "recruitment": {
+      "accepted": "October31 all5Basic free recruits: each native result/cooldown and Home confirmed, persisted count5/remaining0. No Int/Adv timer edits.",
+      "basic_daily_count": 5,
+      "basic_remaining": 0,
+      "intermediate_next_eligible_utc": 1793435594.329401,
+      "advanced_next_eligible_utc": 1793434088.0746179,
+      "canonical_next_due_utc": 1793434088.0746179,
+      "rules": "Basic resets at00UTC; Intermediate24h and Advanced48h remain independent. No timer/quota edits."
+    },
+    "bioenhancer": {
+      "accepted": "Day31 oneFreeResearch,5inputs including1knownstartupBack,verifiedcooldown20:00:53 andHome; nextUTCreset due.",
+      "next_due_utc": 1793491200.123494
+    },
+    "supply": {
+      "accepted": "October31 oneHold exhausted9free attempts to0,7inputs/Home.",
+      "next_due_utc": 1793491200
+    },
+    "ultimate": {
+      "accepted": "October31 oneFlee,9inputs/Home, complete for reset.",
+      "next_due_utc": 1793491200
+    },
+    "enhancement": {
+      "accepted": "Day31 Gear/Chip/Module eachonce,onephysicalProfilevisit,22inputs3Confirms/Home; composite9c0364f4+c9a0c6eb fully independentlyverified. Canonical0inputcompletion8da4e1d0 accepted.",
+      "next_due_utc": 1793491200.0
+    },
+    "personal_might": {
+      "accepted": "October31 original1Praise confirmed through original/freshgray proof,2Back/Home. Later canonical recognized-More resume4navigation/0Praise/Home, already complete for reset.",
+      "next_due_utc": 1793491200
+    }
   },
-  "control_parent_conversation_id": "pr15-offline-review-corrections",
-  "deferred_independent_review": "User authorized the narrow PAN rejection-completion follow-up via task subagents. Two disjoint workers implemented Atlas and direct-canary terminal handling; parent integrated and verified actual caller outcomes, persistence ordering, and exception-stage distinctions. Cleared findings and remaining live-evidence limits are unchanged.",
-  "stage_7_ordered_plan": [],
-  "next_three_atomic_tasks": [
-    "Commit and push the verified scoped PAN correction to the existing branch",
-    "Confirm the remote candidate and inspect its Ubuntu/Windows CI without merging",
-    "Preserve unresolved startup VIP state and disabled runtime controls"
+  "frozen_source_manifest": ".local-orchestrator\\logs\\followup-pm-caption-more-resume-all8-frozen-source-20261031.json",
+  "validation": "Focused current fixes: PersonalMight57checks across sandbox/path-access retry, then23caption/More checks; Campaign25controller/revalidation checks; Enhancement44final replay/service checks and native composite; Bio focused button/startup/camera packages. No full repository discovery. Five unchanged PowerShell export checks remain host-authorization-limited.",
+  "accepted_evidence": [
+    ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
+    ".local-orchestrator/logs/noah-full-basic-quota-audit-20261030.json",
+    ".local-orchestrator/logs/noah-intermediate-free-counter-live-audit-20261030.json",
+    ".local-orchestrator/logs/noah-intermediate-before-due-restart-audit-20261030.json",
+    ".local-orchestrator/logs/enhancement-positive-family-audit-20261030.json",
+    ".local-orchestrator/logs/launcher-restoration-route-audit-20261030.json",
+    ".local-orchestrator/logs/campaign-current-lineup-drain-audit-20261030.json",
+    ".local-orchestrator/logs/campaign-hud-waypoint-full-drain-live-audit-20261030.json",
+    ".local-orchestrator/logs/campaign-hud-before-due-restart-audit-20261030.json",
+    ".local-orchestrator/logs/campaign-home-ap-five-offline-validation-20261030.json",
+    ".local-orchestrator/logs/campaign-home-ap-five-preprocessing-native-probe-20261030.json",
+    ".local-orchestrator/logs/campaign-home-ap-five-before-due-restart-audit-20261030.json",
+    ".local-orchestrator/logs/campaign-home-ap-five-and-six-live-audit-20261030.json",
+    ".local-orchestrator/logs/current-source-full-7200-cadence-audit-20261030.json",
+    ".local-orchestrator/logs/cold-restart-measured-icon-home-audit-20261030.json",
+    ".local-orchestrator\\logs\\campaign-headquarters-home-zero-input-stop-20261030.json",
+    ".local-orchestrator\\logs\\current-source-all8-1200-cadence-final-audit-20261031.json",
+    ".local-orchestrator/logs/personal-might-more-resume-zero-repeat-home-live-audit-20261031.json",
+    ".local-orchestrator/logs/campaign-after-map-reframe-repair-full-drain-home-live-audit-20261031.json"
   ],
-  "stage_start_utc": "2026-09-19T04:24:00Z",
-  "continuation_checkpoint_utc": "2026-09-23T05:20:25Z"
+  "additional_coverage_evidence_required": [
+    "Fresh current-source full AP120 drain after fixed-margin OCR.",
+    "Fresh uninterrupted Gear/Chip/Module visit naturally due2026-10-31.",
+    "Continuous consuming native route across00UTC remains unproved; actual pre-native Bio rollover was safely deferred0/0."
+  ],
+  "goal_finish_scope": "Current follow-up: stale docs/governance cleanup and backlog reconciliation completed offline; cold restart/Home accepted. Finish actual UTC-crossing cohort, uninterrupted enhancement and final accounting/cleanup audit. No permanent deployment.",
+  "preserved_user_work": "Keep unrelated Stop-PnS-OMP.ps1, Start-PnS-OMP.ps1, evidence/current-evidence-manifest.json, untracked plans/temp/evidence and retained stashc64ed66fca97644822f0f4281c1243de205a377e. Do not stage/reset/stash/clean them. Git has many uncommitted attributable and pre-existing changes.",
+  "subagent_preferences": "All delegates use explicit high-or-higher effort and current user-approved model tier. All current implementation/review/retrieval agents are frozen.",
+  "history_archive": "docs/archive/current-handoff-native-route-history-20261030T085441Z.md",
+  "history_archive_sha256": "86f9a338b97150fcdaddac77b0dded3030565e3ff2e8bb3fd8fc961ca096d8eb",
+  "live_ap_digit_verification": {
+    "5": {
+      "status": "live_accepted",
+      "report": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\soak-20261030T093002301699Z-1d7d1315\\report-0011.json",
+      "frame_sha256": "7b4c43f068fcd07a268fee5c95c131b2269e231dbc82368f5afd28145d817381",
+      "root_visual_value": 5,
+      "reported_value": 5,
+      "inputs": 0,
+      "terminal_home_verified": true
+    },
+    "6": {
+      "status": "live_accepted",
+      "report": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\soak-20261030T093002301699Z-1d7d1315\\report-0012.json",
+      "frame_sha256": "e896054fa1d52c63440dd6e0a02ab997adc591628a29cfd01501c0cf40718b3c",
+      "root_visual_value": 6,
+      "reported_value": 6,
+      "inputs": 0,
+      "terminal_home_verified": true
+    }
+  },
+  "desktop_access_retry": {
+    "status": "succeeded",
+    "receipt": ".local-orchestrator/logs/desktop-access-retry-20261030T1105Z.json",
+    "scope": "User requested retry; sky.list_apps found the existing BlueStacks window. No new approval prompt, screenshot, launch or input; active canonical run undisturbed."
+  },
+  "final_cadence_audit": {
+    "status": "full_7200_second_current_source_serial_cadence_accepted",
+    "actual_seconds": 7200.3374400138855,
+    "selected_routes": 8,
+    "completed_reports": 21,
+    "campaign_wins": 2,
+    "campaign_no_work_checks": 19,
+    "game_inputs": 24,
+    "capture_hashes_verified": 159,
+    "dispatch_source_bindings_verified": 24,
+    "frozen_source_files_unchanged": 185,
+    "controls_restored_off": true
+  },
+  "followup_work": {
+    "governance_cleanup": "Retired stagedvalidator/test and unusedsinglebattle gate archivedtext/callersremoved. Historical rootproposal movedbyteexacttoarchive; currentarchitecture links pointserviceguide. No runtimeauthorityremoved.",
+    "backlog_reconciliation": "74 records retained;31 local overlaps reclassified with dated scope/remaining work; no merged/deployed closure inferred",
+    "focused_verification": "57 startup/restart/reset checks passed;5 unchanged export checks blocked by PowerShell authorization",
+    "cold_restart": "live_accepted: cold-restart-measured-icon-home-audit-20261030.json",
+    "native_reset_crossing": "Actual00UTC pre-native Bio rollover safely deferred0/0; outer controller strict deferral acceptance fixed and9 consumer checks passed. Continuous consuming native route across00 remains unproved.",
+    "uninterrupted_enhancement": "Day31samephysicalProfilevisit/all3once/Home22/3acceptedwithresumedproof. Fullyuninterruptednativeattempt remains evidence_required; categoriesexhaustedforcurrentreset.",
+    "launcher_intent": "Second corrected cold restart verified exit/start and Home; no Play Games foreground detected or manual Cancel during test. CommandcallerUID2000 differs frommanualiconlauncherUID10065; cause remains evidence_required.",
+    "campaign_repair": "LIVE_ACCEPTED: current-ap-agreement-full-drain-live-audit-20261031.json;3wins/42AP/24inputs/Home, source185 unchanged, exact+300. Earlier interrupted passes preserved separately.",
+    "nova_startup": "October31 all7freePraises confirmed/Home; current-source final2 completed during20minute cadence.",
+    "noah_reset_review": "October31 all5actualBasicfree recruits confirmed/Home and persistedcount5. Priorstalezeroobservations retained; next-resetcontinuousclientrefresh unproved; independentInt/Adv deadlines preserved.",
+    "bio_navigation": "Extra calibratedcamera waypoint offline27checks; latestliveentry neededonly1normalpan. CompleteFreeResearch1xlabel andknownreadyPanelHomeprelude liveaccepted1Research/5inputs/Home.",
+    "personal_might_repair": "Disabledthumb antialias/exactwordfragment captions/currentcompleteMore resume fixed. OriginalonePraise reconciledwithoutrepeat; currentcanonical0Praise4nav/Home accepted. Originalwrapperfailurepreserved.",
+    "current_source_cadence": "Completed1200.057seconds,8reports22inputs,4zero-inputCampaignchecks; allHome/allcontrolsoff,185sourcefilesunchanged/127captures."
+  },
+  "last_bounded_cadence": {
+    "actual_seconds": 1200.0572085380554,
+    "selected_routes": 8,
+    "completed_reports": 8,
+    "inputs": 22,
+    "nova_remaining": 0,
+    "noah_basic_recruits_current_reset": 5,
+    "noah_basic_remaining": 0,
+    "campaign_no_work_checks": 4,
+    "source_files_unchanged": 185,
+    "all_controls_off": true,
+    "no_active_or_orphan": true,
+    "no_core_or_resource_block": true,
+    "audit": ".local-orchestrator\\logs\\current-source-all8-1200-cadence-final-audit-20261031.json"
+  },
+  "branch_base_commit": "67ef48c495f4786ce2243891a8b4728e43b95468",
+  "head_binding_scope": "Historical run/source baseline before branch snapshot; Git HEAD is authoritative after commit.",
+  "branch_preparation": {
+    "branch": "codex/bluestacks-route-reliability",
+    "core_offline_checks": {
+      "tests": 327,
+      "status": "passed"
+    },
+    "service_route_checks": {
+      "tests": 193,
+      "status": "passed"
+    },
+    "portable_evidence": "docs/validation/bluestacks-20261031/summary.json",
+    "publication": "not_pushed",
+    "excluded_existing_work": [
+      "Stop-PnS-OMP.ps1",
+      "evidence/current-evidence-manifest.json",
+      "Puzzle_Survival_Flow_Completion_Plan",
+      "governance-simplification-plan.pre-merge.md"
+    ]
+  }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 
-## Atlas and Recruitment branch reconciliation
-
-PR #15 adds the later Atlas-defined Home entry and Windows/BlueStacks Recruitment work to the
-canonical structure now on `main`. The merge keeps ordinary registered handlers as non-consuming
-`SelectionPlan` providers. Recruitment remains the intentional executor-bound exception: only an
-explicit supervised service installs its execution handler, and canonical claim, dispatch, lease,
-input-budget, terminal-projection, and disabled-registration boundaries still apply.
-
-Retained live evidence proves Atlas Tavern entry, repeated free recruitment with cooldown
-persistence and verified Home return, one naturally occurring exact VIP popup recovery at Home,
-and a later 7/12-input popup-free regression pass. It does not prove Tavern/non-Home or
-post-consumption popup interruption. No live input, state mutation, registration, scheduler
-enablement, or evidence mutation occurred during this merge reconciliation.
-
-
-## Durable Stage 10 disposition
-- Phases 1-3 are accepted and remain immutable.
-- Phase 4 is `blocked_evidence_required` (`product_state`): Home recognition failed before input; no repeat.
-- Phase 5 startup recovery Stage A r2 is accepted and pushed. Campaign AP r2 closed `blocked_evidence_required` before input because Home Atlas localization returned `LOCALIZATION_NOT_RECOGNIZED`; no retry is authorized.
-- Stage B is `not_applicable` for the canonical Home successor. Separate startup shop page/modal variants remain `evidence_required` until natural native occurrence.
-
-## Stage 11 boundary
-- All 24 checked-in production registry entries are `NOT_REGISTERED` and scheduler-ineligible.
-- Production selection handlers require an explicit exact typed registration snapshot; no constructor may synthesize authority.
-- No runtime session, gameplay input, protected-evidence mutation, registration, scheduler selection, PvP/player attack, premium action, or real-money action is authorized.
-- Stage 10 r1/r2/r3 planning revisions and legacy aliases are historical and non-authorizing; retained terminal disposition records remain authoritative.
-- User continuation is recorded and branch synchronization passed. PR #4 merged non-force into `main` at `25f5de6b153afb6b75907b29e91fde5a1d04e122`; GitHub still records `REVIEW_REQUIRED` with no reviews or checks, so no independent approval is claimed and no merge action remains pending.
-
-## Startup recovery correction
-- Attempt 1 used the misbound ROI `(11,54,72,117)` and produced no observed effect. After investigation and separate user authorization, attempt 2 used the corrected visible in-game Back ROI `(39,0,168,61)` at `(103,30)`, dismissed Scarlett, and retained canonical Home (correlation approximately `0.9849`).
-- The successful child ledger is recovery `1`, route `0`, total `1`. R2 corrects the outer DevelopmentSession to report `input_count=1`, close `completed` with `completion_scope=startup_recovery_only`, retain the post-recovery typed observation, and execute no route.
-- Retained success: `.local-captures/development-sessions/AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE-20260826T205944685287Z`; settled Home: `.local-captures/development-sessions/observe-20260826T210014287650Z`.
-- Full-frame hashes are provenance only; Scarlett selection/revalidation uses stable current-frame ROIs. Registration remains `NOT_REGISTERED`, the scheduler remains disabled, and no purchase, Confirm, real-money, Android Back, Campaign, or other route input occurred.
-- The outer-summary defect was classified `local_defect`. Terra confirmed the production correction but its single recheck found that the regression equalized recognition metadata rather than the retained capture digest. Commit `8b8e372` now reuses the probe payload/SHA for the semantic non-Scarlett Home successor; the exact regression and all 18 startup tests pass. No second Terra recheck was run because the r2 budget allowed only one.
-
-## Campaign AP r2 closure
-- Zero-input preflight: `.local-captures/development-sessions/observe-20260826T214533950614Z`; canonical Home correlation `0.9849079251289368`, visible AP `120/120`, no refill surface, native `800x1280`, zero input, no lifecycle state, and ownership released.
-- The offline scheduler pulse selected only `CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY` with product `campaign_ap-v1`, exact fixed registration, fresh observed balance `120`, and `transport_count=0`.
-- The one authorized occurrence is `.local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20260826T214745064655Z`. Registration was consumed before runtime; Home Atlas localization then failed closed with `LOCALIZATION_NOT_RECOGNIZED` before any route input.
-- Terminal accounting is recovery `0`, route `0`, total `0`, Campaign action count `0`, AP spend `0`, no refill or forbidden action, ownership released, final registration `NOT_REGISTERED`, and scheduler disabled.
-- Disposition is `blocked_evidence_required` (`local_defect`). No identical retry, repair, additional observation, or gameplay input is authorized under r2.
-
-## PR 4 final audit repair
-- Commit `961d2b8` closes four confirmed offline defects: generic retained-evidence verification now accepts declared causal traces and truthful reconciliation-required terminals; Ultimate Challenge and Troop Training receive only the shared post-recovery route budget; VIP startup recovery releases its safety lease on every post-acquisition exit; and capability-consumption exceptions finalize durable Resource transport intent as `TRANSPORT_UNKNOWN` without invoking the adapter.
-- Exact regressions pass 5/5. Focused package validation passes 246/246 with 2 skips across startup recovery, DevelopmentSession, Campaign, Recruitment, shared navigation boundary, Ultimate Challenge, Troop Training, Resource authority, and Daily Resource delivery. `git diff --check` and governance validation pass.
-- The untouched legacy `tests.test_navigation_runner` module still has six baseline `PROFILE_MISMATCH` fixture failures. Five lifecycle-mutation cases in `tests.test_governance_validation` remain baseline failures because they assert completed-state relations while the authoritative Campaign task truthfully remains `blocked_evidence_required`.
-- No live runtime, ADB input, registration, scheduler, retained evidence, or Campaign r2 state was changed. The repair was performed Solo with GPT-5.6 Sol Medium. PR #4 merged non-force into `main` at `25f5de6b153afb6b75907b29e91fde5a1d04e122`; GitHub records `REVIEW_REQUIRED` with no reviews or checks, so no independent approval is claimed and no merge action remains pending.
+This file records current state only. Durable route acceptance and remaining coverage are in [BACKLOG.md](BACKLOG.md). The previous handoff snapshot is preserved byte-for-byte in [current-handoff-native-route-history-20261030T085441Z.md](docs/archive/current-handoff-native-route-history-20261030T085441Z.md). Historical receipts and this document grant no live authority.

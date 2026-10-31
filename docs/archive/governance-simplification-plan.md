@@ -2,7 +2,10 @@
 
 ## Purpose
 
-Pause gameplay-flow delivery and simplify the repository before continuing toward unattended 24/7 operation.
+This document records the original simplification proposal and the architecture it established.
+The canonical service and eight BlueStacks routes are now implemented; current acceptance and
+remaining work are in `BACKLOG.md`. Historical problem descriptions below are not current stop
+instructions or additional runtime gates.
 
 The desired bot is deliberately small:
 

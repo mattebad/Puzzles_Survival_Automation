@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import time
 from typing import Callable
 
@@ -46,6 +47,11 @@ SHARED_HOME_RECOVERY_FLOW_IDS = frozenset(
         "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
         "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
         "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
+        "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+        "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+        "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION",
+        "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+        "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
     }
 )
 ROUTE_OWNED_RECOVERY_FLOW_IDS = frozenset(
@@ -701,6 +707,166 @@ def recover_contextual_vip_popup(
     )
 
 
+def _contextual_startup_frame_valid(captured: object, *, after: CapturedNativeFrame | None = None) -> bool:
+    if not isinstance(captured, CapturedNativeFrame) or not _contextual_native_frame(captured):
+        return False
+    if (not isinstance(captured.png, bytes) or not captured.png
+            or hashlib.sha256(captured.png).hexdigest() != captured.sha256
+            or type(captured.captured_monotonic) not in (int, float)
+            or not math.isfinite(captured.captured_monotonic) or captured.captured_monotonic < 0):
+        return False
+    try:
+        decoded = cv2.imdecode(np.frombuffer(captured.png, dtype=np.uint8), cv2.IMREAD_COLOR)
+    except cv2.error:
+        return False
+    if decoded is None or not np.array_equal(decoded, captured.frame):
+        return False
+    return after is None or (
+        captured.captured_monotonic > after.captured_monotonic and captured.path != after.path
+    )
+
+
+def _contextual_startup_manual_context(source_context: str) -> bool:
+    context = "_" + source_context.casefold().replace("-", "_").replace(" ", "_") + "_"
+    return any(f"_{state}_" in context for state in (
+        "login", "credentials", "account_switch", "account_selection", "tutorial",
+        "captcha", "manual_only", "manual_required",
+    ))
+
+
+def recover_contextual_startup_overlay(
+    runtime: LocalBlueStacksRuntime,
+    captured: CapturedNativeFrame,
+    *,
+    source_context: str,
+    recognize_successor: Callable[[CapturedNativeFrame], bool],
+    action_key: str,
+    settle_seconds: float = 0.8,
+    sleep: Callable[[float], None] = time.sleep,
+) -> ContextualPopupRecoveryResult:
+    """Recover one known startup overlay using only the caller's native ledger.
+
+    The caller retains session ownership and adopts the runtime's total input
+    count. A dismissed popup alone never authorizes continuation: resume_ready
+    also requires the route's current successor. No durable action store, lease
+    or nested runtime/session is created here.
+    """
+    if not isinstance(source_context, str) or not source_context.strip():
+        raise ValueError("source_context is required")
+    if not isinstance(action_key, str) or not action_key.strip():
+        raise ValueError("action_key is required")
+    if not callable(recognize_successor):
+        raise ValueError("recognize_successor is required")
+    if type(settle_seconds) not in (int, float) or not math.isfinite(settle_seconds) or settle_seconds < 0:
+        raise ValueError("settle_seconds must be finite and non-negative")
+
+    def checkpoint():
+        current = getattr(runtime, "checkpoint", None)
+        if current is not None:
+            current()
+
+    def blocked(reason, *, count=0, post=None):
+        return ContextualPopupRecoveryResult(post, None if count else False, None, False, count, reason)
+
+    def classify(frame):
+        surface = recognize_startup_surface(frame.frame, frame.png)
+        popup = recognize_reset_popup(frame.frame)
+        if not isinstance(surface, dict) or not isinstance(popup, dict):
+            raise StartupRecoveryError("startup recognizer returned no current classification")
+        return surface, popup
+
+    def clear_successor(frame, surface, popup):
+        if (surface.get("recognized") or surface.get("commercial_looking")
+                or popup.get("recognized") or popup.get("blocking_unknown_modal")):
+            return False
+        return bool(recognize_successor(frame))
+
+    checkpoint()
+    if _contextual_startup_manual_context(source_context) or not _contextual_startup_frame_valid(captured):
+        return blocked("startup_source_not_recoverable")
+    try:
+        initial, popup = classify(captured)
+    except Exception:
+        return blocked("startup_source_not_recognized")
+    if not initial.get("recognized"):
+        if initial.get("commercial_looking") or popup.get("blocking_unknown_modal"):
+            return blocked("unknown_startup_surface")
+        if _contextual_exact_vip(popup):
+            checkpoint()
+            result = recover_contextual_vip_popup(
+                runtime, captured, source_context=source_context,
+                recognize_successor=lambda frame: (
+                    _contextual_startup_frame_valid(frame, after=captured)
+                    and clear_successor(frame, *classify(frame))
+                ),
+                action_key=action_key, settle_seconds=settle_seconds, sleep=sleep,
+            )
+            checkpoint()
+            return result
+        try:
+            ready = clear_successor(captured, initial, popup)
+        except Exception:
+            ready = False
+        checkpoint()
+        return ContextualPopupRecoveryResult(captured, False, True, ready, 0, "startup_successor_observed" if ready else "unknown_startup_surface")
+    if not is_exact_scarlett_recognition(initial) or initial.get("frame_sha256") != captured.sha256:
+        return blocked("startup_surface_not_allowlisted")
+
+    count = getattr(runtime, "input_count", None)
+    maximum = getattr(runtime, "max_inputs", None)
+    actions = getattr(runtime, "frame_actions", None)
+    if (type(count) is not int or type(maximum) is not int or not 0 <= count < maximum
+            or not isinstance(actions, set) or _contextual_runtime_has_key(runtime, action_key)
+            or any(isinstance(item, tuple) and len(item) >= 2
+                   and item[1] == SCARLETT_SAFE_BACK_TARGET_IDENTITY for item in actions)):
+        return blocked("startup_recovery_budget_or_occurrence_denied")
+    checkpoint()
+    try:
+        immediate = runtime.capture("contextual-startup-scarlett-before")
+        if not _contextual_startup_frame_valid(immediate, after=captured):
+            return blocked("startup_revalidation_not_fresh")
+        current = recognize_startup_surface(immediate.frame, immediate.png)
+        if (not is_exact_scarlett_recognition(current) or current.get("frame_sha256") != immediate.sha256
+                or tuple(current["safe_exit_roi"]) != tuple(initial["safe_exit_roi"])):
+            return blocked("startup_back_target_changed")
+    except Exception as exc:
+        if _contextual_exception_is_control(exc):
+            raise
+        return blocked("startup_revalidation_failed")
+    checkpoint()
+    before = runtime.input_count
+    transport_error = None
+    try:
+        runtime.tap(immediate, target_identity=SCARLETT_SAFE_BACK_TARGET_IDENTITY,
+                    target_roi=tuple(current["safe_exit_roi"]), action_key=action_key,
+                    action_class="navigation", consequential=False)
+    except Exception as exc:
+        if _contextual_exception_is_control(exc):
+            raise
+        transport_error = exc
+    consumed = runtime.input_count - before
+    if consumed != 1:
+        return blocked("startup_dispatch_not_accounted", count=max(0, consumed))
+    checkpoint()
+    try:
+        sleep(float(settle_seconds))
+        post = runtime.capture("contextual-startup-scarlett-post")
+        if not _contextual_startup_frame_valid(post, after=immediate):
+            return blocked("startup_successor_capture_not_fresh", count=consumed)
+        after, popup = classify(post)
+        ready = transport_error is None and clear_successor(post, after, popup)
+    except Exception as exc:
+        if _contextual_exception_is_control(exc):
+            raise
+        return blocked("startup_successor_not_verified", count=consumed)
+    checkpoint()
+    reason = "startup_overlay_recovered" if ready else "startup_successor_not_verified"
+    runtime.reconcile(action_key, "confirmed" if ready else "unresolved", post, reason)
+    return ContextualPopupRecoveryResult(
+        post, bool(ready), not bool(after.get("recognized")), bool(ready), consumed, reason,
+    )
+
+
 def _popup_observation(captured: CapturedNativeFrame, detail: dict[str, object]) -> Observation:
     target = detail.get("target")
     roi = tuple(int(v) for v in target) if isinstance(target, (tuple, list)) and len(target) == 4 else None
@@ -896,8 +1062,11 @@ def _recover_scarlett_surface(
         raise StartupRecoveryError("exact Scarlett recognition is not input-authoritative")
     if runtime.input_count >= min(runtime.max_inputs, SCARLETT_MAX_INPUTS):
         raise StartupRecoveryError("startup recovery input budget is exhausted")
-    scope = str(recovery_scope or datetime.now(timezone.utc).date().isoformat())
-    scope_digest = hashlib.sha256(f"{task_id}:{scope}".encode()).hexdigest()[:16]
+    scope = str(recovery_scope or "startup")
+    # Navigation recovery is once per invocation, not a game-day resource effect.
+    scope_digest = hashlib.sha256(json.dumps(
+        (task_id, scope, str(runtime.session.resolve())), separators=(",", ":")
+    ).encode()).hexdigest()[:16]
     action_key = f"{SCARLETT_BACK_ACTION_KEY}:{scope_digest}"
     store = action_store_factory() if action_store_factory is not None else SafetyStore(STARTUP_RECOVERY_STORE_PATH)
     owner = f"startup-recovery:{task_id}"
@@ -915,8 +1084,6 @@ def _recover_scarlett_surface(
         authorization_detail = recognize_startup_surface(authorization_frame.frame, authorization_frame.png)
         if (
             not is_exact_scarlett_recognition(authorization_detail)
-            or authorization_detail.get("critical_roi_hashes")
-            != initial_detail.get("critical_roi_hashes")
             or authorization_detail.get("safe_exit_roi")
             != initial_detail.get("safe_exit_roi")
         ):
@@ -937,8 +1104,6 @@ def _recover_scarlett_surface(
             detail = recognize_startup_surface(current.frame, current.png)
             if (
                 not is_exact_scarlett_recognition(detail)
-                or detail.get("critical_roi_hashes")
-                != authorization_detail.get("critical_roi_hashes")
                 or detail.get("safe_exit_roi")
                 != authorization_detail.get("safe_exit_roi")
             ):
@@ -1236,8 +1401,11 @@ def recover_known_startup_overlay(
         ))
         raise StartupRecoveryError("startup recovery input budget is exhausted")
 
-    scope = str(recovery_scope or datetime.now(timezone.utc).date().isoformat())
-    scope_digest = hashlib.sha256(f"{task_id}:{scope}".encode()).hexdigest()[:16]
+    scope = str(recovery_scope or "startup")
+    # A later startup may recover again without reusing this invocation's action.
+    scope_digest = hashlib.sha256(json.dumps(
+        (task_id, scope, str(runtime.session.resolve())), separators=(",", ":")
+    ).encode()).hexdigest()[:16]
     action_key = f"{VIP_RESET_ACTION_KEY}:{scope_digest}"
     store = (
         action_store_factory()

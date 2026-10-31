@@ -6,37 +6,56 @@ remote-host commands for active development.
 
 ## Local BlueStacks operations
 
-The active command families are:
+The canonical controls and operator bootstrap commands are:
 
 ```text
-python scripts/pnsctl.py bluestacks preflight
-python scripts/pnsctl.py development-session run-flow <flow-id> --live --yes
-python scripts/pnsctl.py bluestacks run-flow <flow-id>  # offline/dry-run only
-python scripts/pnsctl.py bluestacks verify-flow <session-directory>
-python scripts/pnsctl.py bluestacks recover-home
-python scripts/pnsctl.py development-session observe
-python scripts/pnsctl.py development-session daily-row-claim --mode prepare ...
-python scripts/pnsctl.py development-session daily-row-claim --mode canary ...
+python scripts/pnsctl.py automation-service status
+python scripts/pnsctl.py automation-service health
+python scripts/pnsctl.py automation-service enable <flow-id>
+python scripts/pnsctl.py automation-service disable <flow-id>
+python scripts/pnsctl.py automation-service service-enable
+python scripts/pnsctl.py automation-service service-disable
+python scripts/pnsctl.py development-session launch-game --live --yes
 ```
 
-These commands are development interfaces, not the gameplay scheduler. They
-fix the private serial to `emulator-5554`, require native 800×1280 and package
-`com.global.ztmslg`, use checked-in flow IDs and bounded receipt manifests,
-and retain structured evidence under `.local-captures/`. No arbitrary ADB,
-coordinate, tap, or swipe endpoint is exposed.
+Normal `launch-game` preserves an already running game. For an explicitly authorized cold-process
+restart test, add `--cold-restart`. This requires clean Home, the existing canonical database,
+disabled service/flow controls, no active service owner/run, a held runtime input lock and clear
+Core actions. It attempts one stop, verifies process exit and the known launcher, then reuses
+owner-bound startup. It never retries an uncertain stop/start and issues no gameplay inputs.
+Its fresh captures and terminal result are retained in the development session directory.
+
+The canonical automation-service live boundary is the existing `pnsctl` facade:
+
+```text
+python scripts/pnsctl.py automation-service --mode supervised --adapter bluestacks --state-path .local-orchestrator/bot-state.sqlite3 serve --live --flow campaign --campaign-stage 1-15-9 --campaign-cadence-seconds 300 --adb "C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe" --serial emulator-5554 --account-id primary-account --server-id primary-server --output-directory .local-captures/automation-service-live
+```
+
+Repeat `--flow` for other named routes when a bounded run needs them. Due eligibility determines
+execution order; selected argument order does not. The facade validates the standard mode, adapter,
+and state path before forwarding to the canonical service CLI and respects existing disabled gates.
+It does not auto-enable registration, scheduling, or deployment. The public disabled-gates proof
+produced zero captures and zero new runs, so it is control evidence only.
+
+The supervised service is the gameplay scheduler. Bootstrap and older diagnostic commands are
+separate operator interfaces with their existing guards. Local execution uses the fixed approved
+serial, native800×1280 profile and exact game package, and retains structured evidence under
+`.local-captures/`. No arbitrary coordinate/tap/ADB endpoint is added by these commands.
 
 `bluestacks run-flow --live` is a retired legacy entry and fails closed before runtime
 observation, flow-state loading, artifact creation, or route invocation. Supported live
-work uses `development-session run-flow`, whose outer `DevelopmentSession` owns startup
-recovery and route execution. The legacy `bluestacks run-flow` command remains available
-only for its required offline/dry-run behavior and still fails closed until the active flow
-supplies its dedicated checked-in runner.
+work uses the canonical `automation-service ... serve --live` boundary for registered execution;
+older `development-session run-flow` records are historical/diagnostic interfaces and remain
+available only where their checked-in recovery contract requires them. The legacy `bluestacks
+run-flow` command remains available only for its required offline/dry-run behavior and still fails
+closed before live invocation.
 `verify-flow` validates the session's result, frames, events, ledger, capability audit, journal,
 runtime owner, and terminal state. `recover-home` delegates only to the existing
 Cultivation-Center-to-Home verified recovery and cannot issue Android Back from an unrecognized
 Home screen.
 
-Daily Claim is one selected-Daily aggregate action. The flow reuses the
+The implemented Daily Claim contract is one selected-Daily aggregate action. Current eight-route
+acceptance does not establish aggregate Daily or milestone acceptance. The flow reuses the
 existing Home → Quest → Daily route, positively recognizes one ordinary,
 free, non-milestone Claim control, taps exactly once, and succeeds only when
 Daily points increase and no ordinary Claim control remains. Objective flows
@@ -75,9 +94,9 @@ This runbook is an operational entry point, not a duplicate authority. Permanent
 - [`evidence-retention-policy.md`](evidence-retention-policy.md) for exact manifests, hashes,
   indexing exclusion, and archive-before-removal.
 
-The current task and exact next action are authoritative only in
-`CURRENT_HANDOFF.md` and `BACKLOG.md`. Offline contracts do not authorize
-registration or scheduler eligibility. Historical Bliss evidence and journals
+Current task status and the next planned action are recorded in `CURRENT_HANDOFF.md` and
+`BACKLOG.md`. These documents and offline contracts do not grant runtime authority or enable
+service/flow controls. Historical Bliss evidence and journals
 remain immutable evidence, not active operating instructions.
 
 Stop on an account/session hard stop, public ADB exposure, unresolved

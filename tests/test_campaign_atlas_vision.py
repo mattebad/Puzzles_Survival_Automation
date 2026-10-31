@@ -283,13 +283,13 @@ class CampaignAtlasVisionTests(unittest.TestCase):
         self.assertAlmostEqual(highlighted_score, 0.199, places=2)
         roi, score = measured_survey_target(frame, "campaign-exit-base")
         self.assertGreaterEqual(score, CAMPAIGN_EXIT_TEMPLATE_THRESHOLD)
-        self.assertEqual(roi, (690, 920, 800, 1060))
+        self.assertEqual(roi, (715, 970, 767, 1024))
         # Shifted frame proves measurement is dynamic, not a static-coordinate authorize.
         shifted = np.zeros_like(frame)
         shifted[:, :-3] = frame[:, 3:]
         shifted_roi, shifted_score = measured_survey_target(shifted, "campaign-exit-base")
         self.assertGreaterEqual(shifted_score, CAMPAIGN_EXIT_TEMPLATE_THRESHOLD)
-        self.assertEqual(shifted_roi, (687, 920, 797, 1060))
+        self.assertEqual(shifted_roi, (712, 970, 764, 1024))
         self.assertNotEqual(shifted_roi, CAMPAIGN_EXIT_ROI)
         # Highlighted compatibility: paste highlighted template into search band.
         highlighted_bgr = cv2.imread(str(ASSET_ROOT / "campaign_exit.png"), cv2.IMREAD_COLOR)
@@ -303,7 +303,7 @@ class CampaignAtlasVisionTests(unittest.TestCase):
             synthetic, "campaign-exit-base"
         )
         self.assertGreaterEqual(highlighted_bind, CAMPAIGN_EXIT_TEMPLATE_THRESHOLD)
-        self.assertEqual(highlighted_roi, (hx, hy, hx + hw, hy + hh))
+        self.assertEqual(highlighted_roi, (hx + 25, hy + 50, hx + 77, hy + 104))
         self.assertNotEqual(highlighted_roi, CAMPAIGN_EXIT_ROI)
 
     def test_campaign_exit_rejects_static_fallback_without_template_match(self) -> None:

@@ -20,7 +20,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
-          # Governance checks validate retained commit ancestry, not only HEAD.
+          # Retain commit history for provenance and ancestry checks.
           fetch-depth: 0
       - name: Set up Python 3.11
         uses: actions/setup-python@v7
@@ -62,10 +62,27 @@ jobs:
         run: python -m unittest tests.test_automation_service_handlers tests.test_automation_service_contracts tests.test_automation_service_canonical_authority tests.test_automation_service_scheduler
       - name: Run REC-F08 evidence accounting regressions
         run: python -m unittest tests.test_bluestacks_native_runtime tests.test_pnsctl_scheduler_pulse tests.test_world_map_navigation_bluestacks
+      - name: Run canonical route execution regressions without a device
+        run: >-
+          python -m unittest
+          tests.test_service_application_startup
+          tests.test_service_campaign_ap
+          tests.test_service_campaign_dispatch
+          tests.test_service_nova
+          tests.test_service_bioenhancer
+          tests.test_service_bioenhancer_dispatch
+          tests.test_service_supply
+          tests.test_service_supply_dispatch
+          tests.test_service_ultimate
+          tests.test_service_ultimate_dispatch
+          tests.test_service_enhancement
+          tests.test_service_enhancement_dispatch
+          tests.test_service_personal_might
+          tests.test_service_personal_might_dispatch
+          tests.test_service_cooldown_reset_edge
       - name: Run directly affected cleanup regressions
         run: >-
           python -m unittest
-          tests.test_governance_validation
           tests.test_bliss_porting_toolbox
           tests.test_daily_quest_planning
           tests.test_development_session
@@ -73,7 +90,6 @@ jobs:
           tests.test_flow_delivery_lean_workflow
           tests.test_runtime_trace_projection
           tests.test_resource_effect_authority_history
-          tests.test_flow_delivery_token_context_hygiene.CompactHandoffTests
       - name: Compile Python sources
         run: python -m compileall -q automation_service safe_action_core scripts tasks tools
       - name: Check committed diff whitespace

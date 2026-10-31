@@ -1,0 +1,22 @@
+{
+  "home-ap100-stamina120.png": {
+    "source": ".local-captures/bluestacks/consume-ap-campaign/20260716T014118395232Z/frames/step-011-after.png",
+    "sha256": "b0ea7137e05d63310d8f8b51a8cf343a655f68c011a26830d85756bd5c5a0a18",
+    "native_size": [
+      800,
+      1280
+    ],
+    "observed_lightning_ap": "100/120",
+    "observed_orange_vial": "120/120"
+  },
+  "chapter15-post-victory-ap12.png": {
+    "source": ".local-captures/automation-service-authorized/soak-20261029T235820754811Z-ba29205f/campaign/campaign-ap-1-15-9-20261029T235830246231Z/frames/0036-campaign-route-022.png",
+    "sha256": "6337e7881811c224097c0b80eef46fad2d024d734eb9b6a076339ddd5f6ddceb",
+    "native_size": [
+      800,
+      1280
+    ],
+    "observed_lightning_ap": "12/120",
+    "context": "Retained Chapter 15 map after verified Victory Continue; offline recognition regression only, no execution authority."
+  }
+}

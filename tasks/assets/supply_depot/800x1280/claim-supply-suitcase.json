@@ -1,0 +1,16 @@
+{
+  "id": "claim-supply-suitcase",
+  "file_sha256": "4f59f714f35f10cf79149630603399af360cc0cad300af80be51aab218e49bc6",
+  "runtime_profile": "native-800x1280",
+  "source": {
+    "path": ".local-captures/automation-service-authorized/soak-20261029T150324255401Z-f55209d1/supply/supply-depot-20261029T150324283087Z-af340f2c/supply-depot-native-20261029T150324437855Z/frames/0020-open-supply-depot-screen-immediate-before.png",
+    "file_sha256": "c4fb991ab8690f2f52313dc01dcd565ce16cf8a1743a8e8a398d92eddc8c0317",
+    "crop_xyxy": [
+      665,
+      835,
+      707,
+      873
+    ]
+  },
+  "purpose": "Only a current-frame icon association inside an independently measured circular Claim Supply button; never a target position or standalone authority."
+}

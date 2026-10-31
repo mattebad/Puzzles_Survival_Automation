@@ -1,0 +1,42 @@
+{
+  "current-winner-44.png": {
+    "source": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20261029T053617951795Z/runtime/1-15-9-20261029T053638018462Z/frames/frame-0044.png",
+    "sha256": "2e4b77cf1a1f32b2086113b2ff894cbbce295184c0e3edeab18cce8caaac3c4f",
+    "native_size": [
+      800,
+      1280
+    ]
+  },
+  "current-winner-45.png": {
+    "source": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20261029T053617951795Z/runtime/1-15-9-20261029T053638018462Z/frames/frame-0045.png",
+    "sha256": "5ffe84571c2ee2915d62ffee95eb6cdfbefcbc6da9522eb8360d55c2a5dec00f",
+    "native_size": [
+      800,
+      1280
+    ]
+  },
+  "current-winner-46.png": {
+    "source": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20261029T053617951795Z/runtime/1-15-9-20261029T053638018462Z/frames/frame-0046.png",
+    "sha256": "a75bef67907fe2abcfe06dc3af02d94f781fd65510a23a2bae7d1e6a1f2ebb78",
+    "native_size": [
+      800,
+      1280
+    ]
+  },
+  "retained-winner.png": {
+    "source": ".local-captures/bluestacks/consume-ap-campaign/20260716T014118395232Z/frames/step-008-before.png",
+    "sha256": "6c916d6e711d17b7f19ccd28bf8a83500c46593da498da68dd40b699b17d0bee",
+    "native_size": [
+      800,
+      1280
+    ]
+  },
+  "retained-defeat.png": {
+    "source": "I:/Pictures/BlueStacks/Screenshot_2026.07.16_00.42.21.790.png",
+    "sha256": "2944f4cfd022b3bde26078c63a3ae7c89f11f6a8c5f85c026fcadf1cfab9000d",
+    "native_size": [
+      800,
+      1280
+    ]
+  }
+}

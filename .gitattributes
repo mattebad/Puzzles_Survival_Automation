@@ -1,5 +1,12 @@
+# Keep source/review diffs consistent across Windows and Linux.
+*.py text eol=lf
+*.md text eol=lf
+
 # Historical records and retained replay inputs keep their original bytes on every OS.
-docs/archive/** -text
+# Archived bytes retain their original terminal blank lines as well.
+docs/archive/** -text whitespace=cr-at-eol,-blank-at-eof
+tests/fixtures/** -text whitespace=cr-at-eol
+tasks/assets/** -text whitespace=cr-at-eol
 tests/fixtures/runtime_trace_projection/*.jsonl -text
 # This retained Windows record uses CRLF; it must not be reserialized.
 tests/fixtures/runtime_trace_projection/enhancement-source.json -text whitespace=cr-at-eol

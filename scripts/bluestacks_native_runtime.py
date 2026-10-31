@@ -7,13 +7,14 @@ It never connects ADB, never registers a production task, and never enables a sc
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import time
 from typing import Protocol
 
@@ -21,6 +22,7 @@ import cv2
 import numpy as np
 
 from scripts.bluestacks_flow_collector import (
+    ADBError,
     ADBRunner,
     EXPECTED_PACKAGE,
     is_permitted_local_bluestacks_serial,
@@ -42,6 +44,11 @@ NativeBox = tuple[int, int, int, int]
 NATIVE_WIDTH = 800
 NATIVE_HEIGHT = 1280
 NATIVE_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+_CAMPAIGN_BATTLE_CHILDREN = {
+    "campaign-lineup-challenge": True,
+    "campaign-auto": False,
+    "campaign-victory-continue": False,
+}
 
 _PORTABLE_FILENAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 _WINDOWS_RESERVED_FILENAME_COMPONENTS = frozenset(
@@ -109,6 +116,15 @@ class CapturedNativeFrame:
     sha256: str
     captured_monotonic: float
     path: Path
+
+
+@dataclass
+class _CampaignStageLineage:
+    transported: bool = False
+    confirmed_post_sha256: str | None = None
+    invalidated: bool = False
+    child_targets: set[str] = field(default_factory=set)
+    transported_child_targets: set[str] = field(default_factory=set)
 
 
 def captured_native_frame_from_png(
@@ -276,6 +292,8 @@ class LocalBlueStacksRuntime:
         self.ordinal = 0
         self.action_keys: set[str] = set()
         self.frame_actions: set[tuple[str, str, NativeBox | None]] = set()
+        self._campaign_stage_parents: dict[str, _CampaignStageLineage] = {}
+        self._campaign_child_parents: dict[str, tuple[_CampaignStageLineage, str]] = {}
         self.in_flight_action: str | None = None
         try:
             self.max_inputs = int(os.environ.get("PNS_DEVELOPMENT_MAX_INPUTS", "40"))
@@ -325,10 +343,25 @@ class LocalBlueStacksRuntime:
         return parse_foreground_package(self.runner.shell_text("dumpsys", "window", "windows"))
 
     def capture(self, label: str) -> CapturedNativeFrame:
-        if self.checkpoint is not None:
-            self.checkpoint()
-        safe_label = portable_filename_component(label, field="capture label")
-        payload = self.runner.capture_png()
+        for attempt in (1, 2):
+            if self.checkpoint is not None:
+                self.checkpoint()
+            safe_label = portable_filename_component(label, field="capture label")
+            try:
+                payload = self.runner.capture_png()
+                break
+            except ADBError as exc:
+                if not isinstance(exc.__cause__, subprocess.TimeoutExpired):
+                    raise
+                self._event("capture_failure", {
+                    "label": label,
+                    "attempt": attempt,
+                    "error_class": type(exc).__name__,
+                    "cause_class": type(exc.__cause__).__name__,
+                    "retrying": attempt == 1,
+                })
+                if attempt == 2:
+                    raise
         captured = time.monotonic()
         self.ordinal += 1
         path = self.frames / f"{self.ordinal:04d}-{safe_label}.png"
@@ -345,6 +378,7 @@ class LocalBlueStacksRuntime:
                 "filename_component": safe_label,
                 "path": str(path),
                 "sha256": result.sha256,
+                "captured_monotonic": result.captured_monotonic,
             },
         )
         return result
@@ -372,8 +406,16 @@ class LocalBlueStacksRuntime:
             raise RuntimeError("development session input limit reached")
         if not action_key or action_key in self.action_keys:
             raise RuntimeError("duplicate or missing action key")
+        campaign_parent = self._campaign_child_parent(source, target_identity, action_class, consequential, continuation_of)
+        stage_parent = action_class == "campaign_ap_challenge"
+        if stage_parent:
+            from tasks.campaign_ap_challenge import CAMPAIGN_AP_COSTS
+
+            if (consequential is not True or continuation_of is not None
+                    or target_identity not in {f"campaign-challenge-{stage}" for stage in CAMPAIGN_AP_COSTS}):
+                raise RuntimeError("Campaign Stage parent identity is not exact")
         fingerprint = (source.sha256, target_identity, target_roi)
-        if fingerprint in self.frame_actions:
+        if fingerprint in self.frame_actions and campaign_parent is None:
             raise RuntimeError("identical source/target input is forbidden")
         delegated = current_delegated_runtime_context()
         if delegated is not None:
@@ -395,6 +437,42 @@ class LocalBlueStacksRuntime:
         self.action_keys.add(action_key)
         self.frame_actions.add(fingerprint)
         self.input_count += 1
+        if campaign_parent is not None:
+            campaign_parent.child_targets.add(target_identity)
+            self._campaign_child_parents[action_key] = (campaign_parent, target_identity)
+        if stage_parent:
+            self._campaign_stage_parents[action_key] = _CampaignStageLineage()
+
+    def _campaign_child_parent(self, source, target_identity, action_class, consequential, continuation_of):
+        if target_identity not in _CAMPAIGN_BATTLE_CHILDREN:
+            return None
+        if continuation_of is None and target_identity != "campaign-lineup-challenge":
+            # Explicit Victory-only recovery retains the ordinary duplicate guard.
+            return None
+        if (type(continuation_of) is not str or not continuation_of
+                or action_class != "navigation"
+                or consequential is not _CAMPAIGN_BATTLE_CHILDREN[target_identity]):
+            raise RuntimeError("Campaign child requires exact confirmed Stage lineage")
+        parent = self._campaign_stage_parents.get(continuation_of)
+        if (parent is None or not parent.transported or parent.invalidated
+                or parent.confirmed_post_sha256 is None):
+            raise RuntimeError("Campaign Stage parent is not confirmed in this runtime")
+        if target_identity in parent.child_targets:
+            raise RuntimeError("Campaign child target is already consumed for this Stage parent")
+        if target_identity == "campaign-lineup-challenge":
+            if source.sha256 != parent.confirmed_post_sha256:
+                raise RuntimeError("Campaign Lineup source does not match the confirmed Stage successor")
+        elif "campaign-lineup-challenge" not in parent.transported_child_targets:
+            raise RuntimeError("Campaign battle continuation requires its transported Lineup")
+        return parent
+
+    def _invalidate_campaign_lineage(self, action_key: str) -> None:
+        parent = self._campaign_stage_parents.get(action_key)
+        child = self._campaign_child_parents.get(action_key)
+        if parent is not None:
+            parent.invalidated = True
+        if child is not None:
+            child[0].invalidated = True
 
     @staticmethod
     def _delegated_transport_result(action_key: str, error: BaseException | None = None) -> None:
@@ -407,14 +485,29 @@ class LocalBlueStacksRuntime:
             delegated.mark_reconciled(action_key, unresolved=True)
 
     def _dispatch_transport(self, action_key: str, transport) -> None:
-        if self.checkpoint is not None:
-            self.checkpoint()
+        try:
+            if self.checkpoint is not None:
+                self.checkpoint()
+        except BaseException:
+            self._invalidate_campaign_lineage(action_key)
+            raise
         try:
             transport()
         except BaseException as exc:
+            self._invalidate_campaign_lineage(action_key)
             self._delegated_transport_result(action_key, exc)
             raise
-        self._delegated_transport_result(action_key)
+        try:
+            self._delegated_transport_result(action_key)
+        except BaseException:
+            self._invalidate_campaign_lineage(action_key)
+            raise
+        parent = self._campaign_stage_parents.get(action_key)
+        if parent is not None:
+            parent.transported = True
+        child = self._campaign_child_parents.get(action_key)
+        if child is not None:
+            child[0].transported_child_targets.add(child[1])
 
     def tap(
         self,
@@ -451,10 +544,12 @@ class LocalBlueStacksRuntime:
                 "source_sha256": source.sha256,
                 "action_class": action_class,
                 "consequential": consequential,
+                "continuation_of": continuation_of,
                 "execute": self.execute,
             },
         )
         if not self.execute:
+            self._invalidate_campaign_lineage(action_key)
             raise RuntimeError("runtime is dry-run; input was not dispatched")
         self._dispatch_transport(action_key, lambda: self.runner.dispatch_tap(point))
 
@@ -519,7 +614,10 @@ class LocalBlueStacksRuntime:
         end: tuple[int, int],
         action_key: str,
         target_identity: str = "tier-carousel-swipe",
+        duration_ms: int = 500,
     ) -> None:
+        if type(duration_ms) is not int or not 1 <= duration_ms <= 10000:
+            raise ValueError("swipe duration_ms must be an integer between 1 and 10000")
         if not all(0 <= point[0] < 800 and 0 <= point[1] < 1280 for point in (start, end)):
             raise RuntimeError("swipe must remain inside native 800x1280 bounds")
         self._authorize_dispatch(
@@ -543,6 +641,7 @@ class LocalBlueStacksRuntime:
                 "gesture": "swipe",
                 "start": start,
                 "end": end,
+                "duration_ms": duration_ms,
                 "action_class": "navigation",
                 "consequence_class": "navigation_only",
                 "consequential": False,
@@ -552,7 +651,10 @@ class LocalBlueStacksRuntime:
         )
         if not self.execute:
             raise RuntimeError("runtime is dry-run; input was not dispatched")
-        self._dispatch_transport(action_key, lambda: self.runner.dispatch_swipe(start, end))
+        self._dispatch_transport(action_key, lambda: (
+            self.runner.dispatch_swipe(start, end) if duration_ms == 500
+            else self.runner.dispatch_swipe(start, end, duration_ms)
+        ))
 
     def long_press(
         self,
@@ -790,6 +892,19 @@ class LocalBlueStacksRuntime:
     def reconcile(self, action_key: str, status: str, post: CapturedNativeFrame, reason: str) -> None:
         if status not in {"confirmed", "failed_confirmed", "unresolved"}:
             raise ValueError("invalid reconciliation status")
+        if status != "confirmed":
+            self._invalidate_campaign_lineage(action_key)
+        parent = self._campaign_stage_parents.get(action_key)
+        if parent is not None:
+            if status != "confirmed":
+                parent.invalidated = True
+            elif (not parent.transported or parent.invalidated
+                    or not isinstance(post, CapturedNativeFrame)
+                    or not re.fullmatch(r"[0-9a-f]{64}", post.sha256)
+                    or (parent.confirmed_post_sha256 is not None
+                        and parent.confirmed_post_sha256 != post.sha256)):
+                parent.invalidated = True
+                raise RuntimeError("Campaign Stage reconciliation cannot establish confirmed lineage")
         self._event(
             "reconcile",
             {
@@ -803,6 +918,8 @@ class LocalBlueStacksRuntime:
         delegated = current_delegated_runtime_context()
         if delegated is not None:
             delegated.mark_reconciled(action_key, unresolved=status == "unresolved")
+        if parent is not None and status == "confirmed":
+            parent.confirmed_post_sha256 = post.sha256
         self.in_flight_action = None
 
     def record_recovery(

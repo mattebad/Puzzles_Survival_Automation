@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import scripts.flow_delivery_campaign_bluestacks as delivery
 import scripts.navigation_development_boundary as boundary
@@ -26,9 +26,186 @@ from scripts.navigation_development_boundary import (
     DevelopmentInitialObservation,
     DevelopmentSession,
 )
+from tasks.campaign_auto_battle import CampaignScreen
 
 
 class CampaignFlowDeliveryTests(unittest.TestCase):
+    def test_native_transport_ledger_does_not_double_count_semantic_steps(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            steps = [{"type": "command", "kind": "tap", "action": "CHALLENGE_STAGE"},
+                     {"type": "command", "kind": "tap", "action": "CONFIRM_LINEUP"}]
+            native = [{"type": "capture"}, {"type": "dispatch", "execute": True},
+                      {"type": "dispatch", "execute": True}]
+            (root / "events.jsonl").write_text("".join(json.dumps(row) + "\n" for row in steps))
+            self.assertEqual(delivery._campaign_transport_count(root), 2)
+            ledger = root / "native-events.jsonl"
+            ledger.write_text("".join(json.dumps(row) + "\n" for row in native))
+            self.assertEqual(delivery._campaign_transport_count(root), 2)
+            self.assertEqual(delivery._campaign_event_rows(root), steps)
+            # One additional native reservation stopped before its ledger write.
+            (root / "result.json").write_text(json.dumps({
+                "input_count": 3, "total_input_count": 3, "native_events_path": str(ledger)}))
+            self.assertEqual(delivery._campaign_transport_count(root), 3)
+            # A malformed lower count cannot erase an observed dispatch.
+            (root / "result.json").write_text(json.dumps({
+                "input_count": 1, "total_input_count": 1, "native_events_path": str(ledger)}))
+            self.assertEqual(delivery._campaign_transport_count(root), 2)
+
+    def _run_home_prep(self, root, screens, *, legacy_exit_score=None, max_inputs=6,
+                       lineup_back_visible=True, unrecognized_indices=()):
+        base = ("campaign-base-request", (0, 1170, 132, 1280))
+        exit_target = ("campaign-exit-base", (690, 920, 800, 1060))
+        lineup_targets = (("campaign-lineup-challenge", (276, 1168, 524, 1252)),)
+        if lineup_back_visible:
+            lineup_targets += (("campaign-lineup-back", (47, 2, 128, 61)),)
+        source_targets = {
+            CampaignScreen.HERO_LINEUP: lineup_targets,
+            CampaignScreen.STAGE_DIALOG: (("campaign-stage-dialog-close", (675, 228, 764, 289)),),
+            CampaignScreen.CHAPTER_MAP: (("campaign-chapter-back", (705, 1028, 767, 1084)),),
+        }
+        recognitions = [
+            SimpleNamespace(
+                observation=SimpleNamespace(screen=screen, recognized=index not in unrecognized_indices),
+                frame_sha256=str(index),
+                targets=(*source_targets.get(screen, ()), base, *((exit_target,) if exit_visible else ())),
+                diagnostics={"campaign_exit_score": legacy_exit_score} if legacy_exit_score is not None else {},
+            )
+            for index, (screen, exit_visible) in enumerate(screens)
+        ]
+        runtime = SimpleNamespace(
+            session=root / "runtime",
+            capture=Mock(side_effect=[SimpleNamespace(frame=object()) for _ in screens]),
+            tap=Mock(),
+        )
+        recovery = {"status": "shared_pre_flow_startup_recovery", "input_count": 0}
+        with (
+            patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", return_value=runtime),
+            patch("tasks.campaign_auto_battle_vision.recognize_campaign_frame", side_effect=recognitions),
+            patch("time.sleep"),
+        ):
+            try:
+                result = delivery._ensure_home_surface_before_prep(root, startup_recovery=recovery, max_inputs=max_inputs)
+            except pnsctl.OperatorError as exc:
+                return runtime, None, exc
+        return runtime, result, None
+
+    def test_home_prep_unwinds_lineup_once_then_existing_story_surfaces_without_challenge(self):
+        for stage_dialog in (False, True):
+            with self.subTest(stage_dialog=stage_dialog), tempfile.TemporaryDirectory() as directory:
+                screens = [(CampaignScreen.HERO_LINEUP, False)]
+                if stage_dialog:
+                    screens.append((CampaignScreen.STAGE_DIALOG, False))
+                screens.extend(((CampaignScreen.CHAPTER_MAP, False), (CampaignScreen.TIER_MAP, True),
+                                (CampaignScreen.HOME_BASE, False)))
+                runtime, result, error = self._run_home_prep(Path(directory), screens)
+                self.assertIsNone(error)
+                self.assertIsNotNone(result)
+                expected = ["campaign-lineup-back"]
+                if stage_dialog:
+                    expected.append("campaign-stage-dialog-close")
+                expected.extend(("campaign-chapter-back", "campaign-exit-base"))
+                self.assertEqual([call.kwargs["target_identity"] for call in runtime.tap.call_args_list], expected)
+                self.assertTrue(all(call.kwargs["consequential"] is False for call in runtime.tap.call_args_list))
+
+    def test_home_prep_lineup_requires_bound_arrow_and_positive_source(self):
+        for options in ({"lineup_back_visible": False}, {"unrecognized_indices": (0,)}):
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as directory:
+                runtime, result, error = self._run_home_prep(
+                    Path(directory), [(CampaignScreen.HERO_LINEUP, False)], **options)
+                self.assertIsNone(result)
+                self.assertIsInstance(error, pnsctl.OperatorError)
+                runtime.tap.assert_not_called()
+
+    def test_home_prep_lineup_back_rejects_unexpected_or_unrecognized_parent_without_retry(self):
+        cases = [(screen, ()) for screen in (CampaignScreen.HERO_LINEUP, CampaignScreen.UNKNOWN,
+                 CampaignScreen.BATTLE, CampaignScreen.TIER_MAP, CampaignScreen.HOME_BASE)]
+        cases.append((CampaignScreen.CHAPTER_MAP, (1,)))
+        for successor, unrecognized in cases:
+            with self.subTest(successor=successor, unrecognized=unrecognized), tempfile.TemporaryDirectory() as directory:
+                runtime, result, error = self._run_home_prep(Path(directory),
+                    [(CampaignScreen.HERO_LINEUP, False), (successor, True)],
+                    unrecognized_indices=unrecognized)
+                self.assertIsNone(result)
+                self.assertIsInstance(error, pnsctl.OperatorError)
+                runtime.tap.assert_called_once()
+                self.assertEqual(runtime.tap.call_args.kwargs["target_identity"], "campaign-lineup-back")
+
+    def test_home_prep_never_repeats_base_request_on_unchanged_tier_map(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, result, error = self._run_home_prep(
+                Path(directory),
+                [(CampaignScreen.TIER_MAP, False), (CampaignScreen.TIER_MAP, False)],
+            )
+        self.assertIsNone(result)
+        self.assertIsInstance(error, pnsctl.OperatorError)
+        self.assertIn("after one Base request", str(error))
+        self.assertEqual(runtime.capture.call_count, 2)
+        runtime.tap.assert_called_once()
+        self.assertEqual(runtime.tap.call_args.kwargs["target_identity"], "campaign-base-request")
+
+    def test_home_prep_accepts_base_request_then_fresh_exit_and_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, result, error = self._run_home_prep(
+                Path(directory),
+                [
+                    (CampaignScreen.TIER_MAP, False),
+                    (CampaignScreen.TIER_MAP, True),
+                    (CampaignScreen.HOME_BASE, False),
+                ],
+            )
+        self.assertIsNone(error)
+        self.assertEqual(result["input_count"], 0)
+        self.assertEqual(runtime.capture.call_count, 3)
+        self.assertEqual(
+            [call.kwargs["target_identity"] for call in runtime.tap.call_args_list],
+            ["campaign-base-request", "campaign-exit-base"],
+        )
+
+    def test_home_prep_never_turns_a_legacy_score_into_a_static_exit_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, result, error = self._run_home_prep(
+                Path(directory),
+                [(CampaignScreen.TIER_MAP, False), (CampaignScreen.TIER_MAP, False)],
+                legacy_exit_score=0.99,
+            )
+        self.assertIsNone(result)
+        self.assertIsInstance(error, pnsctl.OperatorError)
+        runtime.tap.assert_called_once()
+        self.assertEqual(runtime.tap.call_args.kwargs["target_identity"], "campaign-base-request")
+
+    def test_home_prep_stops_before_dispatch_beyond_its_remaining_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, result, error = self._run_home_prep(
+                Path(directory),
+                [(CampaignScreen.TIER_MAP, False), (CampaignScreen.TIER_MAP, True)],
+                max_inputs=1,
+            )
+        self.assertIsNone(result)
+        self.assertIsInstance(error, pnsctl.OperatorError)
+        runtime.tap.assert_called_once()
+        self.assertEqual(runtime.tap.call_args.kwargs["target_identity"], "campaign-base-request")
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, result, error = self._run_home_prep(
+                Path(directory), [(CampaignScreen.TIER_MAP, True)], max_inputs=0,
+            )
+        self.assertIsNone(result)
+        self.assertIsInstance(error, pnsctl.OperatorError)
+        runtime.tap.assert_not_called()
+
+    def test_direct_campaign_session_uses_the_route_default_budget(self):
+        class SessionInspected(Exception):
+            pass
+
+        for invoke in (
+            lambda: pnsctl.development_session_run_flow(delivery.AUTO_BATTLE_FLOW_ID, live=False, yes=False),
+            lambda: pnsctl.main(["development-session", "run-flow", delivery.AUTO_BATTLE_FLOW_ID]),
+        ):
+            with patch.object(boundary, "DevelopmentSession", side_effect=SessionInspected) as session:
+                with self.assertRaises(SessionInspected):
+                    invoke()
+            self.assertEqual(session.call_args.kwargs["max_inputs"], 16)
+
     def _registration(self) -> RegisteredDispatchSnapshot:
         return RegisteredDispatchSnapshot(
             CAMPAIGN_FLOW_ID,
@@ -41,12 +218,12 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
             True,
         )
 
-    def _session(self, root: Path):
+    def _session(self, root: Path, *, invocation_id="campaign-continuous"):
         digest = hashlib.sha256(b"campaign-initial").hexdigest()
         with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
             session = DevelopmentSession(
                 owner=f"pnsctl-development-session:{delivery.AUTO_BATTLE_FLOW_ID}",
-                invocation_id="campaign-continuous",
+                invocation_id=invocation_id,
                 session_directory=root / "outer",
                 max_inputs=delivery.MAX_INPUTS,
             )
@@ -111,12 +288,19 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
         with self.assertRaisesRegex(
             pnsctl.OperatorError, "active pnsctl-owned DevelopmentSession"
         ):
-            delivery.run_campaign_auto_battle_live({}, {}, live=True)
+            delivery.run_campaign_auto_battle_live({}, {"recovery_only": True}, live=True)
 
-    def test_campaign_requires_exact_continuous_ceiling(self):
+    def test_campaign_honors_bounded_shared_and_route_ceilings(self):
+        self.assertEqual(delivery._campaign_maximum({"max_inputs": delivery.MAX_INPUTS}), delivery.MAX_INPUTS)
+        self.assertEqual(delivery._campaign_maximum({"max_inputs": 16}), 16)
         self.assertEqual(delivery._campaign_maximum({"max_inputs": 12}), 12)
+        self.assertEqual(delivery._campaign_maximum({"max_inputs": 16, "route_max_inputs": 9}), 9)
+        for maximum in (0, delivery.MAX_INPUTS + 1):
+            with self.subTest(maximum=maximum), self.assertRaises(pnsctl.OperatorError):
+                delivery._campaign_maximum({"max_inputs": maximum})
         with self.assertRaises(pnsctl.OperatorError):
-            delivery._campaign_maximum({"max_inputs": 11})
+            delivery._campaign_maximum({"max_inputs": 16, "route_max_inputs": 17})
+        self.assertEqual(pnsctl._conduct_max_inputs(delivery.AUTO_BATTLE_FLOW_ID, None), 16)
         self.assertEqual(
             pnsctl._conduct_max_inputs(delivery.AUTO_BATTLE_FLOW_ID, 12),
             12,
@@ -124,7 +308,7 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
         with self.assertRaises(pnsctl.OperatorError):
             pnsctl._conduct_max_inputs(delivery.AUTO_BATTLE_FLOW_ID, 1)
 
-    def test_live_route_binds_session_observation_trace_and_ap_ledger(self):
+    def test_historical_continuous_receipt_still_validates_without_a_live_runner(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             session, initial = self._session(root)
@@ -147,15 +331,25 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
                 "max_inputs": delivery.MAX_INPUTS,
                 "registration_snapshot": self._registration(),
             }
-            process = SimpleNamespace(returncode=0, stdout="", stderr="")
             try:
-                with (
-                    patch.object(delivery, "_ensure_home_surface_before_prep"),
-                    patch.object(delivery.subprocess, "run", return_value=process),
-                ):
-                    result = json.loads(
-                        delivery.run_campaign_auto_battle_live({}, lease, live=True)
-                    )
+                result = delivery._campaign_result_payload(
+                    {"status": "completed", "terminal": "completed", "navigation_only": False,
+                     "terminal_runtime_state": "recognized_home",
+                     "campaign_result": json.loads((child / "result.json").read_text())},
+                    session_directory=child, input_count=4, maximum=delivery.MAX_INPUTS,
+                    destination="1-15-9", ap_cost=14,
+                    registration_snapshot=self._registration().to_mapping(),
+                )
+                retained_initial = delivery._campaign_initial_observation(lease, session)
+                (child / "frames" / "0000-initial-observation.png").write_bytes(b"campaign-initial")
+                retained_initial["frame_path"] = "frames/0000-initial-observation.png"
+                result.update(initial_observation=retained_initial,
+                    initial_frame_sha256=initial.frame_sha256, campaign_transport_count=4,
+                    recovery_input_count=0, route_input_count=4, total_input_count=4)
+                trace = delivery._campaign_causal_trace(child, result=result,
+                    initial_observation=retained_initial,
+                    registration_snapshot=self._registration().to_mapping())
+                result.update(causal_trace=trace, causal_trace_count=1)
                 self.assertIs(initial, session.initial_observation)
                 self.assertEqual(result["status"], "completed")
                 self.assertEqual(result["input_count"], 4)
@@ -178,7 +372,6 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
                 self.assertEqual(result["causal_trace_count"], 1)
                 self.assertTrue(result["causal_trace"]["read_only"])
                 self.assertFalse(result["causal_trace"]["input_authority"])
-                self.assertEqual(session.causal_trace, result["causal_trace"])
                 verdict = delivery.verify_campaign_auto_battle_live(
                     {"result": result, "session_directory": str(child)}, {}, {}
                 )
@@ -261,14 +454,124 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
             self.assertFalse(result["refill_forbidden_verified"])
             self.assertEqual(result["status"], "effect_reconciliation_required")
 
-    def test_live_route_rejects_missing_registration_before_session(self):
-        with self.assertRaisesRegex(pnsctl.OperatorError, "typed registration snapshot"):
-            delivery._run_campaign_auto_battle_continuous(
-                {},
-                {"max_inputs": delivery.MAX_INPUTS},
-            )
+    def test_ordinary_legacy_ap_refuses_before_proof_session_preparation_or_process(self):
+        for entrypoint in (delivery.run_campaign_auto_battle_live, delivery._run_campaign_victory_home_recovery):
+            for recovery in (None, False, 1, "true"):
+                with (
+                    self.subTest(entrypoint=entrypoint.__name__, recovery=recovery),
+                    patch("tasks.campaign_victory_recovery.load_victory_recovery_proof") as proof,
+                    patch.object(delivery, "_campaign_outer_session") as session,
+                    patch.object(delivery, "_ensure_home_surface_before_prep") as prep,
+                    patch.object(delivery.subprocess, "run") as process,
+                ):
+                    lease = {"max_inputs": delivery.MAX_INPUTS, "recovery_only": recovery,
+                             "development_session": object()}
+                    with self.assertRaisesRegex(pnsctl.OperatorError, "automation-service serve"):
+                        entrypoint({}, lease)
+                    for operation in (proof, session, prep, process):
+                        operation.assert_not_called()
 
-    def test_conduct_campaign_does_not_create_pre_observation_session(self):
+    def test_victory_recovery_skips_entry_and_preserves_one_original_battle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session, initial = self._session(
+                root, invocation_id=f"{delivery.AUTO_BATTLE_FLOW_ID}-20261029T060000000000Z"
+            )
+            child = root / "outer" / "runtime" / "1-15-9-recovery"
+            self._child_result(child, ap_after=107)
+            campaign = json.loads((child / "result.json").read_text())
+            campaign.update(victory_home_only=True, new_battle_count=0)
+            campaign["progress"]["ap_regenerated"] = 1
+            (child / "result.json").write_text(json.dumps(campaign), encoding="utf-8")
+            rows = [
+                {"type": "command", "kind": "tap", "action": action, "target_identity": target}
+                for action, target in (
+                    ("CONTINUE_VICTORY", "campaign-victory-continue"),
+                    ("LEAVE_CHAPTER_MAP", "campaign-chapter-back"),
+                    ("RETURN_HOME", "campaign-exit-base"),
+                )
+            ]
+            (child / "events.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+            proof = {
+                "source_session": str(root / "prior"), "baseline_ap": 120,
+                "destination": "1-15-9", "ap_cost": 14, "new_battle_count": 0,
+                "registration_snapshot": self._registration().to_mapping(),
+            }
+            lease = {
+                "owner": session.owner, "development_session": session,
+                "initial_observation": initial, "initial_frame_sha256": initial.frame_sha256,
+                "max_inputs": delivery.MAX_INPUTS, "recovery_only": True,
+                "recovery_session": str(root / "prior"),
+            }
+            try:
+                with (
+                    patch("tasks.campaign_victory_recovery.load_victory_recovery_proof", return_value=proof),
+                    patch.object(delivery, "_ensure_home_surface_before_prep", side_effect=AssertionError("no entry during recovery")),
+                    patch.object(delivery.subprocess, "run", return_value=SimpleNamespace(returncode=0, stdout="", stderr="")) as run,
+                ):
+                    result = json.loads(delivery.run_campaign_auto_battle_live({}, lease))
+                    verdict = delivery.verify_campaign_auto_battle_live({"result": result, "session_directory": str(child)}, {}, {})
+                    for outcome, loss in (("defeat", False), ("victory", True)):
+                        forged = json.loads(json.dumps(result))
+                        forged["campaign_result"]["battle_outcome"] = outcome
+                        forged["campaign_result"]["progress"]["loss_seen"] = loss
+                        rejected = delivery._campaign_result_payload(
+                            forged, session_directory=child, input_count=3, maximum=16,
+                            destination="1-15-9", ap_cost=14, registration_snapshot=proof["registration_snapshot"],
+                        )
+                        self.assertEqual(rejected["status"], "effect_reconciliation_required")
+                        self.assertEqual(delivery.verify_campaign_auto_battle_live({"result": forged, "session_directory": str(child)}, {}, {})["status"], "evidence_required")
+                self.assertEqual(result["status"], "completed")
+                self.assertEqual(result["proof_topology"], "composite")
+                self.assertEqual(result["new_battle_count"], 0)
+                self.assertEqual(result["campaign_action_count"], 1)
+                self.assertEqual(result["ap_regenerated"], 1)
+                self.assertFalse(result["exact_ap_delta"])
+                self.assertTrue(result["ap_cost_reconciled"])
+                self.assertEqual(verdict["status"], "verified")
+                command = run.call_args.args[0]
+                self.assertIn("--victory-home-only", command)
+                self.assertEqual(command[command.index("--initial-ap") + 1], "120")
+                rows[0]["target_identity"] = "campaign-lineup-challenge"
+                (child / "events.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+                rejected = delivery._campaign_result_payload(
+                    result, session_directory=child, input_count=3, maximum=16,
+                    destination="1-15-9", ap_cost=14, registration_snapshot=proof["registration_snapshot"],
+                )
+                self.assertFalse(rejected["safe_action_policy"])
+                self.assertEqual(rejected["status"], "effect_reconciliation_required")
+                rows[0]["target_identity"] = "campaign-victory-continue"
+                rows.append({"type": "command", "kind": "shell", "action": "UNKNOWN"})
+                self.assertFalse(delivery._campaign_victory_recovery_inputs(rows))
+            finally:
+                session.__exit__(None, None, None)
+
+    def test_invalid_recovery_proof_stops_before_runtime_ownership(self):
+        with (
+            patch("tasks.campaign_victory_recovery.load_victory_recovery_proof", side_effect=ValueError("bad proof")),
+            patch.object(boundary, "DevelopmentSession", side_effect=AssertionError("must not acquire runtime")),
+        ):
+            with self.assertRaises(pnsctl.OperatorError):
+                pnsctl.development_session_run_flow(
+                    delivery.AUTO_BATTLE_FLOW_ID, live=True, yes=True,
+                    recovery_only=True, recovery_session=Path("untrusted"),
+                )
+
+    def test_retained_campaign_verification_does_not_require_an_active_legacy_queue(self):
+        retained = {"flow_id": delivery.AUTO_BATTLE_FLOW_ID}
+        with (
+            patch.object(pnsctl, "_retained_flow_result", return_value=(Path("retained"), retained)),
+            patch.object(pnsctl, "_verify_flow_structure", return_value={"result": retained}),
+            patch.object(pnsctl, "_load_flow_delivery_state", side_effect=pnsctl.OperatorError("no active queue")),
+            patch.object(pnsctl, "_retained_troop_training_state", side_effect=AssertionError("wrong route")),
+            patch.dict(pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS, {
+                "campaign_auto_battle_live_evidence": Mock(return_value={"status": "verified"}),
+            }),
+        ):
+            result = json.loads(pnsctl.bluestacks_verify_flow(Path("retained")))
+        self.assertEqual(result["status"], "verified")
+
+    def test_conduct_campaign_rejects_before_observation_or_legacy_runner(self):
         with tempfile.TemporaryDirectory() as directory:
             with (
                 patch.object(
@@ -282,16 +585,14 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
                     return_value=json.dumps({"status": "blocked"}),
                 ) as run_flow,
             ):
-                result = json.loads(
+                with self.assertRaisesRegex(pnsctl.OperatorError, "automation-service"):
                     pnsctl.conduct_flow(
                         delivery.AUTO_BATTLE_FLOW_ID,
                         live=True,
                         yes=True,
                         state_root=Path(directory),
                     )
-                )
-            self.assertEqual(result["flow_id"], delivery.AUTO_BATTLE_FLOW_ID)
-            run_flow.assert_called_once()
+            run_flow.assert_not_called()
 
 
 if __name__ == "__main__":

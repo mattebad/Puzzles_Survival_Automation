@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from pathlib import Path
 import shutil
 from typing import Any, Mapping
 
+import cv2
+import numpy as np
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 
 
@@ -131,6 +133,9 @@ def _write_read_only_causal_trace(
         "invocation_id": str(initial_observation.get("invocation_id") or ""),
         "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
         "stages": [
+            "typed_initial_observation", "exact_bioenhancer_cooldown",
+            "visible_in_game_exit", "terminal_home",
+        ] if flow_result.get("no_work") is True else [
             "typed_initial_observation",
             "inspect_current_home_frame",
             "research_lab_navigation",
@@ -141,6 +146,7 @@ def _write_read_only_causal_trace(
         ],
         "transport_count": _retained_transport_count(session),
         "free_research_transport_calls": _free_research_transport_calls(session),
+        "no_work": flow_result.get("no_work") is True,
         "event_count": len(events),
         "status": str(flow_result.get("status") or "unknown"),
         "effect_reconciliation_required": bool(
@@ -183,8 +189,8 @@ def _write_delivery_result(
         ),
         "actions": [
             {
-                "action_class": "one_free_bioenhancer_research",
-                "path": "home_to_research_lab_to_bioenhancer_to_home",
+                "action_class": "bioenhancer_cooldown_no_work" if result.get("no_work") is True else "one_free_bioenhancer_research",
+                "path": "bioenhancer_cooldown_visible_exit_home" if result.get("no_work") is True else "home_to_research_lab_to_bioenhancer_to_home",
                 "outcome": result.get("status"),
             }
         ],
@@ -199,6 +205,10 @@ def _write_delivery_result(
         "free_research_transport_calls": free_calls,
         "terminal_home_verified": result.get("terminal_home_verified") is True,
         "semantic_postcondition": result.get("semantic_postcondition"),
+        "no_work": result.get("no_work") is True,
+        "cooldown": result.get("cooldown"),
+        "terminal_home_frame": result.get("terminal_home_frame"),
+        "next_due_utc": result.get("next_due_utc"),
         "proof_topology": result.get("proof_topology"),
         "initial_observation": result.get("initial_observation"),
         "initial_frame_sha256": result.get("initial_frame_sha256"),
@@ -216,6 +226,23 @@ def _write_delivery_result(
         json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
     )
+
+
+def _valid_cooldown_metadata(value: Any) -> bool:
+    if not isinstance(value, Mapping) or value.get("recognized") is not True:
+        return False
+    remaining = value.get("seconds_remaining")
+    if type(remaining) is not int or not 0 < remaining <= 86400:
+        return False
+    try:
+        observed = datetime.fromisoformat(value["observed_utc"])
+        due = datetime.fromisoformat(value["next_due_utc"])
+        return (
+            observed.utcoffset() == timedelta(0) and due.utcoffset() == timedelta(0)
+            and due - observed == timedelta(seconds=remaining)
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
 
 
 def _result_payload(
@@ -236,12 +263,21 @@ def _result_payload(
         isinstance(return_home, Mapping)
         and return_home.get("status") == "home_returned"
     ) or result.get("terminal_home_verified") is True
-    semantic_success = (
+    research_success = (
         raw_status == "completed"
+        and result.get("no_work") is not True
         and free_calls == 1
         and cooldown_proven
         and terminal_home_verified
     )
+    no_work = result.get("no_work") is True
+    no_work_success = (
+        no_work and raw_status == "completed" and free_calls == 0
+        and _valid_cooldown_metadata(result.get("cooldown"))
+        and isinstance(result.get("terminal_home_frame"), Mapping)
+        and terminal_home_verified
+    )
+    semantic_success = research_success or no_work_success
     if semantic_success:
         status = "completed"
     elif free_calls:
@@ -256,6 +292,8 @@ def _result_payload(
             "input_count": input_count,
             "max_inputs": maximum,
             "free_research_transport_calls": free_calls,
+            "no_work": no_work,
+            "next_due_utc": result["cooldown"]["next_due_utc"] if no_work_success else None,
             "dispatch": free_calls > 0,
             "terminal_home_verified": terminal_home_verified,
             "effect_reconciliation_required": bool(free_calls and not semantic_success),
@@ -274,6 +312,45 @@ def _result_payload(
         }
     )
     return payload
+
+
+def _verify_no_work_frames(session: Path, result: Mapping[str, Any]) -> bool:
+    from scripts.bioenhancer_free_research_canary import recognize_free_research_cooldown
+    from scripts.startup_normalization import is_clean_home_frame
+
+    cooldown = result.get("cooldown")
+    if not _valid_cooldown_metadata(cooldown):
+        return False
+    images = {}
+    try:
+        for label, record in (("cooldown", cooldown), ("home", result.get("terminal_home_frame"))):
+            if not isinstance(record, Mapping):
+                return False
+            reference = record.get("frame_path")
+            if not isinstance(reference, str) or Path(reference).is_absolute() or ".." in Path(reference).parts:
+                return False
+            path = session / reference
+            path.resolve().relative_to(session.resolve())
+            if not path.is_file() or any(part.is_symlink() for part in (path, *path.parents)):
+                return False
+            raw = path.read_bytes()
+            if not raw.startswith(b"\x89PNG\r\n\x1a\n") or hashlib.sha256(raw).hexdigest() != record.get("frame_sha256"):
+                return False
+            image = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+            if image is None or image.shape != (1280, 800, 3):
+                return False
+            images[label] = image
+        replay = recognize_free_research_cooldown(
+            images["cooldown"], now=datetime.fromisoformat(cooldown["observed_utc"]),
+        )
+        return bool(
+            replay is not None
+            and replay.get("seconds_remaining") == cooldown.get("seconds_remaining")
+            and replay.get("next_due_utc") == result.get("next_due_utc") == cooldown.get("next_due_utc")
+            and is_clean_home_frame(images["home"])
+        )
+    except (OSError, KeyError, TypeError, ValueError):
+        return False
 
 
 def run_bioenhancer_free_research(
@@ -435,6 +512,20 @@ def verify_bioenhancer_free_research(
         and trace.get("transport_count") == retained_transport
         and trace.get("free_research_transport_calls") == retained_free
     )
+    no_work = result.get("no_work") is True
+    consuming_proof = (
+        not no_work
+        and retained_free == result.get("free_research_transport_calls") == 1
+        and isinstance(postcondition, Mapping)
+        and postcondition.get("proven") is True
+        and postcondition.get("timer_proven") is True
+    )
+    no_work_proof = (
+        no_work
+        and isinstance(trace, Mapping) and trace.get("no_work") is True
+        and retained_free == result.get("free_research_transport_calls") == 0
+        and _verify_no_work_frames(session, result)
+    )
     verified = (
         result.get("status") == "completed"
         and result.get("proof_topology") == "continuous"
@@ -443,10 +534,7 @@ def verify_bioenhancer_free_research(
         and retained_transport == result.get("input_count")
         and type(result.get("max_inputs")) is int
         and retained_transport <= result.get("max_inputs")
-        and retained_free == result.get("free_research_transport_calls") == 1
-        and isinstance(postcondition, Mapping)
-        and postcondition.get("proven") is True
-        and postcondition.get("timer_proven") is True
+        and (consuming_proof or no_work_proof)
         and result.get("terminal_home_verified") is True
         and result.get("effect_reconciliation_required") is False
     )
@@ -460,6 +548,8 @@ def verify_bioenhancer_free_research(
         "causal_trace_verified": trace_ok,
         "retained_transport_count": retained_transport,
         "free_research_transport_calls": retained_free,
+        "no_work": no_work,
+        "no_work_proof_verified": no_work_proof,
         "reason": None if verified else "Bioenhancer continuous route proof is incomplete",
     }
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 import hashlib
@@ -10,6 +11,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import numpy as np
+import cv2
 
 
 import scripts.pnsctl as pnsctl
@@ -124,6 +126,7 @@ def _run_bio_pan_case(
             patch.object(canary, "bind_visible_building", return_value=None),
             patch.object(canary, "bind_research_radial_option", return_value=None),
             patch.object(canary, "bind_research_lab", return_value=None),
+            patch.object(canary, "recognize_free_research_cooldown", return_value=None),
             patch.object(canary, "is_clean_home_frame", side_effect=clean_home),
         ):
             with DevelopmentSession(
@@ -175,7 +178,7 @@ class BioenhancerFlowDeliveryTests(unittest.TestCase):
                 _terminal_status,
             ) = _run_bio_pan_case(
                 Path(directory),
-                lambda frame: int(frame[0, 0, 0]) != 1,
+                lambda frame: int(frame[0, 0, 0]) != 2,
             )
 
         self.assertIsNone(error)
@@ -197,7 +200,7 @@ class BioenhancerFlowDeliveryTests(unittest.TestCase):
                 terminal_status,
             ) = _run_bio_pan_case(
                 Path(directory),
-                lambda frame: int(frame[0, 0, 0]) != 2,
+                lambda frame: int(frame[0, 0, 0]) != 3,
             )
 
         self.assertIsNone(error)
@@ -283,7 +286,7 @@ class BioenhancerFlowDeliveryTests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(input_count, 1)
         self.assertEqual(len(runtime.swipes), 1)
-        self.assertEqual(runtime.swipes[0]["marker"], 2)
+        self.assertEqual(runtime.swipes[0]["marker"], 3)
 
 
     def test_registry_binds_consequential_runner_without_promotion(self):
@@ -546,6 +549,284 @@ class BioenhancerFlowDeliveryTests(unittest.TestCase):
                 {"result": broken, "session_directory": str(session)}, {}, {}
             )
             self.assertEqual(verdict["status"], "evidence_required")
+
+
+class BioenhancerCooldownTests(unittest.TestCase):
+    NOW = datetime(2026, 10, 29, 7, 10, tzinfo=timezone.utc)
+
+    def test_unique_bounded_timer_has_exact_utc_next_due(self):
+        for text, seconds in (("Free in 16:57:15", 61035), ("Free in 01:30", 90), ("Free in 24:00:00", 86400)):
+            result = canary.parse_free_research_cooldown(text, now=self.NOW)
+            self.assertEqual(result["seconds_remaining"], seconds)
+            self.assertEqual(datetime.fromisoformat(result["next_due_utc"]), self.NOW + timedelta(seconds=seconds))
+        for text in ("Free in 00:00", "Free in 25:00:00", "Free in 16:99:00", "Free in 01:60", "Free in 99:10", "Free in 16:57:15 Free in 10:00", "Free in 16:57:15 Free in unknown", "2/100", "Free Research 1x"):
+            with self.subTest(text=text):
+                self.assertIsNone(canary.parse_free_research_cooldown(text, now=self.NOW))
+        with self.assertRaises(ValueError):
+            canary.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW.replace(tzinfo=None))
+
+    def test_timer_requires_exact_bioenhancer_context(self):
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        tokens = [{"text_cf": value, "text": value} for value in ("Free", "in", "16:57:15")]
+        with patch.object(canary, "_ocr_tokens", return_value=tokens), patch.object(canary, "bind_bioenhancer_back", return_value=None):
+            self.assertIsNone(canary.recognize_free_research_cooldown(frame, now=self.NOW))
+        with patch.object(canary, "_ocr_tokens", return_value=tokens), patch.object(canary, "bind_bioenhancer_back", return_value=object()):
+            self.assertEqual(canary.recognize_free_research_cooldown(frame, now=self.NOW)["seconds_remaining"], 61035)
+
+    def _route_case(self, root, *, already_open, ready_startup=False):
+        class Runtime:
+            def __init__(self):
+                self.session = root / "runtime"
+                (self.session / "frames").mkdir(parents=True)
+                self.phase = 0 if ready_startup else 3 if already_open else 1
+                self.ordinal = 0
+                self.taps = []
+                self.home_captures = 0
+
+            def capture(self, label):
+                if self.phase == 4:
+                    self.home_captures += 1
+                    if self.home_captures > 1:
+                        raise TimeoutError("redundant capture after verified Home")
+                self.ordinal += 1
+                frame = np.full((1280, 800, 3), self.phase, np.uint8)
+                raw = cv2.imencode(".png", frame)[1].tobytes()
+                path = self.session / "frames" / f"{self.ordinal:04}-{label}.png"
+                path.write_bytes(raw)
+                return CapturedNativeFrame(frame, raw, hashlib.sha256(raw).hexdigest(), float(self.ordinal), path)
+
+            def tap(self, _before, *, target_identity, **_kwargs):
+                self.taps.append(target_identity)
+                self.phase = {canary.RESEARCH_LAB_ID: 2, "research-lab-radial-research": 3,
+                    "bioenhancer-in-game-back": 1 if self.phase == 0 else 4}[target_identity]
+
+        runtime = Runtime()
+        cooldown = canary.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW)
+        def control(frame, phase, identity):
+            return canary.BoundControl(identity, (200, 300, 260, 360), (), .9) if int(frame[0, 0, 0]) == phase else None
+        with (
+            patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
+            patch.object(canary, "recognize_free_research_cooldown", side_effect=lambda frame: dict(cooldown) if int(frame[0, 0, 0]) == 3 else None),
+            patch.object(canary, "is_clean_home_frame", side_effect=lambda frame: int(frame[0, 0, 0]) in (1, 4)),
+            patch.object(canary, "bind_bioenhancer_back", side_effect=lambda frame: control(
+                frame, 0 if int(frame[0, 0, 0]) == 0 else 3, "bioenhancer-in-game-back")),
+            patch.object(canary, "load_home_atlas", return_value=object()),
+            patch.object(canary, "normalize_home_atlas_startup", return_value=(object(), object())) as normalize,
+            patch.object(canary, "DirectPanNavigator", return_value=object()),
+            patch.object(canary, "plan_research_lab_pan", return_value=(object(), None, SimpleNamespace(disposition=PlanDisposition.BIND, reason="bound", drag_start=None, drag_end=None))),
+            patch.object(canary, "bind_research_lab", side_effect=lambda frame: control(frame, 1, canary.RESEARCH_LAB_ID)),
+            patch.object(canary, "bind_research_radial_option", side_effect=lambda frame: control(frame, 2, "research-lab-radial-research")),
+            patch.object(canary, "bind_free_research", side_effect=lambda frame: control(
+                frame, 0, "bioenhancer-free-research")) as free,
+            patch.object(canary, "_ocr_tokens", return_value=[]),
+        ):
+            with DevelopmentSession(owner="bio-cooldown-test", invocation_id="bio-cooldown-test", session_directory=root / "outer", max_inputs=8) as session:
+                result = canary.run(session=session, runtime=runtime, session_directory=runtime.session, settle_seconds=0)
+                inputs = session.input_count
+        return result, inputs, runtime.taps, normalize.call_count, free.call_count
+
+    def test_ready_startup_returns_home_once_before_normal_navigation_without_consuming(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, inputs, taps, normalized, _ = self._route_case(
+                Path(directory), already_open=False, ready_startup=True)
+        self.assertEqual(result["status"], "completed")
+        self.assertTrue(result["no_work"])
+        self.assertEqual(result["startup_return_home"]["status"], "home_returned")
+        self.assertEqual(result["startup_return_home"]["input_count"], 1)
+        self.assertEqual(inputs, 4)
+        self.assertEqual(normalized, 1)
+        self.assertEqual(taps, ["bioenhancer-in-game-back", canary.RESEARCH_LAB_ID,
+            "research-lab-radial-research", "bioenhancer-in-game-back"])
+
+    def test_already_open_and_home_full_repeat_return_home_without_research(self):
+        for already_open in (True, False):
+            with self.subTest(already_open=already_open), tempfile.TemporaryDirectory() as directory:
+                result, inputs, taps, normalized, free_checks = self._route_case(Path(directory), already_open=already_open)
+            self.assertEqual(result["status"], "completed")
+            self.assertTrue(result["no_work"])
+            self.assertTrue(result["terminal_home_verified"])
+            self.assertEqual(inputs, 1 if already_open else 3)
+            self.assertEqual(normalized, 0 if already_open else 1)
+            self.assertEqual(taps[-1], "bioenhancer-in-game-back")
+            self.assertNotIn("bioenhancer-free-research", taps)
+
+    def test_no_work_verifier_replays_cooldown_and_home_and_rejects_tampering(self):
+        with tempfile.TemporaryDirectory() as directory:
+            session = Path(directory)
+            (session / "frames").mkdir()
+            records = {}
+            for label, marker in (("cooldown", 3), ("home", 4)):
+                raw = cv2.imencode(".png", np.full((1280, 800, 3), marker, np.uint8))[1].tobytes()
+                (session / "frames" / f"{label}.png").write_bytes(raw)
+                records[label] = {"frame_path": f"frames/{label}.png", "frame_sha256": hashlib.sha256(raw).hexdigest()}
+            cooldown = {**canary.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW), **records["cooldown"]}
+            (session / "events.jsonl").write_text(json.dumps({"type": "dispatch", "execute": True, "action_key": "bioenhancer-return-home:1"}) + "\n")
+            payload = delivery._result_payload({"status": "completed", "no_work": True, "cooldown": cooldown, "terminal_home_verified": True, "terminal_home_frame": records["home"]}, session_directory=session, input_count=1, free_calls=0, maximum=8)
+            initial = {"frame_path": records["cooldown"]["frame_path"], "frame_sha256": records["cooldown"]["frame_sha256"], "invocation_id": "bio-cooldown"}
+            payload.update(initial_observation=initial, initial_frame_sha256=initial["frame_sha256"], proof_topology="continuous", causal_trace_count=1)
+            payload["causal_trace"] = delivery._write_read_only_causal_trace(session, flow_result=payload, initial_observation=initial)
+            delivery._write_delivery_result(session, payload, lease={"owner": "test"}, maximum=8)
+            retained = json.loads((session / "flow-delivery-result.json").read_text())
+            with (
+                patch.object(canary, "recognize_free_research_cooldown", side_effect=lambda frame, **_kwargs: cooldown if int(frame[0, 0, 0]) == 3 else None),
+                patch("scripts.startup_normalization.is_clean_home_frame", side_effect=lambda frame: int(frame[0, 0, 0]) == 4),
+            ):
+                verdict = verify_bioenhancer_free_research({"result": retained, "session_directory": str(session)}, {}, {})
+                self.assertEqual(verdict["status"], "verified")
+                self.assertEqual(verdict["free_research_transport_calls"], 0)
+                self.assertTrue(verdict["no_work_proof_verified"])
+                retained["cooldown"]["frame_sha256"] = "0" * 64
+                verdict = verify_bioenhancer_free_research({"result": retained, "session_directory": str(session)}, {}, {})
+                self.assertEqual(verdict["status"], "evidence_required")
+                retained["cooldown"]["frame_sha256"] = records["cooldown"]["frame_sha256"]
+                wrong_home = cv2.imencode(".png", np.full((1280, 800, 3), 3, np.uint8))[1].tobytes()
+                (session / "frames" / "home.png").write_bytes(wrong_home)
+                retained["terminal_home_frame"]["frame_sha256"] = hashlib.sha256(wrong_home).hexdigest()
+                verdict = verify_bioenhancer_free_research({"result": retained, "session_directory": str(session)}, {}, {})
+                self.assertEqual(verdict["status"], "evidence_required")
+
+    def test_no_work_cannot_relabel_a_research_dispatch_or_unproved_home(self):
+        base = {"status": "completed", "no_work": True, "cooldown": canary.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW), "terminal_home_verified": True, "terminal_home_frame": {}, "semantic_postcondition": {"proven": True, "timer_proven": True}}
+        result = delivery._result_payload(base, session_directory="test", input_count=2, free_calls=1, maximum=8)
+        self.assertEqual(result["status"], "effect_reconciliation_required")
+        base["terminal_home_verified"] = False
+        result = delivery._result_payload(base, session_directory="test", input_count=1, free_calls=0, maximum=8)
+        self.assertEqual(result["status"], "blocked")
+
+    def test_no_work_requires_the_returned_home_frame_proof_without_recapture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = SimpleNamespace(path=root / "cooldown.png", sha256="1" * 64)
+            session = SimpleNamespace(input_count=1, terminal_status=None)
+            with (
+                patch.object(canary, "_return_to_home", return_value={"status": "home_returned"}),
+                patch.object(canary, "is_clean_home_frame") as recognize,
+            ):
+                def capture(_label):
+                    self.fail("verified return must not trigger another capture")
+                result = canary._complete_cooldown_no_work(
+                    {}, canary.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW), source,
+                    session=session, runtime=object(), capture=capture,
+                    session_directory=root, settle_seconds=0,
+                )
+            recognize.assert_not_called()
+            self.assertEqual(result["status"], "evidence_required")
+            self.assertFalse(result["terminal_home_verified"])
+
+
+class BioenhancerVisibleExitTests(unittest.TestCase):
+    def test_back_binding_requires_exact_title_arrow_and_no_modal(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        frame[15:50, 20:75] = 220
+        title = [{"text_cf": "bioenhancer"}]
+        with (
+            patch.object(canary, "_ocr_tokens", return_value=title) as ocr,
+            patch.object(canary, "_generic_modal_overlay_evidence", return_value={"recognized": False}) as modal,
+        ):
+            control = canary.bind_bioenhancer_back(frame)
+            self.assertIsNotNone(control)
+            self.assertEqual(control.identity, "bioenhancer-in-game-back")
+            variant = frame.copy()
+            variant[300:900, 200:600] = 130
+            self.assertEqual(canary.bind_bioenhancer_back(variant).target_roi, control.target_roi)
+            missing_arrow = variant.copy()
+            missing_arrow[:90, :140] = 0
+            self.assertIsNone(canary.bind_bioenhancer_back(missing_arrow))
+            ocr.return_value = [{"text_cf": "research"}]
+            self.assertIsNone(canary.bind_bioenhancer_back(frame))
+            ocr.return_value = title
+            modal.return_value = {"recognized": True}
+            self.assertIsNone(canary.bind_bioenhancer_back(frame))
+        self.assertIsNone(canary.bind_bioenhancer_back(frame[:640]))
+
+    def _return_case(self, root, *, bind=True, home_marker=3, changed_source=False):
+        class ExitRuntime(_PanRuntime):
+            def __init__(self):
+                super().__init__(root / "session" / "runtime")
+                self.taps = []
+
+            def tap(self, captured, **kwargs):
+                self.taps.append((int(captured.frame[0, 0, 0]), kwargs))
+
+            def back(self, *_args, **_kwargs):
+                raise AssertionError("Bioenhancer must never use Android Back")
+
+        runtime = ExitRuntime()
+        control = canary.BoundControl("bioenhancer-in-game-back", (10, 5, 90, 60), (), .9)
+
+        def binding(frame):
+            return control if bind and not (changed_source and int(frame[0, 0, 0]) == 2) else None
+
+        with (
+            patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
+            patch.object(canary, "bind_bioenhancer_back", side_effect=binding),
+            patch.object(canary, "is_clean_home_frame", side_effect=lambda frame: int(frame[0, 0, 0]) == home_marker),
+        ):
+            with DevelopmentSession(
+                owner="bio-exit-test", invocation_id="bio-exit-test",
+                session_directory=root / "session", max_inputs=2,
+            ) as session:
+                try:
+                    result = canary._return_to_home(
+                        session=session, runtime=runtime, capture=runtime.capture,
+                        session_directory=root / "session", settle_seconds=0,
+                    )
+                    error = None
+                except RuntimeError as exc:
+                    result, error = None, exc
+                count = session.input_count
+        return result, error, count, runtime.taps
+
+    def test_visible_exit_uses_fresh_frame_and_verifies_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, error, count, taps = self._return_case(Path(directory))
+        self.assertIsNone(error)
+        self.assertEqual(result["status"], "home_returned")
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(count, 1)
+        self.assertEqual(taps[0][0], 2)
+        self.assertEqual(taps[0][1]["target_identity"], "bioenhancer-in-game-back")
+        self.assertEqual(result["terminal_home_frame"]["frame_sha256"], result["attempts"][-1]["frame_sha256"])
+
+    def test_settled_home_proof_is_the_frame_already_verified(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, error, count, taps = self._return_case(Path(directory), home_marker=4)
+        self.assertIsNone(error)
+        self.assertEqual(result["status"], "home_returned")
+        self.assertEqual(count, 1)
+        self.assertEqual(len(taps), 1)
+        self.assertEqual(result["terminal_home_frame"]["frame_sha256"], result["attempts"][-1]["frame_sha256"])
+        self.assertTrue(result["terminal_home_frame"]["frame_path"].endswith("return-home-settled.png"))
+
+    def test_unknown_source_and_lost_binding_dispatch_nothing(self):
+        for changed_source in (False, True):
+            with self.subTest(changed_source=changed_source), tempfile.TemporaryDirectory() as directory:
+                result, error, count, taps = self._return_case(
+                    Path(directory), bind=changed_source, changed_source=changed_source,
+                )
+            self.assertEqual(count, 0)
+            self.assertEqual(taps, [])
+            if changed_source:
+                self.assertIsInstance(error, RuntimeError)
+            else:
+                self.assertEqual(result["status"], "home_return_not_proven")
+
+    def test_unknown_successor_never_retries_exit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, error, count, taps = self._return_case(Path(directory), home_marker=99)
+        self.assertIsNone(error)
+        self.assertEqual(result["status"], "home_return_not_proven")
+        self.assertEqual(count, 1)
+        self.assertEqual(len(taps), 1)
+
+    def test_already_home_requires_no_exit_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, error, count, taps = self._return_case(Path(directory), home_marker=1)
+        self.assertIsNone(error)
+        self.assertEqual(result["status"], "home_returned")
+        self.assertEqual(count, 0)
+        self.assertEqual(taps, [])
+        self.assertTrue(result["terminal_home_frame"]["frame_path"].endswith("bioenhancer-return-home-source.png"))
 
 
 if __name__ == "__main__":

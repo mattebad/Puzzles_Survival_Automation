@@ -1,6 +1,6 @@
 # Resource recovery backlog
 
-- Planning-only records for the resource/effect and resource-policy slice. Every ticket is inactive: these records authorize no transport, scheduler registration, production enablement, native observation, evidence mutation, or product action. `ResourceEffectAuthority` remains authoritative for every effectful route until REC-R01's parity package is accepted. An `UNKNOWN` effect is reconciled or blocked; it is never automatically retried. Shared implementation files are merged serially under the mutex named by each ticket; shared family static bindings and SQLite-disabled state are facts to preserve, not separate mutable registration gates.
+- Planning-only records for the resource/effect and resource-policy slice. Dated reconciliation notes distinguish local implementation from remaining acceptance. These records authorize no transport, scheduler registration, production enablement, native observation, evidence mutation, or product action. `ResourceEffectAuthority` remains authoritative for every effectful route until REC-R01's parity package is accepted. An `UNKNOWN` effect is reconciled or blocked; it is never automatically retried. Shared implementation files are merged serially under the mutex named by each ticket; shared family static bindings and SQLite-disabled state are facts to preserve, not separate mutable registration gates.
 
 ### REC-R01 — Preserve ResourceEffectAuthority parity at the canonical action boundary
 - Task ID: `REC-R01`
@@ -10,7 +10,7 @@
 - Objective: Preserve observable occurrence, quantity, reservation, effect-confirmation, changed-hypothesis, and crash/UNKNOWN safeguards while resource routes move from retained delivery adapters to the canonical action lifecycle; no authority may be retired on the strength of a schema-only match.
 - Dependencies: `REC-F09`, `REC-F10`, `REC-F11`
 - Related work: `DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION` (reuse the one-item effect facts, not its completed label as canonical readiness); `RUNTIME-RELIABILITY-MERGE-BOUNDARY` (retain the zero-authority end state). No separate historical parity task exists; the authority itself and governance plan are retained.
-- Evidence: `governance-simplification-plan.md` requires `ResourceEffectAuthority` to remain authoritative until parity covers occurrence, quantity, reservation, unknown effects, and changed-hypothesis retries; `safe_action_core/resource_effect_authority.py` exposes `create_resource_occurrence`, `claim_resource_attempt`, `prepare_resource_effect_action`, `record_resource_transport_intent`, `dispatch_prepared_resource_item_use`, and observe-only reconciliation; `tests/test_resource_effect_authority_store.py` and `tests/test_resource_effect_authority_history.py` exercise the retained stores. Prior audit evidence was isolated fake/temp state proof, not native acceptance.
+- Evidence: `AGENTS.md` retains `ResourceEffectAuthority` as authoritative (the historical rationale is in `docs/archive/governance-simplification-plan.md`) until parity covers occurrence, quantity, reservation, unknown effects, and changed-hypothesis retries; `safe_action_core/resource_effect_authority.py` exposes `create_resource_occurrence`, `claim_resource_attempt`, `prepare_resource_effect_action`, `record_resource_transport_intent`, `dispatch_prepared_resource_item_use`, and observe-only reconciliation; `tests/test_resource_effect_authority_store.py` and `tests/test_resource_effect_authority_history.py` exercise the retained stores. Prior audit evidence was isolated fake/temp state proof, not native acceptance.
 - Scope: `safe_action_core/resource_effect_authority.py`; `safe_action_core/executor.py`; `automation_service/actions.py`; `tests/test_resource_effect_authority_store.py`; `tests/test_resource_effect_authority_history.py`
 - Changes: Define one typed adapter from canonical action intent to the existing authority context; carry reset identity, occurrence key, exact quantity, reservation generation, current-frame provenance, and policy revision through reservation and dispatch; prove parity before any cutover. A crash after `DISPATCHING` becomes `UNKNOWN`; reconciliation may resolve it or block, never repeat it. A `NO_EFFECT` retry must create a new action with a materially changed hypothesis. Merge mutex: serialize with every R02–R19 effectful route because all touch the shared action/effect boundary.
 - Non-goals: Do not delete or bypass `ResourceEffectAuthority`; do not redesign SQLite schema, add a second executor, import protected evidence, alter route policy, or enable any flow.
@@ -48,7 +48,8 @@
 - Task ID: `REC-R03`
 - Type: Story
 - Priority: P2
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Gear used1 material, stock9561→9560 and EXP20→30. Same-Profile Gear/Chip/Module proof is composite interrupted/resumed; fresh uninterrupted family validation is active at the next natural reset.
 - Objective: Route one selected equipped Gear `Enhance` action through the shared family contract using exactly one positively identified one-star material, preserving exact target, cost, material, successor, and effect accounting.
 - Dependencies: `REC-F09`, `REC-F10`, `REC-F11`, `REC-R01`
 - Related work: `DQ-FLOW-ENHANCE-GEAR` (retain exact Gear/one-star/quantity-one semantics and offline coverage; its Passed label is not canonical readiness); `ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION` (reuse the family runner and historical per-category reservations; retain the documented family mutex).
@@ -69,7 +70,8 @@
 - Task ID: `REC-R04`
 - Type: Story
 - Priority: P2
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Chip used1 material, stock11534→11533 and EXP20→30, within the same Profile family visit before Home. Fresh uninterrupted family validation is active; no repeat of accepted current-reset work.
 - Objective: Route one selected equipped Chip `Enhance` action through the shared family contract using exactly one one-star material and no unapproved resource or premium behavior.
 - Dependencies: `REC-F09`, `REC-F10`, `REC-F11`, `REC-R01`
 - Related work: `DQ-FLOW-ENHANCE-CHIP` (retain Chip-specific identity and focused tests; historical Passed is not canonical readiness); `ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION` (reuse shared family implementation and validator, with a serial variant merge).
@@ -90,7 +92,8 @@
 - Task ID: `REC-R05`
 - Type: Story
 - Priority: P2
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Module used1 material, stock8298→8297 and EXP20→30, within the same Profile family visit before Home. Fresh uninterrupted family validation is active; this is local, uncommitted route acceptance.
 - Objective: Route one selected equipped Module `Enhance` action through the shared family contract using exactly one one-star material, with Module-specific target and effect reconciliation.
 - Dependencies: `REC-F09`, `REC-F10`, `REC-F11`, `REC-R01`
 - Related work: `DQ-FLOW-ENHANCE-MODULE` (retain Module identity and focused tests; historical Passed is not canonical readiness); `ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION` (reuse family runner and serial category reservations).
@@ -195,7 +198,8 @@
 - Task ID: `REC-R10`
 - Type: Story
 - Priority: P1
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Current1-15-9 entry uses fresh Atlas binding and verified destination controls. Historical navigation records for other approved destinations remain scoped to their original source; do not infer current consuming acceptance.
 - Objective: Provide one exclusive, zero-AP Home Atlas → Campaign → Story destination navigation route that recognizes exactly `1-20-9`, `1-15-9`, and `2-2-9`, then returns Home without Challenge, Auto Battle, AP, or any resource effect.
 - Dependencies: `REC-F09`, `REC-F10`, `REC-F11`, `REC-F12`
 - Related work: `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY` (reuse atlas/localization and zero-transport replay); `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` (retain all-three destination ground truth and navigation semantics, not old Completed status as canonical readiness); `AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE` (historical navigation-only boundary); `CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION` (retain Campaign/Ultimate separation).
@@ -216,7 +220,8 @@
 - Task ID: `REC-R11`
 - Type: Story
 - Priority: P1
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Current1-15-9 drains affordable AP and waits300 seconds after completion. Full7200-second native cadence passed with2wins/28AP; other configured consuming destinations and full native UTC crossing remain separately scoped.
 - Objective: Execute only configured Story Auto Battle runs at `1-15-9` (14 AP), `1-20-9` (16 AP), or `2-2-9` (20 AP), capped at 120 AP with natural regeneration of exactly 1 AP per 360 seconds, and return Home without refill or mode substitution.
 - Dependencies: `REC-F09`, `REC-F10`, `REC-F11`, `REC-F12`, `REC-R01`, `REC-R10`
 - Related work: `DQ-FLOW-CAMPAIGN-AP` (retain exact AP arithmetic and exclusions); `CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY` (retain production-controller shape and historical AP/Home evidence, not old completion as canonical readiness); `DQ-FLOW-CAMPAIGN-AUTO-BATTLE` (reuse dormant controller/replay); `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` (destination dependency only, not execution authorization).

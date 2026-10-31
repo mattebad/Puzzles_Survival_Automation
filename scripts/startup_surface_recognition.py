@@ -25,20 +25,19 @@ SCARLETT_NATIVE_GEOMETRY = (NATIVE_WIDTH, NATIVE_HEIGHT)
 # Fixture digests are provenance facts, not recognition allowlists. Live game
 # animation can legitimately change the full-frame digest.
 SCARLETT_FRAME_SHA256 = "f828bfa09af4d8085d69d432d471ede67f7bc5562a43a5fc58454ff3bd3ecbdc"
-SCARLETT_PIXEL_SHA256 = "cba2a6d58e71fec2dc2792f55a95645f70a2fab1de418b750582e80175c88b54"
 SCARLETT_TITLE_ROI = (230, 0, 570, 80)
 SCARLETT_SAFE_BACK_TARGET_IDENTITY = "scarlett-three-day-pack-in-game-back"
 SCARLETT_SAFE_BACK_ROI = (39, 0, 168, 61)
-SCARLETT_SURFACE_IDENTITY_ROI = (80, 120, 720, 360)
-SCARLETT_CRITICAL_ROI_HASHES = (
-    ("title", "cbb90e2485ccdaebbeb0cdae910a8ffdbfe3a80552882da116b534f9f55da16c"),
-    ("safe_back", "cef6a2d627791be82f0cc81e0e2488b204f64199770dd3fdb9657f91425cfd6a"),
-    ("surface_identity", "dbfb22593ee2980cc0340ca5ccb4586459b6e462460dfd78ea9a2337f7b087e3"),
-)
-SCARLETT_CRITICAL_ROIS = (
+SCARLETT_BENEFITS_ROI = (50, 265, 750, 465)
+SCARLETT_DAYS_ROI = (50, 670, 155, 1020)
+SCARLETT_NOTICE_ROI = (130, 1045, 700, 1115)
+# Retained hashes of these current regions are evidence metadata only.
+SCARLETT_EVIDENCE_ROIS = (
     ("title", SCARLETT_TITLE_ROI),
     ("safe_back", SCARLETT_SAFE_BACK_ROI),
-    ("surface_identity", SCARLETT_SURFACE_IDENTITY_ROI),
+    ("benefits", SCARLETT_BENEFITS_ROI),
+    ("days", SCARLETT_DAYS_ROI),
+    ("notice", SCARLETT_NOTICE_ROI),
 )
 SCARLETT_FORBIDDEN_PURCHASE_ROIS = (
     (78, 111, 800, 1280),
@@ -64,6 +63,10 @@ COMMERCIAL_TERMS = frozenset(
         "gift",
     }
 )
+# Home event offers live in the edge HUD. Inspect the gameplay center for
+# payment surfaces only after independent current-frame Home recognition.
+HOME_COMMERCIAL_SCENE_ROI = (100, 180, 600, 1120)
+COMMERCIAL_OCR_TIMEOUT_SECONDS = 3.0
 
 
 def _normalise(text: str) -> str:
@@ -94,7 +97,9 @@ def _title_text(frame: np.ndarray) -> str:
 
         title = _crop(frame, SCARLETT_TITLE_ROI)
         enlarged = cv2.resize(title, None, fx=4.0, fy=4.0, interpolation=cv2.INTER_CUBIC)
-        return _normalise(pytesseract.image_to_string(enlarged, config="--psm 7"))
+        return _normalise(pytesseract.image_to_string(
+            enlarged, config="--psm 7", timeout=3.0
+        ))
     except Exception:
         return ""
 
@@ -125,7 +130,7 @@ def _frame_bytes_match_pixels(frame: np.ndarray, frame_bytes: bytes | None) -> b
     )
 
 
-def _critical_roi_hashes(frame: np.ndarray) -> tuple[tuple[str, str], ...]:
+def _evidence_roi_hashes(frame: np.ndarray) -> tuple[tuple[str, str], ...]:
     return tuple(
         (
             identity,
@@ -133,8 +138,63 @@ def _critical_roi_hashes(frame: np.ndarray) -> tuple[tuple[str, str], ...]:
                 np.ascontiguousarray(_crop(frame, roi)).tobytes()
             ).hexdigest(),
         )
-        for identity, roi in SCARLETT_CRITICAL_ROIS
+        for identity, roi in SCARLETT_EVIDENCE_ROIS
     )
+
+
+def _scarlett_page_context(frame: np.ndarray) -> bool:
+    """Require the current offer's text/layout, excluding character artwork."""
+    try:
+        import pytesseract
+
+        def text(roi, scale=1.0):
+            pixels = _crop(frame, roi)
+            if scale != 1.0:
+                pixels = cv2.resize(pixels, None, fx=scale, fy=scale)
+            return _normalise(pytesseract.image_to_string(
+                pixels, config="--psm 11", timeout=3.0
+            ))
+
+        benefits = _letters(text(SCARLETT_BENEFITS_ROI))
+        benefit_terms = ("maxeffect", "buildspeed", "freespeeduptime")
+        if not all(term in benefits for term in benefit_terms):
+            # Gold italic text over animated flames needs line segmentation
+            # and color contrast; whole-panel sparse OCR can merge its strokes.
+            lines = []
+            for roi, gold in (((55, 280, 250, 325), False),
+                    ((50, 330, 520, 392), True), ((50, 395, 750, 455), True)):
+                pixels = _crop(frame, roi)
+                pixels = (255 - cv2.inRange(cv2.cvtColor(pixels, cv2.COLOR_BGR2HSV),
+                    np.array((15, 80, 150), np.uint8), np.array((45, 255, 255), np.uint8))
+                    if gold else cv2.cvtColor(pixels, cv2.COLOR_BGR2GRAY))
+                pixels = cv2.resize(pixels, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
+                pixels = cv2.copyMakeBorder(pixels, 15, 15, 15, 15, cv2.BORDER_CONSTANT, value=255)
+                lines.append(_letters(pytesseract.image_to_string(pixels, config="--psm 7", timeout=3.0)))
+            benefits = " ".join(line if term in line else "" for line, term in zip(lines, benefit_terms))
+        days = _letters(text(SCARLETT_DAYS_ROI, 2.0))
+        notice = _letters(text(SCARLETT_NOTICE_ROI))
+        center = _letters(text((180, 350, 640, 1020)))
+    except Exception:
+        return False
+    return bool(
+        all(term in benefits for term in benefit_terms)
+        and all(term in days for term in ("day1", "day2", "day3"))
+        and "onlybuyone" in notice and "1sttopuppack" in notice
+        and not any(term in center for term in (
+            "confirm", "cancel", "payment", "checkout", "close", "areyousure",
+        ))
+    )
+
+
+def _scarlett_back_arrow(frame: np.ndarray) -> tuple[int, int, int, int] | None:
+    from scripts.daily_resource_item_bluestacks import _bag_back_arrow_visual
+
+    target = _bag_back_arrow_visual(frame, maximum_left=90, search_right=180)
+    if target is None:
+        return None
+    x0, y0, x1, y1 = target
+    sx0, sy0, sx1, sy1 = SCARLETT_SAFE_BACK_ROI
+    return target if sx0 <= x0 < x1 <= sx1 and sy0 <= y0 < y1 <= sy1 else None
 
 
 def _roi_valid(roi: Sequence[int], *, width: int = NATIVE_WIDTH, height: int = NATIVE_HEIGHT) -> bool:
@@ -178,15 +238,31 @@ def commercial_surface_signal(frame: np.ndarray) -> dict[str, Any]:
     """Return conservative evidence that an unallowlisted commercial surface is present."""
     if not _valid_frame(frame):
         return {"commercial_looking": False, "terms": (), "text": ""}
+    from scripts.startup_normalization import classify_home_base_live
+
+    home = classify_home_base_live(
+        frame, cash_mall_rejected=True, safe_os_surface=True
+    )
+    home_context = bool(
+        home.get("state") == "HOME_BASE"
+        and home.get("recognized") is True
+        and not home.get("overlay")
+        and not home.get("blocking_unknown_modal")
+        and not home.get("manual_only_state")
+    )
+    candidate = _crop(frame, HOME_COMMERCIAL_SCENE_ROI) if home_context else frame
     try:
         import pytesseract
 
-        text = _normalise(pytesseract.image_to_string(frame, config="--psm 11"))
+        text = _normalise(pytesseract.image_to_string(
+            candidate, config="--psm 11", timeout=COMMERCIAL_OCR_TIMEOUT_SECONDS
+        ))
     except Exception:
         text = ""
     terms = tuple(sorted(term for term in COMMERCIAL_TERMS if term in text))
-    # Any commercial term is enough to prevent an unknown startup frame from
-    # being treated as clear Home; recognition never grants purchase authority.
+    # Home event labels alone are not payment surfaces. Unknown source pages
+    # retain whole-frame commercial detection; central purchase dialogs still
+    # block even when Home context remains visible behind them.
     commercial = bool(terms) or any(term in text for term in ("buy one", "top-up", "payment", "checkout"))
     return {"commercial_looking": commercial, "terms": terms, "text": text}
 
@@ -212,6 +288,8 @@ class StartupSurfaceRecognition:
     purchase_exclusion_verified: bool
     critical_roi_hashes: tuple[tuple[str, str], ...]
     reason: str
+    page_context_verified: bool = False
+    measured_back_roi: tuple[int, int, int, int] | None = None
 
     def to_mapping(self) -> dict[str, Any]:
         return asdict(self)
@@ -236,8 +314,9 @@ def recognize_scarlett_three_day_pack(
     title = _title_text(frame)
     title_identity = _title_matches(title)
     frame_bytes_bound = _frame_bytes_match_pixels(frame, frame_bytes)
-    critical_roi_hashes = _critical_roi_hashes(frame)
-    stable_identity = critical_roi_hashes == SCARLETT_CRITICAL_ROI_HASHES
+    critical_roi_hashes = _evidence_roi_hashes(frame)
+    page_context = title_identity and _scarlett_page_context(frame)
+    back_arrow = _scarlett_back_arrow(frame) if title_identity else None
     target_exact = _target_set_is_exact(target_candidates)
     exclusion_verified = bool(
         _roi_valid(SCARLETT_SAFE_BACK_ROI)
@@ -249,20 +328,25 @@ def recognize_scarlett_three_day_pack(
         "full_page_real_money_promotion",
         "visible_in_game_back_upper_left",
         "purchase_regions_excluded",
+        "current_offer_benefits_and_three_day_rows",
+        "current_first_topup_notice",
     )
     recognized = bool(
         frame_bytes_bound
-        and stable_identity
+        and page_context
+        and back_arrow is not None
         and title_identity
         and target_exact
         and exclusion_verified
     )
     if not frame_bytes_bound:
         reason = "frame_bytes_do_not_match_current_pixels"
-    elif not stable_identity:
-        reason = "stable_scarlett_roi_signature_mismatch"
     elif not title_identity:
         reason = "exact_title_semantics_missing"
+    elif not page_context:
+        reason = "current_scarlett_page_context_missing_or_overlaid"
+    elif back_arrow is None:
+        reason = "current_safe_back_arrow_not_uniquely_bound"
     elif not target_exact:
         reason = "safe_back_target_is_ambiguous_or_wrong_geometry"
     elif not exclusion_verified:
@@ -289,6 +373,8 @@ def recognize_scarlett_three_day_pack(
         exclusion_verified,
         critical_roi_hashes,
         reason,
+        bool(page_context),
+        back_arrow,
     )
     return result.to_mapping()
 
@@ -329,7 +415,11 @@ def is_exact_scarlett_recognition(recognition: Mapping[str, Any]) -> bool:
     if not _title_matches(str(recognition.get("title_text") or "")):
         return False
     evidence = recognition.get("semantic_evidence")
-    required_evidence = {"title:Scarlett 3-Day Pack", "full_page_real_money_promotion", "visible_in_game_back_upper_left", "purchase_regions_excluded"}
+    required_evidence = {
+        "title:Scarlett 3-Day Pack", "full_page_real_money_promotion",
+        "visible_in_game_back_upper_left", "purchase_regions_excluded",
+        "current_offer_benefits_and_three_day_rows", "current_first_topup_notice",
+    }
     if not isinstance(evidence, (tuple, list)):
         return False
     try:
@@ -341,7 +431,7 @@ def is_exact_scarlett_recognition(recognition: Mapping[str, Any]) -> bool:
     try:
         target = tuple(int(value) for value in recognition.get("safe_exit_roi", ()))
         forbidden = tuple(tuple(int(value) for value in roi) for roi in recognition.get("forbidden_purchase_rois", ()))
-        critical_roi_hashes = tuple((str(identity), str(digest)) for identity, digest in recognition.get("critical_roi_hashes", ()))
+        arrow = tuple(int(value) for value in recognition.get("measured_back_roi", ()))
     except (TypeError, ValueError):
         return False
     current_frame_sha256 = recognition.get("frame_sha256")
@@ -353,7 +443,10 @@ def is_exact_scarlett_recognition(recognition: Mapping[str, Any]) -> bool:
         and recognition.get("max_inputs") == SCARLETT_MAX_INPUTS
         and recognition.get("target_count") == 1
         and recognition.get("title_identity") is True
-        and critical_roi_hashes == SCARLETT_CRITICAL_ROI_HASHES
+        and recognition.get("page_context_verified") is True
+        and len(arrow) == 4
+        and target[0] <= arrow[0] < arrow[2] <= target[2]
+        and target[1] <= arrow[1] < arrow[3] <= target[3]
         and isinstance(current_frame_sha256, str)
         and re.fullmatch(r"[0-9a-f]{64}", current_frame_sha256) is not None
     )

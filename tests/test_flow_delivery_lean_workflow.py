@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import redirect_stderr
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -17,6 +19,14 @@ POLICY = ROOT / "tasks" / "flow_delivery_product_policy.json"
 
 class LeanWorkflowTests(unittest.TestCase):
     HEAD = "a" * 40
+
+    def test_cli_rejects_retired_model_routing_argument(self) -> None:
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as rejected:
+                control.parser().parse_args(["--routing-events", "routing.jsonl", "validate"])
+
+        self.assertEqual(rejected.exception.code, 2)
+        self.assertEqual(control.parser().parse_args(["validate"]).command, "validate")
 
     def make_controller(self, root: Path) -> control.FlowDeliveryController:
         queue = root / "queue.json"

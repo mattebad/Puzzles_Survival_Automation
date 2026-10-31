@@ -1,0 +1,42 @@
+{
+  "current-tier-map.png": {
+    "source": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261029T023917947505Z/nav-20261029T023918625901Z/runtime/frames/0006-campaign-home-building-settled.png",
+    "sha256": "ec7361abd386169e9ed5fc5b031c054afc532dff4674b0cac083d8f8145b96a6",
+    "native_size": [
+      800,
+      1280
+    ]
+  },
+  "older-tier-map.png": {
+    "source": ".local-captures/campaign-ap-live/1-20-9-20260716T050321849157Z/frames/frame-0003.png",
+    "sha256": "b0495c8d3b3c8197ddbca70f459c649f21f96c18a13fce1629f79e4fd194b393",
+    "native_size": [
+      800,
+      1280
+    ]
+  },
+  "nova-screen.png": {
+    "source": ".local-captures/integrated-route-validation/nova-live/nova-praise-20260716T193636098874Z/frames/0001-step-001-source.png",
+    "sha256": "f5297765bbf31ab1d3c884dae70cc1579eddef05a5318d09184a06366152c7b7",
+    "native_size": [
+      800,
+      1280
+    ]
+  },
+  "panned-tier1-map.png": {
+    "source": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20261029T051714382556Z/runtime/1-15-9-20261029T051740322116Z/frames/frame-0007.png",
+    "sha256": "4219e5d46edad9b8d5819851cb999980ceee08803c29dba0cc14d584c1125e41",
+    "native_size": [
+      800,
+      1280
+    ]
+  },
+  "retained-tier2-map.png": {
+    "source": ".local-captures/bluestacks/consume-ap-campaign/20260716T014118395232Z/frames/step-002-after.png",
+    "sha256": "a8d49277fa3fdb7853c368c741ece4e5f03850dd7f785959ce18e985fda724f3",
+    "native_size": [
+      800,
+      1280
+    ]
+  }
+}

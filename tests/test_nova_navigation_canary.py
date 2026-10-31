@@ -6,21 +6,27 @@ from dataclasses import replace
 import hashlib
 import json
 from pathlib import Path
+import tempfile
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import cv2
 import numpy as np
 
-from scripts.bluestacks_native_runtime import CapturedNativeFrame
+from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
 from scripts.home_atlas_bluestacks import HomeDriverDisposition, HomeDriverStep
 from scripts.navigation_development_boundary import NavigationGuardedRuntime
 from scripts.nova_praise_bluestacks import (
     BlueStacksNovaPraiseAdapter,
     NovaAdapterConfig,
     NovaNavigationCanaryRoute,
+    NovaNativePartialResultError,
+    NovaSupervisedOneFreePulseRoute,
+    _nova_native_partial_result,
     nova_navigation_route_declaration,
+    run_nova_praise_one_free_pulse,
 )
 from tasks.gameplay_flow_replay import ReplayNativeRuntime, load_retained_native_frame
 from tasks.home_atlas import (
@@ -51,6 +57,10 @@ from tasks.nova_praise_vision import (
 )
 import tasks.nova_praise_vision as nova_praise_vision
 from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
+from scripts.pnsctl import (
+    _compact_development_action_results,
+    _retained_semantic_completed_count,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -256,6 +266,8 @@ class FakeRuntime:
         self.ordinal = 0
         self.inputs: list[tuple[str, dict[str, object]]] = []
         self.labels: list[str] = []
+        self.events: list[dict[str, object]] = []
+        self.reconciliations: list[tuple[str, str, str]] = []
         self._device_state = "device"
         self._foreground_package = "com.global.ztmslg"
 
@@ -279,14 +291,40 @@ class FakeRuntime:
             Path(f"{label}.png"),
         )
 
+    def _dispatch_event(self, source, kwargs: dict[str, object]) -> None:
+        self.events.append(
+            {
+                "type": "dispatch",
+                "action_key": kwargs["action_key"],
+                "target_identity": kwargs.get("target_identity", ""),
+                "source_sha256": source.sha256,
+                "execute": True,
+            }
+        )
+
     def tap(self, source, **kwargs) -> None:
         self.inputs.append(("tap", kwargs))
+        self._dispatch_event(source, kwargs)
 
     def swipe(self, source, **kwargs) -> None:
         self.inputs.append(("swipe", kwargs))
+        self._dispatch_event(source, kwargs)
 
     def back(self, source, **kwargs) -> None:
         self.inputs.append(("back", kwargs))
+        self._dispatch_event(source, kwargs)
+
+    def reconcile(self, action_key: str, status: str, post, reason: str) -> None:
+        self.reconciliations.append((action_key, status, reason))
+        self.events.append(
+            {
+                "type": "reconcile",
+                "action_key": action_key,
+                "status": status,
+                "post_sha256": post.sha256,
+                "reason": reason,
+            }
+        )
 
 
 class FakeHomeDriver:
@@ -336,6 +374,251 @@ class RecordingRecognitionQueue(RecognitionQueue):
 
 
 class NovaNavigationCanaryTests(unittest.TestCase):
+    def test_native_runner_raises_partial_result_after_retained_praise_dispatch(self) -> None:
+        class FakeRunner:
+            def dispatch_tap(self, _point) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = LocalBlueStacksRuntime(
+                FakeRunner(),
+                root / "runtime",
+                execute=True,
+            )
+            source = CapturedNativeFrame(
+                np.zeros((1280, 800, 3), dtype=np.uint8),
+                b"native-source",
+                "a" * 64,
+                time.monotonic(),
+                root / "source.png",
+            )
+
+            class FailingRoute:
+                def __init__(self, route_runtime, *_args, **_kwargs) -> None:
+                    self.canary = SimpleNamespace(
+                        records=(),
+                        input_count=1,
+                        runtime=route_runtime,
+                    )
+
+                def run(self):
+                    runtime.tap(
+                        source,
+                        target_identity="nova-praise",
+                        target_roi=(100, 100, 200, 200),
+                        action_key="native-test:nova-praise:1",
+                        consequential=True,
+                    )
+                    raise RuntimeError("post-dispatch route failure")
+
+            args = SimpleNamespace(
+                max_inputs=8,
+                adb="adb",
+                serial="emulator-5554",
+                output_directory=root / "output",
+                action_database=root / "actions.sqlite3",
+                owner="native-test-owner",
+                invocation_id="native-test-invocation",
+                lease_ttl=60.0,
+                settle_seconds=0.0,
+                checkpoint=None,
+                utc_clock=lambda: 100.0,
+                monotonic_clock=lambda: 10.0,
+            )
+            with patch.object(
+                LocalBlueStacksRuntime,
+                "connect",
+                return_value=runtime,
+            ), patch(
+                "scripts.nova_praise_bluestacks.require_fixed_orchestrator_path",
+                return_value=root / "actions.sqlite3",
+            ), patch(
+                "scripts.nova_praise_bluestacks.NovaSupervisedOneFreePulseRoute",
+                FailingRoute,
+            ):
+                with self.assertRaises(NovaNativePartialResultError) as raised:
+                    run_nova_praise_one_free_pulse(args, _identity())
+
+            partial = raised.exception.partial_result
+            self.assertEqual(partial["status"], "unresolved")
+            self.assertEqual(partial["transport_calls"], 1)
+            self.assertEqual(partial["total_input_count"], 1)
+            self.assertEqual(partial["navigation_input_count"], 0)
+            self.assertEqual(partial["praise_transport_calls"], 1)
+            self.assertTrue(partial["accounting_verified"])
+            self.assertEqual(partial["accounting_lower_bound"], 1)
+            self.assertTrue(partial["effect_reconciliation_required"])
+            self.assertFalse(partial["terminal_home_verified"])
+            self.assertEqual(str(partial["session_directory"]), str(runtime.session))
+            self.assertIsInstance(raised.exception.__cause__, RuntimeError)
+
+    def test_partial_result_marks_missing_ledger_and_keeps_runtime_lower_bound(self) -> None:
+        class FakeRunner:
+            def dispatch_tap(self, _point) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = LocalBlueStacksRuntime(
+                FakeRunner(),
+                Path(temporary) / "runtime",
+                execute=True,
+            )
+            runtime.input_count = 1
+            partial = _nova_native_partial_result(
+                runtime,
+                None,
+                status="unresolved",
+                reason="ledger missing",
+            )
+            self.assertFalse(partial["accounting_verified"])
+            self.assertIn("unreadable", str(partial["accounting_error"]))
+            self.assertEqual(partial["retained_dispatch_count"], 0)
+            self.assertEqual(partial["runtime_input_count"], 1)
+            self.assertEqual(partial["accounting_lower_bound"], 1)
+            self.assertEqual(partial["transport_calls"], 1)
+
+    def test_partial_result_rejects_malformed_dispatch_without_zero_claim(self) -> None:
+        class FakeRunner:
+            def dispatch_tap(self, _point) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = LocalBlueStacksRuntime(
+                FakeRunner(),
+                Path(temporary) / "runtime",
+                execute=True,
+            )
+            runtime.input_count = 1
+            runtime.events.write_text(
+                '{"type":"dispatch","execute":true}\n{malformed\n',
+                encoding="utf-8",
+            )
+            partial = _nova_native_partial_result(
+                runtime,
+                None,
+                status="unresolved",
+                reason="ledger malformed",
+            )
+            self.assertFalse(partial["accounting_verified"])
+            self.assertIn("dispatch row", str(partial["accounting_error"]))
+            self.assertEqual(partial["runtime_input_count"], 1)
+            self.assertGreaterEqual(partial["transport_calls"], 1)
+
+    def test_partial_result_deduplicates_identical_dispatch_rows(self) -> None:
+        class FakeRunner:
+            def dispatch_tap(self, _point) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = LocalBlueStacksRuntime(
+                FakeRunner(),
+                Path(temporary) / "runtime",
+                execute=True,
+            )
+            row = {
+                "type": "dispatch",
+                "execute": True,
+                "action_key": "dedup-action",
+                "target_identity": "nova-praise",
+                "source_sha256": "a" * 64,
+            }
+            runtime.events.write_text(
+                json.dumps(row) + "\n" + json.dumps(row) + "\n",
+                encoding="utf-8",
+            )
+            runtime.input_count = 1
+            partial = _nova_native_partial_result(
+                runtime,
+                None,
+                status="unresolved",
+                reason="dedup check",
+            )
+            self.assertTrue(partial["accounting_verified"])
+            self.assertEqual(partial["retained_dispatch_count"], 1)
+            self.assertEqual(partial["praise_transport_calls"], 1)
+            self.assertEqual(partial["transport_calls"], 1)
+
+    def test_partial_result_rejects_conflicting_duplicate_dispatch_identity(self) -> None:
+        class FakeRunner:
+            def dispatch_tap(self, _point) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = LocalBlueStacksRuntime(
+                FakeRunner(),
+                Path(temporary) / "runtime",
+                execute=True,
+            )
+            first = {
+                "type": "dispatch",
+                "execute": True,
+                "action_key": "conflict-action",
+                "target_identity": "nova-praise",
+                "source_sha256": "a" * 64,
+            }
+            second = {**first, "target_identity": "other-target"}
+            runtime.events.write_text(
+                json.dumps(first) + "\n" + json.dumps(second) + "\n",
+                encoding="utf-8",
+            )
+            runtime.input_count = 2
+            partial = _nova_native_partial_result(
+                runtime,
+                None,
+                status="unresolved",
+                reason="duplicate conflict",
+            )
+            self.assertFalse(partial["accounting_verified"])
+            self.assertIn("conflicting duplicate", str(partial["accounting_error"]))
+            self.assertEqual(partial["accounting_lower_bound"], 2)
+
+    def test_raw_nova_runner_rejects_invalid_max_inputs_before_connect(self) -> None:
+        for value in (0, True, 1.5):
+            with self.subTest(value=value):
+                with patch.object(LocalBlueStacksRuntime, "connect") as connect:
+                    with self.assertRaisesRegex(
+                        RuntimeError,
+                        "Nova max_inputs must be an integer between 1 and 8",
+                    ):
+                        run_nova_praise_one_free_pulse(
+                            SimpleNamespace(max_inputs=value),
+                            _identity(),
+                        )
+                connect.assert_not_called()
+
+    def test_raw_nova_runner_accepts_exact_eight_input_cap_before_connect(self) -> None:
+        args = SimpleNamespace(
+            max_inputs=8,
+            checkpoint=lambda: None,
+            adb="adb",
+            serial="emulator-5554",
+            output_directory=ROOT / ".local-captures" / "nova-config-boundary-test",
+            settle_seconds=0.0,
+        )
+        with patch.object(
+            LocalBlueStacksRuntime,
+            "connect",
+            side_effect=AssertionError("connect reached after config validation"),
+        ):
+            with self.assertRaisesRegex(
+                AssertionError,
+                "connect reached after config validation",
+            ):
+                run_nova_praise_one_free_pulse(args, _identity())
+
+    def test_raw_nova_runner_rejects_noncallable_checkpoint_before_connect(self) -> None:
+        with patch.object(LocalBlueStacksRuntime, "connect") as connect:
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Nova runtime checkpoint must be callable",
+            ):
+                run_nova_praise_one_free_pulse(
+                    SimpleNamespace(max_inputs=8, checkpoint=1),
+                    _identity(),
+                )
+        connect.assert_not_called()
+
     def test_controller_orders_navigation_and_never_plans_praise(self) -> None:
         runtime = FakeRuntime()
         recognizer = RecognitionQueue(
@@ -364,6 +647,95 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertNotIn(NOVA_PRAISE_TARGET, [data.get("target_identity") for _, data in runtime.inputs])
         for suffix in ("immediate-post", "settled"):
             self.assertTrue(any(suffix in label for label in runtime.labels))
+
+    def test_verified_navigation_successors_are_compacted_as_semantic_completion(self) -> None:
+        runtime = FakeRuntime()
+        recognizer = RecognitionQueue(
+            _home_recognition("0" * 64),
+            _radial_recognition("a" * 64),
+            _radial_recognition("b" * 64),
+            _nova_recognition("c" * 64),
+            _nova_recognition("d" * 64),
+            _home_recognition("e" * 64),
+        )
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=FakeHomeDriver(),
+            recognizer=recognizer,
+            settle_seconds=0,
+        )
+        with patch.object(route, "_home_localized", return_value=True):
+            result = route.run()
+
+        self.assertEqual(result.status, "completed")
+        actions = _compact_development_action_results(runtime.events)
+        self.assertEqual(len(actions), 3)
+        self.assertEqual(_retained_semantic_completed_count(actions), 3)
+        self.assertEqual([row[1] for row in runtime.reconciliations], ["confirmed"] * 3)
+        self.assertEqual(len({row[0] for row in runtime.reconciliations}), 3)
+
+    def test_unverified_navigation_successor_remains_unknown_without_retry(self) -> None:
+        runtime = FakeRuntime()
+        unbound = replace(_radial_recognition("a" * 64), targets=())
+        route = NovaNavigationCanaryRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            home_driver=FakeHomeDriver(),
+            recognizer=RecognitionQueue(_home_recognition("0" * 64), unbound),
+            settle_seconds=0,
+        )
+        with patch.object(route, "_home_localized", return_value=True):
+            result = route.run()
+
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.reason, "research_lab_radial_not_bound")
+        self.assertEqual(len(runtime.inputs), 1)
+        actions = _compact_development_action_results(runtime.events)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(_retained_semantic_completed_count(actions), 0)
+        self.assertEqual(actions[0]["semantic_status"], "unknown")
+        self.assertEqual(runtime.reconciliations, [])
+
+    def test_depleted_nova_is_no_work_and_returns_home_without_praise(self) -> None:
+        runtime = FakeRuntime()
+        route = NovaSupervisedOneFreePulseRoute(
+            runtime,
+            _identity(),
+            atlas_path=ATLAS_PATH,
+            action_boundary=object(),
+            home_driver=FakeHomeDriver(),
+            recognizer=RecognitionQueue(
+                _nova_recognition("nova-rebound"),
+                _home_recognition("home-settled"),
+            ),
+            settle_seconds=0,
+        )
+        depleted = replace(
+            _nova_recognition("nova-source").observation,
+            attempts_remaining=0,
+            praise_enabled=False,
+            praise_target_identity="",
+        )
+        nova = NovaFrameRecognition(depleted, "nova-source", (), {})
+        nova_capture = runtime.capture("nova-source")
+        with patch.object(route.canary, "_home_localized", return_value=True):
+            result = route._on_nova_lab_recognized(nova_capture, nova)
+
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertEqual(result.status, "complete_for_reset")
+        self.assertEqual(result.praise_taps, 0)
+        self.assertTrue(result.terminal_home_verified)
+        self.assertEqual((result.attempts_before, result.attempts_after), (0, 0))
+        self.assertEqual(result.scheduler_outcome, "complete_for_reset")
+        self.assertEqual(len([item for item in runtime.inputs if item[0] == "tap"]), 0)
+        self.assertEqual(len([item for item in runtime.inputs if item[0] == "back"]), 1)
+        self.assertEqual(len(runtime.reconciliations), 1)
+        self.assertEqual(route._on_nova_lab_recognized(nova_capture, nova).reason,
+                         "duplicate_praise_invocation_prohibited")
 
     def test_research_lab_provenance_stamps_after_dispatch_not_pre_tap_capture(
         self,

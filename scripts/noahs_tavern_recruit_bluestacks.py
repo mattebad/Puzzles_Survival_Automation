@@ -10,7 +10,10 @@ from __future__ import annotations
 import argparse
 import copy
 from dataclasses import dataclass, field, replace
+from datetime import datetime, timezone
+import hashlib
 import json
+import math
 from pathlib import Path
 import sys
 import time
@@ -26,6 +29,7 @@ from tasks.noahs_tavern_recruit_maintenance import (
     NoahMaintenancePassResult,
     NoahMaintenanceState,
     TierPassEvidence,
+    project_maintenance_terminal_home,
 )
 from tasks.scheduler_task_result import SchedulerIdentity
 from tasks.noahs_tavern_recruit import (
@@ -442,6 +446,10 @@ class NoahTavernIntegratedRoute:
         self.contextual_session = contextual_session or _ContextualPopupSession()
         self._last_contextual_result: ContextualPopupRecoveryResult | None = None
         self._last_pre_dispatch_dismissed = False
+        # Navigation/recruit dispatches are reconciled against the next actual settled
+        # successor.  Keeping this explicit avoids relying on LocalBlueStacksRuntime's
+        # optional in_flight_action field, which the native dispatch path does not set.
+        self._pending_transition: tuple[str, Callable[[object], bool], str] | None = None
         self.recruitment_dispatch_count = 0
 
     def _default_atlas_binding(self, captured: CapturedNativeFrame):
@@ -608,6 +616,30 @@ class NoahTavernIntegratedRoute:
         } else "blocked"
         return self._result(status, reason, actions)
 
+    def _queue_transition(
+        self,
+        action_key: str,
+        predicate: Callable[[object], bool],
+        description: str,
+    ) -> None:
+        self._pending_transition = (action_key, predicate, description)
+
+    def _reconcile_pending_transition(self, captured: CapturedNativeFrame, recognition) -> bool:
+        pending = self._pending_transition
+        if pending is None:
+            return True
+        action_key, predicate, description = pending
+        observation = recognition.observation
+        confirmed = bool(self._observation_ready() and predicate(observation))
+        self.runtime.reconcile(
+            action_key,
+            "confirmed" if confirmed else "unresolved",
+            captured,
+            description if confirmed else f"{description} not proven",
+        )
+        self._pending_transition = None
+        return confirmed
+
     def _observe(self, label: str):
         captured = self.runtime.capture(label)
         source_context = self._contextual_source_context()
@@ -726,6 +758,24 @@ class NoahTavernIntegratedRoute:
             recognition.observation,
             contextual_pre_dispatch=contextual_pre_dispatch,
         )
+        verified_home = result.status == "completed" and result.terminal_home_verified is True
+        repository = getattr(self.controller, "repository", None)
+        identity = getattr(self.controller, "scheduler_identity", None)
+        # Dismissal may accompany a verified Home; the final proof decides this fact.
+        if repository is not None and identity is not None:
+            try:
+                clock = getattr(self.controller, "utc_clock", None)
+                projected = project_maintenance_terminal_home(
+                    repository, identity,
+                    terminal_home_verified=verified_home,
+                    updated_at=clock() if clock is not None else time.monotonic(),
+                )
+                if verified_home and (projected is None or json.loads(projected.observed_progress_json).get("terminal_home_verified") is not True):
+                    raise ValueError("maintenance outcome does not admit verified Home")
+            except Exception as exc:
+                return self._result("blocked", f"terminal_maintenance_projection_failed:{exc}", actions)
+        if result.status == "completed" and not verified_home:
+            return self._result("blocked", "canonical_home_terminal_not_proven", actions)
         return self._result(
             result.status,
             result.reason,
@@ -740,13 +790,15 @@ class NoahTavernIntegratedRoute:
         result_frame: Path,
         action_key: str,
         tier: RecruitTier,
+        before_captured_monotonic: float | None = None,
+        result_captured_monotonic: float | None = None,
     ) -> NoahTavernIntegratedRouteResult:
         """Continue one retained unresolved recruit from its explicit result; never recruit again."""
 
         if not self.runtime.execute:
             return self._result("dry-run", "resume_transport_disabled", 0)
         frame = read_frame(before_frame)
-        before = self.recognizer(frame, captured_monotonic=time.monotonic())
+        before = self.recognizer(frame, captured_monotonic=before_captured_monotonic)
         if before.screen_state != NOAHS_TAVERN_SCREEN or before.selected_tier != tier or not before.recognized:
             return self._result("blocked", "retained_recruit_source_not_recognized", 0)
         self.controller.progress.awaiting_postcondition = True
@@ -773,7 +825,7 @@ class NoahTavernIntegratedRoute:
                 return self._contextual_failure_result(0)
             retained_result = self.recognizer(
                 read_frame(result_frame),
-                captured_monotonic=captured.captured_monotonic,
+                captured_monotonic=result_captured_monotonic,
             )
             if retained_result.screen_state != HERO_RECRUIT_RESULT_SCREEN or not retained_result.recognized:
                 return self._result("unresolved", "retained_result_screen_not_recognized", 0)
@@ -833,6 +885,8 @@ class NoahTavernIntegratedRoute:
             captured, recognition = self._observe(f"step-{step:03d}-source")
             if not self._observation_ready():
                 return self._contextual_failure_result(actions)
+            if not self._reconcile_pending_transition(captured, recognition):
+                return self._result("unresolved", "navigation_successor_not_proven", actions)
             if step == 1 and not recognition.observation.recognized:
                 prepared = self._pre_dispatch(captured, recognition, "home-atlas-entry")
                 if prepared is None:
@@ -847,6 +901,14 @@ class NoahTavernIntegratedRoute:
                         target_identity=NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID,
                         target_roi=target_roi,
                         action_key=f"noah:open:{captured.sha256}",
+                    )
+                    self._queue_transition(
+                        f"noah:open:{captured.sha256}",
+                        lambda observation: (
+                            bool(getattr(observation, "recognized", False))
+                            and getattr(observation, "screen_state", None) == NOAHS_TAVERN_SCREEN
+                        ),
+                        "Tavern entry verified",
                     )
                     time.sleep(self.post_input_delay)
                     continue
@@ -903,18 +965,38 @@ class NoahTavernIntegratedRoute:
                         else "home_atlas_tavern_binding_not_proven"
                     )
                     return self._result("blocked", reason, actions)
+                action_key = f"noah:open:{captured.sha256}"
                 self.runtime.tap(
                     captured,
                     target_identity=NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID,
                     target_roi=target_roi,
-                    action_key=f"noah:open:{captured.sha256}",
+                    action_key=action_key,
+                )
+                self._queue_transition(
+                    action_key,
+                    lambda observation: (
+                        bool(getattr(observation, "recognized", False))
+                        and getattr(observation, "screen_state", None) == NOAHS_TAVERN_SCREEN
+                    ),
+                    "Tavern entry verified",
                 )
             elif command.action == NoahAction.SELECT_TIER:
+                action_key = f"noah:tier:{command.tier.name}:{captured.sha256}"
                 self.runtime.tap(
                     captured,
                     target_identity=command.target_identity or "",
                     target_roi=command.target_roi or (0, 0, 0, 0),
-                    action_key=f"noah:tier:{command.tier.name}:{captured.sha256}",
+                    action_key=action_key,
+                )
+                expected_tier = command.tier
+                self._queue_transition(
+                    action_key,
+                    lambda observation, expected=expected_tier: (
+                        bool(getattr(observation, "recognized", False))
+                        and getattr(observation, "screen_state", None) == NOAHS_TAVERN_SCREEN
+                        and getattr(observation, "selected_tier", None) == expected
+                    ),
+                    "Tavern tier selection verified",
                 )
             elif command.action == NoahAction.RECRUIT_FREE:
                 action_key = command.action_key or f"noah:recruit:{captured.sha256}"
@@ -946,11 +1028,38 @@ class NoahTavernIntegratedRoute:
                     target_roi=command.target_roi or (0, 0, 0, 0),
                     action_key=f"{self.pending_action_key}:close",
                 )
+                close_action_key = f"{self.pending_action_key}:close"
                 self.result_close_dispatched = True
                 time.sleep(self.post_input_delay)
                 after_capture, after_recognition = self._observe("recruit-after-close")
                 if not self._observation_ready() or not self.controller.accept_postcondition(self.pending_result, after_recognition.observation):
+                    self.runtime.reconcile(
+                        self.pending_action_key,
+                        "unresolved",
+                        after_capture,
+                        "free recruit result/cooldown transition not proven",
+                    )
+                    self.runtime.reconcile(
+                        close_action_key,
+                        "unresolved",
+                        after_capture,
+                        "result dismissal/cooldown transition not proven",
+                    )
                     return self._result("unresolved", "recruit_postcondition_not_proven", actions)
+                # The recruit is only confirmed once the result has been dismissed and
+                # the selected tier's fresh cooldown/attempt postcondition is visible.
+                self.runtime.reconcile(
+                    self.pending_action_key,
+                    "confirmed",
+                    after_capture,
+                    "free recruit result and cooldown verified",
+                )
+                self.runtime.reconcile(
+                    close_action_key,
+                    "confirmed",
+                    after_capture,
+                    "result dismissal and cooldown verified",
+                )
                 actions += 1
                 self.result_close_dispatched = False
                 self.pending_result = None
@@ -1329,9 +1438,10 @@ class NoahTavernNavigationCanaryRoute:
         if not rebound_ok or rebound_state != NOAHS_TAVERN_SCREEN:
             return self._blocked("return_source_revalidation_failed")
         self._prepare(immediate_before, source_state=NOAHS_TAVERN_SCREEN, recognized=True)
+        safe_exit_action_key = f"noah-nav:safe-exit:{immediate_before.sha256}"
         self.runtime.back(
             immediate_before,
-            action_key=f"noah-nav:safe-exit:{immediate_before.sha256}",
+            action_key=safe_exit_action_key,
             target_identity=NOAHS_TAVERN_SAFE_EXIT_TARGET,
         )
         immediate_post, settled = self._settle(
@@ -1348,7 +1458,19 @@ class NoahTavernNavigationCanaryRoute:
             immediate_post_sha256=immediate_post.sha256,
         )
         if not self._canonical_home_proven(settled, successor):
+            self.runtime.reconcile(
+                safe_exit_action_key,
+                "unresolved",
+                settled,
+                "canonical Home successor not proven",
+            )
             return self._blocked("safe_exit_canonical_home_not_proven")
+        self.runtime.reconcile(
+            safe_exit_action_key,
+            "confirmed",
+            settled,
+            "canonical Home successor verified",
+        )
         return NoahTavernNavigationResult(
             "completed",
             "verified_safe_return_home",
@@ -1405,11 +1527,12 @@ class NoahTavernNavigationCanaryRoute:
                     recognized=True,
                     target_roi=target_roi,
                 )
+                open_action_key = f"noah-nav:open-tavern:{immediate_before.sha256}"
                 self.runtime.tap(
                     immediate_before,
                     target_identity=NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID,
                     target_roi=target_roi,
-                    action_key=f"noah-nav:open-tavern:{immediate_before.sha256}",
+                    action_key=open_action_key,
                     consequential=False,
                 )
                 _immediate_post, settled = self._settle(
@@ -1418,6 +1541,23 @@ class NoahTavernNavigationCanaryRoute:
                 )
                 self._record_input("tap_tavern_navigation", immediate_before, settled)
                 observation = self._recognize(settled)
+                if not (
+                    getattr(observation, "recognized", False)
+                    and getattr(observation, "screen_state", None) == NOAHS_TAVERN_SCREEN
+                ):
+                    self.runtime.reconcile(
+                        open_action_key,
+                        "unresolved",
+                        settled,
+                        "Tavern entry successor not proven",
+                    )
+                    return self._blocked("tavern_entry_successor_not_proven")
+                self.runtime.reconcile(
+                    open_action_key,
+                    "confirmed",
+                    settled,
+                    "Tavern entry successor verified",
+                )
                 continue
             if state == NOAHS_TAVERN_SCREEN:
                 # Navigation goal reached; the recruit endpoint is intentionally excluded.
@@ -1730,12 +1870,13 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             plan = step.plan
             if plan is None or plan.drag_start is None or plan.drag_end is None:
                 raise RuntimeError("home Atlas pan geometry is missing")
+            pan_action_key = f"noah:home-pan:{ordinal}:{source.sha256}"
             zoom_guard.prepare_source_safety(facts)
             zoom_guard.swipe(
                 source,
                 start=plan.drag_start,
                 end=plan.drag_end,
-                action_key=f"noah:home-pan:{ordinal}:{source.sha256}",
+                action_key=pan_action_key,
                 target_identity="home-camera-click-drag",
             )
             immediate_post = runtime.capture(f"home-pan-{ordinal:02d}-immediate-post")
@@ -1748,9 +1889,21 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             after_localization = settled_analysis["localization"]
             settled_observation = settled_analysis["observation"]
             if after_localization is None or settled_observation is None:
+                runtime.reconcile(
+                    pan_action_key,
+                    "unresolved",
+                    immediate_post,
+                    "Home pan successor analysis was unavailable",
+                )
                 raise RuntimeError("Home pan successor analysis was unavailable")
             settled_atlas_home = bool(settled_analysis["atlas_canonical_home"])
             if not settled_home_recognized and not settled_atlas_home:
+                runtime.reconcile(
+                    pan_action_key,
+                    "unresolved",
+                    settled,
+                    "Home pan successor Home state was not positively recognized",
+                )
                 raise RuntimeError("home Atlas pan successor Home state was not positively recognized")
             progress = home_driver.record_pan_progress(step.localization, after_localization)
             row.update(
@@ -1768,10 +1921,26 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             )
             zoom_records.append(row)
             if not progress.accepted:
+                runtime.reconcile(
+                    pan_action_key,
+                    "unresolved",
+                    settled,
+                    f"Home pan made no measured progress: {progress.reason}",
+                )
                 raise RuntimeError(f"home Atlas pan made no measured progress: {progress.reason}")
+            runtime.reconcile(
+                pan_action_key,
+                "confirmed",
+                settled,
+                "Home pan successor and measured progress verified",
+            )
             continue
         if step.disposition.value != "recover_zoom":
             raise RuntimeError(f"unsupported Home Atlas recovery disposition: {step.disposition.value}")
+        zoom_action_key = f"home-zoom-out:{source.sha256}"
+        zoom_reconciled = False
+        immediate_post = None
+        settled = None
         try:
             if runtime.checkpoint is not None:
                 runtime.checkpoint()
@@ -1805,9 +1974,23 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                 raise RuntimeError("home zoom normalization produced no measured frame progress")
             settled_localization = settled_analysis["localization"]
             if settled_localization is None or settled_observation is None:
+                runtime.reconcile(
+                    zoom_action_key,
+                    "unresolved",
+                    settled,
+                    "Home zoom successor analysis was unavailable",
+                )
+                zoom_reconciled = True
                 raise RuntimeError("Home zoom successor analysis was unavailable")
             settled_atlas_home = bool(settled_analysis["atlas_canonical_home"])
             if not settled_home_recognized and not settled_atlas_home:
+                runtime.reconcile(
+                    zoom_action_key,
+                    "unresolved",
+                    settled,
+                    "Home zoom successor Home state was not positively recognized",
+                )
+                zoom_reconciled = True
                 raise RuntimeError("home zoom normalization successor Home state was not positively recognized")
             row.update(
                 {
@@ -1826,6 +2009,13 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                 }
             )
             zoom_records.append(row)
+            runtime.reconcile(
+                zoom_action_key,
+                "confirmed",
+                settled,
+                "Home zoom successor verified",
+            )
+            zoom_reconciled = True
         except Exception as exc:
             row["exception"] = f"{type(exc).__name__}: {exc}"
             # A failed transport can still leave the device changed.  Best-effort captures
@@ -1846,6 +2036,15 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
                     row[f"{phase}_home_ready_facts"] = home_facts
                 except Exception as capture_exc:
                     row[f"{phase}_error"] = f"{type(capture_exc).__name__}: {capture_exc}"
+            if not zoom_reconciled:
+                post = settled or immediate_post
+                if isinstance(post, CapturedNativeFrame):
+                    runtime.reconcile(
+                        zoom_action_key,
+                        "unresolved",
+                        post,
+                        "Home zoom successor could not be verified",
+                    )
             zoom_records.append(row)
             _write_unified_result(
                 runtime,
@@ -2184,12 +2383,26 @@ def reconcile_noahs_tavern_retained_recruit(args, identity: SchedulerIdentity | 
     result_path = evidence_session / "frames" / "0003-recruit-immediate-post.png"
     after_path = evidence_session / "frames" / "0005-recruit-after-close.png"
     terminal_path = terminal_session / "frames" / "0004-tavern-safe-exit-settled.png"
-    for path in (before_path, result_path, after_path, terminal_path):
-        if not path.is_file():
-            raise ValueError(f"required retained frame is missing: {path}")
-    before = recognize_noahs_tavern_frame(read_frame(before_path), captured_monotonic=time.monotonic())
-    result = recognize_noahs_tavern_frame(read_frame(result_path), captured_monotonic=time.monotonic())
-    after = recognize_noahs_tavern_frame(read_frame(after_path), captured_monotonic=time.monotonic())
+    # Validate all immutable linkage before opening the output SafetyStore.  In
+    # particular, fixed filenames and a current monotonic clock never authorize a
+    # retained maintenance transition.
+    evidence = _validate_retained_recruit_evidence(
+        evidence_session,
+        before_path=before_path,
+        result_path=result_path,
+        after_path=after_path,
+        identity=identity,
+    )
+    terminal_evidence = _validate_terminal_home_evidence(terminal_session, terminal_path=terminal_path)
+    before = recognize_noahs_tavern_frame(
+        read_frame(before_path), captured_monotonic=float(evidence["before_monotonic"])
+    )
+    result = recognize_noahs_tavern_frame(
+        read_frame(result_path), captured_monotonic=float(evidence["result_monotonic"])
+    )
+    after = recognize_noahs_tavern_frame(
+        read_frame(after_path), captured_monotonic=float(evidence["after_monotonic"])
+    )
     if before.screen_state != NOAHS_TAVERN_SCREEN or before.selected_tier is not RecruitTier.ADV or not before.recognized:
         raise ValueError("retained Advanced source is not positively recognized")
     if result.screen_state != HERO_RECRUIT_RESULT_SCREEN or not result.recognized:
@@ -2197,7 +2410,9 @@ def reconcile_noahs_tavern_retained_recruit(args, identity: SchedulerIdentity | 
     if after.screen_state != NOAHS_TAVERN_SCREEN or after.selected_tier is not RecruitTier.ADV or not after.recognized:
         raise ValueError("retained Advanced post-close cooldown is not positively recognized")
     terminal_frame = read_frame(terminal_path)
-    terminal_observation = recognize_noahs_tavern_frame(terminal_frame, captured_monotonic=time.monotonic())
+    terminal_observation = recognize_noahs_tavern_frame(
+        terminal_frame, captured_monotonic=None
+    )
     atlas = load_home_atlas(NOAHS_TAVERN_HOME_ATLAS_PATH)
     localization = BlueStacksHomeLocalizer(atlas, NOAHS_TAVERN_HOME_ATLAS_PATH).localize(terminal_frame)
     if (
@@ -2221,15 +2436,19 @@ def reconcile_noahs_tavern_retained_recruit(args, identity: SchedulerIdentity | 
     session.mkdir(parents=True, exist_ok=False)
     store = SafetyStore(session / "maintenance-state.sqlite3")
     repository = SQLiteSchedulerInvocationRepository(store)
-    utc_clock = getattr(args, "utc_clock", None)
-    controller_now = utc_clock() if callable(utc_clock) else time.monotonic()
+    # The retained successor's recorded UTC is the only valid clock for this
+    # zero-input reconciliation.  Do not translate it through wall-clock now or
+    # relabel a UTC deadline as monotonic.
+    after_epoch = float(evidence["after_epoch"])
+    recorded_utc_clock = lambda: after_epoch
+    controller_now = after_epoch
     try:
         controller = NoahTavernRecruitRuntimeController(
             now=controller_now,
             maintenance_state=state,
             repository=repository,
             scheduler_identity=identity,
-            utc_clock=utc_clock if callable(utc_clock) else None,
+            utc_clock=recorded_utc_clock,
         )
         controller.progress.awaiting_postcondition = True
         controller.progress.awaiting_tier = RecruitTier.ADV
@@ -2247,16 +2466,26 @@ def reconcile_noahs_tavern_retained_recruit(args, identity: SchedulerIdentity | 
             "terminal_home_verified": True,
             "identity": identity.__dict__,
             "maintenance_state": json.loads(state.to_json()),
-            "time_basis": "utc" if callable(utc_clock) else "monotonic",
-            "completed_at_utc": utc_clock() if callable(utc_clock) else None,
+            "time_basis": "utc",
+            "completed_at_utc": evidence["after_at_utc"],
+            "next_eligible_at_utc": state.tiers[RecruitTier.ADV].next_eligible_at,
             "state_session": str(session),
             "evidence_session": str(evidence_session),
             "terminal_home_session": str(terminal_session),
             "source_frame": str(before_path),
+            "source_frame_sha256": evidence["before_sha256"],
+            "source_captured_at_utc": evidence["before_at_utc"],
             "result_frame": str(result_path),
+            "result_frame_sha256": evidence["result_sha256"],
+            "result_captured_at_utc": evidence["result_at_utc"],
             "post_close_frame": str(after_path),
+            "post_close_frame_sha256": evidence["after_sha256"],
+            "post_close_captured_at_utc": evidence["after_at_utc"],
+            "action_key": evidence["action_key"],
             "terminal_home_frame": str(terminal_path),
+            "terminal_home_frame_sha256": terminal_evidence["terminal_sha256"],
             "terminal_home_semantic_sha256": localization.frame_sha256,
+            "terminal_home_captured_at_utc": terminal_evidence["terminal_at_utc"],
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
         }
@@ -2366,9 +2595,284 @@ def read_frame(path: Path):
     return frame
 
 
-def load_unresolved_recruit(session: Path) -> tuple[Path, Path, str, RecruitTier]:
+def _load_replay_events(session: Path) -> list[dict[str, object]]:
+    """Read an immutable replay ledger without manufacturing missing provenance."""
+
     events_path = session / "events.jsonl"
-    events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if not events_path.is_file():
+        raise RuntimeError("evidence_required: retained session has no event ledger")
+    events: list[dict[str, object]] = []
+    for line_number, line in enumerate(events_path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"evidence_required: malformed event ledger line {line_number}") from exc
+        if not isinstance(event, dict) or not isinstance(event.get("type"), str):
+            raise RuntimeError(f"evidence_required: malformed event ledger line {line_number}")
+        events.append(event)
+    if not events:
+        raise RuntimeError("evidence_required: retained event ledger is empty")
+    return events
+
+
+def _resolve_replay_path(session: Path, value: object) -> Path:
+    if not isinstance(value, str) or not value.strip():
+        raise RuntimeError("evidence_required: event has no frame path")
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    rooted = ROOT / path
+    return rooted if rooted.exists() else session / path
+
+
+def _recorded_event_utc(event: dict[str, object], *, label: str) -> tuple[datetime, float]:
+    """Return a recorded, timezone-qualified UTC event time; never use wall-clock now."""
+
+    raw = event.get("timestamp")
+    if not isinstance(raw, str) or not raw.strip():
+        raise RuntimeError(f"evidence_required: {label} has no recorded UTC timestamp")
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise RuntimeError(f"evidence_required: {label} timestamp is not ISO-8601") from exc
+    if parsed.tzinfo is None:
+        raise RuntimeError(f"evidence_required: {label} timestamp has no explicit time basis")
+    utc = parsed.astimezone(timezone.utc)
+    return utc, utc.timestamp()
+
+
+def _capture_event_for_path(
+    events: list[dict[str, object]],
+    session: Path,
+    expected_path: Path,
+    *,
+    label: str,
+    require_monotonic: bool = True,
+) -> tuple[dict[str, object], datetime, float, str, float | None]:
+    matches = [
+        event
+        for event in events
+        if event.get("type") == "capture"
+        and _resolve_replay_path(session, event.get("path")).resolve() == expected_path.resolve()
+    ]
+    if len(matches) != 1:
+        raise RuntimeError(f"evidence_required: expected one linked {label} capture")
+    event = matches[0]
+    digest = event.get("sha256")
+    if not isinstance(digest, str) or len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest.casefold()):
+        raise RuntimeError(f"evidence_required: {label} capture has no valid SHA-256")
+    if not expected_path.is_file():
+        raise RuntimeError(f"evidence_required: linked {label} frame is missing")
+    actual_digest = hashlib.sha256(expected_path.read_bytes()).hexdigest()
+    if actual_digest != digest:
+        raise RuntimeError(f"evidence_required: linked {label} frame SHA-256 mismatch")
+    captured_at, captured_epoch = _recorded_event_utc(event, label=label)
+    monotonic = event.get("captured_monotonic")
+    if isinstance(monotonic, bool) or not isinstance(monotonic, (int, float)) or not math.isfinite(float(monotonic)):
+        if not require_monotonic:
+            return event, captured_at, captured_epoch, digest, None
+        raise RuntimeError(f"evidence_required: {label} has no original captured_monotonic provenance")
+    return event, captured_at, captured_epoch, digest, float(monotonic)
+
+
+def _validate_capture_event_bytes(
+    session: Path,
+    event: dict[str, object],
+    *,
+    expected_sha256: str,
+    label: str,
+) -> tuple[datetime, float]:
+    path = _resolve_replay_path(session, event.get("path"))
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256:
+        raise RuntimeError(f"evidence_required: linked {label} frame SHA-256 mismatch")
+    return _recorded_event_utc(event, label=label)
+
+
+def _identity_mapping(identity: SchedulerIdentity) -> dict[str, object]:
+    return {
+        "account_id": identity.account_id,
+        "server_id": identity.server_id,
+        "reset_id": identity.reset_id,
+        "task_id": identity.task_id,
+    }
+
+
+def _validate_retained_recruit_evidence(
+    evidence_session: Path,
+    *,
+    before_path: Path,
+    result_path: Path,
+    after_path: Path,
+    identity: SchedulerIdentity,
+) -> dict[str, object]:
+    """Validate the retained action's immutable source/dispatch/result chain.
+
+    This is intentionally performed before opening the output SafetyStore.  A fixed
+    collection of PNGs, even if each recognizes correctly, is not enough to authorize
+    a maintenance transition without its original dispatch and timing provenance.
+    """
+
+    events = _load_replay_events(evidence_session)
+    result_metadata_path = evidence_session / "unified-recruitment-result.json"
+    if not result_metadata_path.is_file():
+        raise RuntimeError("evidence_required: retained session identity metadata is missing")
+    try:
+        result_metadata = json.loads(result_metadata_path.read_text(encoding="utf-8"))
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise RuntimeError("evidence_required: retained session identity metadata is malformed") from exc
+    if not isinstance(result_metadata, dict) or result_metadata.get("identity") != _identity_mapping(identity):
+        raise RuntimeError("evidence_required: retained session identity is not linked to requested state identity")
+    if result_metadata.get("status") != "unresolved":
+        raise RuntimeError("evidence_required: retained session is not an unresolved action")
+
+    before_event, before_at, before_epoch, before_sha, before_monotonic = _capture_event_for_path(
+        events, evidence_session, before_path, label="retained source"
+    )
+    source_dispatches = [
+        event
+        for event in events
+        if event.get("type") == "dispatch"
+        and event.get("execute") is True
+        and isinstance(event.get("action_key"), str)
+        and event.get("action_key", "").startswith("ADV:")
+        and not event.get("action_key", "").endswith(":close")
+        and event.get("source_sha256") == before_sha
+    ]
+    if len(source_dispatches) != 1:
+        raise RuntimeError("evidence_required: retained source has no unique executed action dispatch")
+    source_dispatch = source_dispatches[0]
+    action_key = source_dispatch["action_key"]
+    if not isinstance(action_key, str) or not action_key:
+        raise RuntimeError("evidence_required: retained dispatch has no action key")
+    source_dispatched_at, _ = _recorded_event_utc(source_dispatch, label="retained dispatch")
+    if source_dispatched_at < before_at:
+        raise RuntimeError("evidence_required: retained dispatch predates its source capture")
+
+    result_event, result_at, result_epoch, result_sha, result_monotonic = _capture_event_for_path(
+        events, evidence_session, result_path, label="retained result"
+    )
+    close_dispatches = [
+        event
+        for event in events
+        if event.get("type") == "dispatch"
+        and event.get("execute") is True
+        and event.get("action_key") == f"{action_key}:close"
+        and event.get("source_sha256") == result_sha
+    ]
+    if len(close_dispatches) != 1:
+        raise RuntimeError("evidence_required: retained result has no unique executed close dispatch")
+    close_dispatched_at, _ = _recorded_event_utc(close_dispatches[0], label="retained result close dispatch")
+    if close_dispatched_at < result_at:
+        raise RuntimeError("evidence_required: result close dispatch predates its result capture")
+    if result_at <= source_dispatched_at:
+        raise RuntimeError("evidence_required: retained result does not follow its source dispatch")
+
+    after_event, after_at, after_epoch, after_sha, after_monotonic = _capture_event_for_path(
+        events, evidence_session, after_path, label="retained cooldown successor"
+    )
+    if after_at <= close_dispatched_at:
+        raise RuntimeError("evidence_required: cooldown successor predates result close dispatch")
+    # The postcondition is linked by the close dispatch's source and the recorded
+    # successor ordering; retain the digest for the caller's final payload.
+    return {
+        "events": events,
+        "action_key": action_key,
+        "before_sha256": before_sha,
+        "result_sha256": result_sha,
+        "after_sha256": after_sha,
+        "before_epoch": before_epoch,
+        "result_epoch": result_epoch,
+        "after_epoch": after_epoch,
+        "before_monotonic": before_monotonic,
+        "result_monotonic": result_monotonic,
+        "after_monotonic": after_monotonic,
+        "before_at_utc": before_at.isoformat(),
+        "result_at_utc": result_at.isoformat(),
+        "after_at_utc": after_at.isoformat(),
+        "result_metadata": result_metadata,
+        "before_event": before_event,
+        "result_event": result_event,
+        "after_event": after_event,
+    }
+
+
+def _validate_terminal_home_evidence(terminal_session: Path, *, terminal_path: Path) -> dict[str, object]:
+    """Require the terminal Home PNG to be linked to its original safe-exit dispatch."""
+
+    events = _load_replay_events(terminal_session)
+    result_path = terminal_session / "safe-exit-only-result.json"
+    if not result_path.is_file():
+        raise RuntimeError("evidence_required: terminal Home result metadata is missing")
+    try:
+        metadata = json.loads(result_path.read_text(encoding="utf-8"))
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise RuntimeError("evidence_required: terminal Home result metadata is malformed") from exc
+    if not isinstance(metadata, dict) or metadata.get("status") != "completed" or metadata.get("terminal_home_verified") is not True:
+        raise RuntimeError("evidence_required: terminal Home result is not verified")
+    records = metadata.get("records")
+    if not isinstance(records, list) or len(records) != 1 or not isinstance(records[0], dict):
+        raise RuntimeError("evidence_required: terminal Home safe-exit record is missing")
+    record = records[0]
+    source_sha = record.get("source_sha256")
+    immediate_sha = record.get("immediate_post_sha256")
+    successor_sha = record.get("successor_sha256")
+    if not all(isinstance(value, str) and len(value) == 64 for value in (source_sha, immediate_sha, successor_sha)):
+        raise RuntimeError("evidence_required: terminal Home safe-exit hashes are incomplete")
+    terminal_event, terminal_at, terminal_epoch, terminal_sha, _ = _capture_event_for_path(
+        events, terminal_session, terminal_path, label="terminal Home", require_monotonic=False
+    )
+    if terminal_sha != successor_sha:
+        raise RuntimeError("evidence_required: terminal Home successor SHA is not linked")
+    dispatches = [
+        event
+        for event in events
+        if event.get("type") == "dispatch"
+        and event.get("execute") is True
+        and event.get("action_key") == f"noah-nav:safe-exit:{source_sha}"
+        and event.get("source_sha256") == source_sha
+    ]
+    if len(dispatches) != 1:
+        raise RuntimeError("evidence_required: terminal Home has no unique safe-exit dispatch")
+    source_captures = [event for event in events if event.get("type") == "capture" and event.get("sha256") == source_sha]
+    post_captures = [event for event in events if event.get("type") == "capture" and event.get("sha256") == immediate_sha]
+    if len(source_captures) != 1 or len(post_captures) != 1:
+        raise RuntimeError("evidence_required: terminal Home safe-exit source/post captures are unlinked")
+    source_at, _ = _validate_capture_event_bytes(
+        terminal_session, source_captures[0], expected_sha256=source_sha, label="terminal Home source"
+    )
+    post_at, _ = _validate_capture_event_bytes(
+        terminal_session, post_captures[0], expected_sha256=immediate_sha, label="terminal Home immediate post"
+    )
+    dispatch_at, _ = _recorded_event_utc(dispatches[0], label="terminal Home dispatch")
+    if dispatch_at < source_at or post_at <= dispatch_at or terminal_at < post_at:
+        raise RuntimeError("evidence_required: terminal Home successor predates safe-exit dispatch")
+    return {"terminal_epoch": terminal_epoch, "terminal_at_utc": terminal_at.isoformat(), "terminal_sha256": terminal_sha, "terminal_event": terminal_event}
+
+
+def _retained_capture_monotonic(session: Path, frame_path: Path) -> float | None:
+    """Use a persisted monotonic capture value only when the ledger actually has one."""
+
+    try:
+        events = _load_replay_events(session)
+    except RuntimeError:
+        return None
+    matches = [
+        event for event in events
+        if event.get("type") == "capture"
+        and _resolve_replay_path(session, event.get("path")).resolve() == frame_path.resolve()
+    ]
+    if len(matches) != 1:
+        return None
+    value = matches[0].get("captured_monotonic")
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+        return None
+    return float(value)
+
+
+def load_unresolved_recruit(session: Path) -> tuple[Path, Path, str, RecruitTier]:
+    events = _load_replay_events(session)
     unresolved = next((event for event in reversed(events) if event.get("type") == "reconcile" and event.get("status") == "unresolved"), None)
     if unresolved is None:
         raise RuntimeError("session has no unresolved recruit action")
@@ -2416,7 +2920,14 @@ def main(argv: list[str] | None = None) -> int:
     route = NoahTavernIntegratedRoute(runtime, max_recruits=args.max_recruits)
     if args.resume_unresolved_session is not None:
         before_frame, result_frame, action_key, tier = load_unresolved_recruit(args.resume_unresolved_session)
-        result = route.resume_unresolved_result(before_frame=before_frame, result_frame=result_frame, action_key=action_key, tier=tier)
+        result = route.resume_unresolved_result(
+            before_frame=before_frame,
+            result_frame=result_frame,
+            action_key=action_key,
+            tier=tier,
+            before_captured_monotonic=_retained_capture_monotonic(args.resume_unresolved_session, before_frame),
+            result_captured_monotonic=_retained_capture_monotonic(args.resume_unresolved_session, result_frame),
+        )
     else:
         result = route.run()
     print(json.dumps(result.__dict__, sort_keys=True))

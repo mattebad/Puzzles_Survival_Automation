@@ -756,7 +756,7 @@ class FlowConductorTests(unittest.TestCase):
         self.assertIsNone(verification)
         verify.assert_not_called()
 
-    def test_ultimate_terminal_conduct_uses_one_session_and_preserves_composite_proof(
+    def test_ultimate_daily_conduct_uses_one_continuous_session(
         self,
     ) -> None:
         flow_id = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
@@ -764,9 +764,8 @@ class FlowConductorTests(unittest.TestCase):
             "schema_version": 1,
             "flow_id": flow_id,
             "status": "completed",
-            "proof_topology": "composite",
-            "terminal_reconciliation_topology": "continuous",
-            "new_flee_transport_count": 0,
+            "proof_topology": "continuous",
+            "new_flee_transport_count": 1,
             "causal_trace_count": 1,
             "terminal_completion_verified": True,
         }
@@ -815,21 +814,20 @@ class FlowConductorTests(unittest.TestCase):
             self.assertIsNone(result["observe"])
             self.assertEqual(result["decision"], ConductorDecision.DONE.value)
 
-    def test_ultimate_terminal_done_is_vetoed_by_new_flee_or_false_topology(self) -> None:
+    def test_ultimate_daily_done_is_vetoed_by_duplicate_flee_or_false_topology(self) -> None:
         flow_id = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
         base = {
             "schema_version": 1,
             "flow_id": flow_id,
             "status": "completed",
-            "proof_topology": "composite",
-            "terminal_reconciliation_topology": "continuous",
-            "new_flee_transport_count": 0,
+            "proof_topology": "continuous",
+            "new_flee_transport_count": 1,
             "causal_trace_count": 1,
         }
         for mutation in (
-            {"new_flee_transport_count": 1},
-            {"proof_topology": "continuous"},
-            {"terminal_reconciliation_topology": "composite"},
+            {"new_flee_transport_count": 2},
+            {"proof_topology": "composite"},
+            {"new_flee_transport_count": 0},
         ):
             retained = {**base, **mutation}
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:

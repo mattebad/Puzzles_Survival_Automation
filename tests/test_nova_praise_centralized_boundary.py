@@ -94,10 +94,12 @@ class FakeRuntime:
         varying_pixels: bool = False,
         foreground_package: str | None = None,
         praise_button_present: bool = True,
+        track_in_flight: bool = True,
     ) -> None:
         from scripts.bluestacks_flow_collector import EXPECTED_PACKAGE
 
         self.session = Path("centralized-nova-test-session")
+        self.track_in_flight = track_in_flight
         self.in_flight_action = None
         self.index = 0
         self.labels: list[str] = []
@@ -135,11 +137,11 @@ class FakeRuntime:
 
     def tap(self, source: CapturedNativeFrame, **kwargs) -> None:
         self.taps.append((source.sha256, kwargs))
-        if kwargs.get("consequential"):
+        if kwargs.get("consequential") and self.track_in_flight:
             self.in_flight_action = kwargs["action_key"]
 
     def reconcile(self, action_key: str, status: str, _post, _reason: str) -> None:
-        if self.in_flight_action != action_key:
+        if self.track_in_flight and self.in_flight_action != action_key:
             raise RuntimeError("local evidence correlation does not match central action")
         self.reconciliations.append((action_key, status))
         if status != "unresolved":
@@ -278,6 +280,17 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         )
         self.assertEqual(scheduler["status"], "deferred")
 
+    def test_confirmed_transport_reconciles_without_incidental_in_flight_marker(self) -> None:
+        self.runtime = FakeRuntime(track_in_flight=False)
+        proposal_capture, proposal = self.armed_proposal()
+        result = self.boundary(*self._success_recognitions()).execute_praise(
+            proposal_capture, proposal
+        )
+        self.assertEqual(result.status, "confirmed")
+        self.assertEqual(result.transport_calls, 1)
+        self.assertEqual(len(self.runtime.reconciliations), 1)
+        self.assertEqual(self.runtime.reconciliations[0][1], "confirmed")
+
     def test_planning_frame_never_mints_capability(self) -> None:
         proposal_capture, proposal = self.armed_proposal()
         boundary = self.boundary(*self._success_recognitions())
@@ -298,16 +311,18 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         self.assertEqual(issued_digests, [self.runtime.frames[1].sha256])
         self.assertNotEqual(proposal_capture.sha256, issued_digests[0])
 
-    def test_issue_proposal_and_consume_share_immediate_capture_identity(self) -> None:
+    def test_issue_uses_immediate_and_executor_keeps_actual_proposal_identity(self) -> None:
         proposal_capture, proposal = self.armed_proposal()
         boundary = self.boundary(*self._success_recognitions())
         frames: list[str] = []
         monos: list[float] = []
+        observations = []
         original_request = boundary._request
 
         def tracking_request(action, observation, *, phase: str = "proposal"):
             frames.append(observation.frame_sha256)
             monos.append(observation.capture_completed_monotonic)
+            observations.append(observation)
             return original_request(action, observation, phase=phase)
 
         from unittest.mock import patch
@@ -315,11 +330,22 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         with patch.object(boundary, "_request", side_effect=tracking_request):
             result = boundary.execute_praise(proposal_capture, proposal)
         self.assertEqual(result.status, "confirmed")
-        # issue uses immediate mono; executor proposal is predecessor offset of same digest.
+        # Capability issue binds I; executor request remains the caller's actual P.
         self.assertGreaterEqual(len(frames), 2)
-        self.assertEqual(frames[0], frames[1])
         self.assertEqual(frames[0], self.runtime.frames[1].sha256)
-        self.assertAlmostEqual(monos[1], monos[0] - 0.05)
+        self.assertEqual(frames[1], proposal_capture.sha256)
+        self.assertEqual(monos[0], self.runtime.frames[1].captured_monotonic)
+        self.assertEqual(monos[1], proposal_capture.captured_monotonic)
+        proposal_observation = observations[1]
+        self.assertEqual(proposal_observation.evidence_refs, (str(proposal_capture.path),))
+        self.assertEqual(
+            proposal_observation.ocr_result_frame_sha256,
+            proposal_capture.sha256,
+        )
+        self.assertEqual(
+            proposal_observation.ocr_result_capture_completed_monotonic,
+            proposal_capture.captured_monotonic,
+        )
         self.assertEqual(result.transport_calls, 1)
         self.assertEqual(len(self.runtime.taps), 1)
         self.assertEqual(self.runtime.taps[0][0], frames[0])
@@ -382,7 +408,7 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         def capture_and_age(label: str):
             frame = original_capture(label)
             if label == "praise-central-immediate-before":
-                clock["now"] = frame.captured_monotonic + 5.0
+                clock["now"] = frame.captured_monotonic + 31.0
             return frame
 
         self.runtime.capture = capture_and_age
@@ -537,7 +563,8 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
 
     def test_capability_denial_before_prepare_returns_blocked_without_store_error(self) -> None:
         proposal_capture, proposal = self.armed_proposal()
-        # Immediate frame mono ~2.0; clock far ahead forces STALE_FRAME at issue time.
+        # Immediate frame mono ~2.0; clock more than the native 30-second
+        # ceiling ahead forces STALE_FRAME at issue time.
         boundary = NovaPraiseActionBoundary(
             self.runtime,
             self.store,
@@ -547,7 +574,7 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
             invocation_id="invocation-1",
             execute=True,
             recognizer=RecognitionQueue(self._success_recognitions()[0]),
-            monotonic_clock=lambda: 20.0,
+            monotonic_clock=lambda: 40.0,
             wall_clock=lambda: 100.5,
             post_delays=(0.0,),
         )
@@ -675,6 +702,18 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
                 IDENTITY.task_id,
             )
         )
+
+    def test_unresolved_transport_reconciles_without_incidental_in_flight_marker(self) -> None:
+        self.runtime = FakeRuntime(track_in_flight=False)
+        proposal_capture, proposal = self.armed_proposal()
+        result = self.boundary(
+            self._success_recognitions()[0],
+            recognition(praise_observation(6, 4.0, digest="d" * 64)),
+        ).execute_praise(proposal_capture, proposal)
+        self.assertEqual(result.status, "unresolved")
+        self.assertEqual(result.transport_calls, 1)
+        self.assertEqual(len(self.runtime.reconciliations), 1)
+        self.assertEqual(self.runtime.reconciliations[0][1], "unresolved")
 
     def test_crash_after_transport_blocks_restart_redispatch(self) -> None:
         proposal_capture, proposal = self.armed_proposal()

@@ -498,6 +498,15 @@ class _CanonicalPulseCoordinator:
         projection = cls._recurrence_projection(descriptor, facts)
         if expected is None:
             return True
+        if projection is not None and projection.observation_pending:
+            return bool(
+                descriptor.allows_pending_resource_observation
+                and expected is RecurrenceClass.AP_REGENERATION
+                and projection.recurrence_class is expected
+                and projection.observed_at_utc is None and projection.observed_balance is None
+                and isinstance(projection.generation, str) and projection.generation.strip()
+                and (projection.next_eligible_at is None or projection.next_eligible_at <= now)
+            )
         if projection is not None and projection.recurrence_class is not expected:
             return False
         if expected is RecurrenceClass.RESET_BOUNDED and (
@@ -590,6 +599,17 @@ class _CanonicalPulseCoordinator:
             RecurrenceClass.RESET_BOUNDED,
         }
 
+    @classmethod
+    def _pending_matches_state(
+        cls, descriptor: FlowDescriptor, facts: SchedulerFacts, state: FlowState
+    ) -> bool:
+        projection = cls._recurrence_projection(descriptor, facts)
+        return bool(projection is None or not projection.observation_pending or (
+            descriptor.allows_pending_resource_observation
+            and projection.generation == str(state.next_occurrence_key)
+            and projection.next_eligible_at == state.next_due_at_utc
+        ))
+
     def _eligible(
         self,
         facts: SchedulerFacts,
@@ -627,6 +647,8 @@ class _CanonicalPulseCoordinator:
                 # deliberately admits each ordinal up to its durable limit.
                 continue
             projection = self._recurrence_projection(descriptor, facts)
+            if not self._pending_matches_state(descriptor, facts, state):
+                continue
             if (
                 mode == "scheduled"
                 and descriptor.recurrence_class is RecurrenceClass.RESET_BOUNDED
@@ -780,6 +802,8 @@ class _CanonicalPulseCoordinator:
         state = self.state.get_flow(descriptor.flow_id)
         if state is None or not state.enabled or state.blocked:
             return
+        if not self._pending_matches_state(descriptor, facts, state):
+            return
         reset_changed = (
             mode == "scheduled"
             and self._is_reset_scoped(descriptor)
@@ -866,11 +890,11 @@ class _CanonicalPulseCoordinator:
             )
         if result.outcome is NormalizedOutcome.COMPLETE_FOR_RESET:
             return SchedulerAwareTaskResult.complete_for_reset(
-                identity, result.reason_code, **kwargs
+                identity, result.reason_code, next_eligible_at=result.next_eligible_at, **kwargs
             )
         if result.outcome is NormalizedOutcome.ALREADY_COMPLETE:
             return SchedulerAwareTaskResult.already_complete(
-                identity, result.reason_code, **kwargs
+                identity, result.reason_code, next_eligible_at=result.next_eligible_at, **kwargs
             )
         if result.outcome is NormalizedOutcome.MANUAL_REQUIRED:
             kwargs["unresolved_action"] = False
@@ -1217,6 +1241,13 @@ class _CanonicalPulseCoordinator:
                     return PulseReport(
                         None, None, self._next_wake(now, facts), "CLAIM_UNAVAILABLE"
                     )
+                if not self._pending_matches_state(candidate.descriptor, facts, prepared_state):
+                    # Do not restore a stale preparation snapshot over the
+                    # canonical schedule change that invalidated admission.
+                    return PulseReport(
+                        candidate, None, self._next_wake(now, facts),
+                        "PENDING_OBSERVATION_STALE",
+                    )
                 binding = self._occurrence_binding(
                     candidate.descriptor,
                     facts,
@@ -1458,7 +1489,12 @@ class _CanonicalPulseCoordinator:
                     outcome=scheduler_result.outcome.value,
                     next_due_at_utc=(
                         scheduler_result.next_eligible_at
-                        if terminal_state is RunState.DEFERRED
+                        if (terminal_state is RunState.DEFERRED
+                            or (terminal_state is RunState.SUCCEEDED
+                                and scheduler_result.outcome in {
+                                    SchedulerTaskOutcome.COMPLETE_FOR_RESET,
+                                    SchedulerTaskOutcome.ALREADY_COMPLETE,
+                                }))
                         else None
                     ),
                     retry_not_before_utc=self._retry_deadline(
@@ -1594,9 +1630,13 @@ class UtcPulseCoordinator:
         if result.outcome is NormalizedOutcome.DEFERRED:
             return SchedulerAwareTaskResult.deferred(identity, result.reason_code, float(result.next_eligible_at), **kwargs)
         if result.outcome is NormalizedOutcome.COMPLETE_FOR_RESET:
-            return SchedulerAwareTaskResult.complete_for_reset(identity, result.reason_code, **kwargs)
+            return SchedulerAwareTaskResult.complete_for_reset(
+                identity, result.reason_code, next_eligible_at=result.next_eligible_at, **kwargs
+            )
         if result.outcome is NormalizedOutcome.ALREADY_COMPLETE:
-            return SchedulerAwareTaskResult.already_complete(identity, result.reason_code, **kwargs)
+            return SchedulerAwareTaskResult.already_complete(
+                identity, result.reason_code, next_eligible_at=result.next_eligible_at, **kwargs
+            )
         if result.outcome is NormalizedOutcome.MANUAL_REQUIRED:
             kwargs["unresolved_action"] = False
             return SchedulerAwareTaskResult.manual_required(identity, result.reason_code, **kwargs)
@@ -1622,6 +1662,8 @@ class UtcPulseCoordinator:
         if recurrence is None:
             return True
         projection = facts.projections.get(descriptor.flow_id) or recurrence
+        if projection.observation_pending:
+            return False
         if projection.observed_at_utc is None:
             return False
         if recurrence.recurrence_class in {
@@ -1728,6 +1770,8 @@ class UtcPulseCoordinator:
             identity = self._identity(facts, descriptor)
             recurrence_projection = facts.projections.get(descriptor.flow_id) or descriptor.recurrence
             if recurrence_projection is not None:
+                if recurrence_projection.observation_pending:
+                    continue
                 if recurrence_projection.observed_at_utc is None:
                     continue
                 projection_key = f"{identity.composite_key}|{descriptor.flow_id}"

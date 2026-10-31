@@ -1,0 +1,17 @@
+{
+  "hero-lineup-20261030.png": {
+    "source": ".local-captures/automation-service-authorized/soak-20261030T051827169428Z-aff28321/campaign/campaign-ap-1-15-9-20261030T051934545001Z/frames/0031-campaign-stage-entry-post-1.png",
+    "sha256": "11f214f0f5aceec24fe1a52cf192213a3e6375bcaf1f4c98cea174c9146f0901",
+    "native_size": [800, 1280],
+    "purpose": "Immutable offline reader regression copied byte-for-byte from the retained first post-Stage observation. Historical evidence grants no live authority.",
+    "baseline_diagnostics": {
+      "screen": "UNKNOWN",
+      "lineup_header": "} hero lineup",
+      "lineup_text": "",
+      "lineup_score": 0.9824892282485962,
+      "lineup_gold": 0.8716397849462365,
+      "measured_control": [276, 1168, 524, 1252]
+    },
+    "diagnosis": "Whole-button OCR discarded the visible Challenge caption despite a unique strong template match. The repaired caption crop is inset relative to the freshly measured control; localization and gold thresholds are unchanged."
+  }
+}

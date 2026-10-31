@@ -1,6 +1,6 @@
 # Foundation recovery backlog
 
-Planning-only records for the canonical `automation_service` recovery. These records do not activate a flow, authorize transport, mutate evidence, or replace the historical backlog. `READY` means eligible for a later offline implementation prompt only; every ticket below is inactive.
+Planning-only records for the canonical `automation_service` recovery. These records do not activate a flow, authorize transport, mutate evidence, or replace the historical backlog. Dated reconciliation notes record local implementation and remaining acceptance. `READY` remains a future offline planning label.
 
 ## Cross-ticket controls
 
@@ -38,7 +38,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F01`
 - Type: Bug
 - Priority: P0
-- Status: READY
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Accepted routes use immutable native captures, hash-bound targets and ambiguity rejection. Full coverage of every historical consumer remains evidence_required.
 - Objective: Make screen and target admission fail closed when authoritative ROIs, capture-event identity, or immutable payload provenance are missing, contradictory, stale, or cross-capture; permit animation variance without mistaking a full-frame hash for semantic authority. This addresses AF03 and the observed distinction between `CaptureCycle.frame_hash` and stable bindings.
 - Dependencies: none
 - Related work: `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE` — reuse its same-capture immutable bundle and dual-digest facts; `RUNTIME-RESUMABLE-NAVIGATION-SESSIONS` — retain its fresh-continuation rule; `HOME-ATLAS-LOCALIZATION-RESTORATION` — retain as an inactive Home outcome and do not activate its Campaign/AP path.
@@ -59,7 +60,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F02`
 - Type: Bug
 - Priority: P0
-- Status: READY
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Bounded OCR primitives and native-crop regressions exist. Repository-wide direct-caller migration and the complete worker-termination matrix remain evidence_required; see REC-F17.
 - Objective: Ensure every OCR invocation runs in a bounded, enforceable worker process over an explicitly bounded ROI, with the process terminated and reaped by its deadline, and cannot fall back to an abandon-daemon or broad full-frame OCR path. This closes AF04 and AF12 and covers governance gate 26.
 - Dependencies: none
 - Related work: `VISION-SEMANTIC-OCR-CROP-PIPELINE` — reuse its identity-bound ROI and constrained OCR contract; `VISION-NATIVE-FRAME-REPLAY-HARNESS` — reuse deterministic non-live frames; `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE` — retain same-capture identity.
@@ -80,7 +82,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F03`
 - Type: Bug
 - Priority: P0
-- Status: READY
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Shared known-popup recovery and route-owned successor verification are used by the accepted eight-route portfolio. Full remaining legacy-owner cutover is not established.
 - Objective: Make the shared overlay recovery successor contract reject unknown, contradictory, or overlay-bearing post-close observations and accept only an independently classified allowlisted base screen. This addresses AF05 and the VIP ownership failure.
 - Dependencies: none
 - Related work: `VIP-GET-PTS-POPUP-DISMISSAL` — retain its missing-fresh-evidence disposition; `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE` — reuse same-capture binding; `HOME-ATLAS-RECOVERY-AWARE-VIEWPORT-PLANNING` — retain projection as non-authorizing recovery planning.
@@ -101,7 +104,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F04`
 - Type: Bug
 - Priority: P0
-- Status: READY
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: BotStateManager claim transactions release only the newly acquired lease on denied claims. This records the implemented kernel behavior, not closure of every planned concurrency scenario.
 - Objective: Make denied or invalid RuntimeSession admission release only the exact service/run lease acquired by that attempt, while refusing to release another owner’s lease and guaranteeing release on every terminal/error path. This addresses AF07.
 - Dependencies: none
 - Related work: `RUNTIME-RESUMABLE-NAVIGATION-SESSIONS` — retain crash-safe ownership identity; `RUNTIME-INPUT-CAPABILITY-FIREWALL` — retain one-shot authority boundaries; `RUNTIME-RELIABILITY-MERGE-BOUNDARY` — retain historical merge boundary only, not runtime authority.
@@ -122,7 +126,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F05`
 - Type: Bug
 - Priority: P0
-- Status: READY
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Public shadow/read-only scheduling paths and canonical-authority regressions exist. No new global compatibility audit or full-suite pass is claimed by route acceptance.
 - Related work: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` — retain its offline review boundary; `ARCH-NAVIGATION-AUTOMATION-ROADMAP` — reuse the dormant-contract principle.
 - Objective: Make every public shadow/observe path compute candidates without initializing flow rows, consuming occurrences, inserting runs/actions, advancing due/retry state, acquiring a transport-capable lease, or mutating production SQLite. This addresses AF08 and governance gate 37.
 - Dependencies: none
@@ -143,7 +148,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F06`
 - Type: Bug
 - Priority: P0
-- Status: READY
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Ordinary registered handlers remain non-consuming; consuming executors are installed only by explicit supervised composition behind claim/dispatch fences. Legacy surfaces still require their own audit.
 - Objective: Ensure selector-only and unsupported-route handlers can describe or select an eligible route without terminalizing or consuming a gameplay occurrence, consuming a registration snapshot, or reporting gameplay completion from selector evidence alone. Preserve legitimate verified real-runner zero-input already-completed/observation outcomes where the route contract permits them. This addresses AF02 and separates ordinary versus consequential route semantics.
 - Dependencies: none
 - Related work: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` — retain its blocked composition status; `ARCH-NAVIGATION-AUTOMATION-ROADMAP` — reuse typed handler boundaries; `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE` — retain typed observation facts.
@@ -164,7 +170,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F07`
 - Type: Bug
 - Priority: P0
-- Status: READY
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Canonical occurrences, durable due times, budgets and backoff are implemented; native quota/cooldown runs cover the eight-route portfolio. Full planned exhaustion/recovery matrix remains separate.
 - Objective: Correct `RESET_BOUNDED` and related recurrence handling so every allowed ordinal is durable, retries reuse the same occurrence identity, exhaustion is an explicit block, and schedule cadence is separate from retry backoff. This addresses AF09 and governance gates 8, 27–30.
 - Dependencies: none
 - Related work: `HOME-NAVIGATION-OBSERVABILITY` — reuse persisted session timing fields; `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION` — retain calibration independence; `RUNTIME-RESUMABLE-NAVIGATION-SESSIONS` — retain occurrence/session continuity.
@@ -185,7 +192,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F08`
 - Type: Bug
 - Priority: P1
-- Status: READY
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Portable native filenames and actual input/effect accounting are implemented and checked in retained audits, including the full7200-second run. Complete legacy projection/caller retirement remains separate.
 - Objective: Produce filesystem-portable evidence/session filenames and one truthful compact action/input count without interpreting Windows colon syntax as an alternate data stream or rewriting protected evidence. This addresses AF13.
 - Dependencies: none
 - Related work: `RUNTIME-RELIABILITY-MERGE-BOUNDARY` — retain its historical merge/evidence boundary; `TOOLS-HOME-BASE-ATLAS-BLUESTACKS` — retain local diagnostics and their non-canonical status; `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` — retain evidence correspondence as review-only.
@@ -206,7 +214,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F09`
 - Type: Story
 - Priority: P0
-- Status: WAITING_DEPENDENCIES
+- Status: IMPLEMENTED_LOCAL
+- Reconciled 2026-10-30: Static canonical registry, SQLite service/flow gates and fenced run sessions are implemented and exercised by the eight-route native cohorts. Local code is uncommitted; this is not merged/released or NAS acceptance.
 - Objective: Make SQLite `service_control`/`service_lease`/`flow_state`/`runs`/`actions` the sole mutable runtime authority, initialize every flow disabled from static `FlowSpec` facts, atomically claim one occurrence, and let a session attach to an already-claimed run with complete generation/lease tokens. No queue, registry, evidence, Git, environment, or `--live` value may substitute. This is the canonical remediation for AF10.
 - Dependencies: `REC-F04`, `REC-F06`
 - Related work: `ARCH-NAVIGATION-AUTOMATION-ROADMAP` — reuse its typed dormant architecture; `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` — retain blocked composition and do not activate M6; `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE` — reuse capture identity facts.
@@ -227,7 +236,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F10`
 - Type: Story
 - Priority: P0
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: The accepted portfolio reuses LocalBlueStacksRuntime and the existing executor/owner fences. A repository-wide one-adapter cutover of every legacy route is not complete.
 - Objective: Adapt the existing native transport behind the canonical session/action boundary while retaining exact device, package, profile, native `800x1280`, fresh-frame, stable-ROI, budget, and successor guards; do not add a second admission authority or bypass. Fake transport is the only implementation-time adapter. This addresses AF10.
 - Dependencies: `REC-F09`
 - Related work: `TOOLS-HOME-BASE-ATLAS-BLUESTACKS` — retain its exact BlueStacks profile and platform separation; `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION` — reuse its SafeActionExecutor/session seams; `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` — retain fresh pre-dispatch and binder evidence as historical route facts.
@@ -248,7 +258,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F11`
 - Type: Story
 - Priority: P0
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Shared startup, Home Atlas, Back and known VIP recovery are integrated for the accepted routes. Remaining legacy-wrapper consolidation belongs to REC-O14.
 - Objective: Compose one shared typed Home/Atlas/startup/Back/overlay boundary with exact VIP/Get Pts, exit-dialog, Scarlett, Home-ready, and terminal Home ownership; remove route-specific duplicate recognizers and do not infer a successor from transport. This addresses AF03, AF05, and AF11.
 - Dependencies: `REC-F01`, `REC-F02`, `REC-F03`
 - Related work: `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE` — reuse same-capture typed facts; `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION` — retain verified Home route seams; `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` — retain binder-selected safe-exit semantics; `VIP-GET-PTS-POPUP-DISMISSAL` — retain its inactive/missing-evidence disposition.
@@ -269,7 +280,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F12`
 - Type: Story
 - Priority: P1
-- Status: WAITING_DEPENDENCIES
+- Status: IMPLEMENTED_LOCAL
+- Reconciled 2026-10-30: Fresh Atlas localization, mapped-anchor binding and bounded Campaign camera placement have focused native-frame checks and live Home entry/return proof. Local implementation remains uncommitted.
 - Objective: Repair and validate the existing Home Atlas localizer’s stable semantic/Atlas-target ROI behavior offline, preserving the existing `HOME-ATLAS-LOCALIZATION-RESTORATION` outcome and explicitly refusing to turn this replacement ticket into a Campaign/AP retry or authorization.
 - Dependencies: `REC-F01`, `REC-F02`
 - Related work: `HOME-ATLAS-LOCALIZATION-RESTORATION` — retain its inactive, evidence-gated outcome and reuse its exact native bounds/negative controls; this ticket supersedes only the need for a new planning record, not its historical outcome or no-Campaign-retry rule; `TOOLS-HOME-ATLAS-DIRECT-PAN-PLANNER` — reuse planner/localizer contracts; `HOME-ATLAS-RECOVERY-AWARE-VIEWPORT-PLANNING` — reuse non-authorizing recovery planning.
@@ -311,7 +323,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F14`
 - Type: Story
 - Priority: P0
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: A continuous7200-second canonical run completed21 Campaign passes with correct due admission and shutdown. Native reset/cold-start follow-up is active; full planned fairness/crash matrix is not closed.
 - Objective: Make the service loop perform real bounded UTC pulses—lease, clock check, atomic due selection/claim, fenced execution, heartbeat, terminalization, retry/backoff, fairness, and shutdown—rather than health-only sleep or zero-transport selector completion. This addresses AF10.
 - Dependencies: `REC-F05`, `REC-F07`, `REC-F09`, `REC-F13`
 - Related work: `HOME-NAVIGATION-OBSERVABILITY` — reuse deterministic timing/reporting shape; `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` — retain review boundary; `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` — remain blocked until readiness and cutovers.
@@ -332,7 +345,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F15`
 - Type: Story
 - Priority: P0
-- Status: WAITING_DEPENDENCIES
+- Status: IMPLEMENTED_LOCAL
+- Reconciled 2026-10-30: Supported pnsctl service/flow controls, status and health are implemented; current checks report disabled controls, healthy database, no held lease and no unresolved action. Local implementation is not a release.
 - Related work: `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` — retain blocked runtime composition; `RUNTIME-RELIABILITY-MERGE-BOUNDARY` — retain historical control-plane boundary; `ARCH-NAVIGATION-AUTOMATION-ROADMAP` — reuse dormant CLI/state contract.
 - Objective: Make `bot status`, `bot observe`, `bot run FLOW [--live]`, `bot service`, `bot enable/disable`, and `bot emergency-stop` thin, coherent adapters over the same SQLite state, fenced lease, canonical service, and fake/replay adapters; `--live` cannot bypass gates and observe stays zero-input. This addresses AF10.
 - Dependencies: `REC-F05`, `REC-F09`, `REC-F10`
@@ -353,7 +367,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F16`
 - Type: Validation
 - Priority: P0
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Focused startup/reset/fencing checks and bounded native cadence evidence exist. Remaining current-source native crossing/cold-start tests are active; this is not the complete hosted acceptance package.
 - Objective: Deliver one offline acceptance package proving process concurrency, fenced ownership, crash recovery, reset/timer/retry behavior, clock rollback, fairness, contention, and restart budget invariants for the canonical runtime without assuming resources or native success. It includes the AF06 resource-parity regression package.
 - Dependencies: `REC-F14`, `REC-F15`
 - Related work: `RUNTIME-RELIABILITY-MERGE-BOUNDARY` — retain its historical reliability evidence as non-native context; `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` — retain blocked status; `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE` — reuse identity fixtures.

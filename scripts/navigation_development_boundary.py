@@ -836,9 +836,17 @@ class DevelopmentSession:
         max_inputs: int = 12,
         allow_zero_inputs: bool = False,
         initial_observation: DevelopmentInitialObservation | Mapping[str, Any] | None = None,
+        runtime_input_lock: RuntimeInputLock | None = None,
+        checkpoint: Callable[[], None] | None = None,
     ) -> None:
         if not 0 <= int(max_inputs) <= 100 or (int(max_inputs) == 0 and not allow_zero_inputs):
             raise DevelopmentSessionError("max_inputs must be between 1 and 100")
+        if (runtime_input_lock is None) != (checkpoint is None):
+            raise DevelopmentSessionError("borrowed ownership requires both runtime_input_lock and checkpoint")
+        if runtime_input_lock is not None and (
+            not isinstance(runtime_input_lock, RuntimeInputLock) or not callable(checkpoint)
+        ):
+            raise DevelopmentSessionError("borrowed ownership requires a real RuntimeInputLock and callable checkpoint")
         self.owner = owner
         self.invocation_id = invocation_id
         self.session_directory = Path(session_directory)
@@ -854,6 +862,12 @@ class DevelopmentSession:
         self.blocker: str | None = None
         self.next_action: str | None = None
         self._ownership = NavigationDevelopmentSession(owner=owner, invocation_id=invocation_id)
+        self._borrowed_lock = runtime_input_lock
+        self._borrowed_fence = (
+            (runtime_input_lock.owner, runtime_input_lock.invocation_id)
+            if runtime_input_lock is not None else None
+        )
+        self._checkpoint = checkpoint
         self._entered = False
         self._context_token = None
         if initial_observation is not None:
@@ -862,28 +876,40 @@ class DevelopmentSession:
     def __enter__(self) -> "DevelopmentSession":
         if _ACTIVE_DEVELOPMENT_SESSION.get() is not None:
             raise DevelopmentSessionError("nested DevelopmentSession ownership is denied")
-        self._ownership.__enter__()
+        if self._borrowed_lock is None:
+            self._ownership.__enter__()
+        else:
+            self._check_borrowed_owner()
         try:
             self.session_directory.mkdir(parents=True, exist_ok=False)
         except Exception:
-            self._ownership.__exit__(None, None, None)
+            if self._borrowed_lock is None:
+                self._ownership.__exit__(None, None, None)
             raise
         self._context_token = _ACTIVE_DEVELOPMENT_SESSION.set(self)
         self._entered = True
         return self
 
+    def _check_borrowed_owner(self) -> None:
+        if self._borrowed_lock is not None:
+            self._borrowed_lock.assert_held(*self._borrowed_fence)
+            self._checkpoint()
+            self._borrowed_lock.assert_held(*self._borrowed_fence)
+
     @property
     def runtime_input_lock(self) -> RuntimeInputLock:
         """Return this session's already-held lock without permitting replacement."""
 
-        lock = self._ownership.lock
+        lock = self._borrowed_lock or self._ownership.lock
         if not self._entered or not lock.held:
             raise DevelopmentSessionError("development session runtime input lock is not held")
+        if self._borrowed_lock is not None:
+            lock.assert_held(*self._borrowed_fence)
         return lock
 
     @property
     def is_active(self) -> bool:
-        return bool(self._entered and self._ownership.lock.held)
+        return bool(self._entered and (self._borrowed_lock or self._ownership.lock).held)
 
     @property
     def initial_observation(self) -> DevelopmentInitialObservation | None:
@@ -966,8 +992,10 @@ class DevelopmentSession:
     ) -> CapturedNativeFrame:
         if not self._entered:
             raise DevelopmentSessionError("development session is not active")
+        self._check_borrowed_owner()
         frame = capture(label)
         _validate_development_native_frame(frame)
+        self._check_borrowed_owner()
         return frame
 
     def run_action(
@@ -992,6 +1020,7 @@ class DevelopmentSession:
             raise DevelopmentSessionError("development session input limit reached")
         _validate_development_roi(target_roi)
         before = self.observe(capture, label=f"{label}-immediate-before")
+        self._check_borrowed_owner()
         if authorize is not None:
             authorize(before)
         delegated = current_delegated_runtime_context()
@@ -1011,6 +1040,7 @@ class DevelopmentSession:
                 source_evidence_hash=before.sha256,
                 action_key=label,
             )
+        self._check_borrowed_owner()
         self.input_count += 1
         try:
             dispatch(before)
@@ -1025,6 +1055,7 @@ class DevelopmentSession:
         state = str(recognize(after) or "unknown")
         settled: CapturedNativeFrame | None = None
         if state.lower() == "unknown" and settled_successor is not None:
+            self._check_borrowed_owner()
             candidate = settled_successor()
             if not isinstance(candidate, CapturedNativeFrame):
                 raise DevelopmentSessionError(
@@ -1037,6 +1068,7 @@ class DevelopmentSession:
         recovery_used = False
         recovery_key = recovery_action_identity
         if state.lower() == "unknown" and recover is not None:
+            self._check_borrowed_owner()
             if self.input_count >= self.max_inputs:
                 raise DevelopmentSessionError(
                     "development session input limit reached before recovery"
@@ -1188,19 +1220,27 @@ class DevelopmentSession:
         if exception:
             summary["blocker"] = f"{type(exception).__name__}: {exception}"
             summary["next_action"] = "repair the reported development failure"
+        if self._borrowed_lock is not None:
+            summary.update(
+                ownership_released=False, runtime_ownership="borrowed",
+                borrowed_owner_retained=self._borrowed_lock.held,
+            )
         (self.session_directory / "summary.json").write_text(
             json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
 
     def __exit__(self, exc_type, exc, tb) -> None:
         try:
-            self._ownership.__exit__(exc_type, exc, tb)
+            if self._borrowed_lock is None:
+                self._ownership.__exit__(exc_type, exc, tb)
         finally:
-            self._write_summary(exc)
-            if self._context_token is not None:
-                _ACTIVE_DEVELOPMENT_SESSION.reset(self._context_token)
-                self._context_token = None
-            self._entered = False
+            try:
+                self._write_summary(exc)
+            finally:
+                if self._context_token is not None:
+                    _ACTIVE_DEVELOPMENT_SESSION.reset(self._context_token)
+                    self._context_token = None
+                self._entered = False
 
 
 def finalize_navigation_evidence(

@@ -1,0 +1,19 @@
+{
+  "capture_kind": "byte-for-byte native source copy",
+  "frames": [
+    {
+      "fixture": "initial-safe-subregion.png",
+      "source": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20261029T063549997502Z/frames/0002-canary-home-01-immediate-before.png",
+      "transport_sha256": "fb0400e4dbf4d81df8524dd92f904098abcf38ef9d9a1042cf6f9475b4c7798c",
+      "width": 800,
+      "height": 1280
+    },
+    {
+      "fixture": "fully-visible-after-pan.png",
+      "source": ".local-captures/flow-delivery/NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE/nova-praise-one-free-pulse-20261029T063549997502Z/frames/0005-canary-home-02-immediate-before.png",
+      "transport_sha256": "0ef9564fabd55dc02e65a90462234f630d3a13de0d89c95b0807a1cf14f295a5",
+      "width": 800,
+      "height": 1280
+    }
+  ]
+}

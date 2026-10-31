@@ -366,6 +366,7 @@ class SafeActionExecutor:
                         request.semantic_action in {
                             "DISMISS_ALLIANCE_FORT_WAVE",
                             "RESEARCH_BIOENHANCER_FREE",
+                            "CAMPAIGN_HOME_ATLAS_BUILDING_OPEN",
                         }
                     ),
                 )
@@ -470,6 +471,7 @@ class SafeActionExecutor:
             request.semantic_action in {
                 "DISMISS_ALLIANCE_FORT_WAVE",
                 "RESEARCH_BIOENHANCER_FREE",
+                "CAMPAIGN_HOME_ATLAS_BUILDING_OPEN",
                 "CLAIM_DAILY_QUEST",
                 "PRAISE_NOVA",
             }

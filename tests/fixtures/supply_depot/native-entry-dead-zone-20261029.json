@@ -1,0 +1,5 @@
+{
+  "source": ".local-captures\\automation-service-authorized\\soak-20261029T142504610488Z-2d25d83c\\supply\\supply-depot-20261029T142504641995Z-94b0e8d1\\supply-depot-native-20261029T142504815144Z\\frames\\0008-supply-depot-home-bound.png",
+  "sha256": "25bca3143cd71c86c89354b9f84c8c6ce41a0e663bae9d066f7c202afd4833fb",
+  "purpose": "Actual safe building edge whose menu lands under HUD; calibrated final camera correction is too short without one camera-only reframe."
+}

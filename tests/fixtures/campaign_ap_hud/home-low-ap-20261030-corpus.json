@@ -1,0 +1,287 @@
+{
+  "context": "Offline retained-corpus check only; no execution authority or live acceptance. Source PNGs remain byte-for-byte intact.",
+  "ground_truth": "Independent visual inspection of icon-bound native AP row crops, not OCR output or report labels.",
+  "scope": "Nineteen retained Home sources spanning0..5 and7..14 plus actual26. No natural AP6 source was identified in the scoped reports; AP26 covers digit6. Existing current/older Home/Map fixtures are covered by test_campaign_ap_hud_native.",
+  "production_sha256": "8755c88fd9a4de5537f57abbcac6650e87307827b2f2f2d271a9f4a075518aa4",
+  "rows": [
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T054151072283Z-0f9d6d8f/campaign/campaign-ap-1-15-9-20261030T054335275964Z/frames/0069-campaign-terminal-normalization-source.png",
+      "sha256": "7e96ae6dcef0bb7a56ba968e62a8fa31a4ee00284c3da06c4bc37b28d66b2d1b",
+      "observed_lightning_ap": "0/120",
+      "baseline_hud_ap_fraction": [
+        0,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        0,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T054151072283Z-0f9d6d8f/report-0002.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T054151072283Z-0f9d6d8f/campaign/campaign-ap-1-15-9-20261030T055458754251Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "f421bddb9975e4e88b5dc3ad794be88e65f7c8f23113de044cfeff3d4129d10e",
+      "observed_lightning_ap": "1/120",
+      "baseline_hud_ap_fraction": [
+        1,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        1,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T054151072283Z-0f9d6d8f/report-0004.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T054151072283Z-0f9d6d8f/campaign/campaign-ap-1-15-9-20261030T060020068784Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "1d88a1db4aead2f86e34fedcab222a405b727a95cf95421f3a4dad5d5e897108",
+      "observed_lightning_ap": "2/120",
+      "baseline_hud_ap_fraction": [
+        2,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        2,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T054151072283Z-0f9d6d8f/report-0005.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T054151072283Z-0f9d6d8f/campaign/campaign-ap-1-15-9-20261030T060552136353Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "ee4b59fb0120de991e12603f07f030d7e5eebfcab6a18844410fbdfbab2eb42c",
+      "observed_lightning_ap": "3/120",
+      "baseline_hud_ap_fraction": [
+        3,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        3,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T054151072283Z-0f9d6d8f/report-0007.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T054151072283Z-0f9d6d8f/campaign/campaign-ap-1-15-9-20261030T061114149813Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "c5d4b491402d592d005e94f5c325b41b6c2701c6083adb982f7be3c1da1eea22",
+      "observed_lightning_ap": "4/120",
+      "baseline_hud_ap_fraction": [
+        4,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        4,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T054151072283Z-0f9d6d8f/report-0008.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/campaign/campaign-ap-1-15-9-20261030T063332608899Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "9b7ce779a84df446787848bcfad84688db07cacb22f512ac9dded7069a7bcc7a",
+      "observed_lightning_ap": "7/120",
+      "baseline_hud_ap_fraction": [
+        7,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        7,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/report-0001.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/campaign/campaign-ap-1-15-9-20261030T063853864870Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "5b8bee8c3f9e4bb845f2e53196722d051f9a4c64efaa8bb769ef799be0dc1f0d",
+      "observed_lightning_ap": "8/120",
+      "baseline_hud_ap_fraction": [
+        8,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        8,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/report-0002.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/campaign/campaign-ap-1-15-9-20261030T064415679314Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "c66ffb817a0044cc3bd59321f34429ac819d3397a9d2ad61216dd8ce811e15a3",
+      "observed_lightning_ap": "9/120",
+      "baseline_hud_ap_fraction": [
+        9,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        9,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/report-0003.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/campaign/campaign-ap-1-15-9-20261030T064937417110Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "41dbc38f0836c8d4dca66fe462c29ac603211bdf42c91f33c753f5634a1ceefd",
+      "observed_lightning_ap": "10/120",
+      "baseline_hud_ap_fraction": [
+        10,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        10,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/report-0004.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/campaign/campaign-ap-1-15-9-20261030T065456115984Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "7058c572b1a70f8423eef288b0c2e3811de1f7bcdffa093953442084a4eed2a9",
+      "observed_lightning_ap": "11/120",
+      "baseline_hud_ap_fraction": [
+        11,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        11,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/report-0005.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/campaign/campaign-ap-1-15-9-20261030T070018569093Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "8a8ac6b2666dc9ba545fa6e11957cca97af39b2c39226162a64ff10da77c651a",
+      "observed_lightning_ap": "12/120",
+      "baseline_hud_ap_fraction": [
+        12,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        12,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/report-0006.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/campaign/campaign-ap-1-15-9-20261030T070540632683Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "1902d29a880763d379eaa4dceb9f5e24966124fff964fc615e2b16cb1979c41c",
+      "observed_lightning_ap": "13/120",
+      "baseline_hud_ap_fraction": [
+        13,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        13,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/report-0007.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/campaign/campaign-ap-1-15-9-20261030T071102524293Z/frames/0013-campaign-service-failed-camera-home.png",
+      "sha256": "fd0f9b6cda5ce3caef8651ae0d78bdfa117f5c13a9f06c37f65b95c30ed657c7",
+      "observed_lightning_ap": "14/120",
+      "baseline_hud_ap_fraction": [
+        14,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        14,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/report-0008.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/campaign/campaign-ap-1-15-9-20261030T083723829290Z/frames/0044-campaign-terminal-normalization-source.png",
+      "sha256": "35a23e8ebfadf274a4726b2bbaee612ffcf09040044055c3500274aeb1963283",
+      "observed_lightning_ap": "1/120",
+      "baseline_hud_ap_fraction": [
+        1,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        1,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/report-0001.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/campaign/campaign-ap-1-15-9-20261030T084730224895Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "f428e30b126d4f899922888004bff9fbe904ba3fb67366e0a9dcb49ec33fac85",
+      "observed_lightning_ap": "2/120",
+      "baseline_hud_ap_fraction": [
+        2,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        2,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/report-0002.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/campaign/campaign-ap-1-15-9-20261030T085249182122Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "cab648d0c2c9ce8402d6d25a5620d7f92cd5091728b43ce4927b94ec8624ef41",
+      "observed_lightning_ap": "3/120",
+      "baseline_hud_ap_fraction": [
+        3,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        3,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/report-0003.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/campaign/campaign-ap-1-15-9-20261030T085808372710Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "7d5ddb5d76402cecfc1910a60d856b1dfb129483dfb0f5715511d1da9658b051",
+      "observed_lightning_ap": "4/120",
+      "baseline_hud_ap_fraction": [
+        4,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        4,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/report-0004.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/campaign/campaign-ap-1-15-9-20261030T090329102047Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "0c92712393a534c52147d4f05e88d1e67807e2599e51e18ca4392c946a7690d6",
+      "observed_lightning_ap": "4/120",
+      "baseline_hud_ap_fraction": [
+        4,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        4,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/report-0005.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/campaign/campaign-ap-1-15-9-20261030T090851766137Z/frames/0002-campaign-service-initial-normalization-settled.png",
+      "sha256": "32fa45a5822504b570e3dda775732366121dc9babac2871583c892e0bb6a1347",
+      "observed_lightning_ap": "5/120",
+      "baseline_hud_ap_fraction": [
+        9,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        5,
+        120
+      ],
+      "report": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/report-0006.json"
+    },
+    {
+      "source": ".local-captures/automation-service-authorized/campaign-stage-reconciliation-20261030T053919082800Z/stage-observation-home-20261030T053919283502Z/frames/0008-terminal-home-ap.png",
+      "sha256": "0239dfbb4d5e85556d2ad01536fcbfff23a914688fe0b0335d6dac272d8b6851",
+      "observed_lightning_ap": "26/120",
+      "baseline_hud_ap_fraction": [
+        26,
+        120
+      ],
+      "corrected_hud_ap_fraction": [
+        26,
+        120
+      ]
+    }
+  ]
+}

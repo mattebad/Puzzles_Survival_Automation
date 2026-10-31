@@ -107,7 +107,7 @@ class UltimateChallengeDailyContractTests(unittest.TestCase):
         self.assertEqual(decision.terminal, TERMINAL_BLOCKED)
         self.assertIn("ambiguous reset identity", decision.reason)
 
-    def test_stale_completion_outside_current_window_fails_closed(self) -> None:
+    def test_completed_earlier_day_requires_fresh_entry_for_new_day(self) -> None:
         state = UltimateChallengeResetWindowState(
             reset_identity="game-day-2026-07-19",
             last_success_reset_identity="game-day-2026-07-19",
@@ -118,7 +118,40 @@ class UltimateChallengeDailyContractTests(unittest.TestCase):
             state, current_reset_identity="game-day-2026-07-20"
         )
         self.assertEqual(decision.terminal, TERMINAL_BLOCKED)
-        self.assertIn("outside current reset window", decision.reason)
+        self.assertEqual(decision.reason, "not already_completed")
+        self.assertFalse(decision.dispatch_authorized)
+        self.assertEqual(
+            evaluate_navigation_only(
+                state, _bound_entry(), current_reset_identity="game-day-2026-07-20"
+            ).terminal,
+            TERMINAL_NAVIGATION_ONLY_COMPLETE,
+        )
+        self.assertEqual(
+            evaluate_navigation_only(
+                state, _bound_entry(entry_control_visible=False),
+                current_reset_identity="game-day-2026-07-20",
+            ).terminal,
+            TERMINAL_BLOCKED,
+        )
+
+    def test_future_or_ambiguous_completion_day_stays_blocked(self) -> None:
+        for previous, current in (
+            ("game-day-2026-07-21", "game-day-2026-07-20"),
+            ("unestablished-day", "game-day-2026-07-20"),
+            ("game-day-2026-07-19", "unestablished-day"),
+        ):
+            with self.subTest(previous=previous, current=current):
+                state = UltimateChallengeResetWindowState(
+                    reset_identity=previous,
+                    last_success_reset_identity=previous,
+                    last_success_at="2026-07-19T12:00:00Z",
+                    completion_state=COMPLETION_COMPLETED,
+                )
+                decision = evaluate_navigation_only(
+                    state, _bound_entry(), current_reset_identity=current
+                )
+                self.assertEqual(decision.terminal, TERMINAL_BLOCKED)
+                self.assertFalse(decision.dispatch_authorized)
 
     def test_unknown_completion_with_last_success_fails_closed(self) -> None:
         state = UltimateChallengeResetWindowState(

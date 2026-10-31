@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import cv2
 import numpy as np
 
 from scripts import flow_delivery_supply_depot_bluestacks as delivery
@@ -59,6 +60,7 @@ class _PanRuntime:
         self.ordinal = 0
         self.swipe_error = swipe_error
         self.swipes: list[dict[str, object]] = []
+        self.taps: list[dict[str, object]] = []
 
     def capture(self, label: str) -> CapturedNativeFrame:
         self.ordinal += 1
@@ -86,11 +88,15 @@ class _PanRuntime:
             }
         )
 
+    def tap(self, captured, **kwargs) -> None:
+        self.taps.append(kwargs)
+
 
 class _PanNavigator:
     def __init__(self, plan) -> None:
         self.plan_value = plan
         self.plan_calls = 0
+        self.safe_region = object()
 
     def plan(self, _localization, _binding):
         self.plan_calls += 1
@@ -105,16 +111,20 @@ def _run_supply_pan_case(
     clean_home,
     *,
     swipe_error: BaseException | None = None,
+    plan_override=None,
 ):
     runtime = _PanRuntime(root / "runtime", swipe_error=swipe_error)
     localization = SimpleNamespace(recognized=True, frame_sha256="localization")
-    plan = SimpleNamespace(
+    plan = plan_override or SimpleNamespace(
         disposition=PlanDisposition.PAN,
         reason="calculated_direct_pan",
         drag_start=(200, 600),
         drag_end=(300, 600),
+        viewport=SimpleNamespace(desired_camera_origin=(100., 200.)),
     )
     navigator = _PanNavigator(plan)
+    if not hasattr(plan, "viewport"):
+        plan.viewport = SimpleNamespace(rejection_counts=())
     startup = SimpleNamespace(
         disposition=AtlasStartupDisposition.READY,
         reason="canonical_zoom_ready",
@@ -135,13 +145,16 @@ def _run_supply_pan_case(
         with (
             patch.object(canary, "MAX_PANS", 1),
             patch.object(canary, "load_home_atlas", return_value=SimpleNamespace()),
-            patch.object(canary, "bluestacks_direct_pan_contract", return_value=(object(), object())),
+            patch.object(canary, "_supply_pan_contract", return_value=(object(), object())),
             patch.object(canary, "DirectPanNavigator", return_value=navigator),
+            patch.object(canary, "_checked_supply_camera_plan", side_effect=lambda _nav, _loc, planned: planned),
+            patch.object(canary, "plan_direct_pan", return_value=plan),
             patch.object(canary, "BlueStacksAtlasStartupNormalizer", return_value=SimpleNamespace(observe=lambda _frame: startup)),
             patch.object(canary, "BlueStacksHomeLocalizer", return_value=localizer),
             patch.object(canary, "_recognize", return_value=SimpleNamespace(recognized=False)),
             patch.object(canary, "_bind_home_building", side_effect=lambda *_args: next(bindings)),
             patch.object(canary, "bind_supply_depot_claim_supply", return_value=None),
+            patch.object(canary, "recognize_supply_depot_radial", return_value=False),
             patch.object(canary, "is_clean_home_frame", side_effect=clean_home),
         ):
             with DevelopmentSession(
@@ -171,6 +184,160 @@ def _run_supply_pan_case(
 
 
 class SupplyDepotFlowDeliveryTests(unittest.TestCase):
+    def test_native_arena_requires_three_headers_and_measured_arrow(self):
+        from scripts.daily_resource_item_bluestacks import _bag_back_arrow_visual
+
+        path = Path(__file__).parent / "fixtures/supply_depot/native-arena-20261029.png"
+        frame = cv2.imread(str(path))
+        self.assertIsNotNone(frame)
+        self.assertIsNone(_bag_back_arrow_visual(frame))
+        self.assertEqual(canary._arena_exit_target(frame), (47, 2, 128, 61))
+        for box in ((335, 7, 480, 56), (170, 87, 300, 140), (470, 85, 710, 138), (0, 0, 180, 90)):
+            with self.subTest(missing=box):
+                changed = frame.copy()
+                x0, y0, x1, y1 = box
+                changed[y0:y1, x0:x1] = 0
+                self.assertIsNone(canary._arena_exit_target(changed))
+        with patch("scripts.bluestacks_popup_recognition.recognize_reset_popup", return_value={"blocking_unknown_modal": True}):
+            self.assertIsNone(canary._arena_exit_target(frame))
+
+    def test_arena_back_recovery_continues_once_from_verified_fresh_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = _PanRuntime(root / "runtime")
+            startup_frames = []
+            navigator = _PanNavigator(SimpleNamespace(disposition=PlanDisposition.REJECTED, reason="test_home_continuation"))
+
+            def startup_observe(frame):
+                startup_frames.append(int(frame[0, 0, 0]))
+                return SimpleNamespace(disposition=AtlasStartupDisposition.READY, reason="ready", source_frame_sha256="s" * 64, recovery_input_ordinal=None)
+
+            with (
+                patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
+                patch.object(canary, "load_home_atlas", return_value=object()),
+                patch.object(canary, "_supply_pan_contract", return_value=(object(), object())),
+                patch.object(canary, "DirectPanNavigator", return_value=navigator),
+                patch.object(canary, "_arena_exit_target", side_effect=lambda frame: (47, 2, 128, 61) if int(frame[0, 0, 0]) <= 2 else None),
+                patch.object(canary, "is_clean_home_frame", return_value=True),
+                patch.object(canary, "_recognize", return_value=SimpleNamespace(recognized=False)),
+                patch.object(canary, "bind_supply_depot_claim_supply", return_value=None),
+                patch.object(canary, "recognize_supply_depot_radial", return_value=False),
+                patch.object(canary, "_bind_home_building", return_value=(SimpleNamespace(recognized=True), None)),
+                patch.object(canary, "BlueStacksHomeLocalizer"),
+                patch.object(canary, "BlueStacksAtlasStartupNormalizer", return_value=SimpleNamespace(observe=startup_observe)),
+            ):
+                with DevelopmentSession(owner="supply-arena", invocation_id="arena", session_directory=root / "session", max_inputs=4) as session:
+                    result = canary.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
+                    self.assertEqual(session.input_count, 1)
+            self.assertEqual(len(runtime.taps), 1)
+            self.assertEqual(runtime.taps[0]["target_roi"], (47, 2, 128, 61))
+            self.assertEqual(len(startup_frames), 1)
+            self.assertGreater(startup_frames[0], 2)
+            self.assertEqual(result["steps"][0], {"step": "arena_visible_back_recovery", "status": "completed"})
+
+    def test_arena_recovery_unknown_source_or_successor_never_retries(self):
+        for source_known in (False, True):
+            with self.subTest(source_known=source_known), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                runtime = _PanRuntime(root / "runtime")
+                with (
+                    patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
+                    patch.object(canary, "_arena_exit_target", return_value=(47, 2, 128, 61) if source_known else None),
+                    patch.object(canary, "is_clean_home_frame", return_value=False),
+                ):
+                    with DevelopmentSession(owner="supply-arena", invocation_id="arena", session_directory=root / "session", max_inputs=3) as session:
+                        if source_known:
+                            action = canary._recover_arena_home(session, runtime, runtime.capture, settle_seconds=0)
+                            self.assertNotEqual(action.status, "completed")
+                            self.assertEqual(session.input_count, 1)
+                        else:
+                            with self.assertRaises(PerceptionBundleError):
+                                canary._recover_arena_home(session, runtime, runtime.capture, settle_seconds=0)
+                            self.assertEqual(session.input_count, 0)
+                self.assertEqual(len(runtime.taps), int(source_known))
+
+    def test_native_low_entry_is_panned_up_before_opening_downward_menu(self):
+        from tasks.home_atlas import load_home_atlas
+        from tasks.home_atlas_vision import BlueStacksHomeLocalizer
+        from tasks.home_atlas_planner import plan_direct_pan
+
+        path = Path(__file__).parent / "fixtures/supply_depot/native-low-entry-20261029.png"
+        frame = cv2.imread(str(path))
+        self.assertIsNotNone(frame)
+        atlas = load_home_atlas(canary.ATLAS_PATH)
+        localization = BlueStacksHomeLocalizer(atlas, canary.ATLAS_PATH).localize(frame)
+        self.assertTrue(localization.recognized)
+        original, calibration = canary.bluestacks_direct_pan_contract()
+        old = plan_direct_pan(atlas, localization, canary.SUPPLY_DEPOT_BUILDING_ID, original, calibration)
+        self.assertEqual(old.disposition, PlanDisposition.BIND)
+        goal, unchanged_calibration = canary._supply_pan_contract()
+        self.assertEqual(goal.fixed_hud_masks, original.fixed_hud_masks)
+        self.assertEqual(goal.planning_policy, original.planning_policy)
+        self.assertEqual(unchanged_calibration, calibration)
+        new = plan_direct_pan(atlas, localization, canary.SUPPLY_DEPOT_BUILDING_ID, goal, calibration)
+        self.assertEqual(new.disposition, PlanDisposition.PAN, new)
+        self.assertLess(new.drag_end[1], new.drag_start[1])
+        self.assertEqual(new.drag_end[0], new.drag_start[0])
+        self.assertLess(new.viewport.target_screen_anchor[1], old.viewport.target_screen_anchor[1] - 100)
+
+    def test_non_actionable_radial_stops_without_exterior_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = _PanRuntime(root / "runtime")
+            with (
+                patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
+                patch.object(canary, "load_home_atlas", return_value=object()),
+                patch.object(canary, "_supply_pan_contract", return_value=(object(), object())),
+                patch.object(canary, "DirectPanNavigator"),
+                patch.object(canary, "_recognize", return_value=SimpleNamespace(recognized=False)),
+                patch.object(canary, "bind_supply_depot_claim_supply", return_value=None),
+                patch.object(canary, "recognize_supply_depot_radial", return_value=True),
+                patch.object(canary, "_bind_home_building", side_effect=AssertionError("no unrelated map close target")),
+                patch.object(canary, "BlueStacksAtlasStartupNormalizer", side_effect=AssertionError("non-actionable menu must stop")),
+            ):
+                with DevelopmentSession(owner="supply-radial-stop", invocation_id="radial-stop", session_directory=root / "session", max_inputs=4) as session:
+                    result = canary.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
+                    self.assertEqual(session.input_count, 0)
+            self.assertEqual(runtime.taps, [])
+            self.assertEqual(runtime.swipes, [])
+            self.assertEqual(result["reason"], "supply_radial_not_actionable_no_proven_close")
+
+    def test_open_radial_resumes_without_atlas_and_unknown_successor_never_retries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = _PanRuntime(root / "runtime")
+            target = (661, 1077, 728, 1098)
+            with (
+                patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
+                patch.object(canary, "load_home_atlas", return_value=object()),
+                patch.object(canary, "_supply_pan_contract", return_value=(object(), object())),
+                patch.object(canary, "DirectPanNavigator"),
+                patch.object(canary, "BlueStacksAtlasStartupNormalizer", side_effect=AssertionError("already-open radial must not normalize Home")),
+                patch.object(canary, "_bind_home_building", side_effect=AssertionError("already-open radial must not rebind building")),
+                patch.object(canary, "_recognize", return_value=SimpleNamespace(recognized=False)),
+                patch.object(canary, "bind_supply_depot_claim_supply", side_effect=lambda frame, **_: SimpleNamespace(target_roi=target, frame_sha256=canary.frame_digest(frame))),
+            ):
+                with DevelopmentSession(owner="supply-resume", invocation_id="resume", session_directory=root / "session", max_inputs=2) as session:
+                    result = canary.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
+                    self.assertEqual(session.input_count, 1)
+            self.assertEqual(result["reason"], "supply_depot_screen_not_recognized")
+            self.assertEqual(len(runtime.taps), 1)
+            self.assertEqual(runtime.taps[0]["target_roi"], target)
+            self.assertEqual(runtime.swipes, [])
+
+    def test_no_safe_viewport_stops_before_any_building_reservation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, error, runtime, navigator, count, _persisted, _status = _run_supply_pan_case(
+                Path(directory), lambda _frame: True,
+                plan_override=SimpleNamespace(disposition=PlanDisposition.REJECTED, reason="no_recoverable_actionable_viewport"),
+            )
+        self.assertIsNone(error)
+        self.assertEqual(result["reason"], "pan_blocked:no_recoverable_actionable_viewport")
+        self.assertTrue(result["terminal_home_verified"])
+        self.assertEqual(count, 0)
+        self.assertEqual(runtime.taps, [])
+        self.assertEqual(runtime.swipes, [])
+
     def test_selects_only_exact_free_food_control(self):
         recognition = _recognition(attempts=9, free=True)
         selected = select_free_food_control(recognition)

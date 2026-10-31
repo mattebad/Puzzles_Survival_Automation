@@ -86,6 +86,10 @@ CAMPAIGN_EXIT_ASSETS: tuple[str, ...] = (
     "campaign_exit_unhighlighted.png",
     "campaign_exit.png",
 )
+# Static city structure within both existing native templates. The arrow,
+# rotating highlight and surrounding map are outside visual authority.
+CAMPAIGN_EXIT_CITY_TEMPLATE_ROI = (25, 50, 77, 104)
+CAMPAIGN_EXIT_CITY_SCALES = (0.85, 0.875, 0.90, 0.925, 0.95, 0.975, 1.0, 1.025, 1.05)
 TIER_SELECTION_ASSETS: Mapping[str, Mapping[str, str]] = {
     "campaign-tier-1": {
         "unselected": "tier1_unselected.png",
@@ -327,6 +331,38 @@ def require_tier_map_selection_state(
     return int(observed), ratios
 
 
+def _locate_exit_city_interior(
+    frame: np.ndarray, asset_name: str,
+) -> tuple[tuple[int, int, int, int], float]:
+    """Measure the stable city at bounded renderer scales inside the Exit band."""
+
+    if frame.shape != (1280, 800, 3):
+        raise RuntimeError("current-frame target binding requires native 800x1280 BGR")
+    asset = cv2.imread(str(Path(ASSET_ROOT) / asset_name), cv2.IMREAD_GRAYSCALE)
+    if asset is None:
+        raise RuntimeError(f"missing project-owned target template: {asset_name}")
+    tx0, ty0, tx1, ty1 = CAMPAIGN_EXIT_CITY_TEMPLATE_ROI
+    template = asset[ty0:ty1, tx0:tx1]
+    x0, y0, x1, y1 = CAMPAIGN_EXIT_SEARCH_ROI
+    search = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
+    best_roi = None
+    best_score = float("-inf")
+    for scale in CAMPAIGN_EXIT_CITY_SCALES:
+        scaled = cv2.resize(
+            template, None, fx=scale, fy=scale,
+            interpolation=cv2.INTER_AREA if scale < 1 else cv2.INTER_CUBIC,
+        )
+        response = cv2.matchTemplate(search, scaled, cv2.TM_CCOEFF_NORMED)
+        _, score, _, point = cv2.minMaxLoc(response)
+        if math.isfinite(score) and score > best_score:
+            left, top = x0 + point[0], y0 + point[1]
+            best_roi = (left, top, left + scaled.shape[1], top + scaled.shape[0])
+            best_score = float(score)
+    if best_roi is None or best_score < CAMPAIGN_EXIT_TEMPLATE_THRESHOLD:
+        raise RuntimeError(f"current-frame Exit city {asset_name} not bound: score={best_score:.3f}")
+    return best_roi, best_score
+
+
 def measured_survey_target(
     frame: np.ndarray, identity: str
 ) -> tuple[tuple[int, int, int, int], float]:
@@ -376,12 +412,7 @@ def measured_survey_target(
         failures: list[str] = []
         for asset_name in CAMPAIGN_EXIT_ASSETS:
             try:
-                roi, score = _locate_template(
-                    frame,
-                    asset_name=asset_name,
-                    search_roi=CAMPAIGN_EXIT_SEARCH_ROI,
-                    threshold=CAMPAIGN_EXIT_TEMPLATE_THRESHOLD,
-                )
+                roi, score = _locate_exit_city_interior(frame, asset_name)
             except RuntimeError as exc:
                 failures.append(f"{asset_name}:{exc}")
                 continue

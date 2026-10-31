@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 import sqlite3
 import time
@@ -51,18 +51,23 @@ from .handlers import (
 )
 from .operations import HealthSnapshot, OperationsService
 from .registry import (
+    BIOENHANCER_FLOW_ID,
     CAMPAIGN_FLOW_ID,
     CANONICAL_FLOW_REGISTRY,
     CanonicalFlowRegistration,
     DisabledProductionEntry,
+    ENHANCEMENT_FLOW_ID,
     NOVA_FLOW_ID,
+    PERSONAL_MIGHT_FLOW_ID,
     RECRUITMENT_FLOW_ID,
     RegisteredDispatchSnapshot,
+    SUPPLY_FLOW_ID,
+    ULTIMATE_FLOW_ID,
     WORLD_FLOW_ID,
     canonical_descriptors,
     canonical_flow_specs,
 )
-from .state import BotStateManager, StateBusyError, resolve_state_path
+from .state import BotStateManager, RunState, StateBusyError, resolve_state_path
 from .scheduler import DisabledProductionAuthority, PulseReport, UtcPulseCoordinator
 _CANONICAL_TABLE_COLUMNS = {
     "service_control": {
@@ -199,14 +204,14 @@ def registry_descriptor(
         variant = "free_attempt_maintenance"
     elif entry.flow_id == CAMPAIGN_FLOW_ID:
         family = "campaign_ap"
-        variant = "one_auto_battle"
+        variant = "drain_available_ap"
     else:
         family = "disabled"
         variant = "disabled"
     if entry.flow_id == RECRUITMENT_FLOW_ID and registered:
         cadence = "cooldown_pulse"
     elif entry.flow_id == CAMPAIGN_FLOW_ID and registered:
-        cadence = "ap_regeneration_pulse"
+        cadence = "after_ap_drain"
     else:
         cadence = "daily_once_per_reset"
     recurrence = (
@@ -393,6 +398,14 @@ class AutomationService:
         state_manager: BotStateManager | None = None,
         state: BotStateManager | None = None,
         recruitment_runner=None,
+        nova_runner=None,
+        campaign_runner=None,
+        bioenhancer_runner=None,
+        supply_runner=None,
+        ultimate_runner=None,
+        enhancement_runner=None,
+        personal_might_runner=None,
+        application_startup=None,
     ) -> None:
         if state_manager is not None and state is not None and state_manager is not state:
             raise ServiceError("state and state_manager must refer to one authority")
@@ -406,6 +419,16 @@ class AutomationService:
         self.mode = resolved_mode
         self.adapter = adapter or FakeDeviceAdapter()
         self.recruitment_runner = recruitment_runner
+        self.nova_runner = nova_runner
+        self.campaign_runner = campaign_runner
+        self.bioenhancer_runner = bioenhancer_runner
+        self.supply_runner = supply_runner
+        self.ultimate_runner = ultimate_runner
+        self.enhancement_runner = enhancement_runner
+        self.personal_might_runner = personal_might_runner
+        if application_startup is not None and not callable(application_startup):
+            raise ServiceError("application startup must be callable")
+        self.application_startup = application_startup
         self.coordinator = coordinator
         if self.coordinator is None and self.state is not None:
             with _state_boundary():
@@ -416,7 +439,13 @@ class AutomationService:
             candidate_state = getattr(self.coordinator, "repository", None)
             if isinstance(candidate_state, BotStateManager):
                 self.state = candidate_state
-        if self.mode is ServiceMode.SUPERVISED and self.recruitment_runner is None and not isinstance(
+        if self.mode is ServiceMode.SUPERVISED and all(runner is None for runner in (
+            self.recruitment_runner, self.nova_runner, self.campaign_runner, self.bioenhancer_runner,
+            self.supply_runner,
+            self.ultimate_runner,
+            self.enhancement_runner,
+            self.personal_might_runner,
+        )) and not isinstance(
             self.adapter, SupervisedBlueStacksAdapter
         ):
             raise ServiceError(
@@ -622,31 +651,68 @@ class AutomationService:
                 return PulseReport(None, None, facts.now_utc_epoch, "SQLITE_BUSY")
             raise
 
-    def serve(self, *, account_id: str, server_id: str, stop, emit, clock=time.time) -> None:
-        """Drive one native recruitment handler through the existing pulse lifecycle."""
+    def serve(self, *, account_id: str, server_id: str, stop, emit,
+              clock=time.time, flow_ids=None) -> None:
+        """Drive explicitly selected native routes serially under one owner."""
         from tasks.scheduler_task_result import SchedulerIdentity
         from tasks.noahs_tavern_recruit_maintenance import MAINTENANCE_TASK_ID
-        from scripts.navigation_development_boundary import RuntimeInputLock
+        from tasks.nova_praise_pulse import NOVA_TASK_ID
+        from scripts.navigation_development_boundary import RuntimeInputLock, require_canonical_unresolved_clear
         from .contracts import NormalizedOutcome, NormalizedResult, RecurrenceClass, RecurrenceProjection
         from .recruitment import RecruitmentExecutionHandler, recruitment_next_due, recruitment_reset
-        from .registry import RECRUITMENT_FLOW_ID
+        from .nova import NovaExecutionHandler, nova_next_due
+        from .campaign import CampaignExecutionHandler, campaign_next_due
+        from .bioenhancer import BioenhancerExecutionHandler, PRODUCT_ID as BIOENHANCER_TASK_ID, bioenhancer_next_due
+        from .supply import SupplyExecutionHandler, PRODUCT_ID as SUPPLY_TASK_ID, supply_next_due
+        from .ultimate import UltimateExecutionHandler, PRODUCT_ID as ULTIMATE_TASK_ID, ultimate_next_due
+        from .enhancement import EnhancementExecutionHandler, PRODUCT_ID as ENHANCEMENT_TASK_ID, enhancement_next_due
+        from .personal_might import PersonalMightExecutionHandler, PRODUCT_ID as PERSONAL_MIGHT_TASK_ID, personal_might_next_due
 
-        if self.mode is not ServiceMode.SUPERVISED or self.recruitment_runner is None or self.state is None:
-            raise ServiceError("serve requires an explicitly configured recruitment runner")
+        if self.mode is not ServiceMode.SUPERVISED or self.state is None:
+            raise ServiceError("serve requires an explicitly configured native runner")
         if not account_id.strip() or not server_id.strip():
             raise ServiceError("serve requires account and server identity")
+        selected = tuple(dict.fromkeys(flow_ids if flow_ids is not None else (RECRUITMENT_FLOW_ID,)))
+        if not selected or any(item not in {RECRUITMENT_FLOW_ID, NOVA_FLOW_ID, CAMPAIGN_FLOW_ID, BIOENHANCER_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID} for item in selected):
+            raise ServiceError("serve requires an explicitly supported native route")
+        runners = {RECRUITMENT_FLOW_ID: self.recruitment_runner, NOVA_FLOW_ID: self.nova_runner,
+                   CAMPAIGN_FLOW_ID: self.campaign_runner, BIOENHANCER_FLOW_ID: self.bioenhancer_runner,
+                   SUPPLY_FLOW_ID: self.supply_runner, ULTIMATE_FLOW_ID: self.ultimate_runner,
+                   ENHANCEMENT_FLOW_ID: self.enhancement_runner, PERSONAL_MIGHT_FLOW_ID: self.personal_might_runner}
+        if any(not callable(runners[item]) for item in selected):
+            raise ServiceError("serve requires an explicitly configured runner for every selected flow")
         state = self.state
-        entry = next(item for item in CANONICAL_FLOW_REGISTRY if item.flow_id == RECRUITMENT_FLOW_ID)
-        interrupted = "RECRUITMENT_INTERRUPTED_REQUIRES_INSPECTION"
+        entries = tuple(item for item in CANONICAL_FLOW_REGISTRY if item.flow_id in selected)
+        effective_descriptors = {entry.flow_id: (
+            replace(entry.descriptor, allows_pending_resource_observation=True)
+            if entry.flow_id == CAMPAIGN_FLOW_ID else entry.descriptor
+        ) for entry in entries}
+        previous_resets = {}
+        executor_results = {}
         with RuntimeInputLock(owner="automation-service", invocation_id=state.owner_instance_id) as owner:
             def execute(run, facts):
-                identity = SchedulerIdentity(account_id, server_id, facts.reset_id, MAINTENANCE_TASK_ID)
+                flow_id = run.flow_id
+                descriptor = effective_descriptors[flow_id]
+                executor_results[flow_id] = {}
+                recruitment = flow_id == RECRUITMENT_FLOW_ID
+                prefix = {RECRUITMENT_FLOW_ID: "RECRUITMENT", NOVA_FLOW_ID: "NOVA",
+                          CAMPAIGN_FLOW_ID: "CAMPAIGN", BIOENHANCER_FLOW_ID: "BIOENHANCER",
+                          SUPPLY_FLOW_ID: "SUPPLY", ULTIMATE_FLOW_ID: "ULTIMATE",
+                          ENHANCEMENT_FLOW_ID: "ENHANCEMENT", PERSONAL_MIGHT_FLOW_ID: "PERSONAL_MIGHT"}[flow_id]
+                interrupted = f"EXECUTOR_INTERRUPTED_REQUIRES_INSPECTION:{run.run_id}"
+                task_id = {RECRUITMENT_FLOW_ID: MAINTENANCE_TASK_ID, NOVA_FLOW_ID: NOVA_TASK_ID,
+                           CAMPAIGN_FLOW_ID: CAMPAIGN_FLOW_ID, BIOENHANCER_FLOW_ID: BIOENHANCER_TASK_ID,
+                           SUPPLY_FLOW_ID: SUPPLY_TASK_ID, ULTIMATE_FLOW_ID: ULTIMATE_TASK_ID,
+                           ENHANCEMENT_FLOW_ID: ENHANCEMENT_TASK_ID, PERSONAL_MIGHT_FLOW_ID: PERSONAL_MIGHT_TASK_ID}[flow_id]
+                identity = SchedulerIdentity(account_id, server_id, facts.reset_id, task_id)
+                previous_reset = previous_resets.get(flow_id)
+                reset_change = None
 
-                def checkpoint():
+                def checkpoint_fences():
                     owner.assert_held(owner.owner, owner.invocation_id)
                     if stop.is_set():
                         raise ServiceError("STOP_REQUESTED")
-                    current = state.get_flow(RECRUITMENT_FLOW_ID)
+                    current = state.get_flow(flow_id)
                     control = state.get_service()
                     if (not control.enabled or control.generation != run.service_generation
                             or current is None or not current.enabled
@@ -656,90 +722,309 @@ class AutomationService:
                     now = clock()
                     if not state.observe_clock(now).accepted:
                         raise ServiceError("CLOCK_ROLLBACK")
-                    if recruitment_reset(now) != identity.reset_id:
-                        raise ServiceError("RESET_CHANGED_DURING_RECRUITMENT")
                     if state.renew_service_lease(
                         owner_instance_id=run.owner_instance_id,
                         process_start_token=run.process_start_token,
                         lease_generation=run.lease_generation, now_utc_epoch=now,
                     ) is None:
                         raise ServiceError("SERVICE_LEASE_LOST")
+                    validation = state.validate_dispatch(
+                        run.run_id, owner_instance_id=run.owner_instance_id,
+                        process_start_token=run.process_start_token, run_token=run.run_token,
+                        lease_generation=run.lease_generation, now_utc_epoch=now,
+                        allow_executor_marker=True,
+                    )
+                    if not validation.valid:
+                        raise ServiceError(f"DISPATCH_FENCE_FAILED:{validation.reason}")
+                    return now
 
-                # Native ordinary inputs use the existing session lock, not action
-                # leases. Keep a local crash marker until terminal projection succeeds.
-                state.block_flow(RECRUITMENT_FLOW_ID, interrupted)
+                def checkpoint():
+                    nonlocal reset_change
+                    now = checkpoint_fences()
+                    # AP occurrences retain their claim identity across midnight;
+                    # a calendar date change does not reset ordinary AP spending.
+                    if (recruitment_reset(now) != identity.reset_id
+                            and (descriptor.reset_scoped
+                                 or descriptor.recurrence_class is not RecurrenceClass.AP_REGENERATION)):
+                        reset_change = ServiceError(f"RESET_CHANGED_DURING_{prefix}")
+                        raise reset_change
+
+                # Keep the existing crash marker until terminal projection succeeds.
                 result = {}
-                try:
-                    checkpoint()
-                    result = self.recruitment_runner(identity, previous_reset, checkpoint)
+                startup_result = None
+                startup_verified = False
+                runner_entered = False
+                accounted = False
+                action_count_field = {
+                    RECRUITMENT_FLOW_ID: "recruitment_dispatch_count",
+                    NOVA_FLOW_ID: "praise_transport_calls",
+                    CAMPAIGN_FLOW_ID: "campaign_dispatch_count",
+                    BIOENHANCER_FLOW_ID: "free_research_transport_calls",
+                    SUPPLY_FLOW_ID: "hold_transport_calls",
+                    ULTIMATE_FLOW_ID: "ultimate_dispatch_count",
+                    ENHANCEMENT_FLOW_ID: "enhancement_dispatch_count",
+                    PERSONAL_MIGHT_FLOW_ID: "praise_transport_calls",
+                }[flow_id]
+
+                def record_consumption():
+                    nonlocal accounted
+                    if result.get("accounting_verified") is False:
+                        raise ServiceError(
+                            f"{prefix}_CONSUMPTION_ACCOUNTING_UNVERIFIED:"
+                            f"{result.get('accounting_error') or 'native totals are a lower bound'}"
+                        )
                     consumed_inputs = result.get("total_input_count", result.get("input_count"))
-                    consumed_actions = result.get("recruitment_dispatch_count")
+                    consumed_actions = result.get(action_count_field)
                     if type(consumed_inputs) is not int or type(consumed_actions) is not int:
-                        raise ServiceError("RECRUITMENT_CONSUMPTION_ACCOUNTING_MISSING")
+                        raise ServiceError(f"{prefix}_CONSUMPTION_ACCOUNTING_MISSING")
                     recorded = state.record_executor_consumption(
                         run.run_id,
-                        consumed_inputs=consumed_inputs,
-                        consumed_actions=consumed_actions,
+                        consumed_inputs=consumed_inputs, consumed_actions=consumed_actions,
                         owner_instance_id=run.owner_instance_id,
                         process_start_token=run.process_start_token,
-                        run_token=run.run_token,
-                        lease_generation=run.lease_generation,
+                        run_token=run.run_token, lease_generation=run.lease_generation,
                         now_utc_epoch=clock(),
+                        terminal_accounting=True,
                     )
                     if recorded is None:
-                        raise ServiceError("RECRUITMENT_CONSUMPTION_ACCOUNTING_REJECTED")
-                    due = recruitment_next_due(result, identity, facts.now_utc_epoch)
+                        raise ServiceError(f"{prefix}_CONSUMPTION_ACCOUNTING_REJECTED")
+                    accounted = True
+                    return consumed_actions
+
+                try:
+                    current = state.get_flow(flow_id)
+                    if current is None or state.block_flow(
+                        flow_id, interrupted, expected_row_version=current.row_version,
+                        expected_generation=run.claimed_flow_generation,
+                        expected_blocked_reason=None,
+                    ) is None:
+                        raise ServiceError("EXECUTOR_MARKER_INSTALL_REJECTED")
                     checkpoint()
+                    if self.application_startup is not None:
+                        startup_result = self.application_startup(flow_id, run.run_id, owner, checkpoint)
+                        if (not isinstance(startup_result, dict)
+                                or type(startup_result.get("system_launch_count")) is not int
+                                or startup_result["system_launch_count"] not in (0, 1)
+                                or type(startup_result.get("game_input_count")) is not int
+                                or startup_result.get("game_input_count") != 0
+                                or startup_result.get("status") not in {"already_foreground", "launched"}
+                                or (startup_result["status"] == "already_foreground"
+                                    and (startup_result["system_launch_count"] != 0
+                                         or startup_result.get("transport_status") not in (None, "not_attempted")))
+                                or (startup_result["status"] == "launched"
+                                    and (startup_result["system_launch_count"] != 1
+                                         or startup_result.get("route_ready") is not True
+                                         or startup_result.get("transport_status") != "returned"))):
+                            raise ServiceError("APPLICATION_STARTUP_ACCOUNTING_INVALID")
+                        startup_verified = True
+                        checkpoint()
+                    options = {"runtime_input_lock": owner} if flow_id in {BIOENHANCER_FLOW_ID, SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID} else {}
+                    runner_entered = True
+                    result = runners[flow_id](identity, previous_reset, checkpoint, **options)
+                    if startup_result is not None:
+                        result = dict(result, application_startup=startup_result,
+                                      system_launch_count=startup_result.get("system_launch_count"))
+                    executor_results[flow_id] = result
+                    consumed_actions = record_consumption()
+                    due = {RECRUITMENT_FLOW_ID: recruitment_next_due, NOVA_FLOW_ID: nova_next_due,
+                           CAMPAIGN_FLOW_ID: campaign_next_due, BIOENHANCER_FLOW_ID: bioenhancer_next_due,
+                           SUPPLY_FLOW_ID: supply_next_due, ULTIMATE_FLOW_ID: ultimate_next_due,
+                           ENHANCEMENT_FLOW_ID: enhancement_next_due, PERSONAL_MIGHT_FLOW_ID: personal_might_next_due}[flow_id](
+                        result, identity, facts.now_utc_epoch
+                    )
+                    checkpoint()
+                    outcome = NormalizedOutcome.DEFERRED
+                    if flow_id in {SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID}:
+                        # Verified no-work observes prior completion; current
+                        # dispatches complete this reset's route effect.
+                        outcome = (NormalizedOutcome.ALREADY_COMPLETE if result.get("no_work") is True
+                                   else NormalizedOutcome.COMPLETE_FOR_RESET)
+                    elif flow_id == ULTIMATE_FLOW_ID:
+                        outcome = (NormalizedOutcome.ALREADY_COMPLETE if result.get("status") == "already_completed"
+                                   else NormalizedOutcome.COMPLETE_FOR_RESET)
                     return NormalizedResult(
-                        NormalizedOutcome.DEFERRED, "RECRUITMENT_PASS_VERIFIED",
+                        outcome, f"{prefix}_PASS_VERIFIED",
                         verified=True, next_eligible_at=due,
-                        action_count=result["actions_completed"], observed_progress=result,
+                        action_count=(result["committed_ap_effect_count"] if flow_id == CAMPAIGN_FLOW_ID
+                                      else result["committed_action_count"] if flow_id in {ULTIMATE_FLOW_ID, PERSONAL_MIGHT_FLOW_ID}
+                                      else result["actions_completed"] if recruitment else consumed_actions),
+                        observed_progress=result,
                     )
                 except Exception as exc:
-                    state.block_flow(RECRUITMENT_FLOW_ID, f"RECRUITMENT_REQUIRES_INSPECTION:{exc}")
+                    failed_startup = getattr(exc, "startup_result", None)
+                    if isinstance(failed_startup, dict):
+                        startup_result = failed_startup
+                    cause, seen_causes = exc, set()
+                    while cause is not None and cause is not reset_change and id(cause) not in seen_causes:
+                        seen_causes.add(id(cause))
+                        cause = cause.__cause__
+                    startup_has_no_attempt = (startup_result is None or (
+                        type(startup_result.get("system_launch_count")) is int
+                        and startup_result["system_launch_count"] == 0
+                        and type(startup_result.get("game_input_count")) is int
+                        and startup_result["game_input_count"] == 0
+                        and startup_result.get("transport_status") in (None, "not_attempted")
+                    ))
+                    if (not runner_entered and reset_change is not None and cause is reset_change
+                            and (startup_verified or startup_has_no_attempt)):
+                        try:
+                            now = checkpoint_fences()
+                            require_canonical_unresolved_clear()
+                            result = {"status": "deferred_reset_change", "reset_rollover_deferred": True,
+                                      "native_runner_entered": False, "accounting_verified": True,
+                                      "input_count": 0, "total_input_count": 0, action_count_field: 0,
+                                      "account_id": account_id, "server_id": server_id,
+                                      "reset_id": identity.reset_id, "observed_reset_id": recruitment_reset(now),
+                                      "completed_at_utc": now}
+                            if startup_result is not None:
+                                result.update(application_startup=startup_result,
+                                              system_launch_count=startup_result["system_launch_count"])
+                            record_consumption()
+                            executor_results[flow_id] = result
+                            return NormalizedResult(
+                                NormalizedOutcome.DEFERRED, f"{prefix}_RESET_ROLLOVER_DEFERRED",
+                                verified=False, next_eligible_at=now, action_count=0,
+                                observed_progress=result,
+                            )
+                        except Exception as fence_error:
+                            exc = fence_error
+                    partial_result = getattr(exc, "partial_result", None)
+                    if isinstance(partial_result, dict):
+                        result = partial_result
+                    accounting_error = None
+                    if result and not accounted:
+                        try:
+                            record_consumption()
+                        except Exception as accounting_exc:
+                            accounting_error = str(accounting_exc)
+                    if startup_result is not None:
+                        result = dict(result, application_startup=startup_result,
+                                      system_launch_count=startup_result.get("system_launch_count"))
+                    reason = f"{prefix}_REQUIRES_INSPECTION:{exc}"
+                    if accounting_error:
+                        reason += f"; accounting_rejected:{accounting_error}"
+                        result = dict(result, canonical_accounting="rejected",
+                                      canonical_accounting_reason=accounting_error)
+                    executor_results[flow_id] = result
+                    state.block_flow(
+                        flow_id, reason, expected_blocked_reason=interrupted,
+                        expected_generation=run.claimed_flow_generation,
+                    )
                     return NormalizedResult(
-                        NormalizedOutcome.BLOCKED, f"RECRUITMENT_REQUIRES_INSPECTION:{exc}",
-                        verified=False, observed_progress=result if isinstance(result, dict) else {},
+                        NormalizedOutcome.BLOCKED, reason, verified=False,
+                        observed_progress=result if isinstance(result, dict) else {},
                     )
 
-            handler = RecruitmentExecutionHandler(entry.registration, execute)
-            coordinator = UtcPulseCoordinator(state, (entry.descriptor,), {entry.flow_id: handler}, clock=clock)
+            handlers = {}
+            for entry in entries:
+                handler_type = {RECRUITMENT_FLOW_ID: RecruitmentExecutionHandler,
+                                NOVA_FLOW_ID: NovaExecutionHandler,
+                                CAMPAIGN_FLOW_ID: CampaignExecutionHandler,
+                                BIOENHANCER_FLOW_ID: BioenhancerExecutionHandler,
+                                SUPPLY_FLOW_ID: SupplyExecutionHandler,
+                                ULTIMATE_FLOW_ID: UltimateExecutionHandler,
+                                ENHANCEMENT_FLOW_ID: EnhancementExecutionHandler,
+                                PERSONAL_MIGHT_FLOW_ID: PersonalMightExecutionHandler}[entry.flow_id]
+                options = ({"stage": self.campaign_runner.stage} if entry.flow_id == CAMPAIGN_FLOW_ID
+                           else {"flow_spec": entry.spec} if entry.flow_id in {ULTIMATE_FLOW_ID, PERSONAL_MIGHT_FLOW_ID} else {})
+                handlers[entry.flow_id] = handler_type(entry.registration, execute, **options)
+                if entry.flow_id in {SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID}:
+                    handlers[entry.flow_id].flow_spec = entry.spec
+            coordinator = UtcPulseCoordinator(
+                state, tuple(effective_descriptors[entry.flow_id] for entry in entries), handlers, clock=clock
+            )
             while not stop.is_set():
                 if not state.get_service_enabled():
                     emit({"status": "stopped", "reason": "SERVICE_DISABLED"})
                     return
-                now = clock()
-                flow = state.get_flow(RECRUITMENT_FLOW_ID)
-                previous_reset = flow.reset_id if flow else None
-                if flow is None or not flow.enabled or flow.blocked:
-                    emit({"status": "paused", "reason": flow.blocked_reason if flow and flow.blocked else "FLOW_DISABLED"})
-                    stop.wait(30)
-                    continue
-                facts = SchedulerFacts(
-                    account_id, server_id, recruitment_reset(now), now,
-                    health_ok=True, accepted_product=entry.product_id,
-                    product_revision=entry.product_revision, registration_status=entry.registration_status,
-                    scheduler_eligible=entry.scheduler_eligible, owner_available=owner.held,
-                    clock_ok=True, reset_agreement=True,
-                    projections={entry.flow_id: RecurrenceProjection(
-                        RecurrenceClass.COOLDOWN, observed_at_utc=now,
+                for entry in entries:
+                    if stop.is_set() or not state.get_service_enabled():
+                        break
+                    now = clock()
+                    flow = state.get_flow(entry.flow_id)
+                    previous_resets[entry.flow_id] = flow.reset_id if flow else None
+                    if flow is None or not flow.enabled or flow.blocked:
+                        emit({"status": "paused", "flow_id": entry.flow_id,
+                              "reason": flow.blocked_reason if flow and flow.blocked else "FLOW_DISABLED"})
+                        continue
+                    if (entry.flow_id == RECRUITMENT_FLOW_ID and flow.reset_id == recruitment_reset(now)
+                            and flow.next_due_at_utc is not None):
+                        observation_deadline = getattr(runners[entry.flow_id], "observation_deadline", None)
+                        if callable(observation_deadline):
+                            identity = SchedulerIdentity(account_id, server_id, flow.reset_id, MAINTENANCE_TASK_ID)
+                            deadline = observation_deadline(identity, flow.last_completed_at_utc, now)
+                            if deadline is not None and deadline < flow.next_due_at_utc:
+                                flow = state.update_schedule(
+                                    entry.flow_id, next_due_at_utc=deadline,
+                                    expected_row_version=flow.row_version, expected_generation=flow.generation,
+                                    expected_reset_id=flow.reset_id,
+                                    expected_next_due_at_utc=flow.next_due_at_utc,
+                                    require_enabled_unblocked=True,
+                                )
+                                if flow is None:
+                                    continue
+                    projection = RecurrenceProjection(
+                        (RecurrenceClass.DAILY_ONCE_PER_RESET if entry.flow_id in {SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID}
+                         else RecurrenceClass.COOLDOWN), observed_at_utc=now,
                         next_eligible_at=flow.next_due_at_utc,
-                    )},
-                )
-                report = coordinator.pulse(facts)
-                if report.result is not None:
-                    result = report.result
-                    completed = result.verified and result.reason_code == "RECRUITMENT_PASS_VERIFIED"
-                    if completed:
-                        state.unblock_flow(RECRUITMENT_FLOW_ID)
-                    emit({"status": "completed" if completed else "blocked",
-                          "flow_id": entry.flow_id, "reason": report.reason_code,
-                          "next_due_at_utc": result.next_eligible_at,
-                          "result": dict(result.observed_progress)})
-                due = state.get_flow(RECRUITMENT_FLOW_ID).next_due_at_utc
+                    )
+                    if entry.flow_id == CAMPAIGN_FLOW_ID:
+                        # A restart before due must not connect to the device.
+                        if flow.next_due_at_utc is not None and flow.next_due_at_utc > now:
+                            continue
+                        # Scheduler metadata admits an observation inside the claim;
+                        # it asserts neither an AP balance nor a game observation time.
+                        projection = RecurrenceProjection(
+                            RecurrenceClass.AP_REGENERATION,
+                            next_eligible_at=flow.next_due_at_utc,
+                            generation=str(flow.next_occurrence_key),
+                            observation_pending=True,
+                        )
+                    facts = SchedulerFacts(
+                        account_id, server_id, recruitment_reset(now), now,
+                        health_ok=True, accepted_product=entry.product_id,
+                        product_revision=entry.product_revision, registration_status=entry.registration_status,
+                        scheduler_eligible=entry.scheduler_eligible, owner_available=owner.held,
+                        clock_ok=True, reset_agreement=True,
+                        projections={entry.flow_id: projection},
+                    )
+                    report = coordinator.pulse(facts, flow_id=entry.flow_id)
+                    if report.result is not None:
+                        result = report.result
+                        prefix = {RECRUITMENT_FLOW_ID: "RECRUITMENT", NOVA_FLOW_ID: "NOVA",
+                                  CAMPAIGN_FLOW_ID: "CAMPAIGN", BIOENHANCER_FLOW_ID: "BIOENHANCER",
+                                  SUPPLY_FLOW_ID: "SUPPLY", ULTIMATE_FLOW_ID: "ULTIMATE",
+                                  ENHANCEMENT_FLOW_ID: "ENHANCEMENT", PERSONAL_MIGHT_FLOW_ID: "PERSONAL_MIGHT"}[entry.flow_id]
+                        completed = result.verified and result.reason_code == f"{prefix}_PASS_VERIFIED"
+                        rollover_deferred = (
+                            result.reason_code == f"{prefix}_RESET_ROLLOVER_DEFERRED"
+                            and result.verified is False
+                            and result.observed_progress.get("reset_rollover_deferred") is True
+                            and (retained_run := state.get_run(report.candidate.claim.run_id)) is not None
+                            and retained_run.state is RunState.DEFERRED
+                            and retained_run.consumed_inputs == retained_run.consumed_actions == 0
+                            and not state.has_unresolved_actions(retained_run.run_id)
+                        )
+                        if completed or rollover_deferred:
+                            claim = report.candidate.claim
+                            unblocked = state.unblock_flow(
+                                entry.flow_id, expected_generation=claim.claimed_flow_generation,
+                                expected_blocked_reason=f"EXECUTOR_INTERRUPTED_REQUIRES_INSPECTION:{claim.run_id}",
+                            )
+                            if rollover_deferred and unblocked is None:
+                                rollover_deferred = False
+                        emit({"status": "completed" if completed else "deferred" if rollover_deferred else "blocked",
+                              "flow_id": entry.flow_id, "reason": report.reason_code,
+                              "next_due_at_utc": result.next_eligible_at,
+                              "result": dict(result.observed_progress)
+                              or executor_results.get(entry.flow_id, {})})
                 if stop.is_set() or not state.get_service_enabled():
                     continue
-                delay = due - clock() if due is not None else 30
+                deadlines = [flow.next_due_at_utc for entry in entries
+                             if (flow := state.get_flow(entry.flow_id)) is not None
+                             and flow.enabled and not flow.blocked and flow.next_due_at_utc is not None
+                             and flow.next_due_at_utc > clock()]
+                delay = min(deadlines) - clock() if deadlines else 30
                 stop.wait(min(30, delay) if delay > 0 else 30)
 
     def run(

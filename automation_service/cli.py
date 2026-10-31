@@ -1,7 +1,7 @@
-"""Local, non-arbitrary automation-service CLI.
+"""Local controls, offline adapters, and explicitly supervised BlueStacks routes.
 
-The CLI exposes status/health and fake/replay execution only.  It has no ADB, coordinate,
-shell, remote, or automatic mode endpoint.
+Native serve uses the existing service/flow controls, owner, claims, and dispatch fences.
+Automatic mode remains unsupported.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ import signal
 import threading
 import time
 from typing import Sequence
+from uuid import uuid4
 
 from .adapters import AdapterError, FakeDeviceAdapter, ReplayDeviceAdapter
 from .contracts import SchedulerFacts, ServiceMode
@@ -23,6 +24,11 @@ from .operations import OperationsService, structured_summary
 from .registry import canonical_flow_specs
 from .service import AutomationService, ServiceError
 from .state import BotStateManager, StateBusyError, resolve_state_path
+
+
+def _application_startup_directory(root: Path, run_id: str) -> Path:
+    """Reserve a fresh evidence name for each invocation of a reused claim."""
+    return Path(root) / f"application-startup-{run_id}-{uuid4().hex}"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -53,7 +59,12 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("observe")
     subparsers.add_parser("summary")
     serve = subparsers.add_parser("serve")
-    serve.add_argument("--live", action="store_true", help="explicitly permit native recruitment execution")
+    serve.add_argument("--live", action="store_true", help="explicitly permit the selected native routes")
+    serve.add_argument("--flow", action="append", choices=("recruitment", "nova", "campaign", "bioenhancer", "supply", "ultimate", "enhancement", "personal-might"),
+                       help="route to serve; repeat to select routes (default: recruitment)")
+    serve.add_argument("--campaign-stage", default="1-15-9")
+    serve.add_argument("--campaign-cadence-seconds", type=float, default=300.0,
+                       help="wait after a completed AP drain before checking Campaign again (default: 300 seconds)")
     serve.add_argument("--adb", default="adb")
     serve.add_argument("--serial")
     serve.add_argument("--account-id")
@@ -434,21 +445,99 @@ def main(argv: Sequence[str] | None = None) -> int:
                 previous_handlers[signum] = signal.signal(signum, lambda *_: stop.set())
             with BotStateManager(state_path) as state:
                 runner = None
+                nova_runner = None
+                campaign_runner = None
+                bioenhancer_runner = None
+                supply_runner = None
+                ultimate_runner = None
+                enhancement_runner = None
+                personal_might_runner = None
+                selected = args.flow or ["recruitment"]
                 if native_serve:
                     from .recruitment import RecruitmentRunner
+                    from .nova import NovaRunner
+                    from .campaign import CampaignRunner
+                    from .bioenhancer import BioenhancerRunner
+                    from .supply import SupplyRunner
+                    from .ultimate import UltimateRunner
+                    from .enhancement import EnhancementRunner
+                    from .personal_might import PersonalMightRunner
 
-                    runner = RecruitmentRunner(
-                        adb=args.adb, serial=args.serial,
-                        output_directory=args.output_directory or state_path.parent / "recruitment-sessions",
-                        maintenance_path=state_path.with_suffix(".recruitment.sqlite3"),
-                    )
+                    if "recruitment" in selected:
+                        runner = RecruitmentRunner(
+                            adb=args.adb, serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "recruitment-sessions",
+                            maintenance_path=state_path.with_suffix(".recruitment.sqlite3"),
+                        )
+                    if "nova" in selected:
+                        nova_runner = NovaRunner(
+                            adb=args.adb, serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "nova-sessions",
+                        )
+                    if "campaign" in selected:
+                        campaign_runner = CampaignRunner(
+                            adb=args.adb, serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "campaign-sessions",
+                            stage=args.campaign_stage, cadence_seconds=args.campaign_cadence_seconds,
+                        )
+                    if "bioenhancer" in selected:
+                        bioenhancer_runner = BioenhancerRunner(
+                            adb=args.adb, serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "bioenhancer-sessions",
+                        )
+                    if "supply" in selected:
+                        supply_runner = SupplyRunner(
+                            adb=args.adb, serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "supply-sessions",
+                        )
+                    if "ultimate" in selected:
+                        ultimate_runner = UltimateRunner(
+                            adb=args.adb, serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "ultimate-sessions",
+                        )
+                    if "enhancement" in selected:
+                        enhancement_runner = EnhancementRunner(
+                            adb=args.adb, serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "enhancement-sessions",
+                        )
+                    if "personal-might" in selected:
+                        personal_might_runner = PersonalMightRunner(
+                            adb=args.adb, serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "personal-might-sessions",
+                        )
+                application_startup = None
+                if native_serve:
+                    from scripts import pnsctl
+                    if (str(Path(args.adb).resolve()), args.serial) != (str(pnsctl.BLUESTACKS_ADB.resolve()), pnsctl.BLUESTACKS_SERIAL):
+                        raise ServiceError("native application startup requires the fixed BlueStacks runtime")
+                    startup_root = (args.output_directory or state_path.parent / "application-startup")
+                    def application_startup(flow_id, run_id, runtime_input_lock, checkpoint):
+                        return pnsctl.owner_bound_application_startup(
+                            runtime_input_lock=runtime_input_lock, checkpoint=checkpoint,
+                            session_directory=_application_startup_directory(Path(startup_root), run_id),
+                            flow_id=flow_id, require_ready=True)
                 service = AutomationService(
                     mode=args.mode, adapter=adapter, state=state, recruitment_runner=runner,
+                    nova_runner=nova_runner,
+                    campaign_runner=campaign_runner,
+                    bioenhancer_runner=bioenhancer_runner,
+                    supply_runner=supply_runner,
+                    ultimate_runner=ultimate_runner,
+                    enhancement_runner=enhancement_runner,
+                    personal_might_runner=personal_might_runner,
+                    application_startup=application_startup,
                 )
                 if native_serve:
+                    from .registry import BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID
+
                     service.serve(
                         account_id=args.account_id, server_id=args.server_id, stop=stop,
                         emit=lambda result: print(json.dumps(result, sort_keys=True), flush=True),
+                        flow_ids=tuple({"recruitment": RECRUITMENT_FLOW_ID, "nova": NOVA_FLOW_ID,
+                                        "campaign": CAMPAIGN_FLOW_ID, "bioenhancer": BIOENHANCER_FLOW_ID,
+                                        "supply": SUPPLY_FLOW_ID, "ultimate": ULTIMATE_FLOW_ID,
+                                        "enhancement": ENHANCEMENT_FLOW_ID,
+                                        "personal-might": PERSONAL_MIGHT_FLOW_ID}[flow] for flow in selected),
                     )
                 else:
                     while not stop.is_set():

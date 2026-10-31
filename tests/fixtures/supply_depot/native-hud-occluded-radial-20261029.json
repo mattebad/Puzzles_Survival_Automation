@@ -1,0 +1,5 @@
+{
+  "source": ".local-captures\\automation-service-authorized\\soak-20261029T142504610488Z-2d25d83c\\supply\\supply-depot-20261029T142504641995Z-94b0e8d1\\supply-depot-native-20261029T142504815144Z\\frames\\0011-supply-depot-radial-settled.png",
+  "sha256": "0b5973da8f88a5b26e8a10e3ee80df87323c96b6e9b12e9099fd5f0ff8ff076a",
+  "purpose": "Actual Supply radial recognized but Claim Supply text has no safe current actionable binding; preserve denial."
+}

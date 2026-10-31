@@ -54,6 +54,13 @@ _ATTEMPTS_STATE_RE = re.compile(r"^NOVA_PRAISE_ATTEMPTS_(\d+)$")
 _PAID_MARKERS = ("confirm", "purchase", "premium", "diamond", "cash", "cost", "buy")
 _NATIVE_WIDTH = 800
 _NATIVE_HEIGHT = 1280
+# Keep the policy freshness fence aligned with the existing native runtime's
+# 30-second source-frame ceiling.  OCR and a real BlueStacks capture can both
+# consume more than the former 3/2-second margins under load; the frame hash,
+# exact P/I binding, package check, and native dispatch freshness checks remain
+# mandatory independently.
+NOVA_OBSERVATION_MAX_AGE_SECONDS = 30.0
+NOVA_DISPATCH_MAX_AGE_SECONDS = 30.0
 
 
 def _expected_foreground_package() -> str:
@@ -348,8 +355,8 @@ class NovaPraiseActionBoundary:
             expected_runtime_profile_id=PROFILE_ID,
             observation=observation,
             monotonic_now=self.monotonic_clock(),
-            observation_max_age_seconds=3.0,
-            dispatch_max_age_seconds=2.0,
+            observation_max_age_seconds=NOVA_OBSERVATION_MAX_AGE_SECONDS,
+            dispatch_max_age_seconds=NOVA_DISPATCH_MAX_AGE_SECONDS,
             lease_owner=self.owner_id,
             lease_valid=self.store.lease_valid_for(self.owner_id, self.wall_clock()),
             unresolved_action=self.store.has_action_block(),
@@ -603,6 +610,15 @@ class NovaPraiseActionBoundary:
             self.invocation_id,
             attempts,
         )
+        # Keep the caller's actual proposal as P.  The later immediate capture is I:
+        # it owns capability issuance and final current-frame consume, while the
+        # executor compares the real P -> I transition. Never manufacture an earlier
+        # timestamp, digest, OCR binding, or evidence path for the proposal.
+        proposal_observation = self._action_observation(
+            proposal_capture,
+            proposal_recognition,
+            expected_attempts=attempts,
+        )
         existing = self.store.get_action_by_key(action.action_key)
         if existing is not None:
             if is_no_effect_cancelled(existing):
@@ -676,22 +692,6 @@ class NovaPraiseActionBoundary:
                 None,
                 (str(immediate_capture.path),),
             )
-        # Runtime profile is established by measuring native 800x1280 geometry against
-        # the checked-in BlueStacks profile contract (no separate adapter profile API).
-        # Non-native frames already fail in _measure_package_and_profile.
-        # SafeActionExecutor requires immediate mono > proposal mono while capability
-        # consume requires the issued capture digest+mono. Mirror the home-atlas proposal
-        # predecessor of the SAME immediate capture identity (same digest/OCR/ROI).
-        proposal_observation = replace(
-            immediate_observation,
-            capture_completed_monotonic=(
-                immediate_observation.capture_completed_monotonic - 0.05
-            ),
-            ocr_result_capture_completed_monotonic=(
-                immediate_observation.capture_completed_monotonic - 0.05
-            ),
-        )
-
         policy = CentralPolicy({NOVA_TASK_ID})
         issued = policy.issue_capability(self._request(action, immediate_observation))
         self.store.audit(
@@ -732,33 +732,10 @@ class NovaPraiseActionBoundary:
             return TransportResult(True, "BLUESTACKS_TAP_DISPATCHED")
 
         def recapture() -> Observation:
-            """Rebuild from the issued immediate capture; never take a second live frame.
+            """Return the already revalidated actual I capture, without another capture."""
 
-            Re-run package/profile/target/cost/attempts checks and critical ROI digests on
-            that exact capture (no full-frame OCR). Decorative pixel animation across later
-            frames cannot force another capture; geometry/attempts/cost still fail closed.
-            """
-
-            try:
-                rebuilt = self._action_observation(
-                    immediate_capture,
-                    immediate_recognition,
-                    expected_attempts=attempts,
-                )
-            except ValueError as exc:
-                raise ValueError(f"immediate-before revalidation rejected: {exc}") from exc
-            if rebuilt is immediate_observation:
-                raise RuntimeError("immediate revalidation must return a distinct Observation")
-            if (
-                rebuilt.frame_sha256 != immediate_observation.frame_sha256
-                or rebuilt.capture_completed_monotonic
-                != immediate_observation.capture_completed_monotonic
-            ):
-                raise RuntimeError(
-                    "immediate revalidation must preserve issued capture digest and monotonic"
-                )
-            consume_observations.append(rebuilt)
-            return rebuilt
+            consume_observations.append(immediate_observation)
+            return immediate_observation
 
         def post_observe() -> Iterable[Observation]:
             results: list[Observation] = []
@@ -852,7 +829,11 @@ class NovaPraiseActionBoundary:
                 after=after_recognition.observation.attempts_remaining,
                 evidence_refs=tuple(evidence),
             )
-            if getattr(self.runtime, "in_flight_action", None) == action.action_key:
+            # LocalBlueStacksRuntime records the central action in its durable
+            # SafetyStore, but intentionally does not maintain an incidental
+            # in_flight_action marker.  The executor's transport count and the
+            # retained positive successor are the authoritative correlation.
+            if execution.transport_calls > 0:
                 self.runtime.reconcile(
                     action.action_key,
                     "confirmed",
@@ -882,7 +863,10 @@ class NovaPraiseActionBoundary:
                 reversed([pair[0] for pair in after_by_hash.values()]),
                 immediate_capture,
             )
-            if getattr(self.runtime, "in_flight_action", None) == action.action_key:
+            # Transport occurred but the postcondition was not proven.  Retain
+            # the action as unresolved for observe-only recovery; never infer a
+            # positive outcome from transport alone.
+            if execution.transport_calls > 0:
                 self.runtime.reconcile(
                     action.action_key,
                     "unresolved",
