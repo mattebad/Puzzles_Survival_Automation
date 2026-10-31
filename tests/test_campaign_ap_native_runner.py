@@ -169,7 +169,7 @@ class CampaignApNativeRunnerTests(unittest.TestCase):
     def setUp(self):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
-        temporary = self.stack.enter_context(tempfile.TemporaryDirectory(dir=".local-orchestrator"))
+        temporary = self.stack.enter_context(tempfile.TemporaryDirectory())
         self.root = Path(temporary)
         self.runner = DrainFakeADB(ap=14, regen_per_battle=1, phase="stage")
         self.runtime = live.LocalBlueStacksRuntime(self.runner, self.root / "route", execute=True)

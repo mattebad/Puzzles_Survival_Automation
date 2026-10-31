@@ -41,7 +41,7 @@ class NativeCampaignLineageTests(unittest.TestCase):
             cls.pngs[value] = data.tobytes()
 
     def setUp(self):
-        directory = tempfile.TemporaryDirectory(dir=".local-orchestrator")
+        directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.transport = MockTransport()
         self.runtime = LocalBlueStacksRuntime(self.transport, Path(directory.name), execute=True)

@@ -19,7 +19,7 @@ IMMEDIATE_ROI = (402, 184, 560, 343)
 
 class CampaignHomeRoiRebindingTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(dir=".local-orchestrator")
+        self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.store = SafetyStore(Path(self.temporary.name) / "actions.sqlite3")
         self.addCleanup(self.store.close)

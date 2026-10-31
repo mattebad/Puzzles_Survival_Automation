@@ -51,7 +51,7 @@ class NativeNoEffectTests(unittest.TestCase):
         return Runtime(), Session(), pending, post
 
     def test_four_actual_zero_selected_frames_report_no_effect_without_rewriting_old_quantity(self):
-        with tempfile.TemporaryDirectory(dir=".local-orchestrator") as folder:
+        with tempfile.TemporaryDirectory() as folder:
             runtime, session, pending, _ = self.setup_attempt(Path(folder).absolute())
             before = json.loads(json.dumps(pending))
             with patch.object(native.time, "sleep"):
@@ -73,7 +73,7 @@ class NativeNoEffectTests(unittest.TestCase):
 
     def test_changed_original_or_wrong_reset_never_produces_no_effect_proof(self):
         for defect in ("bytes", "reset"):
-            with self.subTest(defect=defect), tempfile.TemporaryDirectory(dir=".local-orchestrator") as folder:
+            with self.subTest(defect=defect), tempfile.TemporaryDirectory() as folder:
                 runtime, session, pending, post = self.setup_attempt(Path(folder).absolute())
                 if defect == "bytes":
                     post.write_bytes(b"changed")

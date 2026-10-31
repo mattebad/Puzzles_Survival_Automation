@@ -63,7 +63,7 @@ class CampaignNavigationRevalidationTests(unittest.TestCase):
     def setUp(self):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
-        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory(dir=".local-orchestrator")))
+        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         self.ordinal = 0
         self.stack.enter_context(patch.object(LocalBlueStacksRuntime, "connect",
                                              side_effect=AssertionError("device access forbidden")))
