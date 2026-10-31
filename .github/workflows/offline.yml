@@ -17,6 +17,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
+      - name: Enable long retained-evidence paths on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
       - name: Check out repository
         uses: actions/checkout@v7
         with:
@@ -80,6 +83,16 @@ jobs:
           tests.test_service_personal_might
           tests.test_service_personal_might_dispatch
           tests.test_service_cooldown_reset_edge
+      - name: Run portable native recognition regressions without a device
+        run: >-
+          python -m unittest
+          tests.test_noah_free_tier_counter_scope
+          tests.test_noah_basic_rollover_observation
+          tests.test_nova_zero_counter
+          tests.test_bioenhancer_free_control_native
+          tests.test_campaign_ap_hud_native
+          tests.test_campaign_navigation_revalidation
+          tests.test_personal_might_bluestacks.PersonalMightNativeTests.test_native_fragmented_rankings_caption_still_binds_current_trophy_body
       - name: Run directly affected cleanup regressions
         run: >-
           python -m unittest

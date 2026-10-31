@@ -5,7 +5,7 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "updated_utc": "2026-10-31T19:43:17.536338+00:00",
+  "updated_utc": "2026-10-31T19:56:16.103459+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
   "active_task_or_flow": "Local branch snapshot and review preparation; no live operator",
@@ -110,7 +110,7 @@
     "Continuous consuming native route across00UTC remains unproved; actual pre-native Bio rollover was safely deferred0/0."
   ],
   "goal_finish_scope": "Current follow-up: stale docs/governance cleanup and backlog reconciliation completed offline; cold restart/Home accepted. Finish actual UTC-crossing cohort, uninterrupted enhancement and final accounting/cleanup audit. No permanent deployment.",
-  "preserved_user_work": "Keep unrelated Stop-PnS-OMP.ps1, Start-PnS-OMP.ps1, evidence/current-evidence-manifest.json, untracked plans/temp/evidence and retained stashc64ed66fca97644822f0f4281c1243de205a377e. Do not stage/reset/stash/clean them. Git has many uncommitted attributable and pre-existing changes.",
+  "preserved_user_work": "The session snapshot is committed on codex/bluestacks-route-reliability. Unrelated Stop-PnS-OMP.ps1, evidence/current-evidence-manifest.json and two loose root plans remain uncommitted and unchanged. Retained stash/evidence/temp files remain local; do not reset/stash/clean them.",
   "subagent_preferences": "All delegates use explicit high-or-higher effort and current user-approved model tier. All current implementation/review/retrieval agents are frozen.",
   "history_archive": "docs/archive/current-handoff-native-route-history-20261030T085441Z.md",
   "history_archive_sha256": "86f9a338b97150fcdaddac77b0dded3030565e3ff2e8bb3fd8fc961ca096d8eb",
@@ -201,7 +201,17 @@
       "evidence/current-evidence-manifest.json",
       "Puzzle_Survival_Flow_Completion_Plan",
       "governance-simplification-plan.pre-merge.md"
-    ]
+    ],
+    "source_snapshot_commit": "46346f1e104e5c6180d8ef9d4b5b94ee388673cd",
+    "clean_checkout_core_checks": {
+      "tests": 327,
+      "status": "passed"
+    },
+    "clean_checkout_native_checks": {
+      "tests": 40,
+      "status": "passed"
+    },
+    "validation_record": "docs/validation/bluestacks-20261031/checks.json"
   }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->

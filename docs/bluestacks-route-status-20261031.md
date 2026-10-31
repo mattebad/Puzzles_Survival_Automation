@@ -74,3 +74,5 @@ Three byte-identical copies of the last Basic free recruit are included for dire
 The full original journals, capture inventory and local replay audits remain retained under `.local-captures/` and `.local-orchestrator/logs/`; they are not uploaded as runtime databases or raw session bundles. The summary identifies those local originals explicitly.
 
 Branch packaging normalizes Python and active Markdown line endings in Git. Historical source hashes describe the exact bytes used for the recorded run; they are not a claim that every platform checkout has identical line endings. Native fixtures and archived records retain their original bytes.
+
+The [branch validation record](validation/bluestacks-20261031/checks.json) distinguishes local checks from GitHub CI: 327 fixed offline checks and 193 service-route checks passed, then a clean committed checkout passed the 327 offline checks and 40 selected native-fixture regressions. No device was used. GitHub's Windows/Linux jobs still need to run after publication. Two terminal-blank-line fixes preserve Python ASTs and are recorded in [the packaging record](validation/bluestacks-20261031/packaging.json).

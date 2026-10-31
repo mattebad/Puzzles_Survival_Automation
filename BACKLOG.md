@@ -59,8 +59,9 @@ merged, deployed or enabled merely because a standalone route passed.
 
 Generic due scheduling is implemented. Aggregate Daily claims, milestone chests, observed Daily
 point attribution, Alliance Help, training, gathering, shops, broader World work and hosted
-acceptance remain separate work. Code packaging/PR creation is also outstanding; changes remain
-local and uncommitted. These Markdown records are not a runtime queue or authority.
+acceptance remain separate work. The code snapshot is committed locally on
+`codex/bluestacks-route-reliability`; publishing and PR review remain outstanding.
+These Markdown records are not a runtime queue or authority.
 
 Read the [recovery execution guide](docs/backlog/execution-guide.md) before assigning work, then read
 the complete linked ticket and the [proportionate planning contract](docs/backlog-task-contract.md).
