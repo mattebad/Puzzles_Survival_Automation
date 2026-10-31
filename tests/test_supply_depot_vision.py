@@ -221,7 +221,14 @@ class SupplyDepotVisionTests(unittest.TestCase):
     def test_native_edge_radial_identity_does_not_authorize_footer_covered_label(self):
         frame = cv2.imread(str(Path(__file__).parent / "fixtures/supply_depot/native-edge-radial-20261029.png"))
         self.assertIsNotNone(frame)
-        self.assertTrue(recognize_supply_depot_radial(frame))
+        if not recognize_supply_depot_radial(frame):
+            readings = {
+                str(roi): supply_depot_module._ocr_roi_text(
+                    frame, roi, supply_depot_module._default_ocr, scale=2
+                )
+                for roi in supply_depot_module.SUPPLY_DEPOT_RADIAL_ROIS
+            }
+            self.fail(f"Native radial identity lost; OCR readings: {readings!r}")
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         from scripts.home_atlas_bluestacks import identity_from_captured
         path = Path(__file__).parent / "fixtures/supply_depot/native-edge-radial-20261029.png"
