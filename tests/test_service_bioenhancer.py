@@ -31,7 +31,7 @@ IDENTITY = SchedulerIdentity("account", "server", "game-day-2027-01-15", PRODUCT
 
 class ServiceBioenhancerTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(dir=Path(".local-orchestrator"))
+        self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.patch = patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", self.root / "lock.sqlite3")

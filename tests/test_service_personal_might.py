@@ -61,7 +61,7 @@ class ServicePersonalMightTests(unittest.TestCase):
     def setUp(self):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
-        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory(dir=".local-orchestrator"))).absolute()
+        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory())).absolute()
         self.stack.enter_context(patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", self.root / "owner.sqlite3"))
         self.owner = boundary.RuntimeInputLock(owner="serve", invocation_id="current-run").acquire()
         self.addCleanup(self.owner.release)

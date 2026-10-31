@@ -51,7 +51,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
     def setUp(self):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
-        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory(dir=".local-orchestrator")))
+        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         self.now = 1_800_000_000.0
         self.identity = SchedulerIdentity("account", "server", recruitment_reset(self.now), CAMPAIGN_FLOW_ID)
         self.world = FakeADB("home")

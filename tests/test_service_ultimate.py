@@ -70,7 +70,7 @@ class UltimateServiceTests(unittest.TestCase):
     def setUp(self):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
-        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory(dir=".local-orchestrator")))
+        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         self.state_path = self.root / "reset.json"
         self.now = 1_800_000_000.0
         self.reset = recruitment_reset(self.now)
