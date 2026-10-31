@@ -351,7 +351,11 @@ def _recognized_supply_radial_roi(
             ("claim" in text or "clai" in text)
             and ("supply" in text or "supp" in text or re.search(r"(?:^| )sup[a-z]*(?: |$)", text))
             and ("upgrade" in text or "pgrade" in text or "grade" in text or "rage" in text)
-            and ("details" in text or "deta" in text or "etail" in text)
+            # Sparse OCR can split the edge-clipped Details caption as "Det".
+            # This identifies the menu only; binding still needs complete,
+            # unobscured Claim/Supply labels and an independent button interior.
+            and ("details" in text or "deta" in text or "etail" in text
+                 or re.search(r"(?:^| )det(?: |$)", text))
         ):
             return roi
     return None

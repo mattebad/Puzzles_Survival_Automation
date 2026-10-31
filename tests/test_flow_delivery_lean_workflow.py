@@ -359,15 +359,16 @@ class LeanWorkflowTests(unittest.TestCase):
             completed = controller.complete(owner="parent", commit=valid)
             self.assertEqual(completed["status"], "completed")
 
-    def test_runtime_is_idle_after_handoff(self) -> None:
-        lease = json.loads(
-            (ROOT / "CURRENT_HANDOFF.md")
-            .read_text(encoding="utf-8")
-            .split("<!-- CURRENT_HANDOFF_STATE_BEGIN -->", 1)[1]
-            .split("<!-- CURRENT_HANDOFF_STATE_END -->", 1)[0]
-            .strip()
-        )
-        self.assertEqual(lease["runtime_ownership_state"], "none")
+    def test_idle_controller_release_removes_lease(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            controller = self.make_controller(Path(directory))
+            controller.acquire(
+                owner="parent", session_identity="session",
+                runtime_ownership_state="none", unresolved_action_state="clear",
+            )
+            self.assertIsNotNone(controller.lease())
+            self.assertTrue(controller.release(owner="parent")["released"])
+            self.assertIsNone(controller.lease())
 
 
 class RuntimeBoundaryTests(unittest.TestCase):

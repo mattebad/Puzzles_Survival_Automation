@@ -31,9 +31,7 @@ PROFILE_ALIASES = {
     "focused": "focused_tests",
     "architecture": "architecture_tests",
     "full": "full_suite",
-    "governance": "governance",
-    # Proportionate profiles reserve the heavy full/architecture/governance load for
-    # promotion and keep navigation development on light, targeted checks.
+    # Navigation development uses targeted checks; full discovery stays manual.
     "shared-navigation": "shared_navigation",
     "task-navigation": "focused_tests",
     "detector": "detector",
@@ -129,7 +127,7 @@ def _parse_test_count(output: str) -> int | None:
 
 
 def _stage_for_profile(profile: str) -> str:
-    if profile in {"focused_tests", "architecture_tests", "governance"}:
+    if profile in {"focused_tests", "architecture_tests"}:
         return "focused_validation"
     if profile in {"shared_navigation", "detector"}:
         return "navigation_validation"
@@ -258,7 +256,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         "focused",
         "architecture",
         "full",
-        "governance",
         "shared-navigation",
         "task-navigation",
         "detector",

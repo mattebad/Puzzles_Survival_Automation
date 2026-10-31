@@ -198,12 +198,16 @@ class SupplyDepotVisionTests(unittest.TestCase):
     def test_radial_identity_alone_does_not_supply_a_button_target(self):
         with patch.object(supply_depot_module.pytesseract, "image_to_data", return_value={"text": []}):
             for text in ("Details Upgrade Claim Supply", "Details grade Claim Supply",
-                         "etail Clai rage Supp", "etail Clai Upgrade Sup"):
+                         "etail Clai rage Supp", "etail Clai Upgrade Sup",
+                         "Det Clai: rade Upgrade Supply"):
                 with self.subTest(text=text):
                     ocr = lambda _image, _psm: text
                     self.assertTrue(recognize_supply_depot_radial(self.frame, ocr=ocr))
                     self.assertIsNone(bind_supply_depot_claim_supply(self.frame, ocr=ocr))
         self.assertFalse(recognize_supply_depot_radial(self.frame, ocr=lambda *_: "Upgrade Details"))
+        for text in ("Claim Supply Upgrade", "Det Claim Supply", "Det Upgrade Claim"):
+            with self.subTest(incomplete=text):
+                self.assertFalse(recognize_supply_depot_radial(self.frame, ocr=lambda *_: text))
 
     def test_radial_target_rejects_current_modal(self):
         with patch("scripts.bluestacks_popup_recognition.recognize_reset_popup", return_value={"blocking_unknown_modal": True}):

@@ -106,7 +106,6 @@ VALIDATION_PROFILES = {
     "focused_tests",
     "architecture_tests",
     "full_suite",
-    "governance",
     "shared_navigation",
     "promotion",
     "detector",

@@ -266,11 +266,11 @@ class ValidationRunnerTests(unittest.TestCase):
     def test_no_arbitrary_command_and_compact_success(self) -> None:
         with self.assertRaisesRegex(runner.ValidationRunnerError, "unknown validation profile"):
             runner.run_profile(flow_id=CAMPAIGN_ID, profile_alias="rm -rf /")
-        result = runner.run_profile(flow_id=CAMPAIGN_ID, profile_alias="governance")
+        result = runner.run_profile(flow_id=CAMPAIGN_ID, profile_alias="architecture")
         self.assertTrue(result["ok"])
         self.assertIn("receipt_path", result)
         receipt = json.loads((ROOT / result["receipt_path"]).read_text(encoding="utf-8"))
-        self.assertEqual(receipt["validation_profile"], "governance")
+        self.assertEqual(receipt["validation_profile"], "architecture_tests")
         self.assertEqual(receipt["repository_head"], context.repo_head())
         log_dir = ROOT / result["log_dir"]
         self.assertTrue(any(log_dir.glob("*.stdout.log")))

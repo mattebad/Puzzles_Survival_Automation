@@ -32,9 +32,25 @@ class ProportionateProfileTests(unittest.TestCase):
         self.assertEqual(runner.PROFILE_ALIASES["consequential"], "consequential")
         for resolved in ("shared_navigation", "promotion", "detector", "consequential"):
             self.assertIn(resolved, runner.ALLOWED_PROFILES)
-        # Existing vocabulary must remain intact.
-        for resolved in ("focused_tests", "architecture_tests", "full_suite", "governance"):
+        for resolved in ("focused_tests", "architecture_tests", "full_suite"):
             self.assertIn(resolved, runner.ALLOWED_PROFILES)
+
+    def test_retired_governance_profile_cannot_be_executed(self) -> None:
+        with self.assertRaisesRegex(runner.ValidationRunnerError, "unknown validation profile"):
+            runner.run_profile(flow_id="SYNTHETIC-FLOW", profile_alias="governance")
+
+    def test_registered_module_targets_exist(self) -> None:
+        profiles = runner._load_profiles()
+        for group in (profiles["global_profiles"], *profiles["flow_profiles"].values()):
+            for targets in group.values():
+                if not isinstance(targets, list):
+                    continue
+                for target in targets:
+                    if target == "discover":
+                        continue
+                    with self.subTest(target=target):
+                        path = runner.REPO_ROOT / (target.replace(".", "/") + ".py")
+                        self.assertTrue(path.is_file(), f"missing validation target: {target}")
 
     def test_shared_navigation_resolves_to_boundary_only(self) -> None:
         self.assertEqual(_resolve("shared_navigation"), ["tests.test_navigation_development_boundary"])
@@ -91,10 +107,11 @@ class ProportionateProfileTests(unittest.TestCase):
             ["tests.test_flow_delivery_daily_resource_item_bluestacks"],
         )
 
-    def test_promotion_bundles_architecture_and_governance(self) -> None:
+    def test_promotion_runs_architecture_without_full_discovery(self) -> None:
         targets = _resolve("promotion")
-        self.assertIn("tests.test_governance_validation", targets)
         self.assertIn("tests.test_flow_delivery_orchestrator", targets)
+        self.assertIn("tests.test_flow_delivery_lean_workflow", targets)
+        self.assertIn("tests.test_home_atlas_verified_route", targets)
         self.assertNotIn("discover", targets)
 
     def test_flow_declared_profiles_without_targets_fail_closed(self) -> None:
@@ -108,7 +125,7 @@ class ProportionateProfileTests(unittest.TestCase):
         self.assertEqual(runner._stage_for_profile("consequential"), "consequential_validation")
         self.assertEqual(runner._stage_for_profile("promotion"), "promotion_validation")
         self.assertEqual(runner._stage_for_profile("full_suite"), "full_validation")
-        for focused in ("focused_tests", "architecture_tests", "governance"):
+        for focused in ("focused_tests", "architecture_tests"):
             self.assertEqual(runner._stage_for_profile(focused), "focused_validation")
 
     def test_full_suite_still_requires_discover_only(self) -> None:

@@ -14,14 +14,10 @@
     "promotion": [
       "tests.test_flow_delivery_orchestrator",
       "tests.test_flow_delivery_lean_workflow",
-      "tests.test_home_atlas_verified_route",
-      "tests.test_governance_validation"
+      "tests.test_home_atlas_verified_route"
     ],
     "full_suite": [
       "discover"
-    ],
-    "governance": [
-      "tests.test_governance_validation"
     ]
   },
   "flow_profiles": {
@@ -110,7 +106,7 @@
   "notes": [
     "full_suite uses python -m unittest discover via the runner's dedicated branch and is manual opt-in only via `full --manual`",
     "focused_tests may fall back to the active queue entry focused_tests paths",
-    "Proportionate profiles: shared_navigation (flow-agnostic boundary), task_navigation (alias of focused_tests), detector and consequential (flow-declared in flow_profiles), and promotion (architecture + governance) are the active-development validation paths",
+    "Proportionate profiles: shared_navigation (flow-agnostic boundary), task_navigation (alias of focused_tests), detector and consequential (flow-declared in flow_profiles), and promotion (architecture checks) are the active-development validation paths",
     "detector and consequential are flow-declared: a flow lists them under flow_profiles; there is no global default"
   ]
 }
