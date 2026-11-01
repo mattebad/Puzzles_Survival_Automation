@@ -240,6 +240,9 @@ ORB_PREFERRED_RESIDUAL_PX = 12.0
 CHAPTER_SAFE_VIEWPORT: Box = (160, 180, 700, 980)
 LOCAL_OCR_PAD_PX = 120
 LOCAL_OCR_MAX_PROJECTION_DISTANCE_PX = 100.0
+# An unbound chapter near the edge may have its label or medallion covered by
+# fixed controls even though its projected center is inside the safe viewport.
+UNBOUND_REFRAME_EDGE_MARGIN_PX = 60
 
 
 def projection_is_safely_framed(screen_x: float, screen_y: float) -> bool:
@@ -254,6 +257,18 @@ def chapter_roi_is_safely_framed(roi: Box) -> bool:
 
     x0, y0, x1, y1 = CHAPTER_SAFE_VIEWPORT
     return x0 <= roi[0] and y0 <= roi[1] and roi[2] <= x1 and roi[3] <= y1
+
+
+def unbound_edge_reframe_direction(screen_x: float, screen_y: float) -> str | None:
+    """Move an unbound near-edge projection toward the viewport interior."""
+
+    x0, y0, x1, y1 = CHAPTER_SAFE_VIEWPORT
+    distances = (
+        (screen_x - x0, "left"), (x1 - screen_x, "right"),
+        (screen_y - y0, "top"), (y1 - screen_y, "bottom"),
+    )
+    distance, direction = min(distances)
+    return direction if 0 <= distance <= UNBOUND_REFRAME_EDGE_MARGIN_PX else None
 
 
 def ocr_chapter_roi_near_projection(
@@ -601,6 +616,30 @@ def resolve_atlas_chapter_navigation(
                 ),
                 target_identity=target_identity,
                 target_roi=ocr_roi,
+                localization_recognized=True,
+                binding_bound=False,
+                projected_screen_center=projected,
+                distance_to_screen_center_px=distance,
+                anchor_count=anchor_count,
+                localization_support=support,
+                localization_residual_px=residual,
+            )
+        direction = unbound_edge_reframe_direction(*projected)
+        localization_supported = bool(
+            residual is not None and (
+                (anchor_count >= 2 and residual <= 120.0)
+                or (residual <= ORB_PREFERRED_RESIDUAL_PX
+                    and any(item.startswith("viewport-") for item in support))
+            )
+        )
+        if direction is not None and localization_supported:
+            gesture = hud_safe_pan_gesture(direction)
+            return AtlasChapterNavDecision(
+                kind="swipe",
+                reason=(f"Campaign atlas-directed pan {direction} to reframe unbound "
+                        f"{label} near the HUD before fresh binding ({loc_state})"),
+                swipe=gesture.as_swipe(),
+                pan_direction=direction,
                 localization_recognized=True,
                 binding_bound=False,
                 projected_screen_center=projected,

@@ -92,6 +92,29 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
             self.assertTrue(stopped.terminal)
             self.assertEqual(stopped.reason, unbound.reason)
 
+    def test_unbound_edge_reframe_needs_progress_and_fresh_binding(self):
+        from tasks.campaign_atlas_chapter_nav import AtlasChapterNavDecision
+        from tasks.campaign_atlas_vision import hud_safe_pan_gesture
+        source = recognized(CampaignRouteObservation(screen=CampaignScreen.TIER_MAP, selected_tier=1,
+                            chapter_navigation_available=True, ap_current=99))
+        initial = AtlasChapterNavDecision("swipe", "Campaign atlas-directed reframe unbound chapter",
+            swipe=hud_safe_pan_gesture("right").as_swipe(), pan_direction="right",
+            localization_recognized=True, distance_to_screen_center_px=340,
+            localization_support=("chapter-15", "chapter-24"))
+        bound = AtlasChapterNavDecision("tap", "fresh binding", target_identity="campaign-chapter-20",
+            target_roi=(400, 440, 460, 500), localization_recognized=True, binding_bound=True)
+        with patch("tasks.campaign_atlas_chapter_nav.resolve_atlas_chapter_navigation", side_effect=(initial, initial)):
+            self.controller.accept_dispatched(self.controller._atlas_chapter_command(source, object()))
+            stopped = self.controller._atlas_chapter_command(source, object())
+            self.assertTrue(stopped.terminal)
+            self.assertEqual(stopped.action, CampaignAction.BLOCKED)
+        controller = CampaignRuntimeController(self.config)
+        with patch("tasks.campaign_atlas_chapter_nav.resolve_atlas_chapter_navigation", side_effect=(initial, bound)):
+            controller.accept_dispatched(controller._atlas_chapter_command(source, object()))
+            command = controller._atlas_chapter_command(source, object())
+            self.assertEqual(command.kind, "tap")
+            self.assertEqual(command.target_roi, bound.target_roi)
+
     def test_route_uses_bound_targets_and_only_lineup_challenge(self):
         home = recognized(
             CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, ap_current=99),

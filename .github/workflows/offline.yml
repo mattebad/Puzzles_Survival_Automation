@@ -102,6 +102,9 @@ jobs:
           tests.test_bioenhancer_free_control_native
           tests.test_campaign_ap_hud_native
           tests.test_campaign_navigation_revalidation
+          tests.test_campaign_atlas_chapter_nav.PortableCampaignAtlasReframeTests.test_native_chapter_15_hud_occlusion_reframes_without_tapping
+          tests.test_campaign_atlas_chapter_nav.PortableCampaignAtlasReframeTests.test_unbound_reframe_requires_supported_localization_near_edge
+          tests.test_campaign_auto_battle_runtime.CampaignRuntimeControllerTests.test_unbound_edge_reframe_needs_progress_and_fresh_binding
           tests.test_enhancement_selection_context_native
           tests.test_ultimate_battle_popup_native
           tests.test_ultimate_defeat_recovery
