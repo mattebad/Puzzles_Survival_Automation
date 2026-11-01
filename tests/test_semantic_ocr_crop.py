@@ -5,10 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from types import MappingProxyType
 
 import numpy as np
@@ -81,6 +83,10 @@ def failed_ocr_engine(_image: np.ndarray, _psm: int) -> str:
     raise RuntimeError("engine unavailable")
 
 
+def thread_limit_ocr_engine(_image: np.ndarray, _psm: int) -> str:
+    return os.environ.get("OMP_THREAD_LIMIT", "unset")
+
+
 def interrupted_ocr_engine(_image: np.ndarray, _psm: int) -> str:
     raise KeyboardInterrupt()
 
@@ -89,6 +95,23 @@ class SemanticOcrCropTests(unittest.TestCase):
     def setUp(self) -> None:
         self.frame = make_frame(seed=11)
         self.identity = make_identity(self.frame)
+
+    def test_worker_limits_ocr_threads_without_changing_parent_or_explicit_configuration(self):
+        with patch.dict(os.environ):
+            os.environ.pop("OMP_THREAD_LIMIT", None)
+            request = CropRoiRequest(self.identity, (200, 100, 360, 140),
+                ocr_mode=OcrMode.UNIFORM_BLOCK,
+                deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS)
+            result = run_semantic_ocr(self.frame, request, ocr_engine=thread_limit_ocr_engine)
+            self.assertEqual(result.status, ObservationStatus.OK, result)
+            self.assertEqual(result.text, "1")
+            self.assertNotIn("OMP_THREAD_LIMIT", os.environ)
+        with patch.dict(os.environ, {"OMP_THREAD_LIMIT": "2"}):
+            request = replace(request, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS)
+            result = run_semantic_ocr(self.frame, request, ocr_engine=thread_limit_ocr_engine)
+            self.assertEqual(result.status, ObservationStatus.OK, result)
+            self.assertEqual(result.text, "2")
+            self.assertEqual(os.environ["OMP_THREAD_LIMIT"], "2")
 
     def test_original_png_encoding_and_pixels_are_bound_without_relabeling_identity(self):
         payloads = [cv2.imencode(".png", self.frame, [cv2.IMWRITE_PNG_COMPRESSION, level])[1].tobytes() for level in (0, 9)]

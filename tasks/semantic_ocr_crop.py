@@ -524,6 +524,10 @@ def _ocr_worker_entry(
         done_event.set()
         return
     try:
+        # Small sequential crops should not start a team of OpenMP threads in
+        # every Tesseract subprocess. Keep this default inside the owned worker;
+        # explicit caller configuration and the parent environment are preserved.
+        os.environ.setdefault("OMP_THREAD_LIMIT", "1")
         _write_ocr_worker_message(
             result_path,
             ("result", tuple(str(engine(pixels, psm)) for psm in psms)),

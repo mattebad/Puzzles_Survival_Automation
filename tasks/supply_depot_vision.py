@@ -52,8 +52,8 @@ SUPPLY_DEPOT_CONTROL_BANDS: tuple[Box, ...] = (
 # Radials move with the camera. Search the gameplay band, while actionability
 # below independently rejects any target intersecting fixed HUD geometry.
 SUPPLY_DEPOT_RADIAL_ROIS: tuple[Box, ...] = (
-    (145, 180, 800, 580), (145, 400, 800, 800),
     (145, 620, 800, 1020), (145, 840, 800, 1120),
+    (145, 400, 800, 800), (145, 180, 800, 580),
 )
 _CLAIM_ICON_PATH = Path(__file__).parent / "assets/supply_depot/800x1280/claim-supply-suitcase.png"
 
