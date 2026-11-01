@@ -10,38 +10,42 @@ those broader criteria are not prerequisites for this eight-route validation sco
 outside explicitly authorized bounded tests; there is no permanent deployment.
 
 November 1 acceptance is recorded in the [dated report](docs/bluestacks-route-status-20261101.md).
-Source `c4dd031` completed a full 7,200.348-second serial cadence: 30 completed
-reports, 67 inputs, five remaining Nova Praises, three remaining Basic recruits,
-and two Campaign wins costing 14 AP each. Every report ended at verified Home;
-every Campaign due time was completion + 300 seconds. All nine controls returned
-OFF with no active run, input lock or effect block. This did not execute the
-future-due Supply, Enhancement, Personal Might or Bio routes.
+The latest executable revision, `80d24d1`, passed both full CI72 jobs and a full
+7,200.373-second canonical cadence: 21 completed reports, two Campaign wins/28 AP,
+29 inputs including one shared Scarlett Back, and verified Home after every pass.
+All 21 Campaign completions scheduled +300 seconds. The audit checks 416 unchanged
+files, 173 PNGs, 131 capture references, canonical stage/Lineup links and disabled cleanup.
+The other seven selected routes remained future-due; this is fresh AP/cadence proof.
 
-Source `6be9f8b` extends bounded startup readiness from 30 to 90 seconds. All 37
-focused startup/launch/restart checks pass. The guarded cold-restart retest proved
-one stop/process exit, one checked launcher intent, independently recognized Home,
-zero game inputs and all nine flow/due records unchanged. The earlier splash
-timeout remains a failure. A separate native Campaign pass recovered exact
-Scarlett with one Back, verified Home/AP8 and consumed no AP. Two distinct known
-Scarlett/VIP popups are supported across routes and offline-proven; this live pass
-covered Scarlett alone.
+Current-code guarded restart then verified one stop/process exit and one checked
+launch, with zero bootstrap game inputs and all nine flow/due rows unchanged.
+Its actual successor was Scarlett. A separate canonical Campaign pass recovered
+it, observed 14 AP, completed one normally admitted 14-AP win and returned Home/AP1:
+17 inputs including one Back. Independent replay checks 67 further PNGs and 55
+capture references. This is an automated restart/recovery sequence; the combined
+sequence includes game inputs. All controls are now OFF with released owners.
+Earlier failed, composite and zero-input precondition receipts remain preserved.
 
-Remaining live acceptance is tied to the next real reset, November 2 at 00:00 UTC:
-continuous-client consuming Campaign actions on both sides, Tavern Basic refresh
-with independent Intermediate/Advanced timers preserved, uninterrupted
-Gear/Chip/Module in one Profile visit, fresh Supply Home/free-Hold/Home, fresh full
-Ultimate entry/one Flee/Home, and current-source Personal Might. Keep controls OFF
-and preserve AP until the scheduled 23:40 UTC preparation. Based on the retained
-120-AP drain, target the Campaign start around 23:53 UTC rather than draining AP
-at the preparation wake-up. No further Flee or daily quota rearm today.
+Nova's five remaining Praises and Tavern's three remaining Basic recruits had
+already completed in the `c4dd031` two-hour cohort; both daily allowances remain
+exhausted, and Intermediate/Advanced deadlines are unchanged. Supply's consuming
+leg, Personal Might and composite Enhancement retain their exact historical
+source scopes. The two-surface Scarlett/VIP sequence is offline-proven; current
+live recovery covered Scarlett twice under separate valid occurrences.
 
-[CI69](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41278344645)
-passed both full operating-system jobs on `c4dd031`.
-The subsequent timeout-receipt fix captures the actual terminal surface even if
-the game returns to the launcher; 38 focused checks pass. Current-head hosted
-validation is tracked in [PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks).
-PR16 remains draft and unmerged.
-The earlier failures and intermediate repair history remain in the dated report.
+Remaining live acceptance requires the real November 2 00:00 UTC reset: consuming
+Campaign actions on both sides in the same client, continuous Tavern Basic refresh
+with independent 24h/48h timers, uninterrupted Gear/Chip/Module in one Profile visit,
+fresh Supply Home/free-Hold/Home, fresh full Ultimate/one Flee/Home and current-source
+Personal Might. Preserve AP now. At 23:40 UTC prepare only; target the drain around
+23:53 UTC using the retained 120-AP timing. Read the actual balance and UTC rather
+than altering clocks, quotas or due dates. No further Flee for November 1.
+
+[CI72](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41288988634)
+passed both complete Windows and Linux jobs on `80d24d1`; 38 focused startup cases
+also passed. Current documentation-head validation is in
+[PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks).
+The PR remains draft and unmerged, with permanent scheduling disabled.
 
 These updates do not turn the historical October 31 rows below into fresh runs.
 
