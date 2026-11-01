@@ -49,7 +49,8 @@ class ApplicationStartupTests(unittest.TestCase):
                 patch.object(pnsctl, "_resolve_installed_game_activity", return_value=pnsctl.PACKAGE + "/.Main"), \
                 patch.object(pnsctl, "_run_fixed_bluestacks_adb", side_effect=adb), \
                 patch("scripts.startup_recovery.classify_startup_frame", return_value=plan), \
-                patch("scripts.startup_normalization.is_clean_home_frame", return_value=ready), \
+                patch("scripts.startup_normalization.is_clean_home_frame",
+                      return_value=ready, side_effect=patches.get("readiness_sequence")), \
                 patch("cv2.imdecode", return_value=object()):
             result = pnsctl.owner_bound_application_startup(runtime_input_lock=self.lock,
                 checkpoint=self.checkpoint, session_directory=self.root / "evidence", flow_id="campaign", require_ready=True)
@@ -114,11 +115,26 @@ class ApplicationStartupTests(unittest.TestCase):
 
     def test_splash_does_not_prove_readiness(self):
         launcher = self.observe("com.uncube.launcher3")
-        with patch.object(pnsctl.time, "monotonic", side_effect=[0, 31]):
+        with patch.object(pnsctl.time, "monotonic", side_effect=[0, 91]):
             with self.assertRaises(pnsctl.ApplicationStartupError) as raised:
                 self.run_start([launcher, launcher, self.observe(pnsctl.PACKAGE)], ready=False)
         self.assertEqual(raised.exception.startup_result["system_launch_count"], 1)
         self.assertFalse(raised.exception.startup_result["route_ready"])
+
+    def test_delayed_home_after_splash_uses_the_original_launch(self):
+        launcher = self.observe("com.uncube.launcher3")
+        with patch.object(pnsctl.time, "monotonic", side_effect=[0, 35]), \
+                patch.object(pnsctl.time, "sleep"):
+            result, calls = self.run_start(
+                [launcher, launcher, self.observe(pnsctl.PACKAGE), self.observe(pnsctl.PACKAGE)],
+                readiness_sequence=[False, True],
+            )
+        self.assertTrue(result["route_ready"])
+        self.assertEqual(result["readiness"], "clean_home")
+        self.assertEqual(result["system_launch_count"], 1)
+        self.assertEqual(result["game_input_count"], 0)
+        self.assertEqual(sum(call[:4] == ("shell", "am", "start", "-W") for call in calls), 1)
+
     def test_known_owned_overlay_is_an_eligible_fresh_successor(self):
         launcher = self.observe("com.uncube.launcher3")
         plan = SimpleNamespace(status="recovery_required", recovery_owner="shared_home_startup_recovery")

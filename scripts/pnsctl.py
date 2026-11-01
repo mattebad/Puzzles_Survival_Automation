@@ -944,7 +944,9 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
         )
         result.update(transport_status="returned", transport_result=str(transport))
         persist()
-        deadline = time.monotonic() + 30.0
+        # Allow cold loading to settle before requiring Home or an owned popup.
+        # The same owner/checkpoints remain active and no launch is retried.
+        deadline = time.monotonic() + 90.0
         ordinal = 0
         while True:
             fence()
