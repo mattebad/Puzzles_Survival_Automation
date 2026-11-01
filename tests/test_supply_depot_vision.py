@@ -83,6 +83,14 @@ def frame_identity(
 
 
 class SupplyDepotVisionTests(unittest.TestCase):
+    def test_details_icon_candidate_alone_cannot_establish_menu_identity_or_target(self):
+        path = supply_depot_module._DETAILS_ICON_PATH
+        glyph = cv2.imread(str(path))
+        frame = np.zeros((1280, 800, 3), np.uint8)
+        frame[780:823, 480:518] = glyph
+        self.assertFalse(recognize_supply_depot_radial(frame, ocr=lambda *_: "Details"))
+        self.assertIsNone(bind_supply_depot_claim_supply(frame, ocr=lambda *_: "Details"))
+
     def test_native_collapsed_drawer_keeps_safe_button_despite_covered_lower_caption(self):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         from scripts.home_atlas_bluestacks import identity_from_captured

@@ -56,6 +56,7 @@ SUPPLY_DEPOT_RADIAL_ROIS: tuple[Box, ...] = (
     (145, 400, 800, 800), (145, 180, 800, 580),
 )
 _CLAIM_ICON_PATH = Path(__file__).parent / "assets/supply_depot/800x1280/claim-supply-suitcase.png"
+_DETAILS_ICON_PATH = Path(__file__).parent / "assets/supply_depot/800x1280/radial-details-paper.png"
 
 
 def _default_ocr(image: np.ndarray, psm: int) -> str:
@@ -257,18 +258,41 @@ def _safe_claim_label_region(label: Box) -> Box | None:
     return max(regions, key=lambda box: (box[2] - box[0]) * (box[3] - box[1]), default=None)
 
 
-def _claim_icon_template() -> np.ndarray | None:
+def _validated_icon_template(path: Path, *, identity: str, shape: tuple[int, int]) -> np.ndarray | None:
     try:
-        raw = _CLAIM_ICON_PATH.read_bytes()
-        manifest = json.loads(_CLAIM_ICON_PATH.with_suffix(".json").read_text(encoding="utf-8"))
-        if (not isinstance(manifest, dict) or manifest.get("id") != "claim-supply-suitcase"
+        raw = path.read_bytes()
+        manifest = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        if (not isinstance(manifest, dict) or manifest.get("id") != identity
                 or manifest.get("runtime_profile") != "native-800x1280"
                 or manifest.get("file_sha256") != hashlib.sha256(raw).hexdigest()):
             return None
         icon = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
-        return icon if icon is not None and icon.shape == (38, 42) else None
+        return icon if icon is not None and icon.shape == shape else None
     except (OSError, ValueError, TypeError):
         return None
+
+
+def _claim_icon_template() -> np.ndarray | None:
+    return _validated_icon_template(_CLAIM_ICON_PATH, identity="claim-supply-suitcase", shape=(38, 42))
+
+
+def _details_radial_candidate_roi(frame: np.ndarray) -> Box | None:
+    """Propose a tight OCR crop; this generic icon grants no menu or target authority."""
+    icon = _validated_icon_template(_DETAILS_ICON_PATH, identity="radial-details-paper", shape=(43, 38))
+    if icon is None or not native_frame_guard(frame):
+        return None
+    pixels = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if frame.ndim == 3 else frame
+    pixels = cv2.normalize(pixels, None, 0, 255, cv2.NORM_MINMAX)
+    icon = cv2.normalize(icon, None, 0, 255, cv2.NORM_MINMAX)
+    scores = cv2.matchTemplate(pixels, icon, cv2.TM_CCOEFF_NORMED)
+    _, score, _, (x, y) = cv2.minMaxLoc(scores)
+    if not math.isfinite(score) or score < .90:
+        return None
+    other = scores.copy()
+    other[max(0, y - 30):y + 31, max(0, x - 30):x + 31] = -1.
+    if float(other.max()) >= .90:
+        return None
+    return (max(0, x - 25), max(0, y - 48), min(800, x + 319), min(1280, y + 122))
 
 
 def _claim_button_interior(frame: np.ndarray, claim: Box, label_row: Box) -> Box | None:
@@ -356,15 +380,19 @@ def _recognized_supply_radial_roi(
 ) -> Box | None:
     if not native_frame_guard(frame):
         return None
-    # Overlap contains the stacked radial labels while every crop remains
-    # below the shared OCR pixel ceiling. Never fall back out of identity.
-    for roi in SUPPLY_DEPOT_RADIAL_ROIS:
+    # A generic Details icon only proposes a smaller crop; all identity checks
+    # below remain mandatory. Broad bands retain the existing fallback.
+    candidate = _details_radial_candidate_roi(frame)
+    rois = ((candidate,) if candidate is not None else ()) + SUPPLY_DEPOT_RADIAL_ROIS
+    for roi in rois:
         try:
             text = _normalized(_ocr_roi_text(
                 frame, roi, ocr, source_frame=source_frame,
                 source_png=source_png, scale=2,
             ))
         except ValueError:
+            if candidate is not None and roi == candidate:
+                continue
             return None
         if (
             ("claim" in text or "clai" in text)
@@ -419,11 +447,8 @@ def bind_supply_depot_claim_supply(
         return None
     try:
         radial = _crop(frame, search_roi, source_frame=source_frame, source_png=source_png)
-    except ValueError:
-        return None
-    radial = cv2.cvtColor(radial, cv2.COLOR_BGR2GRAY) if radial.ndim == 3 else radial
-    radial = cv2.resize(radial, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-    try:
+        radial = cv2.cvtColor(radial, cv2.COLOR_BGR2GRAY) if radial.ndim == 3 else radial
+        radial = cv2.resize(radial, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
         data = pytesseract.image_to_data(
             radial, config="--psm 11", output_type=pytesseract.Output.DICT, timeout=5)
     except (RuntimeError, OSError, ValueError):
