@@ -21,7 +21,9 @@ gem-grid popup false positive. All controls were restored OFF. Ultimate's repair
 and two Windows fake-clock test fixes passed their focused checks; current-head
 CI passed both platforms on `e8419c0`. Its live continuation used one Exit with no
 repeated Challenge, then stopped before Flee on a second canvas-panel false
-positive. That later warning repair passes 12 focused checks; its CI, live Flee
+positive. A zero-input follow-up found defeat behind the same open warning.
+Foreground dialog verification replaces the scene-rectangle clustering and
+passes 12 focused cases across both native backgrounds. Its CI, live Flee
 continuation, fresh Ultimate Home entry and final cadence remain pending.
 These updates do not turn the historical October 31 rows below into fresh runs.
 

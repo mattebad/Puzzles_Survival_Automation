@@ -5,18 +5,18 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "updated_utc": "2026-11-01T03:02:29.393421+00:00",
+  "updated_utc": "2026-11-01T03:13:54.199736+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
   "active_task_or_flow": "Fix intermittent Supply Depot recognition and finish remaining live acceptance before merge; sole local operator only",
   "authorization": "Current user explicitly requested continued fixes, live acceptance testing and iteration until proven before merge. Prior full-route authorization for regenerable resources persists. Each bounded controller records current authorization; no permanent enablement or merge is authorized by this work.",
-  "runtime_ownership_state": "No live operator at this snapshot. One-Exit pnsctl continuation terminal; all controlsOFF, input lock empty and Core lease released. Consult current locks/controller before acting.",
-  "current_live_attempt_state": "Original4-input Ultimate attempt reached battle.18e0cac continuation freshly recognized battle and sent1Exit,0Challenge/0Flee, then stopped on fictional canvas panels at exact warning. Failed receipts preserved; both successor states independently inspected.",
-  "current_evidence_or_session_reference": ".local-captures/development-sessions/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION-20261101T024608638317Z",
-  "last_safe_completed_step": "One-Exit attempt349source hashes unchanged/10PNGs retained. Current warning correction passed12focused checks including extra-panel negatives. Earlier e8419c0 CIrun58 bothOSfullgreen, verifying the two fake-clock fixes; current warning source CIpending.",
+  "runtime_ownership_state": "No live operator at snapshot. Latest Flee-warning attempt stopped before input; all controlsOFF, input lock empty, Core lease released. Current locks/controller remain authoritative.",
+  "current_live_attempt_state": "Original4inputs reached battle; nextcontinuation1Exit reachedFleewarning. Latestc073dec attempt0inputs observed defeat behind same warning.0Flee throughout. All failed receipts preserved. Foreground warning/title/failure/Fight/Flee now bind both native backgrounds offline.",
+  "current_evidence_or_session_reference": ".local-captures/development-sessions/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION-20261101T030334405216Z",
+  "last_safe_completed_step": "Latestzero-inputstop349sourcehashes unchanged/3PNGs retained. Foreground warning cutover passes12focused native/semantic cases;150lines of scenery-rectangle machinery retired. SourceCIpending; prior e8419c0fullCIbothOSgreen.",
   "current_blocker": "Ultimate canonical flow remains blocked pending route-owned active-battle continuation. Two-hour cadence remains unproved on latest source. November2 00UTC still required for uninterrupted Enhancement, fresh Supply and Ultimate full Home-entry passes, continuous Tavern refresh and consuming Campaign crossing.",
   "exact_next_permitted_action": "Commit/push attributable warning correction and docs, freeze current source, verify all operatorsOFF, then supported pnsctl development-session run-flow ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION --live --yes --max-inputs16. Existing route must freshly bind the current Flee-warning resume, send at most one Flee and verify Home. Do not repeat Exit or Challenge from an unknown result. Inspect receipts/state before canonical unblock and another bounded7200-second cadence. No source/docs edits or local tests while live.",
-  "unresolved_action_state": "Native Lineup entry and later Exit successors are positively recognized from10battle and6warning captures, respectively, by current repaired vision. NoFlee transported. Inspection receipts grant no input authority; failed artifacts remain unchanged. Canonical Ultimate flow remains blocked pending completed continuation.",
+  "unresolved_action_state": "Lineup andExit produced positively inspected battle andwarning successors.0Flee transported. Latest0-inputfailure shows samewarningoverLOSE, now recognized by current foreground selector. Failed artifacts unchanged; no receipt grants live authority. CanonicalUltimateblock remains pending completed continuation.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
     "permanent_production_scheduler_enabled": false,
@@ -28,7 +28,7 @@
   },
   "journals_and_lease": {
     "historical_journals": "retained immutable",
-    "active_action_state": "Native Lineup entry and later Exit successors are positively recognized from10battle and6warning captures, respectively, by current repaired vision. NoFlee transported. Inspection receipts grant no input authority; failed artifacts remain unchanged. Canonical Ultimate flow remains blocked pending completed continuation.",
+    "active_action_state": "Lineup andExit produced positively inspected battle andwarning successors.0Flee transported. Latest0-inputfailure shows samewarningoverLOSE, now recognized by current foreground selector. Failed artifacts unchanged; no receipt grants live authority. CanonicalUltimateblock remains pending completed continuation.",
     "development_lease_status": "No active owner at snapshot; failed controller cleanup verified."
   },
   "route_state": {
@@ -73,11 +73,11 @@
     "ultimate": {
       "reset_id": "game-day-2026-11-01",
       "status": "blocked_pending_flee_warning_continuation",
-      "latest_attempt": "Original4inputs plus later1Exit; zero repeatedChallenge and0Flee. Current fresh Flee-warning continuation pending.",
+      "latest_attempt": "4originalinputs+1Exit+0latestinputs; no repeatedChallenge and0Flee. Foreground Flee-warning continuation pending.",
       "historical_acceptance": "October31oneFlee/9inputs/Home; does not prove current source.",
       "repair_commit": "e8419c0201f51964985069e98aba259237c00c04",
       "next_due_utc": 1793491200.0,
-      "warning_repair": "This revision: canvas-aligned phantom-panel discrimination with connected-outline/independent-panel preservation;12focused checks passed."
+      "warning_repair": "Current revision verifies foreground Warning title/failure text/unique labeled Fight+Flee controls across battle/defeat backgrounds. Scenery Hough filtering and clustering removed;12focused cases passed; live continuation pending."
     },
     "enhancement": {
       "reset_id": "game-day-2026-11-01",
@@ -91,7 +91,7 @@
       "next_due_utc": 1793577600.0
     }
   },
-  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T024603458712Z.json",
+  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T030328974799Z.json",
   "validation": "Current repair:17native/visual/lineup checks passed with normal TEMP access;44Campaign+Ultimate service checks passed; two reported CI cases passed3repetitions each. WindowsPython3.11CI pending. Separate original-function baseline reproduces2stale Home fixture failures. No full repository discovery.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
@@ -205,7 +205,7 @@
       "status": "passed"
     },
     "portable_evidence": "docs/validation/bluestacks-20261031/summary.json",
-    "publication": "DraftPR16pushed; e8419c0fullCIbothOSpassed. Warning correction being committed before next source freeze.",
+    "publication": "DraftPR16pushed; current foreground-dialog correction being committed before source freeze. No merge or permanent enablement.",
     "excluded_existing_work": [
       "Stop-PnS-OMP.ps1",
       "evidence/current-evidence-manifest.json",
@@ -225,7 +225,8 @@
   },
   "failed_attempt_audits": [
     ".local-orchestrator/logs/all8-cohort-stopped-ultimate-live-audit-20261101.json",
-    ".local-orchestrator/logs/ultimate-exit-warning-stop-live-audit-20261101.json"
+    ".local-orchestrator/logs/ultimate-exit-warning-stop-live-audit-20261101.json",
+    ".local-orchestrator/logs/ultimate-warning-over-defeat-zero-input-stop-audit-20261101.json"
   ],
   "current_semantic_inspection": ".local-orchestrator/logs/ultimate-exit-warning-successor-inspection-20261101.json"
 }

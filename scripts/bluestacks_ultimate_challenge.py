@@ -105,6 +105,7 @@ _HERO_LINEUP_SELECTED_CARD_ROIS = (
 )
 _HERO_LINEUP_CHECK_MASK = REPO_ROOT / "tasks/assets/ultimate_challenge/800x1280/selected-check-mask.png"
 _FLEE_MODAL_ROI = (65, 365, 735, 745)
+_FLEE_WARNING_TITLE_ROI = (270, 385, 530, 425)
 _FLEE_MODAL_TEXT_ROI = (120, 450, 680, 590)
 _FLEE_FIGHT_SEARCH_ROI = (80, 590, 390, 740)
 _FLEE_FLEE_SEARCH_ROI = (390, 590, 720, 740)
@@ -253,122 +254,6 @@ def _visual_popup_candidates(frame: np.ndarray) -> list[tuple[int, int, int, int
     """Reuse the checked-in visual panel primitive without broad OCR."""
 
     return _visual_popup_panel_candidates(frame)
-
-
-def _roi_area(roi: tuple[int, int, int, int]) -> int:
-    return max(0, roi[2] - roi[0]) * max(0, roi[3] - roi[1])
-
-
-def _roi_intersection_area(
-    left: tuple[int, int, int, int],
-    right: tuple[int, int, int, int],
-) -> int:
-    return max(0, min(left[2], right[2]) - max(left[0], right[0])) * max(
-        0, min(left[3], right[3]) - max(left[1], right[1])
-    )
-
-
-def _flee_modal_popup_iou(
-    popup: tuple[int, int, int, int],
-) -> float:
-    intersection = _roi_intersection_area(popup, _FLEE_MODAL_ROI)
-    union = _roi_area(popup) + _roi_area(_FLEE_MODAL_ROI) - intersection
-    return intersection / union if intersection > 0 and union > 0 else 0.0
-
-
-def _flee_popup_is_materially_overbroad(
-    popup: tuple[int, int, int, int],
-) -> bool:
-    """Keep a frame-anchored candidate too large for the bounded modal separate."""
-
-    # The shared Hough primitive emits many nested interior rectangles from
-    # one modal.  Preserve those for duplicate collapse, but keep a genuinely
-    # broad panel that is anchored to the native frame independently visible.
-    x0, y0, x1, y1 = popup
-    modal_area = _roi_area(_FLEE_MODAL_ROI)
-    materially_large = _roi_area(popup) >= modal_area * 2.0
-    frame_anchored = x0 <= 10 or y0 <= 10 or x1 >= 790 or y1 >= 1270
-    return materially_large and frame_anchored
-
-
-def _flee_popup_panel_candidates(
-    frame: np.ndarray,
-) -> list[tuple[int, int, int, int]]:
-    """Collapse modal duplicates while preserving independent panel evidence."""
-
-    raw = _visual_popup_candidates(frame)
-    if not raw:
-        return []
-    independent_panels = []
-    # The native game has uniform side bars. Hough can combine their canvas
-    # edges with unrelated scene horizontals into an enormous false panel.
-    # Filter only that canvas-aligned family; other candidates stay blocking.
-    canvas = np.flatnonzero(np.any(frame != frame[0, 0], axis=(0, 2)))
-    if (len(canvas) and 20 <= canvas[0] <= 80
-            and 720 <= canvas[-1] < 780):
-        left, right = int(canvas[0]), int(canvas[-1]) + 1
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 40, 140)
-        horizontal = cv2.morphologyEx(edges, cv2.MORPH_OPEN, np.ones((1, 20), np.uint8))
-        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        outlines = []
-        for contour in contours:
-            x, y, width, height = cv2.boundingRect(contour)
-            if width * height >= _roi_area(_FLEE_MODAL_ROI) * 2:
-                outlines.append((x, y, x + width, y + height))
-            if width >= 400 and height >= 220:
-                corners = cv2.approxPolyDP(contour, 0.015 * cv2.arcLength(contour, True), True)
-                bounds = (x, y, x + width, y + height)
-                if (len(corners) == 4 and cv2.contourArea(contour) >= width * height * 0.90
-                        and not _flee_modal_popup_matches(bounds)):
-                    independent_panels.append(bounds)
-        kept = []
-        for candidate in raw:
-            x0, y0, x1, y1 = candidate
-            aligned = (abs(x0 - left) <= 12 and abs(x1 - right) <= 12
-                       and 0 <= frame.shape[0] - y1 <= 12)
-            outlined = any(
-                _roi_intersection_area(candidate, outline) >= 0.60 * (
-                    _roi_area(candidate) + _roi_area(outline)
-                    - _roi_intersection_area(candidate, outline))
-                for outline in outlines
-            )
-            corners = (
-                horizontal[max(0, y0 - 5):y0 + 6, x0:x0 + 20],
-                horizontal[max(0, y0 - 5):y0 + 6, x1 - 20:x1],
-            )
-            if (_flee_popup_is_materially_overbroad(candidate) and aligned
-                    and not outlined and any(np.count_nonzero(corner) < 12 for corner in corners)):
-                continue
-            kept.append(candidate)
-        raw = kept
-    clusters: list[list[tuple[int, int, int, int]]] = []
-    for candidate in raw:
-        area = _roi_area(candidate)
-        joined = False
-        for cluster in clusters:
-            for existing in cluster:
-                if (
-                    _flee_popup_is_materially_overbroad(candidate)
-                    or _flee_popup_is_materially_overbroad(existing)
-                ):
-                    continue
-                overlap = _roi_intersection_area(candidate, existing)
-                if overlap and (
-                    overlap / max(1, min(area, _roi_area(existing))) >= 0.60
-                    or overlap / max(1, area + _roi_area(existing) - overlap) >= 0.35
-                ):
-                    cluster.append(candidate)
-                    joined = True
-                    break
-            if joined:
-                break
-        if not joined:
-            clusters.append([candidate])
-    return [
-        max(cluster, key=_flee_modal_popup_iou)
-        for cluster in clusters
-    ] + list(dict.fromkeys(independent_panels))
 
 
 def _central_popup_candidates(
@@ -1725,34 +1610,10 @@ def _visual_control_candidates(
     return candidates
 
 
-def _flee_modal_popup_matches(
-    popup: tuple[int, int, int, int],
-) -> bool:
-    """Require a bounded two-way spatial match to the expected Flee modal."""
-
-    intersection = _roi_intersection_area(popup, _FLEE_MODAL_ROI)
-    popup_area = _roi_area(popup)
-    modal_area = _roi_area(_FLEE_MODAL_ROI)
-    if intersection <= 0 or popup_area <= 0 or modal_area <= 0:
-        return False
-    return (
-        intersection / popup_area >= 0.75
-        and intersection / modal_area >= 0.75
-        and _flee_modal_popup_iou(popup) >= 0.60
-    )
-
-
 def _recognize_flee_warning(
     frame: np.ndarray,
 ) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]] | None:
-    """Require modal geometry, both controls, and narrow warning text."""
-
-    popup_panels = _flee_popup_panel_candidates(frame)
-    if len(popup_panels) != 1:
-        return None
-    popup = popup_panels[0]
-    if not _flee_modal_popup_matches(popup):
-        return None
+    """Bind the exact foreground dialog independently of the battle behind it."""
     if not _has_warning_modal_geometry(frame):
         return None
     fight = _visual_control_candidates(
@@ -1777,6 +1638,10 @@ def _recognize_flee_warning(
     if len(fight) != 1 or len(flee) != 1:
         return None
     if "flee now" not in text or "failure" not in text:
+        return None
+    if (not _ocr_ordered_tokens(frame, _FLEE_WARNING_TITLE_ROI, ("warning",))
+            or _ocr_region_text(frame, fight[0], psm=7) != "fight"
+            or _ocr_region_text(frame, flee[0], psm=7) != "flee"):
         return None
     return fight[0], flee[0]
 
@@ -2693,7 +2558,7 @@ def _run_daily_route(
     resume_capture: CapturedNativeFrame | None = None,
     resume_lineup_roi: tuple[int, int, int, int] | None = None,
 ) -> tuple[str, dict[str, object]]:
-    """Execute the exact bounded Challenge → Exit → Flee → Home route."""
+    """Execute the exact bounded Challenge â†’ Exit â†’ Flee â†’ Home route."""
 
     completed_actions: list[dict[str, object]] = []
     if starting_state == "flee_warning":
@@ -2883,13 +2748,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--daily",
         action="store_true",
-        help="execute the approved zero-resource Challenge → Exit → Flee Daily route",
+        help="execute the approved zero-resource Challenge â†’ Exit â†’ Flee Daily route",
     )
-    parser.add_argument("--post-flee-home-only", action="store_true", help="resume only the verified UC-main → Campaign → Home terminal route")
+    parser.add_argument("--post-flee-home-only", action="store_true", help="resume only the verified UC-main â†’ Campaign â†’ Home terminal route")
     parser.add_argument(
         "--campaign-exit-home-only",
         action="store_true",
-        help="resume from a recognized Campaign tier map: measured transparent-icon exit → canonical Home only",
+        help="resume from a recognized Campaign tier map: measured transparent-icon exit â†’ canonical Home only",
     )
     parser.add_argument("--atlas", type=Path, default=DEFAULT_HOME_ATLAS)
     parser.add_argument("--execute", action="store_true", help="allow bounded tap/swipe dispatch")

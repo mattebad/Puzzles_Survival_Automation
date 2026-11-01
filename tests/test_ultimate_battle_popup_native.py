@@ -46,9 +46,11 @@ class UltimateBattlePopupNativeTests(unittest.TestCase):
                 self.assertIsNone(ultimate._recognize_active_battle(frame))
 
     def test_native_warning_binds_flee_without_treating_canvas_edges_as_panels(self):
-        frame = self.frame("native-flee-warning-20261101.png")
-        self.assertEqual(ultimate._bind_flee_warning_button(frame), (436, 628, 682, 708))
-        self.assertIsNone(ultimate._recognize_active_battle(frame))
+        for name in ("native-flee-warning-20261101.png", "native-flee-warning-over-defeat-20261101.png"):
+            with self.subTest(background=name):
+                frame = self.frame(name)
+                self.assertEqual(ultimate._bind_flee_warning_button(frame), (436, 628, 682, 708))
+                self.assertIsNone(ultimate._recognize_active_battle(frame))
 
     def test_warning_requires_both_controls_and_failure_text(self):
         for box in ((436, 628, 682, 708), (118, 628, 364, 708), (120, 450, 680, 590)):
@@ -58,31 +60,17 @@ class UltimateBattlePopupNativeTests(unittest.TestCase):
                 frame[y0:y1, x0:x1] = 0
                 self.assertIsNone(ultimate._bind_flee_warning_button(frame))
 
-    def test_independent_frame_outlines_still_block_flee(self):
-        source = self.frame("native-flee-warning-20261101.png")
-        cases = []
-        for box in ((8, 18, 792, 1262), (-10, 30, 810, 1268), (43, 80, 756, 1278)):
-            frame = source.copy()
-            cv2.rectangle(frame, box[:2], box[2:], (180, 180, 180), 6)
-            cases.append((str(box), frame))
-        canvas = cases[-1][1]
-        for label, erased in (
-            ("one top corner missing", ((38, 72, 100, 110),)),
-            ("both top corners missing", ((38, 72, 100, 110), (700, 72, 760, 110))),
-            ("broken top border", ((150, 72, 450, 90),)),
-        ):
-            frame = canvas.copy()
-            for x0, y0, x1, y1 in erased:
-                frame[y0:y1, x0:x1] = source[y0:y1, x0:x1]
-            cases.append((label, frame))
-        for label, frame in cases:
-            with self.subTest(outline=label):
-                self.assertIsNone(ultimate._bind_flee_warning_button(frame))
-
-    def test_additional_bounded_panel_still_blocks_flee(self):
+    def test_unknown_panel_covering_warning_blocks_flee(self):
         frame = self.frame("native-flee-warning-20261101.png")
-        cv2.rectangle(frame, (160, 800), (660, 1120), (45, 45, 45), -1)
-        cv2.rectangle(frame, (160, 800), (660, 1120), (180, 180, 180), 6)
+        cv2.rectangle(frame, (160, 400), (660, 750), (45, 45, 45), -1)
+        cv2.rectangle(frame, (160, 400), (660, 750), (180, 180, 180), 6)
+        self.assertIsNone(ultimate._bind_flee_warning_button(frame))
+
+    def test_gold_purchase_label_cannot_inherit_flee_authority(self):
+        frame = self.frame("native-flee-warning-20261101.png")
+        frame[640:700, 460:665] = (0, 165, 210)
+        cv2.putText(frame, "Buy", (500, 684), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.0, (255, 255, 255), 2, cv2.LINE_AA)
         self.assertIsNone(ultimate._bind_flee_warning_button(frame))
 
 

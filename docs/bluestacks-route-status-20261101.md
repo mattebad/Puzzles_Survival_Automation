@@ -15,7 +15,7 @@ authorized bounded controllers temporarily enable selected routes.
 | Enhancement | Gear, Chip and Module each consumed once in one physical Profile visit, with final Home and independent family replay. Original attempt: 13 inputs/1 Gear Confirm. Resume: 15 inputs/2 Confirms, retaining Gear. | This is composite acceptance. An uninterrupted all-three run remains `evidence_required` at the next actual reset. |
 | Cold restart | Source `122ff13`: one guarded stop, process-exit check passed, one checked MAIN/LAUNCHER/NEW_TASK launch, Home, zero game inputs and no human intervention. | All nine flow rows and their due facts were unchanged. This proves this cached account state, not historical Play Games prompt causality. |
 | Campaign and other due routes | Cohort `fd5b6482`: Campaign 120 + 1 regenerated - 112 spent = 9 AP, 8 wins/8 committed AP effects, 50 inputs and Home; next due exactly completion + 300 seconds. Nova used one free Praise, Tavern used one Advanced and one Basic free recruit, and Bioenhancer used one free Research; each returned Home. | This is not a completed two-hour cadence. The cohort stopped after 1,030.094 seconds on Ultimate. Nova has 6 free Praises and Tavern has 4 Basic recruits remaining. |
-| Ultimate | Four inputs reached battle. Repair `e8419c0` then freshly recognized the active battle and sent one Exit, with no repeated Challenge. That continuation stopped on extra fictional canvas panels at the Flee warning; zero Flee transports. Both attempts released ownership. | The warning repair passes 12 focused checks. Fresh Flee-warning continuation and a full Home-entry pass still require live proof. Neither failed attempt is daily completion. |
+| Ultimate | Four inputs reached battle. Repair `e8419c0` then freshly recognized the active battle and sent one Exit, with no repeated Challenge. A later zero-input attempt found that the battle had progressed to defeat underneath the same warning. Zero Flee transports so far; all attempts released ownership. | Foreground warning recognition passes 12 focused checks. Fresh Flee-warning continuation and a full Home-entry pass still require live proof. Failed attempts are not daily completion. |
 | Native reset crossing | Pending November 2 at 00:00 UTC. | Requires a consuming Campaign route across the real boundary and continuous-client Tavern refresh. The earlier zero-input admission defer does not satisfy this. |
 
 Supply's current-source consuming leg and Personal Might both completed through
@@ -74,15 +74,20 @@ reached battle; no retained evidence grants input authority or rewrites the
 failed receipt. Continuation must freshly recognize the current battle.
 
 The subsequent live continuation sent one Exit and reached the exact Flee
-warning. Its OCR, colors and modal checks passed, but Hough also combined
-uniform gameplay-canvas edges with unrelated scene lines. The correction is
-limited to that freshly measured canvas-aligned family. Connected outlines,
-including open or clipped frames, and other panel candidates remain blocking;
-independent bounded panels are preserved outside duplicate clustering.
-Twelve focused checks cover the exact warning, both required controls and failure
-text, native-frame and canvas-confined outlines, missing top corners, a broken
-top border and an additional opaque bounded panel. This is offline proof until
-the Flee-warning continuation actually completes.
+warning. Its OCR, colors and modal checks passed, but Hough combined canvas
+edges with unrelated scene lines. A canvas-specific correction passed its
+limited offline cases, then a zero-input live attempt exposed the defeat page
+underneath the still-open dialog. That failure is preserved.
+
+The final warning recognizer checks the foreground dialog directly: its modal
+geometry, high-confidence Warning title, failure text, unique red/gold controls
+and literal Fight/Flee labels. The native battle and defeat backgrounds produce
+the same Flee target. Roughly 150 lines of scene-rectangle filtering/clustering
+and the associated shape-only assertions were retired. Tests now reject an
+actual unknown popup covering the dialog, missing title/text/controls and a gold
+Buy button. All 12 focused cases passed. Claims, reset guard, source freshness,
+resource authority and successor verification are unchanged. This remains
+offline proof until the Flee-warning continuation actually completes.
 
 ## Validation and retained evidence
 
@@ -132,6 +137,7 @@ Raw evidence is retained locally, outside the published source tree:
 | Ultimate successor inspection | `.local-orchestrator/logs/ultimate-failed-lineup-successor-inspection-20261101.json` |
 | One-Exit warning stop audit | `.local-orchestrator/logs/ultimate-exit-warning-stop-live-audit-20261101.json` |
 | Warning successor inspection | `.local-orchestrator/logs/ultimate-exit-warning-successor-inspection-20261101.json` |
+| Zero-input defeat-background warning stop | `.local-orchestrator/logs/ultimate-warning-over-defeat-zero-input-stop-audit-20261101.json` |
 | Old Enhancement baseline | `.local-validation/remaining-enhancement-baseline-20261101.log` |
 | Supply local repetitions | `.local-validation/supply-tight-crop-eight-repeats-20261101.log` |
 

@@ -95,6 +95,8 @@ class UltimateChallengeVisualTests(unittest.TestCase):
         cv2.rectangle(frame, (60, 360), (740, 750), (48, 48, 48), -1)
         cv2.rectangle(frame, (60, 360), (740, 750), (220, 220, 220), 12)
         cv2.rectangle(frame, (72, 372), (728, 435), (0, 0, 180), -1)
+        cv2.putText(frame, "Warning", (310, 415), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.05, (255, 255, 255), 2, cv2.LINE_AA)
         cv2.putText(
             frame,
             text,
@@ -107,8 +109,12 @@ class UltimateChallengeVisualTests(unittest.TestCase):
         )
         cv2.rectangle(frame, (100, 600), (330, 700), (0, 0, 220), -1)
         cv2.rectangle(frame, (470, 600), (700, 700), (0, 180, 220), -1)
+        cv2.putText(frame, "Fight", (175, 670), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.1, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(frame, "Flee", (530, 670), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.1, (255, 255, 255), 2, cv2.LINE_AA)
         if extra_panel:
-            cv2.rectangle(frame, (5, 20), (795, 320), (180, 180, 180), 12)
+            cv2.rectangle(frame, (5, 20), (795, 800), (180, 180, 180), -1)
         return frame
 
     @staticmethod
@@ -270,36 +276,28 @@ class UltimateChallengeVisualTests(unittest.TestCase):
             self.assertIsNone(ultimate._recognize_ultimate_main(blank))
             self.assertIsNone(ultimate._bind_active_battle_exit(blank))
 
-    def test_flee_warning_requires_one_bounded_spatially_matched_popup(self) -> None:
-        """R7 acceptance: an extra full-frame popup must fail closed."""
+    def test_unknown_popup_covering_warning_rejects_flee(self) -> None:
+        """A blocking unknown surface cannot inherit the warning's controls."""
         valid_frame = self._flee_warning_frame()
         self.assertIsNotNone(ultimate._recognize_flee_warning(valid_frame))
 
         overbroad_frame = valid_frame.copy()
-        # Independently measured full-frame panel, deliberately separate from
-        # the modal geometry above and from production ROI constants.
+        # A real blocking surface replaces the dialog pixels. Unrelated scene
+        # outlines behind a fully verified dialog supply no action authority.
         cv2.rectangle(
             overbroad_frame,
             (8, 18),
             (792, 1262),
             (180, 180, 180),
-            12,
+            -1,
         )
         self.assertEqual(overbroad_frame.shape, (1280, 800, 3))
         self.assertIsNone(ultimate._recognize_flee_warning(overbroad_frame))
 
-    def test_flee_popup_collapses_duplicate_modal_detections(self) -> None:
-        """Candidate-clustering unit coverage, separate from r7 acceptance."""
-        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-        duplicate = (67, 367, 733, 743)
-        with patch.object(
-            ultimate,
-            "_visual_popup_candidates",
-            return_value=[ultimate._FLEE_MODAL_ROI, duplicate],
-        ):
-            panels = ultimate._flee_popup_panel_candidates(frame)
-        self.assertEqual(len(panels), 1)
-        self.assertTrue(ultimate._flee_modal_popup_matches(panels[0]))
+    def test_warning_title_is_required_even_with_controls_and_failure_text(self) -> None:
+        frame = self._flee_warning_frame()
+        frame[385:425, 270:530] = (0, 0, 180)
+        self.assertIsNone(ultimate._recognize_flee_warning(frame))
 
     def test_repair_rebinds_entry_on_exact_immediate_before_and_enforces_ceiling(self) -> None:
         source = Path(ultimate.__file__).read_text(encoding="utf-8")
