@@ -490,6 +490,20 @@ class ServiceEnhancementTests(unittest.TestCase):
         self.assertEqual(enhancement_next_due(result, IDENTITY, START), START - START % 86400 + 86400)
         self.assertTrue(self.owner.held)
 
+    def test_explicit_extra_family_keeps_real_reset_and_runs_all_three_once(self):
+        self.owner.acquire()
+        with patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=self.connect), \
+                patch.object(delivery, "run_enhancement_family", side_effect=self.wrapper) as wrapper, \
+                patch.object(delivery, "verify_enhancement_family", side_effect=self.verifier):
+            result = self.runner()(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner,
+                                   operator_request_id="user-extra-family")
+        self.assertEqual(result["operator_request_id"], "user-extra-family")
+        self.assertEqual(result["native_reset_identity"], NATIVE_RESET)
+        self.assertEqual(result["enhancement_dispatch_count"], 3)
+        self.assertEqual(result["family_verification"]["current_categories"], ["gear", "chip", "module"])
+        self.assertEqual(wrapper.call_count, 1)
+        self.assertEqual(wrapper.call_args.args[1]["operator_request_id"], "user-extra-family")
+
     def test_one_or_two_use_partial_exception_retains_attempted_counts_without_retry(self):
         for used in (1, 2):
             with self.subTest(uses=used):

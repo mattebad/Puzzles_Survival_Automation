@@ -1604,6 +1604,7 @@ class BotStateManager:
         queue_generation: str | int | None = None,
         march_generation: str | int | None = None,
         operator_request_id: str | None = None,
+        allow_completed_daily: bool = False,
         manual_request_id: str | None = None,
         operator_request: str | None = None,
         sequence: str | int | None = None,
@@ -1724,7 +1725,14 @@ class BotStateManager:
                 if not _is_non_reset_occurrence_kind(kind):
                     release_claim_lease(db)
                     return None
-            if flow["next_due_at_utc"] is not None and float(flow["next_due_at_utc"]) > now:
+            repeat_daily = (allow_completed_daily is True and mode == "manual"
+                and kind == "manual" and flow["cadence"] == "daily_once_per_reset"
+                and isinstance(operator_request_id, str) and bool(operator_request_id.strip()))
+            if allow_completed_daily and not repeat_daily:
+                release_claim_lease(db)
+                return None
+            if (flow["next_due_at_utc"] is not None and float(flow["next_due_at_utc"]) > now
+                    and not repeat_daily):
                 release_claim_lease(db)
                 return None
             if flow["retry_not_before_utc"] is not None and float(flow["retry_not_before_utc"]) > now:

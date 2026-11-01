@@ -90,6 +90,7 @@ jobs:
           tests.test_service_ultimate_dispatch
           tests.test_service_enhancement
           tests.test_service_enhancement_dispatch
+          tests.test_authorized_daily_repeat
           tests.test_service_personal_might
           tests.test_service_personal_might_dispatch
           tests.test_service_cooldown_reset_edge

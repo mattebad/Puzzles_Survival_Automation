@@ -4,18 +4,18 @@
 {
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
-  "head_binding": "80d24d17ea198bc1d92f821fca2e85bee99ed90a",
-  "updated_utc": "2026-11-01T11:33:54.272176+00:00",
+  "head_binding": "600dce0ed3a2c6c1dda8d1b9522e26cede90f05c",
+  "updated_utc": "2026-11-01T16:07:21.073987+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
   "active_task_or_flow": "Fix intermittent Supply Depot recognition and finish remaining live acceptance before merge; sole local operator only",
-  "authorization": "Current user explicitly requested continued fixes, live acceptance testing and iteration until proven before merge. Prior full-route authorization for regenerable resources persists. Each bounded controller records current authorization; no permanent enablement or merge is authorized by this work.",
-  "runtime_ownership_state": "No live operator or test process. All9flow controls/service OFF; no active/orphan run, input lock or effect block, both service/Core owners released after audited current80 cadence and restart/recovery.",
-  "current_live_attempt_state": "Current80 full cadence completed7200.373s/21reports/2wins/29inputs including1ScarlettBack; all reported terminalsHome/+300. Current80 cold step verified1stop/exit/1launch/0bootstrapgameinputs/knownScarlett, preserving9flow/due rows; native post-launch17input pass including1Back performed1APwin14+1-14=1/Home. Other8flow records unchanged, allOFF.",
-  "current_evidence_or_session_reference": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\soak-20261101T111859147956Z-ad1936c9",
-  "last_safe_completed_step": "Audits passed: current80-full-7200-cadence-final-audit-20261101T111457119518Z.json (416unchanged files/173PNGs/131refs) and current80-cold-restart-native-recovery-home-audit-20261101T112830364485Z.json (67PNGs/55refs/HomeAP1). No manual recovery, repeated launch, quota/timer edits or unresolved effects.",
-  "current_blocker": "evidence_required at next realNov2 00UTC: consuming Campaign actions both sides, continuous Tavern Basic refresh, uninterrupted Gear/Chip/Module, fresh Supply/fullUltimate and current-source Personal Might. Actual current-head CI remains in PR16 checks. No active runtime blocker.",
-  "exact_next_permitted_action": "Reconcile latest documentation/PR checks only, then leave all runtime controls OFF and preserve AP. At Nov1 23:40UTC prepare and inspect only; target consuming Campaign drain23:53UTC with sufficient actual AP, actual effects both sides Nov2 00UTC in the same client. Then all due authorized routes and bounded cadence. Freeze current source/assets/current authorization before the sole operator. No earlier live cohort/restart, cold relaunch across reset, quota/timer edits or another Flee for Nov1.",
+  "authorization": "User at latest turn: I am authorizing you to run a gear chip module run, another ultimate run. This authorizes exactly one extra full family and one extra Ultimate; current canonical controller --live --yes records authority. No Campaign AP use, permanent enablement or merge.",
+  "runtime_ownership_state": "No live operator or test. All9 controls/service OFF, no unterminated run/input/effect block; Core/service owners released after two successful explicit manual runs.",
+  "current_live_attempt_state": "Completed explicit same-day extra family:22inputs/3Confirms, uninterrupted Gear→Chip→Module once oneProfile/Home; each EXP50→60/stock−1. Extra Ultimate:8inputs/1Flee/Home, no relaunch/human recovery; no DefeatContinue encountered. Prior6daily state files and all due/ordinals unchanged.",
+  "current_evidence_or_session_reference": ".local-orchestrator/logs/explicit-extra-enhancement-ultimate-final-audit-20261101T160444578918Z.json",
+  "last_safe_completed_step": "Independent final audit passed421source files/108PNGs/99capture refs/actual effects/both Home/manual claims/OFF cleanup: explicit-extra-enhancement-ultimate-final-audit-20261101T160444578918Z.json.",
+  "current_blocker": "evidence_required at actual Nov2 00UTC: consuming stage entries both sides within one Campaign drain; continuous Tavern refresh; fresh Supply/Home and current-source Personal Might. Extra uninterrupted Enhancement/Ultimate now accepted. Native DefeatContinue remains offline-only unless naturally encountered.",
+  "exact_next_permitted_action": "Package manual-request support and truthful acceptance in draft PR16; verify latest CI. Then leave controlsOFF/preserveAP/same gameclient until23:40UTC preparation and target23:53 consuming drain. No additional same-day category/Flee repetition under consumed explicit request.",
   "unresolved_action_state": "No unresolved Ultimate effect after currentHome adoption. Original one-Flee failed receipt retained; no repeatFlee for game-day2026-11-01. Current completion is composite with human restart, not uninterrupted recovery.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
@@ -75,17 +75,17 @@
     },
     "ultimate": {
       "reset_id": "game-day-2026-11-01",
-      "status": "complete_for_reset_composite",
-      "latest_attempt": "c4dd031 cohort:already-completed/Home guard,0inputs. Original one-Flee +human restart +ScarlettBack +Home adoption remains composite; no repeat Flee today.",
+      "status": "uninterrupted_manual_run_accepted",
+      "latest_attempt": "Explicit fresh manual request:fullHome→Campaign→Ultimate→battle→oneFlee→Home,8inputs,zero launch/startup inputs, no human recovery.",
       "historical_acceptance": "October31oneFlee/9inputs/Home; does not prove current source.",
       "repair_commit": "e8419c0201f51964985069e98aba259237c00c04",
       "next_due_utc": 1793577600.0,
-      "warning_repair": "Foreground Flee1 live-confirmed through native Defeat. DefeatContinue/Home binder offline-proven only; human restart removed opportunity for that live continuation."
+      "warning_repair": "Foreground warning/Flee/Home live accepted. DefeatContinue was not naturally encountered; remains offline-proven."
     },
     "enhancement": {
       "reset_id": "game-day-2026-11-01",
-      "accepted": "CompositeGear/Chip/Moduleeachonce/onephysicalProfilevisit/Home: original13inputs1GearConfirm +resume15inputs2Chip/ModuleConfirms.",
-      "limit": "Uninterrupted all3 still requires next real reset; no category rearm.",
+      "accepted": "Explicit fresh manual request:22inputs/3Confirms uninterrupted Gear→Chip→Module oneProfile/Home; all EXP50→60/stock−1; request claimSUCCEEDED.",
+      "limit": "Normal daily proof/due/ordinal unchanged. Earlier composite retained separately. No further same-day repeat authorized.",
       "next_due_utc": 1793577600.0
     },
     "personal_might": {
@@ -96,7 +96,7 @@
     }
   },
   "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T090739429014Z.json",
-  "validation": "Both complete Windows/Linux CI72 jobs passed on80d24d1; CI70/71 also passed both jobs.38focused startup/launch/restart cases passed. Current80 live cadence and automated cold/Scarlett/Campaign/Home chain independently audited. No full local test discovery; legacy baselines separate. Current documentation-head CI truth is PR16 checks.",
+  "validation": "55 existing route tests,20focused repeat/dispatch checks and53state/scheduler checks passed. Both extra routes independently audited. Latest new-commit CI pending; older CI73 passed600dce0 and is historical for this change.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
     ".local-orchestrator/logs/noah-full-basic-quota-audit-20261030.json",
@@ -132,7 +132,8 @@
     ".local-orchestrator/logs/native-scarlett-campaign-low-ap-home-audit-20261101T075937890048Z.json",
     ".local-orchestrator/logs/final-source-cold-restart-live-audit-20261101T080400808518Z.json",
     ".local-orchestrator/logs/current80-full-7200-cadence-final-audit-20261101T111457119518Z.json",
-    ".local-orchestrator/logs/current80-cold-restart-native-recovery-home-audit-20261101T112830364485Z.json"
+    ".local-orchestrator/logs/current80-cold-restart-native-recovery-home-audit-20261101T112830364485Z.json",
+    ".local-orchestrator/logs/explicit-extra-enhancement-ultimate-final-audit-20261101T160444578918Z.json"
   ],
   "additional_coverage_evidence_required": [
     "Consuming native Campaign effects both sides Nov2 00UTC in same client",
@@ -273,7 +274,8 @@
     "terminal_home": true,
     "controls_restored_off": true,
     "audit": ".local-orchestrator/logs/current80-cold-restart-native-recovery-home-audit-20261101T112830364485Z.json"
-  }
+  },
+  "working_tree_source": "Post600dce0 manual-request source is bound by explicit-extra-routes-frozen-source-20261101T155047374468Z.json; native source unchanged through both extra live runs. Subsequent test organization/CI/docs edits only."
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 

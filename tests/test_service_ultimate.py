@@ -220,6 +220,32 @@ class UltimateServiceTests(unittest.TestCase):
         self.door.assert_not_called()
         self.daily.assert_not_called()
 
+    def test_authorized_extra_flee_preserves_daily_completion_and_uses_separate_guard(self):
+        before = self.write_state(self.completed(self.reset))
+        result = self.runner(self.identity, None, self.checkpoint, operator_request_id="extra-ultimate")
+        self.assertEqual((result["status"], result["flee_transport_calls"]), ("complete_for_reset", 1))
+        self.assertEqual(result["reset_id"], self.reset)
+        self.assertEqual(self.state_path.read_bytes(), before)
+        paths = list((self.root / "ultimate-challenge-manual-runs").glob("*.json"))
+        self.assertEqual(len(paths), 1)
+        self.assertEqual(task.load_reset_window_state(paths[0]).last_success_reset_identity, self.reset)
+        self.assertEqual(self.runner(self.identity, None, self.checkpoint,
+            operator_request_id="extra-ultimate")["flee_transport_calls"], 0)
+
+    def test_unresolved_extra_flee_blocks_new_request_and_normal_daily_run(self):
+        self.write_state(self.completed(self.reset))
+        self.stop_after_flee = True
+        with self.assertRaises(service.UltimateRunnerError):
+            self.runner(self.identity, None, self.checkpoint, operator_request_id="extra-one")
+        self.stopped = self.stop_after_flee = False
+        count = len(self.device.inputs)
+        calls = (self.door.call_count, self.daily.call_count)
+        for request in (None, "extra-two"):
+            with self.subTest(request=request), self.assertRaises(service.UltimateRunnerError):
+                self.runner(self.identity, None, self.checkpoint, operator_request_id=request)
+        self.assertEqual(len(self.device.inputs), count)
+        self.assertEqual((self.door.call_count, self.daily.call_count), calls)
+
     def test_prior_completed_day_allows_one_current_flee_home_then_idempotent_repeat(self):
         self.write_state(self.completed(recruitment_reset(self.now - 86400)))
         result = self.runner(self.identity, None, self.checkpoint)

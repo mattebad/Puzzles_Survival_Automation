@@ -10,7 +10,7 @@ those broader criteria are not prerequisites for this eight-route validation sco
 outside explicitly authorized bounded tests; there is no permanent deployment.
 
 November 1 acceptance is recorded in the [dated report](docs/bluestacks-route-status-20261101.md).
-The latest executable revision, `80d24d1`, passed both full CI72 jobs and a full
+Earlier executable revision `80d24d1` passed both full CI72 jobs and a full
 7,200.373-second canonical cadence: 21 completed reports, two Campaign wins/28 AP,
 29 inputs including one shared Scarlett Back, and verified Home after every pass.
 All 21 Campaign completions scheduled +300 seconds. The audit checks 416 unchanged
@@ -29,17 +29,27 @@ Earlier failed, composite and zero-input precondition receipts remain preserved.
 Nova's five remaining Praises and Tavern's three remaining Basic recruits had
 already completed in the `c4dd031` two-hour cohort; both daily allowances remain
 exhausted, and Intermediate/Advanced deadlines are unchanged. Supply's consuming
-leg, Personal Might and composite Enhancement retain their exact historical
-source scopes. The two-surface Scarlett/VIP sequence is offline-proven; current
+leg and Personal Might retain their exact historical source scopes; fresh manual
+Enhancement/Ultimate acceptance is recorded below. The two-surface Scarlett/VIP sequence is offline-proven; current
 live recovery covered Scarlett twice under separate valid occurrences.
 
-Remaining live acceptance requires the real November 2 00:00 UTC reset: consuming
-Campaign actions on both sides in the same client, continuous Tavern Basic refresh
-with independent 24h/48h timers, uninterrupted Gear/Chip/Module in one Profile visit,
-fresh Supply Home/free-Hold/Home, fresh full Ultimate/one Flee/Home and current-source
-Personal Might. Preserve AP now. At 23:40 UTC prepare only; target the drain around
-23:53 UTC using the retained 120-AP timing. Read the actual balance and UTC rather
-than altering clocks, quotas or due dates. No further Flee for November 1.
+Explicitly authorized extra same-day runs now prove uninterrupted Gear→Chip→Module
+in one Profile visit (22 inputs/three Confirms/Home, all stock−1/EXP50→60) and full
+Ultimate Home/one Flee/Home (eight inputs), without relaunch or human recovery.
+Normal daily completion/due/ordinal stayed unchanged; distinct manual request
+claims and state preserve every earlier result. The final audit checks 421 frozen
+files, 108 PNGs/99 capture references, all controls OFF and owners released:
+`.local-orchestrator/logs/explicit-extra-enhancement-ultimate-final-audit-20261101T160444578918Z.json`.
+Native Ultimate Defeat/Continue was not encountered and remains offline-proven.
+
+Remaining live acceptance requires the real November 2 00:00 UTC reset: Campaign
+entering affordable stages before and after midnight in the same ongoing drain,
+continuous Tavern Basic refresh with independent 24h/48h timers, fresh Supply
+Home/free-Hold/Home and current-source Personal Might. Final current-head CI and
+source/evidence reconciliation remain required. Preserve AP. At 23:40 UTC prepare
+only; target the drain around 23:53 UTC using actual readiness/balance. No clocks,
+quotas or due dates are altered. The two just-authorized extra runs are complete;
+there is no authorization for another same-day Flee or category repetition.
 
 [CI72](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41288988634)
 passed both complete Windows and Linux jobs on `80d24d1`; 38 focused startup cases

@@ -113,6 +113,34 @@ class ServiceUltimateDispatchTests(unittest.TestCase):
             "SELECT run_id FROM runs ORDER BY claimed_at_utc, rowid",
         )]
 
+    def test_explicit_repeat_claim_runs_once_preserves_daily_due_and_rejects_request_reuse(self):
+        self.once()
+        before = self.state.get_flow(ULTIMATE_FLOW_ID)
+        self.stop.stopped = False
+        original = self.runner
+        requests = []
+
+        def repeat(identity, previous, checkpoint, *, operator_request_id):
+            requests.append(operator_request_id)
+            original.completed_reset = None
+            return original(identity, previous, checkpoint)
+
+        self.service.ultimate_runner = repeat
+        reports = []
+        for _ in range(2):
+            self.service.serve(account_id="account", server_id="server", stop=self.stop,
+                emit=reports.append, clock=lambda: self.stop.now, flow_ids=(ULTIMATE_FLOW_ID,),
+                operator_request_id="user-extra-ultimate")
+        after = self.state.get_flow(ULTIMATE_FLOW_ID)
+        self.assertEqual(requests, ["user-extra-ultimate"])
+        self.assertEqual([r["status"] for r in reports], ["completed", "refused"])
+        self.assertEqual((after.next_due_at_utc, after.next_occurrence_key),
+                         (before.next_due_at_utc, before.next_occurrence_key))
+        self.assertEqual(original.flee_calls, 1)
+        run = self.runs()[-1]
+        self.assertEqual((run.mode, run.occurrence_basis, run.consumed_actions),
+                         ("manual", "user-extra-ultimate", 1))
+
     def test_compiled_daily_binding_is_disabled_and_cli_preserves_explicit_selection(self):
         entry = next(item for item in CANONICAL_FLOW_REGISTRY if item.flow_id == ULTIMATE_FLOW_ID)
         self.assertEqual((entry.product_id, entry.product_revision), (PRODUCT_ID, PRODUCT_REVISION))

@@ -220,7 +220,8 @@ class EnhancementRunner:
         self.output_directory = Path(output_directory)
         self.utc_clock = utc_clock
 
-    def __call__(self, identity, previous_reset_id, checkpoint, *, runtime_input_lock):
+    def __call__(self, identity, previous_reset_id, checkpoint, *, runtime_input_lock,
+                 operator_request_id: str | None = None):
         from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 
         del previous_reset_id
@@ -249,6 +250,7 @@ class EnhancementRunner:
                 checkpoint()
                 _, selected_reset, completed_categories = native._select_family_state(
                     pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID, native_reset, checkpoint=checkpoint,
+                    operator_request_id=operator_request_id,
                 )
                 if selected_reset != native_reset:
                     raise ValueError("Enhancement retained family reset selection changed")
@@ -298,6 +300,7 @@ class EnhancementRunner:
                         "product_revision": PRODUCT_REVISION, "task_id": PRODUCT_ID,
                         "account_id": identity.account_id, "server_id": identity.server_id,
                         "reset_id": identity.reset_id, "native_reset_identity": native_reset,
+                        "operator_request_id": operator_request_id,
                         "time_basis": "utc", "completed_at_utc": completed,
                         "next_reset_at_utc": next_reset, "total_input_count": 0, "input_count": 0,
                         "enhancement_dispatch_count": 0, "resource_affecting_dispatch_count": 0,
@@ -318,6 +321,7 @@ class EnhancementRunner:
                     "runtime_input_lock": runtime_input_lock, "checkpoint": checkpoint,
                     "initial_observation": bound, "initial_frame_sha256": initial.sha256,
                     "enhancement_reset_identity": native_reset, "enhancement_variant": "gear",
+                    "operator_request_id": operator_request_id,
                     "max_inputs": MAX_INPUTS,
                 }
                 checkpoint()
@@ -366,6 +370,7 @@ class EnhancementRunner:
                     delivery, no_work=False, flow_id=FLOW_ID, product_id=PRODUCT_ID,
                     product_revision=PRODUCT_REVISION, task_id=PRODUCT_ID,
                     account_id=identity.account_id, server_id=identity.server_id, reset_id=identity.reset_id,
+                    operator_request_id=operator_request_id,
                     native_reset_identity=native_reset, time_basis="utc", completed_at_utc=completed,
                     next_reset_at_utc=next_reset, total_input_count=count, input_count=count,
                     enhancement_dispatch_count=calls, resource_affecting_dispatch_count=calls,

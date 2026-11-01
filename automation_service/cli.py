@@ -63,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--flow", action="append", choices=("recruitment", "nova", "campaign", "bioenhancer", "supply", "ultimate", "enhancement", "personal-might"),
                        help="route to serve; repeat to select routes (default: recruitment)")
     serve.add_argument("--campaign-stage", default="1-15-9")
+    serve.add_argument("--operator-request-id", default=None,
+                       help="one explicit extra Enhancement/Ultimate run; preserves daily completion")
     serve.add_argument("--campaign-cadence-seconds", type=float, default=300.0,
                        help="wait after a completed AP drain before checking Campaign again (default: 300 seconds)")
     serve.add_argument("--adb", default="adb")
@@ -532,6 +534,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
                     service.serve(
                         account_id=args.account_id, server_id=args.server_id, stop=stop,
+                        operator_request_id=args.operator_request_id,
                         emit=lambda result: print(json.dumps(result, sort_keys=True), flush=True),
                         flow_ids=tuple({"recruitment": RECRUITMENT_FLOW_ID, "nova": NOVA_FLOW_ID,
                                         "campaign": CAMPAIGN_FLOW_ID, "bioenhancer": BIOENHANCER_FLOW_ID,

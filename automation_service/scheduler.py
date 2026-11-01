@@ -151,8 +151,10 @@ class _CanonicalPulseCoordinator:
         handlers: Mapping[str, FlowHandler],
         *,
         clock: Callable[[], float] = time.time,
+        allow_completed_daily: bool = False,
     ) -> None:
         self.state = state
+        self.allow_completed_daily = allow_completed_daily
         self.descriptors = tuple(
             sorted(descriptors, key=lambda item: (item.priority, item.flow_id))
         )
@@ -675,7 +677,9 @@ class _CanonicalPulseCoordinator:
                     state.last_revision_within_reset,
                 ):
                     continue
-            if state.next_due_at_utc is not None and state.next_due_at_utc > now:
+            if (state.next_due_at_utc is not None and state.next_due_at_utc > now
+                    and not (self.allow_completed_daily and mode == "manual"
+                             and descriptor.recurrence_class is RecurrenceClass.DAILY_ONCE_PER_RESET)):
                 continue
             if state.consecutive_failures >= state.max_attempts:
                 continue
@@ -815,6 +819,8 @@ class _CanonicalPulseCoordinator:
             )
         if state is None or (
             state.next_due_at_utc is not None and state.next_due_at_utc > now
+            and not (self.allow_completed_daily and mode == "manual"
+                     and descriptor.recurrence_class is RecurrenceClass.DAILY_ONCE_PER_RESET)
         ):
             return
         ordinal = 0 if reset_changed else state.next_occurrence_key
@@ -1275,6 +1281,8 @@ class _CanonicalPulseCoordinator:
                     lease_generation=lease_generation,
                     max_inputs=getattr(handler, "max_inputs", 1),
                     max_actions=getattr(handler, "max_actions", 1),
+                    allow_completed_daily=(self.allow_completed_daily and mode == "manual"
+                        and candidate.descriptor.recurrence_class is RecurrenceClass.DAILY_ONCE_PER_RESET),
                     **claim_values,
                 )
             except StateBusyError:
@@ -1553,6 +1561,7 @@ class UtcPulseCoordinator:
         state_manager: BotStateManager | None = None,
         activation_authority: ActivationAuthority | None = None,
         clock: Callable[[], float] = time.time,
+        allow_completed_daily: bool = False,
     ) -> None:
         if repository is not None and state_manager is not None and repository is not state_manager:
             raise ValueError("repository and state_manager must refer to one authority")
@@ -1567,7 +1576,8 @@ class UtcPulseCoordinator:
         self.clock = clock
         self._canonical = (
             _CanonicalPulseCoordinator(
-                repository, self.descriptors, self.handlers, clock=clock
+                repository, self.descriptors, self.handlers, clock=clock,
+                allow_completed_daily=allow_completed_daily,
             )
             if isinstance(repository, BotStateManager)
             else None

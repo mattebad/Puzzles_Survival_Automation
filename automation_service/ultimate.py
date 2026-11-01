@@ -32,6 +32,47 @@ RESET_STATE_PATH = Path(__file__).resolve().parents[1] / ".local-captures/ultima
 _DAILY_TARGETS = frozenset({"tap_challenge", "tap_lineup_challenge", "tap_upper_right_exit", "tap_flee"})
 
 
+def _select_reset_state(reset_id: str, operator_request_id: str | None):
+    """Keep extra attempts separate while honoring every unresolved attempt."""
+    manual = RESET_STATE_PATH.parent / "ultimate-challenge-manual-runs"
+    if manual.is_symlink() or (manual.exists() and not manual.is_dir()):
+        raise ValueError("Ultimate manual state directory is unsafe")
+    selected = RESET_STATE_PATH
+    if operator_request_id is not None:
+        if (not isinstance(operator_request_id, str) or not operator_request_id.strip()
+                or len(operator_request_id) > 256):
+            raise ValueError("Ultimate repeat requires a nonempty operator request")
+        key = hashlib.sha256(operator_request_id.strip().encode("utf-8")).hexdigest()
+        selected = manual / f"{key}.json"
+    paths = [RESET_STATE_PATH]
+    if manual.exists():
+        for path in sorted(manual.iterdir()):
+            if (path.is_symlink() or not path.is_file() or path.suffix != ".json"
+                    or len(path.stem) != 64 or any(ch not in "0123456789abcdef" for ch in path.stem)):
+                raise ValueError("Ultimate manual state file is unsafe")
+            paths.append(path)
+    states = {}
+    for path in paths:
+        if path.is_symlink():
+            raise ValueError("Ultimate retained state must not be a symlink")
+        state = load_reset_window_state(path)
+        for recorded in (state.reset_identity, state.last_success_reset_identity):
+            if recorded is not None:
+                if not isinstance(recorded, str) or not recorded.startswith("game-day-"):
+                    raise ValueError("Ultimate retained reset identity requires inspection")
+                day = date.fromisoformat(recorded.removeprefix("game-day-"))
+                if recorded != f"game-day-{day.isoformat()}" or recorded > reset_id:
+                    raise ValueError("Ultimate retained reset is invalid or in the future")
+        check = evaluate_already_completed(state, current_reset_identity=reset_id)
+        if (state.completion_state == COMPLETION_UNKNOWN or state.pending_home_session
+                or (check.reason != "not already_completed" and check.terminal != TERMINAL_ALREADY_COMPLETED)):
+            raise ValueError(check.reason or "Ultimate pending/unknown completion requires inspection")
+        if state.last_success_reset_identity == reset_id and check.terminal != TERMINAL_ALREADY_COMPLETED:
+            raise ValueError("Ultimate reset state contradicts an existing current-day success")
+        states[path] = state
+    return selected, states[selected] if selected in states else load_reset_window_state(selected)
+
+
 class UltimateExecutionHandler:
     selection_only = False
     max_inputs = MAX_INPUTS
@@ -363,7 +404,7 @@ class UltimateRunner:
         }, sort_keys=True, indent=2, default=str) + "\n", encoding="utf-8")
         return hashlib.sha256(raw).hexdigest()
 
-    def __call__(self, identity, previous_reset_id, checkpoint):
+    def __call__(self, identity, previous_reset_id, checkpoint, *, operator_request_id: str | None = None):
         from scripts import bluestacks_ultimate_challenge as native
         from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
         from scripts.navigation_development_boundary import open_canonical_action_store
@@ -374,23 +415,13 @@ class UltimateRunner:
         result = {"status": "unresolved", "terminal": "blocked_fail_closed", "committed_action_count": 0,
                   "terminal_home_verified": False, "completed_actions": [], "startup_navigation_count": 0}
         failure = None
+        state_path = None
         try:
             checkpoint()
             self._identity(identity)
-            state = load_reset_window_state(RESET_STATE_PATH)
-            for recorded_reset in (state.reset_identity, state.last_success_reset_identity):
-                if recorded_reset is not None:
-                    if not isinstance(recorded_reset, str) or not recorded_reset.startswith("game-day-"):
-                        raise ValueError("Ultimate retained reset identity requires inspection")
-                    day = date.fromisoformat(recorded_reset.removeprefix("game-day-"))
-                    if recorded_reset != f"game-day-{day.isoformat()}" or recorded_reset > identity.reset_id:
-                        raise ValueError("Ultimate retained reset is invalid or in the future")
+            state_path, state = _select_reset_state(identity.reset_id, operator_request_id)
+            result["operator_request_id"] = operator_request_id
             precheck = evaluate_already_completed(state, current_reset_identity=identity.reset_id)
-            if (state.completion_state == COMPLETION_UNKNOWN or state.pending_home_session
-                    or (precheck.reason != "not already_completed" and precheck.terminal != TERMINAL_ALREADY_COMPLETED)):
-                raise ValueError(precheck.reason or "Ultimate pending/unknown completion requires inspection")
-            if state.last_success_reset_identity == identity.reset_id and precheck.terminal != TERMINAL_ALREADY_COMPLETED:
-                raise ValueError("Ultimate reset state contradicts an existing current-day success")
             runtime = LocalBlueStacksRuntime.connect(adb=self.adb, serial=self.serial,
                 output_directory=self.output_directory, workflow="ultimate-daily", execute=True)
             runtime.max_inputs = min(runtime.max_inputs, MAX_INPUTS)
@@ -480,7 +511,7 @@ class UltimateRunner:
                     raise ValueError("Ultimate terminal canonical Home is not currently recognized")
                 current_checkpoint()
                 stamp = datetime.fromtimestamp(self.utc_clock(), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                save_reset_window_state(RESET_STATE_PATH, record_verified_home_success(
+                save_reset_window_state(state_path, record_verified_home_success(
                     state, reset_identity=identity.reset_id, success_at=stamp))
                 result.update(status=TERMINAL_COMPLETE_FOR_RESET, terminal=TERMINAL_COMPLETE_FOR_RESET,
                     committed_action_count=1, terminal_home_verified=True, reset_guard_completed=True,
@@ -526,7 +557,7 @@ class UltimateRunner:
                 if (failure is not None and proof is not None and state is not None
                         and result.get("reset_guard_completed") is not True):
                     _validated_flee_recovery(runtime.session, identity.reset_id, digest)
-                    save_reset_window_state(RESET_STATE_PATH, record_pending_home(state,
+                    save_reset_window_state(state_path, record_pending_home(state,
                         reset_identity=identity.reset_id, session_directory=str(runtime.session), result_sha256=digest))
             except Exception as exc:
                 reason = "; ".join(([str(failure)] if failure else []) + [f"Ultimate evidence/reset persistence: {exc}"])

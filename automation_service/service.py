@@ -652,7 +652,7 @@ class AutomationService:
             raise
 
     def serve(self, *, account_id: str, server_id: str, stop, emit,
-              clock=time.time, flow_ids=None) -> None:
+              clock=time.time, flow_ids=None, operator_request_id: str | None = None) -> None:
         """Drive explicitly selected native routes serially under one owner."""
         from tasks.scheduler_task_result import SchedulerIdentity
         from tasks.noahs_tavern_recruit_maintenance import MAINTENANCE_TASK_ID
@@ -673,6 +673,12 @@ class AutomationService:
         if not account_id.strip() or not server_id.strip():
             raise ServiceError("serve requires account and server identity")
         selected = tuple(dict.fromkeys(flow_ids if flow_ids is not None else (RECRUITMENT_FLOW_ID,)))
+        if operator_request_id is not None:
+            if (not isinstance(operator_request_id, str) or not operator_request_id.strip()
+                    or len(operator_request_id) > 256
+                    or any(item not in {ENHANCEMENT_FLOW_ID, ULTIMATE_FLOW_ID} for item in selected)):
+                raise ServiceError("one-time repeat requires a nonempty request and only Enhancement/Ultimate")
+            operator_request_id = operator_request_id.strip()
         if not selected or any(item not in {RECRUITMENT_FLOW_ID, NOVA_FLOW_ID, CAMPAIGN_FLOW_ID, BIOENHANCER_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID} for item in selected):
             raise ServiceError("serve requires an explicitly supported native route")
         runners = {RECRUITMENT_FLOW_ID: self.recruitment_runner, NOVA_FLOW_ID: self.nova_runner,
@@ -819,6 +825,10 @@ class AutomationService:
                         startup_verified = True
                         checkpoint()
                     options = {"runtime_input_lock": owner} if flow_id in {BIOENHANCER_FLOW_ID, SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID} else {}
+                    if operator_request_id is not None:
+                        if run.mode != "manual" or run.occurrence_basis != operator_request_id:
+                            raise ServiceError("MANUAL_REPEAT_CLAIM_MISMATCH")
+                        options["operator_request_id"] = operator_request_id
                     runner_entered = True
                     result = runners[flow_id](identity, previous_reset, checkpoint, **options)
                     if startup_result is not None:
@@ -931,7 +941,8 @@ class AutomationService:
                 if entry.flow_id in {SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID}:
                     handlers[entry.flow_id].flow_spec = entry.spec
             coordinator = UtcPulseCoordinator(
-                state, tuple(effective_descriptors[entry.flow_id] for entry in entries), handlers, clock=clock
+                state, tuple(effective_descriptors[entry.flow_id] for entry in entries), handlers, clock=clock,
+                allow_completed_daily=operator_request_id is not None,
             )
             while not stop.is_set():
                 if not state.get_service_enabled():
@@ -966,7 +977,7 @@ class AutomationService:
                     projection = RecurrenceProjection(
                         (RecurrenceClass.DAILY_ONCE_PER_RESET if entry.flow_id in {SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID}
                          else RecurrenceClass.COOLDOWN), observed_at_utc=now,
-                        next_eligible_at=flow.next_due_at_utc,
+                        next_eligible_at=None if operator_request_id is not None else flow.next_due_at_utc,
                     )
                     if entry.flow_id == CAMPAIGN_FLOW_ID:
                         # A restart before due must not connect to the device.
@@ -988,7 +999,12 @@ class AutomationService:
                         clock_ok=True, reset_agreement=True,
                         projections={entry.flow_id: projection},
                     )
-                    report = coordinator.pulse(facts, flow_id=entry.flow_id)
+                    report = (coordinator.run_manual(entry.flow_id, facts, operator_request_id=operator_request_id)
+                              if operator_request_id is not None else coordinator.pulse(facts, flow_id=entry.flow_id))
+                    if operator_request_id is not None and report.result is None:
+                        emit({"status": "refused", "flow_id": entry.flow_id,
+                              "operator_request_id": operator_request_id, "reason": report.reason_code})
+                        return
                     if report.result is not None:
                         result = report.result
                         prefix = {RECRUITMENT_FLOW_ID: "RECRUITMENT", NOVA_FLOW_ID: "NOVA",
@@ -1018,6 +1034,8 @@ class AutomationService:
                               "next_due_at_utc": result.next_eligible_at,
                               "result": dict(result.observed_progress)
                               or executor_results.get(entry.flow_id, {})})
+                if operator_request_id is not None:
+                    return
                 if stop.is_set() or not state.get_service_enabled():
                     continue
                 deadlines = [flow.next_due_at_utc for entry in entries

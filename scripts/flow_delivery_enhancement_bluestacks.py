@@ -1357,7 +1357,7 @@ def _validate_family_reset(reset_identity: str) -> str:
     return reset_identity
 
 
-def _family_state_roots(base_root: Path) -> list[Path]:
+def _family_state_roots(base_root: Path, *, include_manual: bool = True) -> list[Path]:
     """Inventory only state roots, without traversing retained runtime evidence."""
     if base_root.is_symlink() or (base_root.exists() and not base_root.is_dir()):
         raise _pnsctl().OperatorError("Enhancement base state directory is unsafe")
@@ -1371,6 +1371,16 @@ def _family_state_roots(base_root: Path) -> list[Path]:
             if path.is_symlink() or not path.is_dir():
                 raise _pnsctl().OperatorError("Enhancement occurrence is not a regular directory")
             roots.append(path)
+    manual = base_root / "manual-runs"
+    if manual.is_symlink() or (manual.exists() and not manual.is_dir()):
+        raise _pnsctl().OperatorError("Enhancement manual state directory is unsafe")
+    if manual.exists():
+        if not include_manual:
+            raise _pnsctl().OperatorError("Enhancement nested manual state is unsafe")
+        for path in sorted(manual.iterdir()):
+            if path.is_symlink() or not path.is_dir() or not _HASH_RE.fullmatch(path.name):
+                raise _pnsctl().OperatorError("Enhancement manual request directory is unsafe")
+            roots.extend(_family_state_roots(path, include_manual=False))
     return roots
 
 
@@ -1509,11 +1519,18 @@ def _historical_family_accounting(
 def _select_family_state(
     base_root: Path, reset_identity: str, *, recovery_variant: str | None = None,
     checkpoint: Callable[[], None] | None = None,
+    operator_request_id: str | None = None,
 ) -> tuple[Path, str, dict[str, dict[str, Any]]]:
     """Select current acceptance, or one exact current pending zero-input recovery."""
     _verification_checkpoint(checkpoint)
     _validate_family_reset(reset_identity)
     current = base_root / "occurrences" / reset_identity
+    if operator_request_id is not None:
+        if (not isinstance(operator_request_id, str) or not operator_request_id.strip()
+                or len(operator_request_id) > 256 or recovery_variant is not None):
+            raise _pnsctl().OperatorError("Enhancement repeat requires one explicit nonempty request")
+        key = hashlib.sha256(operator_request_id.strip().encode("utf-8")).hexdigest()
+        current = base_root / "manual-runs" / key / "occurrences" / reset_identity
     if recovery_variant is not None:
         if recovery_variant not in SUPPORTED_VARIANTS:
             raise _pnsctl().OperatorError("Enhancement recovery category is unsupported")
@@ -1529,9 +1546,15 @@ def _select_family_state(
         for variant in ("gear", "chip", "module"):
             if _existing_reservation(root, variant) is not None:
                 reserved.add(variant)
-        expected_reset = None if root == base_root else root.name
+        expected_reset = None if root == base_root or _HASH_RE.fullmatch(root.name) else root.name
         if root != current:
-            accounted = _historical_family_accounting(root, reset_identity, expected_reset)
+            if expected_reset is not None and expected_reset[6:16] == reset_identity[6:16]:
+                # A separately authorized same-day run is a peer, never this
+                # occurrence's completion. Replay it and retain unresolved barriers.
+                peer = _load_family_progress(root, reset_identity=expected_reset, checkpoint=checkpoint)
+                accounted = set(peer)
+            else:
+                accounted = _historical_family_accounting(root, reset_identity, expected_reset)
             if reserved - accounted:
                 raise _pnsctl().OperatorError("Enhancement prior reservation lacks reconciled category evidence")
         else:
@@ -1995,6 +2018,7 @@ def run_enhancement_family(
             flow_root, reset_identity,
             recovery_variant=variant if recovery_only else None,
             checkpoint=lease.get("checkpoint"),
+            operator_request_id=lease.get("operator_request_id"),
         )
     if not recovery_only:
         reservations = _ensure_family_reservations(flow_root)

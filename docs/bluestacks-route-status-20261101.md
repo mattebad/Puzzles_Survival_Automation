@@ -8,6 +8,39 @@ authorized bounded controllers temporarily enable selected routes.
 
 ## Current acceptance
 
+The user explicitly authorized one extra same-day family and one extra Ultimate
+run. The new manual-request option reuses the canonical service owner, claim,
+dispatch fences and existing resource-effect contracts. It creates separate
+request-scoped progress while preserving the exact real reset identity, earlier
+daily results, due time and scheduled ordinal. A request is consumed once; unknown
+results remain blocked across later requests. Only Enhancement and Ultimate accept
+this option, and the service returns after one traversal. Normal daily scheduling
+is unchanged.
+
+Live acceptance at 15:50–16:03 UTC passed on the frozen working source: Enhancement
+used 22 inputs/three Confirms in one uninterrupted Gear→Chip→Module Profile visit,
+then Home. Each category consumed exactly one one-star material and gained 10 EXP
+(50→60): Gear9558→9557, Chip11531→11530, Module8295→8294. Ultimate used eight inputs,
+one Flee and Home, without relaunch or human recovery. No native Defeat/Continue
+was encountered; that branch remains offline-proven.
+
+The immutable final audit is
+`.local-orchestrator/logs/explicit-extra-enhancement-ultimate-final-audit-20261101T160444578918Z.json`.
+It checked 421 unchanged frozen files, 108 PNGs/99 capture references, actual
+category dispatch/reconciliation links, both independently recognized Home frames,
+all six prior daily-state files unchanged, every due time/ordinal unchanged and
+all seven unselected flow rows unchanged. Both manual claims succeeded. All nine
+controls/service are OFF with released owners and no pending run/input/effect block.
+The earlier composite receipts remain historical; these are fresh uninterrupted
+manual-run passes. Campaign AP and the running game client were preserved.
+
+Offline validation: 55 existing route cases, 20 focused repeat/dispatch cases and
+53 canonical state/scheduler cases passed. New repeat tests are included in CI;
+latest branch CI must pass before merge. The two-hour cadence/restart proofs on
+`80d24d1` below retain that exact source scope; they are not relabeled as reruns of
+the later manual-request change.
+
+
 | Check | Observed result | Remaining limit |
 | --- | --- | --- |
 | Two-hour cadence | `80d24d1`: 7,200.373 seconds, 21 completed Campaign reports, two wins/28 AP and 29 inputs including one Scarlett Back. All reported terminals verify Home; every completion schedules +300 seconds. 416 unchanged files, 173 PNGs and 131 capture references checked; final independent recorded Home/AP11. | Other seven selected routes stayed future-due. Nineteen low-AP checks used zero inputs. This was 09:10–11:10 UTC within November 1, not a reset crossing. The earlier `c4dd031` cohort separately accepted five remaining Nova Praises and three Basic recruits. |
@@ -18,8 +51,8 @@ authorized bounded controllers temporarily enable selected routes.
 | Cold restart | `80d24d1`: independent clean Home before/immediate-before; one stop, verified process exit, one MAIN/LAUNCHER/NEW_TASK launch, zero bootstrap game inputs, known Scarlett successor. All nine flow/due rows were unchanged across the cold step. Canonical recovery then used 17 inputs including one Back, performed one affordable 14-AP win, and independently verified Home/AP1. | Fully automated combined sequence includes game inputs and one AP action; only the bootstrap is zero-input. Other eight flow records remained identical after the AP pass. All controls OFF/released. Earlier splash timeout and precondition denial are separate retained receipts; historical Play Games causality remains unproved. |
 | Supply Depot | `d41af83`: radial to facility, 9 free attempts to 0 through one Hold, 3 inputs/Home. Final crop also passes retained-frame repetitions. | Composite entry across repairs. Fresh uninterrupted Home entry/free Hold/Home on final source requires the next actual reset. |
 | Personal Might | `122ff13`: uninterrupted 6 inputs, one Praise, three independently replayed disabled/gray captures and Home. | Historical source acceptance; current-source refresh remains required after reset. |
-| Enhancement | Gear, Chip and Module each once in one physical Profile visit/Home: original 13 inputs/one Gear Confirm plus 15-input Chip/Module resume. | Composite acceptance. Fully uninterrupted all-three is `evidence_required` after reset; no accepted category is repeated today. |
-| Ultimate | Original one Flee closed the warning to Defeat. User restart, one Scarlett Back and later zero-input Home adoption supplied composite completion. The two-hour cohort honored it with an already-completed/Home zero-input guard. | Fresh full Home entry/Challenge/one Flee/Home remains required after reset. Native Defeat/Continue is offline-proven; accept it live only if encountered. No further Flee today. |
+| Enhancement | Explicit extra same-day manual run: uninterrupted Gear→Chip→Module once in one Profile visit, 22 inputs/three Confirms/Home; each stock −1 and EXP50→60. | Earlier composite proof is preserved separately. Normal daily completion and due/ordinal were unchanged. |
+| Ultimate | Explicit extra same-day manual run: full Home→Campaign→Ultimate→Challenge→battle→one Flee→Home, eight inputs; no restart/human recovery. | Native Defeat/Continue was not encountered and remains offline-proven. Earlier human-assisted composite receipt is preserved. No additional same-day attempt is authorized. |
 | Native reset crossing | Pending November 2 at 00:00 UTC. | Actual consuming Campaign actions on both sides and continuous-client Tavern refresh are required. The earlier admission-only defer is not consuming proof. |
 
 ## Latest retained audits and next run
@@ -207,7 +240,7 @@ Retry-breaker acknowledgment after inspected code repair used canonical state
 APIs and retained the failed outcomes. It did not rearm resource quotas or alter
 due dates.
 
-Remaining scope is explicit: uninterrupted Enhancement and fresh Supply Home
+At this earlier checkpoint, remaining scope included uninterrupted Enhancement and fresh Supply Home
 entry after reset, Ultimate continuation and a fresh full Home-entry pass,
 consuming native UTC crossing, continuous Tavern refresh, current-source cadence,
 and any camera recovery branch not actually exercised.
