@@ -63,7 +63,10 @@ class _NativeRuntime:
         image = np.full((1280, 800, 3), self.ordinal + 50, np.uint8)
         png = cv2.imencode(".png", image)[1].tobytes()
         if getattr(self.test, "startup_popup", False):
-            fixture = "startup/nova-vip-reset-20261031.png" if not self.input_count else "home_base/native-home-20261029.png"
+            sequence = getattr(self.test, "startup_frames", (
+                "startup/nova-vip-reset-20261031.png", "home_base/native-home-20261029.png",
+            ))
+            fixture = sequence[min(self.input_count, len(sequence) - 1)]
             png = (Path(__file__).parent / "fixtures" / fixture).read_bytes()
             image = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_COLOR)
         path = self.frames / f"{self.ordinal:04d}-{label}.png"
@@ -177,9 +180,32 @@ class ServiceEnhancementTests(unittest.TestCase):
             delivery._verify_family_startup(result, runtime.session, rows)
             for field in ("source_sha256", "settled_sha256", "action_key"):
                 changed = copy.deepcopy(result)
-                changed["startup_recovery"][field] = "changed"
+                changed["startup_recovery"]["steps"][0][field] = "changed"
                 with self.subTest(field=field), self.assertRaises(pnsctl.OperatorError):
                     delivery._verify_family_startup(changed, runtime.session, rows)
+
+    def test_native_vip_scarlett_stack_reaches_home_with_two_unique_navigation_inputs(self):
+        self.startup_frames = ("startup/nova-vip-reset-20261031.png",
+                               "startup/scarlett-current-20261030.png", "home_base/native-home-20261029.png")
+        with self.startup_session() as (runtime, session):
+            proof = delivery._recover_family_startup(runtime, session)
+            self.assertEqual((runtime.input_count, session.input_count), (2, 2))
+            self.assertEqual([step["popup_identity"] for step in proof["steps"]],
+                             ["VIP_POINTS_GET_PTS", "SCARLETT_THREE_DAY_PACK"])
+            rows = delivery._read_event_rows(runtime.events)
+            result = {"startup_recovery": proof, "enhancement_result": {"reset_identity": NATIVE_RESET}}
+            delivery._verify_family_startup(result, runtime.session, rows)
+            changed = copy.deepcopy(result)
+            changed["startup_recovery"]["steps"] = list(reversed(proof["steps"]))
+            with self.assertRaises(pnsctl.OperatorError):
+                delivery._verify_family_startup(changed, runtime.session, rows)
+
+    def test_repeated_vip_popup_stops_after_one_navigation_without_retry(self):
+        self.startup_frames = ("startup/nova-vip-reset-20261031.png",)
+        with self.startup_session() as (runtime, session):
+            with self.assertRaises(pnsctl.OperatorError):
+                delivery._recover_family_startup(runtime, session)
+            self.assertEqual((runtime.input_count, session.input_count), (1, 1))
 
     def test_startup_failure_keeps_shared_helper_input_without_entering_family(self):
         with self.startup_session() as (runtime, session):

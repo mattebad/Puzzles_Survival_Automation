@@ -1905,32 +1905,58 @@ def _reconcile_recovery_no_effect(
 
 
 def _recover_family_startup(runtime, session):
+    try:
+        return _run_family_startup(runtime, session)
+    finally:
+        session.adopt_retained_transport_count(runtime.input_count, source=str(runtime.events))
+
+
+def _run_family_startup(runtime, session):
     from scripts.startup_normalization import is_clean_home_frame
-    from scripts.startup_recovery import classify_startup_frame, recover_contextual_startup_overlay
+    from scripts.startup_recovery import (
+        SCARLETT_THREE_DAY_PACK, classify_startup_frame, recover_contextual_startup_overlay,
+    )
 
     source = session.observe(runtime.capture, label="enhancement-startup-overlay-source")
-    plan = classify_startup_frame(FLOW_ID, source.png)
-    if plan.status == "blocked":
-        raise _pnsctl().OperatorError(plan.reason)
-    if plan.status != "recovery_required":
-        return None
-    key = f"enhancement:startup:{runtime.session.name}"
-    try:
+    steps = []
+    for ordinal in range(2):
+        plan = classify_startup_frame(FLOW_ID, source.png)
+        if plan.status == "blocked":
+            raise _pnsctl().OperatorError(plan.reason)
+        if plan.status != "recovery_required":
+            if steps:
+                raise _pnsctl().OperatorError("Enhancement startup stack lost its recognized successor")
+            return None
+        key = f"enhancement:startup:{runtime.session.name}:{ordinal}"
+        before = runtime.input_count
         recovery = recover_contextual_startup_overlay(
             runtime, source, source_context="enhancement_family_startup",
             recognize_successor=lambda frame: is_clean_home_frame(frame.frame), action_key=key,
         )
-    finally:
-        session.adopt_retained_transport_count(runtime.input_count, source=str(runtime.events))
-    if (recovery.input_count != 1 or runtime.input_count != 1
-            or not recovery.resume_ready or recovery.settled_frame is None):
-        raise _pnsctl().OperatorError(f"Enhancement startup recovery failed: {recovery.reason}")
-    settled = recovery.settled_frame
-    return {"input_count": 1, "popup_identity": plan.popup_identity, "action_key": key,
+        if (recovery.input_count != 1 or runtime.input_count != before + 1
+                or recovery.settled_frame is None):
+            raise _pnsctl().OperatorError(f"Enhancement startup recovery failed: {recovery.reason}")
+        settled = recovery.settled_frame
+        next_plan = classify_startup_frame(FLOW_ID, settled.png)
+        home = recovery.resume_ready and next_plan.status == "clear" and is_clean_home_frame(settled.frame)
+        # The observed reset stack is VIP -> Scarlett -> Home. A known next
+        # surface is navigation context only; it never admits the family.
+        stacked_scarlett = (
+            ordinal == 0 and plan.popup_identity == "VIP_POINTS_GET_PTS"
+            and recovery.dismissed is True and recovery.popup_absent is True
+            and next_plan.status == "recovery_required" and next_plan.popup_identity == SCARLETT_THREE_DAY_PACK
+        )
+        if not home and not stacked_scarlett:
+            raise _pnsctl().OperatorError(f"Enhancement startup recovery failed: {recovery.reason}")
+        steps.append({"input_count": 1, "popup_identity": plan.popup_identity, "action_key": key,
             "source_frame": source.path.relative_to(runtime.session).as_posix(),
             "source_sha256": source.sha256,
             "settled_frame": settled.path.relative_to(runtime.session).as_posix(),
-            "settled_sha256": settled.sha256, "reason": recovery.reason}
+            "settled_sha256": settled.sha256, "reason": recovery.reason})
+        if home:
+            return {"input_count": len(steps), "steps": steps}
+        source = settled
+    raise _pnsctl().OperatorError("Enhancement startup recovery exceeded its two known surfaces")
 
 
 def run_enhancement_family(
@@ -3306,26 +3332,18 @@ def _original_no_effect_attempt(receipt: Mapping[str, Any]) -> dict[str, Any]:
     return original
 
 
-def _verify_family_startup(result, session, rows):
+def _verify_family_startup_step(recovery, session, rows, reset, dispatch_row, *, final):
     from scripts.enhancement_bluestacks import recognize_home_frame
     from scripts.startup_recovery import (
         SCARLETT_SAFE_BACK_TARGET_IDENTITY, VIP_RESET_TARGET, classify_startup_frame,
     )
 
-    recovery = result.get("startup_recovery")
-    dispatches = [(index, row) for index, row in enumerate(rows)
-                  if row.get("type") == "dispatch" and (
-                      row.get("target_identity") in {VIP_RESET_TARGET, SCARLETT_SAFE_BACK_TARGET_IDENTITY}
-                      or str(row.get("action_key") or "").startswith("enhancement:startup:"))]
-    if recovery is None and not dispatches:
-        return
     if (not isinstance(recovery, Mapping) or type(recovery.get("input_count")) is not int
-            or recovery["input_count"] != 1 or len(dispatches) != 1):
+            or recovery["input_count"] != 1):
         raise _pnsctl().OperatorError("Enhancement startup recovery accounting is missing")
-    reset = result["enhancement_result"]["reset_identity"]
     source = _context_capture(session, rows, recovery["source_frame"], reset=reset)
     settled = _context_capture(session, rows, recovery["settled_frame"], reset=reset)
-    index, dispatch = dispatches[0]
+    index, dispatch = dispatch_row
     prior = [row for row in rows[:index] if row.get("type") == "capture"]
     if not prior:
         raise _pnsctl().OperatorError("Enhancement startup immediate source is missing")
@@ -3351,9 +3369,43 @@ def _verify_family_startup(result, session, rows):
         or dispatch.get("execute") is not True or dispatch.get("action_class") != "navigation"
         or dispatch.get("consequential") is not False
         or not immediate[2] <= _event_utc(dispatch, "startup input") <= settled[2]
-        or not recognize_home_frame(settled[0].frame, source_frame_sha256=settled[0].sha256).recognized
+        or (final and not recognize_home_frame(settled[0].frame, source_frame_sha256=settled[0].sha256).recognized)
     ):
         raise _pnsctl().OperatorError("Enhancement startup recovery cannot be independently replayed")
+    return source, settled, current
+
+
+def _verify_family_startup(result, session, rows):
+    from scripts.startup_recovery import (
+        SCARLETT_THREE_DAY_PACK, SCARLETT_SAFE_BACK_TARGET_IDENTITY, VIP_RESET_TARGET, classify_startup_frame,
+    )
+
+    recovery = result.get("startup_recovery")
+    dispatches = [(index, row) for index, row in enumerate(rows)
+                  if row.get("type") == "dispatch" and (
+                      row.get("target_identity") in {VIP_RESET_TARGET, SCARLETT_SAFE_BACK_TARGET_IDENTITY}
+                      or str(row.get("action_key") or "").startswith("enhancement:startup:"))]
+    if recovery is None and not dispatches:
+        return
+    steps = recovery.get("steps") if isinstance(recovery, Mapping) else None
+    if (not isinstance(steps, list) or not 1 <= len(steps) <= 2
+            or type(recovery.get("input_count")) is not int
+            or recovery["input_count"] != len(steps) or len(dispatches) != len(steps)):
+        raise _pnsctl().OperatorError("Enhancement startup recovery accounting is missing")
+    reset = result["enhancement_result"]["reset_identity"]
+    previous = None
+    for ordinal, (step, dispatch) in enumerate(zip(steps, dispatches)):
+        source, settled, current = _verify_family_startup_step(
+            step, session, rows, reset, dispatch, final=ordinal == len(steps) - 1,
+        )
+        if previous is not None and (source[1] != previous[1] or source[0].sha256 != previous[0].sha256):
+            raise _pnsctl().OperatorError("Enhancement startup stack is not continuous")
+        if ordinal != len(steps) - 1:
+            successor = classify_startup_frame(FLOW_ID, settled[0].png)
+            if (current.popup_identity != "VIP_POINTS_GET_PTS" or successor.status != "recovery_required"
+                    or successor.popup_identity != SCARLETT_THREE_DAY_PACK):
+                raise _pnsctl().OperatorError("Enhancement startup stack has an unexpected successor")
+        previous = settled
 
 
 def verify_enhancement_family(
