@@ -3,9 +3,12 @@ from contextlib import ExitStack
 from dataclasses import replace
 import copy
 import hashlib
+import itertools
 import json
 from pathlib import Path
 import tempfile
+import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -79,6 +82,12 @@ class UltimateServiceTests(unittest.TestCase):
         self.runtimes = []
         self.stopped = False
         self.stop_after_flee = False
+        # Windows Python 3.11 can return equal monotonic ticks for instant fake
+        # captures. Advance per call; the bounded counter stays well below the
+        # 0.1s offset, keeping captures non-future for other freshness clocks.
+        native_ticks = itertools.count(1)
+        self.stack.enter_context(patch("scripts.bluestacks_native_runtime.time",
+                                       SimpleNamespace(monotonic=lambda: time.monotonic() - 0.1 + next(native_ticks) / 1_000_000)))
         self.stack.enter_context(patch.object(service, "RESET_STATE_PATH", self.state_path))
         self.action_store = self.stack.enter_context(patch("scripts.navigation_development_boundary.open_canonical_action_store",
                                                          side_effect=lambda: SafetyStore(self.root / "actions.sqlite3")))

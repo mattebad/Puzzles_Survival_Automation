@@ -345,11 +345,40 @@ def _central_popup_candidates(
     return candidates
 
 
-def _unexpected_visual_popup(frame: np.ndarray) -> bool:
+def _unexpected_visual_popup(frame: np.ndarray, *, puzzle_board: bool = False) -> bool:
     """Reject bounded unexpected panels, including resource/purchase prompts."""
 
     panels = _central_popup_candidates(frame)
-    if not panels:
+    if not panels and not puzzle_board:
+        return False
+    if puzzle_board:
+        # Hough can pair unrelated gem-grid lines into fictional rectangles.
+        # On a separately proved puzzle board, require the proposed panel's
+        # top and bottom borders to continue across its width. The other
+        # actionable states retain the existing geometry-only denial.
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 40, 140)
+        # Closed panel contours remain blocking even when the Hough pairing
+        # limit has filled with the board's many unrelated lines.
+        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            x, y, width, height = cv2.boundingRect(contour)
+            if not (40 < x and x + width < 760 and 300 <= y <= 800
+                    and 450 <= y + height <= 1100
+                    and 400 <= width <= 780 and 220 <= height <= 700):
+                continue
+            corners = cv2.approxPolyDP(contour, 0.015 * cv2.arcLength(contour, True), True)
+            if len(corners) == 4 and cv2.contourArea(contour) >= width * height * 0.90:
+                return True
+        for x0, y0, x1, y1 in panels:
+            if y0 < 440 or y1 > 1030:
+                return True
+            borders = (
+                edges[y0 - 5:y0 + 6, x0 + 12:x1 - 12],
+                edges[y1 - 5:y1 + 6, x0 + 12:x1 - 12],
+            )
+            if all(float(np.mean(np.any(border, axis=0))) >= 0.90 for border in borders):
+                return True
         return False
     # An unexpected panel is denied by geometry alone.  Resource/purchase/refill
     # semantics, when present, are corroboration rather than authorization.
@@ -1554,7 +1583,7 @@ def _continue_from_vip_reset_popup(
 def _bind_active_battle_exit(frame: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bind the icon-only upper-right Exit after proving the native puzzle board."""
 
-    if _unexpected_visual_popup(frame):
+    if _unexpected_visual_popup(frame, puzzle_board=True):
         return None
     if _has_warning_modal_geometry(frame):
         return None

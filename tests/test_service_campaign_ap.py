@@ -2,12 +2,14 @@
 from contextlib import ExitStack, closing
 from dataclasses import replace
 import hashlib
+import itertools
 import json
 from pathlib import Path
 import sqlite3
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 
 import cv2
@@ -63,6 +65,13 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.runtimes = []
         self.store_path = self.root / "actions.sqlite3"
         self.store_opens = 0
+        # Windows Python 3.11 can return equal monotonic ticks for instant fake
+        # captures. Advance per call; the bounded counter stays well below the
+        # 0.1s offset, keeping captures non-future for other freshness clocks.
+        native_ticks = itertools.count(1)
+        self.native_clock = lambda: time.monotonic() - 0.1 + next(native_ticks) / 1_000_000
+        self.stack.enter_context(patch("scripts.bluestacks_native_runtime.time",
+                                       SimpleNamespace(monotonic=self.native_clock)))
         self.connect = self.stack.enter_context(patch.object(LocalBlueStacksRuntime, "connect", side_effect=self.runtime))
         self.stack.enter_context(patch.object(LocalBlueStacksRuntime, "measure_foreground_package",
                                              return_value="com.global.ztmslg"))
@@ -74,7 +83,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.stack.enter_context(patch.object(native, "run_verified_campaign_home_atlas_entry", side_effect=self.atlas))
         self.runner = ap.CampaignRunner(adb="FORBIDDEN", serial="emulator-5554", output_directory=self.root,
                                         cadence_seconds=900, utc_clock=lambda: self.now,
-                                        monotonic_clock=time.monotonic, settle_seconds=0)
+                                        monotonic_clock=self.native_clock, settle_seconds=0)
 
     def runtime(self, **_kwargs):
         runtime = LocalBlueStacksRuntime(self.world, self.root / f"native-{len(self.runtimes)}", execute=True)
