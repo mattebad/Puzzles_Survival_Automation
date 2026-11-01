@@ -17,7 +17,7 @@ All 21 Campaign completions scheduled +300 seconds. The audit checks 416 unchang
 files, 173 PNGs, 131 capture references, canonical stage/Lineup links and disabled cleanup.
 The other seven selected routes remained future-due; this is fresh AP/cadence proof.
 
-Current-code guarded restart then verified one stop/process exit and one checked
+The `80d24d1` guarded restart then verified one stop/process exit and one checked
 launch, with zero bootstrap game inputs and all nine flow/due rows unchanged.
 Its actual successor was Scarlett. A separate canonical Campaign pass recovered
 it, observed 14 AP, completed one normally admitted 14-AP win and returned Home/AP1:
@@ -41,6 +41,13 @@ claims and state preserve every earlier result. The final audit checks 421 froze
 files, 108 PNGs/99 capture references, all controls OFF and owners released:
 `.local-orchestrator/logs/explicit-extra-enhancement-ultimate-final-audit-20261101T160444578918Z.json`.
 Native Ultimate Defeat/Continue was not encountered and remains offline-proven.
+
+A fresh bot process on `a52db42` subsequently honored all seven completed daily
+routes: zero attempts, inputs, resource actions or native startup. Every due time,
+ordinal and last-completion fact stayed unchanged; Campaign's entire row was
+identical, and all controls/owners were released. This proves the process restart
+skip guard, without restarting or recapturing the running game. Audit:
+`.local-orchestrator/logs/completed-daily-process-restart-final-audit-20261101T1613Z.json`.
 
 Remaining live acceptance requires the real November 2 00:00 UTC reset: Campaign
 entering affordable stages before and after midnight in the same ongoing drain,

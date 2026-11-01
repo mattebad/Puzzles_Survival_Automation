@@ -57,6 +57,15 @@ the later manual-request change.
 
 ## Latest retained audits and next run
 
+A subsequent fresh canonical process on `a52db42` selected the seven future-due
+completed daily routes. It entered no native runner/startup, created or changed no
+run, and sent zero inputs/resource actions. All due times, ordinals and last
+completion facts stayed unchanged; the Campaign row was identical. All controls
+returned OFF and owners released. The running game was neither stopped nor
+relaunched; this adds process restart guard coverage, not another cold restart or
+fresh Home observation. The immutable audit is
+`.local-orchestrator/logs/completed-daily-process-restart-final-audit-20261101T1613Z.json`.
+
 The CI72 executable code completed 09:10:16–11:10:17 UTC. Its audit is
 `.local-orchestrator/logs/current80-full-7200-cadence-final-audit-20261101T111457119518Z.json`.
 Both actual victories, both 14-AP Core entries and exact stage/Lineup links are
