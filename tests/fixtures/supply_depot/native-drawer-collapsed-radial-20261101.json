@@ -1,0 +1,7 @@
+{
+  "source": ".local-captures\\automation-service-authorized\\soak-20261101T012637332185Z-8c3108bb\\supply\\supply-depot-20261101T012639045676Z-9c086244\\supply-depot-native-20261101T012639140921Z\\frames\\0005-supply-event-drawer-collapse-settled.png",
+  "sha256": "da0c3b891c8c1a6eda20763eaceba5676450010137546b4ce179715d04cced2b",
+  "copied_at_utc": "2026-11-01T01:32:59.230235+00:00",
+  "source_head": "6e9e4ccd0cd5eeb6b79b7d9ca25b6384261b0305",
+  "purpose": "Unmodified native successor of exactly1drawer-collapse navigation. Up-chevron and count1 visible; lower Supply caption partly obscured, full Claim and independently provable button body remain. Zero Hold/resource actions occurred; no full-route acceptance implied."
+}

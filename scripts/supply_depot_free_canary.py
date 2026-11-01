@@ -635,6 +635,8 @@ def run(
                         action_key=f"open-supply-depot:{before.sha256[:12]}",
                     )
 
+                radial_successor = {}
+
                 def recognize_radial(_after):
                     time.sleep(settle_seconds)
                     settled = capture("supply-depot-radial-settled")
@@ -645,6 +647,11 @@ def run(
                         ),
                         source_png=settled.png,
                     )
+                    if rebound is None:
+                        radial_successor["identity_recognized"] = recognize_supply_depot_radial(
+                            settled.frame, source_frame=_identity(runtime, settled, "supply-depot-radial-settled"),
+                            source_png=settled.png,
+                        )
                     return "supply_depot_radial" if rebound is not None else "unknown"
 
                 action = session.run_action(
@@ -658,7 +665,8 @@ def run(
                     consequence_class="navigation_only",
                 )
                 if action.status != "completed":
-                    result["reason"] = "supply_depot_radial_not_recognized"
+                    result["reason"] = ("supply_depot_radial_control_not_actionable"
+                        if radial_successor.get("identity_recognized") else "supply_depot_radial_not_recognized")
                     session.terminal_status = "evidence_required"
                     return result
 

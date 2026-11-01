@@ -197,23 +197,6 @@ def _claim_label_row_from_data(data: dict[str, list], *, search_roi: Box, scale:
     return row if 0 <= row[0] < row[2] <= 800 and 0 <= row[1] < row[3] <= 1280 else None
 
 
-def _supply_label_roi_from_data(data: dict[str, list], *, search_roi: Box, scale: float = 2.0) -> Box | None:
-    """Accept only a complete, unique Supply word inside the isolated row."""
-    tokens = [(index, _normalized(str(raw))) for index, raw in enumerate(data.get("text", ())) if _normalized(str(raw))]
-    if len(tokens) != 1 or tokens[0][1] != "supply":
-        return None
-    index = tokens[0][0]
-    x0 = search_roi[0] + float(data["left"][index]) / scale
-    y0 = search_roi[1] + float(data["top"][index]) / scale
-    x1 = x0 + float(data["width"][index]) / scale
-    y1 = y0 + float(data["height"][index]) / scale
-    if not (40 <= x1 - x0 <= 110 and 12 <= y1 - y0 <= 30):
-        return None
-    if not (search_roi[0] < x0 < x1 < search_roi[2] and search_roi[1] < y0 < y1 < search_roi[3]):
-        return None
-    return (int(math.floor(x0)), int(math.floor(y0)), int(math.ceil(x1)), int(math.ceil(y1)))
-
-
 def _normalized(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
@@ -244,7 +227,9 @@ def bind_home_event_drawer_toggle(frame: np.ndarray, *, expanded: bool) -> Box |
                 or abs((tip[-1] + tip[0]) / 2 - (width - 1) / 2) > .15 * width):
             continue
         cy = y0 + y + height // 2
-        rail = cv2.cvtColor(frame[cy - 18:cy + 18, 600:790], cv2.COLOR_BGR2GRAY)
+        # The expanded rail extends leftward; its persistent toggle segment
+        # remains at the right after collapse and carries the up-chevron/count.
+        rail = cv2.cvtColor(frame[cy - 18:cy + 18, 680:790], cv2.COLOR_BGR2GRAY)
         if float(np.mean(rail < 80)) < .85:
             continue
         candidates.append((int(x0 + x - 4), int(y0 + y - 4),
@@ -286,12 +271,12 @@ def _claim_icon_template() -> np.ndarray | None:
         return None
 
 
-def _claim_button_interior(frame: np.ndarray, claim: Box, supply: Box) -> Box | None:
+def _claim_button_interior(frame: np.ndarray, claim: Box, label_row: Box) -> Box | None:
     """Bind the measured circular button; text below the button is not clickable."""
     height = claim[3] - claim[1]
     width = claim[2] - claim[0]
     search = (max(0, claim[0] - width), max(0, claim[1] - 5 * height),
-              min(800, claim[2] + width), min(1280, supply[3] + 4))
+              min(800, claim[2] + width), min(1280, label_row[3] + 4))
     x0, y0, x1, y1 = search
     pixels = cv2.normalize(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY),
                            None, 0, 255, cv2.NORM_MINMAX)
@@ -386,8 +371,8 @@ def _recognized_supply_radial_roi(
             and ("supply" in text or "supp" in text or re.search(r"(?:^| )sup[a-z]*(?: |$)", text))
             and ("upgrade" in text or "pgrade" in text or "grade" in text or "rage" in text)
             # Sparse OCR can split the edge-clipped Details caption as "Det".
-            # This identifies the menu only; binding still needs complete,
-            # unobscured Claim/Supply labels and an independent button interior.
+            # This identifies the menu only; binding still needs a complete
+            # Claim label and an independent suitcase/circle interior clear of HUD.
             and ("details" in text or "deta" in text or "etail" in text
                  or re.search(r"(?:^| )det(?: |$)", text))
         ):
@@ -415,7 +400,12 @@ def bind_supply_depot_claim_supply(
     source_frame: NativeFrameIdentity | None = None,
     source_png: bytes | None = None,
 ) -> BuildingBinding | None:
-    """Bind a current Claim Supply target only when it is clear of the HUD."""
+    """Bind navigation by exact Claim, identified radial and clear button body.
+
+    The lower Supply caption may be covered while the button remains provable.
+    It supplies no target authority: the unique suitcase, circular interior and
+    every target pixel's HUD clearance are independently required below.
+    """
 
     from scripts.bluestacks_popup_recognition import recognize_reset_popup
 
@@ -442,17 +432,9 @@ def bind_supply_depot_claim_supply(
     label_row = _claim_label_row_from_data(data, search_roi=search_roi)
     if claim is None or label_row is None:
         return None
-    try:
-        pixels = _crop(frame, label_row, source_frame=source_frame, source_png=source_png)
-        pixels = cv2.resize(cv2.cvtColor(pixels, cv2.COLOR_BGR2GRAY), None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-        label_data = pytesseract.image_to_data(
-            pixels, config="--psm 7", output_type=pytesseract.Output.DICT, timeout=5)
-    except (RuntimeError, OSError, ValueError):
-        return None
-    supply = _supply_label_roi_from_data(label_data, search_roi=label_row)
-    if supply is None:
-        return None
-    target_roi = _claim_button_interior(frame, claim, supply)
+    # The measured lower row bounds the icon search; its partially covered
+    # text is not substituted for a current button observation.
+    target_roi = _claim_button_interior(frame, claim, label_row)
     if target_roi is None:
         return None
     return BuildingBinding(
@@ -460,7 +442,7 @@ def bind_supply_depot_claim_supply(
         target_roi=target_roi,
         frame_sha256=frame_digest(frame),
         confidence=0.97,
-        semantic_evidence=("current-frame Supply Depot radial", "OCR: Claim Supply", "separate Upgrade control observed",
+        semantic_evidence=("current-frame Supply Depot radial", "OCR: complete Claim with Supply radial context", "separate Upgrade control observed",
                            "unique current suitcase icon inside measured circular Claim button",
                            "all target pixels inside button and clear of fixed HUD"),
         overlay_intersects=False,

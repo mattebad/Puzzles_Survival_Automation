@@ -16,7 +16,6 @@ from tasks.perception_bundle import NativeFrameIdentity
 from tasks import supply_depot_vision as supply_depot_module
 from tasks.supply_depot_vision import (
     _claim_label_row_from_data,
-    _supply_label_roi_from_data,
     bind_supply_depot_claim_supply,
     recognize_supply_depot_screen,
     recognize_supply_depot_radial,
@@ -84,6 +83,24 @@ def frame_identity(
 
 
 class SupplyDepotVisionTests(unittest.TestCase):
+    def test_native_collapsed_drawer_keeps_safe_button_despite_covered_lower_caption(self):
+        from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+        from scripts.home_atlas_bluestacks import identity_from_captured
+
+        path = Path(__file__).parent / "fixtures/supply_depot/native-drawer-collapsed-radial-20261101.png"
+        captured = captured_native_frame_from_png(path.read_bytes(), path=path, captured_monotonic=time.monotonic())
+        identity = identity_from_captured(captured, session_id="offline-supply-collapsed-drawer", ordinal=1)
+        self.assertEqual(supply_depot_module.bind_home_event_drawer_toggle(captured.frame, expanded=False),
+                         (728, 1058, 765, 1076))
+        self.assertIsNone(supply_depot_module.bind_home_event_drawer_toggle(captured.frame, expanded=True))
+        binding = bind_supply_depot_claim_supply(captured.frame, source_frame=identity, source_png=captured.png)
+        self.assertIsNotNone(binding, self.native_ocr_diagnostics)
+        self.assertEqual(binding.target_roi, (655, 842, 671, 854))
+        self.assertEqual(binding.frame_sha256, frame_digest(captured.frame))
+        self.assertFalse(any(binding.target_roi[0] < x1 and binding.target_roi[2] > x0
+            and binding.target_roi[1] < y1 and binding.target_roi[3] > y0
+            for x0, y0, x1, y1 in supply_depot_module.HUD_MASK_RECTS))
+
     def test_native_expanded_drawer_binds_only_its_unique_down_chevron(self):
         path = Path(__file__).parent / "fixtures/supply_depot/native-drawer-occluded-radial-20261101.png"
         frame = cv2.imread(str(path))
@@ -100,7 +117,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
         self.assertIsNone(bind(reversed_arrow, expanded=True))
         self.assertEqual(bind(reversed_arrow, expanded=False), (729, 1057, 764, 1075))
         duplicate = frame.copy()
-        duplicate[1091:1101, 733:760] = frame[1061:1071, 733:760]
+        duplicate[1061:1071, 690:717] = frame[1061:1071, 733:760]
         self.assertIsNone(bind(duplicate, expanded=True))
         no_rail = frame.copy()
         no_rail[1048:1084, 600:790] = 150
@@ -287,15 +304,6 @@ class SupplyDepotVisionTests(unittest.TestCase):
         clipped = {"text": ["Claim"], "left": [0], "top": [20], "width": [100], "height": [40]}
         self.assertIsNone(_claim_label_row_from_data(clipped, search_roi=(145, 620, 800, 1020)))
 
-    def test_tight_supply_word_rejects_partial_duplicate_upgrade_and_clipped_glyphs(self):
-        row = (640, 880, 740, 912)
-        for text, left, width in ((["Suppl"], [15], [210]), (["Supply", "Supply"], [15, 15], [210, 210]), (["Upgrade"], [15], [210]), (["Supply Depot"], [15], [210]), (["Supply"], [0], [210]), (["Supply"], [15], [400])):
-            with self.subTest(text=text, left=left, width=width):
-                data = {"text": text, "left": left, "top": [6] * len(text), "width": width, "height": [60] * len(text)}
-                self.assertIsNone(_supply_label_roi_from_data(data, search_roi=row))
-        exact = {"text": ["Supply"], "left": [10], "top": [4], "width": [140], "height": [40]}
-        self.assertEqual(_supply_label_roi_from_data(exact, search_roi=row), (645, 882, 715, 902))
-
     def test_native_raised_radial_uses_tight_label_and_book_occlusion_stays_blocked(self):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         from scripts.home_atlas_bluestacks import identity_from_captured
@@ -320,7 +328,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
                     return observed
                 with ExitStack() as stack:
                     for name in ("_ocr_roi_text", "_recognized_supply_radial_roi", "_claim_text_roi_from_data",
-                                 "_claim_label_row_from_data", "_supply_label_roi_from_data", "_claim_button_interior"):
+                                 "_claim_label_row_from_data", "_claim_button_interior"):
                         stack.enter_context(patch.object(supply_depot_module, name, side_effect=trace(name)))
                     binding = bind_supply_depot_claim_supply(captured.frame, source_frame=identity, source_png=captured.png)
                 self.assertEqual(binding is not None, actionable,
@@ -333,9 +341,11 @@ class SupplyDepotVisionTests(unittest.TestCase):
                         binding.target_roi[0] < hx1 and binding.target_roi[2] > hx0
                         and binding.target_roi[1] < hy1 and binding.target_roi[3] > hy0
                         for hx0, hy0, hx1, hy1 in supply_depot_module.HUD_MASK_RECTS))
-                    changed = captured.frame.copy()
-                    changed[887:907, 652:720] = 0
-                    self.assertIsNone(bind_supply_depot_claim_supply(changed))
+                    for box in ((652, 864, 720, 886), (665, 817, 708, 856)):
+                        changed = captured.frame.copy()
+                        x0, y0, x1, y1 = box
+                        changed[y0:y1, x0:x1] = 0
+                        self.assertIsNone(bind_supply_depot_claim_supply(changed))
 
     def test_actual_hud_occluded_radial_stays_recognized_but_not_actionable(self):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
