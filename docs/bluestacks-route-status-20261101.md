@@ -14,7 +14,8 @@ authorized bounded controllers temporarily enable selected routes.
 | Personal Might | Source `122ff13`: uninterrupted 6 inputs, one committed Praise, 3 independently replayed disabled/gray captures, Home. | The first immediate post-input frame still showed ready; the route waited for the actual successor without a second Praise. |
 | Enhancement | Gear, Chip and Module each consumed once in one physical Profile visit, with final Home and independent family replay. Original attempt: 13 inputs/1 Gear Confirm. Resume: 15 inputs/2 Confirms, retaining Gear. | This is composite acceptance. An uninterrupted all-three run remains `evidence_required` at the next actual reset. |
 | Cold restart | Source `122ff13`: one guarded stop, process-exit check passed, one checked MAIN/LAUNCHER/NEW_TASK launch, Home, zero game inputs and no human intervention. | All nine flow rows and their due facts were unchanged. This proves this cached account state, not historical Play Games prompt causality. |
-| Current-source cadence and other due routes | Next bounded eight-route cohort is pending. | Prior October 31 soak acceptance remains historical; gated routes must not be counted as new consuming passes. |
+| Campaign and other due routes | Cohort `fd5b6482`: Campaign 120 + 1 regenerated - 112 spent = 9 AP, 8 wins/8 committed AP effects, 50 inputs and Home; next due exactly completion + 300 seconds. Nova used one free Praise, Tavern used one Advanced and one Basic free recruit, and Bioenhancer used one free Research; each returned Home. | This is not a completed two-hour cadence. The cohort stopped after 1,030.094 seconds on Ultimate. Nova has 6 free Praises and Tavern has 4 Basic recruits remaining. |
+| Ultimate | Four inputs reached battle, but generic popup geometry rejected the gem grid. No Exit or Flee was sent. The controller stopped and restored every control OFF. | Repair `e8419c0` passes the native regression and focused checks; the existing active-battle continuation and a fresh full Home-entry pass still require live proof. |
 | Native reset crossing | Pending November 2 at 00:00 UTC. | Requires a consuming Campaign route across the real boundary and continuous-client Tavern refresh. The earlier zero-input admission defer does not satisfy this. |
 
 Supply's current-source consuming leg and Personal Might both completed through
@@ -61,15 +62,41 @@ the actual recognition return. Dead worker/descendant, zero transport, blocked
 run and released-lease assertions remain. Eight focused repetitions passed;
 the runtime deadline and cleanup reserve were not changed.
 
+The next live cohort exposed an unrelated Ultimate recognition failure. The
+generic Hough detector paired unrelated gem-grid lines into fictional popup
+rectangles. Battle recognition now requires real horizontal panel borders and
+also checks closed panel contours, so the grid alone does not block Exit.
+Actual panels, the Flee warning, missing board and missing Exit still deny a
+target. Home and other actionable states retain their previous popup policy.
+The exact failed native frame and provenance accompany four regression tests.
+Ten retained successors independently prove that the original Lineup Challenge
+reached battle; no retained evidence grants input authority or rewrites the
+failed receipt. Continuation must freshly recognize the current battle.
+
 ## Validation and retained evidence
 
 The crop revision passed 48 focused Supply checks and eight consecutive groups
 of three native tests locally. CI repeats those three tests eight times on both
-Linux and Windows. On `122ff136eb551d9dc6df6ab43f8e529edeff086f`, both hosted
-repetition steps passed; the full Windows job passed and Linux's remaining
-groups were still running at this report update.
+Linux and Windows. On `122ff136eb551d9dc6df6ab43f8e529edeff086f`, both full
+operating-system jobs passed, including the repetition steps.
 [CI run 56](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41262958608)
 is the source of those claims, not the earlier passing runs.
+
+Latest documentation-head [CI run 57](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41264115871)
+passed Linux and both Supply repetition steps, but Windows exposed two service
+proof errors in instant fake-device tests. A frozen native clock reproduced
+the missing Campaign camera-only proof and Ultimate startup chronology failure.
+The test harnesses now advance native timestamps while keeping the remaining
+real freshness consumers in the same time window. Production chronology and
+freshness checks are unchanged. The two affected modules passed 44 cases, and
+the two reported cases passed three repetitions each. Windows Python 3.11 CI on
+repair `e8419c0` is still pending; a prior green run does not override run 57.
+
+The Ultimate repair passed 17 focused native/visual/lineup checks with normal
+temporary-directory access. A separate baseline using the original committed
+popup function reproduces two stale Home-fixture failures; they were not
+weakened or counted as passes. The sandbox's earlier temporary-directory
+permission errors are retained separately from the passing rerun.
 
 Enhancement startup checks passed 29 focused cases. Native selection/material
 checks and causal/family/service replay checks passed their focused reruns.
@@ -86,6 +113,9 @@ Raw evidence is retained locally, outside the published source tree:
 | Supply free-Hold audit | `.local-orchestrator/logs/supply-safe-button-free-hold-live-audit-20261101.json` |
 | Personal Might uninterrupted audit | `.local-orchestrator/logs/personal-might-uninterrupted-live-audit-20261101.json` |
 | Cold restart/due-state audit | `.local-orchestrator/logs/current-source-cold-restart-live-audit-20261101.json` |
+| First current-cohort Campaign drain audit | `.local-orchestrator/logs/current-cohort-first-campaign-drain-audit-20261101.json` |
+| Failed cohort/disabled cleanup audit | `.local-orchestrator/logs/all8-cohort-stopped-ultimate-live-audit-20261101.json` |
+| Ultimate successor inspection | `.local-orchestrator/logs/ultimate-failed-lineup-successor-inspection-20261101.json` |
 | Old Enhancement baseline | `.local-validation/remaining-enhancement-baseline-20261101.log` |
 | Supply local repetitions | `.local-validation/supply-tight-crop-eight-repeats-20261101.log` |
 
@@ -98,6 +128,12 @@ committed blob and timestamps rather than falsely calling that working file
 unchanged. The other 346 working source files still matched. There was no source
 edit during that live attempt.
 
+The failed eight-route cohort retained 298 PNGs, verified 275 event-capture
+hashes and all 349 frozen source hashes, and released every owner/control.
+Its first Campaign drain additionally cross-checks all 191 native captures and
+eight confirmed 14-AP actions. The failed Ultimate report remains blocked with
+zero Flee transports; it does not count as daily completion.
+
 The actual failed UI frames and their provenance accompany the focused native
 regressions. Historical failed receipts are not rewritten as successful ones.
 Retry-breaker acknowledgment after inspected code repair used canonical state
@@ -105,7 +141,8 @@ APIs and retained the failed outcomes. It did not rearm resource quotas or alter
 due dates.
 
 Remaining scope is explicit: uninterrupted Enhancement and fresh Supply Home
-entry after reset, consuming native UTC crossing, continuous Tavern refresh,
-current-source cadence, and any camera recovery branch not actually exercised.
+entry after reset, Ultimate continuation and a fresh full Home-entry pass,
+consuming native UTC crossing, continuous Tavern refresh, current-source cadence,
+and any camera recovery branch not actually exercised.
 Ultimate's accepted participation path is entry/Flee/Home; victory and independent
 quest-credit attribution remain outside that proof.

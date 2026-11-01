@@ -15,7 +15,11 @@ cold restart preserved all nine due/flow records. Supply's 9-to-0 free Hold/Home
 leg is accepted; fresh Home entry on the final crop source and uninterrupted
 Enhancement still require the next real reset. The broad-crop OCR deadline was
 reproduced, and the tighter candidate crop passed local repetitions plus both
-hosted repetition steps. Full CI and the next cadence cohort are still pending.
+hosted repetition steps. The latest cohort proved a full 120 + 1 - 112 = 9 AP
+Campaign drain with 8 wins, then stopped after 1,030.094 seconds on Ultimate's
+gem-grid popup false positive. All controls were restored OFF. Ultimate's repair
+and two Windows fake-clock test fixes passed their focused checks; current-head
+CI, live continuation, fresh Ultimate Home entry and final cadence remain pending.
 These updates do not turn the historical October 31 rows below into fresh runs.
 
 | Route | Retained acceptance | October31 reset status / remaining work |
