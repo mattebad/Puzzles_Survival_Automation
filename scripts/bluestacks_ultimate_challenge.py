@@ -109,6 +109,8 @@ _FLEE_WARNING_TITLE_ROI = (270, 385, 530, 425)
 _FLEE_MODAL_TEXT_ROI = (120, 450, 680, 590)
 _FLEE_FIGHT_SEARCH_ROI = (80, 590, 390, 740)
 _FLEE_FLEE_SEARCH_ROI = (390, 590, 720, 740)
+_DEFEAT_LOSE_ASSET = REPO_ROOT / "tasks/assets/ultimate_challenge/800x1280/defeat-lose-word.png"
+_DEFEAT_CONTINUE_ROI = (270, 1212, 530, 1270)
 # Keep contour boxes touching the native horizontal edge margins classified as scenery.
 _CENTRAL_POPUP_HORIZONTAL_MARGIN = int(NATIVE_WIDTH * 0.05)
 
@@ -1656,6 +1658,33 @@ def _bind_flee_warning_button(frame: np.ndarray) -> tuple[int, int, int, int] | 
     return flee_roi
 
 
+def _bind_ultimate_defeat_continue(frame: np.ndarray) -> tuple[int, int, int, int] | None:
+    """Bind only the defeat overlay's bottom Continue, outside Buy Now."""
+    if frame is None or frame.shape != (1280, 800, 3) or _has_warning_modal_geometry(frame):
+        return None
+    try:
+        payload = _DEFEAT_LOSE_ASSET.read_bytes()
+        metadata = json.loads(_DEFEAT_LOSE_ASSET.with_suffix(".json").read_text(encoding="utf-8"))
+        if (metadata["runtime_profile_id"] != NATIVE_RUNTIME_PROFILE_ID
+                or hashlib.sha256(payload).hexdigest() != metadata["template_sha256"]):
+            return None
+        template = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+        if template is None or template.shape != (metadata["template_height"], metadata["template_width"]):
+            return None
+        search = cv2.cvtColor(frame[:285, 40:760], cv2.COLOR_BGR2GRAY)
+        if template.shape[0] > search.shape[0] or template.shape[1] > search.shape[1]:
+            return None
+        score = float(cv2.matchTemplate(search, template, cv2.TM_CCOEFF_NORMED).max())
+        if not np.isfinite(score) or score < 0.90:
+            return None
+    except (OSError, ValueError, KeyError, TypeError, cv2.error):
+        return None
+    if (not _ocr_ordered_tokens(frame, (250, 290, 550, 340), ("improve", "might"))
+            or not _ocr_ordered_tokens(frame, _DEFEAT_CONTINUE_ROI, ("tap", "to", "continue"))):
+        return None
+    return _DEFEAT_CONTINUE_ROI
+
+
 def _recognize_active_battle(frame: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bind Exit only on an active puzzle board, never under the warning modal."""
 
@@ -2377,6 +2406,49 @@ def _run_post_flee_home_route(
         event_type="post_flee_home_source",
         event_payload={"state": "terminal_resume_source"},
     )
+    if _bind_ultimate_defeat_continue(uc.frame) is not None:
+        before = runtime.capture("post-flee-defeat-continue-immediate-before")
+        target = _bind_ultimate_defeat_continue(before.frame)
+        if target is None:
+            return TERMINAL_BLOCKED, {"reason": "defeat Continue changed before dispatch", "completed_actions": completed_actions}
+        key = f"ultimate-defeat-continue-{utc_stamp()}"
+        count_before = _runtime_input_count(runtime)
+        keys_before = _runtime_action_keys(runtime)
+        try:
+            runtime.tap(before, target_identity="ultimate-defeat-continue", target_roi=target, action_key=key)
+        except BaseException as exc:
+            accounted = _runtime_tap_dispatch_was_accounted(runtime, action_key=key,
+                input_count_before=count_before, action_keys_before=keys_before)
+            if accounted:
+                runtime.reconcile(key, "unresolved", before, "defeat Continue transport failed; no post capture")
+            return TERMINAL_BLOCKED, {"reason": f"defeat Continue transport requires inspection: {exc}",
+                "completed_actions": completed_actions, "continue_action_key": key, "runtime_accounted": accounted}
+        if not _runtime_tap_dispatch_was_accounted(runtime, action_key=key,
+                input_count_before=count_before, action_keys_before=keys_before):
+            return TERMINAL_BLOCKED, {"reason": "defeat Continue was not runtime-accounted",
+                "completed_actions": completed_actions, "continue_action_key": key, "runtime_accounted": False}
+        try:
+            after = _capture_until(runtime, label="post-defeat-ultimate-successor",
+                predicate=lambda frame: _recognize_ultimate_main(frame) is not None,
+                attempts=6, settle_seconds=max(0.8, post_input_delay))
+        except BaseException as exc:
+            evidence = getattr(runtime, "_latest_capture_until", None) or before
+            runtime.reconcile(key, "unresolved", evidence, "defeat Continue successor requires inspection")
+            return TERMINAL_BLOCKED, {"reason": f"defeat Continue requires inspection: {exc}",
+                "completed_actions": completed_actions, "continue_action_key": key}
+        if after is None or _recognize_ultimate_main(after.frame) is None:
+            if after is not None:
+                runtime.reconcile(key, "unresolved", after, "Ultimate main not verified after defeat Continue")
+            return TERMINAL_BLOCKED, {"reason": "Ultimate main not verified after defeat Continue",
+                "completed_actions": completed_actions, "continue_action_key": key}
+        runtime.reconcile(key, "confirmed", after, "defeat overlay dismissed to Ultimate main")
+        completed_actions.append({"action": "continue_ultimate_defeat", "target_roi": target,
+            "before_sha256": before.sha256, "post_sha256": after.sha256})
+        uc, uc_frame, uc_frame_sha256 = _capture_and_retain_terminal_source(
+            runtime, session=session, events=events,
+            capture_label="post-defeat-ultimate-immediate-before",
+            frame_filename="post-defeat-ultimate-immediate-before.png",
+            event_type="post_defeat_home_source", event_payload={"state": "ultimate_main"})
     if _recognize_ultimate_main(uc.frame) is None:
         if _home_nav_terminal(uc.frame):
             return TERMINAL_COMPLETE_FOR_RESET, _retain_already_home_terminal(
@@ -2558,7 +2630,7 @@ def _run_daily_route(
     resume_capture: CapturedNativeFrame | None = None,
     resume_lineup_roi: tuple[int, int, int, int] | None = None,
 ) -> tuple[str, dict[str, object]]:
-    """Execute the exact bounded Challenge â†’ Exit â†’ Flee â†’ Home route."""
+    """Execute the exact bounded Challenge -> Exit -> Flee -> Home route."""
 
     completed_actions: list[dict[str, object]] = []
     if starting_state == "flee_warning":
@@ -2715,13 +2787,15 @@ def _run_daily_route(
     fled = _capture_until(
         runtime,
         label="flee-confirmed-successor",
-        predicate=lambda frame: _recognize_ultimate_main(frame) is not None,
+        predicate=lambda frame: (_recognize_ultimate_main(frame) is not None
+                                 or _bind_ultimate_defeat_continue(frame) is not None),
         attempts=6,
         settle_seconds=max(0.8, post_input_delay),
     )
-    if fled is None or _recognize_ultimate_main(fled.frame) is None:
+    if fled is None or (_recognize_ultimate_main(fled.frame) is None
+                        and _bind_ultimate_defeat_continue(fled.frame) is None):
         return TERMINAL_BLOCKED, {"reason": "Flee completion not positively recognized", "completed_actions": completed_actions, "flee_action_key": flee_key}
-    runtime.reconcile(flee_key, "confirmed", fled, "Ultimate Challenge main recognized after Flee")
+    runtime.reconcile(flee_key, "confirmed", fled, "Ultimate main or its defeat overlay recognized after Flee")
     completed_actions.append({"action": "tap_flee", "target_text": flee_text, "target_roi": flee_roi, "before_sha256": warning.sha256, "post_sha256": fled.sha256})
     append_event(events, {"type": "consequential_step", "action": "tap_flee", "target_text": flee_text, "target_roi": flee_roi, "before_sha256": warning.sha256, "post_sha256": fled.sha256, "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0}})
 
@@ -2748,13 +2822,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--daily",
         action="store_true",
-        help="execute the approved zero-resource Challenge â†’ Exit â†’ Flee Daily route",
+        help="execute the approved zero-resource Challenge -> Exit -> Flee Daily route",
     )
-    parser.add_argument("--post-flee-home-only", action="store_true", help="resume only the verified UC-main â†’ Campaign â†’ Home terminal route")
+    parser.add_argument("--post-flee-home-only", action="store_true", help="resume only the verified UC-main -> Campaign -> Home terminal route")
     parser.add_argument(
         "--campaign-exit-home-only",
         action="store_true",
-        help="resume from a recognized Campaign tier map: measured transparent-icon exit â†’ canonical Home only",
+        help="resume from a recognized Campaign tier map: measured transparent-icon exit -> canonical Home only",
     )
     parser.add_argument("--atlas", type=Path, default=DEFAULT_HOME_ATLAS)
     parser.add_argument("--execute", action="store_true", help="allow bounded tap/swipe dispatch")

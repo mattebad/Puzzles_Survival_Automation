@@ -156,6 +156,17 @@ def classify_startup_frame(
             frame_sha256=frame_sha256,
             recognition=dict(startup_detail),
         )
+    if flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION":
+        from scripts.bluestacks_ultimate_challenge import _bind_ultimate_defeat_continue
+
+        target = _bind_ultimate_defeat_continue(frame)
+        if target is not None:
+            return StartupRecoveryPlan(
+                "route_owned", flow_id, "ULTIMATE_DEFEAT", "flow_specific_popup_recovery", False,
+                "verified_defeat_requires_post_flee_route_owned_continuation",
+                frame_sha256=frame_sha256,
+                recognition={"state": "ULTIMATE_DEFEAT", "continue_roi": target},
+            )
     if startup_detail.get("commercial_looking"):
         return StartupRecoveryPlan(
             "blocked", flow_id, None, None, False,

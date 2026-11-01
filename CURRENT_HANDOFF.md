@@ -5,18 +5,18 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "updated_utc": "2026-11-01T03:13:54.199736+00:00",
+  "updated_utc": "2026-11-01T04:07:40.719532+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
   "active_task_or_flow": "Fix intermittent Supply Depot recognition and finish remaining live acceptance before merge; sole local operator only",
   "authorization": "Current user explicitly requested continued fixes, live acceptance testing and iteration until proven before merge. Prior full-route authorization for regenerable resources persists. Each bounded controller records current authorization; no permanent enablement or merge is authorized by this work.",
-  "runtime_ownership_state": "No live operator at snapshot. Latest Flee-warning attempt stopped before input; all controlsOFF, input lock empty, Core lease released. Current locks/controller remain authoritative.",
-  "current_live_attempt_state": "Original4inputs reached battle; nextcontinuation1Exit reachedFleewarning. Latestc073dec attempt0inputs observed defeat behind same warning.0Flee throughout. All failed receipts preserved. Foreground warning/title/failure/Fight/Flee now bind both native backgrounds offline.",
-  "current_evidence_or_session_reference": ".local-captures/development-sessions/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION-20261101T030334405216Z",
+  "runtime_ownership_state": "No operator at snapshot; user just restarted BlueStacks and requested retry. Verify current locks/state/screen before input.",
+  "current_live_attempt_state": "600fd29 foreground selector sent exactly1Flee. Warning closed to knownDefeat overlay, Home not yet proved. No repeatFlee permitted. Current postFlee recovery adds one verifiedContinue thenexistingUMain/Home;20focused cases passed, existing61passed/2pre-existinggenuineHome recognitionerrors.",
+  "current_evidence_or_session_reference": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T031708993240Z/nav-20261101T031709679323Z",
   "last_safe_completed_step": "Latestzero-inputstop349sourcehashes unchanged/3PNGs retained. Foreground warning cutover passes12focused native/semantic cases;150lines of scenery-rectangle machinery retired. SourceCIpending; prior e8419c0fullCIbothOSgreen.",
-  "current_blocker": "Ultimate canonical flow remains blocked pending route-owned active-battle continuation. Two-hour cadence remains unproved on latest source. November2 00UTC still required for uninterrupted Enhancement, fresh Supply and Ultimate full Home-entry passes, continuous Tavern refresh and consuming Campaign crossing.",
-  "exact_next_permitted_action": "Commit/push attributable warning correction and docs, freeze current source, verify all operatorsOFF, then supported pnsctl development-session run-flow ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION --live --yes --max-inputs16. Existing route must freshly bind the current Flee-warning resume, send at most one Flee and verify Home. Do not repeat Exit or Challenge from an unknown result. Inspect receipts/state before canonical unblock and another bounded7200-second cadence. No source/docs edits or local tests while live.",
-  "unresolved_action_state": "Lineup andExit produced positively inspected battle andwarning successors.0Flee transported. Latest0-inputfailure shows samewarningoverLOSE, now recognized by current foreground selector. Failed artifacts unchanged; no receipt grants live authority. CanonicalUltimateblock remains pending completed continuation.",
+  "current_blocker": "KnownDefeat→Home live continuation pending after userrestart. SharedHome false negatives onlargerHUD are genuine; fixedlabelROIs missvisiblelabels. Keepoldfixtures andfixclassifier. Twohourcadence andrealNov2UTCreset acceptance remainpending.",
+  "exact_next_permitted_action": "After source freeze and ownership checks, use supported pnsctl development-session run-flow ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION --live --yes --max-inputs16 --recovery-only --recovery-session .local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T031708993240Z/nav-20261101T031709679323Z. Freshly verify restarted state. This invokespostFleeHomeOnly withzeroFlee/Challenge. Userrestart is intervention; do not claim uninterruptednative recovery ifalreadyHome. No source/docs/test edits whilelive.",
+  "unresolved_action_state": "Exactly1Flee transported and six retainedDefeat successors verified; originalfailedreceiptunchanged. Newreadonly proofkind defeat_after_flee canlinkexistingpendingHomeguard, but currentHomecompletion remainsunproved. CanonicalUltimate remainsblocked. No repeatFlee.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
     "permanent_production_scheduler_enabled": false,
@@ -28,7 +28,7 @@
   },
   "journals_and_lease": {
     "historical_journals": "retained immutable",
-    "active_action_state": "Lineup andExit produced positively inspected battle andwarning successors.0Flee transported. Latest0-inputfailure shows samewarningoverLOSE, now recognized by current foreground selector. Failed artifacts unchanged; no receipt grants live authority. CanonicalUltimateblock remains pending completed continuation.",
+    "active_action_state": "Exactly1Flee transported and six retainedDefeat successors verified; originalfailedreceiptunchanged. Newreadonly proofkind defeat_after_flee canlinkexistingpendingHomeguard, but currentHomecompletion remainsunproved. CanonicalUltimate remainsblocked. No repeatFlee.",
     "development_lease_status": "No active owner at snapshot; failed controller cleanup verified."
   },
   "route_state": {
@@ -72,8 +72,8 @@
     },
     "ultimate": {
       "reset_id": "game-day-2026-11-01",
-      "status": "blocked_pending_flee_warning_continuation",
-      "latest_attempt": "4originalinputs+1Exit+0latestinputs; no repeatedChallenge and0Flee. Foreground Flee-warning continuation pending.",
+      "status": "one_flee_pending_home_recovery",
+      "latest_attempt": "1Flee on600fd29; knownDefeat retained; noHome. UserrestartedBlueStacks. OnlypostFleeHome recoveryallowed.",
       "historical_acceptance": "October31oneFlee/9inputs/Home; does not prove current source.",
       "repair_commit": "e8419c0201f51964985069e98aba259237c00c04",
       "next_due_utc": 1793491200.0,
@@ -226,9 +226,16 @@
   "failed_attempt_audits": [
     ".local-orchestrator/logs/all8-cohort-stopped-ultimate-live-audit-20261101.json",
     ".local-orchestrator/logs/ultimate-exit-warning-stop-live-audit-20261101.json",
-    ".local-orchestrator/logs/ultimate-warning-over-defeat-zero-input-stop-audit-20261101.json"
+    ".local-orchestrator/logs/ultimate-warning-over-defeat-zero-input-stop-audit-20261101.json",
+    ".local-orchestrator/logs/ultimate-flee-defeat-successor-stop-audit-20261101.json"
   ],
-  "current_semantic_inspection": ".local-orchestrator/logs/ultimate-exit-warning-successor-inspection-20261101.json"
+  "current_semantic_inspection": ".local-orchestrator/logs/ultimate-exit-warning-successor-inspection-20261101.json",
+  "shared_home_failure": {
+    "status": "evidence_required_fix",
+    "cause": "FixedsidebarlabelROIs fitcompactHUDbutmissgenuinelargerHomeHUDlabels. Header/scene/footerchecks pass; sceneOCR misses.",
+    "fixtures": "tests/fixtures/nova_praise_preflight/zoomed-home-a.png andzoomed-home-b.png",
+    "tests_preserved": true
+  }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 

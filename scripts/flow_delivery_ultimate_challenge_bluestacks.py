@@ -6,6 +6,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 from pathlib import Path
 import shutil
 import subprocess
@@ -369,6 +370,72 @@ def _daily_effect_state(result: Mapping[str, Any], flee_count: int) -> str | Non
     return None
 
 
+def _defeat_flee_recovery_evidence(session: Path, result: Mapping[str, Any]) -> dict[str, str]:
+    """Replay a single Flee-to-defeat transition without changing its failed receipt."""
+    from scripts import bluestacks_ultimate_challenge as native
+
+    if (result.get("terminal") != "blocked_fail_closed"
+            or result.get("completed_actions") != [] or result.get("input_count") != 1):
+        raise ValueError("defeat recovery requires an isolated failed Flee attempt")
+    rows = [json.loads(line) for line in (session / "runtime/events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    if any(not isinstance(row, dict) or row.get("type") not in {"capture", "dispatch"} for row in rows):
+        raise ValueError("defeat recovery journal contains an invalid row")
+    dispatches = [(index, row) for index, row in enumerate(rows) if row.get("type") == "dispatch"]
+    if len(dispatches) != 1:
+        raise ValueError("defeat recovery requires exactly one retained dispatch")
+    index, dispatch = dispatches[0]
+    if (dispatch.get("target_identity") != "tap_flee" or dispatch.get("execute") is not True
+            or dispatch.get("consequential") is not True
+            or not dispatch.get("action_key") or dispatch["action_key"] != result.get("flee_action_key")):
+        raise ValueError("defeat recovery dispatch is not the original Flee")
+
+    def timestamp(row):
+        value = datetime.fromisoformat(row["timestamp"])
+        if (value.tzinfo is None or value.utcoffset().total_seconds() != 0
+                or value > datetime.now(timezone.utc)):
+            raise ValueError("defeat recovery timestamp is missing UTC or in the future")
+        return value
+
+    def capture(row):
+        raw = Path(row["path"])
+        path = (raw if raw.is_absolute() else session / raw).resolve()
+        if raw.is_symlink() or not path.is_relative_to(session):
+            raise ValueError("defeat recovery capture escaped its session")
+        payload = path.read_bytes()
+        if hashlib.sha256(payload).hexdigest() != row["sha256"]:
+            raise ValueError("defeat recovery capture hash changed")
+        frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if frame is None or frame.shape != (1280, 800, 3):
+            raise ValueError("defeat recovery capture is not native")
+        return frame
+
+    captures = [(i, row) for i, row in enumerate(rows) if row.get("type") == "capture"]
+    previous = -1.0
+    for _, row in captures:
+        value = row.get("captured_monotonic")
+        if type(value) not in (int, float) or not math.isfinite(value) or value <= previous:
+            raise ValueError("defeat recovery capture chronology is invalid")
+        previous = value
+        timestamp(row)
+    sources = [row for i, row in captures if i < index and row.get("sha256") == dispatch.get("source_sha256")]
+    posts = [row for i, row in captures if i > index]
+    if not sources or len(posts) < 2:
+        raise ValueError("defeat recovery lacks its warning source or persistent successor")
+    source = sources[-1]
+    target = native._bind_flee_warning_button(capture(source))
+    if target is None or list(target) != dispatch.get("target_roi"):
+        raise ValueError("defeat recovery Flee source/target is not verified")
+    sent = timestamp(dispatch)
+    if timestamp(source) > sent:
+        raise ValueError("defeat recovery source follows its dispatch")
+    for post in posts[-2:]:
+        if (timestamp(post) < sent
+                or native._bind_ultimate_defeat_continue(capture(post)) is None):
+            raise ValueError("defeat recovery lacks a verified post-Flee defeat successor")
+    return {"recovery_kind": "defeat_after_flee", "flee_action_key": dispatch["action_key"],
+        "flee_before_sha256": source["sha256"], "flee_after_sha256": posts[-1]["sha256"]}
+
+
 def _validated_flee_recovery(
     session: Path, reset_identity: str, expected_result_sha256: str | None = None,
 ) -> dict[str, str]:
@@ -388,12 +455,16 @@ def _validated_flee_recovery(
             or delivery.get("runtime_profile_id", BLUESTACKS_RUNTIME_PROFILE_ID) != BLUESTACKS_RUNTIME_PROFILE_ID
             or delivery.get("ultimate_challenge_result") != result
             or (expected_result_sha256 is not None and result_hash != expected_result_sha256)
-            or _daily_effect_state(result, _retained_flee_transport_count(session)) != "flee_confirmed"
             or _retained_transport_count(session) != result.get("input_count")
             or type(result.get("input_count")) is not int
             or not 1 <= result["input_count"] <= MAX_TOTAL_INPUTS
         ):
             raise ValueError("flow/reset/profile/Flee accounting mismatch")
+        if _daily_effect_state(result, _retained_flee_transport_count(session)) != "flee_confirmed":
+            evidence = _defeat_flee_recovery_evidence(session, result)
+            return {"session_directory": str(session), "result_sha256": result_hash,
+                "reset_identity": reset_identity, "runtime_profile_id": BLUESTACKS_RUNTIME_PROFILE_ID,
+                **evidence}
         actions = [row for row in result["completed_actions"] if isinstance(row, Mapping) and row.get("action") == "tap_flee"]
         if len(actions) != 1:
             raise ValueError("exactly one confirmed Flee action is required")

@@ -139,7 +139,10 @@ def _current_flee_proof(runtime, native):
 
     before, after = dispatch["source_sha256"], confirmed[0]["post_sha256"]
     warning = native._bind_flee_warning_button(frame(before))
-    if warning is None or list(warning) != dispatch.get("target_roi") or native._recognize_ultimate_main(frame(after)) is None:
+    successor = frame(after)
+    if (warning is None or list(warning) != dispatch.get("target_roi")
+            or (native._recognize_ultimate_main(successor) is None
+                and native._bind_ultimate_defeat_continue(successor) is None)):
         raise ValueError("Ultimate current Flee source or successor is not recognized")
     return {"action": "tap_flee", "action_key": dispatch["action_key"], "target_roi": warning,
             "before_sha256": before, "post_sha256": after}
