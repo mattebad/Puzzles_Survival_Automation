@@ -5,16 +5,16 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "updated_utc": "2026-11-01T04:28:36.146764+00:00",
+  "updated_utc": "2026-11-01T04:32:22.616379+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
   "active_task_or_flow": "Fix intermittent Supply Depot recognition and finish remaining live acceptance before merge; sole local operator only",
   "authorization": "Current user explicitly requested continued fixes, live acceptance testing and iteration until proven before merge. Prior full-route authorization for regenerable resources persists. Each bounded controller records current authorization; no permanent enablement or merge is authorized by this work.",
-  "runtime_ownership_state": "No live operator; all delegates finished and all local tests stopped. Freeze reviewed source and verify canonical controls/locks before recovery-only retry.",
-  "current_live_attempt_state": "Exactly one Ultimate Flee transported on600fd29; native Defeat retained. User restarted BlueStacks. eb0fce9 recovery-only retry stopped0inputs because game was not foreground; owned warm launch1system/0game inputs succeeded; retry stopped0inputs at exact Scarlett with missing shared recovery owner. No additional Flee or Challenge.",
+  "runtime_ownership_state": "No operator; all controls OFF and owners released after d35f8a0 retry. All code delegates/tests stopped.",
+  "current_live_attempt_state": "d35f8a0 dismissed exact Scarlett with one safe Back and captured genuine Home, but Ultimate child CLI rejected remaining15 before native runtime. No newFlee/Challenge. Outer summary0 incorrectly omitted startup1; failed receipt preserved. Both budget acceptance and failed-summary accounting repaired offline.",
   "current_evidence_or_session_reference": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T031708993240Z/nav-20261101T031709679323Z",
-  "last_safe_completed_step": "Home correction committed3a79a38. Seven native Home images now pass;8focused Home/wrapper checks passed. Shared popup changes reviewed and7root executor/handoff checks passed. Existing two Noah integrated fake-runtime errors independently reproduced against committed original modules; not counted as passes.",
-  "current_blocker": "Current live post-Flee Home recovery pending. Both known startup surfaces now have shared ownership for any route; pnsctl handles two distinct surfaces within budget, then passes fresh context to route. Native contextual helpers handle either single surface and stop if another follows; a generalized native sequence remains unproved. Larger-HUD Home fix offline-proven. Two-hour cadence and real November2 00UTC acceptance remain required.",
+  "last_safe_completed_step": "Retry audit verified351unchanged sources/8PNGs/allOFF/noowners. Native CLI now permits remaining1..16, with unchanged16ceiling;2CLI boundary tests passed. Failed adapter summaries retain startup1/2 and separate actions;4focused session checks passed.",
+  "current_blocker": "Recovery-only Home adoption still pending after child budget stop. Do not dismiss Scarlett again unless newly and exactly present; no Flee/Challenge. Native contextual multi-surface chain, full cadence and real next reset acceptance remain explicit limits.",
   "exact_next_permitted_action": "After source freeze and ownership checks, use supported pnsctl development-session run-flow ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION --live --yes --max-inputs16 --recovery-only --recovery-session .local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T031708993240Z/nav-20261101T031709679323Z. Freshly verify restarted state. This invokespostFleeHomeOnly withzeroFlee/Challenge. Userrestart is intervention; do not claim uninterruptednative recovery ifalreadyHome. No source/docs/test edits whilelive.",
   "unresolved_action_state": "Exactly1Flee transported and six retainedDefeat successors verified; originalfailedreceiptunchanged. Newreadonly proofkind defeat_after_flee canlinkexistingpendingHomeguard, but currentHomecompletion remainsunproved. CanonicalUltimate remainsblocked. No repeatFlee.",
   "registration_and_scheduler": {
@@ -91,7 +91,7 @@
       "next_due_utc": 1793577600.0
     }
   },
-  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T040828671155Z.json",
+  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T042903030326Z.json",
   "validation": "Shared startup suite49 passed; session/service startup16 passed; contextual safety4 passed; focused Noah12 passed. Root7 shared executor/handoff checks passed. Home8focused checks and7native images passed. Two old Noah fake-runtime continuation mismatch errors reproduced independently on original committed code; separate logs retained. Prior eb0fce9 CI run62 passed both full Windows/Python3.11 and Linux jobs. Latest shared/Home source CI will run after push. Initial sandbox startup45 had32 TEMP permission errors, resolved by normal temp access; no runtime weakening.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
@@ -115,7 +115,8 @@
     ".local-orchestrator/logs/campaign-after-map-reframe-repair-full-drain-home-live-audit-20261031.json",
     ".local-orchestrator/logs/current-cohort-first-campaign-drain-audit-20261101.json",
     ".local-orchestrator/logs/ultimate-flee-defeat-successor-stop-audit-20261101.json",
-    ".local-orchestrator/logs/ultimate-post-user-restart-pre-repair-audit-20261101.json"
+    ".local-orchestrator/logs/ultimate-post-user-restart-pre-repair-audit-20261101.json",
+    ".local-orchestrator/logs/ultimate-shared-scarlett-child-budget-stop-audit-20261101.json"
   ],
   "additional_coverage_evidence_required": [
     "Resolve pending Ultimate Home using recovery-only from the single-Flee receipt, with0newFlee/Challenge. Manual BlueStacks restart prevents calling this uninterrupted native Defeat recovery.",

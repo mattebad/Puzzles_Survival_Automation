@@ -1,8 +1,9 @@
 """Offline Defeat recognition and post-Flee-only recovery safety."""
 
-from contextlib import ExitStack
+from contextlib import ExitStack, redirect_stdout, redirect_stderr
 from datetime import datetime, timezone
 import hashlib
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -33,6 +34,32 @@ def read_frame(path):
     if frame is None:
         raise AssertionError(f"Missing portable fixture: {path}")
     return frame
+
+
+class RecoveryInputBudgetTests(unittest.TestCase):
+    def test_cli_accepts_remaining_budget_after_shared_recovery_without_device_access(self):
+        for budget in (1, 14, 15, 16):
+            with self.subTest(budget=budget), patch.object(native, "ADBRunner") as device:
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    status = native.main([
+                        "--adb", "unused-adb", "--serial", "127.0.0.1:5555",
+                        "--post-flee-home-only", "--max-total-inputs", str(budget),
+                    ])
+                self.assertEqual(status, 0)
+                self.assertFalse(json.loads(output.getvalue())["dispatch"])
+                device.assert_not_called()
+
+    def test_cli_rejects_empty_or_above_ceiling_budget_before_device_access(self):
+        for budget in (0, -1, 17):
+            with self.subTest(budget=budget), patch.object(native, "ADBRunner") as device:
+                with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+                    native.main([
+                        "--adb", "unused-adb", "--serial", "127.0.0.1:5555",
+                        "--post-flee-home-only", "--max-total-inputs", str(budget),
+                    ])
+                self.assertEqual(raised.exception.code, 2)
+                device.assert_not_called()
 
 
 class DefeatRecognitionTests(unittest.TestCase):

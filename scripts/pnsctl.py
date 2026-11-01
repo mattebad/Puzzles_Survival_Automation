@@ -4461,20 +4461,39 @@ def development_session_run_flow(
                     },
                     sort_keys=True,
                 )
-            elif "live" in inspect.signature(runner).parameters:
-                raw = runner(queue_context, runtime_context, live=live)
-            elif live:
-                raw = runner(queue_context, runtime_context)
             else:
-                raw = json.dumps(
-                    {
-                        "status": "dry_run",
-                        "flow_id": flow_id,
-                        "dispatch": False,
-                        "session_directory": "",
-                    },
-                    sort_keys=True,
-                )
+                try:
+                    if "live" in inspect.signature(runner).parameters:
+                        raw = runner(queue_context, runtime_context, live=live)
+                    elif live:
+                        raw = runner(queue_context, runtime_context)
+                    else:
+                        raw = json.dumps(
+                            {
+                                "status": "dry_run",
+                                "flow_id": flow_id,
+                                "dispatch": False,
+                                "session_directory": "",
+                            },
+                            sort_keys=True,
+                        )
+                except BaseException:
+                    # The route did not return a result to project below, but
+                    # startup transport already happened in its own runtime.
+                    # Preserve it alongside any actions recorded by the route.
+                    startup_rows = _startup_recovery_action_rows(startup_recovery_result)
+                    if startup_recovery_input_count:
+                        session.input_count += startup_recovery_input_count
+                        session.remember_control(
+                            "failed_route_startup_transport_count", startup_recovery_input_count
+                        )
+                        session.actions = _unique_action_rows([*startup_rows, *session.actions])
+                        with (session_directory / "actions.jsonl").open(
+                            "a", encoding="utf-8", newline="\n"
+                        ) as handle:
+                            for row in startup_rows:
+                                handle.write(json.dumps(row, sort_keys=True) + "\n")
+                    raise
             result = json.loads(raw)
             child_text = str(result.get("session_directory") or "")
             child = Path(child_text) if child_text else None

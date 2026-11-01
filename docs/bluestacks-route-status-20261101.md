@@ -191,3 +191,16 @@ They remain baseline failures, not passes. Logs are
 Both full operating-system jobs passed on `eb0fce9` in
 [CI run62](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41271866463).
 The new shared-recovery/Home revision requires its own hosted CI.
+
+The `d35f8a0` live recovery dismissed Scarlett with one safe Back and captured a
+native Home source. It then stopped before child runtime startup: Ultimate's CLI
+incorrectly required exactly16 inputs rather than accepting the15 remaining after
+startup recovery. The CLI now accepts budgets1 through16; the upper ceiling and
+runtime input fence remain unchanged. Two offline CLI boundary checks passed.
+The adapter-error path also omitted that startup input from its outer failed
+summary; its separate startup journal correctly retained1. That failed receipt
+was preserved, and the summary path now keeps each startup action/count before
+re-raising the original error; four focused session checks passed. The audit
+`.local-orchestrator/logs/ultimate-shared-scarlett-child-budget-stop-audit-20261101.json`
+verifies351 unchanged sources,8captures and disabled/released cleanup. No new Flee
+or Challenge was sent. Current Home adoption remains pending.

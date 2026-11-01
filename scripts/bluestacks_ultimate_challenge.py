@@ -2871,8 +2871,8 @@ def main(argv: list[str] | None = None) -> int:
             "select exactly one of --navigation-only, --daily, --post-flee-home-only, "
             "or --campaign-exit-home-only"
         )
-    if args.max_total_inputs != MAX_TOTAL_INPUTS:
-        parser.error("Ultimate Challenge aggregate input ceiling is exactly 16")
+    if not 1 <= args.max_total_inputs <= MAX_TOTAL_INPUTS:
+        parser.error("Ultimate Challenge input budget must be between 1 and 16")
     if not is_permitted_local_bluestacks_serial(args.serial):
         parser.error("serial is not a permitted local BlueStacks endpoint")
     require_campaign_home_atlas_building(args.atlas)
@@ -3034,7 +3034,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if runtime.input_count > args.max_total_inputs:
             terminal = TERMINAL_BLOCKED
-            detail["reason"] = "aggregate runtime input count exceeded 16"
+            detail["reason"] = f"aggregate runtime input count exceeded {args.max_total_inputs}"
         result = {"status": terminal, "terminal": terminal, "flow_id": FLOW_ID, "session": str(session), "navigation_only": False, "dispatch": terminal == TERMINAL_COMPLETE_FOR_RESET, **detail, "input_count": runtime.input_count, "navigation_input_count": runtime.input_count}
         _write_result(session, result)
         return 0 if terminal == TERMINAL_COMPLETE_FOR_RESET else 3
@@ -3057,7 +3057,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if runtime.input_count > args.max_total_inputs:
             terminal = TERMINAL_BLOCKED
-            detail["reason"] = "aggregate runtime input count exceeded 16"
+            detail["reason"] = f"aggregate runtime input count exceeded {args.max_total_inputs}"
         result = {
             "status": terminal,
             "terminal": terminal,
@@ -3396,7 +3396,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if runtime.input_count > args.max_total_inputs:
             terminal = TERMINAL_BLOCKED
-            detail["reason"] = "aggregate runtime input count exceeded 16"
+            detail["reason"] = f"aggregate runtime input count exceeded {args.max_total_inputs}"
         result = {
             "status": terminal,
             "terminal": terminal,
@@ -3486,7 +3486,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if runtime.input_count > args.max_total_inputs:
             terminal = TERMINAL_BLOCKED
-            detail["reason"] = "aggregate runtime input count exceeded 16"
+            detail["reason"] = f"aggregate runtime input count exceeded {args.max_total_inputs}"
         result = {
             "status": terminal,
             "terminal": terminal,
