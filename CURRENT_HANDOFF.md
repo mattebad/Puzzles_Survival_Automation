@@ -4,18 +4,18 @@
 {
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
-  "head_binding": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "updated_utc": "2026-11-01T05:48:23.313426+00:00",
+  "head_binding": "6be9f8b3cb05d37b4482bace176b9df6e13c8391",
+  "updated_utc": "2026-11-01T08:09:24.873128+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
   "active_task_or_flow": "Fix intermittent Supply Depot recognition and finish remaining live acceptance before merge; sole local operator only",
   "authorization": "Current user explicitly requested continued fixes, live acceptance testing and iteration until proven before merge. Prior full-route authorization for regenerable resources persists. Each bounded controller records current authorization; no permanent enablement or merge is authorized by this work.",
-  "runtime_ownership_state": "No live operator. All writers and test processes have stopped after the Windows alias repair. All controls OFF/no active or input owner/released Core lease were rechecked after the completed Campaign route.",
-  "current_live_attempt_state": "Campaign-only current-source pass completed: 38+1-28=11 AP, two wins/two confirmed14-AP Core actions,18 inputs, independently verified Home and next due exactly completion+300. Previous all-eight attempt stopped Nova0-input from Campaign map; its context block was inspected/unblocked only after Campaign returned Home. A full two-hour cadence is still unproved.",
-  "current_evidence_or_session_reference": ".local-captures/automation-service-authorized/soak-20261101T051829957711Z-0fd4b7da",
-  "last_safe_completed_step": "Audit .local-orchestrator/logs/campaign-current-source-recovery-drain-home-audit-20261101.json verifies416 unchanged code/asset/local-atlas hashes,75 captures, current Home/AP11 and canonical action links. Three existing atlas-directed pans were used; the NEW HUD-edge reframe branch remains offline-proven only. Windows path-alias production repair now passes61 cases plus20 helper cases after final boundary narrowing.",
-  "current_blocker": "Commit and freeze the Windows path-alias fix, then restart7200-second serial cadence from Home. Latest CI68 Windows failed11/205 on equivalent8.3/long paths; real aliases reproduced the failures. New current-source live acceptance, next real reset/continuous Tavern refresh/uninterrupted Enhancement/fresh Supply+Ultimate and relevant final restart proof remain required.",
-  "exact_next_permitted_action": "Commit/push reviewed Windows alias changes and current report. Freeze current source/assets/authorization and allOFF/no-owner state, then use the existing all-eight canonical controller --seconds7200 --live --yes from Home. No source/docs/Git edits or local tests during live execution. Preserve daily gates, no Flee today, no quota/timer edits.",
+  "runtime_ownership_state": "No live operator or local test process. All nine flow controls and service OFF; no active run/input lock/effect block, Core lease released after audited soak, Scarlett recovery and cold restart.",
+  "current_live_attempt_state": "Completed c4dd031 two-hour serial cadence:30 reports/67 inputs,5 Nova Praises,3 Basic recruits,2 Campaign wins. Later native Scarlett recovery:1 Back/HomeAP8/zero effects. Latest6be9f8b cold restart:1 verified stop/1 launch/zero game inputs/independent Home; all9 flow/due and service rows unchanged.",
+  "current_evidence_or_session_reference": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\launch-game-20261101T080253061725Z",
+  "last_safe_completed_step": "Audited full7200.348s cadence with416 source/assets,327 PNGs,264 capture refs and exact Campaign+300. Native Scarlett recovery independently replayed. Final-source cold restart independently verifies3Home frames and9 unchanged flow/due rows.",
+  "current_blocker": "evidence_required: next real00UTC consuming Campaign crossing, continuous Tavern Basic refresh, fresh Supply/full Ultimate, uninterrupted Gear/Chip/Module and current-source Personal Might. Latest-source CI70 running; no active runtime blocker.",
+  "exact_next_permitted_action": "Finish latest CI/documentation/PR reconciliation, then keep all controls OFF and preserve AP. At Nov1 23:40UTC prepare existing canonical controller, freeze current source/assets and current authorization. Target Campaign start23:53UTC using retained drain timing; ensure actual consuming actions both sides Nov2 00UTC in same client. Then run all due authorized routes including Enhancement/Supply/Ultimate/PM and bounded cadence. No cold relaunch across reset, quota/timer edits or second Flee today.",
   "unresolved_action_state": "No unresolved Ultimate effect after currentHome adoption. Original one-Flee failed receipt retained; no repeatFlee for game-day2026-11-01. Current completion is composite with human restart, not uninterrupted recovery.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
@@ -29,33 +29,33 @@
   "journals_and_lease": {
     "historical_journals": "retained immutable",
     "active_action_state": "No unresolved Ultimate effect after currentHome adoption. Original one-Flee failed receipt retained; no repeatFlee for game-day2026-11-01. Current completion is composite with human restart, not uninterrupted recovery.",
-    "development_lease_status": "No active owner at snapshot; failed controller cleanup verified."
+    "development_lease_status": "No live owner; controls OFF, input lock empty, released Core lease, no active/orphan run or effect block."
   },
   "route_state": {
     "nova": {
       "reset_id": "game-day-2026-11-01",
-      "accepted": "Latest failed cohort:1Praise/6inputs/Home. Five daily Praises remain.",
-      "remaining": 5,
-      "next_due_utc": 1793499416.9746459
+      "accepted": "c4dd031 cohort:5 remaining Praises/22inputs/Home, attempts5 to0; all five Core actions confirmed.",
+      "remaining": 0,
+      "next_due_utc": 1793577600.0
     },
     "campaign": {
       "reset_id": "game-day-2026-11-01",
-      "accepted": "Current-source076c07e recovery from map to fresh Home/AP38, two victories/28AP spent/1 net regeneration, AP11 and Home;18 inputs. Audit verifies canonical stage-entry/lineup continuation links and75 captures.",
+      "accepted": "c4dd031 cohort:2wins/28AP/28inputs/Home;15+1-14=2 then14-14=0 after regeneration. 19 zero-input low-AP checks; all21 completions+300. Later exact Scarlett1Back/zeroAP/Home8.",
       "cadence": "300seconds after whole drain or real low-AP Home completion; no delay between affordable battles.",
       "stage": "1-15-9",
       "cost_per_battle": 14,
-      "latest_home_ap": 11,
-      "latest_completed_at_utc": 1793510669.9922287,
-      "next_due_utc": 1793510969.9922287,
-      "audit": ".local-orchestrator/logs/campaign-current-source-recovery-drain-home-audit-20261101.json",
-      "current_failure": "Prior HUD-edge block inspected/unblocked. This live pass used3 existing atlas pans and a fresh Chapter15 binding; new unbound-edge branch remains offline-proven only."
+      "latest_home_ap": 8,
+      "latest_completed_at_utc": 1793519885.6744924,
+      "next_due_utc": 1793520185.6744924,
+      "audit": ".local-orchestrator/logs/current-source-7200-cadence-final-audit-20261101T075205896654Z.json",
+      "current_failure": "None active. New unbound HUD-edge fallback remains offline-proven; consuming reset crossing still required."
     },
     "recruitment": {
       "reset_id": "game-day-2026-11-01",
-      "accepted": "Latest failed cohort:1Int and1Basic free recruit, each native result/cooldown andHome verified;9inputs.",
-      "basic_daily_count": 2,
-      "basic_remaining": 3,
-      "basic_next_eligible_utc": 1793508492.3189797,
+      "accepted": "c4dd031 cohort:3 actual Basic recruits/17inputs/Home; daily counts3,4,5. Earlier Int/Adv deadlines preserved.",
+      "basic_daily_count": 5,
+      "basic_remaining": 0,
+      "basic_next_eligible_utc": 1793577603.483517,
       "intermediate": "One free Intermediate consumed; next eligibility24hours from current proof. Advanced48hour deadline unchanged.",
       "advanced_next_eligible_utc": 1793672002.075106,
       "rules": "Basic resets00UTC; Int24h and Adv48h remain independent.",
@@ -75,10 +75,10 @@
     "ultimate": {
       "reset_id": "game-day-2026-11-01",
       "status": "complete_for_reset_composite",
-      "latest_attempt": "CurrentHome verified on8c36b5b with0newinputs. Original1Flee+humanrestart+1ScarlettBack+Homeadoption composite; canonical block cleared by inspected API, due fact preserved until service projection.",
+      "latest_attempt": "c4dd031 cohort:already-completed/Home guard,0inputs. Original one-Flee +human restart +ScarlettBack +Home adoption remains composite; no repeat Flee today.",
       "historical_acceptance": "October31oneFlee/9inputs/Home; does not prove current source.",
       "repair_commit": "e8419c0201f51964985069e98aba259237c00c04",
-      "next_due_utc": 1793491200.0,
+      "next_due_utc": 1793577600.0,
       "warning_repair": "Foreground Flee1 live-confirmed through native Defeat. DefeatContinue/Home binder offline-proven only; human restart removed opportunity for that live continuation."
     },
     "enhancement": {
@@ -90,11 +90,12 @@
     "personal_might": {
       "reset_id": "game-day-2026-11-01",
       "accepted": "Uninterrupted122ff13:6inputs/1Praise/Home;3settledused/grayframes independently replayed; no repeatedPraise.",
-      "next_due_utc": 1793577600.0
+      "next_due_utc": 1793577600.0,
+      "limit": "Historical122ff13 uninterrupted acceptance; current-source fresh Praise/Home after next reset remains required."
     }
   },
-  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T051826064735Z.json",
-  "validation": "Native sequence root29 and prior focused groups passed. Actual GetShortPathName aliases reproduced4 pre-fix defects, including CI68 Ultimate/Enhancement failures and same-file alias incorrectly accepted as fresh. Final alias suite61 passed; helper20 passed after session-boundary narrowing, no clock changes or skipped alias cases locally. CI67 on1ba790b passed both full OS jobs. CI68 on076c07e Windows failed11 cases; failure excerpt retained. New alias revision needs its own CI. No full repository discovery; legacy baselines stay separate.",
+  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T080240576031Z.json",
+  "validation": "CI69 on c4dd031 passed both complete OS jobs. 37 focused startup/launch/cold-restart cases passed on6be9f8b; CI70 running. Windows alias suite61 plus20 helper cases passed earlier, without weakened hashes/chronology/foreign paths. No full local test discovery; known legacy baselines remain separate.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
     ".local-orchestrator/logs/noah-full-basic-quota-audit-20261030.json",
@@ -125,14 +126,19 @@
     ".local-orchestrator/logs/campaign-hud-edge-inspection-unblock-20261101.json",
     ".local-orchestrator/logs/native-sequence-zero-input-nova-stop-audit-20261101.json",
     ".local-orchestrator/logs/campaign-current-source-recovery-drain-home-audit-20261101.json",
-    ".local-orchestrator/logs/nova-after-campaign-home-inspection-unblock-20261101.json"
+    ".local-orchestrator/logs/nova-after-campaign-home-inspection-unblock-20261101.json",
+    ".local-orchestrator/logs/current-source-7200-cadence-final-audit-20261101T075205896654Z.json",
+    ".local-orchestrator/logs/native-scarlett-campaign-low-ap-home-audit-20261101T075937890048Z.json",
+    ".local-orchestrator/logs/final-source-cold-restart-live-audit-20261101T080400808518Z.json"
   ],
   "additional_coverage_evidence_required": [
-    "Fresh full Ultimate Home entry and native DefeatContinue if encountered after next real reset; current complete-for-reset proof is composite and no Flee repeat permitted today.",
-    "Complete latest-source7200-second serial cadence with actual due routes, accounting and controlsOFF audit.",
-    "Uninterrupted Gear/Chip/Module, fresh Supply Home-entry and fresh Ultimate Home-entry at the next real reset, November2 00UTC.",
-    "Consuming native Campaign actions across00UTC and continuous-client Tavern Basic refresh; preserve Int24h/Adv48h timers.",
-    "Any unexercised camera branch and historical PlayGames prompt causality remain explicit uncertainties."
+    "Consuming native Campaign effects both sides Nov2 00UTC; same client",
+    "Continuous Tavern Basic refresh with Int24h/Adv48h deadlines preserved",
+    "Fresh uninterrupted Supply Home/free Hold/Home on final source",
+    "Fully uninterrupted Gear/Chip/Module one Profile visit/Home",
+    "Current-source Personal Might Praise/Home",
+    "Fresh full Ultimate entry/one Flee/Home; native Defeat Continue if encountered",
+    "Latest PR-head CI; no merge or permanent enablement"
   ],
   "goal_finish_scope": "Finish all current-source acceptance and pre-merge CI honestly, retain failures, leave draftPR16 unmerged and permanent runtime controlsOFF.",
   "preserved_user_work": "The session snapshot is committed on codex/bluestacks-route-reliability. Unrelated Stop-PnS-OMP.ps1, evidence/current-evidence-manifest.json and two loose root plans remain uncommitted and unchanged. Retained stash/evidence/temp files remain local; do not reset/stash/clean them.",
@@ -165,47 +171,49 @@
     "scope": "User requested retry; sky.list_apps found the existing BlueStacks window. No new approval prompt, screenshot, launch or input; active canonical run undisturbed."
   },
   "final_cadence_audit": {
-    "status": "historical_7200_second_source_cadence_accepted",
-    "actual_seconds": 7200.3374400138855,
+    "status": "live_accepted_for_c4dd031_frozen_source",
+    "actual_seconds": 7200.348142623901,
     "selected_routes": 8,
-    "completed_reports": 21,
+    "completed_reports": 30,
     "campaign_wins": 2,
     "campaign_no_work_checks": 19,
-    "game_inputs": 24,
-    "capture_hashes_verified": 159,
-    "dispatch_source_bindings_verified": 24,
-    "frozen_source_files_unchanged": 185,
+    "game_inputs": 67,
+    "capture_hashes_verified": 327,
+    "capture_event_refs_verified": 264,
+    "frozen_source_files_unchanged": 416,
     "controls_restored_off": true,
-    "historical_only": true
+    "audit": ".local-orchestrator/logs/current-source-7200-cadence-final-audit-20261101T075205896654Z.json",
+    "scope_limit": "Only Nova/Basic/Campaign consumed; Ultimate already-complete0. Other daily routes future-due; no real reset crossed. Later6be9f8b startup-only change has separate cold-restart acceptance."
   },
   "followup_work": {
     "governance_cleanup": "Retired stagedvalidator/test and unusedsinglebattle gate archivedtext/callersremoved. Historical rootproposal movedbyteexacttoarchive; currentarchitecture links pointserviceguide. No runtimeauthorityremoved.",
     "backlog_reconciliation": "74 records retained;31 local overlaps reclassified with dated scope/remaining work; no merged/deployed closure inferred",
     "focused_verification": "57 startup/restart/reset checks passed;5 unchanged export checks blocked by PowerShell authorization",
-    "cold_restart": "live_accepted: cold-restart-measured-icon-home-audit-20261030.json",
-    "native_reset_crossing": "Actual00UTC pre-native Bio rollover safely deferred0/0; outer controller strict deferral acceptance fixed and9 consumer checks passed. Continuous consuming native route across00 remains unproved.",
-    "uninterrupted_enhancement": "Day31samephysicalProfilevisit/all3once/Home22/3acceptedwithresumedproof. Fullyuninterruptednativeattempt remains evidence_required; categoriesexhaustedforcurrentreset.",
-    "launcher_intent": "Second corrected cold restart verified exit/start and Home; no Play Games foreground detected or manual Cancel during test. CommandcallerUID2000 differs frommanualiconlauncherUID10065; cause remains evidence_required.",
+    "cold_restart": "LIVE_ACCEPTED6be9f8b: .local-orchestrator/logs/final-source-cold-restart-live-audit-20261101T080400808518Z.json",
+    "native_reset_crossing": "evidence_required at Nov2 00UTC; prepare23:40, target Campaign23:53 based on234s first-entry delay and400s first-to-eighth span.",
+    "uninterrupted_enhancement": "evidence_required next actual reset; existing Gear13inputs +Chip/Module15inputs remains composite and no category rearm.",
+    "launcher_intent": "6be9f8b guarded stop/exit/one MAIN-LAUNCHER-NEW_TASK launch/independent Home0gameinputs; cached-account condition, historical Play Games causality unproved.",
     "campaign_repair": "LIVE_ACCEPTED: current-ap-agreement-full-drain-live-audit-20261031.json;3wins/42AP/24inputs/Home, source185 unchanged, exact+300. Earlier interrupted passes preserved separately.",
-    "nova_startup": "October31 all7freePraises confirmed/Home; current-source final2 completed during20minute cadence.",
-    "noah_reset_review": "October31 all5actualBasicfree recruits confirmed/Home and persistedcount5. Priorstalezeroobservations retained; next-resetcontinuousclientrefresh unproved; independentInt/Adv deadlines preserved.",
+    "nova_startup": "November1 all remaining5 consumed during full cadence; no daily repeats after exhaustion.",
+    "noah_reset_review": "November1 Basic count5/remaining0 after3 new recruits in cadence. Int/Adv deadlines preserved; next-reset client refresh unproved.",
     "bio_navigation": "Extra calibratedcamera waypoint offline27checks; latestliveentry neededonly1normalpan. CompleteFreeResearch1xlabel andknownreadyPanelHomeprelude liveaccepted1Research/5inputs/Home.",
     "personal_might_repair": "Disabledthumb antialias/exactwordfragment captions/currentcompleteMore resume fixed. OriginalonePraise reconciledwithoutrepeat; currentcanonical0Praise4nav/Home accepted. Originalwrapperfailurepreserved.",
-    "current_source_cadence": "November1currentcohortstopped1030.094seconds/75inputs on Ultimate;4priorreportscompleted/Home. Not a two-hour success.",
-    "ultimate_repair": "e8419c0 distinguishes native gem lines from actual popup borders; recognition and service checks pass offline, live continuation pending."
+    "current_source_cadence": "LIVE_ACCEPTED c4dd031:7200.348s/30reports/67inputs; .local-orchestrator/logs/current-source-7200-cadence-final-audit-20261101T075205896654Z.json",
+    "ultimate_repair": "OneFlee/Defeat plus human-assisted composite Home retained. Already-completed guard0inputs/Home accepted; fresh full entry/native Continue still required.",
+    "startup_loading": "30s splash timeout retained. Bounded wait90s with37 focused cases; subsequent current-source cold restart accepted. Native shared Scarlett recovery separately accepted1Back/Home8/zeroAP."
   },
   "last_bounded_cadence": {
-    "status": "stopped_on_Ultimate_failure_not_accepted_as_two_hour_soak",
-    "actual_seconds": 1030.0936181545258,
+    "status": "completed_full_7200_seconds_on_c4dd031",
+    "actual_seconds": 7200.348142623901,
     "requested_seconds": 7200,
-    "reports": 5,
-    "completed_reports": 4,
-    "inputs": 75,
+    "reports": 30,
+    "completed_reports": 30,
+    "inputs": 67,
     "controls_restored_off": true,
-    "audit": ".local-orchestrator/logs/all8-cohort-stopped-ultimate-live-audit-20261101.json"
+    "audit": ".local-orchestrator/logs/current-source-7200-cadence-final-audit-20261101T075205896654Z.json"
   },
   "branch_base_commit": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "head_binding_scope": "Historical run/source baseline before branch snapshot; Git HEAD is authoritative after commit.",
+  "head_binding_scope": "Runtime source commit for the latest guarded cold restart; full cadence is separately bound to c4dd031. Git HEAD is authoritative for later documentation commits.",
   "branch_preparation": {
     "branch": "codex/bluestacks-route-reliability",
     "core_offline_checks": {
@@ -217,14 +225,14 @@
       "status": "passed"
     },
     "portable_evidence": "docs/validation/bluestacks-20261031/summary.json",
-    "publication": "DraftPR16pushed; current foreground-dialog correction being committed before source freeze. No merge or permanent enablement.",
+    "publication": "DraftPR16 open/unmerged.6be9f8b pushed; CI70 running. Latest docs will require current-head CI. Permanent scheduling OFF.",
     "excluded_existing_work": [
       "Stop-PnS-OMP.ps1",
       "evidence/current-evidence-manifest.json",
       "Puzzle_Survival_Flow_Completion_Plan",
       "governance-simplification-plan.pre-merge.md"
     ],
-    "source_snapshot_commit": "46346f1e104e5c6180d8ef9d4b5b94ee388673cd",
+    "source_snapshot_commit": "6be9f8b3cb05d37b4482bace176b9df6e13c8391",
     "clean_checkout_core_checks": {
       "tests": 327,
       "status": "passed"
@@ -239,12 +247,13 @@
     ".local-orchestrator/logs/all8-cohort-stopped-ultimate-live-audit-20261101.json",
     ".local-orchestrator/logs/ultimate-exit-warning-stop-live-audit-20261101.json",
     ".local-orchestrator/logs/ultimate-warning-over-defeat-zero-input-stop-audit-20261101.json",
-    ".local-orchestrator/logs/ultimate-flee-defeat-successor-stop-audit-20261101.json"
+    ".local-orchestrator/logs/ultimate-flee-defeat-successor-stop-audit-20261101.json",
+    ".local-orchestrator/logs/final-source-cold-start-splash-stop-and-warm-scarlett-20261101T075711426318Z.json"
   ],
-  "current_semantic_inspection": ".local-orchestrator/logs/ultimate-exit-warning-successor-inspection-20261101.json",
+  "current_semantic_inspection": ".local-orchestrator/logs/final-source-cold-restart-live-audit-20261101T080400808518Z.json",
   "shared_home_failure": {
-    "status": "evidence_required_fix",
-    "cause": "FixedsidebarlabelROIs fitcompactHUDbutmissgenuinelargerHomeHUDlabels. Header/scene/footerchecks pass; sceneOCR misses.",
+    "status": "implemented_offline_proven_and_live_Home_accepted",
+    "cause": "Historical compact-only sidebar crops missed genuine spaced HUD labels. Second measured layout retained exact labels/two within one layout and independent gates; full cadence and restart now verify actual Home.",
     "fixtures": "tests/fixtures/nova_praise_preflight/zoomed-home-a.png andzoomed-home-b.png",
     "tests_preserved": true
   }

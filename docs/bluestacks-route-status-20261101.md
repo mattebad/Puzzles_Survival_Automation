@@ -10,18 +10,48 @@ authorized bounded controllers temporarily enable selected routes.
 
 | Check | Observed result | Remaining limit |
 | --- | --- | --- |
-| Supply Depot | Source `d41af83`: recognized radial to facility, 9 free attempts to 0 through exactly one Hold, 3 inputs, verified Home and disabled cleanup. | Earlier Home entry and drawer recovery stopped across repairs. A fresh uninterrupted Home-entry pass on the final crop source requires the next actual reset. |
-| Personal Might | Source `122ff13`: uninterrupted 6 inputs, one committed Praise, 3 independently replayed disabled/gray captures, Home. | The first immediate post-input frame still showed ready; the route waited for the actual successor without a second Praise. |
-| Enhancement | Gear, Chip and Module each consumed once in one physical Profile visit, with final Home and independent family replay. Original attempt: 13 inputs/1 Gear Confirm. Resume: 15 inputs/2 Confirms, retaining Gear. | This is composite acceptance. An uninterrupted all-three run remains `evidence_required` at the next actual reset. |
-| Cold restart | Source `122ff13`: one guarded stop, process-exit check passed, one checked MAIN/LAUNCHER/NEW_TASK launch, Home, zero game inputs and no human intervention. | All nine flow rows and their due facts were unchanged. This proves this cached account state, not historical Play Games prompt causality. |
-| Campaign and other due routes | Cohort `fd5b6482`: Campaign 120 + 1 regenerated - 112 spent = 9 AP, 8 wins/8 committed AP effects, 50 inputs and Home; next due exactly completion + 300 seconds. Nova used one free Praise, Tavern used one Advanced and one Basic free recruit, and Bioenhancer used one free Research; each returned Home. | This is not a completed two-hour cadence. The cohort stopped after 1,030.094 seconds on Ultimate. Nova has 6 free Praises and Tavern has 4 Basic recruits remaining. |
-| Ultimate | Four inputs reached battle, then a separate continuation sent one Exit and exactly one Flee without repeating Challenge. The warning closed to a native Defeat overlay. | Current Home is now verified by zero-input adoption after the user restart and one Scarlett Back. This is composite acceptance; fresh full Home entry and native Defeat/Continue remain unproved. No repeated Flee is allowed. |
-| Native reset crossing | Pending November 2 at 00:00 UTC. | Requires a consuming Campaign route across the real boundary and continuous-client Tavern refresh. The earlier zero-input admission defer does not satisfy this. |
+| Two-hour cadence | `c4dd031`: 7,200.348 seconds, 30 completed reports, 67 inputs and 10 resource actions; every report verifies Home. 416 source/assets unchanged, 327 PNGs hashed and 264 capture-event references matched. All nine controls OFF; no active run, input lock or effect block. | Consuming coverage was five Nova Praises, three Basic recruits and two Campaign wins. Ultimate returned already-completed/Home with zero inputs. Other daily routes stayed future-due. The later startup-only change has its separate restart proof below. |
+| Nova | The cohort consumed the five remaining Praises, with attempts 5→4→3→2→1→0 and Home after each. All five Core actions confirmed. | Exhausted for November 1; no repeated daily actions. |
+| Noah's Tavern | Three new Basic recruits, persisted daily counts 3→4→5, one native dispatch each and Home. Intermediate and Advanced deadlines stayed unchanged. | Basic exhausted; continuous-client refresh at the next actual reset remains `evidence_required`. Intermediate is 24 hours and Advanced 48 hours, independent of 00 UTC. |
+| Campaign | Cohort passes: 15 + 1 regenerated - 14 spent = 2 AP, then 14 - 14 = 0 AP after regeneration. Two wins/two confirmed 14-AP Core actions, with stage-entry/Lineup links independently checked. All 21 Campaign completions schedule completion +300 seconds. Final independent Home/AP7. | Nineteen low-AP checks used zero inputs. The new unbound HUD-edge fallback remains offline-proven; these runs used existing atlas pans. A consuming real-reset crossing is pending. |
+| Shared startup recovery | `c4dd031` native Campaign pass dismissed exact Scarlett with one Back, then independent Home/AP8, zero AP actions and controls OFF. | Two distinct Scarlett/VIP surfaces are implemented/offline-proven across callers; this live pass covers one Scarlett surface. Unknown/manual surfaces still stop. |
+| Cold restart | `6be9f8b`: one guarded stop, verified process exit, one checked MAIN/LAUNCHER/NEW_TASK launch, independently recognized Home before/immediate-before/after, zero game inputs and no human intervention. All nine flow/due rows and service controls identical. | Earlier 30-second splash timeout is retained as failure. The readiness window is now bounded at 90 seconds; 37 focused startup/launch/restart checks pass. This proves the cached-account condition, not historical Play Games prompt causality. |
+| Supply Depot | `d41af83`: radial to facility, 9 free attempts to 0 through one Hold, 3 inputs/Home. Final crop also passes retained-frame repetitions. | Composite entry across repairs. Fresh uninterrupted Home entry/free Hold/Home on final source requires the next actual reset. |
+| Personal Might | `122ff13`: uninterrupted 6 inputs, one Praise, three independently replayed disabled/gray captures and Home. | Historical source acceptance; current-source refresh remains required after reset. |
+| Enhancement | Gear, Chip and Module each once in one physical Profile visit/Home: original 13 inputs/one Gear Confirm plus 15-input Chip/Module resume. | Composite acceptance. Fully uninterrupted all-three is `evidence_required` after reset; no accepted category is repeated today. |
+| Ultimate | Original one Flee closed the warning to Defeat. User restart, one Scarlett Back and later zero-input Home adoption supplied composite completion. The two-hour cohort honored it with an already-completed/Home zero-input guard. | Fresh full Home entry/Challenge/one Flee/Home remains required after reset. Native Defeat/Continue is offline-proven; accept it live only if encountered. No further Flee today. |
+| Native reset crossing | Pending November 2 at 00:00 UTC. | Actual consuming Campaign actions on both sides and continuous-client Tavern refresh are required. The earlier admission-only defer is not consuming proof. |
 
-Supply's current-source consuming leg and Personal Might both completed through
-the canonical service, with native accounting, resource-effect authority, claims,
-leases and dispatch fences intact. No exhausted quota, cooldown, daily completion
-or retained capture was edited to obtain another attempt.
+## Latest retained audits and next run
+
+The completed cadence ran 05:49:22–07:49:22 UTC, entirely within the November 1
+game day. Its audit is
+`.local-orchestrator/logs/current-source-7200-cadence-final-audit-20261101T075205896654Z.json`.
+It verifies the report copies, source/capture hashes, Core links, Nova countdown,
+Basic counts, independent tier deadlines, exact Campaign cadence and disabled cleanup.
+
+The cold-start timeout and subsequent guarded warm launch are retained separately in
+`.local-orchestrator/logs/final-source-cold-start-splash-stop-and-warm-scarlett-20261101T075711426318Z.json`.
+The native Scarlett recovery audit is
+`.local-orchestrator/logs/native-scarlett-campaign-low-ap-home-audit-20261101T075937890048Z.json`.
+The successful final-source cold-restart audit is
+`.local-orchestrator/logs/final-source-cold-restart-live-audit-20261101T080400808518Z.json`.
+No failed receipt, quota, timer or historical capture was rewritten.
+
+Both full jobs passed on the Windows alias repair in
+[CI69](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41278344645).
+The startup-wait revision has [CI70](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41287140370)
+pending. Subsequent documentation commits require their own current-head status.
+
+Keep controls OFF and let AP regenerate until the 23:40 UTC preparation wake-up.
+The retained 120-AP drain took 234 seconds to its first Lineup action, with 400
+seconds between its first and eighth Lineup actions. Start the consuming drain
+around 23:53 UTC, rechecking real readiness/AP and UTC; do not drain at 23:40.
+Keep the same game client through 00:00. Afterward prove fresh Basic refresh,
+Supply, uninterrupted Enhancement, Personal Might, Ultimate and other due routes
+through the same bounded sole-operator controller. Preserve independent recruit
+deadlines and restore all controls OFF. A missed consuming boundary remains
+unproved and requires the next real boundary.
 
 ## Repairs and the failures that exposed them
 
@@ -86,8 +116,7 @@ the same Flee target. Roughly 150 lines of scene-rectangle filtering/clustering
 and the associated shape-only assertions were retired. Tests now reject an
 actual unknown popup covering the dialog, missing title/text/controls and a gold
 Buy button. All 12 focused cases passed. Claims, reset guard, source freshness,
-resource authority and successor verification are unchanged. This remains
-live-proven only for the single Flee dismissal: its successor is Defeat, and terminal Home remains pending. The failed receipt is retained. A known Defeat Continue selector and post-Flee Home-only recovery were added; the new binder never supplies Buy Now or another Flee. Twenty focused cases passed. The user then restarted BlueStacks. Recovery-only stopped with zero game inputs before and after an owned warm launch, first because P&S was not foreground and then because Scarlett lacked a shared recovery owner.
+resource authority and successor verification are unchanged. At that stop only the single Flee dismissal was live-proven: its successor was Defeat and terminal Home was not yet verified. Later composite Home recovery is recorded above. The failed receipt is retained. A known Defeat Continue selector and post-Flee Home-only recovery were added; the new binder never supplies Buy Now or another Flee. Twenty focused cases passed. The user then restarted BlueStacks. Recovery-only stopped with zero game inputs before and after an owned warm launch, first because P&S was not foreground and then because Scarlett lacked a shared recovery owner.
 
 ## Validation and retained evidence
 
@@ -276,8 +305,7 @@ capture after its lease store closed; production rejected it. Replay now runs
 inside the existing held-lease seam, and the corrected case passed. The root review
 passed 29 helper, Noah and claimed-startup cases in 14.246 seconds. Groups overlap
 and do not form a unique total. The independent reviewer confirmed the reported
-gaps closed. These remain offline results; live acceptance and final cadence are
-pending. The inspected Campaign block was cleared through the state API with its
+gaps closed. These groups prove the shared sequence offline. Later one-Scarlett live recovery and full cadence are recorded above; a live two-surface sequence remains unproved. The inspected Campaign block was cleared through the state API with its
 failure, generation, due and resource facts preserved.
 
 ## Current Campaign recovery and Windows path repair
@@ -312,4 +340,4 @@ allowed. No clock/freshness threshold was weakened. The failure excerpt is
 The alias/affected-module suite passed 61 checks, followed by 20 helper checks after
 final boundary narrowing; real alias cases did not skip locally. Both full jobs
 had passed on 1ba790b in [CI67](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41274799852).
-The path repair needs its own latest-head CI and current-source cadence.
+The path repair subsequently passed both full jobs in CI69 and the c4dd031 cadence recorded above.

@@ -9,50 +9,37 @@ those broader criteria are not prerequisites for this eight-route validation sco
 `CURRENT_HANDOFF.md` records volatile operator state. Runtime controls remain OFF
 outside explicitly authorized bounded tests; there is no permanent deployment.
 
-November 1 follow-up is in the [current acceptance report](docs/bluestacks-route-status-20261101.md).
-Personal Might now has an uninterrupted 1-Praise/Home pass, and the current-source
-cold restart preserved all nine due/flow records. Supply's 9-to-0 free Hold/Home
-leg is accepted; fresh Home entry on the final crop source and uninterrupted
-Enhancement still require the next real reset. The broad-crop OCR deadline was
-reproduced, and the tighter candidate crop passed local repetitions plus both
-hosted repetition steps. The latest cohort proved a full 120 + 1 - 112 = 9 AP
-Campaign drain with 8 wins, then stopped after 1,030.094 seconds on Ultimate's
-gem-grid popup false positive. All controls were restored OFF. The battle and
-foreground warning fixes passed focused checks; full CI passed both platforms
-on `600fd29`. Live continuation sent one Exit and then exactly one Flee, with no
-repeated Challenge. The warning closed to a native Defeat overlay; Home remains
-pending. `eb0fce9` adds verified Continue/Home recovery and strict replay of that
-single-Flee receipt. User restarted BlueStacks; subsequent recovery-only attempts
-used zero game inputs and exposed a shared Scarlett ownership gap.
+November 1 acceptance is recorded in the [dated report](docs/bluestacks-route-status-20261101.md).
+Source `c4dd031` completed a full 7,200.348-second serial cadence: 30 completed
+reports, 67 inputs, five remaining Nova Praises, three remaining Basic recruits,
+and two Campaign wins costing 14 AP each. Every report ended at verified Home;
+every Campaign due time was completion + 300 seconds. All nine controls returned
+OFF with no active run, input lock or effect block. This did not execute the
+future-due Supply, Enhancement, Personal Might or Bio routes.
 
-Both Scarlett and VIP now have shared recovery ownership across routes, as
-explicitly requested; the active route must verify its fresh successor. The supported
-recovery workflow and native contextual helpers handle two distinct known surfaces
-within existing budgets, with separate capture/action evidence and final route
-verification. The
-larger-HUD Home fixtures expose a real label-position miss, not stale evidence;
-they remain in place and the measured second layout passes focused offline
-checks. Current-source recovery now verifies Home with zero new inputs; this is composite
-with the user restart, not native Defeat/Continue proof. Fresh Ultimate Home entry, final cadence
-and next-reset acceptance remain pending. No further Flee is permitted this reset.
-The next 7,200-second attempt stopped after 421.137 seconds on Campaign, before
-spending AP: Chapter 15 was clipped by the right HUD despite an on-boundary atlas
-projection. Nova used one free Praise; Noah used one free Intermediate and one
-Basic recruit, each with result/cooldown/Home. All controls returned OFF. The map
-repair now requests a bounded reframe and requires a fresh binding; three portable
-geometry/progress checks pass. Native shared two-popup sequencing and its proof
-consumers now pass focused offline checks and independent review; current-source
-live acceptance remains pending before the next full cadence attempt. CI65 exposed
-an invalid synthetic-PNG fixture; its producer was corrected and six checks pass.
+Source `6be9f8b` extends bounded startup readiness from 30 to 90 seconds. All 37
+focused startup/launch/restart checks pass. The guarded cold-restart retest proved
+one stop/process exit, one checked launcher intent, independently recognized Home,
+zero game inputs and all nine flow/due records unchanged. The earlier splash
+timeout remains a failure. A separate native Campaign pass recovered exact
+Scarlett with one Back, verified Home/AP8 and consumed no AP. Two distinct known
+Scarlett/VIP popups are supported across routes and offline-proven; this live pass
+covered Scarlett alone.
 
-Current-source Campaign then recovered the map, drained38+1-28=11AP through two
-wins and18 inputs, and returned independently verified Home. Its next due is
-completion+300 seconds. This pass used three existing atlas pans; the new unbound
-HUD-edge branch is still offline-proven only. The full cadence has not completed.
-Windows CI68 exposed short/long path aliases in proof replay; actual8.3 aliases
-reproduced it. The narrow canonical-path fix passed61 cases and20 final helper
-checks, with image/chronology/foreign-path guards retained. Latest-source CI and
-full cadence are pending.
+Remaining live acceptance is tied to the next real reset, November 2 at 00:00 UTC:
+continuous-client consuming Campaign actions on both sides, Tavern Basic refresh
+with independent Intermediate/Advanced timers preserved, uninterrupted
+Gear/Chip/Module in one Profile visit, fresh Supply Home/free-Hold/Home, fresh full
+Ultimate entry/one Flee/Home, and current-source Personal Might. Keep controls OFF
+and preserve AP until the scheduled 23:40 UTC preparation. Based on the retained
+120-AP drain, target the Campaign start around 23:53 UTC rather than draining AP
+at the preparation wake-up. No further Flee or daily quota rearm today.
+
+[CI69](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41278344645)
+passed both full operating-system jobs on `c4dd031`.
+[CI70](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41287140370)
+is pending on the startup-wait revision. PR16 remains draft and unmerged.
+The earlier failures and intermediate repair history remain in the dated report.
 
 These updates do not turn the historical October 31 rows below into fresh runs.
 
