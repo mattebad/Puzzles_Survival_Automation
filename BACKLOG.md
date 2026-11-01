@@ -37,8 +37,10 @@ at the preparation wake-up. No further Flee or daily quota rearm today.
 
 [CI69](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41278344645)
 passed both full operating-system jobs on `c4dd031`.
-[CI70](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41287140370)
-is pending on the startup-wait revision. PR16 remains draft and unmerged.
+The subsequent timeout-receipt fix captures the actual terminal surface even if
+the game returns to the launcher; 38 focused checks pass. Current-head hosted
+validation is tracked in [PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks).
+PR16 remains draft and unmerged.
 The earlier failures and intermediate repair history remain in the dated report.
 
 These updates do not turn the historical October 31 rows below into fresh runs.

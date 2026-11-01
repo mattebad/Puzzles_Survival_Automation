@@ -985,6 +985,9 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
                     return result
                 ordinal += 1
             if time.monotonic() >= deadline:
+                terminal, _ = capture("timeout")
+                result.update(after_observation=terminal, after_frame="timeout.png",
+                              foreground_package=terminal["foreground_package"])
                 raise OperatorError("Puzzles & Survival did not reach a recognized startup surface")
             time.sleep(1.0)
     except Exception as exc:

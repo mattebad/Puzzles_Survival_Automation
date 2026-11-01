@@ -117,9 +117,26 @@ class ApplicationStartupTests(unittest.TestCase):
         launcher = self.observe("com.uncube.launcher3")
         with patch.object(pnsctl.time, "monotonic", side_effect=[0, 91]):
             with self.assertRaises(pnsctl.ApplicationStartupError) as raised:
-                self.run_start([launcher, launcher, self.observe(pnsctl.PACKAGE)], ready=False)
+                self.run_start([launcher, launcher, self.observe(pnsctl.PACKAGE),
+                                self.observe(pnsctl.PACKAGE)], ready=False)
         self.assertEqual(raised.exception.startup_result["system_launch_count"], 1)
         self.assertFalse(raised.exception.startup_result["route_ready"])
+
+    def test_timeout_retains_launcher_as_current_terminal_surface(self):
+        launcher = self.observe("com.uncube.launcher3")
+        with patch.object(pnsctl.time, "monotonic", side_effect=[0, 91]):
+            with self.assertRaises(pnsctl.ApplicationStartupError) as raised:
+                self.run_start([launcher, launcher, self.observe(pnsctl.PACKAGE), launcher],
+                               ready=False)
+        result = raised.exception.startup_result
+        self.assertEqual(result["foreground_package"], "com.uncube.launcher3")
+        self.assertEqual(result["after_observation"]["foreground_package"], "com.uncube.launcher3")
+        self.assertEqual(result["system_launch_count"], 1)
+        self.assertEqual(result["game_input_count"], 0)
+        self.assertFalse(result["route_ready"])
+        retained = json.loads((self.root / "evidence" / "result.json").read_text())
+        self.assertEqual(retained["after_observation"], result["after_observation"])
+        self.assertEqual((self.root / "evidence" / retained["after_frame"]).read_bytes(), launcher[1])
 
     def test_delayed_home_after_splash_uses_the_original_launch(self):
         launcher = self.observe("com.uncube.launcher3")

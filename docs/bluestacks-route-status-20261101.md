@@ -40,8 +40,18 @@ No failed receipt, quota, timer or historical capture was rewritten.
 
 Both full jobs passed on the Windows alias repair in
 [CI69](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41278344645).
-The startup-wait revision has [CI70](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41287140370)
-pending. Subsequent documentation commits require their own current-head status.
+[CI70](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41287140370)
+and the following documentation-head CI71 were still running at 08:26 UTC.
+Use [PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks)
+for the current head rather than treating this dated snapshot as live CI state.
+
+The timeout path now captures a fresh terminal frame and foreground package before
+recording failure. Previously a return to the launcher could leave only the older
+game splash frame in the receipt. This adds observation evidence, with no launch
+or game-input retry. All 38 focused startup/launch/restart cases passed, including
+retained launcher evidence on timeout. The new failure-evidence branch is
+offline-proven; the cold-restart live receipt remains bound to `6be9f8b`.
+The raw focused output is `.local-validation/startup-terminal-evidence-20261101T0825Z.log`.
 
 Keep controls OFF and let AP regenerate until the 23:40 UTC preparation wake-up.
 The retained 120-AP drain took 234 seconds to its first Lineup action, with 400

@@ -5,7 +5,7 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "6be9f8b3cb05d37b4482bace176b9df6e13c8391",
-  "updated_utc": "2026-11-01T08:09:24.873128+00:00",
+  "updated_utc": "2026-11-01T08:27:10.831482+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
   "active_task_or_flow": "Fix intermittent Supply Depot recognition and finish remaining live acceptance before merge; sole local operator only",
@@ -14,8 +14,8 @@
   "current_live_attempt_state": "Completed c4dd031 two-hour serial cadence:30 reports/67 inputs,5 Nova Praises,3 Basic recruits,2 Campaign wins. Later native Scarlett recovery:1 Back/HomeAP8/zero effects. Latest6be9f8b cold restart:1 verified stop/1 launch/zero game inputs/independent Home; all9 flow/due and service rows unchanged.",
   "current_evidence_or_session_reference": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\launch-game-20261101T080253061725Z",
   "last_safe_completed_step": "Audited full7200.348s cadence with416 source/assets,327 PNGs,264 capture refs and exact Campaign+300. Native Scarlett recovery independently replayed. Final-source cold restart independently verifies3Home frames and9 unchanged flow/due rows.",
-  "current_blocker": "evidence_required: next real00UTC consuming Campaign crossing, continuous Tavern Basic refresh, fresh Supply/full Ultimate, uninterrupted Gear/Chip/Module and current-source Personal Might. Latest-source CI70 running; no active runtime blocker.",
-  "exact_next_permitted_action": "Finish latest CI/documentation/PR reconciliation, then keep all controls OFF and preserve AP. At Nov1 23:40UTC prepare existing canonical controller, freeze current source/assets and current authorization. Target Campaign start23:53UTC using retained drain timing; ensure actual consuming actions both sides Nov2 00UTC in same client. Then run all due authorized routes including Enhancement/Supply/Ultimate/PM and bounded cadence. No cold relaunch across reset, quota/timer edits or second Flee today.",
+  "current_blocker": "evidence_required: next real00UTC consuming Campaign crossing, continuous Tavern Basic refresh, fresh Supply/full Ultimate, uninterrupted Gear/Chip/Module and current-source Personal Might. Actual current-head CI is authoritative in PR16 checks; no active runtime blocker.",
+  "exact_next_permitted_action": "Verify actual current-head CI/PR16 checks and repair only actual failures. Keep all runtime controls OFF and preserve AP until Nov1 23:40UTC preparation. Target Campaign start23:53UTC with sufficient AP and actual effects both sides Nov2 00UTC in the same client; then all due authorized routes and bounded cadence. Freeze fresh source/assets/current authorization before the sole operator; no cold relaunch across reset, quota/timer edits or second Flee today.",
   "unresolved_action_state": "No unresolved Ultimate effect after currentHome adoption. Original one-Flee failed receipt retained; no repeatFlee for game-day2026-11-01. Current completion is composite with human restart, not uninterrupted recovery.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
@@ -95,7 +95,7 @@
     }
   },
   "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T080240576031Z.json",
-  "validation": "CI69 on c4dd031 passed both complete OS jobs. 37 focused startup/launch/cold-restart cases passed on6be9f8b; CI70 running. Windows alias suite61 plus20 helper cases passed earlier, without weakened hashes/chronology/foreign paths. No full local test discovery; known legacy baselines remain separate.",
+  "validation": "CI69 on c4dd031 passed both complete OS jobs. Original90s-startup change passed37 focused checks and guarded cold restart on6be9f8b. Subsequent timeout-terminal-evidence change passes38 focused checks; raw output .local-validation/startup-terminal-evidence-20261101T0825Z.log. CI70/71 were active at08:26UTC; actual current-head status is PR16 checks, not this dated snapshot. No full local test discovery; legacy baselines remain separate.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
     ".local-orchestrator/logs/noah-full-basic-quota-audit-20261030.json",
@@ -200,7 +200,7 @@
     "personal_might_repair": "Disabledthumb antialias/exactwordfragment captions/currentcompleteMore resume fixed. OriginalonePraise reconciledwithoutrepeat; currentcanonical0Praise4nav/Home accepted. Originalwrapperfailurepreserved.",
     "current_source_cadence": "LIVE_ACCEPTED c4dd031:7200.348s/30reports/67inputs; .local-orchestrator/logs/current-source-7200-cadence-final-audit-20261101T075205896654Z.json",
     "ultimate_repair": "OneFlee/Defeat plus human-assisted composite Home retained. Already-completed guard0inputs/Home accepted; fresh full entry/native Continue still required.",
-    "startup_loading": "30s splash timeout retained. Bounded wait90s with37 focused cases; subsequent current-source cold restart accepted. Native shared Scarlett recovery separately accepted1Back/Home8/zeroAP."
+    "startup_loading": "30s splash timeout retained; bounded90s readiness and37 focused cases plus6be9f8b cold restart accepted. Followup timeout captures fresh terminal foreground/frame;38 focused cases pass. New failure-evidence branch offline-proven; no further live test before real reset."
   },
   "last_bounded_cadence": {
     "status": "completed_full_7200_seconds_on_c4dd031",
@@ -225,7 +225,7 @@
       "status": "passed"
     },
     "portable_evidence": "docs/validation/bluestacks-20261031/summary.json",
-    "publication": "DraftPR16 open/unmerged.6be9f8b pushed; CI70 running. Latest docs will require current-head CI. Permanent scheduling OFF.",
+    "publication": "DraftPR16 open/unmerged; current-head CI truth is https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks. Source-only timeout-terminal-capture followup passes38 focused checks; successful restart stays bound to6be9f8b. Permanent scheduling OFF.",
     "excluded_existing_work": [
       "Stop-PnS-OMP.ps1",
       "evidence/current-evidence-manifest.json",
