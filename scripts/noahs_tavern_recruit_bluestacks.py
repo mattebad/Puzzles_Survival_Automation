@@ -50,7 +50,9 @@ from scripts.bluestacks_native_runtime import (
     NativeRuntimePort,
 )
 from scripts.bluestacks_popup_recognition import recognize_reset_popup
-from scripts.startup_recovery import ContextualPopupRecoveryResult, recover_contextual_startup_overlay
+from scripts.startup_recovery import (
+    ContextualPopupRecoveryResult, contextual_startup_identity, recover_contextual_startup_overlay,
+)
 from scripts.startup_surface_recognition import recognize_startup_surface
 from scripts.navigation_development_boundary import (
     NavigationBoundaryError,
@@ -311,9 +313,11 @@ class BlueStacksNoahsTavernRecruitAdapter:
 
 @dataclass
 class _ContextualPopupSession:
-    """Ephemeral route-owned bound for one contextual startup dismissal."""
+    """Ephemeral route-owned accounting for distinct contextual dismissals."""
 
-    dismissal_used: bool = False
+    input_count: int = 0
+    attempted_identities: set[str] = field(default_factory=set)
+    failed: bool = False
     records: list[dict[str, object]] = field(default_factory=list)
 
 
@@ -327,27 +331,20 @@ def _contextual_recovery(
     settle_seconds: float = 0.8,
     sleep: Callable[[float], None] = time.sleep,
 ) -> ContextualPopupRecoveryResult:
-    """Apply the one-dismissal route bound and retain serializable evidence."""
+    """Retain distinct recovery attempts and lock any ambiguous occurrence."""
 
     session = session or _ContextualPopupSession()
-    if session.dismissal_used:
-        try:
-            already_present = recognize_reset_popup(captured.frame)
-            if isinstance(already_present, dict) and not already_present.get("recognized"):
-                already_present = recognize_startup_surface(captured.frame, captured.png)
-        except (OSError, ValueError, TypeError, cv2.error, MemoryError):
-            already_present = None
-        if isinstance(already_present, dict) and already_present.get("recognized"):
-            result = ContextualPopupRecoveryResult(
-                captured,
-                False,
-                None,
-                False,
-                0,
-                "contextual_popup_dismissal_already_used",
-            )
-            _record_contextual_recovery(session, captured, source_context, result)
-            return result
+    try:
+        identity = contextual_startup_identity(captured) if session.input_count or session.attempted_identities else None
+    except (OSError, ValueError, TypeError, cv2.error, MemoryError):
+        identity = None
+    if session.failed or (identity is not None and (
+            session.input_count >= 2 or identity in session.attempted_identities)):
+        result = ContextualPopupRecoveryResult(
+            captured, False, None, False, 0, "contextual_popup_recovery_attempt_denied",
+        )
+        _record_contextual_recovery(session, captured, source_context, result, runtime.session)
+        return result
 
     action_key = f"noah:popup-close:{source_context}:{captured.sha256}"
     result = recover_contextual_startup_overlay(
@@ -359,10 +356,14 @@ def _contextual_recovery(
         settle_seconds=settle_seconds,
         sleep=sleep,
     )
-    # An uncertain transport consumes the same one-shot slot as a confirmed Close.
-    if result.dismissed is not False or result.input_count:
-        session.dismissal_used = True
-    _record_contextual_recovery(session, captured, source_context, result)
+    session.input_count += result.input_count
+    session.attempted_identities.update(step.popup_identity for step in result.steps)
+    if identity is not None and (result.dismissed is not False or result.input_count):
+        session.attempted_identities.add(identity)
+    # An uncertain/failed recovery cannot be resumed with a different popup/key.
+    if not result.resume_ready and (result.input_count or result.steps or result.dismissed is not False):
+        session.failed = True
+    _record_contextual_recovery(session, captured, source_context, result, runtime.session)
     return result
 
 
@@ -371,6 +372,7 @@ def _record_contextual_recovery(
     source: CapturedNativeFrame,
     source_context: str,
     result: ContextualPopupRecoveryResult,
+    runtime_session: Path,
 ) -> None:
     settled = result.settled_frame
     session.records.append(
@@ -383,6 +385,7 @@ def _record_contextual_recovery(
             "resume_ready": result.resume_ready,
             "input_count": result.input_count,
             "reason": result.reason,
+            "steps": [step.to_mapping(runtime_session) for step in result.steps],
         }
     )
 
@@ -605,9 +608,8 @@ class NoahTavernIntegratedRoute:
         return max(0, maximum - consumed)
 
     def _required_recruit_input_reserve(self) -> int:
-        # Recruit + result Close + terminal Home, plus the one still-available
-        # contextual dismissal. Once that one-shot is used, three slots suffice.
-        return 3 + (0 if self.contextual_session.dismissal_used else 1)
+        # Recruit + result Close + terminal Home and remaining known dismissals.
+        return 3 + max(0, 2 - self.contextual_session.input_count)
 
     def _contextual_failure_result(self, actions: int) -> NoahTavernIntegratedRouteResult:
         result = self._last_contextual_result
@@ -616,6 +618,7 @@ class NoahTavernIntegratedRoute:
             "vip_popup_transport_uncertain",
             "vip_popup_post_capture_failed",
             "vip_popup_persisted",
+            "startup_transport_uncertain",
         } else "blocked"
         return self._result(status, reason, actions)
 

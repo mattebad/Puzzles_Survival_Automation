@@ -235,11 +235,12 @@ class PersonalMightRunner:
                     if type(startup_count) is not int or startup_count < 0:
                         raise ValueError("Personal Might startup input accounting is invalid")
                     session.adopt_retained_transport_count(startup_count, source=str(runtime.events))
-                    if startup_count > 1:
-                        raise ValueError("Personal Might startup exceeded one input")
+                    if startup_count > 2:
+                        raise ValueError("Personal Might startup exceeded two inputs")
                 result["startup_recovery"].update(reason=recovery.reason, dismissed=recovery.dismissed,
                     popup_absent=recovery.popup_absent, resume_ready=recovery.resume_ready,
                     reported_input_count=recovery.input_count,
+                    steps=[step.to_mapping(runtime.session) for step in recovery.steps],
                     accounting_verified=type(recovery.input_count) is int and recovery.input_count == startup_count,
                     settled_frame=_current_capture(runtime, recovery.settled_frame.path, recovery.settled_frame.sha256)[1]
                         if recovery.settled_frame is not None else None)

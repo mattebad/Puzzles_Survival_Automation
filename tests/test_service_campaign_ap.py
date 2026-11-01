@@ -202,6 +202,48 @@ class CampaignServiceRunnerTests(unittest.TestCase):
             row = store.execute("SELECT final_status,cost_type,cost_amount FROM actions").fetchone()
         self.assertEqual(tuple(row), ("confirmed", "AP", 14))
 
+    def test_terminal_two_overlay_stack_reconciles_before_fresh_home_without_another_ap_effect(self):
+        popup_pngs = [(Path("tests/fixtures/startup") / name).read_bytes() for name in
+                      ("nova-vip-reset-20261031.png", "scarlett-current-20261030.png")]
+        popup_frames = [cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR) for raw in popup_pngs]
+        class TerminalStack(FakeADB):
+            popup_index = None
+            def capture_png(self):
+                if self.popup_index is not None and self.popup_index < 2:
+                    return popup_pngs[self.popup_index]
+                return super().capture_png()
+            def dispatch_tap(self, point):
+                if self.popup_index is not None and self.popup_index < 2:
+                    self.inputs.append(("tap", point))
+                    self.popup_index += 1
+                    return
+                super().dispatch_tap(point)
+        self.world, self.home_ap, self.post_ap = TerminalStack("home"), 14, 0
+        connect = self.runtime
+        def runtime(**kwargs):
+            current = connect(**kwargs)
+            capture = current.capture
+            def captured(label):
+                if label == "campaign-terminal-normalization-source":
+                    self.world.popup_index = 0
+                return capture(label)
+            current.capture = captured
+            return current
+        def recognize_parent(frame, stage, **kwargs):
+            if any(np.array_equal(frame, candidate) for candidate in popup_frames):
+                return CampaignFrameRecognition(CampaignRouteObservation(screen=CampaignScreen.UNKNOWN, recognized=False),
+                                                "unrecognized-popup", (), {})
+            return self.recognize(frame, stage, **kwargs)
+        with patch.object(LocalBlueStacksRuntime, "connect", side_effect=runtime), \
+                patch.object(ap, "recognize_campaign_frame", side_effect=recognize_parent):
+            result = self.runner(self.identity, None, self.checkpoint)
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual((result["stage_entry_transport_count"], result["new_battle_count"],
+                          result["committed_ap_effect_count"], result["terminal_normalization"]["input_count"]), (1, 1, 1, 2))
+        self.assertIn("campaign-terminal-normalization-settled", result["terminal_home_frame"])
+        self.assertEqual(result["total_input_count"], len(self.world.inputs))
+        self.assertTrue(result["terminal_home_verified"])
+
     def test_full_drain_uses_real_native_loop_and_individual_policy_entries_with_regeneration(self):
         self.world = DrainFakeADB(ap=120, regen_per_battle=(6,))
         result = self.runner(self.identity, None, self.checkpoint)
@@ -657,6 +699,63 @@ class CampaignServiceRunnerTests(unittest.TestCase):
             self.assertLess(source["captured_monotonic"], successor["captured_monotonic"])
             self.assertEqual(hashlib.sha256(Path(source["path"]).read_bytes()).hexdigest(), source["sha256"])
             self.assertEqual(hashlib.sha256(Path(successor["path"]).read_bytes()).hexdigest(), successor["sha256"])
+
+    def test_two_known_startup_overlays_defer_with_exact_native_replay_and_no_ap_action(self):
+        fixtures = Path("tests/fixtures")
+        sequence = [(fixtures / name).read_bytes() for name in (
+            "startup/nova-vip-reset-20261031.png", "startup/scarlett-current-20261030.png",
+            "campaign_startup_recovery/home-ap12-source.png")]
+        class StackDevice(FakeADB):
+            def __init__(self):
+                super().__init__("popup")
+            def capture_png(self):
+                return sequence[min(len(self.inputs), 2)]
+            def dispatch_tap(self, point):
+                self.inputs.append(("tap", point))
+                if self.on_input:
+                    self.on_input(len(self.inputs))
+        self.world = StackDevice()
+        from scripts.startup_normalization import is_clean_home_frame
+        verify = self.runner._normalization_ledger
+        def checked_ledger(runtime, journal_before, count_before, final, phase):
+            ledger = verify(runtime, journal_before, count_before, final, phase)
+            retained = runtime.events.read_bytes()
+            for fault in ("duplicate_key", "wrong_confirmation", "missing_next_step", "early_confirmation", "late_confirmation", "wrong_point"):
+                rows = [json.loads(line) for line in retained.splitlines()]
+                dispatches = [row for row in rows if row["type"] == "dispatch"]
+                if fault == "duplicate_key":
+                    dispatches[1]["action_key"] = dispatches[0]["action_key"]
+                elif fault == "wrong_confirmation":
+                    next(row for row in rows if row["type"] == "reconcile")["status"] = "unresolved"
+                elif fault == "missing_next_step":
+                    rows = [row for row in rows if row is not dispatches[1]]
+                elif fault == "wrong_point":
+                    dispatches[0]["point"] = [1, 1]
+                else:
+                    reconciliation = next(row for row in rows if row["type"] == "reconcile")
+                    rows.remove(reconciliation)
+                    if fault == "early_confirmation":
+                        rows.insert(rows.index(dispatches[0]) + 1, reconciliation)
+                    else:
+                        rows.insert(rows.index(dispatches[1]), reconciliation)
+                runtime.events.write_text("".join(json.dumps(row) + "\n" for row in rows))
+                with self.subTest(fault=fault), self.assertRaises(ValueError):
+                    verify(runtime, journal_before, count_before, final, phase)
+                runtime.events.write_bytes(retained)
+            return ledger
+        with patch.object(ap, "recognize_campaign_frame", side_effect=recognize_campaign_frame), \
+                patch.object(ap, "is_clean_home_frame", side_effect=is_clean_home_frame), \
+                patch.object(self.runner, "_normalization_ledger", side_effect=checked_ledger), \
+                patch.object(native, "run_campaign_ap_route", side_effect=AssertionError("no AP route below cost")) as route:
+            result = self.runner(self.identity, None, self.checkpoint)
+            self.assertEqual(result["status"], "deferred")
+            self.assertEqual((result["ap_before"], result["ap_after"], result["total_input_count"],
+                              result["route_input_count"], result["stage_entry_transport_count"]), (12, 12, 2, 0, 0))
+            ledger = result["initial_normalization"]
+            self.assertEqual([entry["target"] for entry in ledger["dispatches"]],
+                             ["reset-popup-close", "scarlett-three-day-pack-in-game-back"])
+            self.assertEqual(ap.campaign_next_due(result, self.identity, self.now - 1), self.now + 900)
+            route.assert_not_called()
 
     def test_popup_stop_lease_loss_and_ambiguous_successor_never_reach_resource_route(self):
         popup = Path("tests/fixtures/campaign_startup_recovery/vip-chapter-source.png").read_bytes()

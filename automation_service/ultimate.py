@@ -176,17 +176,18 @@ def _startup_events(session: Path):
     return rows
 
 
-def _startup_navigation_proof(session, source, settled, home, action_key, helper):
-    """Validate this runtime's one known dismissal and its genuine P/I/R captures."""
+def _startup_navigation_proof(session, source, settled, home, action_key, helper, steps):
+    """Replay every known dismissal before accepting this route's fresh Home."""
     from scripts import startup_recovery as startup
     from scripts import bluestacks_ultimate_challenge as native
 
     session = Path(session).resolve()
     if (not isinstance(helper, Mapping) or helper.get("resume_ready") is not True
             or helper.get("dismissed") is not True or helper.get("popup_absent") is not True
-            or type(helper.get("input_count")) is not int or helper["input_count"] != 1
+            or type(helper.get("input_count")) is not int or helper["input_count"] not in (1, 2)
+            or not isinstance(steps, list) or len(steps) != helper["input_count"]
             or type(helper.get("reason")) is not str or not helper["reason"]):
-        raise ValueError("Ultimate startup helper did not verify one known dismissal")
+        raise ValueError("Ultimate startup helper did not verify its known dismissals")
     rows = _startup_events(session)
 
     def path_for(row):
@@ -212,66 +213,91 @@ def _startup_navigation_proof(session, source, settled, home, action_key, helper
         return {"frame_path": relative, "frame_sha256": captured.sha256,
                 "captured_monotonic": captured.captured_monotonic}, matches[0][0]
 
-    dispatches = [(index, row) for index, row in enumerate(rows)
-                  if row.get("type") == "dispatch" and row.get("action_key") == action_key]
-    if len(dispatches) != 1:
-        raise ValueError("Ultimate startup requires exactly one current dispatch")
-    dispatch_index, dispatch = dispatches[0]
-    target = dispatch.get("target_identity")
-    labels = {
-        startup.VIP_RESET_TARGET: ("contextual-vip-popup-dispatch-before", "contextual-vip-popup-post"),
-        startup.SCARLETT_SAFE_BACK_TARGET_IDENTITY: ("contextual-startup-scarlett-before", "contextual-startup-scarlett-post"),
-    }
-    if (target not in labels or dispatch.get("action_class") != "navigation"
-            or dispatch.get("consequential") is not False or dispatch.get("execute") is not True):
-        raise ValueError("Ultimate startup dispatch is not an exact known navigation")
-    immediate_rows = [row for index, row in enumerate(rows) if index < dispatch_index
-                      and row.get("type") == "capture" and row.get("label") == labels[target][0]
-                      and row.get("sha256") == dispatch.get("source_sha256")]
-    if len(immediate_rows) != 1:
-        raise ValueError("Ultimate startup dispatch lacks its measured immediate frame")
-    row = immediate_rows[0]
-    immediate = _startup_frame(session, {"frame_path": path_for(row).resolve().relative_to(session).as_posix(),
-        "frame_sha256": row.get("sha256"), "captured_monotonic": row.get("captured_monotonic")})
+    def step_frame(step, name):
+        return _startup_frame(session, {"frame_path": step.get(name + "_frame"),
+            "frame_sha256": step.get(name + "_sha256"),
+            "captured_monotonic": step.get(name + "_captured_monotonic")})
+
     p, pi = capture_record(source)
-    i, ii = capture_record(immediate)
     r, ri = capture_record(settled)
     h, hi = capture_record(home)
-    reconciles = [(index, row) for index, row in enumerate(rows)
-                  if row.get("type") == "reconcile" and row.get("action_key") == action_key]
-    prefix_dispatches = [row for index, row in enumerate(rows) if index < hi and row.get("type") == "dispatch"]
-    if (prefix_dispatches != [dispatch]
-            or len(reconciles) != 1 or reconciles[0][1].get("status") != "confirmed"
-            or reconciles[0][1].get("post_sha256") != settled.sha256
-            or not pi < ii < dispatch_index < ri < reconciles[0][0] < hi
-            or not source.captured_monotonic < immediate.captured_monotonic < settled.captured_monotonic < home.captured_monotonic
-            or rows[ri].get("label") != labels[target][1]
+    seen, dispatches, verified_steps = set(), [], []
+    previous = source
+    first_immediate = None
+    previous_reconcile_index = None
+    for ordinal, step in enumerate(steps):
+        if not isinstance(step, Mapping):
+            raise ValueError("Ultimate startup step is missing")
+        proposal, immediate, post = (step_frame(step, name) for name in ("source", "immediate_before", "settled"))
+        proposal_ref, proposal_index = capture_record(proposal)
+        immediate_ref, immediate_index = capture_record(immediate)
+        post_ref, post_index = capture_record(post)
+        identity = startup.contextual_startup_identity(proposal)
+        if (identity is None or identity in seen or startup.contextual_startup_identity(immediate) != identity
+                or proposal.path != previous.path or proposal.sha256 != previous.sha256
+                or proposal.captured_monotonic != previous.captured_monotonic):
+            raise ValueError("Ultimate startup sequence is not continuous distinct known overlays")
+        seen.add(identity)
+        key = startup.contextual_startup_action_key(action_key, ordinal)
+        matches = [(index, row) for index, row in enumerate(rows)
+                   if row.get("type") == "dispatch" and row.get("action_key") == key]
+        if len(matches) != 1:
+            raise ValueError("Ultimate startup requires exactly one dispatch per step")
+        dispatch_index, dispatch = matches[0]
+        vip = identity == "VIP_POINTS_GET_PTS"
+        target = startup.VIP_RESET_TARGET if vip else startup.SCARLETT_SAFE_BACK_TARGET_IDENTITY
+        before_label = "contextual-vip-popup-dispatch-before" if vip else "contextual-startup-scarlett-before"
+        post_label = "contextual-vip-popup-post" if vip else "contextual-startup-scarlett-post"
+        detail = startup.recognize_reset_popup(immediate.frame) if vip else startup.recognize_startup_surface(immediate.frame, immediate.png)
+        roi = startup._contextual_target(detail) if vip else tuple(detail["safe_exit_roi"])
+        if not vip:
+            proposal_detail = startup.recognize_startup_surface(proposal.frame, proposal.png)
+            if roi != tuple(proposal_detail["safe_exit_roi"]):
+                raise ValueError("Ultimate startup measured Back changed")
+        reconciles = [(index, row) for index, row in enumerate(rows)
+                      if row.get("type") == "reconcile" and row.get("action_key") == key]
+        if (dispatch.get("target_identity") != target or list(roi or ()) != dispatch.get("target_roi")
+                or dispatch.get("point") != [(roi[0] + roi[2]) // 2, (roi[1] + roi[3]) // 2]
+                or dispatch.get("source_sha256") != immediate.sha256
+                or dispatch.get("action_class") != "navigation" or dispatch.get("consequential") is not False
+                or dispatch.get("execute") is not True or dispatch.get("continuation_of") is not None
+                or len(reconciles) != 1 or reconciles[0][1].get("status") != "confirmed"
+                or reconciles[0][1].get("post_sha256") != post.sha256
+                or not proposal_index < immediate_index < dispatch_index < post_index < reconciles[0][0] < hi
+                or not proposal.captured_monotonic < immediate.captured_monotonic < post.captured_monotonic
+                or rows[immediate_index].get("label") != before_label or rows[post_index].get("label") != post_label
+                or (previous_reconcile_index is not None and previous_reconcile_index >= immediate_index)):
+            raise ValueError("Ultimate startup dispatch, chronology or reconciliation is invalid")
+        expected = startup.ContextualStartupRecoveryStep(identity, key, proposal, immediate, post, target, roi,
+                                                         1, True, step.get("reason")).to_mapping(session)
+        if (step != expected or type(step.get("input_count")) is not int
+                or step.get("confirmed") is not True or type(step.get("reason")) is not str or not step["reason"]):
+            raise ValueError("Ultimate startup step differs from its current native proof")
+        verified_steps.append(expected)
+        dispatches.append(dispatch)
+        previous = post
+        previous_reconcile_index = reconciles[0][0]
+        if first_immediate is None:
+            first_immediate = immediate_ref
+    prefix = [row for index, row in enumerate(rows) if index < hi and row.get("type") == "dispatch"]
+    surface = startup.recognize_startup_surface(settled.frame, settled.png)
+    popup = startup.recognize_reset_popup(settled.frame)
+    if (previous.path != settled.path or previous.sha256 != settled.sha256 or prefix != dispatches
+            or not ri < hi or not settled.captured_monotonic < home.captured_monotonic
+            or surface.get("recognized") or surface.get("commercial_looking")
+            or popup.get("recognized") or popup.get("blocking_unknown_modal")
             or not native._home_nav_terminal(settled.frame) or not native._home_nav_terminal(home.frame)):
-        raise ValueError("Ultimate startup successor chronology or Home proof is invalid")
-    if target == startup.VIP_RESET_TARGET:
-        before = startup.recognize_reset_popup(source.frame)
-        current = startup.recognize_reset_popup(immediate.frame)
-        if not startup._contextual_exact_vip(before) or not startup._contextual_exact_vip(current):
-            raise ValueError("Ultimate startup VIP identity is not current")
-        roi = startup._contextual_target(current)
-    else:
-        before = startup.recognize_startup_surface(source.frame, source.png)
-        current = startup.recognize_startup_surface(immediate.frame, immediate.png)
-        if (not startup.is_exact_scarlett_recognition(before)
-                or not startup.is_exact_scarlett_recognition(current)
-                or before.get("frame_sha256") != source.sha256 or current.get("frame_sha256") != immediate.sha256):
-            raise ValueError("Ultimate startup Scarlett identity is not current")
-        roi = tuple(current["safe_exit_roi"])
-    if roi is None or list(roi) != dispatch.get("target_roi"):
-        raise ValueError("Ultimate startup dispatch does not match the measured known control")
-    return {"runtime_session": str(session), "action_key": action_key, "target_identity": target,
-            "target_roi": list(roi), "source": p, "immediate_before": i, "settled": r, "home": h,
-            "helper": dict(helper)}
+        raise ValueError("Ultimate startup final Home proof is invalid")
+    first = verified_steps[0]
+    return {"runtime_session": str(session), "action_key": action_key,
+            "target_identity": first["target_identity"], "target_roi": first["target_roi"],
+            "source": p, "immediate_before": first_immediate, "settled": r, "home": h,
+            "helper": dict(helper), "steps": verified_steps}
 
 
 def _validate_startup_result(result):
     count = result.get("startup_navigation_count", 0)
-    if type(count) is not int or count not in (0, 1):
+    if type(count) is not int or count not in (0, 1, 2):
         raise ValueError("Ultimate startup navigation count is invalid")
     proof = result.get("startup_navigation_proof")
     if count == 0:
@@ -279,13 +305,13 @@ def _validate_startup_result(result):
             raise ValueError("Ultimate zero-input startup cannot claim a dismissal proof")
         return count
     if not isinstance(proof, Mapping) or not isinstance(result.get("session_directory"), str):
-        raise ValueError("Ultimate one-input startup requires current native proof")
+        raise ValueError("Ultimate startup requires current native proof")
     session = Path(result["session_directory"]).resolve()
     if proof.get("runtime_session") != str(session):
         raise ValueError("Ultimate startup proof belongs to another runtime")
     verified = _startup_navigation_proof(session,
         _startup_frame(session, proof["source"]), _startup_frame(session, proof["settled"]),
-        _startup_frame(session, proof["home"]), proof.get("action_key"), proof.get("helper"))
+        _startup_frame(session, proof["home"]), proof.get("action_key"), proof.get("helper"), proof.get("steps"))
     if (verified != proof or result.get("initial_source_frame") != proof["source"]["frame_path"]
             or result.get("initial_source_frame_sha256") != proof["source"]["frame_sha256"]
             or result.get("initial_home_frame") != proof["home"]["frame_path"]
@@ -397,14 +423,15 @@ class UltimateRunner:
                     result["startup_navigation_count"] = runtime.input_count - before
                 if (not recovery.resume_ready or type(recovery.input_count) is not int
                         or recovery.input_count != result["startup_navigation_count"]
-                        or result["startup_navigation_count"] not in (0, 1)):
+                        or result["startup_navigation_count"] not in (0, 1, 2)):
                     raise ValueError(f"Ultimate known startup recovery is not ready: {recovery.reason}")
                 source = runtime.capture("ultimate-service-startup-home")
                 if result["startup_navigation_count"]:
                     helper = {name: getattr(recovery, name) for name in (
                         "resume_ready", "dismissed", "popup_absent", "input_count", "reason")}
                     result["startup_navigation_proof"] = _startup_navigation_proof(
-                        runtime.session, original, recovery.settled_frame, source, action_key, helper)
+                        runtime.session, original, recovery.settled_frame, source, action_key, helper,
+                        [step.to_mapping(runtime.session) for step in recovery.steps])
             if not native._home_nav_terminal(source.frame) or runtime.measure_foreground_package() != "com.global.ztmslg":
                 raise ValueError("Ultimate requires fresh canonical Home; unrelated battle/Lineup cannot be adopted")
             result.update(initial_home_frame=str(source.path.relative_to(runtime.session)).replace("\\", "/"),

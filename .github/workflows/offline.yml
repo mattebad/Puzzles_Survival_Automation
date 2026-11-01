@@ -110,6 +110,9 @@ jobs:
           tests.test_ultimate_defeat_recovery
           tests.test_home_control_layouts
           tests.test_startup_recovery
+          tests.test_contextual_startup_recovery
+          tests.test_nova_startup_recovery
+          tests.test_noahs_tavern_recruit.ContextualPopupRouteTests
           tests.test_personal_might_bluestacks.PersonalMightNativeTests.test_native_fragmented_rankings_caption_still_binds_current_trophy_body
       - name: Run directly affected cleanup regressions
         run: >-

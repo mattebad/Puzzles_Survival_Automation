@@ -83,6 +83,31 @@ class StartupRecoveryPlan:
 
 
 @dataclass(frozen=True)
+class ContextualStartupRecoveryStep:
+    popup_identity: str
+    action_key: str
+    source_frame: CapturedNativeFrame
+    immediate_before: CapturedNativeFrame
+    settled_frame: CapturedNativeFrame | None
+    target_identity: str
+    target_roi: tuple[int, int, int, int]
+    input_count: int
+    confirmed: bool
+    reason: str
+
+    def to_mapping(self, session) -> dict[str, object]:
+        value = {"popup_identity": self.popup_identity, "action_key": self.action_key,
+                 "target_identity": self.target_identity, "target_roi": list(self.target_roi),
+                 "input_count": self.input_count, "confirmed": self.confirmed, "reason": self.reason}
+        for name, frame in (("source", self.source_frame), ("immediate_before", self.immediate_before),
+                            ("settled", self.settled_frame)):
+            value[name + "_frame"] = frame.path.relative_to(session).as_posix() if frame else None
+            value[name + "_sha256"] = frame.sha256 if frame else None
+            value[name + "_captured_monotonic"] = frame.captured_monotonic if frame else None
+        return value
+
+
+@dataclass(frozen=True)
 class ContextualPopupRecoveryResult:
     settled_frame: CapturedNativeFrame | None
     dismissed: bool | None
@@ -90,6 +115,7 @@ class ContextualPopupRecoveryResult:
     resume_ready: bool
     input_count: int
     reason: str
+    steps: tuple[ContextualStartupRecoveryStep, ...] = ()
 
 
 def classify_startup_frame(
@@ -705,6 +731,33 @@ def _contextual_startup_manual_context(source_context: str) -> bool:
     ))
 
 
+def _contextual_startup_details(captured):
+    surface = recognize_startup_surface(captured.frame, captured.png)
+    popup = recognize_reset_popup(captured.frame)
+    if not isinstance(surface, dict) or not isinstance(popup, dict):
+        raise StartupRecoveryError("startup recognizer returned no current classification")
+    identity = None
+    if not popup.get("blocking_unknown_modal"):
+        if surface.get("recognized"):
+            if (not popup.get("recognized") and is_exact_scarlett_recognition(surface)
+                    and surface.get("frame_sha256") == captured.sha256):
+                identity = SCARLETT_THREE_DAY_PACK
+        elif not surface.get("commercial_looking") and _contextual_exact_vip(popup):
+            identity = "VIP_POINTS_GET_PTS"
+    return identity, surface, popup
+
+
+def contextual_startup_identity(captured: CapturedNativeFrame) -> str | None:
+    """Return only an exact known overlay identity on an intact current PNG."""
+    if not _contextual_startup_frame_valid(captured):
+        return None
+    return _contextual_startup_details(captured)[0]
+
+
+def contextual_startup_action_key(action_key: str, ordinal: int) -> str:
+    return action_key if ordinal == 0 else f"{action_key}:{ordinal}"
+
+
 def recover_contextual_startup_overlay(
     runtime: LocalBlueStacksRuntime,
     captured: CapturedNativeFrame,
@@ -715,12 +768,11 @@ def recover_contextual_startup_overlay(
     settle_seconds: float = 0.8,
     sleep: Callable[[float], None] = time.sleep,
 ) -> ContextualPopupRecoveryResult:
-    """Recover one known startup overlay using only the caller's native ledger.
+    """Recover up to two distinct known overlays on the caller's native ledger.
 
-    The caller retains session ownership and adopts the runtime's total input
-    count. A dismissed popup alone never authorizes continuation: resume_ready
-    also requires the route's current successor. No durable action store, lease
-    or nested runtime/session is created here.
+    A known next overlay confirms only the preceding dismissal. Continuation
+    still requires a clear frame accepted by the active route. No ownership,
+    lease, resource authority, transport or input budget is created here.
     """
     if not isinstance(source_context, str) or not source_context.strip():
         raise ValueError("source_context is required")
@@ -731,111 +783,129 @@ def recover_contextual_startup_overlay(
     if type(settle_seconds) not in (int, float) or not math.isfinite(settle_seconds) or settle_seconds < 0:
         raise ValueError("settle_seconds must be finite and non-negative")
 
+    steps = []
+    consumed = 0
+    classifications = {}
+
     def checkpoint():
         current = getattr(runtime, "checkpoint", None)
         if current is not None:
             current()
 
-    def blocked(reason, *, count=0, post=None):
-        return ContextualPopupRecoveryResult(post, None if count else False, None, False, count, reason)
+    def result(reason, *, post=None, ready=False, absent=None):
+        return ContextualPopupRecoveryResult(post, bool(steps) if ready else (None if consumed else False),
+                                             absent, ready, consumed, reason, tuple(steps))
 
     def classify(frame):
-        surface = recognize_startup_surface(frame.frame, frame.png)
-        popup = recognize_reset_popup(frame.frame)
-        if not isinstance(surface, dict) or not isinstance(popup, dict):
-            raise StartupRecoveryError("startup recognizer returned no current classification")
-        return surface, popup
+        if not _contextual_startup_frame_valid(frame):
+            raise StartupRecoveryError("startup capture is no longer intact")
+        if id(frame) not in classifications:
+            classifications[id(frame)] = _contextual_startup_details(frame)
+        return classifications[id(frame)]
 
-    def clear_successor(frame, surface, popup):
-        if (surface.get("recognized") or surface.get("commercial_looking")
-                or popup.get("recognized") or popup.get("blocking_unknown_modal")):
-            return False
-        return bool(recognize_successor(frame))
+    def clear_successor(frame):
+        _identity, surface, popup = classify(frame)
+        return bool(isinstance(surface, dict) and isinstance(popup, dict)
+                    and not surface.get("recognized") and not surface.get("commercial_looking")
+                    and not popup.get("recognized") and not popup.get("blocking_unknown_modal")
+                    and recognize_successor(frame))
 
     checkpoint()
     if _contextual_startup_manual_context(source_context) or not _contextual_startup_frame_valid(captured):
-        return blocked("startup_source_not_recoverable")
-    try:
-        initial, popup = classify(captured)
-    except Exception:
-        return blocked("startup_source_not_recognized")
-    if not initial.get("recognized"):
-        if initial.get("commercial_looking") or popup.get("blocking_unknown_modal"):
-            return blocked("unknown_startup_surface")
-        if _contextual_exact_vip(popup):
-            checkpoint()
-            result = recover_contextual_vip_popup(
-                runtime, captured, source_context=source_context,
-                recognize_successor=lambda frame: (
-                    _contextual_startup_frame_valid(frame, after=captured)
-                    and clear_successor(frame, *classify(frame))
-                ),
-                action_key=action_key, settle_seconds=settle_seconds, sleep=sleep,
-            )
-            checkpoint()
-            return result
-        try:
-            ready = clear_successor(captured, initial, popup)
-        except Exception:
-            ready = False
-        checkpoint()
-        return ContextualPopupRecoveryResult(captured, False, True, ready, 0, "startup_successor_observed" if ready else "unknown_startup_surface")
-    if not is_exact_scarlett_recognition(initial) or initial.get("frame_sha256") != captured.sha256:
-        return blocked("startup_surface_not_allowlisted")
-
-    count = getattr(runtime, "input_count", None)
-    maximum = getattr(runtime, "max_inputs", None)
+        return result("startup_source_not_recoverable")
+    source = captured
+    targets = {"VIP_POINTS_GET_PTS": VIP_RESET_TARGET,
+               SCARLETT_THREE_DAY_PACK: SCARLETT_SAFE_BACK_TARGET_IDENTITY}
     actions = getattr(runtime, "frame_actions", None)
-    if (type(count) is not int or type(maximum) is not int or not 0 <= count < maximum
-            or not isinstance(actions, set) or _contextual_runtime_has_key(runtime, action_key)
-            or any(isinstance(item, tuple) and len(item) >= 2
-                   and item[1] == SCARLETT_SAFE_BACK_TARGET_IDENTITY for item in actions)):
-        return blocked("startup_recovery_budget_or_occurrence_denied")
-    checkpoint()
-    try:
-        immediate = runtime.capture("contextual-startup-scarlett-before")
-        if not _contextual_startup_frame_valid(immediate, after=captured):
-            return blocked("startup_revalidation_not_fresh")
-        current = recognize_startup_surface(immediate.frame, immediate.png)
-        if (not is_exact_scarlett_recognition(current) or current.get("frame_sha256") != immediate.sha256
-                or tuple(current["safe_exit_roi"]) != tuple(initial["safe_exit_roi"])):
-            return blocked("startup_back_target_changed")
-    except Exception as exc:
-        if _contextual_exception_is_control(exc):
-            raise
-        return blocked("startup_revalidation_failed")
-    checkpoint()
-    before = runtime.input_count
-    transport_error = None
-    try:
-        runtime.tap(immediate, target_identity=SCARLETT_SAFE_BACK_TARGET_IDENTITY,
-                    target_roi=tuple(current["safe_exit_roi"]), action_key=action_key,
-                    action_class="navigation", consequential=False)
-    except Exception as exc:
-        if _contextual_exception_is_control(exc):
-            raise
-        transport_error = exc
-    consumed = runtime.input_count - before
-    if consumed != 1:
-        return blocked("startup_dispatch_not_accounted", count=max(0, consumed))
-    checkpoint()
-    try:
-        sleep(float(settle_seconds))
-        post = runtime.capture("contextual-startup-scarlett-post")
-        if not _contextual_startup_frame_valid(post, after=immediate):
-            return blocked("startup_successor_capture_not_fresh", count=consumed)
-        after, popup = classify(post)
-        ready = transport_error is None and clear_successor(post, after, popup)
-    except Exception as exc:
-        if _contextual_exception_is_control(exc):
-            raise
-        return blocked("startup_successor_not_verified", count=consumed)
-    checkpoint()
-    reason = "startup_overlay_recovered" if ready else "startup_successor_not_verified"
-    runtime.reconcile(action_key, "confirmed" if ready else "unresolved", post, reason)
-    return ContextualPopupRecoveryResult(
-        post, bool(ready), not bool(after.get("recognized")), bool(ready), consumed, reason,
-    )
+    seen = {identity for identity, target in targets.items()
+            if any(isinstance(item, tuple) and len(item) >= 2 and item[1] == target
+                   for item in actions)} if isinstance(actions, set) else set()
+    for ordinal in range(2):
+        checkpoint()
+        try:
+            identity, surface, popup = classify(source)
+            if identity is None:
+                ready = clear_successor(source)
+                checkpoint()
+                return result("startup_successor_observed" if ready else "unknown_startup_surface",
+                              post=source, ready=ready, absent=True if ready else None)
+        except Exception as exc:
+            if _contextual_exception_is_control(exc):
+                raise
+            return result("startup_source_not_recognized", post=source)
+        key = contextual_startup_action_key(action_key, ordinal)
+        count, maximum = getattr(runtime, "input_count", None), getattr(runtime, "max_inputs", None)
+        if (not isinstance(actions, set) or identity in seen or type(count) is not int or type(maximum) is not int
+                or not 0 <= count < maximum or _contextual_runtime_has_key(runtime, key)):
+            return result("startup_recovery_budget_or_occurrence_denied", post=source)
+        target = targets[identity]
+        vip = identity == "VIP_POINTS_GET_PTS"
+        before_label = "contextual-vip-popup-dispatch-before" if vip else "contextual-startup-scarlett-before"
+        post_label = "contextual-vip-popup-post" if vip else "contextual-startup-scarlett-post"
+        try:
+            checkpoint()
+            immediate = runtime.capture(before_label)
+            if (not _contextual_startup_frame_valid(immediate, after=source)
+                    or classify(immediate)[0] != identity):
+                return result("startup_revalidation_not_fresh_or_changed", post=source)
+            _identity, current_surface, current_popup = classify(immediate)
+            detail = current_popup if vip else current_surface
+            roi = _contextual_target(detail) if vip else tuple(detail["safe_exit_roi"])
+            proposal_roi = _contextual_target(popup) if vip else tuple(surface["safe_exit_roi"])
+            if roi is None or (not vip and roi != proposal_roi):
+                return result("startup_back_target_changed", post=source)
+        except Exception as exc:
+            if _contextual_exception_is_control(exc):
+                raise
+            return result("startup_revalidation_failed", post=source)
+        checkpoint()
+        before = runtime.input_count
+        transport_error = None
+        try:
+            runtime.tap(immediate, target_identity=target, target_roi=roi, action_key=key,
+                        action_class="navigation", consequential=False)
+        except Exception as exc:
+            if _contextual_exception_is_control(exc):
+                raise
+            transport_error = exc
+        delta = runtime.input_count - before
+        consumed += max(0, delta)
+        seen.add(identity)
+        post, next_identity, ready = None, None, False
+        reason = "startup_dispatch_not_accounted"
+        confirmed = False
+        if delta == 1:
+            reason = "startup_successor_not_verified"
+            try:
+                checkpoint()
+                sleep(float(settle_seconds))
+                post = runtime.capture(post_label)
+                if _contextual_startup_frame_valid(post, after=immediate):
+                    next_identity = classify(post)[0]
+                    ready = next_identity is None and clear_successor(post)
+                    confirmed = transport_error is None and (ready or (next_identity is not None and next_identity not in seen))
+                    reason = "startup_overlay_recovered" if ready else (
+                        "startup_next_known_overlay" if confirmed else "startup_successor_not_verified")
+                else:
+                    reason = "startup_successor_capture_not_fresh"
+            except Exception as exc:
+                if _contextual_exception_is_control(exc):
+                    raise
+                reason = "startup_successor_not_verified"
+        if transport_error is not None:
+            confirmed, ready = False, False
+            reason = "vip_popup_transport_uncertain" if vip else "startup_transport_uncertain"
+        steps.append(ContextualStartupRecoveryStep(identity, key, source, immediate, post, target, roi,
+                                                   max(0, delta), confirmed, reason))
+        checkpoint()
+        if post is not None:
+            runtime.reconcile(key, "confirmed" if confirmed else "unresolved", post, reason)
+        if not confirmed:
+            return result(reason, post=post)
+        if ready:
+            return result("startup_overlay_recovered", post=post, ready=True, absent=True)
+        source = post
+    return result("startup_recovery_budget_or_occurrence_denied", post=source)
 
 
 def _popup_observation(captured: CapturedNativeFrame, detail: dict[str, object], *, successor_state: str = VIP_RESET_SUCCESSOR) -> Observation:

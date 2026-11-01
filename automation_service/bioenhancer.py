@@ -150,7 +150,8 @@ def _startup_context(session, runtime, initial, result):
         )
         startup.update(dismissed=recovered.dismissed, popup_absent=recovered.popup_absent,
                        resume_ready=recovered.resume_ready, reason=recovered.reason,
-                       reported_input_count=recovered.input_count)
+                       reported_input_count=recovered.input_count,
+                       steps=[step.to_mapping(runtime.session) for step in recovered.steps])
         if recovered.settled_frame is not None:
             startup["settled_frame"] = reference(recovered.settled_frame)
     except Exception as exc:
@@ -159,7 +160,7 @@ def _startup_context(session, runtime, initial, result):
     finally:
         count, calls, accounting = _consumption(runtime)
         startup.update(input_count=count, accounting_verified=bool(
-            accounting and calls == 0 and 0 <= count <= 1
+            accounting and calls == 0 and 0 <= count <= 2
             and (recovered is None or recovered.input_count == count)))
         # The shared helper dispatches directly on this same runtime. Preserve
         # that input before any failure, then let ordinary route actions count.

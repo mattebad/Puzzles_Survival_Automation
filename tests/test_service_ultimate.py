@@ -41,6 +41,7 @@ class UltimateDevice:
         self.captures = 0
         self.startup_successor = "home"
         self.startup_transport_error = False
+        self.startup_sequence = []
         self.after_startup_input = None
 
     def capture_png(self):
@@ -54,7 +55,7 @@ class UltimateDevice:
     def dispatch_tap(self, point):
         self.inputs.append(("tap", point))
         if self.phase in {"vip", "scarlett"}:
-            self.phase = self.startup_successor
+            self.phase = self.startup_sequence.pop(0) if self.startup_sequence else self.startup_successor
             if self.after_startup_input:
                 self.after_startup_input()
             if self.startup_transport_error:
@@ -380,6 +381,55 @@ class UltimateServiceTests(unittest.TestCase):
         self.action_store.assert_not_called()
         self.normalize.assert_not_called()
         self.door.assert_not_called()
+        self.daily.assert_not_called()
+
+    def test_two_startup_overlays_replay_current_proof_without_another_daily_effect(self):
+        self.write_state(self.completed(self.reset))
+        self.device.phase = "vip"
+        self.device.startup_sequence = ["scarlett", "home"]
+        result = self.runner(self.identity, None, self.checkpoint)
+        self.assertEqual((result["startup_navigation_count"], result["total_input_count"],
+                          result["ultimate_dispatch_count"], result["flee_transport_calls"]), (2, 2, 0, 0))
+        proof = result["startup_navigation_proof"]
+        self.assertEqual([step["popup_identity"] for step in proof["steps"]],
+                         ["VIP_POINTS_GET_PTS", surfaces.SCARLETT_THREE_DAY_PACK])
+        self.assertEqual(service.ultimate_next_due(result, self.identity, self.now - 1),
+                         (self.now // 86400 + 1) * 86400)
+        for fault in ("order", "continuity", "immediate", "count", "identity", "confirmation"):
+            changed = copy.deepcopy(result)
+            steps = changed["startup_navigation_proof"]["steps"]
+            if fault == "order":
+                steps.reverse()
+            elif fault == "continuity":
+                steps[1]["source_frame"] = steps[0]["source_frame"]
+            elif fault == "immediate":
+                steps[1]["immediate_before_sha256"] = steps[0]["immediate_before_sha256"]
+            elif fault == "count":
+                changed["startup_navigation_count"] = 1
+            elif fault == "identity":
+                steps[1]["popup_identity"] = steps[0]["popup_identity"]
+            else:
+                steps[0]["confirmed"] = False
+            with self.subTest(fault=fault), self.assertRaises(ValueError):
+                service.ultimate_next_due(changed, self.identity, self.now - 1)
+        runtime = self.runtimes[-1]
+        retained = runtime.events.read_bytes()
+        for role in ("immediate_before", "dispatch"):
+            rows = [json.loads(line) for line in retained.splitlines()]
+            confirmation = next(row for row in rows if row["type"] == "reconcile")
+            rows.remove(confirmation)
+            second = proof["steps"][1]
+            if role == "immediate_before":
+                pivot = next(row for row in rows if row["type"] == "capture"
+                             and Path(row["path"]).name == Path(second["immediate_before_frame"]).name)
+            else:
+                pivot = next(row for row in rows if row["type"] == "dispatch" and row["action_key"] == second["action_key"])
+            rows.insert(rows.index(pivot) + 1, confirmation)
+            runtime.events.write_text("".join(json.dumps(row) + "\n" for row in rows))
+            with self.subTest(late_confirmation=role), self.assertRaises(ValueError):
+                service.ultimate_next_due(result, self.identity, self.now - 1)
+            runtime.events.write_bytes(retained)
+        self.action_store.assert_not_called()
         self.daily.assert_not_called()
 
     def test_fresh_reset_startup_recovery_keeps_one_daily_flee_and_nine_actual_inputs(self):

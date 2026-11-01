@@ -262,6 +262,104 @@ class ContextualStartupRecoveryTests(unittest.TestCase):
         self.assertEqual(len(self.device.taps), 1)
         self.assertEqual(self.rows("reconcile")[0]["status"], "unresolved")
 
+    def test_two_distinct_overlays_use_the_same_ledger_and_only_final_route_successor(self):
+        for states, identities in (
+            ((VIP, VIP, SCARLETT, ARTWORK, HOME), ("VIP_POINTS_GET_PTS", SCARLETT_THREE_DAY_PACK)),
+            ((SCARLETT, ARTWORK, VIP, VIP, HOME), (SCARLETT_THREE_DAY_PACK, "VIP_POINTS_GET_PTS")),
+        ):
+            with self.subTest(identities=identities):
+                self.runtime = LocalBlueStacksRuntime(self.device, self.root / identities[0], execute=True)
+                self.runtime.max_inputs = 8
+                captured = self.source(*states)
+                seen_successors = []
+                result = self.recover(captured, successor=lambda frame: (
+                    seen_successors.append(marker(frame.frame)) or marker(frame.frame) == HOME))
+                self.assertTrue(result.resume_ready)
+                self.assertEqual((result.input_count, self.runtime.input_count), (2, 2))
+                self.assertEqual([step.popup_identity for step in result.steps], list(identities))
+                self.assertEqual(set(seen_successors), {HOME})
+                first, second = result.steps
+                self.assertIs(first.settled_frame, second.source_frame)
+                self.assertEqual(len({step.action_key for step in result.steps}), 2)
+                self.assertEqual(len(self.rows("dispatch")), 2)
+                self.assertEqual([row["status"] for row in self.rows("reconcile")], ["confirmed", "confirmed"])
+                for step in result.steps:
+                    self.assertLess(step.source_frame.captured_monotonic, step.immediate_before.captured_monotonic)
+                    self.assertLess(step.immediate_before.captured_monotonic, step.settled_frame.captured_monotonic)
+                    self.assertNotEqual(step.source_frame.path, step.immediate_before.path)
+                    self.assertNotEqual(step.immediate_before.path, step.settled_frame.path)
+                    self.assertTrue(step.confirmed)
+                    self.assertEqual(step.input_count, 1)
+
+    def test_vip_close_uses_the_rebound_immediate_geometry(self):
+        shifted = 94
+        roi = (280, 780, 540, 870)
+        original = self.reset_popup
+        def popup(frame):
+            if marker(frame) == shifted:
+                return {**original(np.full_like(frame, VIP)), "target": roi}
+            return original(frame)
+        captured = self.source(VIP, shifted, HOME)
+        with patch.object(recovery, "recognize_reset_popup", side_effect=popup):
+            result = self.recover(captured)
+        self.assertTrue(result.resume_ready)
+        self.assertEqual(self.device.taps, [(410, 825)])
+        self.assertEqual(result.steps[0].target_roi, roi)
+
+    def test_second_overlay_requires_a_new_immediate_capture(self):
+        captured = self.source(VIP, VIP, SCARLETT)
+        capture = self.runtime.capture
+        retained = {}
+        def current(label):
+            if label == "contextual-startup-scarlett-before":
+                return retained["post"]
+            frame = capture(label)
+            if label == "contextual-vip-popup-post":
+                retained["post"] = frame
+            return frame
+        with patch.object(self.runtime, "capture", side_effect=current):
+            result = self.recover(captured)
+        self.assertFalse(result.resume_ready)
+        self.assertEqual((result.input_count, self.runtime.input_count, len(self.device.taps)), (1, 1, 1))
+
+    def test_known_intermediate_is_not_ready_when_second_input_is_unavailable(self):
+        self.runtime.max_inputs = 1
+        captured = self.source(VIP, VIP, SCARLETT, ARTWORK, HOME)
+        result = self.recover(captured, successor=lambda _frame: True)
+        self.assertFalse(result.resume_ready)
+        self.assertEqual((result.input_count, self.runtime.input_count), (1, 1))
+        self.assertEqual(marker(result.settled_frame.frame), SCARLETT)
+        self.assertEqual(len(result.steps), 1)
+        self.assertTrue(result.steps[0].confirmed)
+        self.assertEqual(len(self.device.taps), 1)
+
+    def test_repeated_vip_or_unknown_intermediate_never_issues_another_input(self):
+        for post in (VIP, COMMERCIAL, MODAL, UNKNOWN):
+            with self.subTest(post=post):
+                self.runtime = LocalBlueStacksRuntime(self.device, self.root / str(post), execute=True)
+                self.runtime.max_inputs = 8
+                captured = self.source(VIP, VIP, post, SCARLETT, ARTWORK, HOME)
+                result = self.recover(captured)
+                self.assertFalse(result.resume_ready)
+                self.assertEqual((result.input_count, self.runtime.input_count), (1, 1))
+                self.assertEqual(len(result.steps), 1)
+                self.assertFalse(result.steps[0].confirmed)
+                self.assertEqual(self.rows("reconcile")[0]["status"], "unresolved")
+
+    def test_second_transport_uncertainty_retains_both_attempts_and_never_promotes_home(self):
+        original = self.device.dispatch_tap
+        def dispatch(point):
+            self.device.transport_failure = len(self.device.taps) == 1
+            original(point)
+        self.device.dispatch_tap = dispatch
+        captured = self.source(VIP, VIP, SCARLETT, ARTWORK, HOME)
+        result = self.recover(captured)
+        self.assertFalse(result.resume_ready)
+        self.assertEqual((result.input_count, self.runtime.input_count), (2, 2))
+        self.assertEqual([step.confirmed for step in result.steps], [True, False])
+        self.assertEqual([row["status"] for row in self.rows("reconcile")], ["confirmed", "unresolved"])
+        self.assertEqual(len(self.device.taps), 2)
+
     def test_exact_vip_still_closes_on_the_same_native_runtime(self):
         captured = self.source(VIP, VIP, HOME)
         result = self.recover(captured)

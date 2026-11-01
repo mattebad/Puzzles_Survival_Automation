@@ -504,8 +504,9 @@ class CampaignRunner:
         import cv2
         import numpy as np
         from scripts.bluestacks_popup_recognition import recognize_reset_popup
+        from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         from scripts.startup_recovery import (_contextual_exact_vip, _contextual_target,
-            VIP_RESET_TARGET)
+            VIP_RESET_TARGET, contextual_startup_identity, contextual_startup_action_key)
         from scripts.startup_surface_recognition import (recognize_startup_surface,
             is_exact_scarlett_recognition, SCARLETT_SAFE_BACK_TARGET_IDENTITY)
         def checkpoint():
@@ -522,7 +523,7 @@ class CampaignRunner:
         rows = [json.loads(line) for line in data[len(journal_before):].splitlines() if line.strip()]
         dispatches = [i for i, row in enumerate(rows) if row.get("type") == "dispatch"]
         count = runtime.input_count - count_before
-        if count != len(dispatches) or count < 0 or count > (6 if phase == "initial" else 1):
+        if count != len(dispatches) or count < 0 or count > (6 if phase == "initial" else 2):
             raise ValueError("Campaign normalization count does not match native journal")
         allowed = {
             "campaign-lineup-back": CampaignScreen.HERO_LINEUP,
@@ -561,6 +562,7 @@ class CampaignRunner:
         load_capture(final_rows[-1])
         ledger = []
         keys = set()
+        overlay_identities = set()
         for pos, index in enumerate(dispatches):
             row = rows[index]
             if index == 0 or rows[index - 1].get("type") != "capture":
@@ -581,12 +583,16 @@ class CampaignRunner:
             surface = recognize_startup_surface(image, png)
             checkpoint()
             if target == VIP_RESET_TARGET:
-                expected_key = "campaign-initial-startup-overlay" if phase == "initial" else "campaign-terminal-startup-overlay"
+                expected_key = contextual_startup_action_key(
+                    "campaign-initial-startup-overlay" if phase == "initial" else "campaign-terminal-startup-overlay",
+                    len(overlay_identities))
                 if not _contextual_exact_vip(popup) or tuple(roi or ()) != _contextual_target(popup) or key != expected_key:
                     raise ValueError("Campaign VIP normalization source or target mismatch")
                 kind = "VIP_POINTS_GET_PTS"
             elif target == SCARLETT_SAFE_BACK_TARGET_IDENTITY:
-                expected_key = "campaign-initial-startup-overlay" if phase == "initial" else "campaign-terminal-startup-overlay"
+                expected_key = contextual_startup_action_key(
+                    "campaign-initial-startup-overlay" if phase == "initial" else "campaign-terminal-startup-overlay",
+                    len(overlay_identities))
                 if (not is_exact_scarlett_recognition(surface) or surface.get("frame_sha256") != source["sha256"]
                         or tuple(roi or ()) != tuple(surface.get("safe_exit_roi") or ()) or key != expected_key):
                     raise ValueError("Campaign Scarlett normalization source or target mismatch")
@@ -601,15 +607,62 @@ class CampaignRunner:
                         or not key.startswith(target + "-")):
                     raise ValueError("Campaign Home normalization source or target mismatch")
                 kind = found.observation.screen.name
+            known_overlay = target in {VIP_RESET_TARGET, SCARLETT_SAFE_BACK_TARGET_IDENTITY}
+            proposal = None
+            if known_overlay:
+                if (kind in overlay_identities or pos != len(overlay_identities)
+                        or contextual_startup_identity(captured_native_frame_from_png(png, captured_monotonic=source["captured_monotonic"],
+                                                        path=Path(source["path"]))) != kind):
+                    raise ValueError("Campaign startup normalization repeated or changed a known overlay")
+                proposals = [entry for entry in rows[:index - 1] if entry.get("type") == "capture"]
+                if not proposals:
+                    raise ValueError("Campaign startup dismissal has no retained proposal")
+                if row.get("point") != [(roi[0] + roi[2]) // 2, (roi[1] + roi[3]) // 2]:
+                    raise ValueError("Campaign startup dispatch point differs from its measured control")
+                proposal = proposals[-1]
+                proposal_image, proposal_png = load_capture(proposal)
+                proposed = captured_native_frame_from_png(proposal_png,
+                    captured_monotonic=proposal["captured_monotonic"], path=Path(proposal["path"]))
+                before_label = "contextual-vip-popup-dispatch-before" if target == VIP_RESET_TARGET else "contextual-startup-scarlett-before"
+                if (source.get("label") != before_label or contextual_startup_identity(proposed) != kind
+                        or float(proposal["captured_monotonic"]) >= float(source["captured_monotonic"])
+                        or (overlay_identities and proposal != ledger[-1]["successor"])
+                        or (target == SCARLETT_SAFE_BACK_TARGET_IDENTITY and
+                            tuple(recognize_startup_surface(proposal_image, proposal_png).get("safe_exit_roi") or ()) != tuple(roi or ()))):
+                    raise ValueError("Campaign startup proposal is not continuous with its immediate source")
+                overlay_identities.add(kind)
             stop = dispatches[pos + 1] if pos + 1 < len(dispatches) else len(rows)
             candidates = [candidate for candidate in rows[index + 1:stop] if candidate.get("type") == "capture"]
             successor = None
+            if known_overlay:
+                candidates = candidates[:1]
             for candidate in candidates:
                 candidate_image, candidate_png = load_capture(candidate)
                 detail = recognize_reset_popup(candidate_image)
                 overlay = recognize_startup_surface(candidate_image, candidate_png)
                 found = recognize_campaign_frame(candidate_image, self.target_stage)
                 checkpoint()
+                if known_overlay:
+                    expected_label = "contextual-vip-popup-post" if target == VIP_RESET_TARGET else "contextual-startup-scarlett-post"
+                    reconciles = [(position, rows[position]) for position in range(index + 1, stop)
+                                  if rows[position].get("type") == "reconcile" and rows[position].get("action_key") == key]
+                    if (candidate.get("label") != expected_label or len(reconciles) != 1
+                            or reconciles[0][1].get("status") != "confirmed"
+                            or reconciles[0][1].get("post_sha256") != candidate.get("sha256")
+                            or rows.index(candidate) >= reconciles[0][0]
+                            or reconciles[0][0] >= (stop - 1 if pos + 1 < len(dispatches) else rows.index(final_rows[-1]))):
+                        raise ValueError("Campaign startup dismissal lacks its exact reconciled successor")
+                    next_identity = contextual_startup_identity(captured_native_frame_from_png(
+                        candidate_png, captured_monotonic=candidate["captured_monotonic"], path=Path(candidate["path"])))
+                    if next_identity is not None:
+                        next_dispatch = rows[dispatches[pos + 1]] if pos + 1 < len(dispatches) else {}
+                        next_target = VIP_RESET_TARGET if next_identity == "VIP_POINTS_GET_PTS" else SCARLETT_SAFE_BACK_TARGET_IDENTITY
+                        if (next_identity in overlay_identities or len(overlay_identities) >= 2
+                                or next_dispatch.get("target_identity") != next_target
+                                or float(candidate["captured_monotonic"]) <= float(source["captured_monotonic"])):
+                            raise ValueError("Campaign startup stack has no distinct next dismissal")
+                        successor = candidate
+                        break
                 if (not detail.get("recognized") and not detail.get("blocking_unknown_modal")
                         and not overlay.get("recognized") and not overlay.get("commercial_looking")
                         and found.observation.recognized is True
@@ -622,7 +675,7 @@ class CampaignRunner:
                     break
             if successor is None:
                 raise ValueError("Campaign normalization lacks a fresh recognized successor")
-            ledger.append({"phase": phase, "source": source, "successor": successor,
+            ledger.append({"phase": phase, "proposal": proposal, "source": source, "successor": successor,
                            "surface": kind, "action_key": key, "target": target, "target_roi": roi,
                            "native_before": count_before + pos, "native_after": count_before + pos + 1})
         checkpoint()
@@ -671,7 +724,7 @@ class CampaignRunner:
             def normalize_overlay(captured, *, terminal=False):
                 before_count = runtime.input_count
                 old_max = runtime.max_inputs
-                runtime.max_inputs = min(old_max, before_count + (1 if terminal else 6))
+                runtime.max_inputs = min(old_max, before_count + (2 if terminal else 6))
                 try:
                     recovered = recover_contextual_startup_overlay(runtime, captured,
                         source_context="campaign-home" if terminal else "campaign-startup",
@@ -711,7 +764,8 @@ class CampaignRunner:
                     nonlocal terminal_ledger
                     journal = Path(runtime.events).read_bytes()
                     before = runtime.input_count
-                    frame = normalize_overlay(runtime.capture("campaign-terminal-normalization-source"), terminal=True)
+                    normalize_overlay(runtime.capture("campaign-terminal-normalization-source"), terminal=True)
+                    frame = runtime.capture("campaign-terminal-normalization-settled")
                     terminal_ledger = self._normalization_ledger(runtime, journal, before, frame, "terminal")
                     return frame
 

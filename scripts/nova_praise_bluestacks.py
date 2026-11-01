@@ -1077,6 +1077,7 @@ class NovaNavigationCanaryRoute:
                     "input_count": max(0, consumed),
                     "reason": recovery.reason if recovery is not None else "startup_recovery_interrupted",
                     "resume_ready": recovery.resume_ready if recovery is not None else False,
+                    "steps": [step.to_mapping(self._startup_runtime.session) for step in recovery.steps] if recovery else [],
                 })
             if not recovery.resume_ready or recovery.settled_frame is None:
                 return NovaNavigationCanaryResult(

@@ -337,14 +337,15 @@ class SupplyRunner:
                     startup.update(reason=recovered.reason, dismissed=recovered.dismissed,
                         popup_absent=recovered.popup_absent, resume_ready=recovered.resume_ready,
                         reported_input_count=recovered.input_count,
-                        settled_frame=frame_reference(recovered.settled_frame) if recovered.settled_frame else None)
+                        settled_frame=frame_reference(recovered.settled_frame) if recovered.settled_frame else None,
+                        steps=[step.to_mapping(runtime.session) for step in recovered.steps])
                 finally:
                     startup["input_count"] = runtime.input_count
                     session.adopt_retained_transport_count(runtime.input_count, source=str(runtime.events))
                     _count, startup_holds, startup_accounting, startup_error = _consumption(runtime, session)
                     startup.update(accounting_verified=bool(startup_accounting and startup_holds == 0),
                         accounting_error=startup_error)
-                if type(runtime.input_count) is not int or not 0 <= runtime.input_count <= 1:
+                if type(runtime.input_count) is not int or not 0 <= runtime.input_count <= 2:
                     raise ValueError("Supply startup input accounting is invalid")
                 if not startup["accounting_verified"]:
                     raise ValueError("Supply startup native ledger is not exact zero-hold navigation")

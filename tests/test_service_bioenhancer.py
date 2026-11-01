@@ -250,14 +250,15 @@ class ServiceBioenhancerTests(unittest.TestCase):
         from tests.test_startup_recovery import StartupRecoveryTests, popup
 
         self.owner.acquire()
-        for kind in ("vip", "scarlett"):
+        for kind in ("vip", "scarlett", "stack"):
             with self.subTest(kind=kind):
                 self.now = START
                 runtime = self._runtime()
                 self.startup_recovery.side_effect = lambda *args, **kwargs: self.real_startup_recovery(
                     *args, **kwargs, sleep=lambda _seconds: None)
                 def surface(_frame, raw):
-                    if kind != "scarlett" or runtime.input_count:
+                    if not ((kind == "scarlett" and runtime.input_count == 0)
+                            or (kind == "stack" and runtime.input_count == 1)):
                         return {"recognized": False, "commercial_looking": False}
                     return {**StartupRecoveryTests._scarlett_detail(),
                             "frame_sha256": hashlib.sha256(raw).hexdigest()}
@@ -267,7 +268,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
                     patch("scripts.flow_delivery_bioenhancer_bluestacks._verify_no_work_frames", return_value=True),
                     patch.object(startup, "recognize_startup_surface", side_effect=surface),
                     patch.object(startup, "recognize_reset_popup", side_effect=lambda _frame:
-                                 popup() if kind == "vip" and runtime.input_count == 0 else {"recognized": False}),
+                                 popup() if kind in {"vip", "stack"} and runtime.input_count == 0 else {"recognized": False}),
                     patch.object(startup, "SafetyStore", side_effect=AssertionError("no startup store")),
                     patch.object(startup, "recover_known_startup_overlay", side_effect=AssertionError("no leased recovery")),
                     patch.object(boundary.RuntimeInputLock, "acquire", side_effect=AssertionError("no second owner")),
@@ -275,18 +276,19 @@ class ServiceBioenhancerTests(unittest.TestCase):
                 ):
                     result = self._runner()(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
                 connect.assert_called_once()
-                self.assertEqual((result["total_input_count"], result["route_input_count"]), (2, 1))
+                startup_inputs = 2 if kind == "stack" else 1
+                self.assertEqual((result["total_input_count"], result["route_input_count"]), (startup_inputs + 1, 1))
                 recovery = result["startup_recovery"]
-                self.assertEqual((recovery["input_count"], result["free_research_transport_calls"]), (1, 0))
+                self.assertEqual((recovery["input_count"], result["free_research_transport_calls"]), (startup_inputs, 0))
                 self.assertTrue(recovery["resume_ready"])
                 self.assertTrue(recovery["accounting_verified"])
                 for field in ("initial_frame", "settled_frame", "home_frame"):
                     self.assertTrue((runtime.session / recovery[field]["frame_path"]).is_file())
                 rows = [json.loads(line) for line in runtime.events.read_text().splitlines()]
-                self.assertEqual(sum(row["type"] == "dispatch" for row in rows), 2)
+                self.assertEqual(sum(row["type"] == "dispatch" for row in rows), startup_inputs + 1)
                 self.assertTrue(any(row["type"] == "reconcile" and row["status"] == "confirmed" for row in rows))
                 summary = json.loads((runtime.session.parent / "summary.json").read_text())
-                self.assertEqual(summary["input_count"], 2)
+                self.assertEqual(summary["input_count"], startup_inputs + 1)
                 self.assertEqual(summary["control_memory"]["transport_count_source"], "events.jsonl:contextual-startup")
                 self.assertFalse(summary["ownership_released"])
                 self.assertEqual(summary["initial_frame_sha256"], recovery["home_frame"]["frame_sha256"])

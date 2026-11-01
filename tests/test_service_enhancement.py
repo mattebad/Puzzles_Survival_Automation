@@ -200,6 +200,55 @@ class ServiceEnhancementTests(unittest.TestCase):
             with self.assertRaises(pnsctl.OperatorError):
                 delivery._verify_family_startup(changed, runtime.session, rows)
 
+    def test_reverse_known_stack_uses_shared_sequence_and_independent_continuous_replay(self):
+        self.startup_frames = ("startup/scarlett-current-20261030.png",
+                               "startup/nova-vip-reset-20261031.png", "home_base/native-home-20261029.png")
+        with self.startup_session() as (runtime, session):
+            proof = delivery._recover_family_startup(runtime, session)
+            self.assertEqual((runtime.input_count, session.input_count), (2, 2))
+            self.assertEqual([step["popup_identity"] for step in proof["steps"]],
+                             ["SCARLETT_THREE_DAY_PACK", "VIP_POINTS_GET_PTS"])
+            rows = delivery._read_event_rows(runtime.events)
+            result = {"startup_recovery": proof, "enhancement_result": {"reset_identity": NATIVE_RESET}}
+            delivery._verify_family_startup(result, runtime.session, rows)
+            for field in ("immediate_before_sha256", "source_captured_monotonic", "target_identity", "confirmed"):
+                changed = copy.deepcopy(result)
+                changed["startup_recovery"]["steps"][1][field] = "changed"
+                with self.subTest(field=field), self.assertRaises(pnsctl.OperatorError):
+                    delivery._verify_family_startup(changed, runtime.session, rows)
+
+    def test_startup_dispatch_prefix_and_each_confirmation_precede_later_input(self):
+        self.startup_frames = ("startup/nova-vip-reset-20261031.png",
+                               "startup/scarlett-current-20261030.png", "home_base/native-home-20261029.png")
+        with self.startup_session() as (runtime, session):
+            proof = delivery._recover_family_startup(runtime, session)
+            later_source = runtime.capture("later-route-input-source")
+            runtime.tap(later_source, target_identity="enhancement-use", target_roi=(100, 100, 200, 200),
+                        action_key="enhancement:gear:enhancement-use:later", action_class="enhancement", consequential=True)
+            later_post = runtime.capture("later-route-input-post")
+            runtime.reconcile("enhancement:gear:enhancement-use:later", "confirmed", later_post, "later-route-step")
+            rows = delivery._read_event_rows(runtime.events)
+            result = {"startup_recovery": proof, "enhancement_result": {"reset_identity": NATIVE_RESET}}
+            delivery._verify_family_startup(result, runtime.session, rows)
+            for fault in ("use_before_startup", "use_between_steps", "late_first_confirmation", "late_final_confirmation"):
+                changed = copy.deepcopy(rows)
+                use = next(row for row in changed if row.get("target_identity") == "enhancement-use")
+                if fault.startswith("use_"):
+                    changed.remove(use)
+                    startups = [row for row in changed if row.get("type") == "dispatch"]
+                    pivot = startups[0] if fault == "use_before_startup" else startups[1]
+                    changed.insert(changed.index(pivot), use)
+                else:
+                    key = proof["steps"][0 if fault == "late_first_confirmation" else 1]["action_key"]
+                    confirmation = next(row for row in changed if row.get("type") == "reconcile" and row.get("action_key") == key)
+                    changed.remove(confirmation)
+                    pivot = (next(row for row in changed if row.get("type") == "capture"
+                                  and Path(row["path"]).name == Path(proof["steps"][1]["immediate_before_frame"]).name)
+                             if fault == "late_first_confirmation" else use)
+                    changed.insert(changed.index(pivot) + 1, confirmation)
+                with self.subTest(fault=fault), self.assertRaises(pnsctl.OperatorError):
+                    delivery._verify_family_startup(result, runtime.session, changed)
+
     def test_repeated_vip_popup_stops_after_one_navigation_without_retry(self):
         self.startup_frames = ("startup/nova-vip-reset-20261031.png",)
         with self.startup_session() as (runtime, session):

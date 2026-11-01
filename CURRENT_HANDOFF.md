@@ -5,17 +5,17 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "updated_utc": "2026-11-01T04:34:13.052245+00:00",
+  "updated_utc": "2026-11-01T05:14:45.987503+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
   "active_task_or_flow": "Fix intermittent Supply Depot recognition and finish remaining live acceptance before merge; sole local operator only",
   "authorization": "Current user explicitly requested continued fixes, live acceptance testing and iteration until proven before merge. Prior full-route authorization for regenerable resources persists. Each bounded controller records current authorization; no permanent enablement or merge is authorized by this work.",
-  "runtime_ownership_state": "No operator at snapshot; all controls OFF and owners released. Canonical Ultimate unblock inspected and applied without due/quota/failure changes. Recheck before next bounded cohort.",
-  "current_live_attempt_state": "8c36b5b recovery-only completed: fresh Home independently verified,0newinputs,0Flee/Challenge. Composite proof links original1Flee, human BlueStacks restart,1ScarlettBack and currentHome adoption. Native DefeatContinue remains unexercised live.",
-  "current_evidence_or_session_reference": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T043247795822Z/nav-20261101T043249855585Z",
-  "last_safe_completed_step": "Audit351 unchanged sources/5current captures, original failedFlee receipt hash unchanged, currentHome and allOFF/noowners. Canonical Ultimate unblocked with generation/failure/due facts preserved.",
-  "current_blocker": "Complete a full current-source7200-second cadence and next real reset acceptance: consuming Campaign across00UTC, continuous Tavern refresh, uninterrupted all3Enhancement, fresh Supply and Ultimate full Home entry. Native multi-popup sequence outside pnsctl remains unproved.",
-  "exact_next_permitted_action": "Freeze current code/docs/assets and current authorization; use existing run-authorized-service-soak.py for all8routes with --seconds7200 --live --yes. Exactly one operator; no source/docs/Git edits or local tests until terminal/OFF. Daily completed routes must gate, not repeat. Afterward preserve AP and remainOFF for November2 00UTC crossing.",
+  "runtime_ownership_state": "No live operator. All delegates, writers and test processes have stopped. All controls are OFF; no active run or input owner, Core lease released, no resource-effect blocks. Campaign unblock preserved generation 104, failurecount 1 and due facts.",
+  "current_live_attempt_state": "The last requested two-hour cohort stopped after 421.137 seconds: Campaign sent 7 navigation inputs and spent 0 AP. Nova and Noah completed their consuming passes and returned Home. The game remains on the Campaign map. This was not a successful soak.",
+  "current_evidence_or_session_reference": ".local-captures/automation-service-authorized/soak-20261101T043522175755Z-0feb88d6",
+  "last_safe_completed_step": "Native recovery handles two distinct known surfaces with separate frame/action accounting. Nine callers/proof consumers were updated, and Enhancement’s duplicate loop was removed. Independent review confirmed ordering, dispatch-prefix and point checks. All 29 root checks passed.",
+  "current_blocker": "Current-source Campaign recovery, full affordable AP drain, verified Home and a complete 7200-second serial cadence remain unproved. Native two-surface recovery is offline-proven only. Real November 2 UTC crossing, continuous Tavern refresh, uninterrupted Enhancement, and fresh Supply/Ultimate entry remain required.",
+  "exact_next_permitted_action": "Commit and push reviewed changes; freeze current code, assets and authorization, including the local Campaign atlas. Verify all controls OFF and no owners, then run the existing canonical all-eight controller with --seconds 7200 --live --yes. It must freshly recover the current map/Home/AP and rebind Chapter 15 after a safe reframe. Completed daily actions stay gated. No source/docs/Git edits or local tests during live execution.",
   "unresolved_action_state": "No unresolved Ultimate effect after currentHome adoption. Original one-Flee failed receipt retained; no repeatFlee for game-day2026-11-01. Current completion is composite with human restart, not uninterrupted recovery.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
@@ -34,8 +34,8 @@
   "route_state": {
     "nova": {
       "reset_id": "game-day-2026-11-01",
-      "accepted": "1confirmed free Praise,7inputs/Home in failed cohort report0001.",
-      "remaining": 6,
+      "accepted": "Latest failed cohort:1Praise/6inputs/Home. Five daily Praises remain.",
+      "remaining": 5,
       "next_due_utc": 1793499416.9746459
     },
     "campaign": {
@@ -47,17 +47,19 @@
       "latest_home_ap": 9,
       "latest_completed_at_utc": 1793499960.9837432,
       "next_due_utc": 1793500260.9837432,
-      "audit": ".local-orchestrator/logs/current-cohort-first-campaign-drain-audit-20261101.json"
+      "audit": ".local-orchestrator/logs/current-cohort-first-campaign-drain-audit-20261101.json",
+      "current_failure": "Chapter15 projected x700.0 exactlysafeviewport boundary; visible medallion ROI crossesrightHUD; template.197/localOCRunsafe.7navigation0AP; supportedunboundedgepanrepair offline-proven, livepending."
     },
     "recruitment": {
       "reset_id": "game-day-2026-11-01",
-      "accepted": "1Advanced free recruit and1Basic free recruit, both result/cooldown verified;10inputs/Home.",
-      "basic_daily_count": 1,
-      "basic_remaining": 4,
-      "basic_next_eligible_utc": 1793499819.4988236,
-      "intermediate": "Rearmed1; no Int recruit in this two-action pass.",
+      "accepted": "Latest failed cohort:1Int and1Basic free recruit, each native result/cooldown andHome verified;9inputs.",
+      "basic_daily_count": 2,
+      "basic_remaining": 3,
+      "basic_next_eligible_utc": 1793508492.3189797,
+      "intermediate": "One free Intermediate consumed; next eligibility24hours from current proof. Advanced48hour deadline unchanged.",
       "advanced_next_eligible_utc": 1793672002.075106,
-      "rules": "Basic resets00UTC; Int24h and Adv48h remain independent."
+      "rules": "Basic resets00UTC; Int24h and Adv48h remain independent.",
+      "intermediate_next_eligible_utc": 1793594260.4039137
     },
     "bioenhancer": {
       "reset_id": "game-day-2026-11-01",
@@ -91,8 +93,8 @@
       "next_due_utc": 1793577600.0
     }
   },
-  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T043240922118Z.json",
-  "validation": "Shared startup suite49 passed; session/service startup16 passed; contextual safety4 passed; focused Noah12 passed. Root7 shared executor/handoff checks passed. Home8focused checks and7native images passed. Two old Noah fake-runtime continuation mismatch errors reproduced independently on original committed code; separate logs retained. Prior eb0fce9 CI run62 passed both full Windows/Python3.11 and Linux jobs. Latest shared/Home source CI will run after push. Initial sandbox startup45 had32 TEMP permission errors, resolved by normal temp access; no runtime weakening.",
+  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T043518579035Z.json",
+  "validation": "Focused consumer groups passed 58 and 44 cases; helper 16, Noah 12, terminal-stack/drain/Noah 14, corrected Campaign tamper 1, and final Ultimate/Enhancement ordering negatives passed. The one new fixture error was corrected by replaying inside the held lease. Root 29 passed in 14.246 seconds. Counts overlap. Campaign portable geometry/progress 3 passed without skips. Six service tests passed after CI 65 invalid-PNG fixture correction. CI 67 passed Linux; Windows was pending. The native-sequence revision needs its own CI. Legacy baseline failures remain separate.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
     ".local-orchestrator/logs/noah-full-basic-quota-audit-20261030.json",
@@ -118,7 +120,9 @@
     ".local-orchestrator/logs/ultimate-post-user-restart-pre-repair-audit-20261101.json",
     ".local-orchestrator/logs/ultimate-shared-scarlett-child-budget-stop-audit-20261101.json",
     ".local-orchestrator/logs/ultimate-after-user-restart-composite-home-audit-20261101.json",
-    ".local-orchestrator/logs/ultimate-composite-home-canonical-unblock-20261101.json"
+    ".local-orchestrator/logs/ultimate-composite-home-canonical-unblock-20261101.json",
+    ".local-orchestrator/logs/current-cohort-campaign-before-ap-stop-audit-20261101.json",
+    ".local-orchestrator/logs/campaign-hud-edge-inspection-unblock-20261101.json"
   ],
   "additional_coverage_evidence_required": [
     "Fresh full Ultimate Home entry and native DefeatContinue if encountered after next real reset; current complete-for-reset proof is composite and no Flee repeat permitted today.",
@@ -129,7 +133,7 @@
   ],
   "goal_finish_scope": "Finish all current-source acceptance and pre-merge CI honestly, retain failures, leave draftPR16 unmerged and permanent runtime controlsOFF.",
   "preserved_user_work": "The session snapshot is committed on codex/bluestacks-route-reliability. Unrelated Stop-PnS-OMP.ps1, evidence/current-evidence-manifest.json and two loose root plans remain uncommitted and unchanged. Retained stash/evidence/temp files remain local; do not reset/stash/clean them.",
-  "subagent_preferences": "All delegates use explicit high-or-higher effort and current user-approved model tier. Delegates are now finished; no writes/tests active.",
+  "subagent_preferences": "All delegates used explicit high-or-higher effort and current user-approved model tiers. All agents have finished and all writes/tests are stopped.",
   "history_archive": "docs/archive/current-handoff-native-route-history-20261030T085441Z.md",
   "history_archive_sha256": "86f9a338b97150fcdaddac77b0dded3030565e3ff2e8bb3fd8fc961ca096d8eb",
   "live_ap_digit_verification": {

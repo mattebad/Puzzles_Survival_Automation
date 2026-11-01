@@ -71,6 +71,20 @@ class NovaStartupRecoveryTests(unittest.TestCase):
         self.assertEqual(dispatch["source_sha256"], captures[1]["sha256"])
         self.assertEqual(self.events(runtime, "reconcile")[0]["status"], "confirmed")
 
+    def test_vip_then_scarlett_retains_two_navigation_steps_and_zero_praise(self):
+        scarlett = (FIXTURES / "scarlett-current-20261030.png").read_bytes()
+        device, runtime, route = self.route([self.vip, self.vip, scarlett, scarlett, self.home])
+        result = route.run()
+        self.assertEqual(result.reason, "maximum_navigation_steps")
+        self.assertEqual((runtime.input_count, result.navigation_input_count, result.praise_taps), (2, 2, 0))
+        self.assertEqual(len(device.taps), 2)
+        startup = next(row for row in result.records if row.get("action") == "startup_overlay_recovery")
+        self.assertEqual(startup["input_count"], 2)
+        self.assertTrue(startup["resume_ready"])
+        self.assertEqual([step["popup_identity"] for step in startup["steps"]],
+                         ["VIP_POINTS_GET_PTS", "SCARLETT_THREE_DAY_PACK"])
+        self.assertEqual([row["status"] for row in self.events(runtime, "reconcile")], ["confirmed", "confirmed"])
+
     def test_unknown_source_sends_no_close_or_back(self):
         device, runtime, route = self.route([self.unknown])
         result = route.run()

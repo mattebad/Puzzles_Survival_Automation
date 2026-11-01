@@ -941,13 +941,13 @@ class ContextualPopupRouteTests(unittest.TestCase):
         self.assertEqual(timestamps, [222.0])
         self.assertEqual(recognition.observation.captured_monotonic, 222.0)
 
-    def test_second_exact_popup_hits_one_dismissal_bound_without_helper_or_input(self):
+    def test_repeated_exact_popup_is_denied_without_helper_or_input(self):
         source = self.frame("c" * 64, 3)
         runtime = self.Runtime([source])
-        session = _ContextualPopupSession(dismissal_used=True)
+        session = _ContextualPopupSession(input_count=1, attempted_identities={"VIP_POINTS_GET_PTS"})
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recognize_reset_popup",
-            return_value={"recognized": True, "popup_identity": "VIP_POINTS_GET_PTS"},
+            "scripts.noahs_tavern_recruit_bluestacks.contextual_startup_identity",
+            return_value="VIP_POINTS_GET_PTS",
         ), patch(
             "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=AssertionError("second contextual close dispatched"),
@@ -959,24 +959,85 @@ class ContextualPopupRouteTests(unittest.TestCase):
                 recognize_successor=lambda _frame: True,
                 session=session,
             )
-        self.assertEqual(result.reason, "contextual_popup_dismissal_already_used")
+        self.assertEqual(result.reason, "contextual_popup_recovery_attempt_denied")
         self.assertEqual(result.input_count, 0)
         self.assertEqual(runtime.input_count, 0)
 
-    def test_second_scarlett_surface_respects_same_one_dismissal_bound(self):
+    def test_two_used_dismissals_deny_another_known_surface(self):
         source = self.frame("c" * 64, 3)
         runtime = self.Runtime([source])
-        session = _ContextualPopupSession(dismissal_used=True)
-        with patch("scripts.noahs_tavern_recruit_bluestacks.recognize_reset_popup",
-                   return_value={"recognized": False}), \
-             patch("scripts.noahs_tavern_recruit_bluestacks.recognize_startup_surface",
-                   return_value={"recognized": True}), \
+        session = _ContextualPopupSession(input_count=2)
+        with patch("scripts.noahs_tavern_recruit_bluestacks.contextual_startup_identity",
+                   return_value="SCARLETT_THREE_DAY_PACK"), \
              patch("scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
                    side_effect=AssertionError("second contextual dismissal dispatched")):
             result = _contextual_recovery(runtime, source, source_context="home-or-tavern",
                                           recognize_successor=lambda _: True, session=session)
-        self.assertEqual(result.reason, "contextual_popup_dismissal_already_used")
+        self.assertEqual(result.reason, "contextual_popup_recovery_attempt_denied")
         self.assertEqual(runtime.input_count, 0)
+
+    def test_native_two_overlay_sequence_retains_route_accounting_and_failure_lock(self):
+        from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+        from scripts import startup_recovery as shared
+        from tests.test_contextual_startup_recovery import (
+            PngDevice, ContextualStartupRecoveryTests, VIP, SCARLETT, ARTWORK, HOME, UNKNOWN, marker,
+        )
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(shared, "recognize_startup_surface", side_effect=ContextualStartupRecoveryTests.startup_surface), \
+                patch.object(shared, "recognize_reset_popup", side_effect=ContextualStartupRecoveryTests.reset_popup):
+            device = PngDevice()
+            device.frames = [VIP, VIP, SCARLETT, ARTWORK, HOME]
+            runtime = LocalBlueStacksRuntime(device, Path(directory) / "ready", execute=True)
+            runtime.max_inputs = 8
+            session = _ContextualPopupSession()
+            result = _contextual_recovery(runtime, runtime.capture("source"), source_context="home-or-tavern",
+                recognize_successor=lambda frame: marker(frame.frame) == HOME, session=session,
+                settle_seconds=0, sleep=lambda _: None)
+            self.assertTrue(result.resume_ready)
+            self.assertEqual((session.input_count, runtime.input_count, len(session.records[0]["steps"])), (2, 2, 2))
+            self.assertFalse(session.failed)
+            self.assertEqual(len(session.attempted_identities), 2)
+            device = PngDevice()
+            device.frames = [VIP, VIP, UNKNOWN, SCARLETT, ARTWORK, HOME]
+            runtime = LocalBlueStacksRuntime(device, Path(directory) / "blocked", execute=True)
+            runtime.max_inputs = 8
+            session = _ContextualPopupSession()
+            first = _contextual_recovery(runtime, runtime.capture("source"), source_context="home-or-tavern",
+                recognize_successor=lambda frame: marker(frame.frame) == HOME, session=session,
+                settle_seconds=0, sleep=lambda _: None)
+            self.assertFalse(first.resume_ready)
+            self.assertTrue(session.failed)
+            second = _contextual_recovery(runtime, runtime.capture("different-overlay"), source_context="home-or-tavern",
+                recognize_successor=lambda frame: marker(frame.frame) == HOME, session=session,
+                settle_seconds=0, sleep=lambda _: None)
+            self.assertFalse(second.resume_ready)
+            self.assertEqual((session.input_count, runtime.input_count, len(device.taps)), (1, 1, 1))
+
+    def test_zero_input_unknown_observation_does_not_consume_a_later_fresh_recovery(self):
+        from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+        from scripts import startup_recovery as shared
+        from tests.test_contextual_startup_recovery import (
+            PngDevice, ContextualStartupRecoveryTests, VIP, HOME, UNKNOWN, marker,
+        )
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(shared, "recognize_startup_surface", side_effect=ContextualStartupRecoveryTests.startup_surface), \
+                patch.object(shared, "recognize_reset_popup", side_effect=ContextualStartupRecoveryTests.reset_popup):
+            device = PngDevice()
+            device.frames = [UNKNOWN, VIP, VIP, HOME]
+            runtime = LocalBlueStacksRuntime(device, Path(directory), execute=True)
+            runtime.max_inputs = 8
+            session = _ContextualPopupSession()
+            unknown = _contextual_recovery(runtime, runtime.capture("unknown"), source_context="home-or-tavern",
+                recognize_successor=lambda frame: marker(frame.frame) == HOME, session=session,
+                settle_seconds=0, sleep=lambda _: None)
+            self.assertFalse(unknown.resume_ready)
+            self.assertFalse(session.failed)
+            self.assertEqual((session.input_count, runtime.input_count), (0, 0))
+            fresh = _contextual_recovery(runtime, runtime.capture("fresh-known"), source_context="home-or-tavern",
+                recognize_successor=lambda frame: marker(frame.frame) == HOME, session=session,
+                settle_seconds=0, sleep=lambda _: None)
+            self.assertTrue(fresh.resume_ready)
+            self.assertEqual((session.input_count, runtime.input_count, len(device.taps)), (1, 1, 1))
 
     def test_popup_after_free_transport_keeps_pending_action_and_never_recruits_again(self):
         result_observation = self.f.result(RecruitTier.ADV)

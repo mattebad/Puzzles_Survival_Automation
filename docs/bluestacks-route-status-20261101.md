@@ -176,8 +176,8 @@ budget, retains each result/action separately and recaptures before handing
 control to the active route. Popup dismissal is not reported as Home proof. The
 existing policy admits the retained successor only under the exact zero-cost VIP
 Close contract; arbitrary successor contracts still deny input. Noah now calls
-the shared contextual helper. Native contextual helpers handle either single
-surface and stop if another follows; a generalized native sequence is not claimed.
+the shared contextual helper. At that revision native contextual helpers handled either single
+surface and stopped if another followed; the later native cutover is recorded below.
 This cutover is offline-proven and awaits its live retry.
 
 The full shared startup suite passed 49 checks, session/service startup passed 16,
@@ -214,3 +214,68 @@ was then unblocked through its state API with generation, failure count, due dat
 and reset unchanged; the separate unblock audit is retained. This is composite
 acceptance after a human BlueStacks restart. It does not establish uninterrupted
 native Defeat/Continue recovery or a completed two-hour cadence.
+
+## Later cadence stop and repairs
+
+The next requested two-hour cohort, `0feb88d6` on `69a3c51`, stopped after
+421.137 seconds. Nova used one free Praise (6 inputs/Home), and Noah used one
+free Intermediate plus one free Basic recruit (9 inputs/Home). Intermediate's
+next eligibility is now 24 hours after this recruit, Advanced's existing 48-hour
+deadline is unchanged, and Basic has three daily recruits remaining. Campaign
+sent seven navigation inputs and no AP action, then stopped because Chapter 15's
+projected center was exactly at x=700 while its visible medallion crossed into the
+right HUD. Template/current text could not authorize a tap. This was not a
+successful cadence. The audit
+`.local-orchestrator/logs/current-cohort-campaign-before-ap-stop-audit-20261101.json`
+verifies 351 unchanged runtime-source hashes, 71 captures and disabled/released
+cleanup with no resource-effect blocks.
+
+Repair `1ba790b` requests a bounded HUD-safe atlas pan when an unbound target is
+near an edge and localization has supported anchors/residual. It grants no target
+from projection alone. Existing fresh-source, progress and subsequent binding
+checks remain. The native frame and its exact retained landmark geometry are
+packaged for CI; three portable geometry/OCR/progress cases pass without skips.
+ORB unavailability and the already observed template failure are isolated in that
+portable case, so it is not full-atlas binding proof. The old full-atlas local
+regressions remain separate.
+
+[CI run65](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41273611877)
+failed on a claimed service-startup fixture that supplied text bytes as a PNG.
+The stricter shared helper correctly rejected it. The fixture now emits encoded
+PNGs with matching digests and unique temporary paths; visual absence is stubbed
+at the same semantic test seam as the existing VIP and route recognizers. Six
+focused service checks passed. Production image validation was preserved.
+
+Native shared two-popup sequencing and its consumer accounting/replay are now
+implemented and offline-proven. No live operator overlapped these edits or tests.
+Current-source live multi-surface behavior is not yet accepted.
+
+## Shared native sequence cutover
+
+All eight native route callers now use the common bounded sequence for two
+distinct exact Scarlett/VIP surfaces. Each navigation input retains its proposal,
+immediate-before, settled frame, target, key and reconciliation. A different known
+popup can verify the preceding dismissal; only the final clear screen and the
+active route's recognition permit onward action. Repeated identities, unknown
+intermediates, exhausted budgets, stale captures and uncertain transports stop.
+No global input budget or resource-action limit was increased. Enhancement's
+separate VIP-to-Scarlett loop was removed.
+
+Ultimate, Campaign and Enhancement independently replay the sequence. Review
+closed reconciliation-order gaps, requires Enhancement startup to precede every
+route/resource input, and verifies Campaign's actual point matches its measured
+Close/Back target. New regressions reorder only journal events or mutate only the
+point and require rejection. Noah preserves the failed-attempt lock while leaving
+a zero-input unknown observation's slot unused. Identical intact-frame recognition
+is reused only within one helper invocation; independent proof replay stays separate.
+
+Focused consumer groups passed 58 and 44 cases; helper 16, Noah 12, terminal stack/drain
+and Noah 14, and the corrected Campaign tamper case passed. Final Ultimate and
+Enhancement reorder negatives passed. One newly added test initially tried to
+capture after its lease store closed; production rejected it. Replay now runs
+inside the existing held-lease seam, and the corrected case passed. The root review
+passed 29 helper, Noah and claimed-startup cases in 14.246 seconds. Groups overlap
+and do not form a unique total. The independent reviewer confirmed the reported
+gaps closed. These remain offline results; live acceptance and final cadence are
+pending. The inspected Campaign block was cleared through the state API with its
+failure, generation, due and resource facts preserved.

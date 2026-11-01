@@ -27,13 +27,24 @@ used zero game inputs and exposed a shared Scarlett ownership gap.
 
 Both Scarlett and VIP now have shared recovery ownership across routes, as
 explicitly requested; the active route must verify its fresh successor. The supported
-recovery workflow handles two distinct surfaces within its input budget; native
-contextual helpers handle either single surface and stop if another follows. The
+recovery workflow and native contextual helpers handle two distinct known surfaces
+within existing budgets, with separate capture/action evidence and final route
+verification. The
 larger-HUD Home fixtures expose a real label-position miss, not stale evidence;
 they remain in place and the measured second layout passes focused offline
 checks. Current-source recovery now verifies Home with zero new inputs; this is composite
 with the user restart, not native Defeat/Continue proof. Fresh Ultimate Home entry, final cadence
 and next-reset acceptance remain pending. No further Flee is permitted this reset.
+The next 7,200-second attempt stopped after 421.137 seconds on Campaign, before
+spending AP: Chapter 15 was clipped by the right HUD despite an on-boundary atlas
+projection. Nova used one free Praise; Noah used one free Intermediate and one
+Basic recruit, each with result/cooldown/Home. All controls returned OFF. The map
+repair now requests a bounded reframe and requires a fresh binding; three portable
+geometry/progress checks pass. Native shared two-popup sequencing and its proof
+consumers now pass focused offline checks and independent review; current-source
+live acceptance remains pending before the next full cadence attempt. CI65 exposed
+an invalid synthetic-PNG fixture; its producer was corrected and six checks pass.
+
 These updates do not turn the historical October 31 rows below into fresh runs.
 
 | Route | Retained acceptance | October31 reset status / remaining work |

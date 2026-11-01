@@ -184,8 +184,9 @@ class ServiceSupplyTests(unittest.TestCase):
 
     def _startup(self, *, ready=True, consume=False, interrupt=False):
         def recover(runtime, captured, *, action_key, recognize_successor, **kwargs):
-            if consume:
-                runtime.tap(captured, action_key=action_key, target_identity="reset-popup-close",
+            for ordinal in range(int(consume)):
+                runtime.tap(captured, action_key=f"{action_key}:{ordinal}",
+                    target_identity="reset-popup-close" if ordinal == 0 else "scarlett-three-day-pack-in-game-back",
                     target_roi=(10, 10, 20, 20))
             if interrupt:
                 raise RuntimeError("startup interrupted after reserved input")
@@ -316,6 +317,24 @@ class ServiceSupplyTests(unittest.TestCase):
         self.assertTrue(result["no_work"])
         self.assertTrue(result["accounting_verified"])
         self.assertTrue(self.owner.held)
+
+    def test_two_startup_inputs_are_adopted_once_before_zero_hold_route(self):
+        self.owner.acquire()
+        runtime = self._runtime(HOME_FIXTURE.read_bytes())
+        def run(**kwargs):
+            self.assertEqual((kwargs["session"].input_count, kwargs["runtime"].input_count), (2, 2))
+            return self._native_route()(**kwargs)
+        original = DevelopmentSession.adopt_retained_transport_count
+        with patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect), \
+                patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=self._startup(consume=2)), \
+                patch("scripts.supply_depot_free_canary.run", side_effect=run), \
+                patch.object(DevelopmentSession, "adopt_retained_transport_count", autospec=True, side_effect=original) as adopt:
+            result = self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
+        self.assertEqual(adopt.call_count, 1)
+        self.assertEqual(adopt.call_args.args[1], 2)
+        self.assertEqual((result["startup_recovery"]["input_count"], result["route_input_count"],
+                          result["total_input_count"], result["hold_transport_calls"]), (2, 1, 3, 0))
+        self.assertTrue(result["accounting_verified"])
 
     def test_unknown_startup_or_unknown_successor_blocks_route_with_true_partial_count(self):
         for consume, interrupt in ((False, False), (True, False), (True, True)):

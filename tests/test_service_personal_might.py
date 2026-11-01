@@ -34,6 +34,7 @@ class PersonalDevice:
         self.phase, self.captures, self.inputs = "home", 0, []
         self.after_praise = None
         self.praise_unknown = False
+        self.startup_sequence = []
 
     def capture_png(self):
         self.captures += 1
@@ -44,7 +45,7 @@ class PersonalDevice:
     def dispatch_tap(self, point):
         self.inputs.append((self.phase, point))
         if self.phase in {"vip", "scarlett"}:
-            self.phase = "home"
+            self.phase = self.startup_sequence.pop(0) if self.startup_sequence else "home"
             return
         if self.phase == "gold":
             self.phase = "gold" if self.praise_unknown else "gray"
@@ -266,17 +267,18 @@ class ServicePersonalMightTests(unittest.TestCase):
         self.assertEqual((caught.exception.partial_result["total_input_count"], caught.exception.partial_result["praise_transport_calls"]), (6, 1))
         self.assertTrue(caught.exception.partial_result["identical_retry_denied"])
 
-    def _popup_recovery(self, *, unknown_post=False):
+    def _popup_recovery(self, *, unknown_post=False, count=1):
         def recover(runtime, captured, **kwargs):
-            before = runtime.capture("contextual-popup-before")
-            runtime.tap(before, target_identity="reset-popup-close", target_roi=(100, 100, 130, 130),
-                action_key=kwargs["action_key"], action_class="navigation")
+            for ordinal in range(count):
+                before = runtime.capture(f"contextual-popup-before-{ordinal}")
+                runtime.tap(before, target_identity="reset-popup-close" if ordinal == 0 else "scarlett-three-day-pack-in-game-back",
+                    target_roi=(100, 100, 130, 130), action_key=f"{kwargs['action_key']}:{ordinal}", action_class="navigation")
             if unknown_post:
                 self.device.phase = "unknown"
             post = runtime.capture("contextual-popup-post")
             ready = bool(kwargs["recognize_successor"](post))
             runtime.reconcile(kwargs["action_key"], "confirmed" if ready else "unresolved", post, "contextual-popup")
-            return ContextualPopupRecoveryResult(post, True, True, ready, 1, "known_popup_dismissed" if ready else "unknown_popup_successor")
+            return ContextualPopupRecoveryResult(post, True, True, ready, count, "known_popup_dismissed" if ready else "unknown_popup_successor")
         return recover
 
     def test_startup_input_is_adopted_once_and_retained_apart_from_one_praise(self):
@@ -298,6 +300,15 @@ class ServicePersonalMightTests(unittest.TestCase):
         labels = [row["label"] for row in map(json.loads, self.runtimes[0].events.read_text().splitlines()) if row["type"] == "capture"]
         self.assertIn("personal-might-canonical-initial-home", labels)
         self.assertTrue(self.owner.held)
+
+    def test_two_startup_inputs_leave_exactly_one_praise_in_the_same_eight_input_budget(self):
+        self.device.phase = "vip"
+        self.device.startup_sequence = ["scarlett", "home"]
+        self.startup.side_effect = self._popup_recovery(count=2)
+        result = self.run_route()
+        self.assertEqual((result["startup_recovery"]["input_count"], result["route_input_count"],
+                          result["total_input_count"], result["praise_transport_calls"]), (2, 6, 8, 1))
+        self.assertTrue(result["accounting_verified"])
 
     def test_unknown_startup_and_unknown_popup_successor_never_enter_route(self):
         for sent in (False, True):
