@@ -84,6 +84,31 @@ def frame_identity(
 
 
 class SupplyDepotVisionTests(unittest.TestCase):
+    def test_native_expanded_drawer_binds_only_its_unique_down_chevron(self):
+        path = Path(__file__).parent / "fixtures/supply_depot/native-drawer-occluded-radial-20261101.png"
+        frame = cv2.imread(str(path))
+        bind = supply_depot_module.bind_home_event_drawer_toggle
+        self.assertEqual(bind(frame, expanded=True), (729, 1057, 764, 1075))
+        self.assertIsNone(bind(frame, expanded=False))
+        erased = frame.copy()
+        erased[1057:1075, 729:764] = 0
+        self.assertIsNone(bind(erased, expanded=True))
+        # A synthetic reversed glyph checks direction discrimination only;
+        # it is not retained live proof of a collapsed drawer.
+        reversed_arrow = frame.copy()
+        reversed_arrow[1061:1071, 733:760] = np.flipud(frame[1061:1071, 733:760])
+        self.assertIsNone(bind(reversed_arrow, expanded=True))
+        self.assertEqual(bind(reversed_arrow, expanded=False), (729, 1057, 764, 1075))
+        duplicate = frame.copy()
+        duplicate[1091:1101, 733:760] = frame[1061:1071, 733:760]
+        self.assertIsNone(bind(duplicate, expanded=True))
+        no_rail = frame.copy()
+        no_rail[1048:1084, 600:790] = 150
+        no_rail[1061:1071, 733:760] = frame[1061:1071, 733:760]
+        self.assertIsNone(bind(no_rail, expanded=True))
+        for name in ("native-raised-radial-20261029.png", "native-facility-20261029.png"):
+            self.assertIsNone(bind(cv2.imread(str(path.parent / name)), expanded=True), name)
+
     def test_native_exhausted_capture_keeps_identity_across_scene_animation(self):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         from scripts.home_atlas_bluestacks import identity_from_captured

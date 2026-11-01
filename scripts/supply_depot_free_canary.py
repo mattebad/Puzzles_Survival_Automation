@@ -39,6 +39,7 @@ from tasks.supply_depot import SupplyDepotHoldConfig
 from tasks.supply_depot_vision import (
     SUPPLY_DEPOT_BUILDING_ID,
     bind_supply_depot_claim_supply,
+    bind_home_event_drawer_toggle,
     recognize_supply_depot_screen,
     recognize_supply_depot_radial,
     _safe_claim_label_region,
@@ -291,6 +292,35 @@ def _recover_arena_home(session, runtime, capture, *, settle_seconds: float):
     )
 
 
+def _collapse_home_event_drawer(session, runtime, capture, *, settle_seconds: float):
+    binding = {}
+
+    def authorize(before):
+        target = bind_home_event_drawer_toggle(before.frame, expanded=True)
+        if not is_clean_home_frame(before.frame) or target is None:
+            raise PerceptionBundleError("HOME_EVENT_DRAWER_COLLAPSE_NOT_BOUND")
+        binding["roi"] = target
+
+    def dispatch(before):
+        runtime.tap(before, target_identity="home-event-drawer-collapse", target_roi=binding["roi"],
+                    action_key=f"supply-event-drawer-collapse:{before.sha256[:12]}")
+
+    def recognize(after):
+        return "home_event_drawer_collapsed" if (
+            is_clean_home_frame(after.frame)
+            and bind_home_event_drawer_toggle(after.frame, expanded=False) is not None
+            and bind_home_event_drawer_toggle(after.frame, expanded=True) is None
+        ) else "unknown"
+
+    def settled():
+        time.sleep(settle_seconds)
+        return capture("supply-event-drawer-collapse-settled")
+
+    return session.run_action(action_class="navigation", label="supply-event-drawer-collapse",
+        capture=capture, authorize=authorize, dispatch=dispatch, recognize=recognize,
+        settled_successor=settled, consequence_class="navigation_only")
+
+
 def run(
     *,
     session: DevelopmentSession,
@@ -332,6 +362,14 @@ def run(
             session.terminal_status = "evidence_required"
             return result
         current = session.observe(capture, label="supply-depot-after-arena-recovery")
+    if bind_home_event_drawer_toggle(current.frame, expanded=True) is not None:
+        collapsed = _collapse_home_event_drawer(session, runtime, capture, settle_seconds=settle_seconds)
+        result["steps"].append({"step": "collapse_home_event_drawer", "status": collapsed.status})
+        if collapsed.status != "completed":
+            result["reason"] = "home_event_drawer_collapse_not_verified"
+            session.terminal_status = "evidence_required"
+            return result
+        current = session.observe(capture, label="supply-depot-after-event-drawer-collapse")
     current_screen = _recognize(runtime, current, "supply-depot-source")
     if not current_screen.recognized:
         radial = bind_supply_depot_claim_supply(

@@ -25,6 +25,43 @@ FIXTURE = Path(__file__).parent / "fixtures/supply_depot/native-entry-dead-zone-
 
 
 class SupplyCameraReframeTests(unittest.TestCase):
+    def test_drawer_collapse_requires_fresh_home_before_any_input(self):
+        path = FIXTURE.parent / "native-drawer-occluded-radial-20261101.png"
+        png, image = path.read_bytes(), cv2.imread(str(path))
+        captured = CapturedNativeFrame(image, png, hashlib.sha256(png).hexdigest(), 1., path)
+        def forbidden(*args, **kwargs):
+            self.fail("unknown Home cannot authorize drawer input")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"), \
+                    patch.object(canary, "is_clean_home_frame", return_value=False):
+                with DevelopmentSession(owner="offline-drawer", invocation_id="drawer", session_directory=root / "session", max_inputs=2) as session:
+                    with self.assertRaises(canary.PerceptionBundleError):
+                        canary._collapse_home_event_drawer(session, SimpleNamespace(tap=forbidden),
+                            lambda label: captured, settle_seconds=0)
+                    self.assertEqual(session.input_count, 0)
+
+    def test_drawer_collapse_does_not_repeat_input_when_expanded_state_remains(self):
+        path = FIXTURE.parent / "native-drawer-occluded-radial-20261101.png"
+        png, image = path.read_bytes(), cv2.imread(str(path))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ordinal, taps = 0, []
+            def capture(label):
+                nonlocal ordinal
+                ordinal += 1
+                return CapturedNativeFrame(image, png, hashlib.sha256(png).hexdigest(),
+                    float(ordinal), root / f"{ordinal}-{label}.png")
+            runtime = SimpleNamespace(tap=lambda source, **kwargs: taps.append(kwargs))
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"), \
+                    patch.object(canary, "is_clean_home_frame", return_value=True):
+                with DevelopmentSession(owner="offline-drawer", invocation_id="drawer", session_directory=root / "session", max_inputs=2) as session:
+                    result = canary._collapse_home_event_drawer(session, runtime, capture, settle_seconds=0)
+                    self.assertEqual(result.status, "unknown")
+                    self.assertEqual(session.input_count, 1)
+            self.assertEqual([tap["target_identity"] for tap in taps], ["home-event-drawer-collapse"])
+            self.assertEqual(taps[0]["target_roi"], (729, 1057, 764, 1075))
+
     @classmethod
     def setUpClass(cls):
         cls.png = FIXTURE.read_bytes()

@@ -218,6 +218,40 @@ def _normalized(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
 
+def bind_home_event_drawer_toggle(frame: np.ndarray, *, expanded: bool) -> Box | None:
+    """Measure a unique down/up chevron inside the native dark drawer rail.
+
+    The caller must independently verify Home before navigation. This binds
+    only the drawer toggle; it never grants a building or resource target.
+    """
+    if not native_frame_guard(frame) or type(expanded) is not bool:
+        return None
+    x0, y0, x1, y1 = 680, 980, 795, 1110
+    hsv = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+    white = cv2.inRange(hsv, np.array((0, 0, 185), np.uint8), np.array((179, 80, 255), np.uint8))
+    _count, labels, stats, _centers = cv2.connectedComponentsWithStats(white)
+    candidates = []
+    for index, (x, y, width, height, area) in enumerate(stats[1:], 1):
+        if not (20 <= width <= 36 and 7 <= height <= 16 and .2 <= area / (width * height) <= .65):
+            continue
+        glyph = labels[y:y + height, x:x + width] == index
+        if not expanded:
+            glyph = np.flipud(glyph)
+        top = np.flatnonzero(np.any(glyph[:2], axis=0))
+        tip = np.flatnonzero(np.any(glyph[-2:], axis=0))
+        if (not len(top) or not len(tip) or top[-1] - top[0] < .8 * width
+                or tip[-1] - tip[0] > .45 * width
+                or abs((tip[-1] + tip[0]) / 2 - (width - 1) / 2) > .15 * width):
+            continue
+        cy = y0 + y + height // 2
+        rail = cv2.cvtColor(frame[cy - 18:cy + 18, 600:790], cv2.COLOR_BGR2GRAY)
+        if float(np.mean(rail < 80)) < .85:
+            continue
+        candidates.append((int(x0 + x - 4), int(y0 + y - 4),
+                           int(x0 + x + width + 4), int(y0 + y + height + 4)))
+    return candidates[0] if len(candidates) == 1 else None
+
+
 def _safe_claim_label_region(label: Box) -> Box | None:
     """Choose a real interior of the measured label outside every fixed HUD mask."""
     x0, y0, x1, y1 = label
