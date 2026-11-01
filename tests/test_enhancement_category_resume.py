@@ -231,6 +231,9 @@ class EnhancementCategoryResumeTests(unittest.TestCase):
             patch.object(delivery, "_initial_observation", return_value=copy.deepcopy(current.result["initial_observation"])),
             patch.object(delivery, "_select_family_state", return_value=(flow_root, current.reset, {})),
             patch.object(delivery, "_ensure_family_reservations", return_value={}),
+            # This test wraps an already-built offline journal. Native startup
+            # input/replay belongs to the service startup integration tests.
+            patch.object(delivery, "_recover_family_startup", return_value=None),
             patch.object(delivery.LocalBlueStacksRuntime, "connect", return_value=SimpleNamespace(session=current.session)),
             patch("scripts.enhancement_bluestacks.EnhancementIntegratedRoute", return_value=SimpleNamespace(
                 run=lambda: copy.deepcopy(current.result["enhancement_result"]),

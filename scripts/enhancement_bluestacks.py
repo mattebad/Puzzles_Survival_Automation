@@ -1045,6 +1045,16 @@ def _selected_material_fraction(frame: np.ndarray, label: NativeBox) -> tuple[in
     crop = frame[y0 - 2:y1 + 2, x0 - 5:x1 + 3]
     neutral = cv2.inRange(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV),
         np.array((0, 0, 90), np.uint8), np.array((179, 30, 150), np.uint8))
+    ys, xs = np.nonzero(neutral)
+    if not len(xs):
+        return None
+    neutral = neutral[int(ys.min()):int(ys.max()) + 1, int(xs.min()):int(xs.max()) + 1]
+    # The baseline supplies search bounds, not OCR whitespace. Normalize the
+    # complete current glyphs as for the unselected label; an uneven margin
+    # makes Tesseract's word modes read a visible slash as a digit.
+    padding = max(1, round(neutral.shape[0] * .15))
+    neutral = cv2.copyMakeBorder(neutral, padding, padding, padding, padding,
+        cv2.BORDER_CONSTANT, value=0)
     glyphs = cv2.resize(255 - neutral, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
     glyphs = cv2.copyMakeBorder(glyphs, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
     readings = [re.sub(r"\s+", "", pytesseract.image_to_string(glyphs,
@@ -2282,6 +2292,22 @@ class EnhancementIntegratedRoute:
                         startup_recognition = tab
                         startup_at_commander = True
                         commander = tab
+            if not commander.recognized or commander.stage == "material":
+                navigation = self._navigation_state(startup_source, allow_post=False)
+                if navigation.recognized and navigation.detail_state in {"enhancement_panel", "quantity_modal"}:
+                    # A selected page from an interrupted attempt cannot carry
+                    # consuming authority into this run. Unwind known exits and
+                    # rebuild the equipped-item and quantity witnesses.
+                    try:
+                        startup_source, commander = self._navigate_to(
+                            "commander_overview", source_frame=startup_source,
+                        )
+                    except _FlowBlocked as exc:
+                        result = self._result(status="blocked", reason=str(exc), source=startup_source)
+                        result.update(variant="family", variants=list(self.variants))
+                        return result
+                    startup_recognition = commander
+                    startup_at_commander = True
             if not commander.recognized:
                 pending_variant = self.variant
                 index = ORDERED_VARIANTS.index(pending_variant)

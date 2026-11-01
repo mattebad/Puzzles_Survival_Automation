@@ -1,0 +1,6 @@
+{
+  "copied_at_utc": "2026-11-01T00:53:09.300169+00:00",
+  "source": ".local-captures\\automation-service-authorized\\soak-20261101T004216229879Z-c26a49a6\\enhancement\\enhancement-20261101T004217488898Z-b9978497\\runtime\\enhancement-family-20261101T004247045246Z\\frames\\0032-select-equipped-enhancement-item-immediate-before.png",
+  "sha256": "b1f514bf85f31574c754acf6522c616cf5a0e323640225e882cc873726b0b99c",
+  "purpose": "Unmodified Chip-selected Profile overview used to prove recovery must rebuild its item modal before any Confirm."
+}

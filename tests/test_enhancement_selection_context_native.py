@@ -135,6 +135,69 @@ class SelectionContextNativeTests(unittest.TestCase):
         label = native._material_label(self.captures[1].frame, old[1])[1]
         self.assertEqual(native._selected_material_fraction(self.captures[3].frame, label), (1, 9562))
 
+    def test_actual_chip_selection_reads_complete_fraction_and_requires_current_check(self):
+        directory = FIXTURES.parent / "enhancement_chip_selection"
+        names = ("0035-open-enhance-panel-immediate-before.png",
+                 "0038-select-exact-one-star-material-immediate-before.png",
+                 "0041-apply-quantity-selection-immediate-before.png",
+                 "0045-apply-quantity-selection-settled-3.png")
+        captures = tuple(captured_native_frame_from_png((directory / name).read_bytes(),
+            path=Path("unit-chip-selection/session/frames") / name, captured_monotonic=float(index + 1))
+            for index, name in enumerate(names))
+
+        def context(frames):
+            modal, baseline, quantity, current = frames
+            return native.recognize_selection_context(current, modal=modal, baseline=baseline,
+                quantity=quantity, variant="chip", game_day_id="current-reset")
+
+        result = context(captures)
+        self.assertTrue(result.recognized, result)
+        observation = result.observation
+        self.assertTrue(enhancement_bluestacks_authorizeable(observation, variant="chip"))
+        self.assertEqual((observation.item_exp_current, observation.item_exp_preview), (40, 50))
+        self.assertEqual(observation.material_slot_facts, ((0, 3, 0, 200), (1, 1, 1, 11532)))
+        self.assertEqual(observation.material_inventory_count, 11532)
+        for box in ((199, 619, 278, 635), (209, 638, 260, 678)):
+            changed = list(captures)
+            changed[3] = self.erased(captures[3], box)
+            with self.subTest(erased=box):
+                denied = context(changed)
+                self.assertFalse(denied.recognized, denied)
+                self.assertIsNone(denied.observation)
+
+    def test_selected_chip_restart_unwinds_and_requires_new_item_modal_without_reusing_gear(self):
+        from tests.test_enhancement_category_navigation import CategorySession
+
+        directory = FIXTURES.parent / "enhancement_chip_selection"
+        preview = (directory / "0045-apply-quantity-selection-settled-3.png").read_bytes()
+        overview = (directory / "0032-select-equipped-enhancement-item-immediate-before.png").read_bytes()
+        unknown = cv2.imencode(".png", np.zeros((1280, 800, 3), np.uint8))[1].tobytes()
+        inputs = []
+        ordinal = 0
+        def capture(label):
+            nonlocal ordinal
+            ordinal += 1
+            png = (preview, overview, unknown)[min(len(inputs), 2)]
+            return captured_native_frame_from_png(png,
+                path=Path("unit-chip-restart/session/frames") / f"{ordinal}-{label}.png",
+                captured_monotonic=float(ordinal))
+        def tap(source, **kwargs):
+            self.assertIn(kwargs["target_identity"], {"enhancement-visible-back", "item-select:chip"})
+            inputs.append(kwargs["target_identity"])
+        runtime = SimpleNamespace(session=Path("unit-chip-restart/session"), capture=capture,
+                                  tap=tap, reconcile=lambda *args: None)
+        session = CategorySession()
+        route = native.EnhancementIntegratedRoute(runtime, variant="gear", reset_identity="current-reset",
+            variants=("gear", "chip", "module"), session=session,
+            completed_categories={"gear": {"variant": "gear", "status": "completed"}})
+        with patch.object(native.time, "sleep"):
+            result = route.run()
+        self.assertEqual(inputs, ["enhancement-visible-back", "item-select:chip"])
+        self.assertEqual(session.input_count, 2)
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["resource_affecting_dispatch_count"], 0)
+        self.assertEqual([proof["variant"] for proof in result["category_results"]], ["gear"])
+
     def test_native_consumer_requires_exact_current_run_navigation_sources_and_targets(self):
         route = self.route()
         current = self.captures[3]
