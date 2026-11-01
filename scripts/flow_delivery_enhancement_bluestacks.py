@@ -1904,6 +1904,35 @@ def _reconcile_recovery_no_effect(
     )
 
 
+def _recover_family_startup(runtime, session):
+    from scripts.startup_normalization import is_clean_home_frame
+    from scripts.startup_recovery import classify_startup_frame, recover_contextual_startup_overlay
+
+    source = session.observe(runtime.capture, label="enhancement-startup-overlay-source")
+    plan = classify_startup_frame(FLOW_ID, source.png)
+    if plan.status == "blocked":
+        raise _pnsctl().OperatorError(plan.reason)
+    if plan.status != "recovery_required":
+        return None
+    key = f"enhancement:startup:{runtime.session.name}"
+    try:
+        recovery = recover_contextual_startup_overlay(
+            runtime, source, source_context="enhancement_family_startup",
+            recognize_successor=lambda frame: is_clean_home_frame(frame.frame), action_key=key,
+        )
+    finally:
+        session.adopt_retained_transport_count(runtime.input_count, source=str(runtime.events))
+    if (recovery.input_count != 1 or runtime.input_count != 1
+            or not recovery.resume_ready or recovery.settled_frame is None):
+        raise _pnsctl().OperatorError(f"Enhancement startup recovery failed: {recovery.reason}")
+    settled = recovery.settled_frame
+    return {"input_count": 1, "popup_identity": plan.popup_identity, "action_key": key,
+            "source_frame": source.path.relative_to(runtime.session).as_posix(),
+            "source_sha256": source.sha256,
+            "settled_frame": settled.path.relative_to(runtime.session).as_posix(),
+            "settled_sha256": settled.sha256, "reason": recovery.reason}
+
+
 def run_enhancement_family(
     queue: Mapping[str, Any], lease: Mapping[str, Any], *, live: bool = True
 ) -> str:
@@ -1992,6 +2021,7 @@ def run_enhancement_family(
     runtime: LocalBlueStacksRuntime | None = None
     runtime_session = outer_directory
     route: dict[str, Any] | None = None
+    startup_recovery = None
     previous_limit = os.environ.get("PNS_DEVELOPMENT_MAX_INPUTS")
     try:
         os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = str(maximum)
@@ -2006,6 +2036,7 @@ def run_enhancement_family(
             runtime.checkpoint = lease["checkpoint"]
         elif callable(lease.get("checkpoint")):
             runtime.checkpoint = lease["checkpoint"]
+        runtime.max_inputs = maximum
         if recovery_only and not navigation_only_recovery:
             # Pending-effect recovery only observes; the controller's legacy
             # minimum input budget does not grant this child input authority.
@@ -2018,6 +2049,9 @@ def run_enhancement_family(
             shutil.copyfile(source_path, retained_initial)
             initial_observation["frame_path"] = "frames/0000-initial-observation.png"
         from scripts.enhancement_bluestacks import EnhancementIntegratedRoute, run_recovery
+
+        if not recovery_only:
+            startup_recovery = _recover_family_startup(runtime, outer_session)
 
         route = (
             run_recovery(
@@ -2151,6 +2185,7 @@ def run_enhancement_family(
         "required_artifacts": ["events_path"],
         "events_path": "events.jsonl",
         "actions": list(getattr(outer_session, "actions", [])),
+        "startup_recovery": startup_recovery,
         "dispatch": bool(dispatches),
         "dispatch_count": len(dispatches),
         "input_count": input_count,
@@ -3271,6 +3306,56 @@ def _original_no_effect_attempt(receipt: Mapping[str, Any]) -> dict[str, Any]:
     return original
 
 
+def _verify_family_startup(result, session, rows):
+    from scripts.enhancement_bluestacks import recognize_home_frame
+    from scripts.startup_recovery import (
+        SCARLETT_SAFE_BACK_TARGET_IDENTITY, VIP_RESET_TARGET, classify_startup_frame,
+    )
+
+    recovery = result.get("startup_recovery")
+    dispatches = [(index, row) for index, row in enumerate(rows)
+                  if row.get("type") == "dispatch" and (
+                      row.get("target_identity") in {VIP_RESET_TARGET, SCARLETT_SAFE_BACK_TARGET_IDENTITY}
+                      or str(row.get("action_key") or "").startswith("enhancement:startup:"))]
+    if recovery is None and not dispatches:
+        return
+    if (not isinstance(recovery, Mapping) or type(recovery.get("input_count")) is not int
+            or recovery["input_count"] != 1 or len(dispatches) != 1):
+        raise _pnsctl().OperatorError("Enhancement startup recovery accounting is missing")
+    reset = result["enhancement_result"]["reset_identity"]
+    source = _context_capture(session, rows, recovery["source_frame"], reset=reset)
+    settled = _context_capture(session, rows, recovery["settled_frame"], reset=reset)
+    index, dispatch = dispatches[0]
+    prior = [row for row in rows[:index] if row.get("type") == "capture"]
+    if not prior:
+        raise _pnsctl().OperatorError("Enhancement startup immediate source is missing")
+    immediate = _context_capture(session, rows, prior[-1]["path"], reset=reset)
+    proposal = classify_startup_frame(FLOW_ID, source[0].png)
+    current = classify_startup_frame(FLOW_ID, immediate[0].png)
+    detail = current.recognition or {}
+    target = detail.get("target") or detail.get("safe_exit_roi")
+    identity = VIP_RESET_TARGET if current.popup_identity == "VIP_POINTS_GET_PTS" else SCARLETT_SAFE_BACK_TARGET_IDENTITY
+    if (
+        proposal.status != "recovery_required" or current.status != "recovery_required"
+        or proposal.popup_identity != current.popup_identity or current.popup_identity != recovery.get("popup_identity")
+        or source[0].sha256 != recovery.get("source_sha256")
+        or settled[0].sha256 != recovery.get("settled_sha256")
+        or not source[1] < immediate[1] < index < settled[1]
+        or not source[0].captured_monotonic < immediate[0].captured_monotonic < settled[0].captured_monotonic
+        or len([row for row in rows[source[1]:settled[1]] if row.get("type") == "dispatch"]) != 1
+        or dispatch.get("action_key") != recovery.get("action_key")
+        or dispatch.get("target_identity") != identity or target is None
+        or tuple(dispatch.get("target_roi") or ()) != tuple(target)
+        or tuple(dispatch.get("point") or ()) != ((target[0] + target[2]) // 2, (target[1] + target[3]) // 2)
+        or dispatch.get("source_sha256") != immediate[0].sha256
+        or dispatch.get("execute") is not True or dispatch.get("action_class") != "navigation"
+        or dispatch.get("consequential") is not False
+        or not immediate[2] <= _event_utc(dispatch, "startup input") <= settled[2]
+        or not recognize_home_frame(settled[0].frame, source_frame_sha256=settled[0].sha256).recognized
+    ):
+        raise _pnsctl().OperatorError("Enhancement startup recovery cannot be independently replayed")
+
+
 def verify_enhancement_family(
     structure: Mapping[str, Any], queue: Mapping[str, Any], lease: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -3386,6 +3471,7 @@ def verify_enhancement_family(
             "session_directory": str(session),
             "dispatch_count": result["dispatch_count"],
         }
+    _verify_family_startup(result, session, rows)
     if (
         route.get("postcondition_verified") is not True
         or route.get("terminal_recognized") is not True

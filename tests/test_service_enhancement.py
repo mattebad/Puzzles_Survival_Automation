@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from contextlib import contextmanager
 import copy
 from datetime import datetime, timezone
 import hashlib
@@ -46,6 +47,7 @@ class _NativeRuntime:
         self.events.write_text("", encoding="utf-8")
         self.ordinal = self.input_count = 0
         self.action_keys = set()
+        self.frame_actions = set()
         self.checkpoint = None
         self.max_inputs = 24
         self.captures = []
@@ -60,6 +62,10 @@ class _NativeRuntime:
         self.ordinal += 1
         image = np.full((1280, 800, 3), self.ordinal + 50, np.uint8)
         png = cv2.imencode(".png", image)[1].tobytes()
+        if getattr(self.test, "startup_popup", False):
+            fixture = "startup/nova-vip-reset-20261031.png" if not self.input_count else "home_base/native-home-20261029.png"
+            png = (Path(__file__).parent / "fixtures" / fixture).read_bytes()
+            image = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_COLOR)
         path = self.frames / f"{self.ordinal:04d}-{label}.png"
         path.write_bytes(png)
         sha = hashlib.sha256(png).hexdigest()
@@ -70,17 +76,26 @@ class _NativeRuntime:
         self.captures.append(captured)
         return captured
 
-    def tap(self, source, *, target_identity, target_roi, action_key):
+    def tap(self, source, *, target_identity, target_roi, action_key, **kwargs):
         if self.checkpoint:
             self.checkpoint()
         self.input_count += 1
         self.action_keys.add(action_key)
+        self.frame_actions.add((source.sha256, target_identity))
         # The real native adapter writes dispatch before transport, so a later
         # checkpoint/transport failure must still retain this attempted input.
         self._event("dispatch", {"action_key": action_key, "target_identity": target_identity,
-                                 "target_roi": target_roi, "source_sha256": source.sha256})
+                                 "target_roi": target_roi, "source_sha256": source.sha256,
+                                 "execute": True, "action_class": kwargs.get("action_class", "navigation"),
+                                 "consequential": kwargs.get("consequential", False),
+                                 "point": [(target_roi[0] + target_roi[2]) // 2, (target_roi[1] + target_roi[3]) // 2],
+                                 "timestamp": datetime.fromtimestamp(self.test.now, timezone.utc).isoformat()})
         if self.test.stop_after_inputs == self.input_count:
             self.test.stopped = True
+
+    def reconcile(self, action_key, status, post, reason):
+        self._event("reconcile", {"action_key": action_key, "status": status,
+                                 "post_sha256": post.sha256, "reason": reason})
 
 
 class ServiceEnhancementTests(unittest.TestCase):
@@ -136,6 +151,56 @@ class ServiceEnhancementTests(unittest.TestCase):
     def runner(self):
         return EnhancementRunner(adb="fake-adb", serial="emulator-5554",
                                  output_directory=self.root / "output", utc_clock=lambda: self.now)
+
+    @contextmanager
+    def startup_session(self):
+        self.startup_popup = True
+        self.owner.acquire()
+        try:
+            with boundary.DevelopmentSession(owner="automation-service:enhancement", invocation_id="startup-test",
+                    session_directory=self.root / "startup-session", max_inputs=24,
+                    runtime_input_lock=self.owner, checkpoint=self.checkpoint) as session:
+                runtime = self.connect(output_directory=session.session_directory / "runtime")
+                runtime.checkpoint = self.checkpoint
+                yield runtime, session
+        finally:
+            self.owner.release()
+
+    def test_native_vip_startup_uses_one_shared_navigation_and_replays_before_family(self):
+        with self.startup_session() as (runtime, session):
+            proof = delivery._recover_family_startup(runtime, session)
+            self.assertEqual((runtime.input_count, session.input_count), (1, 1))
+            rows = delivery._read_event_rows(runtime.events)
+            dispatches = [row for row in rows if row["type"] == "dispatch"]
+            self.assertEqual([row["target_identity"] for row in dispatches], ["reset-popup-close"])
+            result = {"startup_recovery": proof, "enhancement_result": {"reset_identity": NATIVE_RESET}}
+            delivery._verify_family_startup(result, runtime.session, rows)
+            for field in ("source_sha256", "settled_sha256", "action_key"):
+                changed = copy.deepcopy(result)
+                changed["startup_recovery"][field] = "changed"
+                with self.subTest(field=field), self.assertRaises(pnsctl.OperatorError):
+                    delivery._verify_family_startup(changed, runtime.session, rows)
+
+    def test_startup_failure_keeps_shared_helper_input_without_entering_family(self):
+        with self.startup_session() as (runtime, session):
+            def interrupted(runtime, captured, **kwargs):
+                runtime.tap(captured, target_identity="reset-popup-close", target_roi=(277, 767, 523, 847),
+                            action_key=kwargs["action_key"])
+                raise RuntimeError("stop after popup input")
+            with patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=interrupted):
+                with self.assertRaisesRegex(RuntimeError, "stop after popup input"):
+                    delivery._recover_family_startup(runtime, session)
+            self.assertEqual((runtime.input_count, session.input_count), (1, 1))
+
+    def test_unknown_startup_cannot_dispatch_or_enter_family(self):
+        with self.startup_session() as (runtime, session):
+            with patch("scripts.startup_recovery.classify_startup_frame",
+                       return_value=SimpleNamespace(status="blocked", reason="unknown_startup_surface")), \
+                    patch("scripts.startup_recovery.recover_contextual_startup_overlay") as recovery:
+                with self.assertRaises(pnsctl.OperatorError):
+                    delivery._recover_family_startup(runtime, session)
+            recovery.assert_not_called()
+            self.assertEqual((runtime.input_count, session.input_count), (0, 0))
 
     def wrapper(self, queue, lease, *, live=True):
         self.assertTrue(live)
@@ -424,8 +489,10 @@ class ServiceEnhancementTests(unittest.TestCase):
                 with self.subTest(invalid=invalid), self.assertRaises(pnsctl.OperatorError):
                     delivery._outer_session(dict(lease, **invalid))
 
+            captures_before_stop = []
             def route(runtime, **_kwargs):
                 self.assertTrue(callable(runtime.checkpoint))
+                captures_before_stop.append(len(runtime.captures))
                 self.stopped = True
                 runtime.capture("must-not-capture-after-stop")
 
@@ -434,7 +501,7 @@ class ServiceEnhancementTests(unittest.TestCase):
                 integrated.side_effect = lambda runtime, **kwargs: type("Route", (), {"run": lambda _: route(runtime, **kwargs)})()
                 with self.assertRaises(RuntimeError):
                     delivery.run_enhancement_family({}, lease, live=True)
-            self.assertFalse(self.runtimes[-1].captures)
+            self.assertEqual(len(self.runtimes[-1].captures), captures_before_stop[0])
             self.assertEqual(self.runtimes[-1].input_count, 0)
         self.stopped = False
         self.owner.release()
