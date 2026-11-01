@@ -5,16 +5,16 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "updated_utc": "2026-11-01T04:07:40.719532+00:00",
+  "updated_utc": "2026-11-01T04:28:36.146764+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
   "active_task_or_flow": "Fix intermittent Supply Depot recognition and finish remaining live acceptance before merge; sole local operator only",
   "authorization": "Current user explicitly requested continued fixes, live acceptance testing and iteration until proven before merge. Prior full-route authorization for regenerable resources persists. Each bounded controller records current authorization; no permanent enablement or merge is authorized by this work.",
-  "runtime_ownership_state": "No operator at snapshot; user just restarted BlueStacks and requested retry. Verify current locks/state/screen before input.",
-  "current_live_attempt_state": "600fd29 foreground selector sent exactly1Flee. Warning closed to knownDefeat overlay, Home not yet proved. No repeatFlee permitted. Current postFlee recovery adds one verifiedContinue thenexistingUMain/Home;20focused cases passed, existing61passed/2pre-existinggenuineHome recognitionerrors.",
+  "runtime_ownership_state": "No live operator; all delegates finished and all local tests stopped. Freeze reviewed source and verify canonical controls/locks before recovery-only retry.",
+  "current_live_attempt_state": "Exactly one Ultimate Flee transported on600fd29; native Defeat retained. User restarted BlueStacks. eb0fce9 recovery-only retry stopped0inputs because game was not foreground; owned warm launch1system/0game inputs succeeded; retry stopped0inputs at exact Scarlett with missing shared recovery owner. No additional Flee or Challenge.",
   "current_evidence_or_session_reference": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T031708993240Z/nav-20261101T031709679323Z",
-  "last_safe_completed_step": "Latestzero-inputstop349sourcehashes unchanged/3PNGs retained. Foreground warning cutover passes12focused native/semantic cases;150lines of scenery-rectangle machinery retired. SourceCIpending; prior e8419c0fullCIbothOSgreen.",
-  "current_blocker": "KnownDefeat→Home live continuation pending after userrestart. SharedHome false negatives onlargerHUD are genuine; fixedlabelROIs missvisiblelabels. Keepoldfixtures andfixclassifier. Twohourcadence andrealNov2UTCreset acceptance remainpending.",
+  "last_safe_completed_step": "Home correction committed3a79a38. Seven native Home images now pass;8focused Home/wrapper checks passed. Shared popup changes reviewed and7root executor/handoff checks passed. Existing two Noah integrated fake-runtime errors independently reproduced against committed original modules; not counted as passes.",
+  "current_blocker": "Current live post-Flee Home recovery pending. Both known startup surfaces now have shared ownership for any route; pnsctl handles two distinct surfaces within budget, then passes fresh context to route. Native contextual helpers handle either single surface and stop if another follows; a generalized native sequence remains unproved. Larger-HUD Home fix offline-proven. Two-hour cadence and real November2 00UTC acceptance remain required.",
   "exact_next_permitted_action": "After source freeze and ownership checks, use supported pnsctl development-session run-flow ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION --live --yes --max-inputs16 --recovery-only --recovery-session .local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T031708993240Z/nav-20261101T031709679323Z. Freshly verify restarted state. This invokespostFleeHomeOnly withzeroFlee/Challenge. Userrestart is intervention; do not claim uninterruptednative recovery ifalreadyHome. No source/docs/test edits whilelive.",
   "unresolved_action_state": "Exactly1Flee transported and six retainedDefeat successors verified; originalfailedreceiptunchanged. Newreadonly proofkind defeat_after_flee canlinkexistingpendingHomeguard, but currentHomecompletion remainsunproved. CanonicalUltimate remainsblocked. No repeatFlee.",
   "registration_and_scheduler": {
@@ -73,11 +73,11 @@
     "ultimate": {
       "reset_id": "game-day-2026-11-01",
       "status": "one_flee_pending_home_recovery",
-      "latest_attempt": "1Flee on600fd29; knownDefeat retained; noHome. UserrestartedBlueStacks. OnlypostFleeHome recoveryallowed.",
+      "latest_attempt": "After user restart: owned launch1system/0game inputs; recovery-only0inputs stopped at Scarlett. No Flee/Challenge repeated. Shared startup owner fix required.",
       "historical_acceptance": "October31oneFlee/9inputs/Home; does not prove current source.",
       "repair_commit": "e8419c0201f51964985069e98aba259237c00c04",
       "next_due_utc": 1793491200.0,
-      "warning_repair": "Current revision verifies foreground Warning title/failure text/unique labeled Fight+Flee controls across battle/defeat backgrounds. Scenery Hough filtering and clustering removed;12focused cases passed; live continuation pending."
+      "warning_repair": "600fd29 foreground recognizer sent exactly1Flee. Warning disappeared to native Defeat. eb0fce9 known Defeat Continue/Home and strict one-Flee receipt replay pass20 focused cases; current live Home remains pending."
     },
     "enhancement": {
       "reset_id": "game-day-2026-11-01",
@@ -91,8 +91,8 @@
       "next_due_utc": 1793577600.0
     }
   },
-  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T030328974799Z.json",
-  "validation": "Current repair:17native/visual/lineup checks passed with normal TEMP access;44Campaign+Ultimate service checks passed; two reported CI cases passed3repetitions each. WindowsPython3.11CI pending. Separate original-function baseline reproduces2stale Home fixture failures. No full repository discovery.",
+  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T040828671155Z.json",
+  "validation": "Shared startup suite49 passed; session/service startup16 passed; contextual safety4 passed; focused Noah12 passed. Root7 shared executor/handoff checks passed. Home8focused checks and7native images passed. Two old Noah fake-runtime continuation mismatch errors reproduced independently on original committed code; separate logs retained. Prior eb0fce9 CI run62 passed both full Windows/Python3.11 and Linux jobs. Latest shared/Home source CI will run after push. Initial sandbox startup45 had32 TEMP permission errors, resolved by normal temp access; no runtime weakening.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
     ".local-orchestrator/logs/noah-full-basic-quota-audit-20261030.json",
@@ -113,10 +113,12 @@
     ".local-orchestrator\\logs\\current-source-all8-1200-cadence-final-audit-20261031.json",
     ".local-orchestrator/logs/personal-might-more-resume-zero-repeat-home-live-audit-20261031.json",
     ".local-orchestrator/logs/campaign-after-map-reframe-repair-full-drain-home-live-audit-20261031.json",
-    ".local-orchestrator/logs/current-cohort-first-campaign-drain-audit-20261101.json"
+    ".local-orchestrator/logs/current-cohort-first-campaign-drain-audit-20261101.json",
+    ".local-orchestrator/logs/ultimate-flee-defeat-successor-stop-audit-20261101.json",
+    ".local-orchestrator/logs/ultimate-post-user-restart-pre-repair-audit-20261101.json"
   ],
   "additional_coverage_evidence_required": [
-    "Finish current Ultimate active-battle continuation and verify actual Flee/Home without another Challenge.",
+    "Resolve pending Ultimate Home using recovery-only from the single-Flee receipt, with0newFlee/Challenge. Manual BlueStacks restart prevents calling this uninterrupted native Defeat recovery.",
     "Complete latest-source7200-second serial cadence with actual due routes, accounting and controlsOFF audit.",
     "Uninterrupted Gear/Chip/Module, fresh Supply Home-entry and fresh Ultimate Home-entry at the next real reset, November2 00UTC.",
     "Consuming native Campaign actions across00UTC and continuous-client Tavern Basic refresh; preserve Int24h/Adv48h timers.",
@@ -124,7 +126,7 @@
   ],
   "goal_finish_scope": "Finish all current-source acceptance and pre-merge CI honestly, retain failures, leave draftPR16 unmerged and permanent runtime controlsOFF.",
   "preserved_user_work": "The session snapshot is committed on codex/bluestacks-route-reliability. Unrelated Stop-PnS-OMP.ps1, evidence/current-evidence-manifest.json and two loose root plans remain uncommitted and unchanged. Retained stash/evidence/temp files remain local; do not reset/stash/clean them.",
-  "subagent_preferences": "All delegates use explicit high-or-higher effort and current user-approved model tier. All current implementation/review/retrieval agents are frozen.",
+  "subagent_preferences": "All delegates use explicit high-or-higher effort and current user-approved model tier. Delegates are now finished; no writes/tests active.",
   "history_archive": "docs/archive/current-handoff-native-route-history-20261030T085441Z.md",
   "history_archive_sha256": "86f9a338b97150fcdaddac77b0dded3030565e3ff2e8bb3fd8fc961ca096d8eb",
   "live_ap_digit_verification": {

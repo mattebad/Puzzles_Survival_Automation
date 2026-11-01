@@ -105,6 +105,8 @@ jobs:
           tests.test_enhancement_selection_context_native
           tests.test_ultimate_battle_popup_native
           tests.test_ultimate_defeat_recovery
+          tests.test_home_control_layouts
+          tests.test_startup_recovery
           tests.test_personal_might_bluestacks.PersonalMightNativeTests.test_native_fragmented_rankings_caption_still_binds_current_trophy_body
       - name: Run directly affected cleanup regressions
         run: >-

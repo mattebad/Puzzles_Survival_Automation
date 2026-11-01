@@ -17,14 +17,22 @@ Enhancement still require the next real reset. The broad-crop OCR deadline was
 reproduced, and the tighter candidate crop passed local repetitions plus both
 hosted repetition steps. The latest cohort proved a full 120 + 1 - 112 = 9 AP
 Campaign drain with 8 wins, then stopped after 1,030.094 seconds on Ultimate's
-gem-grid popup false positive. All controls were restored OFF. Ultimate's repair
-and two Windows fake-clock test fixes passed their focused checks; current-head
-CI passed both platforms on `e8419c0`. Its live continuation used one Exit with no
-repeated Challenge, then stopped before Flee on a second canvas-panel false
-positive. A zero-input follow-up found defeat behind the same open warning.
-Foreground dialog verification replaces the scene-rectangle clustering and
-passes 12 focused cases across both native backgrounds. Its CI, live Flee
-continuation, fresh Ultimate Home entry and final cadence remain pending.
+gem-grid popup false positive. All controls were restored OFF. The battle and
+foreground warning fixes passed focused checks; full CI passed both platforms
+on `600fd29`. Live continuation sent one Exit and then exactly one Flee, with no
+repeated Challenge. The warning closed to a native Defeat overlay; Home remains
+pending. `eb0fce9` adds verified Continue/Home recovery and strict replay of that
+single-Flee receipt. User restarted BlueStacks; subsequent recovery-only attempts
+used zero game inputs and exposed a shared Scarlett ownership gap.
+
+Both Scarlett and VIP now have shared recovery ownership across routes, as
+explicitly requested; the active route must verify its fresh successor. The supported
+recovery workflow handles two distinct surfaces within its input budget; native
+contextual helpers handle either single surface and stop if another follows. The
+larger-HUD Home fixtures expose a real label-position miss, not stale evidence;
+they remain in place and the measured second layout passes focused offline
+checks. Current-source live recovery, fresh Ultimate Home entry, final cadence
+and next-reset acceptance remain pending. No further Flee is permitted this reset.
 These updates do not turn the historical October 31 rows below into fresh runs.
 
 | Route | Retained acceptance | October31 reset status / remaining work |

@@ -1053,7 +1053,9 @@ class NovaNavigationCanaryRoute:
 
         source = self._capture("canary-source")
         plan = classify_startup_frame("NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE", source.png)
-        if plan.status == "recovery_required" and plan.recovery_owner == "shared_home_startup_recovery":
+        if plan.status == "recovery_required" and plan.recovery_owner in {
+            "shared_home_startup_recovery", "shared_startup_surface_recovery",
+        }:
             before = getattr(self._startup_runtime, "input_count", None)
             recovery = None
             try:

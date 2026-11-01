@@ -41,29 +41,6 @@ VIP_RESET_SUCCESSOR = "HOME_BASE"
 VIP_RESET_ACTION_KEY = "startup-recovery:vip-reset-close"
 STARTUP_RECOVERY_STORE_PATH = ORCHESTRATOR_DIR / "startup-recovery-actions.sqlite3"
 
-SHARED_HOME_RECOVERY_FLOW_IDS = frozenset(
-    {
-        "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
-        "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
-        "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-        "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
-        "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
-        "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
-        "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION",
-        "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
-        "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
-    }
-)
-ROUTE_OWNED_RECOVERY_FLOW_IDS = frozenset(
-    {
-        "WORLD-MAP-NAVIGATION-FOUNDATION",
-        "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
-        "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
-        "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
-    }
-)
-
-
 class StartupRecoveryError(RuntimeError):
     """An allowlisted startup recovery could not reach its exact successor."""
 
@@ -136,22 +113,13 @@ def classify_startup_frame(
         )
     startup_detail = recognize_startup_surface(frame, frame_bytes)
     if startup_detail.get("recognized"):
-        owner = (
-            "shared_home_startup_recovery"
-            if flow_id in SHARED_HOME_RECOVERY_FLOW_IDS
-            else None
-        )
         return StartupRecoveryPlan(
-            "recovery_required" if owner else "blocked",
+            "recovery_required",
             flow_id,
             SCARLETT_THREE_DAY_PACK,
-            owner,
+            "shared_startup_surface_recovery",
             False,
-            (
-                "exact Scarlett startup surface requires shared recovery"
-                if owner
-                else "exact Scarlett startup surface has no recovery owner"
-            ),
+            "exact Scarlett startup surface requires shared recovery",
             surface_kind=str(startup_detail.get("surface_kind") or "full_page"),
             frame_sha256=frame_sha256,
             recognition=dict(startup_detail),
@@ -188,29 +156,21 @@ def classify_startup_frame(
             "no_exact_allowlisted_startup_overlay", frame_sha256=frame_sha256,
         )
     identity = str(detail.get("popup_identity") or "")
-    if flow_id in SHARED_HOME_RECOVERY_FLOW_IDS:
-        return StartupRecoveryPlan(
-            "recovery_required", flow_id, identity,
-            "shared_home_startup_recovery", False,
-            "exact_vip_reset_popup_requires_child_ledger_recovery",
-            frame_sha256=frame_sha256, recognition=dict(detail),
-        )
-    if flow_id in ROUTE_OWNED_RECOVERY_FLOW_IDS:
-        return StartupRecoveryPlan(
-            "route_owned", flow_id, identity,
-            "flow_specific_popup_recovery", False,
-            "exact_vip_reset_popup_deferred_to_route_owned_recovery",
-            frame_sha256=frame_sha256, recognition=dict(detail),
-        )
     return StartupRecoveryPlan(
-        "blocked", flow_id, identity, None, False,
-        "exact_vip_reset_popup_has_no_registered_recovery_owner",
+        "recovery_required", flow_id, identity,
+        "shared_home_startup_recovery", False,
+        "exact_vip_reset_popup_requires_child_ledger_recovery",
         frame_sha256=frame_sha256, recognition=dict(detail),
     )
 
 
 def _persist(runtime: LocalBlueStacksRuntime, result: StartupRecoveryResult) -> None:
-    (runtime.session / "startup-recovery-result.json").write_text(
+    path = runtime.session / "startup-recovery-result.json"
+    ordinal = 2
+    while path.exists():
+        path = runtime.session / f"startup-recovery-result-{ordinal:02d}.json"
+        ordinal += 1
+    path.write_text(
         json.dumps(result.to_mapping(), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
@@ -878,7 +838,7 @@ def recover_contextual_startup_overlay(
     )
 
 
-def _popup_observation(captured: CapturedNativeFrame, detail: dict[str, object]) -> Observation:
+def _popup_observation(captured: CapturedNativeFrame, detail: dict[str, object], *, successor_state: str = VIP_RESET_SUCCESSOR) -> Observation:
     target = detail.get("target")
     roi = tuple(int(v) for v in target) if isinstance(target, (tuple, list)) and len(target) == 4 else None
     return Observation(
@@ -891,7 +851,7 @@ def _popup_observation(captured: CapturedNativeFrame, detail: dict[str, object])
         target_identity=VIP_RESET_TARGET if roi else None, target_roi=roi,
         recognized=bool(detail.get("recognized")), control_class="RESET_CLOSE",
         consequence="navigate_zero_cost", cost_type="none", cost_amount=0, quantity=1,
-        expected_postcondition=VIP_RESET_SUCCESSOR,
+        expected_postcondition=successor_state,
         evidence_refs=(str(captured.path),),
         critical_roi_hashes=(("popup_close", _roi_hash(captured.frame, roi)),) if roi else (),
         target_isolated=roi is not None, package_foreground=True,
@@ -901,6 +861,7 @@ def _popup_observation(captured: CapturedNativeFrame, detail: dict[str, object])
 
 def _successor_observation(
     captured: CapturedNativeFrame, *, popup_present: bool, successor_recognized: bool,
+    successor_state: str = VIP_RESET_SUCCESSOR,
 ) -> Observation:
     recognized = bool(not popup_present and successor_recognized)
     return Observation(
@@ -909,11 +870,11 @@ def _successor_observation(
         runtime_profile_id=NATIVE_RUNTIME_PROFILE_ID,
         width=int(captured.frame.shape[1]), height=int(captured.frame.shape[0]),
         valid_png=True, corrupt=False, black=not bool(np.any(captured.frame)),
-        source_state=VIP_RESET_SUCCESSOR if recognized else "UNKNOWN",
+        source_state=successor_state if recognized else "UNKNOWN",
         overlay_state="none_observed" if not popup_present else "known_reset_popup",
         target_identity=None, target_roi=None, recognized=recognized,
         consequence="navigate_zero_cost", cost_type="none", cost_amount=0, quantity=1,
-        expected_postcondition=VIP_RESET_SUCCESSOR,
+        expected_postcondition=successor_state,
         evidence_refs=(str(captured.path),), package_foreground=True,
         os_surface=False, hard_stop_detected=False,
     )
@@ -925,6 +886,7 @@ def _request(
     session_id: str,
     action_key: str,
     observation: Observation,
+    successor_state: str = VIP_RESET_SUCCESSOR,
 ) -> PolicyRequest:
     return PolicyRequest(
         action_id=f"{task_id}:{action_key}", action_key=action_key,
@@ -936,7 +898,7 @@ def _request(
         action_class=ActionClass.NAVIGATION_ONLY, action_kind=VIP_RESET_ACTION,
         subject=VIP_RESET_TARGET, resource_or_currency="none", maximum_cost=0,
         free_only=True, semantic_preconditions=("RESET_POPUP", "known_reset_popup"),
-        semantic_postconditions=(VIP_RESET_SUCCESSOR,), runtime_session_id=session_id,
+        semantic_postconditions=(successor_state,), runtime_session_id=session_id,
     )
 
 
@@ -1071,7 +1033,7 @@ def _recover_scarlett_surface(
     del initial_frame
     if not is_exact_scarlett_recognition(initial_detail):
         raise StartupRecoveryError("exact Scarlett recognition is not input-authoritative")
-    if runtime.input_count >= min(runtime.max_inputs, SCARLETT_MAX_INPUTS):
+    if runtime.input_count >= runtime.max_inputs:
         raise StartupRecoveryError("startup recovery input budget is exhausted")
     scope = str(recovery_scope or "startup")
     # Navigation recovery is once per invocation, not a game-day resource effect.
@@ -1217,6 +1179,7 @@ def _recover_vip_reset_popup(
     store: SafetyStore,
     owner: str,
     action_key: str,
+    successor_state: str = VIP_RESET_SUCCESSOR,
 ) -> StartupRecoveryResult:
     prior = store.get_action_by_key(action_key)
     if prior is not None or store.has_action_block():
@@ -1251,6 +1214,7 @@ def _recover_vip_reset_popup(
     authorized_observation = _popup_observation(
         authorization_frame,
         authorization_detail,
+        successor_state=successor_state,
     )
     request = _request(
         task_id,
@@ -1258,6 +1222,7 @@ def _recover_vip_reset_popup(
         str(runtime.session),
         action_key,
         authorized_observation,
+        successor_state,
     )
     authorized = policy.evaluate(request)
     if not authorized.authorized:
@@ -1286,7 +1251,7 @@ def _recover_vip_reset_popup(
             )
         holder["before"] = dispatch_before
         holder["detail"] = dispatch_detail
-        return _popup_observation(dispatch_before, dispatch_detail)
+        return _popup_observation(dispatch_before, dispatch_detail, successor_state=successor_state)
 
     def transport(_intent) -> TransportResult:
         before = holder.get("before")
@@ -1319,6 +1284,7 @@ def _recover_vip_reset_popup(
             post,
             popup_present=bool(after.get("recognized")),
             successor_recognized=successor,
+            successor_state=successor_state,
         ),)
 
     def reconcile(_intent, observation: Observation) -> bool:
@@ -1330,7 +1296,7 @@ def _recover_vip_reset_popup(
                 after,
                 recognized_successor=bool(holder.get("successor")),
             )
-            and observation.source_state == VIP_RESET_SUCCESSOR
+            and observation.source_state == successor_state
         )
 
     executor = SafeActionExecutor(
@@ -1346,7 +1312,7 @@ def _recover_vip_reset_popup(
         "recovered" if result.status is ActionStatus.CONFIRMED else result.status.value,
         input_count,
         str(initial.get("popup_identity") or ""),
-        VIP_RESET_SUCCESSOR if holder.get("successor") else None,
+        successor_state if holder.get("successor") else None,
         authorized_observation.frame_sha256,
         post.sha256 if isinstance(post, CapturedNativeFrame) else None,
         action_key,
@@ -1373,6 +1339,7 @@ def recover_known_startup_overlay(
     recovery_scope: str | None = None,
     action_store_factory: Callable[[], SafetyStore] | None = None,
     expected_source_sha256: str | None = None,
+    successor_state: str = VIP_RESET_SUCCESSOR,
 ) -> StartupRecoveryResult:
     """Dismiss one exact allowlisted startup surface and capture its successor."""
     probe = runtime.capture("startup-recovery-probe")
@@ -1441,6 +1408,7 @@ def recover_known_startup_overlay(
             store=store,
             owner=owner,
             action_key=action_key,
+            successor_state=successor_state,
         )
     finally:
         _release_store(store, owner)

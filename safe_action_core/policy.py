@@ -991,19 +991,16 @@ class CentralPolicy:
             if req.semantic_action == "DISMISS_RESET_POPUP":
                 if obs.source_state != "RESET_POPUP" or obs.target_identity != "reset-popup-close":
                     return deny, "RESET_POPUP_CLOSE_REQUIRED", "only the recognized reset popup Close control is allowed"
-                # Narrow task-keyed successor: Campaign atlas survey may expect
-                # CAMPAIGN_TIER_MAP; all other tasks keep HOME_BASE only.
+                # The shared startup path may retain the post-dismissal frame
+                # for the active route to recognize; that is not Home proof.
+                # Existing route-specific successors retain their restrictions.
                 campaign_atlas_task = (
                     req.task_id == "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
                 )
-                if campaign_atlas_task:
-                    if obs.expected_postcondition != "CAMPAIGN_TIER_MAP":
-                        return deny, "RESET_POPUP_SUCCESSOR_REQUIRED", (
-                            "Campaign atlas VIP dismissal must return to CAMPAIGN_TIER_MAP"
-                        )
-                elif obs.expected_postcondition != "HOME_BASE":
+                route_successor = "CAMPAIGN_TIER_MAP" if campaign_atlas_task else "HOME_BASE"
+                if obs.expected_postcondition not in {route_successor, "RETAINED_STARTUP_SUCCESSOR"}:
                     return deny, "RESET_POPUP_SUCCESSOR_REQUIRED", (
-                        "reset popup dismissal must return to Home/Base"
+                        "reset popup dismissal requires a bounded route or retained startup successor"
                     )
                 x0, y0, x1, y1 = obs.target_roi
                 if x0 < 200 or y0 < 700 or x1 > 600 or y1 > 920:

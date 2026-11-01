@@ -1119,8 +1119,7 @@ def _run_shared_startup_recovery(
 ) -> dict[str, Any]:
     """Recover the exact shared startup surface within the active flow boundary."""
     from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
-    from scripts.startup_recovery import recover_known_startup_overlay
-    from scripts.startup_normalization import is_clean_home_frame
+    from scripts.startup_recovery import classify_startup_frame, recover_known_startup_overlay
 
     runtime = LocalBlueStacksRuntime.connect(
         adb=str(BLUESTACKS_ADB),
@@ -1131,19 +1130,46 @@ def _run_shared_startup_recovery(
     )
     if runtime_holder is not None:
         runtime_holder["runtime"] = runtime
-    runtime.max_inputs = min(runtime.max_inputs, max_inputs, 1)
-    result = recover_known_startup_overlay(
-        runtime,
-        task_id=task_id,
-        recognize_successor=is_clean_home_frame,
-        recovery_scope=recovery_scope,
-        expected_source_sha256=expected_source_sha256,
-    )
-    payload = result.to_mapping()
+    runtime.max_inputs = min(runtime.max_inputs, max_inputs, 2)
+    actions: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    while len(actions) < 2:
+        result = recover_known_startup_overlay(
+            runtime,
+            task_id=task_id,
+            # This proves only a retained, nonblack native successor. The
+            # active route must recognize its own context before acting.
+            recognize_successor=lambda frame: bool(
+                frame.shape == (1280, 800, 3) and frame.any()
+            ),
+            successor_state="RETAINED_STARTUP_SUCCESSOR",
+            recovery_scope=recovery_scope,
+            expected_source_sha256=expected_source_sha256,
+        )
+        item = result.to_mapping()
+        actions.append(item)
+        identity = str(result.popup_identity or "")
+        seen.add(identity)
+        if result.status not in {"surface_dismissed_successor_captured", "recovered"}:
+            break
+        post = runtime.capture("startup-recovery-chain-observation")
+        plan = classify_startup_frame(flow_id, post.png)
+        if plan.status == "clear" or plan.status == "route_owned":
+            break
+        if (plan.status != "recovery_required" or plan.popup_identity in seen
+                or runtime.input_count >= runtime.max_inputs):
+            item = dict(item, status="evidence_required", reason=(
+                "startup_successor_blocked_or_repeated_or_budget_exhausted"
+            ))
+            break
+        expected_source_sha256 = post.sha256
+    payload = dict(item)
+    payload["actions"] = actions
     payload["flow_id"] = flow_id
-    payload["recovery_input_count"] = int(result.input_count)
+    payload["recovery_input_count"] = sum(int(action["input_count"]) for action in actions)
+    payload["input_count"] = payload["recovery_input_count"]
     payload["route_input_count"] = 0
-    payload["total_input_count"] = int(result.input_count)
+    payload["total_input_count"] = payload["recovery_input_count"]
     return payload
 
 def _canonical_action_identity(row: Mapping[str, Any]) -> str | None:
@@ -1169,6 +1195,12 @@ def _startup_recovery_action_rows(
 
     if not isinstance(result, Mapping):
         return []
+    actions = result.get("actions")
+    if isinstance(actions, list):
+        rows = [row for action in actions for row in _startup_recovery_action_rows(action)]
+        for ordinal, row in enumerate(rows):
+            row["ordinal"] = ordinal
+        return rows
     try:
         input_count = int(
             result.get("input_count")
@@ -4228,12 +4260,12 @@ def development_session_run_flow(
                     or 0
                 )
                 recovery_status = str(startup_recovery_result.get("status") or "")
-                if recovery_status == "evidence_required" and startup_recovery_input_count == 1:
+                if recovery_status == "evidence_required" and startup_recovery_input_count > 0:
                     startup_recovery_terminal_status = "evidence_required"
                 elif recovery_status not in {
                     "surface_dismissed_successor_captured",
                     "recovered",
-                } or startup_recovery_input_count != 1:
+                } or not 1 <= startup_recovery_input_count <= min(max_inputs, 2):
                     session.blocker = str(
                         startup_recovery_result.get("reason")
                         or "shared startup recovery did not reconcile"
@@ -4280,6 +4312,14 @@ def development_session_run_flow(
                     observation, frame = _development_runtime_observation()
                     observation = dict(observation)
                     observation.setdefault("frame_sha256", hashlib.sha256(frame).hexdigest())
+                if startup_runtime is not None:
+                    route_plan = classify_startup_frame(flow_id, frame)
+                    if route_plan.status not in {"clear", "route_owned"}:
+                        startup_recovery_terminal_status = "evidence_required"
+                        startup_recovery_result = dict(
+                            startup_recovery_result,
+                            reason="startup_route_observation_requires_reassessment",
+                        )
             if live and startup_recovery_plan.status == "blocked":
                 (session_directory / "source.png").write_bytes(frame)
                 session.blocker = startup_recovery_plan.reason
@@ -4312,14 +4352,7 @@ def development_session_run_flow(
                 session.remember_control(key, value)
             if startup_recovery_terminal_status is not None:
                 session.terminal_status = startup_recovery_terminal_status
-                startup_recovery_terminal_home_verified = (
-                    startup_recovery_terminal_status == "completed"
-                    and recovery_status
-                    in {
-                        "surface_dismissed_successor_captured",
-                        "recovered",
-                    }
-                )
+                startup_recovery_terminal_home_verified = False
                 session.remember_control(
                     "terminal_home_verified", startup_recovery_terminal_home_verified
                 )

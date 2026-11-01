@@ -50,7 +50,8 @@ from scripts.bluestacks_native_runtime import (
     NativeRuntimePort,
 )
 from scripts.bluestacks_popup_recognition import recognize_reset_popup
-from scripts.startup_recovery import ContextualPopupRecoveryResult, recover_contextual_vip_popup
+from scripts.startup_recovery import ContextualPopupRecoveryResult, recover_contextual_startup_overlay
+from scripts.startup_surface_recognition import recognize_startup_surface
 from scripts.navigation_development_boundary import (
     NavigationBoundaryError,
     NavigationGuardedRuntime,
@@ -310,7 +311,7 @@ class BlueStacksNoahsTavernRecruitAdapter:
 
 @dataclass
 class _ContextualPopupSession:
-    """Ephemeral route-owned bound for one contextual VIP dismissal."""
+    """Ephemeral route-owned bound for one contextual startup dismissal."""
 
     dismissal_used: bool = False
     records: list[dict[str, object]] = field(default_factory=list)
@@ -332,6 +333,8 @@ def _contextual_recovery(
     if session.dismissal_used:
         try:
             already_present = recognize_reset_popup(captured.frame)
+            if isinstance(already_present, dict) and not already_present.get("recognized"):
+                already_present = recognize_startup_surface(captured.frame, captured.png)
         except (OSError, ValueError, TypeError, cv2.error, MemoryError):
             already_present = None
         if isinstance(already_present, dict) and already_present.get("recognized"):
@@ -347,7 +350,7 @@ def _contextual_recovery(
             return result
 
     action_key = f"noah:popup-close:{source_context}:{captured.sha256}"
-    result = recover_contextual_vip_popup(
+    result = recover_contextual_startup_overlay(
         runtime,
         captured,
         source_context=source_context,

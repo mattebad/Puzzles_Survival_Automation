@@ -15,7 +15,7 @@ authorized bounded controllers temporarily enable selected routes.
 | Enhancement | Gear, Chip and Module each consumed once in one physical Profile visit, with final Home and independent family replay. Original attempt: 13 inputs/1 Gear Confirm. Resume: 15 inputs/2 Confirms, retaining Gear. | This is composite acceptance. An uninterrupted all-three run remains `evidence_required` at the next actual reset. |
 | Cold restart | Source `122ff13`: one guarded stop, process-exit check passed, one checked MAIN/LAUNCHER/NEW_TASK launch, Home, zero game inputs and no human intervention. | All nine flow rows and their due facts were unchanged. This proves this cached account state, not historical Play Games prompt causality. |
 | Campaign and other due routes | Cohort `fd5b6482`: Campaign 120 + 1 regenerated - 112 spent = 9 AP, 8 wins/8 committed AP effects, 50 inputs and Home; next due exactly completion + 300 seconds. Nova used one free Praise, Tavern used one Advanced and one Basic free recruit, and Bioenhancer used one free Research; each returned Home. | This is not a completed two-hour cadence. The cohort stopped after 1,030.094 seconds on Ultimate. Nova has 6 free Praises and Tavern has 4 Basic recruits remaining. |
-| Ultimate | Four inputs reached battle. Repair `e8419c0` then freshly recognized the active battle and sent one Exit, with no repeated Challenge. A later zero-input attempt found that the battle had progressed to defeat underneath the same warning. Zero Flee transports so far; all attempts released ownership. | Foreground warning recognition passes 12 focused checks. Fresh Flee-warning continuation and a full Home-entry pass still require live proof. Failed attempts are not daily completion. |
+| Ultimate | Four inputs reached battle, then a separate continuation sent one Exit and exactly one Flee without repeating Challenge. The warning closed to a native Defeat overlay. | Home remains unproved. Known Defeat Continue/Home recovery and one-Flee receipt replay pass focused offline checks. User restarted BlueStacks; subsequent zero-input recovery attempts stopped at Scarlett. No repeated Flee is allowed. |
 | Native reset crossing | Pending November 2 at 00:00 UTC. | Requires a consuming Campaign route across the real boundary and continuous-client Tavern refresh. The earlier zero-input admission defer does not satisfy this. |
 
 Supply's current-source consuming leg and Personal Might both completed through
@@ -87,7 +87,7 @@ and the associated shape-only assertions were retired. Tests now reject an
 actual unknown popup covering the dialog, missing title/text/controls and a gold
 Buy button. All 12 focused cases passed. Claims, reset guard, source freshness,
 resource authority and successor verification are unchanged. This remains
-offline proof until the Flee-warning continuation actually completes.
+live-proven only for the single Flee dismissal: its successor is Defeat, and terminal Home remains pending. The failed receipt is retained. A known Defeat Continue selector and post-Flee Home-only recovery were added; the new binder never supplies Buy Now or another Flee. Twenty focused cases passed. The user then restarted BlueStacks. Recovery-only stopped with zero game inputs before and after an owned warm launch, first because P&S was not foreground and then because Scarlett lacked a shared recovery owner.
 
 ## Validation and retained evidence
 
@@ -108,13 +108,11 @@ freshness checks are unchanged. The two affected modules passed 44 cases, and
 the two reported cases passed three repetitions each. Both full operating-system
 jobs, including Windows Python 3.11, passed on repair `e8419c0` in
 [CI run 58](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41266335664).
-The later warning correction still requires its own CI; run 57 remains a retained
-failure rather than being overwritten by a passing rerun.
+The foreground warning correction also passed both full jobs in [CI run 61](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41268509505). The later Defeat recovery revision has its own CI pending; run 57 remains a retained failure rather than being overwritten by a passing rerun.
 
 The Ultimate repair passed 17 focused native/visual/lineup checks with normal
 temporary-directory access. A separate baseline using the original committed
-popup function reproduces two stale Home-fixture failures; they were not
-weakened or counted as passes. The sandbox's earlier temporary-directory
+popup function reproduces two real larger-HUD Home recognition failures. The sidebar crops missed their visible labels; these fixtures were kept. A second bounded label layout now passes focused offline checks, preserving exact tokens, two labels within one layout and independent header/footer/popup gates. Eight Home and existing post-Flee wrapper checks passed; current-source live proof remains pending. The sandbox's earlier temporary-directory
 permission errors are retained separately from the passing rerun.
 
 Enhancement startup checks passed 29 focused cases. Native selection/material
@@ -138,6 +136,8 @@ Raw evidence is retained locally, outside the published source tree:
 | One-Exit warning stop audit | `.local-orchestrator/logs/ultimate-exit-warning-stop-live-audit-20261101.json` |
 | Warning successor inspection | `.local-orchestrator/logs/ultimate-exit-warning-successor-inspection-20261101.json` |
 | Zero-input defeat-background warning stop | `.local-orchestrator/logs/ultimate-warning-over-defeat-zero-input-stop-audit-20261101.json` |
+| Single-Flee/Defeat stop audit | `.local-orchestrator/logs/ultimate-flee-defeat-successor-stop-audit-20261101.json` |
+| Post-user-restart cleanup/source audit | `.local-orchestrator/logs/ultimate-post-user-restart-pre-repair-audit-20261101.json` |
 | Old Enhancement baseline | `.local-validation/remaining-enhancement-baseline-20261101.log` |
 | Supply local repetitions | `.local-validation/supply-tight-crop-eight-repeats-20261101.log` |
 
@@ -168,3 +168,26 @@ consuming native UTC crossing, continuous Tavern refresh, current-source cadence
 and any camera recovery branch not actually exercised.
 Ultimate's accepted participation path is entry/Flee/Home; victory and independent
 quest-credit attribution remain outside that proof.
+
+The user explicitly requested that both Scarlett and VIP recovery apply across
+routes. Both now have shared startup ownership, without flow allowlists. The
+supported recovery workflow handles two distinct known surfaces within its input
+budget, retains each result/action separately and recaptures before handing
+control to the active route. Popup dismissal is not reported as Home proof. The
+existing policy admits the retained successor only under the exact zero-cost VIP
+Close contract; arbitrary successor contracts still deny input. Noah now calls
+the shared contextual helper. Native contextual helpers handle either single
+surface and stop if another follows; a generalized native sequence is not claimed.
+This cutover is offline-proven and awaits its live retry.
+
+The full shared startup suite passed49 checks, session/service startup passed16,
+contextual safety passed4 and the focused Noah group passed12. Seven shared
+executor and route-handoff checks passed in the root review. Two old integrated
+Noah tests still fail with fake-runtime navigation `continuation mismatch`; both
+failures were independently reproduced with committed original modules in memory.
+They remain baseline failures, not passes. Logs are
+`.local-validation/noah-integrated-original-baseline-20261101.log` and
+`.local-validation/noah-return-original-baseline-20261101.log`.
+Both full operating-system jobs passed on `eb0fce9` in
+[CI run62](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41271866463).
+The new shared-recovery/Home revision requires its own hosted CI.

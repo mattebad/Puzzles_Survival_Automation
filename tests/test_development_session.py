@@ -925,7 +925,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                 result["result"]["completion_scope"],
                 "startup_recovery_only",
             )
-            self.assertTrue(result["result"]["terminal_home_verified"])
+            self.assertFalse(result["result"]["terminal_home_verified"])
             summary = json.loads(
                 (Path(result["session_directory"]) / "summary.json").read_text(
                     encoding="utf-8"
@@ -933,9 +933,9 @@ class DevelopmentSessionTests(unittest.TestCase):
             )
             self.assertEqual(summary["status"], "completed")
             self.assertEqual(summary["input_count"], 1)
-            self.assertTrue(result["terminal_home_verified"])
-            self.assertTrue(summary["terminal_home_verified"])
-            self.assertEqual(summary["control_memory"]["terminal_home_verified"], True)
+            self.assertFalse(result["terminal_home_verified"])
+            self.assertFalse(summary["terminal_home_verified"])
+            self.assertFalse(summary["control_memory"]["terminal_home_verified"])
             self.assertTrue(summary["ownership_released"])
             self.assertNotIn("blocker", summary)
             self.assertEqual(

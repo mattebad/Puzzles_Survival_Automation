@@ -233,7 +233,7 @@ class NoahContractTests(unittest.TestCase):
             )
 
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=popup_absent,
         ), patch.object(
             runtime,
@@ -896,7 +896,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             settled, False, True, True, 0, "exact_vip_popup_absent"
         )
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=(recovered, absent),
         ), patch(
             "scripts.noahs_tavern_recruit_bluestacks.recognize_reset_popup",
@@ -932,7 +932,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
 
         route = NoahTavernIntegratedRoute(runtime, recognizer=recognize, post_input_delay=0.0)
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=recover,
         ):
             captured, recognition = route._observe("post-dismissal")
@@ -949,7 +949,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             "scripts.noahs_tavern_recruit_bluestacks.recognize_reset_popup",
             return_value={"recognized": True, "popup_identity": "VIP_POINTS_GET_PTS"},
         ), patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=AssertionError("second contextual close dispatched"),
         ):
             result = _contextual_recovery(
@@ -961,6 +961,21 @@ class ContextualPopupRouteTests(unittest.TestCase):
             )
         self.assertEqual(result.reason, "contextual_popup_dismissal_already_used")
         self.assertEqual(result.input_count, 0)
+        self.assertEqual(runtime.input_count, 0)
+
+    def test_second_scarlett_surface_respects_same_one_dismissal_bound(self):
+        source = self.frame("c" * 64, 3)
+        runtime = self.Runtime([source])
+        session = _ContextualPopupSession(dismissal_used=True)
+        with patch("scripts.noahs_tavern_recruit_bluestacks.recognize_reset_popup",
+                   return_value={"recognized": False}), \
+             patch("scripts.noahs_tavern_recruit_bluestacks.recognize_startup_surface",
+                   return_value={"recognized": True}), \
+             patch("scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
+                   side_effect=AssertionError("second contextual dismissal dispatched")):
+            result = _contextual_recovery(runtime, source, source_context="home-or-tavern",
+                                          recognize_successor=lambda _: True, session=session)
+        self.assertEqual(result.reason, "contextual_popup_dismissal_already_used")
         self.assertEqual(runtime.input_count, 0)
 
     def test_popup_after_free_transport_keeps_pending_action_and_never_recruits_again(self):
@@ -984,7 +999,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             source, False, True, True, 0, "exact_vip_popup_absent"
         )
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             return_value=absent,
         ):
             _captured, recognition = route._observe("result-after-free")
@@ -1035,7 +1050,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             captured, False, True, True, 0, "exact_vip_popup_absent"
         )
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=absent,
         ):
             result = route.run(max_steps=10)
@@ -1081,7 +1096,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             captured, False, True, True, 0, "exact_vip_popup_absent"
         )
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=absent,
         ):
             result = route.run(max_steps=4)
@@ -1142,7 +1157,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             self.assertTrue(cv2.imwrite(str(before_path), np.full((1280, 800, 3), 1, dtype=np.uint8)))
             self.assertTrue(cv2.imwrite(str(result_path), np.full((1280, 800, 3), 2, dtype=np.uint8)))
             with patch(
-                "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+                "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
                 side_effect=contextual_recovery,
             ), patch(
                 "scripts.noahs_tavern_recruit_bluestacks.recognize_reset_popup",
@@ -1193,7 +1208,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             source, False, True, True, 0, "exact_vip_popup_absent"
         )
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             return_value=absent,
         ):
             guarded = route._pre_dispatch(

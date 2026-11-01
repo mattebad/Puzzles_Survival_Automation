@@ -64,11 +64,13 @@ class FakeRuntime:
         self.max_inputs = max_inputs
         self.input_count = 0
         self.ordinal = 0
-        self.started = time.monotonic()
         self.keys: set[str] = set()
         self.reconciliations: list[str] = []
 
     def capture(self, label: str) -> CapturedNativeFrame:
+        # Windows monotonic clock resolution can otherwise give successive
+        # synthetic captures identical timestamps, unlike device captures.
+        time.sleep(0.02)
         self.ordinal += 1
         frame = np.full((1280, 800, 3), self.ordinal, np.uint8)
         payload = f"{label}:{self.ordinal}".encode()
@@ -78,7 +80,7 @@ class FakeRuntime:
             frame,
             payload,
             hashlib.sha256(payload).hexdigest(),
-            self.started + self.ordinal * 0.001,
+            time.monotonic(),
             path,
         )
 
@@ -157,11 +159,10 @@ class StartupRecoveryTests(unittest.TestCase):
         self.assertEqual(recruitment.status, "recovery_required")
         self.assertEqual(recruitment.recovery_owner, "shared_home_startup_recovery")
         self.assertFalse(recruitment.input_authority)
-        self.assertEqual(world.status, "route_owned")
-        self.assertEqual(world.recovery_owner, "flow_specific_popup_recovery")
-        self.assertEqual(daily_row.status, "blocked")
-        self.assertEqual(unsupported.status, "blocked")
-        self.assertIsNone(unsupported.recovery_owner)
+        for plan in (world, daily_row, unsupported):
+            self.assertEqual(plan.status, "recovery_required")
+            self.assertEqual(plan.recovery_owner, "shared_home_startup_recovery")
+            self.assertFalse(plan.input_authority)
 
     def test_home_routes_recover_exact_vip_popup_before_route_execution(self) -> None:
         fixture = (
@@ -180,47 +181,61 @@ class StartupRecoveryTests(unittest.TestCase):
                 self.assertEqual(plan.recovery_owner, "shared_home_startup_recovery")
                 self.assertFalse(plan.input_authority)
 
-    def test_operator_recovery_uses_clean_current_home_successor(self) -> None:
+    def test_all_flows_share_scarlett_and_vip_recovery(self) -> None:
+        flow_id = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+        _frame, payload = self._current_scarlett_fixture()
+        for supported_flow in (
+            flow_id,
+            "WORLD-MAP-NAVIGATION-FOUNDATION",
+            "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+            "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+            "NEW-FLOW-WITHOUT-RECOVERY",
+        ):
+            with self.subTest(flow_id=supported_flow):
+                scarlett = classify_startup_frame(supported_flow, payload)
+                self.assertEqual(scarlett.status, "recovery_required")
+                self.assertEqual(scarlett.recovery_owner, "shared_startup_surface_recovery")
+                self.assertFalse(scarlett.input_authority)
+        vip_payload = (
+            Path(__file__).resolve().parents[1]
+            / "tasks/assets/navigation/800x1280/reset_popup_source.png"
+        ).read_bytes()
+        vip = classify_startup_frame(flow_id, vip_payload)
+        self.assertEqual(vip.status, "recovery_required")
+        self.assertEqual(vip.recovery_owner, "shared_home_startup_recovery")
+        self.assertFalse(vip.input_authority)
+
+    def test_operator_recovery_retains_successor_for_route_validation(self) -> None:
         from scripts import pnsctl
 
-        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-        home = {"state": "HOME_BASE", "recognized": True}
-        scenarios = (
-            (home, {"recognized": False, "blocking_unknown_modal": False}, True),
-            ({**home, "overlay": True}, {}, False),
-            (home, {"recognized": True, "blocking_unknown_modal": False}, False),
-            (home, {"recognized": False, "blocking_unknown_modal": True}, False),
-            ({"state": "UNKNOWN", "recognized": False}, {}, False),
-        )
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
             runtime.max_inputs = 12
 
             def recover(_runtime, *, recognize_successor, **_kwargs):
-                self.assertEqual(recognize_successor(frame), expected)
+                lineup = cv2.imread(str(Path(__file__).resolve().parent / "fixtures" /
+                                        "ultimate_lineup" / "hero-lineup-20261029-a.png"))
+                self.assertIsNotNone(lineup)
+                self.assertTrue(recognize_successor(lineup))
+                self.assertFalse(recognize_successor(np.zeros((1280, 800, 3), dtype=np.uint8)))
                 return StartupRecoveryResult(
-                    "recovered" if expected else "evidence_required",
-                    1, "VIP_POINTS_GET_PTS", "HOME_BASE" if expected else None,
+                    "recovered", 1, "VIP_POINTS_GET_PTS", "RETAINED_STARTUP_SUCCESSOR",
                     "a" * 64, "b" * 64, "startup-vip-close", "test successor",
                 )
-
-            for recognition, popup_detail, expected in scenarios:
-                with self.subTest(recognition=recognition, popup=popup_detail):
-                    with (
-                        patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", return_value=runtime),
-                        patch("scripts.startup_recovery.recover_known_startup_overlay", side_effect=recover),
-                        patch("scripts.startup_normalization.classify_home_base_live", return_value=recognition),
-                        patch("scripts.bluestacks_popup_recognition.recognize_reset_popup", return_value=popup_detail),
-                    ):
-                        result = pnsctl._run_shared_startup_recovery(
-                            flow_id="SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
-                            task_id="supply-test", session_directory=Path(directory),
-                            max_inputs=10, recovery_scope="test",
-                        )
-                    self.assertEqual(result["recovery_input_count"], 1)
-                    self.assertEqual(result["route_input_count"], 0)
-                    self.assertEqual(result["status"], "recovered" if expected else "evidence_required")
-                    self.assertEqual(runtime.max_inputs, 1)
+            from types import SimpleNamespace
+            with (
+                patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", return_value=runtime),
+                patch("scripts.startup_recovery.recover_known_startup_overlay", side_effect=recover),
+                patch("scripts.startup_recovery.classify_startup_frame", return_value=SimpleNamespace(status="clear")),
+            ):
+                result = pnsctl._run_shared_startup_recovery(
+                    flow_id="ANY-FLOW", task_id="test", session_directory=Path(directory),
+                    max_inputs=10, recovery_scope="test",
+                )
+            self.assertEqual(result["recovery_input_count"], 1)
+            self.assertEqual(result["successor_state"], "RETAINED_STARTUP_SUCCESSOR")
+            self.assertEqual(runtime.max_inputs, 2)
 
     @staticmethod
     def _scarlett_fixture() -> tuple[np.ndarray, bytes]:
@@ -806,6 +821,83 @@ class StartupRecoveryTests(unittest.TestCase):
         self.assertEqual(result.input_count, 1)
         self.assertEqual(runtime.input_count, 1)
         self.assertEqual(runtime.reconciliations, ["confirmed"])
+
+    def test_vip_dismissal_retains_non_home_successor_for_route(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = FakeRuntime(Path(directory) / "runtime")
+            with patch("scripts.startup_recovery.recognize_reset_popup",
+                       side_effect=(popup(), popup(), popup(), {"recognized": False})):
+                result = self._recover(
+                    runtime, task_id="FLOW", recognize_successor=lambda _frame: True,
+                    successor_state="RETAINED_STARTUP_SUCCESSOR", sleep=lambda _: None,
+                )
+            self.assertEqual(result.status, "recovered")
+            self.assertEqual(result.successor_state, "RETAINED_STARTUP_SUCCESSOR")
+            self.assertEqual(runtime.input_count, 1)
+
+    def test_vip_rejects_arbitrary_successor_without_input(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = FakeRuntime(Path(directory) / "runtime")
+            with patch("scripts.startup_recovery.recognize_startup_surface", return_value={"recognized": False}), \
+                 patch("scripts.startup_recovery.recognize_reset_popup", return_value=popup()):
+                with self.assertRaisesRegex(StartupRecoveryError, "RESET_POPUP_SUCCESSOR_REQUIRED"):
+                    self._recover(runtime, task_id="FLOW", recognize_successor=lambda _: True,
+                                  successor_state="UNTRUSTED_SUCCESSOR", sleep=lambda _: None)
+            self.assertEqual(runtime.input_count, 0)
+
+    def test_distinct_vip_then_scarlett_executor_actions_share_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = FakeRuntime(Path(directory) / "runtime", max_inputs=2)
+            detail = self._scarlett_detail()
+            options = dict(task_id="FLOW", recognize_successor=lambda _: True,
+                           successor_state="RETAINED_STARTUP_SUCCESSOR", sleep=lambda _: None)
+            with patch("scripts.startup_recovery.recognize_startup_surface", return_value={"recognized": False}), \
+                 patch("scripts.startup_recovery.recognize_reset_popup",
+                       side_effect=(popup(), popup(), popup(), {"recognized": False})):
+                vip = self._recover(runtime, **options)
+            with patch("scripts.startup_recovery.recognize_startup_surface", side_effect=(
+                detail, detail, detail, {"recognized": False, "commercial_looking": False}
+            )):
+                scarlett = self._recover(runtime, **options)
+            self.assertEqual((vip.input_count, scarlett.input_count, runtime.input_count), (1, 1, 2))
+            self.assertNotEqual(vip.action_key, scarlett.action_key)
+            self.assertEqual(runtime.reconciliations, ["confirmed", "confirmed"])
+            self.assertEqual(len(list(runtime.session.glob("startup-recovery-result*.json"))), 2)
+
+    def test_shared_chain_counts_distinct_actions_and_stops_on_repeat(self) -> None:
+        from types import SimpleNamespace
+        from scripts import pnsctl
+
+        for repeated in (False, True):
+            with self.subTest(repeated=repeated), tempfile.TemporaryDirectory() as directory:
+                runtime = FakeRuntime(Path(directory) / "runtime")
+                identities = iter(("VIP_POINTS_GET_PTS", SCARLETT_THREE_DAY_PACK))
+
+                def recover(_runtime, **_kwargs):
+                    identity = next(identities)
+                    runtime.input_count += 1
+                    return StartupRecoveryResult(
+                        "recovered", 1, identity, "RETAINED_STARTUP_SUCCESSOR",
+                        "a" * 64, "b" * 64, identity, "confirmed",
+                    )
+
+                plans = [SimpleNamespace(status="recovery_required", popup_identity=(
+                    "VIP_POINTS_GET_PTS" if repeated else SCARLETT_THREE_DAY_PACK
+                ))]
+                if not repeated:
+                    plans.append(SimpleNamespace(status="clear", popup_identity=None))
+                with patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", return_value=runtime), \
+                     patch("scripts.startup_recovery.recover_known_startup_overlay", side_effect=recover), \
+                     patch("scripts.startup_recovery.classify_startup_frame", side_effect=plans):
+                    result = pnsctl._run_shared_startup_recovery(
+                        flow_id="ANY-FLOW", task_id="test", session_directory=Path(directory),
+                        max_inputs=2, recovery_scope="test",
+                    )
+                self.assertEqual(result["recovery_input_count"], 1 if repeated else 2)
+                self.assertEqual(result["status"], "evidence_required" if repeated else "recovered")
+                rows = pnsctl._startup_recovery_action_rows(result)
+                self.assertEqual(len(rows), 1 if repeated else 2)
+                self.assertEqual(len({row["action_key"] for row in rows}), len(rows))
 
     def test_persistent_popup_is_terminal_after_one_input(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

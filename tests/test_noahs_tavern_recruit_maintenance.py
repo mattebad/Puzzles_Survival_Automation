@@ -415,7 +415,7 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
                 atlas_binding=bind_atlas,
             )
             with patch(
-                "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+                "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
                 side_effect=lambda runtime, captured, **kwargs: __import__(
                     "scripts.startup_recovery", fromlist=["ContextualPopupRecoveryResult"]
                 ).ContextualPopupRecoveryResult(
@@ -483,7 +483,7 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
             post_input_delay=0.0,
         )
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=lambda runtime, captured, **kwargs: __import__(
                 "scripts.startup_recovery", fromlist=["ContextualPopupRecoveryResult"]
             ).ContextualPopupRecoveryResult(
