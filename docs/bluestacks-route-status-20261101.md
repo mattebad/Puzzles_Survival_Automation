@@ -15,7 +15,7 @@ authorized bounded controllers temporarily enable selected routes.
 | Enhancement | Gear, Chip and Module each consumed once in one physical Profile visit, with final Home and independent family replay. Original attempt: 13 inputs/1 Gear Confirm. Resume: 15 inputs/2 Confirms, retaining Gear. | This is composite acceptance. An uninterrupted all-three run remains `evidence_required` at the next actual reset. |
 | Cold restart | Source `122ff13`: one guarded stop, process-exit check passed, one checked MAIN/LAUNCHER/NEW_TASK launch, Home, zero game inputs and no human intervention. | All nine flow rows and their due facts were unchanged. This proves this cached account state, not historical Play Games prompt causality. |
 | Campaign and other due routes | Cohort `fd5b6482`: Campaign 120 + 1 regenerated - 112 spent = 9 AP, 8 wins/8 committed AP effects, 50 inputs and Home; next due exactly completion + 300 seconds. Nova used one free Praise, Tavern used one Advanced and one Basic free recruit, and Bioenhancer used one free Research; each returned Home. | This is not a completed two-hour cadence. The cohort stopped after 1,030.094 seconds on Ultimate. Nova has 6 free Praises and Tavern has 4 Basic recruits remaining. |
-| Ultimate | Four inputs reached battle, then a separate continuation sent one Exit and exactly one Flee without repeating Challenge. The warning closed to a native Defeat overlay. | Home remains unproved. Known Defeat Continue/Home recovery and one-Flee receipt replay pass focused offline checks. User restarted BlueStacks; subsequent zero-input recovery attempts stopped at Scarlett. No repeated Flee is allowed. |
+| Ultimate | Four inputs reached battle, then a separate continuation sent one Exit and exactly one Flee without repeating Challenge. The warning closed to a native Defeat overlay. | Current Home is now verified by zero-input adoption after the user restart and one Scarlett Back. This is composite acceptance; fresh full Home entry and native Defeat/Continue remain unproved. No repeated Flee is allowed. |
 | Native reset crossing | Pending November 2 at 00:00 UTC. | Requires a consuming Campaign route across the real boundary and continuous-client Tavern refresh. The earlier zero-input admission defer does not satisfy this. |
 
 Supply's current-source consuming leg and Personal Might both completed through
@@ -180,8 +180,8 @@ the shared contextual helper. Native contextual helpers handle either single
 surface and stop if another follows; a generalized native sequence is not claimed.
 This cutover is offline-proven and awaits its live retry.
 
-The full shared startup suite passed49 checks, session/service startup passed16,
-contextual safety passed4 and the focused Noah group passed12. Seven shared
+The full shared startup suite passed 49 checks, session/service startup passed 16,
+contextual safety passed 4 and the focused Noah group passed 12. Seven shared
 executor and route-handoff checks passed in the root review. Two old integrated
 Noah tests still fail with fake-runtime navigation `continuation mismatch`; both
 failures were independently reproduced with committed original modules in memory.
@@ -194,13 +194,23 @@ The new shared-recovery/Home revision requires its own hosted CI.
 
 The `d35f8a0` live recovery dismissed Scarlett with one safe Back and captured a
 native Home source. It then stopped before child runtime startup: Ultimate's CLI
-incorrectly required exactly16 inputs rather than accepting the15 remaining after
-startup recovery. The CLI now accepts budgets1 through16; the upper ceiling and
+incorrectly required exactly 16 inputs rather than accepting the 15 remaining after
+startup recovery. The CLI now accepts budgets 1 through 16; the upper ceiling and
 runtime input fence remain unchanged. Two offline CLI boundary checks passed.
 The adapter-error path also omitted that startup input from its outer failed
-summary; its separate startup journal correctly retained1. That failed receipt
+summary; its separate startup journal correctly retained 1. That failed receipt
 was preserved, and the summary path now keeps each startup action/count before
 re-raising the original error; four focused session checks passed. The audit
 `.local-orchestrator/logs/ultimate-shared-scarlett-child-budget-stop-audit-20261101.json`
-verifies351 unchanged sources,8captures and disabled/released cleanup. No new Flee
-or Challenge was sent. Current Home adoption remains pending.
+verifies 351 unchanged sources, 8 captures and disabled/released cleanup. No new Flee
+or Challenge was sent. Current Home adoption subsequently completed on `8c36b5b` with zero new inputs.
+
+The subsequent recovery-only run independently verified current Home and completed
+for the reset, with zero new inputs and no Flee or Challenge. Its audit is
+`.local-orchestrator/logs/ultimate-after-user-restart-composite-home-audit-20261101.json`:
+351 unchanged sources, five current captures and the unchanged original failed
+Flee receipt hash. All controls were OFF and owners released. Canonical Ultimate
+was then unblocked through its state API with generation, failure count, due date
+and reset unchanged; the separate unblock audit is retained. This is composite
+acceptance after a human BlueStacks restart. It does not establish uninterrupted
+native Defeat/Continue recovery or a completed two-hour cadence.

@@ -31,7 +31,8 @@ recovery workflow handles two distinct surfaces within its input budget; native
 contextual helpers handle either single surface and stop if another follows. The
 larger-HUD Home fixtures expose a real label-position miss, not stale evidence;
 they remain in place and the measured second layout passes focused offline
-checks. Current-source live recovery, fresh Ultimate Home entry, final cadence
+checks. Current-source recovery now verifies Home with zero new inputs; this is composite
+with the user restart, not native Defeat/Continue proof. Fresh Ultimate Home entry, final cadence
 and next-reset acceptance remain pending. No further Flee is permitted this reset.
 These updates do not turn the historical October 31 rows below into fresh runs.
 

@@ -5,18 +5,18 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "updated_utc": "2026-11-01T04:32:22.616379+00:00",
+  "updated_utc": "2026-11-01T04:34:13.052245+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
   "active_task_or_flow": "Fix intermittent Supply Depot recognition and finish remaining live acceptance before merge; sole local operator only",
   "authorization": "Current user explicitly requested continued fixes, live acceptance testing and iteration until proven before merge. Prior full-route authorization for regenerable resources persists. Each bounded controller records current authorization; no permanent enablement or merge is authorized by this work.",
-  "runtime_ownership_state": "No operator; all controls OFF and owners released after d35f8a0 retry. All code delegates/tests stopped.",
-  "current_live_attempt_state": "d35f8a0 dismissed exact Scarlett with one safe Back and captured genuine Home, but Ultimate child CLI rejected remaining15 before native runtime. No newFlee/Challenge. Outer summary0 incorrectly omitted startup1; failed receipt preserved. Both budget acceptance and failed-summary accounting repaired offline.",
-  "current_evidence_or_session_reference": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T031708993240Z/nav-20261101T031709679323Z",
-  "last_safe_completed_step": "Retry audit verified351unchanged sources/8PNGs/allOFF/noowners. Native CLI now permits remaining1..16, with unchanged16ceiling;2CLI boundary tests passed. Failed adapter summaries retain startup1/2 and separate actions;4focused session checks passed.",
-  "current_blocker": "Recovery-only Home adoption still pending after child budget stop. Do not dismiss Scarlett again unless newly and exactly present; no Flee/Challenge. Native contextual multi-surface chain, full cadence and real next reset acceptance remain explicit limits.",
-  "exact_next_permitted_action": "After source freeze and ownership checks, use supported pnsctl development-session run-flow ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION --live --yes --max-inputs16 --recovery-only --recovery-session .local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T031708993240Z/nav-20261101T031709679323Z. Freshly verify restarted state. This invokespostFleeHomeOnly withzeroFlee/Challenge. Userrestart is intervention; do not claim uninterruptednative recovery ifalreadyHome. No source/docs/test edits whilelive.",
-  "unresolved_action_state": "Exactly1Flee transported and six retainedDefeat successors verified; originalfailedreceiptunchanged. Newreadonly proofkind defeat_after_flee canlinkexistingpendingHomeguard, but currentHomecompletion remainsunproved. CanonicalUltimate remainsblocked. No repeatFlee.",
+  "runtime_ownership_state": "No operator at snapshot; all controls OFF and owners released. Canonical Ultimate unblock inspected and applied without due/quota/failure changes. Recheck before next bounded cohort.",
+  "current_live_attempt_state": "8c36b5b recovery-only completed: fresh Home independently verified,0newinputs,0Flee/Challenge. Composite proof links original1Flee, human BlueStacks restart,1ScarlettBack and currentHome adoption. Native DefeatContinue remains unexercised live.",
+  "current_evidence_or_session_reference": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T043247795822Z/nav-20261101T043249855585Z",
+  "last_safe_completed_step": "Audit351 unchanged sources/5current captures, original failedFlee receipt hash unchanged, currentHome and allOFF/noowners. Canonical Ultimate unblocked with generation/failure/due facts preserved.",
+  "current_blocker": "Complete a full current-source7200-second cadence and next real reset acceptance: consuming Campaign across00UTC, continuous Tavern refresh, uninterrupted all3Enhancement, fresh Supply and Ultimate full Home entry. Native multi-popup sequence outside pnsctl remains unproved.",
+  "exact_next_permitted_action": "Freeze current code/docs/assets and current authorization; use existing run-authorized-service-soak.py for all8routes with --seconds7200 --live --yes. Exactly one operator; no source/docs/Git edits or local tests until terminal/OFF. Daily completed routes must gate, not repeat. Afterward preserve AP and remainOFF for November2 00UTC crossing.",
+  "unresolved_action_state": "No unresolved Ultimate effect after currentHome adoption. Original one-Flee failed receipt retained; no repeatFlee for game-day2026-11-01. Current completion is composite with human restart, not uninterrupted recovery.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
     "permanent_production_scheduler_enabled": false,
@@ -28,7 +28,7 @@
   },
   "journals_and_lease": {
     "historical_journals": "retained immutable",
-    "active_action_state": "Exactly1Flee transported and six retainedDefeat successors verified; originalfailedreceiptunchanged. Newreadonly proofkind defeat_after_flee canlinkexistingpendingHomeguard, but currentHomecompletion remainsunproved. CanonicalUltimate remainsblocked. No repeatFlee.",
+    "active_action_state": "No unresolved Ultimate effect after currentHome adoption. Original one-Flee failed receipt retained; no repeatFlee for game-day2026-11-01. Current completion is composite with human restart, not uninterrupted recovery.",
     "development_lease_status": "No active owner at snapshot; failed controller cleanup verified."
   },
   "route_state": {
@@ -72,12 +72,12 @@
     },
     "ultimate": {
       "reset_id": "game-day-2026-11-01",
-      "status": "one_flee_pending_home_recovery",
-      "latest_attempt": "After user restart: owned launch1system/0game inputs; recovery-only0inputs stopped at Scarlett. No Flee/Challenge repeated. Shared startup owner fix required.",
+      "status": "complete_for_reset_composite",
+      "latest_attempt": "CurrentHome verified on8c36b5b with0newinputs. Original1Flee+humanrestart+1ScarlettBack+Homeadoption composite; canonical block cleared by inspected API, due fact preserved until service projection.",
       "historical_acceptance": "October31oneFlee/9inputs/Home; does not prove current source.",
       "repair_commit": "e8419c0201f51964985069e98aba259237c00c04",
       "next_due_utc": 1793491200.0,
-      "warning_repair": "600fd29 foreground recognizer sent exactly1Flee. Warning disappeared to native Defeat. eb0fce9 known Defeat Continue/Home and strict one-Flee receipt replay pass20 focused cases; current live Home remains pending."
+      "warning_repair": "Foreground Flee1 live-confirmed through native Defeat. DefeatContinue/Home binder offline-proven only; human restart removed opportunity for that live continuation."
     },
     "enhancement": {
       "reset_id": "game-day-2026-11-01",
@@ -91,7 +91,7 @@
       "next_due_utc": 1793577600.0
     }
   },
-  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T042903030326Z.json",
+  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T043240922118Z.json",
   "validation": "Shared startup suite49 passed; session/service startup16 passed; contextual safety4 passed; focused Noah12 passed. Root7 shared executor/handoff checks passed. Home8focused checks and7native images passed. Two old Noah fake-runtime continuation mismatch errors reproduced independently on original committed code; separate logs retained. Prior eb0fce9 CI run62 passed both full Windows/Python3.11 and Linux jobs. Latest shared/Home source CI will run after push. Initial sandbox startup45 had32 TEMP permission errors, resolved by normal temp access; no runtime weakening.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
@@ -116,10 +116,12 @@
     ".local-orchestrator/logs/current-cohort-first-campaign-drain-audit-20261101.json",
     ".local-orchestrator/logs/ultimate-flee-defeat-successor-stop-audit-20261101.json",
     ".local-orchestrator/logs/ultimate-post-user-restart-pre-repair-audit-20261101.json",
-    ".local-orchestrator/logs/ultimate-shared-scarlett-child-budget-stop-audit-20261101.json"
+    ".local-orchestrator/logs/ultimate-shared-scarlett-child-budget-stop-audit-20261101.json",
+    ".local-orchestrator/logs/ultimate-after-user-restart-composite-home-audit-20261101.json",
+    ".local-orchestrator/logs/ultimate-composite-home-canonical-unblock-20261101.json"
   ],
   "additional_coverage_evidence_required": [
-    "Resolve pending Ultimate Home using recovery-only from the single-Flee receipt, with0newFlee/Challenge. Manual BlueStacks restart prevents calling this uninterrupted native Defeat recovery.",
+    "Fresh full Ultimate Home entry and native DefeatContinue if encountered after next real reset; current complete-for-reset proof is composite and no Flee repeat permitted today.",
     "Complete latest-source7200-second serial cadence with actual due routes, accounting and controlsOFF audit.",
     "Uninterrupted Gear/Chip/Module, fresh Supply Home-entry and fresh Ultimate Home-entry at the next real reset, November2 00UTC.",
     "Consuming native Campaign actions across00UTC and continuous-client Tavern Basic refresh; preserve Int24h/Adv48h timers.",
