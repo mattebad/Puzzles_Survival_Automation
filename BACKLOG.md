@@ -45,6 +45,15 @@ consumers now pass focused offline checks and independent review; current-source
 live acceptance remains pending before the next full cadence attempt. CI65 exposed
 an invalid synthetic-PNG fixture; its producer was corrected and six checks pass.
 
+Current-source Campaign then recovered the map, drained38+1-28=11AP through two
+wins and18 inputs, and returned independently verified Home. Its next due is
+completion+300 seconds. This pass used three existing atlas pans; the new unbound
+HUD-edge branch is still offline-proven only. The full cadence has not completed.
+Windows CI68 exposed short/long path aliases in proof replay; actual8.3 aliases
+reproduced it. The narrow canonical-path fix passed61 cases and20 final helper
+checks, with image/chronology/foreign-path guards retained. Latest-source CI and
+full cadence are pending.
+
 These updates do not turn the historical October 31 rows below into fresh runs.
 
 | Route | Retained acceptance | October31 reset status / remaining work |

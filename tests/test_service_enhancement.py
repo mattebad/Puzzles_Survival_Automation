@@ -249,6 +249,25 @@ class ServiceEnhancementTests(unittest.TestCase):
                 with self.subTest(fault=fault), self.assertRaises(pnsctl.OperatorError):
                     delivery._verify_family_startup(result, runtime.session, changed)
 
+    def test_startup_replay_accepts_windows_session_alias_without_accepting_foreign_evidence(self):
+        from tests.test_contextual_startup_recovery import windows_short_path
+        self.startup_frames = ("startup/nova-vip-reset-20261031.png",
+                               "startup/scarlett-current-20261030.png", "home_base/native-home-20261029.png")
+        with self.startup_session() as (runtime, session):
+            proof = delivery._recover_family_startup(runtime, session)
+            rows = delivery._read_event_rows(runtime.events)
+            alias_session = windows_short_path(runtime.session)
+            self.assertEqual(alias_session.resolve(), runtime.session.resolve())
+            result = {"startup_recovery": proof, "enhancement_result": {"reset_identity": NATIVE_RESET}}
+            delivery._verify_family_startup(result, alias_session, rows)
+            foreign = self.root / "foreign" / Path(proof["steps"][0]["immediate_before_frame"]).name
+            foreign.parent.mkdir()
+            foreign.write_bytes((runtime.session / proof["steps"][0]["immediate_before_frame"]).read_bytes())
+            changed = copy.deepcopy(result)
+            changed["startup_recovery"]["steps"][0]["immediate_before_frame"] = str(foreign)
+            with self.assertRaises(pnsctl.OperatorError):
+                delivery._verify_family_startup(changed, alias_session, rows)
+
     def test_repeated_vip_popup_stops_after_one_navigation_without_retry(self):
         self.startup_frames = ("startup/nova-vip-reset-20261031.png",)
         with self.startup_session() as (runtime, session):

@@ -279,3 +279,37 @@ and do not form a unique total. The independent reviewer confirmed the reported
 gaps closed. These remain offline results; live acceptance and final cadence are
 pending. The inspected Campaign block was cleared through the state API with its
 failure, generation, due and resource facts preserved.
+
+## Current Campaign recovery and Windows path repair
+
+The first all-eight attempt on 076c07e stopped after 12 seconds with zero inputs:
+Nova refused the Campaign map left by the earlier failed run. Its startup context
+fence was preserved. Campaign alone then recovered through Home, captured fresh
+AP and completed 38+1-28=11AP with two victories,18 inputs and verified Home. The
+audit `.local-orchestrator/logs/campaign-current-source-recovery-drain-home-audit-20261101.json`
+checks 416 unchanged code/asset/local-atlas hashes, 75 captures, both confirmed
+14-AP canonical action rows and their exact stage-entry/lineup continuation links,
+independently reread Home/AP 11, and completion+300 scheduling. All controls and
+owners were released. Nova's zero-input context block was then unblocked through
+the state API without changing due, failure or quota facts.
+
+This proves current-source Campaign recovery and a full affordable drain. It
+used three existing atlas-directed pans and a fresh target binding; the new
+unbound HUD-edge branch did not execute and remains offline-proven. This bounded
+single route is not a completed two-hour cadence.
+
+[CI68](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41276240130)
+failed 11 Windows service cases out of 205 because equivalent 8.3 and long path
+spellings compared as different captures, or could not be made relative to the
+same session. Actual `GetShortPathNameW` aliases reproduced four pre-fix defects,
+including the exact Ultimate/Enhancement failures and a same-file alias wrongly
+accepted as a fresh capture. The narrow production fix resolves both identity
+operands and relative-path roots. It retains image, digest, chronology, foreign
+path and in-session symlink checks; trusted parents above the session remain
+allowed. No clock/freshness threshold was weakened. The failure excerpt is
+`.local-validation/ci68-windows-path-alias-failure-20261101.log`.
+
+The alias/affected-module suite passed 61 checks, followed by 20 helper checks after
+final boundary narrowing; real alias cases did not skip locally. Both full jobs
+had passed on 1ba790b in [CI67](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41274799852).
+The path repair needs its own latest-head CI and current-source cadence.

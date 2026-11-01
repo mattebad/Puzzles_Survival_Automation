@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import math
+from pathlib import Path
 import time
 from typing import Callable
 
@@ -96,12 +97,27 @@ class ContextualStartupRecoveryStep:
     reason: str
 
     def to_mapping(self, session) -> dict[str, object]:
+        raw_root = Path(session)
+        if raw_root.is_symlink():
+            raise ValueError("Startup recovery session reference contains a symlink")
+        root = raw_root.resolve()
         value = {"popup_identity": self.popup_identity, "action_key": self.action_key,
                  "target_identity": self.target_identity, "target_roi": list(self.target_roi),
                  "input_count": self.input_count, "confirmed": self.confirmed, "reason": self.reason}
         for name, frame in (("source", self.source_frame), ("immediate_before", self.immediate_before),
                             ("settled", self.settled_frame)):
-            value[name + "_frame"] = frame.path.relative_to(session).as_posix() if frame else None
+            relative = None
+            if frame:
+                relative = frame.path.resolve().relative_to(root).as_posix()
+                for path in (frame.path, *frame.path.parents):
+                    resolved = path.resolve()
+                    if not resolved.is_relative_to(root):
+                        break
+                    if path.is_symlink():
+                        raise ValueError("Startup recovery capture reference contains a symlink")
+                    if resolved == root:
+                        break
+            value[name + "_frame"] = relative
             value[name + "_sha256"] = frame.sha256 if frame else None
             value[name + "_captured_monotonic"] = frame.captured_monotonic if frame else None
         return value
@@ -719,7 +735,8 @@ def _contextual_startup_frame_valid(captured: object, *, after: CapturedNativeFr
     if decoded is None or not np.array_equal(decoded, captured.frame):
         return False
     return after is None or (
-        captured.captured_monotonic > after.captured_monotonic and captured.path != after.path
+        captured.captured_monotonic > after.captured_monotonic
+        and captured.path.resolve() != after.path.resolve()
     )
 
 

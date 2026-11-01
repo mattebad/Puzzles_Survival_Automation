@@ -432,6 +432,32 @@ class UltimateServiceTests(unittest.TestCase):
         self.action_store.assert_not_called()
         self.daily.assert_not_called()
 
+    def test_startup_replay_accepts_windows_aliases_for_the_same_native_captures(self):
+        from tests.test_contextual_startup_recovery import windows_short_path
+        self.write_state(self.completed(self.reset))
+        self.device.phase = "vip"
+        self.device.startup_sequence = ["scarlett", "home"]
+        result = self.runner(self.identity, None, self.checkpoint)
+        proof = result["startup_navigation_proof"]
+        session = self.runtimes[-1].session
+        alias_session = windows_short_path(session)
+        def captured(reference):
+            return service._startup_frame(session.resolve(), reference)
+        source = captured(proof["source"])
+        settled = captured(proof["settled"])
+        home = captured(proof["home"])
+        aliased_source = replace(source, path=windows_short_path(source.path))
+        aliased_settled = replace(settled, path=windows_short_path(settled.path))
+        rebuilt = service._startup_navigation_proof(alias_session, aliased_source, aliased_settled, home,
+            proof["action_key"], proof["helper"], proof["steps"])
+        self.assertEqual(rebuilt, proof)
+        foreign = self.root / "foreign" / source.path.name
+        foreign.parent.mkdir()
+        foreign.write_bytes(source.png)
+        with self.assertRaises(ValueError):
+            service._startup_navigation_proof(alias_session, replace(source, path=foreign), settled, home,
+                proof["action_key"], proof["helper"], proof["steps"])
+
     def test_fresh_reset_startup_recovery_keeps_one_daily_flee_and_nine_actual_inputs(self):
         self.write_state(self.completed(recruitment_reset(self.now - 86400)))
         self.device.phase = "vip"

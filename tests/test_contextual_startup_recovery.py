@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 from contextlib import ExitStack
+import ctypes
+from dataclasses import replace
 import hashlib
+import os
 import json
 from pathlib import Path
 import tempfile
@@ -28,6 +31,23 @@ VIP_ROI = (263, 781, 537, 869)
 
 def marker(frame):
     return int(frame[200, 200, 0])
+
+
+def windows_short_path(path):
+    """Get a real filesystem alias; never substitute a textual approximation."""
+    if os.name != "nt":
+        raise unittest.SkipTest("Windows filesystem aliases require GetShortPathNameW")
+    get_short = ctypes.WinDLL("kernel32", use_last_error=True).GetShortPathNameW
+    get_short.argtypes = (ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint)
+    get_short.restype = ctypes.c_uint
+    buffer = ctypes.create_unicode_buffer(32768)
+    length = get_short(str(path), buffer, len(buffer))
+    if not length or length >= len(buffer):
+        raise OSError(ctypes.get_last_error(), "GetShortPathNameW failed")
+    alias = Path(buffer.value)
+    if alias == path.resolve():
+        raise unittest.SkipTest("This filesystem has no short alias for the test path")
+    return alias
 
 
 class PngDevice:
@@ -321,6 +341,48 @@ class ContextualStartupRecoveryTests(unittest.TestCase):
             result = self.recover(captured)
         self.assertFalse(result.resume_ready)
         self.assertEqual((result.input_count, self.runtime.input_count, len(self.device.taps)), (1, 1, 1))
+
+    def test_step_mapping_accepts_windows_aliases_but_keeps_foreign_paths_outside_session(self):
+        captured = self.source(VIP, VIP, HOME)
+        step, = self.recover(captured).steps
+        alias_session = windows_short_path(self.runtime.session)
+        self.assertEqual(alias_session.resolve(), self.runtime.session.resolve())
+        expected = step.to_mapping(self.runtime.session.resolve())
+        self.assertEqual(step.to_mapping(alias_session), expected)
+        alias_source = windows_short_path(step.source_frame.path)
+        aliased = replace(step, source_frame=replace(step.source_frame, path=alias_source))
+        self.assertEqual(aliased.to_mapping(self.runtime.session), expected)
+        foreign = self.root / "foreign" / step.source_frame.path.name
+        foreign.parent.mkdir()
+        foreign.write_bytes(step.source_frame.png)
+        with self.assertRaises(ValueError):
+            replace(step, source_frame=replace(step.source_frame, path=foreign)).to_mapping(alias_session)
+
+    def test_step_mapping_does_not_erase_a_symlink_reference_when_resolving_paths(self):
+        captured = self.source(VIP, VIP, HOME)
+        step, = self.recover(captured).steps
+        original = Path.is_symlink
+        for linked in (step.source_frame.path, step.source_frame.path.parent, self.runtime.session):
+            with self.subTest(linked=linked), patch.object(Path, "is_symlink", autospec=True,
+                    side_effect=lambda path: path == linked or original(path)):
+                with self.assertRaises(ValueError):
+                    step.to_mapping(self.runtime.session)
+
+    def test_step_mapping_preserves_the_trusted_parent_boundary(self):
+        captured = self.source(VIP, VIP, HOME)
+        step, = self.recover(captured).steps
+        expected = step.to_mapping(self.runtime.session)
+        original = Path.is_symlink
+        trusted_parent = self.runtime.session.parent
+        with patch.object(Path, "is_symlink", autospec=True,
+                side_effect=lambda path: path == trusted_parent or original(path)):
+            self.assertEqual(step.to_mapping(self.runtime.session), expected)
+
+    def test_a_windows_alias_of_the_same_file_is_not_a_fresh_capture(self):
+        captured = self.source(HOME)
+        alias = windows_short_path(captured.path)
+        later_alias = replace(captured, path=alias, captured_monotonic=captured.captured_monotonic + 1)
+        self.assertFalse(recovery._contextual_startup_frame_valid(later_alias, after=captured))
 
     def test_known_intermediate_is_not_ready_when_second_input_is_unavailable(self):
         self.runtime.max_inputs = 1

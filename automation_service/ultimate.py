@@ -234,7 +234,7 @@ def _startup_navigation_proof(session, source, settled, home, action_key, helper
         post_ref, post_index = capture_record(post)
         identity = startup.contextual_startup_identity(proposal)
         if (identity is None or identity in seen or startup.contextual_startup_identity(immediate) != identity
-                or proposal.path != previous.path or proposal.sha256 != previous.sha256
+                or proposal.path.resolve() != previous.path.resolve() or proposal.sha256 != previous.sha256
                 or proposal.captured_monotonic != previous.captured_monotonic):
             raise ValueError("Ultimate startup sequence is not continuous distinct known overlays")
         seen.add(identity)
@@ -282,7 +282,7 @@ def _startup_navigation_proof(session, source, settled, home, action_key, helper
     prefix = [row for index, row in enumerate(rows) if index < hi and row.get("type") == "dispatch"]
     surface = startup.recognize_startup_surface(settled.frame, settled.png)
     popup = startup.recognize_reset_popup(settled.frame)
-    if (previous.path != settled.path or previous.sha256 != settled.sha256 or prefix != dispatches
+    if (previous.path.resolve() != settled.path.resolve() or previous.sha256 != settled.sha256 or prefix != dispatches
             or not ri < hi or not settled.captured_monotonic < home.captured_monotonic
             or surface.get("recognized") or surface.get("commercial_looking")
             or popup.get("recognized") or popup.get("blocking_unknown_modal")

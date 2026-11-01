@@ -3338,7 +3338,7 @@ def _verify_family_startup_step(recovery, session, rows, reset, dispatch_row, *,
         or (not vip and tuple((proposal.recognition or {}).get("safe_exit_roi") or ()) != tuple(target or ()))
         or contextual_startup_identity(source[0]) != recovery.get("popup_identity")
         or contextual_startup_identity(immediate[0]) != recovery.get("popup_identity")
-        or recovery.get("immediate_before_frame") != immediate[0].path.relative_to(session).as_posix()
+        or recovery.get("immediate_before_frame") != immediate[0].path.resolve().relative_to(session.resolve()).as_posix()
         or recovery.get("immediate_before_sha256") != immediate[0].sha256
         or recovery.get("immediate_before_captured_monotonic") != immediate[0].captured_monotonic
         or recovery.get("source_captured_monotonic") != source[0].captured_monotonic
