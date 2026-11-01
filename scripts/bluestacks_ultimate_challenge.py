@@ -297,6 +297,51 @@ def _flee_popup_panel_candidates(
     """Collapse modal duplicates while preserving independent panel evidence."""
 
     raw = _visual_popup_candidates(frame)
+    if not raw:
+        return []
+    independent_panels = []
+    # The native game has uniform side bars. Hough can combine their canvas
+    # edges with unrelated scene horizontals into an enormous false panel.
+    # Filter only that canvas-aligned family; other candidates stay blocking.
+    canvas = np.flatnonzero(np.any(frame != frame[0, 0], axis=(0, 2)))
+    if (len(canvas) and 20 <= canvas[0] <= 80
+            and 720 <= canvas[-1] < 780):
+        left, right = int(canvas[0]), int(canvas[-1]) + 1
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 40, 140)
+        horizontal = cv2.morphologyEx(edges, cv2.MORPH_OPEN, np.ones((1, 20), np.uint8))
+        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        outlines = []
+        for contour in contours:
+            x, y, width, height = cv2.boundingRect(contour)
+            if width * height >= _roi_area(_FLEE_MODAL_ROI) * 2:
+                outlines.append((x, y, x + width, y + height))
+            if width >= 400 and height >= 220:
+                corners = cv2.approxPolyDP(contour, 0.015 * cv2.arcLength(contour, True), True)
+                bounds = (x, y, x + width, y + height)
+                if (len(corners) == 4 and cv2.contourArea(contour) >= width * height * 0.90
+                        and not _flee_modal_popup_matches(bounds)):
+                    independent_panels.append(bounds)
+        kept = []
+        for candidate in raw:
+            x0, y0, x1, y1 = candidate
+            aligned = (abs(x0 - left) <= 12 and abs(x1 - right) <= 12
+                       and 0 <= frame.shape[0] - y1 <= 12)
+            outlined = any(
+                _roi_intersection_area(candidate, outline) >= 0.60 * (
+                    _roi_area(candidate) + _roi_area(outline)
+                    - _roi_intersection_area(candidate, outline))
+                for outline in outlines
+            )
+            corners = (
+                horizontal[max(0, y0 - 5):y0 + 6, x0:x0 + 20],
+                horizontal[max(0, y0 - 5):y0 + 6, x1 - 20:x1],
+            )
+            if (_flee_popup_is_materially_overbroad(candidate) and aligned
+                    and not outlined and any(np.count_nonzero(corner) < 12 for corner in corners)):
+                continue
+            kept.append(candidate)
+        raw = kept
     clusters: list[list[tuple[int, int, int, int]]] = []
     for candidate in raw:
         area = _roi_area(candidate)
@@ -323,7 +368,7 @@ def _flee_popup_panel_candidates(
     return [
         max(cluster, key=_flee_modal_popup_iou)
         for cluster in clusters
-    ]
+    ] + list(dict.fromkeys(independent_panels))
 
 
 def _central_popup_candidates(

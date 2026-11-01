@@ -5,18 +5,18 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "updated_utc": "2026-11-01T02:44:36.197149+00:00",
+  "updated_utc": "2026-11-01T03:02:29.393421+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
   "active_task_or_flow": "Fix intermittent Supply Depot recognition and finish remaining live acceptance before merge; sole local operator only",
   "authorization": "Current user explicitly requested continued fixes, live acceptance testing and iteration until proven before merge. Prior full-route authorization for regenerable resources persists. Each bounded controller records current authorization; no permanent enablement or merge is authorized by this work.",
-  "runtime_ownership_state": "No live operator as of this snapshot: failed 1030.094-second cohort is terminal, all9flowcontrols/serviceOFF, no active/orphan run or input owner, Core lease released. Consult current locks/controller before any action.",
-  "current_live_attempt_state": "Cohort stopped on Ultimate after4inputs: Lineup Challenge reached active battle but generic popup geometry rejected gem-grid lines. No Exit/Flee was sent. Four earlier reports completed/Home: Nova1Praise, Advanced+Basic recruits, Campaign8wins and Bioenhancer1Research.",
-  "current_evidence_or_session_reference": ".local-captures/automation-service-authorized/soak-20261101T021101103929Z-fd5b6482",
-  "last_safe_completed_step": "All349source hashes unchanged through failed cohort;298PNGs retained/275event capture hashes verified. e8419c0 repairs Ultimate battle popup discrimination and two fake-clock CI races.17focused visual/lineup checks and44affected service checks passed; hosted current-headCI pending.",
+  "runtime_ownership_state": "No live operator at this snapshot. One-Exit pnsctl continuation terminal; all controlsOFF, input lock empty and Core lease released. Consult current locks/controller before acting.",
+  "current_live_attempt_state": "Original4-input Ultimate attempt reached battle.18e0cac continuation freshly recognized battle and sent1Exit,0Challenge/0Flee, then stopped on fictional canvas panels at exact warning. Failed receipts preserved; both successor states independently inspected.",
+  "current_evidence_or_session_reference": ".local-captures/development-sessions/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION-20261101T024608638317Z",
+  "last_safe_completed_step": "One-Exit attempt349source hashes unchanged/10PNGs retained. Current warning correction passed12focused checks including extra-panel negatives. Earlier e8419c0 CIrun58 bothOSfullgreen, verifying the two fake-clock fixes; current warning source CIpending.",
   "current_blocker": "Ultimate canonical flow remains blocked pending route-owned active-battle continuation. Two-hour cadence remains unproved on latest source. November2 00UTC still required for uninterrupted Enhancement, fresh Supply and Ultimate full Home-entry passes, continuous Tavern refresh and consuming Campaign crossing.",
-  "exact_next_permitted_action": "Commit attributable current-state docs, freeze source, confirm all operatorsOFF, then use supported pnsctl development-session run-flow ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION --live --yes --max-inputs16. Existing native route must freshly recognize its active-battle resume and continue Exit/Flee/Home; never repeat an uncertain action. Preserve failed receipt. Inspect terminal accounting and state before canonical unblock and another bounded cadence. No source/docs edits while live.",
-  "unresolved_action_state": "Failed native Lineup dispatch has ten retained active-battle successors now independently recognized by repaired source; inspection receipt records this semantic resolution without changing failure evidence or granting input authority. Exit/Flee transport counts0. Canonical Ultimate block remains; Core/resource block projection is clear.",
+  "exact_next_permitted_action": "Commit/push attributable warning correction and docs, freeze current source, verify all operatorsOFF, then supported pnsctl development-session run-flow ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION --live --yes --max-inputs16. Existing route must freshly bind the current Flee-warning resume, send at most one Flee and verify Home. Do not repeat Exit or Challenge from an unknown result. Inspect receipts/state before canonical unblock and another bounded7200-second cadence. No source/docs edits or local tests while live.",
+  "unresolved_action_state": "Native Lineup entry and later Exit successors are positively recognized from10battle and6warning captures, respectively, by current repaired vision. NoFlee transported. Inspection receipts grant no input authority; failed artifacts remain unchanged. Canonical Ultimate flow remains blocked pending completed continuation.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
     "permanent_production_scheduler_enabled": false,
@@ -28,7 +28,7 @@
   },
   "journals_and_lease": {
     "historical_journals": "retained immutable",
-    "active_action_state": "Failed native Lineup dispatch has ten retained active-battle successors now independently recognized by repaired source; inspection receipt records this semantic resolution without changing failure evidence or granting input authority. Exit/Flee transport counts0. Canonical Ultimate block remains; Core/resource block projection is clear.",
+    "active_action_state": "Native Lineup entry and later Exit successors are positively recognized from10battle and6warning captures, respectively, by current repaired vision. NoFlee transported. Inspection receipts grant no input authority; failed artifacts remain unchanged. Canonical Ultimate flow remains blocked pending completed continuation.",
     "development_lease_status": "No active owner at snapshot; failed controller cleanup verified."
   },
   "route_state": {
@@ -72,11 +72,12 @@
     },
     "ultimate": {
       "reset_id": "game-day-2026-11-01",
-      "status": "blocked_pending_active_battle_continuation",
-      "latest_attempt": "4inputs;1LineupChallenge;0Exit/0Flee; active battle independently replayed from10retained successors after recognition repair.",
+      "status": "blocked_pending_flee_warning_continuation",
+      "latest_attempt": "Original4inputs plus later1Exit; zero repeatedChallenge and0Flee. Current fresh Flee-warning continuation pending.",
       "historical_acceptance": "October31oneFlee/9inputs/Home; does not prove current source.",
       "repair_commit": "e8419c0201f51964985069e98aba259237c00c04",
-      "next_due_utc": 1793491200.0
+      "next_due_utc": 1793491200.0,
+      "warning_repair": "This revision: canvas-aligned phantom-panel discrimination with connected-outline/independent-panel preservation;12focused checks passed."
     },
     "enhancement": {
       "reset_id": "game-day-2026-11-01",
@@ -90,7 +91,7 @@
       "next_due_utc": 1793577600.0
     }
   },
-  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T021054961915Z.json",
+  "frozen_source_manifest": ".local-orchestrator/logs/remaining-acceptance-frozen-source-20261101T024603458712Z.json",
   "validation": "Current repair:17native/visual/lineup checks passed with normal TEMP access;44Campaign+Ultimate service checks passed; two reported CI cases passed3repetitions each. WindowsPython3.11CI pending. Separate original-function baseline reproduces2stale Home fixture failures. No full repository discovery.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
@@ -204,7 +205,7 @@
       "status": "passed"
     },
     "portable_evidence": "docs/validation/bluestacks-20261031/summary.json",
-    "publication": "Pushed e8419c0 to existing draftPR16; latest current-head CI pending; unmerged.",
+    "publication": "DraftPR16pushed; e8419c0fullCIbothOSpassed. Warning correction being committed before next source freeze.",
     "excluded_existing_work": [
       "Stop-PnS-OMP.ps1",
       "evidence/current-evidence-manifest.json",
@@ -223,9 +224,10 @@
     "validation_record": "docs/validation/bluestacks-20261031/checks.json"
   },
   "failed_attempt_audits": [
-    ".local-orchestrator/logs/all8-cohort-stopped-ultimate-live-audit-20261101.json"
+    ".local-orchestrator/logs/all8-cohort-stopped-ultimate-live-audit-20261101.json",
+    ".local-orchestrator/logs/ultimate-exit-warning-stop-live-audit-20261101.json"
   ],
-  "current_semantic_inspection": ".local-orchestrator/logs/ultimate-failed-lineup-successor-inspection-20261101.json"
+  "current_semantic_inspection": ".local-orchestrator/logs/ultimate-exit-warning-successor-inspection-20261101.json"
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 

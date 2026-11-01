@@ -19,7 +19,10 @@ hosted repetition steps. The latest cohort proved a full 120 + 1 - 112 = 9 AP
 Campaign drain with 8 wins, then stopped after 1,030.094 seconds on Ultimate's
 gem-grid popup false positive. All controls were restored OFF. Ultimate's repair
 and two Windows fake-clock test fixes passed their focused checks; current-head
-CI, live continuation, fresh Ultimate Home entry and final cadence remain pending.
+CI passed both platforms on `e8419c0`. Its live continuation used one Exit with no
+repeated Challenge, then stopped before Flee on a second canvas-panel false
+positive. That later warning repair passes 12 focused checks; its CI, live Flee
+continuation, fresh Ultimate Home entry and final cadence remain pending.
 These updates do not turn the historical October 31 rows below into fresh runs.
 
 | Route | Retained acceptance | October31 reset status / remaining work |

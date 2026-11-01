@@ -15,7 +15,7 @@ authorized bounded controllers temporarily enable selected routes.
 | Enhancement | Gear, Chip and Module each consumed once in one physical Profile visit, with final Home and independent family replay. Original attempt: 13 inputs/1 Gear Confirm. Resume: 15 inputs/2 Confirms, retaining Gear. | This is composite acceptance. An uninterrupted all-three run remains `evidence_required` at the next actual reset. |
 | Cold restart | Source `122ff13`: one guarded stop, process-exit check passed, one checked MAIN/LAUNCHER/NEW_TASK launch, Home, zero game inputs and no human intervention. | All nine flow rows and their due facts were unchanged. This proves this cached account state, not historical Play Games prompt causality. |
 | Campaign and other due routes | Cohort `fd5b6482`: Campaign 120 + 1 regenerated - 112 spent = 9 AP, 8 wins/8 committed AP effects, 50 inputs and Home; next due exactly completion + 300 seconds. Nova used one free Praise, Tavern used one Advanced and one Basic free recruit, and Bioenhancer used one free Research; each returned Home. | This is not a completed two-hour cadence. The cohort stopped after 1,030.094 seconds on Ultimate. Nova has 6 free Praises and Tavern has 4 Basic recruits remaining. |
-| Ultimate | Four inputs reached battle, but generic popup geometry rejected the gem grid. No Exit or Flee was sent. The controller stopped and restored every control OFF. | Repair `e8419c0` passes the native regression and focused checks; the existing active-battle continuation and a fresh full Home-entry pass still require live proof. |
+| Ultimate | Four inputs reached battle. Repair `e8419c0` then freshly recognized the active battle and sent one Exit, with no repeated Challenge. That continuation stopped on extra fictional canvas panels at the Flee warning; zero Flee transports. Both attempts released ownership. | The warning repair passes 12 focused checks. Fresh Flee-warning continuation and a full Home-entry pass still require live proof. Neither failed attempt is daily completion. |
 | Native reset crossing | Pending November 2 at 00:00 UTC. | Requires a consuming Campaign route across the real boundary and continuous-client Tavern refresh. The earlier zero-input admission defer does not satisfy this. |
 
 Supply's current-source consuming leg and Personal Might both completed through
@@ -73,6 +73,17 @@ Ten retained successors independently prove that the original Lineup Challenge
 reached battle; no retained evidence grants input authority or rewrites the
 failed receipt. Continuation must freshly recognize the current battle.
 
+The subsequent live continuation sent one Exit and reached the exact Flee
+warning. Its OCR, colors and modal checks passed, but Hough also combined
+uniform gameplay-canvas edges with unrelated scene lines. The correction is
+limited to that freshly measured canvas-aligned family. Connected outlines,
+including open or clipped frames, and other panel candidates remain blocking;
+independent bounded panels are preserved outside duplicate clustering.
+Twelve focused checks cover the exact warning, both required controls and failure
+text, native-frame and canvas-confined outlines, missing top corners, a broken
+top border and an additional opaque bounded panel. This is offline proof until
+the Flee-warning continuation actually completes.
+
 ## Validation and retained evidence
 
 The crop revision passed 48 focused Supply checks and eight consecutive groups
@@ -89,8 +100,11 @@ the missing Campaign camera-only proof and Ultimate startup chronology failure.
 The test harnesses now advance native timestamps while keeping the remaining
 real freshness consumers in the same time window. Production chronology and
 freshness checks are unchanged. The two affected modules passed 44 cases, and
-the two reported cases passed three repetitions each. Windows Python 3.11 CI on
-repair `e8419c0` is still pending; a prior green run does not override run 57.
+the two reported cases passed three repetitions each. Both full operating-system
+jobs, including Windows Python 3.11, passed on repair `e8419c0` in
+[CI run 58](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41266335664).
+The later warning correction still requires its own CI; run 57 remains a retained
+failure rather than being overwritten by a passing rerun.
 
 The Ultimate repair passed 17 focused native/visual/lineup checks with normal
 temporary-directory access. A separate baseline using the original committed
@@ -116,6 +130,8 @@ Raw evidence is retained locally, outside the published source tree:
 | First current-cohort Campaign drain audit | `.local-orchestrator/logs/current-cohort-first-campaign-drain-audit-20261101.json` |
 | Failed cohort/disabled cleanup audit | `.local-orchestrator/logs/all8-cohort-stopped-ultimate-live-audit-20261101.json` |
 | Ultimate successor inspection | `.local-orchestrator/logs/ultimate-failed-lineup-successor-inspection-20261101.json` |
+| One-Exit warning stop audit | `.local-orchestrator/logs/ultimate-exit-warning-stop-live-audit-20261101.json` |
+| Warning successor inspection | `.local-orchestrator/logs/ultimate-exit-warning-successor-inspection-20261101.json` |
 | Old Enhancement baseline | `.local-validation/remaining-enhancement-baseline-20261101.log` |
 | Supply local repetitions | `.local-validation/supply-tight-crop-eight-repeats-20261101.log` |
 

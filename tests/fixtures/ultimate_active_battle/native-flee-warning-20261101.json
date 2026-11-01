@@ -1,0 +1,11 @@
+{
+  "source_frame": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T024612175373Z/nav-20261101T024612870574Z/runtime/frames/0008-flee-warning-successor-06.png",
+  "source_sha256": "accdc44c3274ec976dca02552e7fabd87f58896746aab263bd5787db8c9e04a3",
+  "captured_at_utc": "2026-11-01T02:46:26.529923+00:00",
+  "captured_monotonic": 942341.984,
+  "native_width": 800,
+  "native_height": 1280,
+  "transformation": "none; exact native PNG bytes",
+  "source_run_status": "blocked_fail_closed after one Exit, no new Challenge or Flee",
+  "observation": "Exact Flee warning, both buttons and failure text. Hough also paired uniform gameplay-canvas edges with unrelated scene horizontals."
+}
