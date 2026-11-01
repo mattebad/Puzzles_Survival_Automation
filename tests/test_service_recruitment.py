@@ -3,12 +3,15 @@ from __future__ import annotations
 
 from contextlib import ExitStack, closing
 from dataclasses import replace
+import hashlib
 from pathlib import Path
 import json
 import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+
+import cv2
 
 from automation_service.recruitment import (
     RecruitmentRunner,
@@ -67,7 +70,15 @@ class GuardedRecruitmentRuntime(ScriptedTavernRuntime):
     def capture(self, label):
         if self.checkpoint:
             self.checkpoint()
-        return super().capture(label)
+        captured = super().capture(label)
+        ok, encoded = cv2.imencode(".png", captured.frame)
+        if not ok:
+            raise AssertionError("offline capture could not encode PNG")
+        payload = encoded.tobytes()
+        path = self.session / f"{self._n:04d}-{label}.png"
+        path.write_bytes(payload)
+        return replace(captured, png=payload,
+                       sha256=hashlib.sha256(payload).hexdigest(), path=path)
 
     def tap(self, source, **kwargs):
         if self.checkpoint:
@@ -141,6 +152,10 @@ class ServiceRecruitmentTests(unittest.TestCase):
         self.stack.enter_context(patch(
             "scripts.startup_recovery.recognize_reset_popup",
             return_value={"recognized": False, "reason": "not_recognized"},
+        ))
+        self.stack.enter_context(patch(
+            "scripts.startup_recovery.recognize_startup_surface",
+            return_value={"recognized": False, "commercial_looking": False},
         ))
         self.stack.enter_context(patch.object(native, "recognize_noahs_tavern_frame",
             side_effect=lambda *a, **k: self.runtimes[-1].recognizer(*a, **k)))

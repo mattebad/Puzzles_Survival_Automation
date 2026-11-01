@@ -166,7 +166,7 @@ class ClaimedServiceStartupTests(unittest.TestCase):
         reports = []
         case.serve(lambda report: (reports.append(report), case.stop.set()))
         self.assertEqual(len(seen), 1)
-        self.assertEqual(reports[0]["status"], "completed")
+        self.assertEqual(reports[0]["status"], "completed", reports[0])
         self.assertEqual(reports[0]["result"]["system_launch_count"], 0)
         self.assertGreater(reports[0]["result"]["total_input_count"], 0)
 
