@@ -47,6 +47,15 @@ _HOME_CONTROL_FALLBACK_ROIS: Dict[str, Tuple[Tuple[int, int, int, int], ...]] = 
     "pit": ((18, 470, 60, 500),),
 }
 
+# A second native HUD layout spaces the same controls farther apart.  Keep
+# these crops confined to the label glyphs and evaluate this layout separately.
+_HOME_SPACED_CONTROL_LABEL_ROIS: Tuple[Tuple[str, Tuple[int, int, int, int]], ...] = (
+    ("build", (10, 330, 95, 359)),
+    ("research", (5, 431, 100, 459)),
+    ("pit", (25, 532, 78, 559)),
+    ("idle", (20, 558, 85, 582)),
+)
+
 # These are feature ROIs in the locked 800x1280 logical frame.  They are not an authorization
 # by themselves; authorization requires positive recognition immediately before an input.
 ROIS: Dict[str, Tuple[int, int, int, int]] = {
@@ -129,26 +138,29 @@ def _recognize_home_control_labels(frame: np.ndarray) -> Tuple[list[str], str]:
 
     hits: list[str] = []
     raw_text: list[str] = []
-    for label, roi in _HOME_CONTROL_LABEL_ROIS:
-        rois = (roi,) + _HOME_CONTROL_FALLBACK_ROIS.get(label, ())
-        matched = False
-        for candidate_roi in rois:
-            crop = cv2.cvtColor(_crop(frame, candidate_roi), cv2.COLOR_BGR2GRAY)
-            enlarged = cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-            text = pytesseract.image_to_string(
-                enlarged,
-                config="--psm 7",
-                timeout=5,
-            ).casefold()
-            raw_text.append(f"{label}:{text}")
-            # Punctuation such as ``Pit.`` is presentation noise; require the
-            # complete expected word rather than a fuzzy or substring match.
-            if label in re.findall(r"[a-z]+", text):
-                hits.append(label)
-                matched = True
-                break
-        if not matched:
-            continue
+    for layout in (_HOME_CONTROL_LABEL_ROIS, _HOME_SPACED_CONTROL_LABEL_ROIS):
+        layout_hits: list[str] = []
+        for label, roi in layout:
+            rois = (roi,)
+            if layout is _HOME_CONTROL_LABEL_ROIS:
+                rois += _HOME_CONTROL_FALLBACK_ROIS.get(label, ())
+            for candidate_roi in rois:
+                crop = cv2.cvtColor(_crop(frame, candidate_roi), cv2.COLOR_BGR2GRAY)
+                enlarged = cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+                text = pytesseract.image_to_string(
+                    enlarged,
+                    config="--psm 7",
+                    timeout=5,
+                ).casefold()
+                raw_text.append(f"{label}:{text}")
+                # Punctuation is presentation noise, but partial words are not matches.
+                if label in re.findall(r"[a-z]+", text):
+                    layout_hits.append(label)
+                    break
+        if len(layout_hits) > len(hits):
+            hits = layout_hits
+        if len(hits) >= 2:
+            break
     return hits, "\n".join(raw_text)
 
 
