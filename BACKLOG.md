@@ -9,6 +9,15 @@ those broader criteria are not prerequisites for this eight-route validation sco
 `CURRENT_HANDOFF.md` records volatile operator state. Runtime controls remain OFF
 outside explicitly authorized bounded tests; there is no permanent deployment.
 
+November 1 follow-up is in the [current acceptance report](docs/bluestacks-route-status-20261101.md).
+Personal Might now has an uninterrupted 1-Praise/Home pass, and the current-source
+cold restart preserved all nine due/flow records. Supply's 9-to-0 free Hold/Home
+leg is accepted; fresh Home entry on the final crop source and uninterrupted
+Enhancement still require the next real reset. The broad-crop OCR deadline was
+reproduced, and the tighter candidate crop passed local repetitions plus both
+hosted repetition steps. Full CI and the next cadence cohort are still pending.
+These updates do not turn the historical October 31 rows below into fresh runs.
+
 | Route | Retained acceptance | October31 reset status / remaining work |
 | --- | --- | --- |
 | Nova | October 31: all 7 free Praises confirmed, with Home after each run. | Complete for reset; no repeated daily actions. |
@@ -60,7 +69,8 @@ merged, deployed or enabled merely because a standalone route passed.
 Generic due scheduling is implemented. Aggregate Daily claims, milestone chests, observed Daily
 point attribution, Alliance Help, training, gathering, shops, broader World work and hosted
 acceptance remain separate work. The code snapshot is committed locally on
-`codex/bluestacks-route-reliability`; publishing and PR review remain outstanding.
+`codex/bluestacks-route-reliability`; [draft PR #16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16)
+is published. Remaining acceptance, CI completion and review precede any merge.
 These Markdown records are not a runtime queue or authority.
 
 Read the [recovery execution guide](docs/backlog/execution-guide.md) before assigning work, then read

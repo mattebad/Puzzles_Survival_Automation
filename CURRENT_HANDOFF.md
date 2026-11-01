@@ -5,17 +5,17 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "updated_utc": "2026-10-31T20:50:16+00:00",
+  "updated_utc": "2026-11-01T02:10:51.863739+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "in_progress",
-  "active_task_or_flow": "Draft PR #16 CI validation and fixture footprint review; no live operator",
-  "authorization": "User approved publication, the fixture footprint check and CI validation on the MR. Scoped offline fixes, commits and pushes to the review branch are authorized. No new gameplay run, merge or permanent enablement is part of this review task.",
-  "runtime_ownership_state": "No live operator. Root controller39912/94b22fec terminal completed; all9flow controls and service OFF, no lease owner/active/orphan run.",
-  "current_live_attempt_state": "Latest frozen source completed1200.057seconds,8reports/22inputs/allHome:2NovaPraises to0remain,2Basic recruits to5used/0remain,4zero-input Campaignchecks. Completed daily routes stayed gated.",
-  "current_evidence_or_session_reference": ".local-captures\\automation-service-authorized\\soak-20261031T050050678225Z-94b22fec",
-  "last_safe_completed_step": "Final read-only audit verified185unchanged source hashes,127nativecapture hashes,all5Basic native confirmations/persisted count5,7confirmedNovaactions, exactCampaign completion+300 and disabled cleanup.",
-  "current_blocker": "No runtime block. evidence_required: fully uninterrupted Enhancement at next realreset, continuously consuming native00UTC crossing, next-reset Tavern client refresh, live extra camera branches and definitive PlayGames prompt causality.",
-  "exact_next_permitted_action": "Finish scoped CI fixes on draft PR #16, verify Windows/Linux checks on the final head and report actual results. Later live work requires the existing sole-operator controller and recorded current authorization; uninterrupted Enhancement, Tavern refresh and consuming-reset crossing remain separate evidence gaps.",
+  "active_task_or_flow": "Fix intermittent Supply Depot recognition and finish remaining live acceptance before merge; sole local operator only",
+  "authorization": "Current user explicitly requested continued fixes, live acceptance testing and iteration until proven before merge. Prior full-route authorization for regenerable resources persists. Each bounded controller records current authorization; no permanent enablement or merge is authorized by this work.",
+  "runtime_ownership_state": "No live operator. Cold restart122ff13 terminal succeeded; all9flowcontrols/serviceOFF, no active/orphan/leaseowner. All9flowrecords/duefacts unchanged.",
+  "current_live_attempt_state": "Cold restart LIVE-ACCEPTED:1guardedstop/process-exitcheck/1checkedintentlaunch/0gameinputs/Home/nohumanintervention.349sourcehashes/10captures retained. PersonalMight uninterrupted6inputs/1Praise/Home accepted; Supplyd41freeHold9to0/Home accepted; Enhancementcomposite all3once/Home accepted.",
+  "current_evidence_or_session_reference": ".local-captures/development-sessions/launch-game-20261101T020151329983Z",
+  "last_safe_completed_step": "Restart audit verifies349sources and all9flowrecords unchanged. Latest122ff13 CIbothOS8repeatgroupspassed; fullWindowsgreen, remainingLinuxgroupspending. Currentdatedreport andbacklog now distinguish current acceptance from historicalrows.",
+  "current_blocker": "No runtime block. Pending: current-source2hcadence and otherdue routepasses; nextactualreset November2 00UTC for uninterrupted Enhancement/fresh SupplyHomeentry, continuousTavernrefresh and consumingCampaigncrossing. HistoricalPlayGamescausality and unexercisedcamera branches remain explicituncertainty.",
+  "exact_next_permitted_action": "Commit/push attributable report/handoff/backlog, freeze source, then use existing sole controller for7200seconds selectingall8routes. Completed Enhancement/Supply/PersonalMight must stay due-gated. Otherdue routes may consume authorizedregenerable resources. No source/doc edits whilelive. Controller stops on anynoncompleted report and restoresallcontrolsOFF; finishcurrentboundedroute atdeadline.",
   "unresolved_action_state": "Core/resource blocks clear. Original Personal Might Praise confirmed; failed original/native wrapper artifacts remain immutable.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
@@ -66,7 +66,8 @@
     },
     "supply": {
       "accepted": "October31 oneHold exhausted9free attempts to0,7inputs/Home.",
-      "next_due_utc": 1793491200
+      "next_due_utc": 1793491200,
+      "november1_accepted": "d41af83 current-source radial-to-facility/freeHold9to0/Home;3inputs/1Hold,12capturehashes. Failed earlier Atlas6nav and collapse1nav receipts retained separately. Next actual reset required for uninterrupted completeHome-entry pass and latest crop source. Audit .local-orchestrator/logs/supply-safe-button-free-hold-live-audit-20261101.json."
     },
     "ultimate": {
       "accepted": "October31 oneFlee,9inputs/Home, complete for reset.",
@@ -74,11 +75,14 @@
     },
     "enhancement": {
       "accepted": "Day31 Gear/Chip/Module eachonce,onephysicalProfilevisit,22inputs3Confirms/Home; composite9c0364f4+c9a0c6eb fully independentlyverified. Canonical0inputcompletion8da4e1d0 accepted.",
-      "next_due_utc": 1793491200.0
+      "next_due_utc": 1793491200.0,
+      "november1_partial": "Gear Confirm verified40to50EXP and9559to9558stock; Chip stopped at selected material fraction before consuming Confirm.13input family attempt failed, no uninterrupted claim. Independent read-only Gear replay retained in .local-orchestrator/logs/enhancement-retained-gear-replay-20261101.json.",
+      "november1_completed": "Composite accepted:Gear40to50EXP/9559to9558stock;Chip40to50/11532to11531;Module40to50/8296to8295. Original13inputs/1action + resume15inputs/2actions; current family replay and Home verified. Audit .local-orchestrator/logs/enhancement-composite-resume-live-audit-20261101.json. Uninterrupted acceptance still pending next real reset."
     },
     "personal_might": {
       "accepted": "October31 original1Praise confirmed through original/freshgray proof,2Back/Home. Later canonical recognized-More resume4navigation/0Praise/Home, already complete for reset.",
-      "next_due_utc": 1793491200
+      "next_due_utc": 1793491200,
+      "november1_accepted": "Uninterrupted122ff13:6inputs/1Praise/Home. Actual immediate13stillready whilegameprocessed; settled14,returnsource15,immediateBeforeBack16allgray/disabled independently replayed.349sourcehashes/21capturehashes verified. Audit .local-orchestrator/logs/personal-might-uninterrupted-live-audit-20261101.json."
     }
   },
   "frozen_source_manifest": ".local-orchestrator\\logs\\followup-pm-caption-more-resume-all8-frozen-source-20261031.json",
