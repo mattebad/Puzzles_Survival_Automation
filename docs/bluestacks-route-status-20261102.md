@@ -1,65 +1,104 @@
 # BlueStacks acceptance, November 2 UTC
 
-PR [#16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16)
-remains draft and unmerged. Permanent scheduling is disabled. This report
-supplements the [November 1 report](bluestacks-route-status-20261101.md);
-historical receipts retain their original source scope.
+The accepted runtime is `3c222af`. PR [#16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16)
+remains draft and unmerged; permanent scheduling is disabled. Actual current-head
+CI is authoritative in [PR checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks)
+and `.local-validation/pr16-final-current-head-ci-20261102.json`. Historical green
+runs do not validate a newer head.
 
-The real reset test entered Campaign stages at 23:57:29, 23:58:28 and 23:59:23
-on November 1, then 00:00:23, 00:01:20, 00:02:07, 00:03:01 and 00:03:53 on
-November 2, in one continuing game client and drain. Eight wins consumed 112 AP
-with 48 inputs; 120 + 1 regenerated - 112 = 9 AP, then Home. The whole drain
-scheduled completion +300 seconds. This proves consuming entries on both sides
-of actual midnight; it is not merely a battle held open across reset. The
-controller stopped later at a zero-Hold Supply recognition failure, so it does
-not prove a complete two-hour cohort. Audit:
-`.local-orchestrator/logs/real-reset-crossing-supply-navigation-stop-audit-20261102T0023Z.json`.
+## Live results
 
-Supply's two retained zero-Hold failures identified real OCR and circle-proposal
-defects. A tight caption fallback retains the complete Claim label and all
-button/HUD checks. A fallback circle proposal is used only when the original
-proposal is absent, with tighter glyph centering and unchanged final edge
-support, safe interior and HUD exclusions. The fresh full route then passed:
-Home → Depot → one Hold, free attempts 9→0 → Home, four inputs. Its audit checks
-431 unchanged source files, 19 PNGs and 17 capture references. All 47 focused
-Supply checks subsequently passed:
+| Check | Observed result |
+| --- | --- |
+| Final two-hour cadence | 7,200.333 seconds, 29 completed reports, 100 inputs and 15 confirmed actions. Every terminal Home frame was independently replayed. Five remaining Nova Praises, four remaining Basic recruits, uninterrupted Enhancement, Personal Might and two Campaign wins completed. Already-completed Bioenhancer, Supply and Ultimate stayed future-due. |
+| Campaign cadence | 18 reports: two wins/28 AP/29 inputs and 16 zero-input low-AP checks. Every next due time is exactly 300 seconds after the entire drain or low-AP Home completion. Actual stage/Lineup/Core links were checked. |
+| Consuming real reset | The same continuing drain entered three stages before November 2 00:00 UTC and five after it: eight wins/112 AP/48 inputs/Home, AP120 + one regenerated -112 = AP9. No launch, clock, quota or due-date changes manufactured the boundary. |
+| Fresh Supply | Home → Depot → one Hold, free attempts 9→0 → Home; four inputs. This was a fresh full route after the two retained zero-Hold recognition failures. Its final recognition code and execution path remain unchanged in the accepted runtime. |
+| Tavern Basic | Five actual free recruits, each source/result/cooldown/Home verified. The first accepted run recorded count one; four later runs advanced it 2→3→4→5. The first native counter displayed zero while Free Recruit 1x was enabled. Tickets stayed 91→91 for that first verified free action. The earlier zero-recruit Home-only report is not acceptance. |
+| Independent recruitment timers | Intermediate deadline `1793594260.4039137` (November 2 04:37 UTC) and Advanced deadline `1793672002.075106` (November 3 02:13 UTC) stayed unchanged across the reset and all Basic recruits. These are separate 24-hour/48-hour timers, not claims that every tier is exhausted. |
+| Nova | The final cohort consumed the five remaining Praises, 5→4→3→2→1→0, each Home. Together with the two earlier new-day passes, all seven actual new-day Praises completed. |
+| Enhancement | Uninterrupted Gear → Chip → Module in one Profile visit, 22 inputs/three Confirms/Home. Each category consumed one one-star material and gained 10 EXP, 60→70. Gear9557→9556, Chip11530→11529, Module8294→8293. Source/quantity/equipped-item witnesses and committed effects were independently replayed; no retained category composition was used. |
+| Personal Might | Six inputs, one actual Praise, one confirmed committed action and Home. Independent replay checked the gold source, used/disabled successor, inability to bind a second Praise and terminal Home. |
+| Ultimate / Bioenhancer | Earlier new-day ordinary runs completed eight inputs/one Flee/Home and four inputs/one Free Research/Home respectively. Their relevant implementations remain unchanged. Ultimate Defeat/Continue was not naturally encountered and remains offline-proven. No repeat Flee or research was forced. |
+| Fresh bot process | Seven genuinely future-due completed daily routes, zero attempts/native startup/inputs/effects. Every due time, ordinal and last completion stayed unchanged; the entire unselected Campaign row was identical. This checks the bot process skip guard. |
+| Current guarded cold restart | Two consecutive successful stop/verified-exit/one-launch tests reached the recognized Scarlett surface. Bootstrap game inputs were zero; shared recovery used one Back per test and independently verified Home. All nine flow/due rows remained unchanged. |
+
+The final cadence audit checks 438 unchanged frozen source files, 430 PNGs,
+366 capture references, 58 startup observations, all 29 independent Home terminals,
+actual effect links and released cleanup:
+`.local-orchestrator/logs/current-ea02-full-acceptance-independent-audit-20261102T043743891350Z.json`.
+All nine flow/service controls were OFF, with no active/orphan run, input/effect
+owner or unreleased Core/service lease. No permanent enablement occurred.
+
+The actual midnight drain retains its original frozen-source scope; its cohort
+stopped later at Supply and was not a full two-hour pass. The supplemental audit
+rechecks eight real Core inputs and confirms that 63 relevant Campaign, scheduler,
+state, Core, startup and Atlas source files are byte-identical in the final runtime:
+`.local-orchestrator/logs/final-runtime-reset-path-equivalence-and-native-utc-stage-audit-20261102.json`.
+It binds dispatch to the freshly authorized pre-input frame; preparation and
+pre-input pixels legitimately differ in three entries. The later two-hour run
+adds separate current-runtime cadence proof, not a relabeled midnight rerun.
+
+The fresh-process audit is
+`.local-orchestrator/logs/ea02-completed-daily-fresh-process-final-audit-20261102.json`.
+It sent no game input or launch. The guarded cold tests and shared recovery are
+separate, consuming no game resources. Native app restarts occurred only after
+the continuous-client midnight and five-Basic-recruit acceptance had finished.
+
+## Fixes and retained failures
+
+Supply's real failures were a caption mixed with the neighboring HUD and an
+absent circle proposal despite strong actual edge support. The tight caption
+fallback keeps the complete Claim label; the second circle proposal is used only
+when the original is absent, with tighter glyph centering and unchanged final
+edge, safe-interior and HUD exclusions. Actual missing/clipped/ambiguous controls
+remain denied. Fresh full-route audit:
 `.local-orchestrator/logs/supply-fresh-full-home-caption-circle-live-audit-20261102T0058Z.json`.
 
-Tavern initially skipped a real enabled purple Free Recruit 1x because the
-native Daily free attempts counter displayed zero. The user clarified that the
-enabled free control governs eligibility. The fix preserves the native counter
-as observed, does not infer five consumed actions from zero, and records one
-use only after the recruit result and cooldown transition. Confirmed daily
-ownership, unknown-result stops and independent Intermediate/Advanced deadlines
-remain enforced. All 107 focused Tavern tests passed.
-
-Live acceptance at 01:26–01:30 UTC used six inputs and one Basic free recruit
-from that exact zero-counter state, verified the result and Free in 00:09:48,
-and returned Home. Tickets stayed 91→91; persisted Basic count became one.
-Intermediate deadline 1793594260.4039137 and Advanced deadline
-1793672002.075106 stayed unchanged. No game restart or quota rearm occurred.
-Independent replay checked the source, result, cooldown and Home, 434 unchanged
-source files, 20 PNGs and 17 capture references. All nine flow/service controls
-were OFF, with released owners and no unresolved effect:
+Tavern now uses the visibly enabled zero-cost Free Recruit 1x control when the
+native counter is stale at zero. Zero alone cannot invent five prior uses;
+only the verified result/cooldown transition commits one action. Confirmed-use
+limits, unknown-result stops and independent deadlines remain enforced. First
+live audit:
 `.local-orchestrator/logs/tavern-enabled-free-stale-zero-live-final-audit-20261102.json`.
 
-The earlier post-reset cohort also verified Nova one Praise/Home, Bioenhancer
-one Free Research/Home, Campaign one later win/Home and Ultimate one Flee/Home.
-The user paused Enhancement after five navigation inputs and zero Confirms.
-Its two-input Home recovery preserved all three reservations and consumed no
-material. That interrupted run is not uninterrupted Enhancement acceptance.
-Current-day uninterrupted Enhancement, Personal Might, final source/cadence
-reconciliation and current-head Windows/Linux CI remain outstanding. Earlier
-manual Enhancement/Ultimate passes and restart/cadence receipts retain their
-documented source scope. Defeat/Continue remains offline-proven only.
+The user-paused Enhancement attempt stopped after five navigation inputs and
+zero Confirms. A later attempt stopped after four navigation inputs and zero
+Confirms because sparse OCR/cubic scaling lost the `/9557` denominator. Line OCR
+and linear scaling for that field corrected it while retaining confidence,
+exact Total/value agreement, material/star, quantity-one and button checks.
+Both failed receipts and every original reservation were preserved. Canonical
+inspection acknowledgment changed no schedules, quotas or limits. The subsequent
+22-input family above is the fresh uninterrupted consuming proof.
 
-The next ordinary cohort stopped at Gear's quantity dialog after four navigation
-inputs and zero Confirms. Sparse OCR plus cubic scaling omitted the `/9557`
-denominator despite a correct visible quantity of one. A narrow correction uses
-line OCR and linear scaling for that field; confidence, exact value/Total match,
-material identity, one-star, quantity-one and button checks are unchanged. All
-29 native quantity/selection-context checks passed. Three-input navigation-only
-Home recovery preserved every reservation, and canonical inspection acknowledgment
-left schedules and limits unchanged. No material was consumed and this failed
-cohort is not full-duration or uninterrupted-family acceptance. Audit:
-`.local-orchestrator/logs/fec4-cadence-enhancement-zero-confirm-stop-20261102.json`.
+One cold-start attempt failed with a native Unity SIGSEGV; its stack includes
+`libtcb.so` and `libil2cpp.so`. The game returned to the BlueStacks launcher before
+readiness, with zero game inputs. This was retained as a failure, not Home or a
+Play Games prompt. A separately guarded relaunch and shared Scarlett recovery
+returned Home; two subsequent guarded cold starts then passed consecutively.
+The native crash's underlying cause remains unproved. No automatic repeated-
+launch policy or emulator setting change was introduced. Evidence:
+`.local-captures/development-sessions/launch-game-20261102T035300225603Z/result.json`
+and `.local-captures/development-sessions/launch-intent-20261102T035905459129Z/crash-log.txt`.
+Historical Play Games causality remains unproved; account/login states remain
+manual-only.
+
+## Offline and CI coverage
+
+107 focused Tavern cases, 47 Supply cases and 29 native quantity/selection-context
+cases passed locally. Both new real Supply failure frames then passed eight
+fresh-process repetitions (16 cases), including missing-caption/template denials.
+The failed invocation using the wrong test class name is retained separately.
+
+CI77 passed both complete Windows/Linux jobs on `ea02fa2`. Its explicit list
+omitted the two new Supply failure frames and native quantity modules. The final
+workflow adds those frames to the eight-iteration repeated binding step, includes
+the full Supply button module and its negatives, and runs the Gear/Chip/Module
+quantity modules alongside existing selection-context coverage on both systems.
+The actual final-head receipt and PR checks determine whether this expanded CI
+has completed successfully.
+
+The [November 1 report](bluestacks-route-status-20261101.md) and older audits retain
+their historical source scope. The consumed November 1 extra-run request is not
+reused. Broader unaccepted backlog items are not promoted by this portfolio's
+acceptance; the PR remains unmerged and runtime controls remain OFF.

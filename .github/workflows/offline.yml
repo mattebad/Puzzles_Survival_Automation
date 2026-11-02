@@ -50,7 +50,9 @@ jobs:
             python -m unittest \
               tests.test_supply_depot_vision.SupplyDepotVisionTests.test_actual_hud_occluded_radial_stays_recognized_but_not_actionable \
               tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_raised_radial_uses_tight_label_and_book_occlusion_stays_blocked \
-              tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_collapsed_drawer_keeps_safe_button_despite_covered_lower_caption
+              tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_collapsed_drawer_keeps_safe_button_despite_covered_lower_caption \
+              tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_real_daylight_circle_survives_proposal_variation_with_same_final_gates \
+              tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_actual_reset_hud_caption_binds_only_with_complete_word_and_safe_button
           done
       - name: Run deterministic offline checks
         run: python scripts/check.py
@@ -62,6 +64,7 @@ jobs:
           tests.test_semantic_ocr_crop
           tests.test_native_frame_mutation
           tests.test_supply_depot_vision
+          tests.test_supply_claim_button
           tests.test_supply_camera_reframe
           tests.test_supply_depot_verified_route
           tests.test_daily_supply_depot
@@ -107,6 +110,9 @@ jobs:
           tests.test_campaign_atlas_chapter_nav.PortableCampaignAtlasReframeTests.test_unbound_reframe_requires_supported_localization_near_edge
           tests.test_campaign_auto_battle_runtime.CampaignRuntimeControllerTests.test_unbound_edge_reframe_needs_progress_and_fresh_binding
           tests.test_enhancement_selection_context_native
+          tests.test_enhancement_quantity_modal_native
+          tests.test_enhancement_chip_quantity_native
+          tests.test_enhancement_module_quantity_native
           tests.test_ultimate_battle_popup_native
           tests.test_ultimate_defeat_recovery
           tests.test_home_control_layouts

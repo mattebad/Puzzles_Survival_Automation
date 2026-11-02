@@ -2,74 +2,57 @@
 
 ## BlueStacks reliability validation
 
-Evidence below is dated by game reset (00 UTC). Historical acceptance is not a claim
-that a route has completed again after reset or under later changed source. The 74
-backlog records distinguish implemented local overlap from broader remaining work;
-those broader criteria are not prerequisites for this eight-route validation scope.
-`CURRENT_HANDOFF.md` records volatile operator state. Runtime controls remain OFF
-outside explicitly authorized bounded tests; there is no permanent deployment.
+The [November 2 report](docs/bluestacks-route-status-20261102.md) records accepted
+runtime `3c222af` and retained failures. The current eight-route acceptance scope
+is live-proven; this does not close the 74 broader backlog records below.
+`CURRENT_HANDOFF.md` records operator state. PR16 remains draft/unmerged and all
+nine flow/service controls remain OFF, with no active or unresolved owner.
 
-November 1 acceptance is recorded in the [dated report](docs/bluestacks-route-status-20261101.md).
-Earlier executable revision `80d24d1` passed both full CI72 jobs and a full
-7,200.373-second canonical cadence: 21 completed reports, two Campaign wins/28 AP,
-29 inputs including one shared Scarlett Back, and verified Home after every pass.
-All 21 Campaign completions scheduled +300 seconds. The audit checks 416 unchanged
-files, 173 PNGs, 131 capture references, canonical stage/Lineup links and disabled cleanup.
-The other seven selected routes remained future-due; this is fresh AP/cadence proof.
+The final current-runtime two-hour cadence completed 7,200.333 seconds, 29 reports,
+100 inputs and 15 confirmed actions, every terminal Home independently replayed.
+It completed five remaining Nova Praises, four remaining Basic recruits,
+uninterrupted Gear → Chip → Module in one Profile visit (22 inputs/three Confirms),
+one Personal Might Praise and two Campaign wins. Campaign's 18 reports comprise
+two wins/28 AP/29 inputs and 16 zero-input low-AP checks, every next due exactly
+whole-completion +300 seconds. Already-completed Supply/Bio/Ultimate stayed due-gated.
 
-The `80d24d1` guarded restart then verified one stop/process exit and one checked
-launch, with zero bootstrap game inputs and all nine flow/due rows unchanged.
-Its actual successor was Scarlett. A separate canonical Campaign pass recovered
-it, observed 14 AP, completed one normally admitted 14-AP win and returned Home/AP1:
-17 inputs including one Back. Independent replay checks 67 further PNGs and 55
-capture references. This is an automated restart/recovery sequence; the combined
-sequence includes game inputs. All controls are now OFF with released owners.
-Earlier failed, composite and zero-input precondition receipts remain preserved.
+Together with the first separately audited recruit, five actual Basic free recruits
+completed in the continuing reset client. Enabled Free Recruit 1x overrode the
+stale zero counter; each result/cooldown/Home committed one actual use. Independent
+Intermediate 24-hour/Advanced 48-hour deadlines were preserved. A timer becoming
+due after the bounded window does not extend that window or imply all tiers exhausted.
+Fresh Supply completed Home → Depot → one Hold, free attempts9→0 → Home, four inputs.
 
-Nova's five remaining Praises and Tavern's three remaining Basic recruits had
-already completed in the `c4dd031` two-hour cohort; both daily allowances remain
-exhausted, and Intermediate/Advanced deadlines are unchanged. Supply's consuming
-leg and Personal Might retain their exact historical source scopes; fresh manual
-Enhancement/Ultimate acceptance is recorded below. The two-surface Scarlett/VIP sequence is offline-proven; current
-live recovery covered Scarlett twice under separate valid occurrences.
+The actual continuous Campaign drain entered three native stages before November 2
+00UTC and five after it: eight wins/112 AP/48 inputs/Home. The final-runtime supplement
+checks 63 unchanged critical code paths, 239 preserved PNG hashes and actual Core
+policy-authorized immediate-input/Stage/Lineup links. This is separate midnight
+proof, not a relabeled full-head rerun. The later full cadence checks the current runtime.
 
-Explicitly authorized extra same-day runs now prove uninterrupted Gear→Chip→Module
-in one Profile visit (22 inputs/three Confirms/Home, all stock−1/EXP50→60) and full
-Ultimate Home/one Flee/Home (eight inputs), without relaunch or human recovery.
-Normal daily completion/due/ordinal stayed unchanged; distinct manual request
-claims and state preserve every earlier result. The final audit checks 421 frozen
-files, 108 PNGs/99 capture references, all controls OFF and owners released:
-`.local-orchestrator/logs/explicit-extra-enhancement-ultimate-final-audit-20261101T160444578918Z.json`.
-Native Ultimate Defeat/Continue was not encountered and remains offline-proven.
+Independent final replay checked 438 unchanged source files, 430 PNGs, 366 capture
+references, 58 startup observations, actual resource/category effects and cleanup:
+`.local-orchestrator/logs/current-ea02-full-acceptance-independent-audit-20261102T043743891350Z.json`.
+A fresh bot-process guard checked seven future-due routes with zero attempts/native
+starts/inputs/effects and unchanged due/ordinal/completion/Campaign rows. Two current
+guarded cold starts and shared Scarlett Back/Home recoveries then passed consecutively,
+all nine flow rows unchanged. The first cold launch failed with a genuine native
+Unity SIGSEGV; its underlying cause remains unproved and no automatic retry policy
+was added. Historical Play Games causality remains unproved; account states remain manual-only.
+Ultimate Defeat/Continue was not naturally encountered and remains offline-proven.
 
-A fresh bot process on `a52db42` subsequently honored all seven completed daily
-routes: zero attempts, inputs, resource actions or native startup. Every due time,
-ordinal and last-completion fact stayed unchanged; Campaign's entire row was
-identical, and all controls/owners were released. This proves the process restart
-skip guard, without restarting or recapturing the running game. Audit:
-`.local-orchestrator/logs/completed-daily-process-restart-final-audit-20261101T1613Z.json`.
+107 Tavern, 47 Supply and 29 native quantity/context cases passed locally; both new
+Supply failure frames passed eight fresh-process repetitions (16 cases). The final
+workflow includes these real frames in repeated binding, Supply negative gates and
+Gear/Chip/Module quantity modules on both Windows/Linux. Actual final-head CI is
+an external acceptance gate: [PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks)
+and `.local-validation/pr16-final-current-head-ci-20261102.json`. Older CI77 green
+on `ea02fa2` cannot validate later workflow/docs publication.
 
-The [November 2 report](docs/bluestacks-route-status-20261102.md) records the
-actual consuming reset crossing: eight Campaign entries on both sides of 00 UTC,
-eight wins/112 AP/Home, with whole completion +300 seconds. Fresh Supply then
-passed Home/one Hold 9→0/Home after two retained zero-Hold recognition failures.
-The final caption/circle fix retains the resource and geometric checks.
-
-Continuous-client Tavern refresh now passed after fixing the stale-zero counter
-bug: enabled Free Recruit 1x governs eligibility; one actual recruit/result,
-9:48 cooldown, unchanged tickets and independent 24h/48h deadlines, then Home.
-The 434-file final audit and all 107 focused Tavern checks passed. The earlier
-zero-recruit Home-only report is not acceptance. No quota or due-date edits were
-used. Current-day uninterrupted Enhancement and Personal Might, final cadence/
-source reconciliation and current-head CI remain required. The user-paused
-Enhancement had zero Confirms; navigation recovery preserved its reservations.
-The consumed November 1 extra-run request must not be reused.
-
-[CI72](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41288988634)
-passed both complete Windows and Linux jobs on `80d24d1`; 38 focused startup cases
-also passed. Current documentation-head validation is in
-[PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks).
-The PR remains draft and unmerged, with permanent scheduling disabled.
+Earlier paused/failed zero-Confirm Enhancement and zero-Hold Supply receipts remain
+immutable. Canonical inspection acknowledgments changed no quotas, reservations,
+ordinals or due dates. The consumed November 1 manual extra-run request is not reused.
+The [November 1 report](docs/bluestacks-route-status-20261101.md) retains prior-source
+manual runs and cadence/restart history; they are not relabeled current runs.
 
 These updates do not turn the historical October 31 rows below into fresh runs.
 
