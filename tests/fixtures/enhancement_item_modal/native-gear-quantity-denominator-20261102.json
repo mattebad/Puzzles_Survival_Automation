@@ -1,0 +1,7 @@
+{
+  "source": ".local-captures/automation-service-authorized/soak-20261102T013717398701Z-4fdeebd1/enhancement/enhancement-20261102T013840222717Z-c0c1052f/runtime/enhancement-family-20261102T013905730269Z/frames/0016-select-exact-one-star-material-settled-3.png",
+  "capture_kind": "byte-for-byte retained native failure copy",
+  "transport_sha256": "35e920067d9f3ccef3f29309c1c431d0625b6155d519e6f9cd3451e80ae320b9",
+  "decoded_frame_sha256": "0873392ed8093983a9fbf0c4aaf7430f549ec4f80259eec65dd7986383e4f3ab",
+  "observation": "Exact quantity-one Gear modal, stock Total9557 and denominator /9557. Cubic upscaling plus sparse OCR omitted the denominator; no Confirm/effect occurred. Historical capture grants no live authorization."
+}

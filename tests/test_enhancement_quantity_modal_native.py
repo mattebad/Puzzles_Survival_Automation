@@ -2,6 +2,7 @@
 from contextlib import ExitStack
 from pathlib import Path
 import hashlib
+import json
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -86,6 +87,26 @@ class QuantityModalNativeTests(unittest.TestCase):
             return self.original_ocr(frame, roi)
         with patch.object(native, "_default_ocr", side_effect=mismatched):
             self.assertFalse(self.recognize().recognized)
+
+    def test_retained_live_denominator_slash_reads_stock_and_missing_field_stays_denied(self):
+        path = FRAME.with_name("native-gear-quantity-denominator-20261102.png")
+        provenance = json.loads(path.with_suffix(".json").read_text())
+        self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), provenance["transport_sha256"])
+        frame = cv2.imread(str(path))
+        result = native.recognize_commander_stage(frame, variant="gear", stage="material")
+        self.assertTrue(result.recognized, result)
+        self.assertEqual(result.diagnostics["denominator_text"], "/9557")
+        self.assertEqual(result.diagnostics["material_owned"], 9557)
+        self.assertEqual(result.quantity, 1)
+        self.assertEqual(result.detail_state, "quantity_modal")
+        self.assertIsNotNone(result.quantity_target)
+        self.assertFalse(result.diagnostics["resource_authority"])
+        self.assertIsNone(result.observation)
+        x0, y0, x1, y1 = native.QUANTITY_DENOMINATOR_ROI
+        frame[y0:y1, x0:x1] = 0
+        denied = native.recognize_commander_stage(frame, variant="gear", stage="material")
+        self.assertFalse(denied.recognized)
+        self.assertIsNone(denied.quantity_target)
 
     def test_missing_quantity_or_use_star_and_ambiguous_use_fail_closed(self):
         for box in ((508, 670, 623, 710), (330, 785, 470, 835), (130, 520, 175, 554)):

@@ -166,8 +166,11 @@ def _region_ocr(frame: np.ndarray, roi: NativeBox, *, psm: int) -> list[OcrHit]:
     if crop.size == 0:
         return []
     scale = 3
+    # Preserve the denominator's thin slash; cubic ringing can turn it into
+    # a second digit and leave the complete stock value unreadable.
     data = pytesseract.image_to_data(
-        cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC),
+        cv2.resize(crop, None, fx=scale, fy=scale,
+                   interpolation=cv2.INTER_LINEAR if roi == QUANTITY_DENOMINATOR_ROI else cv2.INTER_CUBIC),
         config=f"--psm {psm}",
         output_type=Output.DICT,
     )
@@ -196,7 +199,7 @@ def _default_ocr(frame: np.ndarray, roi: NativeBox) -> list[OcrHit]:
     # These modal fields have known text structure. Sparse mode can omit the
     # level or merge Basic Stats with the decorative power icon above it.
     psm = 11
-    if roi in (GEAR_DETAIL_LEVEL_ROI, GEAR_DETAIL_FOOTER_ROIS["promote"]):
+    if roi in (GEAR_DETAIL_LEVEL_ROI, GEAR_DETAIL_FOOTER_ROIS["promote"], QUANTITY_DENOMINATOR_ROI):
         psm = 7
     elif roi == GEAR_DETAIL_STATS_ROI:
         psm = 6
