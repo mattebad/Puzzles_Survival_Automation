@@ -1,0 +1,39 @@
+{
+  "source_head": "34a426b2c0efc99f94e011354d96d688479ddbea",
+  "source_kind": "Unmodified native failed-run witnesses; evidence grants no live authority.",
+  "observation": "Selected 1/11527; old binary mask makes word modes read 1411527 and line confidence zero. Chip Confirm was never sent. Baseline EXP90, preview100, quantity one, stock11527.",
+  "frames": [
+    {
+      "role": "modal",
+      "fixture": "native-chip-11527-modal-20261102.png",
+      "source": ".local-captures\\automation-service-authorized\\soak-20261102T181033515983Z-a9703ddd\\enhancement\\enhancement-20261102T181035161508Z-5758bbfa\\runtime\\enhancement-family-20261102T181335920062Z\\frames\\0037-open-enhance-panel-immediate-before.png",
+      "sha256": "7fa014e77da55aeff2cfb8388e79c4b4f8940cbf663515e5beb8b5cd0f4fd226",
+      "captured_monotonic": 1084566.781,
+      "timestamp": "2026-11-02T18:16:57.597641+00:00"
+    },
+    {
+      "role": "baseline",
+      "fixture": "native-chip-11527-baseline-20261102.png",
+      "source": ".local-captures\\automation-service-authorized\\soak-20261102T181033515983Z-a9703ddd\\enhancement\\enhancement-20261102T181035161508Z-5758bbfa\\runtime\\enhancement-family-20261102T181335920062Z\\frames\\0040-select-exact-one-star-material-immediate-before.png",
+      "sha256": "80b5d59d3e263279f2f910f5a781d906c6cf61ce7dcc8d4e236365f8e598e210",
+      "captured_monotonic": 1084575.187,
+      "timestamp": "2026-11-02T18:17:06.004711+00:00"
+    },
+    {
+      "role": "quantity",
+      "fixture": "native-chip-11527-quantity-20261102.png",
+      "source": ".local-captures\\automation-service-authorized\\soak-20261102T181033515983Z-a9703ddd\\enhancement\\enhancement-20261102T181035161508Z-5758bbfa\\runtime\\enhancement-family-20261102T181335920062Z\\frames\\0043-apply-quantity-selection-immediate-before.png",
+      "sha256": "5c683027917c90357752bc1de8899e9361be5ba27921f7b12570c7673a634f77",
+      "captured_monotonic": 1084581.859,
+      "timestamp": "2026-11-02T18:17:12.671090+00:00"
+    },
+    {
+      "role": "selected",
+      "fixture": "native-chip-11527-selected-20261102.png",
+      "source": ".local-captures\\automation-service-authorized\\soak-20261102T181033515983Z-a9703ddd\\enhancement\\enhancement-20261102T181035161508Z-5758bbfa\\runtime\\enhancement-family-20261102T181335920062Z\\frames\\0047-apply-quantity-selection-settled-3.png",
+      "sha256": "ab797c9ca4a57b1b25b443a29fbbbe57ebd02bb5feab9c994d99e4c4262a1565",
+      "captured_monotonic": 1084601.343,
+      "timestamp": "2026-11-02T18:17:32.169750+00:00"
+    }
+  ]
+}

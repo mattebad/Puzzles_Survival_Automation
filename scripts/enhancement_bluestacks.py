@@ -1096,9 +1096,7 @@ def _selected_material_fraction(frame: np.ndarray, label: NativeBox) -> tuple[in
     if not len(xs):
         return None
     neutral = neutral[int(ys.min()):int(ys.max()) + 1, int(xs.min()):int(xs.max()) + 1]
-    # The baseline supplies search bounds, not OCR whitespace. Normalize the
-    # complete current glyphs as for the unselected label; an uneven margin
-    # makes Tesseract's word modes read a visible slash as a digit.
+    # The baseline supplies search bounds, not OCR whitespace.
     padding = max(1, round(neutral.shape[0] * .15))
     neutral = cv2.copyMakeBorder(neutral, padding, padding, padding, padding,
         cv2.BORDER_CONSTANT, value=0)
@@ -1118,6 +1116,7 @@ def _selected_material_fraction(frame: np.ndarray, label: NativeBox) -> tuple[in
         data = _call_ocr(_tesseract_data, glyphs,
             config="--psm 7 -c tessedit_char_whitelist=0123456789/")
         words = []
+        confident = True
         for index, raw in enumerate(data.get("text", ())):
             text = str(raw or "").strip()
             if not text:
@@ -1126,11 +1125,28 @@ def _selected_material_fraction(frame: np.ndarray, label: NativeBox) -> tuple[in
                 confidence = float(data["conf"][index])
             except (KeyError, TypeError, ValueError, IndexError):
                 return None
-            if not math.isfinite(confidence) or confidence < 20:
+            if not math.isfinite(confidence):
                 return None
+            confident = confident and confidence >= 20
             words.append(text)
         if re.sub(r"\s+", "", "".join(words)) != readings[0]:
             return None
+        if not confident:
+            # A binary mask can change dim antialiased strokes. Independently
+            # retain their original luminance and normalize contrast. All three
+            # modes must now agree with the original complete line; a competing
+            # valid fraction above still denies, and no baseline digit is used.
+            gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+            gray = gray[int(ys.min()):int(ys.max()) + 1, int(xs.min()):int(xs.max()) + 1]
+            gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
+            alternate = cv2.copyMakeBorder(255 - gray, padding, padding, padding, padding,
+                cv2.BORDER_CONSTANT, value=255)
+            alternate = cv2.resize(alternate, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
+            alternate = cv2.copyMakeBorder(alternate, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
+            corroboration = [re.sub(r"\s+", "", _call_ocr(pytesseract.image_to_string, alternate,
+                config=f"--psm {mode} -c tessedit_char_whitelist=0123456789/")) for mode in (7, 8, 13)]
+            if any(text != readings[0] for text in corroboration):
+                return None
     selected, owned = map(int, match.groups())
     return (selected, owned) if selected <= owned else None
 
