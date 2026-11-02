@@ -100,6 +100,17 @@ jobs:
           tests.test_service_personal_might
           tests.test_service_personal_might_dispatch
           tests.test_service_cooldown_reset_edge
+      - name: Run route policy and recovery boundary regressions
+        run: >-
+          python -m unittest
+          tests.test_campaign_ap_challenge_policy
+          tests.test_campaign_ap_native_runner
+          tests.test_enhancement_category_resume
+          tests.test_recovered_executor_accounting
+          tests.test_noah_rollover_observation_schedule
+          tests.test_enhancement_ocr_deadline
+          tests.test_enhancement_atomic_progress
+          tests.test_vip_points_popup
       - name: Run portable native recognition regressions without a device
         run: >-
           python -m unittest

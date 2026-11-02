@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, replace
 from collections import Counter
 from datetime import datetime, timezone
+from functools import wraps
 import hashlib
 import json
 import math
@@ -33,6 +34,11 @@ from tasks.enhancement import (
     enhancement_bluestacks_postcondition_verified,
 )
 from scripts.startup_normalization import is_clean_home_frame
+from scripts.bounded_tesseract import (
+    DEADLINE as _OCR_DEADLINE, CHECKPOINT as _OCR_CHECKPOINT,
+    OcrDeadline as _OcrDeadline, check_budget as _check_ocr_budget,
+    call_ocr, tesseract_data as _tesseract_data,
+)
 
 
 FLOW_ID = "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
@@ -111,6 +117,8 @@ ENHANCEMENT_PANEL_LEVEL_ROI: NativeBox = (343, 145, 391, 173)
 GEAR_CONFIRM_ROI: NativeBox = (452, 1160, 725, 1250)
 MAX_SETTLE_POLLS = 3
 SETTLED_SUCCESSOR_DELAY_SECONDS = 1.0
+OCR_CALL_TIMEOUT_SECONDS = 5.0
+RECOGNITION_TIMEOUT_SECONDS = 15.0
 FORBIDDEN_ACTIONS = frozenset({"promote", "modify", "replace", "unequip", "auto select"})
 PREMIUM_MARKERS = frozenset({"gem", "gems", "diamond", "cash", "premium", "gold"})
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -157,10 +165,39 @@ class OcrHit:
 OcrEngine = Callable[[np.ndarray, NativeBox], Sequence[Any]]
 
 
-def _region_ocr(frame: np.ndarray, roi: NativeBox, *, psm: int) -> list[OcrHit]:
-    import pytesseract
-    from pytesseract import Output
+def _bounded_recognition(*, home: bool = False):
+    """Nested witness recognition shares one budget; each new observation gets its own."""
+    def decorate(function):
+        @wraps(function)
+        def recognize(*args, **kwargs):
+            token = (_OCR_DEADLINE.set(time.monotonic() + RECOGNITION_TIMEOUT_SECONDS)
+                     if _OCR_DEADLINE.get() is None else None)
+            try:
+                _check_ocr_budget()
+                result = function(*args, **kwargs)
+                _check_ocr_budget()
+                return result
+            except _OcrDeadline:
+                if token is None:
+                    raise
+                source = args[0] if args else kwargs.get("frame", kwargs.get("current"))
+                frame = source.frame if isinstance(source, CapturedNativeFrame) else source
+                digest = _digest(frame, kwargs.get("source_frame_sha256") or getattr(source, "sha256", None))
+                if home:
+                    return HomeRecognition(False, "UNKNOWN", "OCR_DEADLINE", digest)
+                return StageRecognition(kwargs.get("stage", "material"), False, "OCR_DEADLINE", digest)
+            finally:
+                if token is not None:
+                    _OCR_DEADLINE.reset(token)
+        return recognize
+    return decorate
 
+
+def _call_ocr(reader, image: np.ndarray, **options):
+    return call_ocr(reader, image, call_timeout=OCR_CALL_TIMEOUT_SECONDS, **options)
+
+
+def _region_ocr(frame: np.ndarray, roi: NativeBox, *, psm: int) -> list[OcrHit]:
     x0, y0, x1, y1 = roi
     crop = frame[y0:y1, x0:x1]
     if crop.size == 0:
@@ -174,10 +211,9 @@ def _region_ocr(frame: np.ndarray, roi: NativeBox, *, psm: int) -> list[OcrHit]:
         # Explicit luminance avoids platform-dependent color thresholding in
         # Tesseract: identical color pixels can become a spurious leading "1".
         scaled = cv2.cvtColor(scaled, cv2.COLOR_BGR2GRAY)
-    data = pytesseract.image_to_data(
+    data = _call_ocr(_tesseract_data,
         scaled,
         config=f"--psm {psm}",
-        output_type=Output.DICT,
     )
     hits: list[OcrHit] = []
     for index, raw in enumerate(data.get("text", ())):
@@ -478,6 +514,7 @@ def _home_profile_ocr_hits(hits: Sequence[OcrHit]) -> tuple[list[OcrHit], bool]:
     return [group[0] for group in groups], contradictory
 
 
+@_bounded_recognition(home=True)
 def recognize_home_frame(
     frame: np.ndarray,
     *,
@@ -493,6 +530,8 @@ def recognize_home_frame(
         return HomeRecognition(False, "UNKNOWN", "NON_NATIVE_FRAME", digest)
     try:
         clean_home = is_clean_home_frame(frame)
+    except (_OcrDeadline, _FlowBlocked):
+        raise
     except Exception as exc:
         return HomeRecognition(False, "UNKNOWN", f"HOME_RECOGNITION_ERROR:{type(exc).__name__}", digest)
     if not clean_home:
@@ -899,7 +938,7 @@ def _quantity_count(frame: np.ndarray) -> int | None:
         np.array((10, 80, 90), np.uint8), np.array((45, 255, 255), np.uint8))
     current = cv2.resize(255 - digits, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
     current = cv2.copyMakeBorder(current, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
-    readings = [re.sub(r"\s+", "", pytesseract.image_to_string(current,
+    readings = [re.sub(r"\s+", "", _call_ocr(pytesseract.image_to_string, current,
         config=f"--psm {mode} -c tessedit_char_whitelist=0123456789")) for mode in (7, 10)]
     return int(readings[0]) if readings[0] == readings[1] and re.fullmatch(r"\d+", readings[0]) else None
 
@@ -1026,7 +1065,7 @@ def _material_label(frame: np.ndarray, cell: NativeBox):
         cv2.BORDER_CONSTANT, value=255)
     glyphs = cv2.resize(glyphs, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
     glyphs = cv2.copyMakeBorder(glyphs, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
-    readings = [re.sub(r"\s+", "", pytesseract.image_to_string(glyphs,
+    readings = [re.sub(r"\s+", "", _call_ocr(pytesseract.image_to_string, glyphs,
         config=f"--psm {mode} -c tessedit_char_whitelist=0123456789/")) for mode in (8, 13)]
     if readings[0] != readings[1]:
         return None
@@ -1065,7 +1104,7 @@ def _selected_material_fraction(frame: np.ndarray, label: NativeBox) -> tuple[in
         cv2.BORDER_CONSTANT, value=0)
     glyphs = cv2.resize(255 - neutral, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
     glyphs = cv2.copyMakeBorder(glyphs, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
-    readings = [re.sub(r"\s+", "", pytesseract.image_to_string(glyphs,
+    readings = [re.sub(r"\s+", "", _call_ocr(pytesseract.image_to_string, glyphs,
         config=f"--psm {mode} -c tessedit_char_whitelist=0123456789/")) for mode in (7, 8, 13)]
     match = re.fullmatch(r"(\d+)/(\d+)", readings[0])
     if match is None:
@@ -1076,8 +1115,8 @@ def _selected_material_fraction(frame: np.ndarray, label: NativeBox) -> tuple[in
         # confident complete line before disregarding those non-fractions.
         if any(text != readings[0] and re.fullmatch(r"\d+/\d+", text) for text in readings[1:]):
             return None
-        data = pytesseract.image_to_data(glyphs,
-            config="--psm 7 -c tessedit_char_whitelist=0123456789/", output_type=pytesseract.Output.DICT)
+        data = _call_ocr(_tesseract_data, glyphs,
+            config="--psm 7 -c tessedit_char_whitelist=0123456789/")
         words = []
         for index, raw in enumerate(data.get("text", ())):
             text = str(raw or "").strip()
@@ -1234,6 +1273,7 @@ def _selected_card_checked(frame: np.ndarray, box: NativeBox) -> bool:
         for _x, _y, width, height, area in stats[1:]) == 1
 
 
+@_bounded_recognition()
 def recognize_selection_context(
     current: CapturedNativeFrame, *, modal: CapturedNativeFrame,
     baseline: CapturedNativeFrame, quantity: CapturedNativeFrame,
@@ -1334,6 +1374,7 @@ def recognize_selection_context(
                 "baseline_card": zero.material_target, "quantity_use": choice.quantity_target}})
 
 
+@_bounded_recognition()
 def recognize_commander_stage(
     frame: np.ndarray,
     *,
@@ -2189,7 +2230,7 @@ class EnhancementIntegratedRoute:
             post = self._last_after[1]
             post_capture = current
             settled = None
-            for ordinal in range(MAX_SETTLE_POLLS):
+            for ordinal in range(0 if post.reason == "OCR_DEADLINE" else MAX_SETTLE_POLLS):
                 candidate_capture = self._observe(f"enhancement-settle-{ordinal}")
                 candidate = recognize_commander_stage(
                     candidate_capture.frame, variant=self.variant, stage="post",
@@ -2198,6 +2239,8 @@ class EnhancementIntegratedRoute:
                     ocr_engine=self.ocr_engine, game_day_id=self.reset_identity,
                 )
                 self._record(f"enhancement-settle-{ordinal}", candidate_capture, candidate)
+                if candidate.reason == "OCR_DEADLINE":
+                    break
                 if (
                     candidate.recognized
                     and candidate.observation is not None
@@ -2432,9 +2475,13 @@ class EnhancementIntegratedRoute:
         return result
 
     def run(self) -> dict[str, Any]:
-        if len(self.variants) > 1:
-            return self._run_family()
-        return self._run_single()
+        token = _OCR_CHECKPOINT.set(getattr(self.runtime, "checkpoint", None))
+        try:
+            if len(self.variants) > 1:
+                return self._run_family()
+            return self._run_single()
+        finally:
+            _OCR_CHECKPOINT.reset(token)
 
 
 EnhancementRoute = EnhancementIntegratedRoute

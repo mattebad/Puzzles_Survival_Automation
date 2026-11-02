@@ -7,9 +7,12 @@ and explicitly authorized BlueStacks execution. It reuses the existing
 scheduler-aware results, while `tasks.perception_bundle`, native-frame replay, and existing
 Campaign/Home semantics remain the source contracts.
 
-Current dated route acceptance, source limits and remaining reset coverage are in the
-[October31 status report](bluestacks-route-status-20261031.md). The latest source passed a
-20-minute serial cadence; accepted daily routes are not forced to repeat for coverage.
+Current dated route acceptance and source limits are in the
+[November 2 status report](bluestacks-route-status-20261102.md). The two-hour serial
+cadence is scoped to `3c222af`; the later uninterrupted Enhancement family is scoped
+to `044ecb9`. Accepted daily routes are not forced to repeat for coverage. Subsequent
+Enhancement OCR deadline and atomic progress changes require their own affected-route
+validation; older receipts do not establish acceptance of changed code.
 
 ## Boundaries
 
@@ -40,7 +43,7 @@ Current dated route acceptance, source limits and remaining reset coverage are i
 - Actual OCR requires one `CropRoiRequest` carrying capture identity, ROI, mode, and an
   explicit real-monotonic deadline. The padded raw ROI is capped at 262144 pixels;
   full-frame and out-of-bounds crops are rejected. Crop-only validation needs no OCR deadline.
-- `run_semantic_ocr` owns the sole OCR process boundary. Windows Job Objects and Linux
+- For capture-bound semantic OCR, `run_semantic_ocr` owns the process boundary. Windows Job Objects and Linux
   process groups contain helpers; success and timeout both drain the tree and reap its root.
   A 250ms cleanup reserve is deducted from the execution budget. Timeout is `UNKNOWN/OCR_DEADLINE`.
 - `ScreenDefinition.ocr` is a spawn-picklable `(pixels, psm) -> str` engine;
@@ -48,8 +51,13 @@ Current dated route acceptance, source limits and remaining reset coverage are i
   `ocr_recognizer` is pure interpretation of the completed OCR observation and current capture,
   not another OCR callback. Existing provenance normalization still applies.
 - Existing capture-bound Supply Depot calls never repair identity or fall back after denial.
-  No-identity legacy OCR and other direct native consumers remain held for F17; this
-  shared-seam repair does not authorize native route adoption.
+  Other native readers retain their route-specific boundaries. Enhancement uses the
+  existing Tesseract subprocess timeout: at most five seconds per call within a shared
+  fifteen-second recognition budget, checking the owning runtime checkpoint between
+  calls. A timeout yields unrecognized `OCR_DEADLINE`, never confirmation or a repeated
+  resource dispatch. This does not claim the semantic OCR worker's process-tree containment.
+  Mutable Enhancement family progress is flushed to a sibling temporary file and
+  atomically replaced, preserving the last complete document on an interrupted write.
 - Full-frame animation variance is not a source/target change when authoritative stable ROIs
   still match. Unsupported mutable payload types fail closed rather than losing shape or type.
 - Denied sessions preserve borrowed service leases. Fresh admission leases are released
@@ -68,7 +76,10 @@ Current dated route acceptance, source limits and remaining reset coverage are i
   UTC rollback blocks claims. Reset-scoped routes cannot consume a new reset from an old claim.
   Campaign AP regeneration is not reset-scoped: its active drain retains the claimed identity
   across UTC midnight, with ownership, lease and dispatch fences preserved. That boundary has
-  offline proof; a complete current-code live midnight crossing remains additional coverage.
+  offline proof and actual continuous-client acceptance: three stage entries before
+  November 2 00 UTC and five after, eight wins/112 AP/Home. The November 2 report
+  records the unchanged critical code paths checked against that historical receipt;
+  this is not a whole-head rerun of later Enhancement changes.
 
 ## Canonical `pnsctl` serve facade
 
@@ -93,7 +104,7 @@ the scheduler/facade consumer checks are recorded separately; their counts are n
 The explicitly authorized native composition supports Nova, Recruitment, Campaign, Bioenhancer,
 Supply, Ultimate, Enhancement, and Personal Might runners. The ordinary registered selectors
 remain non-consuming; passing `--flow` alone does not enable them. Current individual effect/Home
-acceptance, composite Enhancement proof, cooldown work and longer cadence limits are maintained
+acceptance, uninterrupted Enhancement proof, independent recruit timers and cadence scope are maintained
 in [`BACKLOG.md`](../BACKLOG.md), with volatile state in the handoff.
 
 Before invoking a due native runner, the owning service checks the foreground. A healthy game is

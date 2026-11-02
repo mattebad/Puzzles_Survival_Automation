@@ -12,7 +12,7 @@ import unicodedata
 import cv2
 import numpy as np
 import pytesseract
-from pytesseract import Output
+from scripts.bounded_tesseract import call_ocr, tesseract_data
 
 from .nova_praise import (
     NOVA_HOME,
@@ -216,7 +216,7 @@ def _text(frame: np.ndarray, box: Box, *, psm: int = 6) -> str:
     cached = _TEXT_CACHE.get(cache_key)
     if cached is not None:
         return cached
-    value = pytesseract.image_to_string(crop, config=f"--psm {psm}")
+    value = call_ocr(pytesseract.image_to_string, crop, config=f"--psm {psm}")
     folded = unicodedata.normalize("NFKD", value.casefold())
     normalized = " ".join(
         "".join(c for c in folded if not unicodedata.combining(c)).split()
@@ -229,7 +229,7 @@ def _text(frame: np.ndarray, box: Box, *, psm: int = 6) -> str:
 
 def _ocr_boxes(frame: np.ndarray) -> list[tuple[str, Box]]:
     enlarged = cv2.resize(frame, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    data = pytesseract.image_to_data(enlarged, config="--psm 11", output_type=Output.DICT)
+    data = call_ocr(tesseract_data, enlarged, config="--psm 11")
     found: list[tuple[str, Box]] = []
     for index, raw in enumerate(data["text"]):
         text = " ".join(str(raw).casefold().split())
@@ -302,7 +302,7 @@ def _red_zero_attempts_glyph(frame: np.ndarray) -> bool | None:
     # read the digit; a ©/O in the full-row OCR is never converted to zero.
     numeric = cv2.resize(255 - glyph, None, fx=6, fy=6, interpolation=cv2.INTER_NEAREST)
     numeric = cv2.copyMakeBorder(numeric, 24, 24, 24, 24, cv2.BORDER_CONSTANT, value=255)
-    readings = [pytesseract.image_to_string(
+    readings = [call_ocr(pytesseract.image_to_string,
         numeric, config=f"--psm {psm}",
     ).strip() for psm in (8, 13)]
     return readings == ["0", "0"]

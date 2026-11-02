@@ -118,7 +118,7 @@ class SelectionContextNativeTests(unittest.TestCase):
         with patch.object(pytesseract, "image_to_string", side_effect=("1/11529", "1/11528", "1/11529")):
             self.assertIsNone(native._selected_material_fraction(selected.frame, label))
         with patch.object(pytesseract, "image_to_string", side_effect=("1/11529", "1411529", "1411529")), \
-                patch.object(pytesseract, "image_to_data", return_value={"text": ["1/11529"], "conf": [19]}):
+                patch.object(native, "_tesseract_data", return_value={"text": ["1/11529"], "conf": [19]}):
             self.assertIsNone(native._selected_material_fraction(selected.frame, label))
 
     def test_panel_alone_and_green_preview_are_never_committed_effect_or_equipment_proof(self):

@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import tempfile
 from typing import Any, Callable, Mapping
 
 import cv2
@@ -52,6 +53,22 @@ _PRE_RUNTIME_IMPORT_FAILURE_RE = re.compile(
     r"    from scripts\.bluestacks_native_runtime import \(\r?\n"
     r"ModuleNotFoundError: No module named 'scripts'\r?\n?$"
 )
+
+
+def _atomic_family_progress(path: Path, categories: Mapping[str, Any]) -> None:
+    """Replace mutable progress only after the complete new document is flushed."""
+    rendered = json.dumps({"schema_version": 1, "flow_id": FLOW_ID, "categories": categories},
+                          indent=2, sort_keys=True, default=str) + "\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(rendered)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
 
 def _pnsctl():
@@ -1155,14 +1172,7 @@ def _claim_no_effect_continuation(
         "hypothesis": "strict_one_star_selection_after_zero_selected_confirm",
     }
     categories[variant] = {**dict(value), "continuation_claim": claimed}
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {"schema_version": 1, "flow_id": FLOW_ID, "categories": categories},
-            indent=2, sort_keys=True, default=str,
-        ) + "\n",
-        encoding="utf-8",
-    )
+    _atomic_family_progress(path, categories)
     return claimed
 
 
@@ -1634,14 +1644,7 @@ def _write_family_progress(flow_root: Path, route: Mapping[str, Any]) -> None:
                 completed[variant] = replacement
     if not completed:
         return
-    flow_root.mkdir(parents=True, exist_ok=True)
-    (flow_root / "family-progress.json").write_text(
-        json.dumps(
-            {"schema_version": 1, "flow_id": FLOW_ID, "categories": completed},
-            indent=2, sort_keys=True, default=str,
-        ) + "\n",
-        encoding="utf-8",
-    )
+    _atomic_family_progress(flow_root / "family-progress.json", completed)
 
 
 def _persist_unresolved_dispatch(
@@ -1688,12 +1691,7 @@ def _persist_unresolved_dispatch(
                 replacement["no_effect_history"] = history
             categories[variant] = replacement
     if categories:
-        flow_root.mkdir(parents=True, exist_ok=True)
-        progress_path.write_text(
-            json.dumps({"schema_version": 1, "flow_id": FLOW_ID, "categories": categories},
-                       indent=2, sort_keys=True, default=str) + "\n",
-            encoding="utf-8",
-        )
+        _atomic_family_progress(progress_path, categories)
 
 
 def _validate_positive_receipt(
@@ -1853,8 +1851,7 @@ def _reconcile_recovery_successor(flow_root: Path, variant: str, route: Mapping[
         "successor_receipt_sha256": hashlib.sha256(encoded).hexdigest()}
     _read_positive_receipt(current[variant], variant, reset, checkpoint=checkpoint)
     _verification_checkpoint(checkpoint)
-    progress_path.write_text(json.dumps({"schema_version": 1, "flow_id": FLOW_ID,
-        "categories": current}, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
+    _atomic_family_progress(progress_path, current)
 
 
 def _reconcile_recovery_no_effect(
@@ -1917,14 +1914,7 @@ def _reconcile_recovery_no_effect(
         "no_effect_receipt": receipt,
         "continuation_claim": None,
     }
-    progress_path.parent.mkdir(parents=True, exist_ok=True)
-    progress_path.write_text(
-        json.dumps(
-            {"schema_version": 1, "flow_id": FLOW_ID, "categories": categories},
-            indent=2, sort_keys=True, default=str,
-        ) + "\n",
-        encoding="utf-8",
-    )
+    _atomic_family_progress(progress_path, categories)
 
 
 def _recover_family_startup(runtime, session):

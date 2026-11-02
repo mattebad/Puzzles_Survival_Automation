@@ -22,6 +22,11 @@ from typing import Dict, Iterable, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.bounded_tesseract import call_ocr, OcrDeadline
+
 
 FRAME_WIDTH = 800
 FRAME_HEIGHT = 1280
@@ -147,10 +152,9 @@ def _recognize_home_control_labels(frame: np.ndarray) -> Tuple[list[str], str]:
             for candidate_roi in rois:
                 crop = cv2.cvtColor(_crop(frame, candidate_roi), cv2.COLOR_BGR2GRAY)
                 enlarged = cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-                text = pytesseract.image_to_string(
+                text = call_ocr(pytesseract.image_to_string,
                     enlarged,
                     config="--psm 7",
-                    timeout=5,
                 ).casefold()
                 raw_text.append(f"{label}:{text}")
                 # Punctuation is presentation noise, but partial words are not matches.
@@ -524,8 +528,10 @@ def classify_home_base_live(
         label_row = cv2.resize(
             frame[1238:1278, :], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC
         )
-        navigation_text = pytesseract.image_to_string(label_row, config="--psm 6", timeout=5).lower()
+        navigation_text = call_ocr(pytesseract.image_to_string, label_row, config="--psm 6").lower()
         scene_hits, scene_text = _recognize_home_control_labels(frame)
+    except OcrDeadline:
+        raise
     except Exception as exc:  # pragma: no cover - environment capability is deliberately fail-closed
         return {
             "state": "UNKNOWN",
