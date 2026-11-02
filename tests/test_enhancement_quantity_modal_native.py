@@ -99,8 +99,13 @@ class QuantityModalNativeTests(unittest.TestCase):
             x0, y0, x1, y1 = native.QUANTITY_DENOMINATOR_ROI
             crop = frame[y0:y1, x0:x1]
             diagnostic = {"tesseract": str(pytesseract.get_tesseract_version()), "opencv": cv2.__version__}
-            for name, interpolation in (("linear", cv2.INTER_LINEAR), ("exact", cv2.INTER_LINEAR_EXACT)):
-                scaled = cv2.resize(crop, None, fx=3, fy=3, interpolation=interpolation)
+            linear = cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR)
+            gray = cv2.cvtColor(linear, cv2.COLOR_BGR2GRAY)
+            variants = (("linear", linear),
+                        ("exact", cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR_EXACT)),
+                        ("gray", gray), ("inverse", 255-gray),
+                        ("binary", cv2.threshold(gray, 160, 255, cv2.THRESH_BINARY_INV)[1]))
+            for name, scaled in variants:
                 data = pytesseract.image_to_data(scaled, config="--psm 7", output_type=pytesseract.Output.DICT)
                 diagnostic[name] = {"sha256": hashlib.sha256(scaled.tobytes()).hexdigest(),
                                     "words": [(word, data["conf"][index]) for index, word in enumerate(data["text"]) if word]}
