@@ -5,17 +5,17 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "3c222af8609d7e7e3fc124bac4db99d5fb5cfa1a",
-  "updated_utc": "2026-11-02T05:00:13.804038+00:00",
+  "updated_utc": "2026-11-02T05:45:56.800049+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
-  "current_task_state": "live_accepted_final_ci_gate",
+  "current_task_state": "evidence_required_final_gray_quantity_validation",
   "active_task_or_flow": "Finish final workflow/docs publication and actual current-head Windows/Linux CI; no further consuming live work.",
   "authorization": "User explicitly resumed with Proceed with the fix. Prior full regenerable-resource route and iterative testing authorization persists. Each live attempt records --live --yes. No consumed manual repeat request, quota/clock/due edits, merge or permanent enablement.",
   "runtime_ownership_state": "No live operator. All bounded controllers, cold launches, recovery, independent audits and focused tests are authoritatively terminal. All nine flow/service controls OFF, no active/orphan/input/effect owner; leases released.",
   "current_live_attempt_state": "Full 7200.333-second current-runtime cadence passed: 29 completed reports/all Home/100 inputs/15 confirmed actions. Independent replay passed. Two subsequent guarded cold starts and shared Home recovery passed consecutively; first native Unity crash retained separately.",
   "current_evidence_or_session_reference": ".local-orchestrator/logs/current-ea02-full-acceptance-independent-audit-20261102T043743891350Z.json",
   "last_safe_completed_step": "Independent replay: 438 unchanged source files, 430 PNGs, 366 capture references, 58 startup observations, every Home/effect/category/Core link and cold lifecycle cleanup.",
-  "current_blocker": "Required live acceptance is proven. Final workflow/docs commit must pass both COMPLETE Windows/Linux jobs at the actual PR head. Native Unity crash cause and historical Play Games causality remain unproved limitations; neither is represented as fixed.",
-  "exact_next_permitted_action": "Finish attributable workflow/docs only, push existing draft PR16, verify actual latest-head jobs and reconcile PR body/immutable final CI receipt. No new route, recruitment, restart, AP spending or enablement. A final supported zero-input Home/control observation may verify cleanup.",
+  "current_blocker": "CI78 Windows passed; Linux rejected the new denominator fixture. CI79/80 diagnostics prove identical pixels/model but color OCR1/9557(conf0), grayscale/9557(conf91). Exact-field grayscale correction passed29 existing local cases; final-head CI and fresh live acceptance of this changed quantity path remain evidence_required. No prior full run is relabeled new-source proof.",
+  "exact_next_permitted_action": "Push the narrowly corrected denominator OCR and truthful docs, verify actual final-head Windows/Linux CI. No fresh same-day manual repeat request is authorized by the consumed November1 request. Fresh changed-path live verification needs a distinct current authorization or ordinary next-reset eligibility; no quota/date rearm. Other completed routes must not be repeated.",
   "unresolved_action_state": "None. Earlier zero-Confirm stops and reservations preserved; subsequent uninterrupted family committed each category once. Canonical inspection changed no due dates, quotas or limits.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
@@ -96,7 +96,7 @@
     }
   },
   "frozen_source_manifest": ".local-orchestrator/logs/current-ea02-all8-final-cadence-frozen-source-20261102.json",
-  "validation": "107 focused Tavern / 47 Supply / 29 native quantity-context cases passed; both new Supply failure frames passed eight fresh-process repetitions (16 cases). CI77 green on ea02fa2 is historical. Actual final-head CI authority: PR16 checks and .local-validation/pr16-final-current-head-ci-20261102.json; absence of that receipt is not a pass.",
+  "validation": "CI78 Windows125104364157 passed, Linux125104364361 failed only new denominator frame. CI79/80 diagnostic failures retained; diagnostic-only redundant early step removed. Explicit-gray correction29 focused quantity/context cases passed. Actual latest-head CI is authoritative.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
     ".local-orchestrator/logs/noah-full-basic-quota-audit-20261030.json",
@@ -142,6 +142,7 @@
     ".local-orchestrator/logs/supply-fresh-full-home-caption-circle-live-audit-20261102T0058Z.json"
   ],
   "additional_coverage_evidence_required": [
+    "Fresh native acceptance of the explicit-gray denominator correction; earlier3c222af family remains exact historical source. Distinct current manual-repeat authorization or ordinary next-reset eligibility required.",
     "Actual final-head expanded Windows/Linux CI; authoritative receipt .local-validation/pr16-final-current-head-ci-20261102.json.",
     "Native Ultimate Defeat/Continue remains offline-proven; live only if naturally encountered in future authorized work, no forced Flee.",
     "Native Unity startup crash cause and historical Play Games causality remain unproved; no automatic launch retry was added."
@@ -281,7 +282,7 @@
     "scope": "7200.333 seconds,29 completed reports/100inputs/15confirmedactions/allHome",
     "audit": ".local-orchestrator/logs/current-ea02-full-acceptance-independent-audit-20261102T043743891350Z.json"
   },
-  "working_tree_source": "Accepted runtime3c222af with fresh continuous family/Personal Might/full-cadence proof. Subsequent workflow/docs-only publication; actual Git/PR head and final CI receipt are authoritative. Four unrelated user files unchanged.",
+  "working_tree_source": "Last consuming live source3c222af. Subsequent candidate adds explicit grayscale ONLY to the denominator crop; quantity/Total/confidence/material/button/resource gates unchanged. New29local cases passed. Full2h/family retained proof remains at3c222af, not automatically current-code live acceptance.",
   "historical_final_cadence_audit": {
     "status": "live_accepted_prior_source_80d24d1",
     "actual_seconds": 7200.372656345367,
@@ -302,6 +303,21 @@
     "status": "terminal_blocked",
     "scope": "1NovaPraise/Home,0input Campaign/Home; Enhancement4nav/0Confirm. No full7200s acceptance.",
     "audit": ".local-orchestrator/logs/fec4-cadence-enhancement-zero-confirm-stop-20261102.json"
+  },
+  "post_acceptance_quantity_correction": {
+    "status": "offline_proven_live_evidence_required",
+    "change": "Explicit BGR-to-gray for denominator crop only; no confidence/gate relaxation.",
+    "local_tests": 29,
+    "linux_diagnostic_gray_text": "/9557",
+    "linux_diagnostic_gray_confidence": 91,
+    "linux_color_text": "1/9557",
+    "linux_color_confidence": 0,
+    "logs": [
+      ".local-validation/pr16-ci78-linux-completed-failure-20261102.log",
+      ".local-validation/pr16-ci79-linux-completed-ocr-diagnostics-20261102.log",
+      ".local-validation/pr16-ci80-linux-completed-input-format-diagnostics-20261102.log",
+      ".local-validation/enhancement-explicit-gray-denominator-focused-20261102.log"
+    ]
   }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->

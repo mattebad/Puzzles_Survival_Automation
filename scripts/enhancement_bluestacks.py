@@ -168,9 +168,14 @@ def _region_ocr(frame: np.ndarray, roi: NativeBox, *, psm: int) -> list[OcrHit]:
     scale = 3
     # Preserve the denominator's thin slash; cubic ringing can turn it into
     # a second digit and leave the complete stock value unreadable.
+    scaled = cv2.resize(crop, None, fx=scale, fy=scale,
+                        interpolation=cv2.INTER_LINEAR if roi == QUANTITY_DENOMINATOR_ROI else cv2.INTER_CUBIC)
+    if roi == QUANTITY_DENOMINATOR_ROI:
+        # Explicit luminance avoids platform-dependent color thresholding in
+        # Tesseract: identical color pixels can become a spurious leading "1".
+        scaled = cv2.cvtColor(scaled, cv2.COLOR_BGR2GRAY)
     data = pytesseract.image_to_data(
-        cv2.resize(crop, None, fx=scale, fy=scale,
-                   interpolation=cv2.INTER_LINEAR if roi == QUANTITY_DENOMINATOR_ROI else cv2.INTER_CUBIC),
+        scaled,
         config=f"--psm {psm}",
         output_type=Output.DICT,
     )

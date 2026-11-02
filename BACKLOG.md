@@ -2,8 +2,15 @@
 
 ## BlueStacks reliability validation
 
+Post-acceptance CI found a Linux-only color-OCR denominator failure. The narrow
+explicit-gray correction passed29 local quantity/context cases; final-head CI and
+fresh changed-path live proof remain `evidence_required`. Earlier full-family and
+cadence receipts retain runtime3c222af scope. CI performance optimization is deferred
+separately to [issue17](https://github.com/mattebad/Puzzles_Survival_Automation/issues/17)
+and is excluded from this goal. No runtime dates, quotas or controls were rearmed.
+
 The [November 2 report](docs/bluestacks-route-status-20261102.md) records accepted
-runtime `3c222af` and retained failures. The current eight-route acceptance scope
+runtime `3c222af` and retained failures. The eight-route acceptance scope at `3c222af`
 is live-proven; this does not close the 74 broader backlog records below.
 `CURRENT_HANDOFF.md` records operator state. PR16 remains draft/unmerged and all
 nine flow/service controls remain OFF, with no active or unresolved owner.
@@ -11,7 +18,7 @@ nine flow/service controls remain OFF, with no active or unresolved owner.
 The final current-runtime two-hour cadence completed 7,200.333 seconds, 29 reports,
 100 inputs and 15 confirmed actions, every terminal Home independently replayed.
 It completed five remaining Nova Praises, four remaining Basic recruits,
-uninterrupted Gear → Chip → Module in one Profile visit (22 inputs/three Confirms),
+uninterrupted Gear â†’ Chip â†’ Module in one Profile visit (22 inputs/three Confirms),
 one Personal Might Praise and two Campaign wins. Campaign's 18 reports comprise
 two wins/28 AP/29 inputs and 16 zero-input low-AP checks, every next due exactly
 whole-completion +300 seconds. Already-completed Supply/Bio/Ultimate stayed due-gated.
@@ -21,7 +28,7 @@ completed in the continuing reset client. Enabled Free Recruit 1x overrode the
 stale zero counter; each result/cooldown/Home committed one actual use. Independent
 Intermediate 24-hour/Advanced 48-hour deadlines were preserved. A timer becoming
 due after the bounded window does not extend that window or imply all tiers exhausted.
-Fresh Supply completed Home → Depot → one Hold, free attempts9→0 → Home, four inputs.
+Fresh Supply completed Home â†’ Depot â†’ one Hold, free attempts9â†’0 â†’ Home, four inputs.
 
 The actual continuous Campaign drain entered three native stages before November 2
 00UTC and five after it: eight wins/112 AP/48 inputs/Home. The final-runtime supplement
@@ -114,10 +121,10 @@ These Markdown records are not a runtime queue or authority.
 Read the [recovery execution guide](docs/backlog/execution-guide.md) before assigning work, then read
 the complete linked ticket and the [proportionate planning contract](docs/backlog-task-contract.md).
 
-- [Foundation tickets REC-F01Ã¢â‚¬â€œREC-F17](docs/backlog/foundation.md)
-- [Daily tickets REC-D01Ã¢â‚¬â€œREC-D12](docs/backlog/daily.md)
-- [Resource and policy tickets REC-R01Ã¢â‚¬â€œREC-R19 and REC-P01Ã¢â‚¬â€œREC-P12](docs/backlog/resources.md)
-- [Operations tickets REC-O01Ã¢â‚¬â€œREC-O14](docs/backlog/operations.md)
+- [Foundation tickets REC-F01ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“REC-F17](docs/backlog/foundation.md)
+- [Daily tickets REC-D01ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“REC-D12](docs/backlog/daily.md)
+- [Resource and policy tickets REC-R01ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“REC-R19 and REC-P01ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“REC-P12](docs/backlog/resources.md)
+- [Operations tickets REC-O01ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“REC-O14](docs/backlog/operations.md)
 
 The linked records distinguish local implementation, code merged, native evidence,
 scheduler acceptance, and explicit enablement. BlueStacks remains the development environment;
