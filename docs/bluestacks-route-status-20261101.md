@@ -1,5 +1,9 @@
 # BlueStacks acceptance, November 1 UTC
 
+Later actual-reset results and the Tavern stale-zero fix are recorded in the
+[November 2 report](bluestacks-route-status-20261102.md). Pending items below
+describe the November 1 state and are retained as dated history.
+
 This supplements the [October 31 report](bluestacks-route-status-20261031.md).
 Implemented code, offline checks and live acceptance are different evidence.
 PR [#16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16) remains

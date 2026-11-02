@@ -49,14 +49,21 @@ identical, and all controls/owners were released. This proves the process restar
 skip guard, without restarting or recapturing the running game. Audit:
 `.local-orchestrator/logs/completed-daily-process-restart-final-audit-20261101T1613Z.json`.
 
-Remaining live acceptance requires the real November 2 00:00 UTC reset: Campaign
-entering affordable stages before and after midnight in the same ongoing drain,
-continuous Tavern Basic refresh with independent 24h/48h timers, fresh Supply
-Home/free-Hold/Home and current-source Personal Might. Final current-head CI and
-source/evidence reconciliation remain required. Preserve AP. At 23:40 UTC prepare
-only; target the drain around 23:53 UTC using actual readiness/balance. No clocks,
-quotas or due dates are altered. The two just-authorized extra runs are complete;
-there is no authorization for another same-day Flee or category repetition.
+The [November 2 report](docs/bluestacks-route-status-20261102.md) records the
+actual consuming reset crossing: eight Campaign entries on both sides of 00 UTC,
+eight wins/112 AP/Home, with whole completion +300 seconds. Fresh Supply then
+passed Home/one Hold 9→0/Home after two retained zero-Hold recognition failures.
+The final caption/circle fix retains the resource and geometric checks.
+
+Continuous-client Tavern refresh now passed after fixing the stale-zero counter
+bug: enabled Free Recruit 1x governs eligibility; one actual recruit/result,
+9:48 cooldown, unchanged tickets and independent 24h/48h deadlines, then Home.
+The 434-file final audit and all 107 focused Tavern checks passed. The earlier
+zero-recruit Home-only report is not acceptance. No quota or due-date edits were
+used. Current-day uninterrupted Enhancement and Personal Might, final cadence/
+source reconciliation and current-head CI remain required. The user-paused
+Enhancement had zero Confirms; navigation recovery preserved its reservations.
+The consumed November 1 extra-run request must not be reused.
 
 [CI72](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41288988634)
 passed both complete Windows and Linux jobs on `80d24d1`; 38 focused startup cases
