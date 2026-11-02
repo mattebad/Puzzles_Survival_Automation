@@ -44,6 +44,13 @@ fails with the old lookup and passes with the repair; the exact94-case boundary
 group passes locally, preserving source/effect/fence negatives. Runtime is unchanged.
 Receipt: `.local-validation/pr16-ci85-final-jobs-20261102.json`. New-head CI is required.
 
+CI86 again passed Linux; Windows then exposed the shared fixture still emitting
+`RUNNER~1` paths while captures resolve to `runneradmin`. Normalize the fixture root
+once at creation, retaining exact path/hash assertions. The real Windows8.3 alias
+failure reproduces locally before this change; all108 replay/boundary cases pass
+with actual short-alias temporary paths afterward. No runtime change or game input.
+Receipt: `.local-validation/pr16-ci86-final-jobs-20261102.json`.
+
 Deferred: repeated historical Enhancement replay/admission optimization; preserve
 native replay, claims and effect fences when designing that change. CI duration and
 ordinary duplicate invocations remain under

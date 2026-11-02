@@ -64,6 +64,14 @@ exact94-case boundary group passes locally with source/effect/fence negatives in
 This is test-only; accepted runtime remains `cfe449c`, with no further game input.
 Completed-job metadata: `.local-validation/pr16-ci85-final-jobs-20261102.json`.
 
+CI86 passed Linux again. Windows exposed a second assumption in the shared fixture:
+it still emitted `RUNNER~1` paths while captured identities resolve to `runneradmin`.
+Fixture creation now resolves its root once; exact path/hash assertions remain.
+The actual Windows8.3 alias failure reproduces locally before this one-line change;
+all108 replay/boundary cases pass under real short-alias temporary paths afterward.
+No production change or additional game input. Metadata and the completed failed
+Windows log are retained in `.local-validation/pr16-ci86-final-jobs-20261102.json`.
+
 ## Earlier portfolio acceptance at recorded sources
 
 The earlier Enhancement family is scoped to `044ecb9`; the two-hour cadence to

@@ -82,7 +82,7 @@ class EnhancementCausalReplayTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.session = Path(self.temporary.name)
+        self.session = Path(self.temporary.name).resolve()
         (self.session / "frames").mkdir()
         self.rows = []
         self.paths = {}
