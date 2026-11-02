@@ -319,8 +319,16 @@ def _claim_button_interior(frame: np.ndarray, claim: Box, label_row: Box) -> Box
         return None
     icon_box = (x0 + ix, y0 + iy, x0 + ix + icon.shape[1], y0 + iy + icon.shape[0])
     icon_center = ((icon_box[0] + icon_box[2]) / 2., (icon_box[1] + icon_box[3]) / 2.)
-    circles = cv2.HoughCircles(cv2.GaussianBlur(pixels, (5, 5), 1.2), cv2.HOUGH_GRADIENT,
+    # Preserve established circle proposals. If contrast suppresses the proposal
+    # entirely, try broader voting but require tighter centering on the measured
+    # icon. Final boundary support and safe interior checks remain unchanged.
+    smoothed = cv2.GaussianBlur(pixels, (5, 5), 1.2)
+    circles = cv2.HoughCircles(smoothed, cv2.HOUGH_GRADIENT,
         dp=1, minDist=45, param1=80, param2=30, minRadius=28, maxRadius=48)
+    fallback_proposal = circles is None
+    if fallback_proposal:
+        circles = cv2.HoughCircles(smoothed, cv2.HOUGH_GRADIENT,
+            dp=1, minDist=45, param1=80, param2=20, minRadius=28, maxRadius=48)
     if circles is None:
         return None
     candidates = []
@@ -332,6 +340,7 @@ def _claim_button_interior(frame: np.ndarray, claim: Box, label_row: Box) -> Box
                 or abs(cx - (claim[0] + claim[2]) / 2.) > radius * .35
                 or not radius * .35 <= claim[1] - cy <= radius * 1.2
                 or math.dist((cx, cy), icon_center) > radius * .3
+                or (fallback_proposal and math.dist((cx, cy), icon_center) > max(icon.shape) * .15)
                 or any(math.dist((cx, cy), point) > radius - 3 for point in (
                     icon_box[:2], icon_box[2:], (icon_box[0], icon_box[3]), (icon_box[2], icon_box[1])))):
             continue
@@ -455,7 +464,30 @@ def bind_supply_depot_claim_supply(
         return None
     claim = _claim_text_roi_from_data(data, search_roi=search_roi)
     label_row = _claim_label_row_from_data(data, search_roi=search_roi)
+    if claim is None and not any(_normalized(str(word)).startswith("clai") for word in data.get("text", ())):
+        # Adjacent HUD artwork can merge the Claim caption in the broad sparse
+        # pass. The unique current Details icon proposes only a tighter OCR band;
+        # complete Claim text and the independent safe button remain mandatory.
+        candidate = _details_radial_candidate_roi(frame)
+        if candidate is not None:
+            x, y, _, _ = candidate
+            caption_roi = (x + 185, y + 70, min(800, x + 280), min(1280, y + 130))
+            try:
+                caption = _crop(frame, caption_roi, source_frame=source_frame, source_png=source_png)
+                caption = cv2.cvtColor(caption, cv2.COLOR_BGR2GRAY) if caption.ndim == 3 else caption
+                caption = cv2.resize(caption, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+                caption_data = pytesseract.image_to_data(
+                    caption, config="--psm 11", output_type=pytesseract.Output.DICT, timeout=5)
+                claim = _claim_text_roi_from_data(caption_data, search_roi=caption_roi)
+                label_row = _claim_label_row_from_data(caption_data, search_roi=caption_roi)
+            except (RuntimeError, OSError, ValueError):
+                return None
     if claim is None or label_row is None:
+        return None
+    # Captions are evidence, not tap targets: do not impose the button's 16x12
+    # clickable minimum on text, but reject a caption wholly behind fixed HUD.
+    if any(x0 <= claim[0] and claim[2] <= x1 and y0 <= claim[1] and claim[3] <= y1
+           for x0, y0, x1, y1 in HUD_MASK_RECTS):
         return None
     # The measured lower row bounds the icon search; its partially covered
     # text is not substituted for a current button observation.

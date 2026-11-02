@@ -88,6 +88,35 @@ class SupplyClaimButtonGeometryTests(unittest.TestCase):
 
 
 class SupplyClaimButtonNativeBindingTests(unittest.TestCase):
+    def test_real_daylight_circle_survives_proposal_variation_with_same_final_gates(self):
+        path = FIXTURES / "native-claim-circle-proposal-20261102.png"
+        captured = captured_native_frame_from_png(path.read_bytes(), path=path, captured_monotonic=time.monotonic())
+        identity = identity_from_captured(captured, session_id="offline-reset-circle", ordinal=1)
+        binding = vision.bind_supply_depot_claim_supply(captured.frame, source_frame=identity, source_png=captured.png)
+        self.assertIsNotNone(binding)
+        self.assertEqual((binding.target_roi[2] - binding.target_roi[0],
+                          binding.target_roi[3] - binding.target_roi[1]), (16, 12))
+        self.assertLessEqual(binding.target_roi[2], 675)
+        with patch.object(vision, "_claim_icon_template", return_value=None):
+            self.assertIsNone(vision.bind_supply_depot_claim_supply(captured.frame))
+
+    def test_actual_reset_hud_caption_binds_only_with_complete_word_and_safe_button(self):
+        path = FIXTURES / "native-claim-hud-ocr-20261102.png"
+        captured = captured_native_frame_from_png(path.read_bytes(), path=path, captured_monotonic=time.monotonic())
+        identity = identity_from_captured(captured, session_id="offline-reset-hud", ordinal=1)
+        binding = vision.bind_supply_depot_claim_supply(captured.frame, source_frame=identity, source_png=captured.png)
+        self.assertIsNotNone(binding)
+        self.assertEqual((binding.target_roi[2] - binding.target_roi[0],
+                          binding.target_roi[3] - binding.target_roi[1]), (16, 12))
+        self.assertFalse(any(binding.target_roi[0] < x1 and binding.target_roi[2] > x0
+                             and binding.target_roi[1] < y1 and binding.target_roi[3] > y0
+                             for x0, y0, x1, y1 in vision.HUD_MASK_RECTS))
+        missing_caption = captured.frame.copy()
+        missing_caption[860:885, 655:718] = (25, 25, 45)
+        self.assertIsNone(vision.bind_supply_depot_claim_supply(missing_caption))
+        with patch.object(vision, "_claim_icon_template", return_value=None):
+            self.assertIsNone(vision.bind_supply_depot_claim_supply(captured.frame))
+
     def test_actual_before_binds_button_but_label_dismissal_and_changed_png_do_not(self):
         before = captured_native_frame_from_png(BEFORE.read_bytes(), path=BEFORE, captured_monotonic=time.monotonic())
         identity = identity_from_captured(before, session_id="offline-claim-button", ordinal=1)

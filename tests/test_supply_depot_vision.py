@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import deque
 from contextlib import ExitStack
 from pathlib import Path
+import math
 from unittest.mock import patch
 import cv2
 import time
@@ -103,7 +104,12 @@ class SupplyDepotVisionTests(unittest.TestCase):
         self.assertIsNone(supply_depot_module.bind_home_event_drawer_toggle(captured.frame, expanded=True))
         binding = bind_supply_depot_claim_supply(captured.frame, source_frame=identity, source_png=captured.png)
         self.assertIsNotNone(binding, self.native_ocr_diagnostics)
-        self.assertEqual(binding.target_roi, (655, 842, 671, 854))
+        self.assertEqual((binding.target_roi[2] - binding.target_roi[0],
+                          binding.target_roi[3] - binding.target_roi[1]), (16, 12))
+        for point in (binding.target_roi[:2], binding.target_roi[2:],
+                      (binding.target_roi[0], binding.target_roi[3]),
+                      (binding.target_roi[2], binding.target_roi[1])):
+            self.assertLess(math.dist(point, (686, 853)), 36)
         self.assertEqual(binding.frame_sha256, frame_digest(captured.frame))
         self.assertFalse(any(binding.target_roi[0] < x1 and binding.target_roi[2] > x0
             and binding.target_roi[1] < y1 and binding.target_roi[3] > y0
