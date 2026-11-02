@@ -4,8 +4,8 @@
 
 The [November 2 report](docs/bluestacks-route-status-20261102.md) records the
 accepted portfolio, exact source scopes and retained failures. Latest Enhancement
-runtime `044ecb9` passed fresh continuous Gear → Chip → Module in one Profile visit:
-23 inputs/three Confirms/Home, each stock−1 and EXP80→90. Independent replay checked
+runtime `044ecb9` passed fresh continuous Gear â†’ Chip â†’ Module in one Profile visit:
+23 inputs/three Confirms/Home, each stockâˆ’1 and EXP80â†’90. Independent replay checked
 443 unchanged source files, 32 unchanged prior family records, 87 screenshots and
 82 native capture links plus the initial source. An extra Gear tab selection was
 needed because Profile reopened on Module. No retained composition was used.
@@ -31,8 +31,8 @@ Five actual Basic free recruits completed in the continuing reset client, each
 result/cooldown/Home verified. Enabled Free Recruit 1x overrode a stale zero counter;
 only actual transitions committed uses. Independent Intermediate24h/Advanced48h
 deadlines were preserved; a timer becoming due later does not imply every tier is
-exhausted or extend the bounded window. Fresh Supply completed Home → Depot → one
-Hold, attempts9→0 → Home, four inputs, on the final unchanged Supply recognition path.
+exhausted or extend the bounded window. Fresh Supply completed Home â†’ Depot â†’ one
+Hold, attempts9â†’0 â†’ Home, four inputs, on the final unchanged Supply recognition path.
 
 The actual continuous Campaign reset drain entered three native stages before
 November2 00UTC and five after: eight wins/112 AP/48 inputs/Home. Its supplement
@@ -53,6 +53,10 @@ CI is authoritative in [PR16 checks](https://github.com/mattebad/Puzzles_Surviva
 and `.local-validation/pr16-final-current-head-ci-20261102.json`. Older green is not
 final-head validation. CI speed optimization is deferred to [issue17](https://github.com/mattebad/Puzzles_Survival_Automation/issues/17)
 and excluded from this goal.
+CI82 Windows caught Supply OCR deadlines before text; parentOMP1 now matches
+live/local validation. Five native fixtures passed eight fresh processes/40cases
+without changing runtime,deadlines or assertions. Exact hosted contention cause
+is unproved; final-head CI remains authoritative.
 
 All nine flow/service controls remain OFF, no active/orphan/input/effect owner and
 leases released. Every daily due/ordinal and all other flow rows were preserved
@@ -122,10 +126,10 @@ These Markdown records are not a runtime queue or authority.
 Read the [recovery execution guide](docs/backlog/execution-guide.md) before assigning work, then read
 the complete linked ticket and the [proportionate planning contract](docs/backlog-task-contract.md).
 
-- [Foundation tickets REC-F01ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œREC-F17](docs/backlog/foundation.md)
-- [Daily tickets REC-D01ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œREC-D12](docs/backlog/daily.md)
-- [Resource and policy tickets REC-R01ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œREC-R19 and REC-P01ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œREC-P12](docs/backlog/resources.md)
-- [Operations tickets REC-O01ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œREC-O14](docs/backlog/operations.md)
+- [Foundation tickets REC-F01ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“REC-F17](docs/backlog/foundation.md)
+- [Daily tickets REC-D01ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“REC-D12](docs/backlog/daily.md)
+- [Resource and policy tickets REC-R01ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“REC-R19 and REC-P01ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“REC-P12](docs/backlog/resources.md)
+- [Operations tickets REC-O01ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“REC-O14](docs/backlog/operations.md)
 
 The linked records distinguish local implementation, code merged, native evidence,
 scheduler acceptance, and explicit enablement. BlueStacks remains the development environment;

@@ -5,7 +5,7 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "044ecb9b12d21d16e93cad27a7b0d5b685b029fd",
-  "updated_utc": "2026-11-02T06:49:47.372751+00:00",
+  "updated_utc": "2026-11-02T07:03:03.312059+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "live_accepted_ci_receipt_authoritative",
   "active_task_or_flow": "Finish actual current-head Windows/Linux CI and PR reconciliation. Live acceptance complete; no more consuming tests or restart.",
@@ -97,7 +97,7 @@
     }
   },
   "frozen_source_manifest": ".local-orchestrator/logs/final-continuous-family-current-source-freeze-20261102.json",
-  "validation": "107Tavern/47Supply/29originalnativequantity-context cases passed; newactualChippositive/negativecasepassed separately, coveringmissinglabel,competingvalidfraction andlowconfidencefallback. RealSupply2frames8fresh-process repetitions16casespassed. CI78Windowsgreen/Linuxdenominatorfailure; CI79/80actualdiagnosticsretained, supersededjobs canceled. Final actual-head expanded CI is external authority, not inferred from oldergreen.",
+  "validation": "107Tavern/47Supply/29originalnativequantity-context cases passed; newactualChippositive/negativecasepassed separately, coveringmissinglabel,competingvalidfraction andlowconfidencefallback. RealSupply2frames8fresh-process repetitions16casespassed. CI78Windowsgreen/Linuxdenominatorfailure; CI79/80actualdiagnosticsretained, supersededjobs canceled. Final actual-head expanded CI is external authority, not inferred from oldergreen. CI82 Windows first Supply fixture hit two OCR_DEADLINEs; completed log retained. CI parentOMP1 aligned with all live/local runs; runtimeworker alreadysets1 afterstartup. All5Supplyfixtures8freshprocesses/40cases passed locally withunchanged2sdeadline/assertions. Actual hostedfailurecause remains unproved; finalactualheadCIrequired.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
     ".local-orchestrator/logs/noah-full-basic-quota-audit-20261030.json",
@@ -231,7 +231,7 @@
     "scope_limit": "Already-completed Supply/Bio/Ultimate stayed future-due. Their earlier new-day proof and unchanged implementation scopes are separate. Midnight has its own immutable receipt and 63-file path equivalence audit."
   },
   "branch_base_commit": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "head_binding_scope": "Accepted Enhancement runtime044ecb9 after denominator grayscale and selected-fraction corrections. Other route/kernel paths retain their unchanged earlier proof scopes. Subsequent documentation-only publication does not change runtime; actual Git/PR head and external final CI receipt are authoritative.",
+  "head_binding_scope": "Accepted Enhancement runtime044ecb9 after denominator grayscale and selected-fraction corrections. Other route/kernel paths retain their unchanged earlier proof scopes. Subsequent workflow/docs-only publication does not change runtime; actual Git/PR head and external final CI receipt are authoritative.",
   "branch_preparation": {
     "branch": "codex/bluestacks-route-reliability",
     "core_offline_checks": {
@@ -243,7 +243,7 @@
       "status": "passed"
     },
     "portable_evidence": "docs/validation/bluestacks-20261031/summary.json",
-    "publication": "Existing draft/open/unmerged PR16; accepted runtime044ecb9 with laterdocs-only publication. Actual Git/PR head is authoritative. Both COMPLETE final-head Windows/Linux jobs must be verified in PRchecks and .local-validation/pr16-final-current-head-ci-20261102.json before goalclosure. Earlier source check counts retain recorded scopes; no permanent enablement.",
+    "publication": "Existing draft/open/unmerged PR16; accepted runtime044ecb9 with laterworkflow/docs-only publication. Actual Git/PR head is authoritative. Both COMPLETE final-head Windows/Linux jobs must be verified in PRchecks and .local-validation/pr16-final-current-head-ci-20261102.json before goalclosure. Earlier source check counts retain recorded scopes; no permanent enablement.",
     "excluded_existing_work": [
       "Stop-PnS-OMP.ps1",
       "evidence/current-evidence-manifest.json",
@@ -274,7 +274,8 @@
     ".local-orchestrator/logs/gray-denominator-live-chip-selection-stop-20261102.json",
     ".local-validation/pr16-ci78-linux-completed-failure-20261102.log",
     ".local-validation/pr16-ci79-linux-completed-ocr-diagnostics-20261102.log",
-    ".local-validation/pr16-ci80-linux-completed-input-format-diagnostics-20261102.log"
+    ".local-validation/pr16-ci80-linux-completed-input-format-diagnostics-20261102.log",
+    ".local-validation/pr16-ci82-windows-ocr-deadline-failure-20261102.json"
   ],
   "current_semantic_inspection": ".local-orchestrator/logs/final-current-source-continuous-family-independent-audit-20261102.json",
   "shared_home_failure": {
@@ -289,7 +290,7 @@
     "scope": "Fresh23inputs/3Confirms/oneProfile/continuousGearChipModule/Home",
     "audit": ".local-orchestrator/logs/final-current-source-continuous-family-independent-audit-20261102.json"
   },
-  "working_tree_source": "Accepted Enhancement runtime044ecb9; subsequent final publication is docs-only. Source/asset/fixture/controller443hashes unchanged during fresh live acceptance. Four unrelated user files/stash preserved.",
+  "working_tree_source": "Accepted Enhancement runtime044ecb9; subsequent final publication is workflow/docs-only. Source/asset/fixture/controller443hashes unchanged during fresh live acceptance. Four unrelated user files/stash preserved.",
   "historical_final_cadence_audit": {
     "status": "live_accepted_prior_source_80d24d1",
     "actual_seconds": 7200.372656345367,
@@ -330,6 +331,16 @@
     "fresh_inputs": 23,
     "fresh_confirms": 3,
     "profile_visits": 1
+  },
+  "ci_environment_alignment": {
+    "status": "local_repeated_checks_passed_final_head_ci_authoritative",
+    "parent_OMP_THREAD_LIMIT": "1",
+    "runtime_code_changed": false,
+    "deadline_changed": false,
+    "assertions_changed": false,
+    "fresh_processes": 8,
+    "native_cases": 40,
+    "receipt": ".local-validation/pr16-ci82-windows-ocr-deadline-failure-20261102.json"
   }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->

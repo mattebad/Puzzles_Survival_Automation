@@ -12,6 +12,9 @@ jobs:
   offline:
     name: Offline checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    env:
+      # Match the live validation process before OCR worker/library startup.
+      OMP_THREAD_LIMIT: "1"
     strategy:
       fail-fast: false
       matrix:
