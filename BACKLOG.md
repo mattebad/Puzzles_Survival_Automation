@@ -2,64 +2,65 @@
 
 ## BlueStacks reliability validation
 
-Post-acceptance CI found a Linux-only color-OCR denominator failure. The narrow
-explicit-gray correction passed29 local quantity/context cases; final-head CI and
-fresh changed-path live proof remain `evidence_required`. Earlier full-family and
-cadence receipts retain runtime3c222af scope. CI performance optimization is deferred
-separately to [issue17](https://github.com/mattebad/Puzzles_Survival_Automation/issues/17)
-and is excluded from this goal. No runtime dates, quotas or controls were rearmed.
+The [November 2 report](docs/bluestacks-route-status-20261102.md) records the
+accepted portfolio, exact source scopes and retained failures. Latest Enhancement
+runtime `044ecb9` passed fresh continuous Gear → Chip → Module in one Profile visit:
+23 inputs/three Confirms/Home, each stock−1 and EXP80→90. Independent replay checked
+443 unchanged source files, 32 unchanged prior family records, 87 screenshots and
+82 native capture links plus the initial source. An extra Gear tab selection was
+needed because Profile reopened on Module. No retained composition was used.
 
-The [November 2 report](docs/bluestacks-route-status-20261102.md) records accepted
-runtime `3c222af` and retained failures. The eight-route acceptance scope at `3c222af`
-is live-proven; this does not close the 74 broader backlog records below.
-`CURRENT_HANDOFF.md` records operator state. PR16 remains draft/unmerged and all
-nine flow/service controls remain OFF, with no active or unresolved owner.
+The earlier recovered request remains separate composite proof: Gear completed
+before a Chip selected-fraction stop, then safe two-input/zero-Confirm Home recovery
+and exact canonical inspection preceded same-request Chip/Module completion.
+Gear was retained, not repeated. The failed run and every original receipt remain.
+The final OCR changes normalize the denominator to grayscale and permit a confident
+complete selected-fraction line only when word modes offer no competing valid
+fraction; original agreement and all quantity/stock/checkmark/causal gates remain.
 
-The final current-runtime two-hour cadence completed 7,200.333 seconds, 29 reports,
-100 inputs and 15 confirmed actions, every terminal Home independently replayed.
-It completed five remaining Nova Praises, four remaining Basic recruits,
-uninterrupted Gear â†’ Chip â†’ Module in one Profile visit (22 inputs/three Confirms),
-one Personal Might Praise and two Campaign wins. Campaign's 18 reports comprise
-two wins/28 AP/29 inputs and 16 zero-input low-AP checks, every next due exactly
-whole-completion +300 seconds. Already-completed Supply/Bio/Ultimate stayed due-gated.
+The `3c222af` two-hour cadence retains its exact source: 7,200.333 seconds, 29 reports,
+100 inputs/15 confirmed actions, every terminal Home independently replayed. It
+completed five remaining Nova Praises, four remaining Basic recruits, the earlier
+22-input family, one Personal Might Praise and two Campaign wins. Campaign's 18
+reports comprise two wins/28 AP/29 inputs and 16 zero-input low-AP checks; every due
+is exactly whole-completion +300 seconds. Already-completed Supply/Bio/Ultimate
+stayed due-gated. Later edits affect only Enhancement OCR, now freshly live-proven;
+no whole-head two-hour rerun is inferred for those later edits.
 
-Together with the first separately audited recruit, five actual Basic free recruits
-completed in the continuing reset client. Enabled Free Recruit 1x overrode the
-stale zero counter; each result/cooldown/Home committed one actual use. Independent
-Intermediate 24-hour/Advanced 48-hour deadlines were preserved. A timer becoming
-due after the bounded window does not extend that window or imply all tiers exhausted.
-Fresh Supply completed Home â†’ Depot â†’ one Hold, free attempts9â†’0 â†’ Home, four inputs.
+Five actual Basic free recruits completed in the continuing reset client, each
+result/cooldown/Home verified. Enabled Free Recruit 1x overrode a stale zero counter;
+only actual transitions committed uses. Independent Intermediate24h/Advanced48h
+deadlines were preserved; a timer becoming due later does not imply every tier is
+exhausted or extend the bounded window. Fresh Supply completed Home → Depot → one
+Hold, attempts9→0 → Home, four inputs, on the final unchanged Supply recognition path.
 
-The actual continuous Campaign drain entered three native stages before November 2
-00UTC and five after it: eight wins/112 AP/48 inputs/Home. The final-runtime supplement
-checks 63 unchanged critical code paths, 239 preserved PNG hashes and actual Core
-policy-authorized immediate-input/Stage/Lineup links. This is separate midnight
-proof, not a relabeled full-head rerun. The later full cadence checks the current runtime.
-
-Independent final replay checked 438 unchanged source files, 430 PNGs, 366 capture
-references, 58 startup observations, actual resource/category effects and cleanup:
-`.local-orchestrator/logs/current-ea02-full-acceptance-independent-audit-20261102T043743891350Z.json`.
-A fresh bot-process guard checked seven future-due routes with zero attempts/native
-starts/inputs/effects and unchanged due/ordinal/completion/Campaign rows. Two current
-guarded cold starts and shared Scarlett Back/Home recoveries then passed consecutively,
-all nine flow rows unchanged. The first cold launch failed with a genuine native
-Unity SIGSEGV; its underlying cause remains unproved and no automatic retry policy
-was added. Historical Play Games causality remains unproved; account states remain manual-only.
+The actual continuous Campaign reset drain entered three native stages before
+November2 00UTC and five after: eight wins/112 AP/48 inputs/Home. Its supplement
+checks63 unchanged critical code paths,239 preserved PNG hashes and actual Core
+policy-authorized immediate-input/Stage/Lineup links. Fresh process/restart tests
+proved zero-work daily guards and two consecutive guarded cold/sharedScarlett/Home
+passes with unchanged flow/due rows. The first cold launch had a genuine native
+Unity SIGSEGV; its cause remains unproved, no automatic retry policy was added.
+Historical Play Games causality is unproved; account states remain manual-only.
 Ultimate Defeat/Continue was not naturally encountered and remains offline-proven.
 
-107 Tavern, 47 Supply and 29 native quantity/context cases passed locally; both new
-Supply failure frames passed eight fresh-process repetitions (16 cases). The final
-workflow includes these real frames in repeated binding, Supply negative gates and
-Gear/Chip/Module quantity modules on both Windows/Linux. Actual final-head CI is
-an external acceptance gate: [PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks)
-and `.local-validation/pr16-final-current-head-ci-20261102.json`. Older CI77 green
-on `ea02fa2` cannot validate later workflow/docs publication.
+107 Tavern,47 Supply and29 original native quantity/context cases passed locally;
+the new actual Chip positive/negative case passed separately. The two new Supply
+failure frames passed eight fresh-process repetitions (16 cases). CI78 passed
+Windows but caught the actual Linux denominator failure; diagnostic CI79/80 failures
+are retained. Temporary diagnostics were removed. Actual final-head Windows/Linux
+CI is authoritative in [PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks)
+and `.local-validation/pr16-final-current-head-ci-20261102.json`. Older green is not
+final-head validation. CI speed optimization is deferred to [issue17](https://github.com/mattebad/Puzzles_Survival_Automation/issues/17)
+and excluded from this goal.
 
-Earlier paused/failed zero-Confirm Enhancement and zero-Hold Supply receipts remain
-immutable. Canonical inspection acknowledgments changed no quotas, reservations,
-ordinals or due dates. The consumed November 1 manual extra-run request is not reused.
-The [November 1 report](docs/bluestacks-route-status-20261101.md) retains prior-source
-manual runs and cadence/restart history; they are not relabeled current runs.
+All nine flow/service controls remain OFF, no active/orphan/input/effect owner and
+leases released. Every daily due/ordinal and all other flow rows were preserved
+through the manual goal iterations. The consumed November1 extra request was not
+reused; current standing iterative-testing authorization was explicitly recorded
+by the canonical controller. PR16 remains draft/unmerged; no permanent scheduling.
+This portfolio does not close the74 broader records below. `CURRENT_HANDOFF.md`
+records volatile operator state; historical receipts never grant live authority.
 
 These updates do not turn the historical October 31 rows below into fresh runs.
 
@@ -98,10 +99,10 @@ that prompt appeared. A second cold restart reached Home without a new manual Ca
 service startup preserves a foreground game. Login, Play Games setup, CAPTCHA
 and unknown manual-only states stop for the user.
 
-The actual reset crossing was the pre-native Bio admission boundary,20.758ms before
+On October31, the observed crossing was only the pre-native Bio admission boundary,20.758ms before
 00UTC. The runner was not entered, no effect was attempted, and a new due reset was
-projected. A continuously consuming native route across midnight remains unproved;
-synthetic consuming-boundary tests do not replace that live evidence.
+projected. At that time a consuming native crossing remained unproved. The actual November2
+Campaign crossing above supplies that later live evidence; synthetic tests do not.
 
 ## Reconciled recovery records and remaining work
 
@@ -121,10 +122,10 @@ These Markdown records are not a runtime queue or authority.
 Read the [recovery execution guide](docs/backlog/execution-guide.md) before assigning work, then read
 the complete linked ticket and the [proportionate planning contract](docs/backlog-task-contract.md).
 
-- [Foundation tickets REC-F01ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“REC-F17](docs/backlog/foundation.md)
-- [Daily tickets REC-D01ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“REC-D12](docs/backlog/daily.md)
-- [Resource and policy tickets REC-R01ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“REC-R19 and REC-P01ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“REC-P12](docs/backlog/resources.md)
-- [Operations tickets REC-O01ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“REC-O14](docs/backlog/operations.md)
+- [Foundation tickets REC-F01ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œREC-F17](docs/backlog/foundation.md)
+- [Daily tickets REC-D01ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œREC-D12](docs/backlog/daily.md)
+- [Resource and policy tickets REC-R01ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œREC-R19 and REC-P01ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œREC-P12](docs/backlog/resources.md)
+- [Operations tickets REC-O01ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œREC-O14](docs/backlog/operations.md)
 
 The linked records distinguish local implementation, code merged, native evidence,
 scheduler acceptance, and explicit enablement. BlueStacks remains the development environment;

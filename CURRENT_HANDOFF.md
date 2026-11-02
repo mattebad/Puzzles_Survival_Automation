@@ -4,19 +4,19 @@
 {
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
-  "head_binding": "3c222af8609d7e7e3fc124bac4db99d5fb5cfa1a",
-  "updated_utc": "2026-11-02T06:11:20.342617+00:00",
+  "head_binding": "044ecb9b12d21d16e93cad27a7b0d5b685b029fd",
+  "updated_utc": "2026-11-02T06:49:47.372751+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
-  "current_task_state": "evidence_required_chip_selected_fraction_repair",
-  "active_task_or_flow": "Finish final workflow/docs publication and actual current-head Windows/Linux CI; no further consuming live work.",
+  "current_task_state": "live_accepted_ci_receipt_authoritative",
+  "active_task_or_flow": "Finish actual current-head Windows/Linux CI and PR reconciliation. Live acceptance complete; no more consuming tests or restart.",
   "authorization": "User explicitly resumed with Proceed with the fix. Prior full regenerable-resource route and iterative testing authorization persists. Each live attempt records --live --yes. No consumed manual repeat request, quota/clock/due edits, merge or permanent enablement.",
-  "runtime_ownership_state": "58319 AUTHORITATIVELY TERMINAL exit1,12inputs/1GearConfirm. All9/serviceOFF; Enhancement blocked. No active live/test/CI/agent. Gear strict independent progress replay passed; canonical unresolvedclear/actionblockfalse/no active effect projection.",
-  "current_live_attempt_state": "Fresh grayscale run reached and completed Gear(stock9556to9555/EXP70to80), then stopped at Chip selected1/11529 fraction OCR; no ChipConfirm/Module/Home. Not fresh continuous-family acceptance.",
-  "current_evidence_or_session_reference": ".local-orchestrator/logs/gray-denominator-live-chip-selection-stop-20261102.json",
-  "last_safe_completed_step": "Independent replay: 438 unchanged source files, 430 PNGs, 366 capture references, 58 startup observations, every Home/effect/category/Core link and cold lifecycle cleanup.",
-  "current_blocker": "Selected Chip label: PSM7 reads1/11529conf73, word8/13read1411529conf0. Narrow fallback retains original3modeagreement and rejects any competing valid fraction; otherwise requires full lineconfidence>=20/exactquantity+stock/checkmark/causal witnesses. Existing29native cases passed; actual Chip positive/missinglabel/competingfraction/lowconfidence test passed separately. Needs recovery, remaining current request, fresh continuousfamily and finalheadCI.",
-  "exact_next_permitted_action": "Existing measured Home-only recovery withcurrent explicit standing-goal attribution,0Confirms,max3navigation,protectALL daily/manualprogress/reservations. Then exact canonicalinspection acknowledgment onlyafterHome/noeffects/strictGearreplay; resume SAME current manual request withGearretained, onlyChip/Module. Preservefailedreceipt/schedules. Newcontinuouswhole-familyproof must use distinct goal-iteration manualclaim under standing regenerable-route testing authorization, neverconsumedNov1request. No otherresource route or permanentenablement.",
-  "unresolved_action_state": "No canonical unresolvedactions/effectblock. Native aggregatefamily says unresolved becauseChip nonconsuming quantityUse successor failed; Gear strictproof iscomplete. No identical consuming retry; Gearmustnotrepeat withinthisrequest.",
+  "runtime_ownership_state": "No live operator/test/agent. 99794 fresh family TERMINAL0; independent audit95308 TERMINAL0. All9/serviceOFF, no active/orphan/input/effect owner, leases released.",
+  "current_live_attempt_state": "Fresh044ecb9 continuous Gear-Chip-Module:23inputs/3Confirms/ONEProfile/Home. Every stock-1 and EXP80to90; no retained composition. Independent strict family/capture/effect/Home replay passed.",
+  "current_evidence_or_session_reference": ".local-orchestrator/logs/final-current-source-continuous-family-independent-audit-20261102.json",
+  "last_safe_completed_step": "Independent current-source family replay:443unchangedsourcefiles/32priorfamilyfiles/87PNGs/82nativecapturelinks plusinitialsource; exacteffects/oneProfile/Home/disabledcleanup.",
+  "current_blocker": "No remaining live acceptance blocker. Publication readiness requires both COMPLETE successful Windows/Linux jobs at the actual final PR head, recorded externally in .local-validation/pr16-final-current-head-ci-20261102.json. Native Unity crash cause and historical PlayGames causality remain unproved limitations, not represented as fixed.",
+  "exact_next_permitted_action": "Publish attributable final documentation/current code to existing draftPR16; read actual current-head run/jobs and immutable final CI receipt. If missing/failing, inspect actual completed-job logs and repair only real failures; if both COMPLETEgreen, reconcilePRbody and closegoal/disablefollowup. No further consuming routes/restart/enablement. Final supported zero-input Home/control check only after CI/tests idle.",
+  "unresolved_action_state": "None. Strict Gear replay and canonical inspection preceded safeHome and same-request Chip/Module continuation; that composite was independently audited. A distinct current goal-iteration request then passed fresh continuous23/3/oneProfile/Home. Original failures/progress retained, no identical consequential retry or quota/date reset.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
     "permanent_production_scheduler_enabled": false,
@@ -28,7 +28,7 @@
   },
   "journals_and_lease": {
     "historical_journals": "retained immutable",
-    "active_action_state": "No unresolved action. All actual effects independently reconciled; no active/orphan/input/effect owner.",
+    "active_action_state": "No unresolved resource/action state. Fresh3category effects independently verified; all canonical/Core/service/input leases released.",
     "development_lease_status": "No live owner; all9/service OFF, no active/orphan/input/effect owner, released Core/service leases."
   },
   "route_state": {
@@ -84,9 +84,10 @@
     },
     "enhancement": {
       "reset_id": "game-day-2026-11-02",
-      "accepted": "Current-runtime fresh uninterrupted Gear to Chip to Module, one Profile visit/Home, 22 inputs/3 Confirms. Each one-star stock decreased one and EXP60 to70. Independent full-chain family verification passed.",
-      "limit": "Every current-reset category confirmed once. No repeat/rearm; earlier zero-Confirm receipts and original reservations retained.",
-      "next_due_utc": 1793664000.0
+      "accepted": "Fresh044ecb9 continuous Gear-Chip-Module ONEProfile/Home,23inputs/3Confirms; allEXP80to90. Gear9555to9554,Chip11528to11527,Module8292to8291. ExtraGearcategoryselection becauseProfilewaslastonModule. No retained composition.",
+      "limit": "One current goal-iteration request completed all3once, separately fromordinarydailyandpriorcomposite. No further consuming run needed; ordinarynextresetdue preserved.",
+      "next_due_utc": 1793664000.0,
+      "audit": ".local-orchestrator/logs/final-current-source-continuous-family-independent-audit-20261102.json"
     },
     "personal_might": {
       "reset_id": "game-day-2026-11-02",
@@ -95,8 +96,8 @@
       "limit": "One current-reset Praise confirmed; no repeat."
     }
   },
-  "frozen_source_manifest": ".local-orchestrator/logs/current-ea02-all8-final-cadence-frozen-source-20261102.json",
-  "validation": "Original29native quantity/context cases passed withselectedfallback; newactualChippositive/negativecase passed after correctingtest-onlyvariant=chip andactualuntouched3-starcardexpectation. Earlier failed line-onlycandidate/newtestmistakes retainedinlogs. No assertionsweakened.",
+  "frozen_source_manifest": ".local-orchestrator/logs/final-continuous-family-current-source-freeze-20261102.json",
+  "validation": "107Tavern/47Supply/29originalnativequantity-context cases passed; newactualChippositive/negativecasepassed separately, coveringmissinglabel,competingvalidfraction andlowconfidencefallback. RealSupply2frames8fresh-process repetitions16casespassed. CI78Windowsgreen/Linuxdenominatorfailure; CI79/80actualdiagnosticsretained, supersededjobs canceled. Final actual-head expanded CI is external authority, not inferred from oldergreen.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
     ".local-orchestrator/logs/noah-full-basic-quota-audit-20261030.json",
@@ -139,13 +140,14 @@
     ".local-orchestrator/logs/current-ea02-full-acceptance-independent-audit-20261102T043743891350Z.json",
     ".local-orchestrator/logs/ea02-completed-daily-fresh-process-final-audit-20261102.json",
     ".local-orchestrator/logs/final-runtime-reset-path-equivalence-and-native-utc-stage-audit-20261102.json",
-    ".local-orchestrator/logs/supply-fresh-full-home-caption-circle-live-audit-20261102T0058Z.json"
+    ".local-orchestrator/logs/supply-fresh-full-home-caption-circle-live-audit-20261102T0058Z.json",
+    ".local-orchestrator/logs/chip-selection-same-request-composite-independent-audit-20261102.json",
+    ".local-orchestrator/logs/final-current-source-continuous-family-independent-audit-20261102.json"
   ],
   "additional_coverage_evidence_required": [
-    "Fresh native acceptance of the explicit-gray denominator correction; earlier3c222af family remains exact historical source. Distinct current manual-repeat authorization or ordinary next-reset eligibility required.",
-    "Actual final-head expanded Windows/Linux CI; authoritative receipt .local-validation/pr16-final-current-head-ci-20261102.json.",
-    "Native Ultimate Defeat/Continue remains offline-proven; live only if naturally encountered in future authorized work, no forced Flee.",
-    "Native Unity startup crash cause and historical Play Games causality remain unproved; no automatic launch retry was added."
+    "Actual final-head expanded Windows/Linux CI, resolved only by matching immutable .local-validation/pr16-final-current-head-ci-20261102.json and actual PR checks.",
+    "Ultimate Defeat/Continue remains offline-proven; conditional future live observation only, no forcedFlee. Not an unfulfilled mandatory consuming test.",
+    "NativeUnitySIGSEGV and historicalPlayGames causality remain unproved limitations; no automaticlaunchretryclaim."
   ],
   "goal_finish_scope": "Finish all current-source acceptance and pre-merge CI honestly, retain failures, leave draftPR16 unmerged and permanent runtime controlsOFF.",
   "preserved_user_work": "The session snapshot is committed on codex/bluestacks-route-reliability. Unrelated Stop-PnS-OMP.ps1, evidence/current-evidence-manifest.json and two loose root plans remain uncommitted and unchanged. Retained stash/evidence/temp files remain local; do not reset/stash/clean them.",
@@ -196,20 +198,21 @@
   "followup_work": {
     "governance_cleanup": "Retired stagedvalidator/test and unusedsinglebattle gate archivedtext/callersremoved. Historical rootproposal movedbyteexacttoarchive; currentarchitecture links pointserviceguide. No runtimeauthorityremoved.",
     "backlog_reconciliation": "74 records retained;31 local overlaps reclassified with dated scope/remaining work; no merged/deployed closure inferred",
-    "focused_verification": "107 focused Tavern / 47 Supply / 29 native quantity-context cases passed; both new Supply failure frames passed eight fresh-process repetitions (16 cases). CI77 green on ea02fa2 is historical. Actual final-head CI authority: PR16 checks and .local-validation/pr16-final-current-head-ci-20261102.json; absence of that receipt is not a pass.",
+    "focused_verification": "107Tavern/47Supply/29originalnativequantity-context cases passed; newactualChippositive/negativecasepassed separately, coveringmissinglabel,competingvalidfraction andlowconfidencefallback. RealSupply2frames8fresh-process repetitions16casespassed. CI78Windowsgreen/Linuxdenominatorfailure; CI79/80actualdiagnosticsretained, supersededjobs canceled. Final actual-head expanded CI is external authority, not inferred from oldergreen.",
     "cold_restart": "Current runtime: two consecutive guarded stop/exit/one-launch tests and one shared Scarlett Back/Home each; all9 flow rows unchanged. First native Unity SIGSEGV retained; cause unproved.",
     "native_reset_crossing": "Actual 3 before/5 after 00UTC native stage entries, 8 wins/112AP. Supplement verifies 63 critical paths unchanged and 239 PNGs; preparation source may differ from policy-authorized immediate input source, which matches native dispatch.",
-    "uninterrupted_enhancement": "Current-runtime fresh uninterrupted Gear to Chip to Module, one Profile visit/Home, 22 inputs/3 Confirms. Each one-star stock decreased one and EXP60 to70. Independent full-chain family verification passed.",
+    "uninterrupted_enhancement": "Fresh044ecb9 continuous Gear-Chip-Module ONEProfile/Home,23inputs/3Confirms; allEXP80to90. Gear9555to9554,Chip11528to11527,Module8292to8291. ExtraGearcategoryselection becauseProfilewaslastonModule. No retained composition.",
     "launcher_intent": "Current guarded cold launch and shared Scarlett recovery accepted twice consecutively. First native Unity crash retained; historical Play Games cause unproved. Account states remain manual-only.",
     "campaign_repair": "LIVE_ACCEPTED: current-ap-agreement-full-drain-live-audit-20261031.json;3wins/42AP/24inputs/Home, source185 unchanged, exact+300. Earlier interrupted passes preserved separately.",
     "nova_startup": "Seven actual new-day Praises completed: two earlier plus five in final cohort, 5 to 0, each Home.",
     "noah_reset_review": "Five actual Basic free recruits in the continuing reset client, each source/result/cooldown/Home independently replayed. First raw counter zero with enabled Free Recruit 1x, actual count advanced 1 then 2/3/4/5.",
     "bio_navigation": "Extra calibratedcamera waypoint offline27checks; latestliveentry neededonly1normalpan. CompleteFreeResearch1xlabel andknownreadyPanelHomeprelude liveaccepted1Research/5inputs/Home.",
     "personal_might_repair": "Current-runtime six inputs/one confirmed Praise/Home. Independent gold-to-used transition, second-Praise unbindability, Core journal and terminal Home replay passed.",
-    "current_source_cadence": "Current runtime 7200.333s/29 reports/100 inputs/15 confirmed actions, every Home independently replayed; audit .local-orchestrator/logs/current-ea02-full-acceptance-independent-audit-20261102T043743891350Z.json",
+    "current_source_cadence": "3c222af full7200.333/29report/100input/15action audit retains its source. Only later Enhancement OCR changed; fresh044ecb9 family proved thechangedpath. Scheduler/Campaign/recovery/otherroutepaths unchanged; no entire2h rerun claimed.",
     "ultimate_repair": "LIVE_ACCEPTED a52db42 runtime source:fullHome-entry/oneFlee/Home8inputs, no relaunch/human recovery. OriginalOneFlee/Defeat/human-assisted composite retained; DefeatContinue was not encountered and remains offline-proven.",
     "startup_loading": "Current bounded readiness correctly reported first native crash as failure and recognized Scarlett on subsequent cold launches. No automatic repeated-launch policy added.",
-    "completed_daily_process_restart": "Current-runtime fresh process guard: 7 future-due routes, zero attempts/native starts/inputs/effects; all due/ordinal/completions and Campaign row identical. .local-orchestrator/logs/ea02-completed-daily-fresh-process-final-audit-20261102.json"
+    "completed_daily_process_restart": "Current-runtime fresh process guard: 7 future-due routes, zero attempts/native starts/inputs/effects; all due/ordinal/completions and Campaign row identical. .local-orchestrator/logs/ea02-completed-daily-fresh-process-final-audit-20261102.json",
+    "ci_performance": "Deferred GitHubissue17, explicitly outsidecurrentgoal; no optimizationimplemented."
   },
   "last_bounded_cadence": {
     "status": "live_accepted_runtime_3c222af",
@@ -228,7 +231,7 @@
     "scope_limit": "Already-completed Supply/Bio/Ultimate stayed future-due. Their earlier new-day proof and unchanged implementation scopes are separate. Midnight has its own immutable receipt and 63-file path equivalence audit."
   },
   "branch_base_commit": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "head_binding_scope": "Accepted executable source3c222af; later workflow/docs-only publication does not change live-tested runtime. Midnight and earlier route paths retain explicit equivalence scopes.",
+  "head_binding_scope": "Accepted Enhancement runtime044ecb9 after denominator grayscale and selected-fraction corrections. Other route/kernel paths retain their unchanged earlier proof scopes. Subsequent documentation-only publication does not change runtime; actual Git/PR head and external final CI receipt are authoritative.",
   "branch_preparation": {
     "branch": "codex/bluestacks-route-reliability",
     "core_offline_checks": {
@@ -240,7 +243,7 @@
       "status": "passed"
     },
     "portable_evidence": "docs/validation/bluestacks-20261031/summary.json",
-    "publication": "Existing draft/open/unmerged PR16. Actual Git/PR head is authoritative; final expanded Windows/Linux CI is external gate at PR checks and .local-validation/pr16-final-current-head-ci-20261102.json. Earlier clean-checkout counts below retain their recorded source. No merge or permanent enablement.",
+    "publication": "Existing draft/open/unmerged PR16; accepted runtime044ecb9 with laterdocs-only publication. Actual Git/PR head is authoritative. Both COMPLETE final-head Windows/Linux jobs must be verified in PRchecks and .local-validation/pr16-final-current-head-ci-20261102.json before goalclosure. Earlier source check counts retain recorded scopes; no permanent enablement.",
     "excluded_existing_work": [
       "Stop-PnS-OMP.ps1",
       "evidence/current-evidence-manifest.json",
@@ -267,9 +270,13 @@
     ".local-orchestrator/logs/current80-cold-precondition-scarlett-zero-input-audit-20261101T091005415825Z.json",
     ".local-orchestrator/logs/enhancement-user-pause-zero-confirm-inspection-20261102.json",
     ".local-orchestrator/logs/fec4-cadence-enhancement-zero-confirm-stop-20261102.json",
-    ".local-captures/development-sessions/launch-game-20261102T035300225603Z/result.json"
+    ".local-captures/development-sessions/launch-game-20261102T035300225603Z/result.json",
+    ".local-orchestrator/logs/gray-denominator-live-chip-selection-stop-20261102.json",
+    ".local-validation/pr16-ci78-linux-completed-failure-20261102.log",
+    ".local-validation/pr16-ci79-linux-completed-ocr-diagnostics-20261102.log",
+    ".local-validation/pr16-ci80-linux-completed-input-format-diagnostics-20261102.log"
   ],
-  "current_semantic_inspection": ".local-orchestrator/logs/current-ea02-full-acceptance-independent-audit-20261102T043743891350Z.json",
+  "current_semantic_inspection": ".local-orchestrator/logs/final-current-source-continuous-family-independent-audit-20261102.json",
   "shared_home_failure": {
     "status": "implemented_offline_proven_and_live_Home_accepted",
     "cause": "Historical compact-only sidebar crops missed genuine spaced HUD labels. Second measured layout retained exact labels/two within one layout and independent gates; full cadence and restart now verify actual Home.",
@@ -277,12 +284,12 @@
     "tests_preserved": true
   },
   "latest_bounded_route": {
-    "controller": ".local-captures/automation-service-authorized/soak-20261102T055059267916Z-98680e06/controller-result.json",
-    "status": "terminal_blocked",
-    "scope": "12inputs/oneGearConfirm,Chipselectedfractionrecognitionfailure,noChipConfirm/Module/Home",
-    "audit": ".local-orchestrator/logs/gray-denominator-live-chip-selection-stop-20261102.json"
+    "controller": ".local-captures\\automation-service-authorized\\soak-20261102T063028737146Z-bfe6bec2\\controller-result.json",
+    "status": "terminal_completed_operator_request",
+    "scope": "Fresh23inputs/3Confirms/oneProfile/continuousGearChipModule/Home",
+    "audit": ".local-orchestrator/logs/final-current-source-continuous-family-independent-audit-20261102.json"
   },
-  "working_tree_source": "a844f2c gray denominator plus pending selected-fraction fallback and real four-frame Chipfixture. Originaltwo-hour liveproof remains3c222af; latestfreshfamily failed atChip. Tests/current source scopes explicit.",
+  "working_tree_source": "Accepted Enhancement runtime044ecb9; subsequent final publication is docs-only. Source/asset/fixture/controller443hashes unchanged during fresh live acceptance. Four unrelated user files/stash preserved.",
   "historical_final_cadence_audit": {
     "status": "live_accepted_prior_source_80d24d1",
     "actual_seconds": 7200.372656345367,
@@ -305,7 +312,7 @@
     "audit": ".local-orchestrator/logs/fec4-cadence-enhancement-zero-confirm-stop-20261102.json"
   },
   "post_acceptance_quantity_correction": {
-    "status": "offline_proven_live_evidence_required",
+    "status": "live_accepted_044ecb9",
     "change": "Explicit BGR-to-gray for denominator crop only; no confidence/gate relaxation.",
     "local_tests": 29,
     "linux_diagnostic_gray_text": "/9557",
@@ -317,7 +324,12 @@
       ".local-validation/pr16-ci79-linux-completed-ocr-diagnostics-20261102.log",
       ".local-validation/pr16-ci80-linux-completed-input-format-diagnostics-20261102.log",
       ".local-validation/enhancement-explicit-gray-denominator-focused-20261102.log"
-    ]
+    ],
+    "audit": ".local-orchestrator/logs/final-current-source-continuous-family-independent-audit-20261102.json",
+    "selected_fraction": "Original3modeagreementretained; fallbackrequiresfullconfidentline>=20/no competingvalidfraction plusunchangedstock/quantity/checkmark/causalwitnessgates.",
+    "fresh_inputs": 23,
+    "fresh_confirms": 3,
+    "profile_visits": 1
   }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
