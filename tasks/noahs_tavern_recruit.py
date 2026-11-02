@@ -177,8 +177,8 @@ def noah_recruit_authorizeable(
         return False
     return bool(
         selected.recognized
-        and selected.attempts_remaining is not None
-        and 0 < selected.attempts_remaining <= selected.daily_attempt_maximum
+        and (selected.attempts_remaining is None
+             or 0 <= selected.attempts_remaining <= selected.daily_attempt_maximum)
         and selected.free_control_visible
         and selected.free_control_enabled
         and selected.target_identity == NOAHS_TAVERN_FREE_TARGET
@@ -230,7 +230,10 @@ def noah_consumed_attempts_remaining(
     if not noah_recruit_authorizeable(before, tier):
         return None
     remaining = before.tier(tier).attempts_remaining
-    return remaining - 1 if remaining is not None else None
+    # The native Basic counter can remain zero after reset while the enabled
+    # Free Recruit control offers a single. It cannot describe the remaining
+    # daily quota in that state; the verified action still consumes this slot.
+    return max(0, (remaining or 1) - 1)
 
 
 def noah_result_postcondition_verified(

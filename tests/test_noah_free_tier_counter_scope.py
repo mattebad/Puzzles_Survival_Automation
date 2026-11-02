@@ -129,23 +129,24 @@ class NoahFreeTierCounterScopeTests(unittest.TestCase):
                     self.assertEqual(observed.tier(tier).attempts_remaining, 1)
                     self.assertTrue(noah_recruit_authorizeable(observed, tier))
 
-    def test_basic_zero_or_missing_counter_cannot_rearm_from_free_control(self):
-        for counter, expected_count, remaining in (("0", 5, 0), ("|", 0, None), ("", 0, None)):
+    def test_basic_free_button_with_zero_or_missing_counter_is_eligible_without_inventing_usage(self):
+        for counter, remaining in (("0", 0), ("|", None), ("", None)):
             with self.subTest(counter=counter):
                 observed = recognized_source(RecruitTier.BASIC, counter)
                 self.assertEqual(observed.tier(RecruitTier.BASIC).attempts_remaining, remaining)
-                self.assertFalse(noah_recruit_authorizeable(observed, RecruitTier.BASIC))
+                self.assertTrue(noah_recruit_authorizeable(observed, RecruitTier.BASIC))
                 state = exhausted_state()
                 state.basic_daily_count = 0
-                basic = state.tiers[RecruitTier.BASIC]
-                controller = NoahTavernRecruitRuntimeController(now=INT_DEADLINE - 60,
-                                                               maintenance_state=state)
-                command = controller.next_command(SimpleNamespace(
-                    observation=observed, frame_sha256=observed.frame_sha256,
-                ))
-                self.assertNotEqual(command.action, NoahAction.RECRUIT_FREE)
-                self.assertEqual(state.tiers[RecruitTier.BASIC], basic)
-                self.assertEqual(state.basic_daily_count, expected_count)
+                state.tiers[RecruitTier.BASIC] = PersistedTierState(5, None, 600, "reset_rollover")
+                controller = NoahTavernRecruitRuntimeController(now=INT_DEADLINE - 60, maintenance_state=state)
+                command = controller.next_command(SimpleNamespace(observation=observed, frame_sha256=observed.frame_sha256))
+                self.assertEqual(command.action, NoahAction.RECRUIT_FREE)
+                self.assertEqual(state.basic_daily_count, 0)
+                # Saved five-action ownership still prevents a sixth single.
+                capped = exhausted_state()
+                controller = NoahTavernRecruitRuntimeController(now=INT_DEADLINE - 60, maintenance_state=capped)
+                self.assertNotEqual(controller.next_command(SimpleNamespace(observation=observed, frame_sha256=observed.frame_sha256)).action, NoahAction.RECRUIT_FREE)
+                self.assertEqual(capped.basic_daily_count, 5)
 
     def test_single_tier_paid_disabled_unknown_and_cooldown_sources_stay_blocked(self):
         cases = (
@@ -155,11 +156,10 @@ class NoahFreeTierCounterScopeTests(unittest.TestCase):
             {"attempts_text": "Daily free attempts: 0 Free in 00:09:52"},
             {"control": "Free in 23:59:51 Recruit 1x"},
         )
-        for tier in (RecruitTier.INT, RecruitTier.ADV):
+        for tier in RecruitTier:
             for changes in cases:
                 with self.subTest(tier=tier, changes=changes):
                     observed = recognized_source(tier, **changes)
-                    self.assertIsNone(observed.tier(tier).attempts_remaining)
                     self.assertFalse(observed.tier(tier).free_control_enabled)
                     self.assertFalse(noah_recruit_authorizeable(observed, tier))
 

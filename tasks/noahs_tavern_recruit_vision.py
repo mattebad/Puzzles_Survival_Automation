@@ -203,7 +203,7 @@ def recognize_noahs_tavern_frame(
             cost_amount=0 if free_slot_visible else None,
             quantity=1 if free_slot_visible else None,
             premium_control_visible=bool(_PAID_RE.search(paid_text)),
-            recognized=selected is not None and (attempts is not None or cooldown_active),
+            recognized=selected is not None and (attempts is not None or cooldown_active or free_control_enabled),
         )
         tiers = []
         for tier in RecruitTier:

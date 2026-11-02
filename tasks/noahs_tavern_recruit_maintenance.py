@@ -239,6 +239,10 @@ def _calibrate_basic_daily_count(
     ):
         return
     selected = observation.tier(RecruitTier.BASIC)
+    if selected.attempts_remaining in (None, 0):
+        # Native zero can survive reset and the subsequent cooldown. Neither
+        # observation proves five consumed actions; retain saved ownership.
+        return
     if (
         not selected.recognized
         or selected.daily_attempt_maximum != TIER_ATTEMPT_MAXIMUMS[RecruitTier.BASIC]
@@ -274,12 +278,12 @@ class NoahTavernMaintenanceController:
             if tier is RecruitTier.BASIC and self.state.basic_daily_count >= 5:
                 return False
             auth_observation = replace(observation, selected_tier=tier)
-            if observed.attempts_remaining and not observed.cooldown_active and noah_recruit_authorizeable(auth_observation, tier):
-                self.state.tiers[tier] = PersistedTierState(observed.attempts_remaining, None, TIER_COOLDOWN_SECONDS[tier], "rearmed")
+            if noah_recruit_authorizeable(auth_observation, tier):
+                self.state.tiers[tier] = PersistedTierState(max(1, observed.attempts_remaining or 0), None, TIER_COOLDOWN_SECONDS[tier], "rearmed")
                 return True
             return False
         auth_observation = replace(observation, selected_tier=tier)
-        return bool(observed.attempts_remaining and not observed.cooldown_active and noah_recruit_authorizeable(auth_observation, tier))
+        return noah_recruit_authorizeable(auth_observation, tier)
 
     def tier_selectable(self, observation: NoahTavernObservation, tier: RecruitTier, *, now: float | None = None) -> bool:
         """Allow navigation to an independently recognized tab; free control is revalidated there."""
@@ -390,7 +394,8 @@ class NoahTavernMaintenanceController:
                     tier_results.append(TierPassResult(tier, TierPassOutcome.DEFERRED, "persisted_tier_cooldown", persisted.next_eligible_at))
                     continue
                 # Matured Int./Advanced cooldowns may re-arm from fresh positive free evidence.
-                persisted = PersistedTierState(selected.attempts_remaining or 0, None, TIER_COOLDOWN_SECONDS[tier], "rearmed")
+                available = max(1, selected.attempts_remaining or 0) if noah_recruit_authorizeable(before, tier) else 0
+                persisted = PersistedTierState(available, None, TIER_COOLDOWN_SECONDS[tier], "rearmed")
                 candidate.tiers[tier] = persisted
                 if not persisted.attempts_remaining:
                     tier_results.append(TierPassResult(tier, TierPassOutcome.ALREADY_COMPLETE, "persisted_tier_exhausted"))
@@ -398,7 +403,7 @@ class NoahTavernMaintenanceController:
             if persisted.next_eligible_at is not None and persisted.next_eligible_at > self.now:
                 tier_results.append(TierPassResult(tier, TierPassOutcome.DEFERRED, "persisted_next_eligibility", persisted.next_eligible_at))
                 continue
-            if selected.cooldown_active or selected.attempts_remaining == 0:
+            if selected.cooldown_active or (selected.attempts_remaining == 0 and not noah_recruit_authorizeable(before, tier)):
                 next_at = selected.next_eligible_timestamp or persisted.next_eligible_at
                 if next_at is None:
                     tier_results.append(TierPassResult(tier, TierPassOutcome.BLOCKED, "cooldown_without_next_eligibility"))

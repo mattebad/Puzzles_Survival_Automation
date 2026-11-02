@@ -713,6 +713,12 @@ class NoahRuntimeTests(unittest.TestCase):
             controller.progress.tiers[tier] = TierState(tier, {RecruitTier.BASIC: 5, RecruitTier.INT: 1, RecruitTier.ADV: 1}[tier], 0, 600, True, next_at)
             controller.progress.inspected_tiers.add(tier)
         obs = self.f.tavern(basic_remaining=0)
+        obs = replace(obs, tiers=tuple(
+            replace(item, free_control_enabled=False, cooldown_active=True,
+                    cooldown_text="Free in 00:10:00", cooldown_duration_seconds=600,
+                    next_eligible_timestamp=700.0)
+            if item.tier is RecruitTier.BASIC else item for item in obs.tiers
+        ))
         command = controller.next_command(self.rec(obs))
         self.assertEqual(command.action, NoahAction.WAIT_COOLDOWN)
         self.assertTrue(command.scheduler_ready)

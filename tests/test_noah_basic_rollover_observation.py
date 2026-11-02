@@ -67,11 +67,10 @@ class BasicRolloverObservationTests(unittest.TestCase):
         prior.tiers[RecruitTier.INT] = PersistedTierState(0, 86500.0, 86400, "action_performed")
         prior.tiers[RecruitTier.ADV] = PersistedTierState(0, 172900.0, 172800, "action_performed")
         rolled = rollover_persisted_maintenance_state(prior, self.identity.reset_id, self.repo, 90.0)
-        # The native zero observation raises only the inferred Daily count;
-        # no verified transition changes the rollover tier sentinel.
+        # A stale native zero must not invent five consumed actions.
         controller = self.runtime(rolled)
-        self.assertNotEqual(controller.next_command(self.recognition(source(0))).action, NoahAction.RECRUIT_FREE)
-        self.assertEqual(controller.maintenance_controller.state.basic_daily_count, 5)
+        self.assertEqual(controller.next_command(self.recognition(source(0))).action, NoahAction.RECRUIT_FREE)
+        self.assertEqual(controller.maintenance_controller.state.basic_daily_count, 0)
         self.assertEqual(self.restored().basic_daily_count, 0)
 
     def restored(self):
@@ -93,7 +92,7 @@ class BasicRolloverObservationTests(unittest.TestCase):
                          frame_sha256=hashlib.sha256((before.frame_sha256 + "result").encode()).hexdigest(),
                          captured_monotonic=before.captured_monotonic + 1,
                          safe_close_visible=True, safe_close_roi=(100, 1000, 340, 1070))
-        after = selected_changes(before, attempts_remaining=before.tier(RecruitTier.BASIC).attempts_remaining - 1,
+        after = selected_changes(before, attempts_remaining=max(0, (before.tier(RecruitTier.BASIC).attempts_remaining or 1) - 1),
                                  cooldown_text="Free in 00:10:00", cooldown_duration_seconds=600,
                                  cooldown_active=True, next_eligible_timestamp=before.captured_monotonic + 600,
                                  free_control_enabled=False)
@@ -121,6 +120,34 @@ class BasicRolloverObservationTests(unittest.TestCase):
         self.assertTrue(noah_recruit_authorizeable(observed, RecruitTier.BASIC))
         self.assertEqual(self.runtime().next_command(self.recognition(observed)).action, NoahAction.RECRUIT_FREE)
         self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), provenance["transport_sha256"])
+
+    def test_native_stale_zero_free_button_commits_one_action_and_preserves_other_timers(self):
+        path = FIXTURES / "basic-free-zero-20261102.png"
+        provenance = json.loads(path.with_suffix(".provenance.json").read_text())
+        self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), provenance["transport_sha256"])
+        tesseract = Path("C:/Program Files/Tesseract-OCR/tesseract.exe")
+        with patch.object(pytesseract.pytesseract, "tesseract_cmd", str(tesseract) if tesseract.exists() else "tesseract"):
+            observed = recognize_noahs_tavern_frame(cv2.imread(str(path)), captured_monotonic=100.0)
+        self.assertEqual(observed.frame_sha256, provenance["decoded_frame_sha256"])
+        self.assertEqual(observed.tier(RecruitTier.BASIC).attempts_remaining, 0)
+        self.assertTrue(noah_recruit_authorizeable(observed, RecruitTier.BASIC))
+        runtime = self.runtime()
+        previous = self.restored()
+        self.assertEqual(runtime.next_command(self.recognition(observed)).action, NoahAction.RECRUIT_FREE)
+        self.verified_commit(runtime, observed)
+        saved = self.restored()
+        self.assertEqual(saved.basic_daily_count, 1)
+        self.assertEqual(saved.tiers[RecruitTier.BASIC].next_eligible_at, 700.0)
+        for tier in (RecruitTier.INT, RecruitTier.ADV):
+            self.assertEqual(saved.tiers[tier], previous.tiers[tier])
+        restarted = self.runtime()
+        self.assertNotEqual(restarted.next_command(self.recognition(observed), now=699).action, NoahAction.RECRUIT_FREE)
+        cooldown = selected_changes(observed, free_control_enabled=False, cooldown_active=True,
+                                    cooldown_text="Free in 00:00:01", cooldown_duration_seconds=1,
+                                    next_eligible_timestamp=700.0)
+        self.assertFalse(restarted.maintenance_controller.current_tier_eligible(cooldown, RecruitTier.BASIC, now=699))
+        self.assertEqual(restarted.maintenance_controller.state.basic_daily_count, 1)
+        self.assertEqual(restarted.next_command(self.recognition(observed), now=701).action, NoahAction.RECRUIT_FREE)
 
     def test_restart_uses_durable_zero_and_first_verified_recruit_consumes_sentinel(self):
         before_row = self.repo.get(self.identity)
