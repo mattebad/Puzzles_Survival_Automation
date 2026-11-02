@@ -4,18 +4,18 @@
 {
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
-  "head_binding": "6a042d3fd44395ab2028da1e8f0c74bc2ebebca0",
-  "updated_utc": "2026-11-02T01:35:34.543448+00:00",
+  "head_binding": "3c222af8609d7e7e3fc124bac4db99d5fb5cfa1a",
+  "updated_utc": "2026-11-02T01:49:26.234351+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
   "current_task_state": "active",
   "active_task_or_flow": "Fix intermittent Supply Depot recognition and finish remaining live acceptance before merge; sole local operator only",
   "authorization": "User explicitly resumed with Proceed with the fix. Prior full regenerable-resource route and iterative testing authorization persists. Each live attempt records --live --yes. No consumed manual repeat request, quota/clock/due edits, merge or permanent enablement.",
-  "runtime_ownership_state": "41090 terminal exit0, deadline180s. All9/service OFF; no active run/input/effect owner and leases released.",
-  "current_live_attempt_state": "Tavern fix live-accepted:6inputs/1Basicrecruit from native0+enabledFree, actualresult/9:48cooldown/tickets91unchanged/Home, persistedcount1 and independentInt/Advdeadlines unchanged. No game restart.",
+  "runtime_ownership_state": "95148 terminal exit1 at01:40UTC: Enhancement quantity recognition stopped4nav/0Confirm. All9/serviceOFF. Navigation-only Home recovery23157 terminal0:3inputs/0Confirm, reservations unchanged. No live operator.",
+  "current_live_attempt_state": "Tavern/Supply/consuming-reset acceptance retained. Last cohort:1NovaPraise/Home,0input CampaignlowAP/Home, then Enhancement4nav/0Confirm; PM unentered. This is not full-duration cadence.",
   "current_evidence_or_session_reference": ".local-orchestrator/logs/tavern-enabled-free-stale-zero-live-final-audit-20261102.json",
   "last_safe_completed_step": "Independent Tavern source/result/cooldown/Home replay and434source/20PNG/17capture-reference integrity audit. Earlier Enhancement zero-Confirm recovery2nav/Home preservedallreservations.",
-  "current_blocker": "No active route blocker. Current-day uninterrupted Enhancement/Personal Might and final cadence/source/CI reconciliation remain required.",
-  "exact_next_permitted_action": "Push attributable commits, verify actual PR head, freeze runtime/assets/atlases/current authorization, then sole canonical all-eight bounded cadence. Enhancement uses its existing reservations with zero prior Confirms. Do not repeat Ultimate or Supply daily completion.",
+  "current_blocker": "Quantity denominator slash OCR failure corrected narrowly in3c222af;29focused native cases passed and Home recovered. Exact zeroConfirm inspection acknowledged via canonicalAPI without quota/due/limit/reservation changes. Full live retry and latest-headCI pending.",
+  "exact_next_permitted_action": "Push attributable source/docs, freeze current runtime/assets/atlases and authorization, then existing canonical all-eight7200s cadence as soleoperator. Honor existing daily completions and independent cooldowns; no extra-request ID or rearming.",
   "unresolved_action_state": "None. Paused Enhancement5navigation/0Confirm source retained;2navigation Home return verified. All3reservations unchanged; no categoryconsumption.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
@@ -28,7 +28,7 @@
   },
   "journals_and_lease": {
     "historical_journals": "retained immutable",
-    "active_action_state": "No unresolved action. User-paused Enhancement had five navigation inputs and zero Confirms; two-input Home recovery preserved all reservations. Exact inspection block was acknowledged through BotStateManager.unblock_flow; due/ordinal/limits remain unchanged.",
+    "active_action_state": "No unresolved resource action. Latest Enhancement4navigation/0Confirm followed by3navigation/Home; every original reservation and progress file unchanged. Exact inspection block acknowledged through canonicalAPI; due/ordinal/limits unchanged.",
     "development_lease_status": "No live owner; all9/service OFF, no active/orphan/input/effect owner, released Core/service leases."
   },
   "route_state": {
@@ -84,7 +84,7 @@
     },
     "enhancement": {
       "reset_id": "game-day-2026-11-02",
-      "accepted": "Previousdaymanual22inputs/3ConfirmsoneProfile/Homeretained. Newdayuserpausedafter5nav/0Confirm;notcompletion.",
+      "accepted": "November1 manual22inputs/3Confirms oneProfile/Home retained. November2 paused5nav/0Confirm and laterquantityOCRstop4nav/0Confirm; neither is completion. Current correction29native checks passed; full retry pending.",
       "limit": "No newdaycategoryconfirmed. Existingreservationsmustbereusedunchanged,notrearmed.",
       "next_due_utc": 1793577600.0
     },
@@ -95,8 +95,8 @@
       "limit": "Historical122ff13 uninterrupted acceptance; current-source fresh Praise/Home after next reset remains required."
     }
   },
-  "frozen_source_manifest": ".local-orchestrator/logs/tavern-enabled-free-frozen-source-20261102.json",
-  "validation": "107 focused Tavern checks and 47 focused Supply checks passed. Tavern independent live audit:434 unchanged source files/20 PNGs/17 capture references. Earlier Supply full-route audit:431 files/19 PNGs/17 references. New source CI pending; CI75 is historical on32d9534.",
+  "frozen_source_manifest": ".local-orchestrator/logs/enhancement-denominator-final-frozen-source-20261102.json",
+  "validation": "Tavern107/Supply47focused tests passed. New quantity correction29native quantity/context tests passed. CI76 onfec4a8b was still inprogress before newcodepush; actual latest-headCI is authoritative.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
     ".local-orchestrator/logs/noah-full-basic-quota-audit-20261030.json",
@@ -218,7 +218,7 @@
     "audit": ".local-orchestrator/logs/current80-full-7200-cadence-final-audit-20261101T111457119518Z.json"
   },
   "branch_base_commit": "67ef48c495f4786ce2243891a8b4728e43b95468",
-  "head_binding_scope": "Runtime source is 6a042d3, including Supply fix8de4a3a; following documentation-only commit does not change executable behavior.",
+  "head_binding_scope": "Executable source3c222af adds only the tested native quantity-denominator OCR correction after6a042d3. Following documentation-only commit does not change runtime.",
   "branch_preparation": {
     "branch": "codex/bluestacks-route-reliability",
     "core_offline_checks": {
@@ -264,18 +264,12 @@
     "tests_preserved": true
   },
   "latest_bounded_route": {
-    "scope": "fresh process completed-daily scheduler guard on a52db42; no native route entered",
-    "status": "completed",
-    "selected_routes": 7,
-    "inputs": 0,
-    "resource_actions": 0,
-    "native_startups": 0,
-    "new_or_changed_runs": 0,
-    "campaign_row_identical": true,
-    "controls_restored_off": true,
-    "audit": ".local-orchestrator/logs/completed-daily-process-restart-final-audit-20261101T1613Z.json"
+    "controller": ".local-captures/automation-service-authorized/soak-20261102T013717398701Z-4fdeebd1/controller-result.json",
+    "status": "terminal_blocked",
+    "scope": "1NovaPraise/Home,0input Campaign/Home; Enhancement4nav/0Confirm. No full7200s acceptance.",
+    "audit": ".local-orchestrator/logs/fec4-cadence-enhancement-zero-confirm-stop-20261102.json"
   },
-  "working_tree_source": "Runtime fixes committed separately:8de4a3a Supply caption/circle proposal;6a042d3 Tavern enabled-Free native-zero. Four unrelated user files preserved. Documentation update follows; no permanent enablement."
+  "working_tree_source": "Runtime3c222af; previous Supply8de4a3a and Tavern6a042d3 accepted. Four unrelated user files remain preserved. Current full-family live acceptance is pending, not inferred from prior manual pass."
 }
 <!-- CURRENT_HANDOFF_STATE_END -->
 

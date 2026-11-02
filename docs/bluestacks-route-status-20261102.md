@@ -52,3 +52,14 @@ Current-day uninterrupted Enhancement, Personal Might, final source/cadence
 reconciliation and current-head Windows/Linux CI remain outstanding. Earlier
 manual Enhancement/Ultimate passes and restart/cadence receipts retain their
 documented source scope. Defeat/Continue remains offline-proven only.
+
+The next ordinary cohort stopped at Gear's quantity dialog after four navigation
+inputs and zero Confirms. Sparse OCR plus cubic scaling omitted the `/9557`
+denominator despite a correct visible quantity of one. A narrow correction uses
+line OCR and linear scaling for that field; confidence, exact value/Total match,
+material identity, one-star, quantity-one and button checks are unchanged. All
+29 native quantity/selection-context checks passed. Three-input navigation-only
+Home recovery preserved every reservation, and canonical inspection acknowledgment
+left schedules and limits unchanged. No material was consumed and this failed
+cohort is not full-duration or uninterrupted-family acceptance. Audit:
+`.local-orchestrator/logs/fec4-cadence-enhancement-zero-confirm-stop-20261102.json`.
