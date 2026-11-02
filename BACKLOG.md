@@ -30,6 +30,13 @@ Counts overlap; full discovery was not run. Actual new-head CI remains
 `.local-validation/pr16-astra-corrections-current-head-ci-20261102.json` and
 [PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks).
 
+CI84 failed on both platforms because one retained replay OCR stub lacked the new
+`timeout` argument. The stub now requires a positive timeout at most five seconds;
+crop/configuration/modal assertions are preserved. All10 replay cases and the exact
+327-case deterministic check selection passed locally after repair. Runtime code
+and the accepted `cfe449c` live scope are unchanged. Completed-job logs/receipt:
+`.local-validation/pr16-ci84-failure-20261102.json`; a new-head CI pass is still required.
+
 Deferred: repeated historical Enhancement replay/admission optimization; preserve
 native replay, claims and effect fences when designing that change. CI duration and
 ordinary duplicate invocations remain under

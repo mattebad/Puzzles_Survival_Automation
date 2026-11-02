@@ -48,6 +48,14 @@ it cannot validate these changes. CI speed/duplicate-invocation work remains
 historical replay optimization is deferred separately. No new goal or automation
 was created, and the completed reset goal's follow-up remains paused.
 
+CI84 on `e5db659` failed both completed jobs at a replay OCR stub that did not accept
+the new `timeout` keyword. The stub now requires `0 < timeout <= 5`; retained
+crop/configuration and modal assertions are unchanged. All10 replay cases and the
+exact327-case deterministic check set passed locally after repair. No runtime code
+changed and no new live test was performed for this test-only correction. Failed
+job logs and metadata remain in `.local-validation/pr16-ci84-failure-20261102.json`.
+Actual newest-head CI above remains required.
+
 ## Earlier portfolio acceptance at recorded sources
 
 The earlier Enhancement family is scoped to `044ecb9`; the two-hour cadence to

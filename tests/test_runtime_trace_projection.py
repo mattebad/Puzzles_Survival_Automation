@@ -311,7 +311,9 @@ class RuntimeTraceProjectionTests(unittest.TestCase):
             key = (hashlib.sha256(expected_crop.tobytes()).hexdigest(), observation["config"])
             recorded[key] = observation
 
-        def replay_ocr(image, *, config):
+        def replay_ocr(image, *, config, timeout):
+            self.assertGreater(timeout, 0)
+            self.assertLessEqual(timeout, 5)
             key = (hashlib.sha256(image.tobytes()).hexdigest(), config)
             observation = recorded.get(key)
             if observation is None:
