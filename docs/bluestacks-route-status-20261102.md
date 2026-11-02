@@ -56,6 +56,14 @@ changed and no new live test was performed for this test-only correction. Failed
 job logs and metadata remain in `.local-validation/pr16-ci84-failure-20261102.json`.
 Actual newest-head CI above remains required.
 
+CI85 completed Linux successfully. Windows reached the new category-resume group
+and failed because its fixture lookup compared raw temporary roots with resolved
+capture parents. Both sides now use canonical session identity. A verifier-level
+equivalent-path regression fails with the old lookup and passes after repair; the
+exact94-case boundary group passes locally with source/effect/fence negatives intact.
+This is test-only; accepted runtime remains `cfe449c`, with no further game input.
+Completed-job metadata: `.local-validation/pr16-ci85-final-jobs-20261102.json`.
+
 ## Earlier portfolio acceptance at recorded sources
 
 The earlier Enhancement family is scoped to `044ecb9`; the two-hour cadence to

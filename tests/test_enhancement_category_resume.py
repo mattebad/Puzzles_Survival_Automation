@@ -97,8 +97,16 @@ class EnhancementCategoryResumeTests(unittest.TestCase):
         (case.session / "flow-delivery-result.json").write_text(json.dumps(case.result), encoding="utf-8")
 
     def case_for(self, reference):
-        parent = Path(reference).parent.parent
-        return next(case for case in self.cases if case.session == parent)
+        parent = Path(reference).parent.parent.resolve()
+        return next(case for case in self.cases if case.session.resolve() == parent)
+
+    def test_equivalent_session_spelling_preserves_verified_source_and_effects(self):
+        case = self.make_session()
+        case.session = case.session / "frames" / ".."
+        verdict = self.verify(case)
+        self.assertEqual(verdict["status"], "verified")
+        self.assertEqual(verdict["current_categories"], list(CATEGORIES))
+        self.assertEqual(verdict["current_resource_affecting_dispatch_count"], 3)
 
     def parsers(self):
         def selection(current, **kwargs):

@@ -5,7 +5,7 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "cfe449cebfe1038e335ec0aa2e5e82c98a522e30",
-  "updated_utc": "2026-11-02T19:21:33.111079+00:00",
+  "updated_utc": "2026-11-02T19:50:38.319441+00:00",
   "current_task_id": "ASTRA-PREMERGE-CORRECTIONS",
   "current_task_state": "live_accepted_ci_receipt_authoritative",
   "active_task_or_flow": "Astra corrective pass live acceptance complete. Publish to existing draftPR16 and finish actual current-head Windows/Linux CI; no more game input.",
@@ -98,7 +98,7 @@
     }
   },
   "frozen_source_manifest": ".local-orchestrator/logs/astra-corrections-fresh-continuous-source-freeze-20261102.json",
-  "validation": "104 route/recovery;113 sharedHome/VIP/Nova;81native/service cases passed at bounded-OCR source, then21 finalcontext/fault and6Modulecontext cases plus conflict negatives passed after cfe449c luminance corroboration. Counts overlap, no full discovery. Inherited synthetic unknown-successor test also fails unchanged f96fc4b at CURRENT_RUN_MODAL_WITNESS_UNPROVEN; tracked separately, no native witness weakening. Actual finalhead CI authority is .local-validation/pr16-astra-corrections-current-head-ci-20261102.json. CI84 both completed jobs failed one replay stub missing timeout argument. Fixed test-only signature now asserts0<timeout<=5;10 replay and327 exact deterministic cases pass. Accepted cfe449c runtime unchanged, no new live input.",
+  "validation": "104 route/recovery;113 sharedHome/VIP/Nova;81native/service cases passed at bounded-OCR source, then21 finalcontext/fault and6Modulecontext cases plus conflict negatives passed after cfe449c luminance corroboration. Counts overlap, no full discovery. Inherited synthetic unknown-successor test also fails unchanged f96fc4b at CURRENT_RUN_MODAL_WITNESS_UNPROVEN; tracked separately, no native witness weakening. Actual finalhead CI authority is .local-validation/pr16-astra-corrections-current-head-ci-20261102.json. CI84 both completed jobs failed one replay stub missing timeout argument. Fixed test-only signature now asserts0<timeout<=5;10 replay and327 exact deterministic cases pass. Accepted cfe449c runtime unchanged, no new live input. CI85 Linux COMPLETEsuccess; Windows new category-resume fixture path lookup failed. Test-only canonical path comparison plus verifier-level regression reproduce old failure and preserve source/effect/fence checks; exact94casegroup passes. Runtime remains cfe449c; actual newheadCIrequired.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
     ".local-orchestrator/logs/noah-full-basic-quota-audit-20261030.json",
@@ -356,7 +356,9 @@
     "deferred": "Repeated historical replay/admission optimization; CI duration/ordinary duplicate invocations issue17. Inherited synthetic causal fixture maintenance separate.",
     "posture": "DraftPR16,all9/serviceOFF,no live owner,reset followupPAUSED; no new goal/automation.",
     "ci84_failure_receipt": ".local-validation/pr16-ci84-failure-20261102.json",
-    "ci84_repair": "Test-only OCR replay stub requires bounded timeout, preserving crop/config/modal assertions;10/327focused checks passed. No runtime/source/evidence change."
+    "ci84_repair": "Test-only OCR replay stub requires bounded timeout, preserving crop/config/modal assertions;10/327focused checks passed. No runtime/source/evidence change.",
+    "ci85_jobs_receipt": ".local-validation/pr16-ci85-final-jobs-20261102.json",
+    "ci85_repair": "Only category-resume fixture session lookup normalizes both paths, with consumer-level equivalent-spelling verification regression. Exact94boundarycases passed; no production/evidence/input change."
   }
 }
 <!-- CURRENT_HANDOFF_STATE_END -->

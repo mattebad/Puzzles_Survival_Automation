@@ -37,6 +37,13 @@ crop/configuration/modal assertions are preserved. All10 replay cases and the ex
 and the accepted `cfe449c` live scope are unchanged. Completed-job logs/receipt:
 `.local-validation/pr16-ci84-failure-20261102.json`; a new-head CI pass is still required.
 
+CI85 completed Linux successfully; Windows exposed raw-versus-resolved temporary
+path matching in the newly selected category-resume fixture. Its lookup now uses
+canonical session paths on both sides. A verifier-level equivalent-path regression
+fails with the old lookup and passes with the repair; the exact94-case boundary
+group passes locally, preserving source/effect/fence negatives. Runtime is unchanged.
+Receipt: `.local-validation/pr16-ci85-final-jobs-20261102.json`. New-head CI is required.
+
 Deferred: repeated historical Enhancement replay/admission optimization; preserve
 native replay, claims and effect fences when designing that change. CI duration and
 ordinary duplicate invocations remain under
