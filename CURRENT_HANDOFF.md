@@ -5,18 +5,18 @@
   "schema_version": 3,
   "branch": "codex/bluestacks-route-reliability",
   "head_binding": "3c222af8609d7e7e3fc124bac4db99d5fb5cfa1a",
-  "updated_utc": "2026-11-02T05:45:56.800049+00:00",
+  "updated_utc": "2026-11-02T06:11:20.342617+00:00",
   "current_task_id": "AUTHORIZED-BLUESTACKS-ROUTE-RELIABILITY",
-  "current_task_state": "evidence_required_final_gray_quantity_validation",
+  "current_task_state": "evidence_required_chip_selected_fraction_repair",
   "active_task_or_flow": "Finish final workflow/docs publication and actual current-head Windows/Linux CI; no further consuming live work.",
   "authorization": "User explicitly resumed with Proceed with the fix. Prior full regenerable-resource route and iterative testing authorization persists. Each live attempt records --live --yes. No consumed manual repeat request, quota/clock/due edits, merge or permanent enablement.",
-  "runtime_ownership_state": "No live operator. All bounded controllers, cold launches, recovery, independent audits and focused tests are authoritatively terminal. All nine flow/service controls OFF, no active/orphan/input/effect owner; leases released.",
-  "current_live_attempt_state": "Full 7200.333-second current-runtime cadence passed: 29 completed reports/all Home/100 inputs/15 confirmed actions. Independent replay passed. Two subsequent guarded cold starts and shared Home recovery passed consecutively; first native Unity crash retained separately.",
-  "current_evidence_or_session_reference": ".local-orchestrator/logs/current-ea02-full-acceptance-independent-audit-20261102T043743891350Z.json",
+  "runtime_ownership_state": "58319 AUTHORITATIVELY TERMINAL exit1,12inputs/1GearConfirm. All9/serviceOFF; Enhancement blocked. No active live/test/CI/agent. Gear strict independent progress replay passed; canonical unresolvedclear/actionblockfalse/no active effect projection.",
+  "current_live_attempt_state": "Fresh grayscale run reached and completed Gear(stock9556to9555/EXP70to80), then stopped at Chip selected1/11529 fraction OCR; no ChipConfirm/Module/Home. Not fresh continuous-family acceptance.",
+  "current_evidence_or_session_reference": ".local-orchestrator/logs/gray-denominator-live-chip-selection-stop-20261102.json",
   "last_safe_completed_step": "Independent replay: 438 unchanged source files, 430 PNGs, 366 capture references, 58 startup observations, every Home/effect/category/Core link and cold lifecycle cleanup.",
-  "current_blocker": "CI78 Windows passed; Linux rejected the new denominator fixture. CI79/80 diagnostics prove identical pixels/model but color OCR1/9557(conf0), grayscale/9557(conf91). Exact-field grayscale correction passed29 existing local cases; final-head CI and fresh live acceptance of this changed quantity path remain evidence_required. No prior full run is relabeled new-source proof.",
-  "exact_next_permitted_action": "Push the narrowly corrected denominator OCR and truthful docs, verify actual final-head Windows/Linux CI. No fresh same-day manual repeat request is authorized by the consumed November1 request. Fresh changed-path live verification needs a distinct current authorization or ordinary next-reset eligibility; no quota/date rearm. Other completed routes must not be repeated.",
-  "unresolved_action_state": "None. Earlier zero-Confirm stops and reservations preserved; subsequent uninterrupted family committed each category once. Canonical inspection changed no due dates, quotas or limits.",
+  "current_blocker": "Selected Chip label: PSM7 reads1/11529conf73, word8/13read1411529conf0. Narrow fallback retains original3modeagreement and rejects any competing valid fraction; otherwise requires full lineconfidence>=20/exactquantity+stock/checkmark/causal witnesses. Existing29native cases passed; actual Chip positive/missinglabel/competingfraction/lowconfidence test passed separately. Needs recovery, remaining current request, fresh continuousfamily and finalheadCI.",
+  "exact_next_permitted_action": "Existing measured Home-only recovery withcurrent explicit standing-goal attribution,0Confirms,max3navigation,protectALL daily/manualprogress/reservations. Then exact canonicalinspection acknowledgment onlyafterHome/noeffects/strictGearreplay; resume SAME current manual request withGearretained, onlyChip/Module. Preservefailedreceipt/schedules. Newcontinuouswhole-familyproof must use distinct goal-iteration manualclaim under standing regenerable-route testing authorization, neverconsumedNov1request. No otherresource route or permanentenablement.",
+  "unresolved_action_state": "No canonical unresolvedactions/effectblock. Native aggregatefamily says unresolved becauseChip nonconsuming quantityUse successor failed; Gear strictproof iscomplete. No identical consuming retry; Gearmustnotrepeat withinthisrequest.",
   "registration_and_scheduler": {
     "canonical_code_registration": "9 fixed registered specs; separate from enablement",
     "permanent_production_scheduler_enabled": false,
@@ -96,7 +96,7 @@
     }
   },
   "frozen_source_manifest": ".local-orchestrator/logs/current-ea02-all8-final-cadence-frozen-source-20261102.json",
-  "validation": "CI78 Windows125104364157 passed, Linux125104364361 failed only new denominator frame. CI79/80 diagnostic failures retained; diagnostic-only redundant early step removed. Explicit-gray correction29 focused quantity/context cases passed. Actual latest-head CI is authoritative.",
+  "validation": "Original29native quantity/context cases passed withselectedfallback; newactualChippositive/negativecase passed after correctingtest-onlyvariant=chip andactualuntouched3-starcardexpectation. Earlier failed line-onlycandidate/newtestmistakes retainedinlogs. No assertionsweakened.",
   "accepted_evidence": [
     ".local-orchestrator/logs/current-route-source-and-daily-evidence-audit-20261030.json",
     ".local-orchestrator/logs/noah-full-basic-quota-audit-20261030.json",
@@ -277,12 +277,12 @@
     "tests_preserved": true
   },
   "latest_bounded_route": {
-    "controller": ".local-captures/automation-service-authorized/soak-20261102T015054451054Z-b2f215cb/controller-result.json",
-    "status": "terminal_completed_deadline",
-    "scope": "7200.333 seconds,29 completed reports/100inputs/15confirmedactions/allHome",
-    "audit": ".local-orchestrator/logs/current-ea02-full-acceptance-independent-audit-20261102T043743891350Z.json"
+    "controller": ".local-captures/automation-service-authorized/soak-20261102T055059267916Z-98680e06/controller-result.json",
+    "status": "terminal_blocked",
+    "scope": "12inputs/oneGearConfirm,Chipselectedfractionrecognitionfailure,noChipConfirm/Module/Home",
+    "audit": ".local-orchestrator/logs/gray-denominator-live-chip-selection-stop-20261102.json"
   },
-  "working_tree_source": "Last consuming live source3c222af. Subsequent candidate adds explicit grayscale ONLY to the denominator crop; quantity/Total/confidence/material/button/resource gates unchanged. New29local cases passed. Full2h/family retained proof remains at3c222af, not automatically current-code live acceptance.",
+  "working_tree_source": "a844f2c gray denominator plus pending selected-fraction fallback and real four-frame Chipfixture. Originaltwo-hour liveproof remains3c222af; latestfreshfamily failed atChip. Tests/current source scopes explicit.",
   "historical_final_cadence_audit": {
     "status": "live_accepted_prior_source_80d24d1",
     "actual_seconds": 7200.372656345367,

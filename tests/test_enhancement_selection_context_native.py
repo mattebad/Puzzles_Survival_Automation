@@ -2,6 +2,7 @@
 from contextlib import ExitStack
 from dataclasses import replace
 import hashlib
+import json
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -90,6 +91,35 @@ class SelectionContextNativeTests(unittest.TestCase):
         self.assertEqual(observation.selection_baseline_evidence_ref, str(self.captures[1].path))
         self.assertTrue(enhancement_bluestacks_authorizeable(observation))
         self.assertFalse(enhancement_bluestacks_postcondition_verified(observation, observation))
+
+    def test_actual_chip_selected_fraction_keeps_slash_and_causal_witnesses(self):
+        provenance = json.loads((FIXTURES / "native-chip-selection-20261102.json").read_text())
+        captures = []
+        for entry in provenance["frames"]:
+            path = FIXTURES / entry["fixture"]
+            raw = path.read_bytes()
+            self.assertEqual(hashlib.sha256(raw).hexdigest(), entry["sha256"])
+            captures.append(captured_native_frame_from_png(raw, path=path,
+                captured_monotonic=entry["captured_monotonic"]))
+        modal, baseline, quantity, selected = captures
+        result = native.recognize_selection_context(selected, modal=modal, baseline=baseline,
+            quantity=quantity, variant="chip", game_day_id="current-reset")
+        self.assertTrue(result.recognized, result)
+        self.assertEqual(result.observation.material_slot_facts, ((0, 3, 0, 200), (1, 1, 1, 11529)))
+        self.assertEqual((result.observation.item_exp_current, result.observation.item_exp_preview), (70, 80))
+        self.assertTrue(enhancement_bluestacks_authorizeable(result.observation, variant="chip"))
+        missing = self.erased(selected, (199, 616, 281, 638))
+        denied = native.recognize_selection_context(missing, modal=modal, baseline=baseline,
+            quantity=quantity, variant="chip", game_day_id="current-reset")
+        self.assertFalse(denied.recognized)
+        self.assertIsNone(denied.observation)
+        import pytesseract
+        label = native._material_label(baseline.frame, native._material_cell_boxes(baseline.frame)[1])[1]
+        with patch.object(pytesseract, "image_to_string", side_effect=("1/11529", "1/11528", "1/11529")):
+            self.assertIsNone(native._selected_material_fraction(selected.frame, label))
+        with patch.object(pytesseract, "image_to_string", side_effect=("1/11529", "1411529", "1411529")), \
+                patch.object(pytesseract, "image_to_data", return_value={"text": ["1/11529"], "conf": [19]}):
+            self.assertIsNone(native._selected_material_fraction(selected.frame, label))
 
     def test_panel_alone_and_green_preview_are_never_committed_effect_or_equipment_proof(self):
         current = self.captures[3]

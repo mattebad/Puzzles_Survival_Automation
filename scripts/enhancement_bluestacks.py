@@ -1067,11 +1067,31 @@ def _selected_material_fraction(frame: np.ndarray, label: NativeBox) -> tuple[in
     glyphs = cv2.copyMakeBorder(glyphs, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
     readings = [re.sub(r"\s+", "", pytesseract.image_to_string(glyphs,
         config=f"--psm {mode} -c tessedit_char_whitelist=0123456789/")) for mode in (7, 8, 13)]
-    if len(set(readings)) != 1:
-        return None
     match = re.fullmatch(r"(\d+)/(\d+)", readings[0])
     if match is None:
         return None
+    if len(set(readings)) != 1:
+        # Preserve agreement and reject any competing valid fraction. Word
+        # modes can mistake the slash for a "4" at zero confidence; require a
+        # confident complete line before disregarding those non-fractions.
+        if any(text != readings[0] and re.fullmatch(r"\d+/\d+", text) for text in readings[1:]):
+            return None
+        data = pytesseract.image_to_data(glyphs,
+            config="--psm 7 -c tessedit_char_whitelist=0123456789/", output_type=pytesseract.Output.DICT)
+        words = []
+        for index, raw in enumerate(data.get("text", ())):
+            text = str(raw or "").strip()
+            if not text:
+                continue
+            try:
+                confidence = float(data["conf"][index])
+            except (KeyError, TypeError, ValueError, IndexError):
+                return None
+            if not math.isfinite(confidence) or confidence < 20:
+                return None
+            words.append(text)
+        if re.sub(r"\s+", "", "".join(words)) != readings[0]:
+            return None
     selected, owned = map(int, match.groups())
     return (selected, owned) if selected <= owned else None
 
