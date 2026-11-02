@@ -1,0 +1,38 @@
+{
+  "at_utc": "2026-10-31T19:56:16.102483+00:00",
+  "source_snapshot_commit": "46346f1e104e5c6180d8ef9d4b5b94ee388673cd",
+  "branch": "codex/bluestacks-route-reliability",
+  "python": "3.12.10",
+  "platform": "win32",
+  "checks": {
+    "core_working": {
+      "tests": 327,
+      "status": "passed",
+      "local_log": ".local-validation/branch-preparation-20261031/offline-check.log",
+      "log_sha256": "f11e28b8a8ebfe9da70f93d0c329a274fefde2142d182a24fb18cf847d25cd52"
+    },
+    "routes_working": {
+      "tests": 193,
+      "status": "passed",
+      "local_log": ".local-validation/branch-preparation-20261031/service-route-checks.log",
+      "log_sha256": "7ccfda6c8ddd8f93e37d50a705f57280c3be5e06af8669a08539ae422403c762"
+    },
+    "core_clean_checkout": {
+      "tests": 327,
+      "status": "passed",
+      "local_log": ".local-validation/branch-preparation-20261031/clean-core-check.log",
+      "log_sha256": "06fc8a7d7f8947afaa383b21460d8077f15a858cd9520674adddb23470031434"
+    },
+    "native_clean_checkout": {
+      "tests": 40,
+      "status": "passed",
+      "local_log": ".local-validation/branch-preparation-20261031/clean-native-fixture-check.log",
+      "log_sha256": "74cdeab986d44422069b47199ff16106dd2bf2416c79837a9683ebc58738772a"
+    }
+  },
+  "scope": "Explicit device-free checks, not full repository discovery or new live acceptance.",
+  "live_device_used": false,
+  "github_ci_status": "not_run_yet",
+  "clean_checkout_long_paths": "The temporary Windows checkout initially exceeded the Git path limit. Git core.longpaths=true completed it; the Windows CI runner enables this before checkout.",
+  "native_bytes": "Native fixtures, assets and archive files compared byte-identically with the stage; Python ASTs were equal and accepted Python3.11 syntax."
+}

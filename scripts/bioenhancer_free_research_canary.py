@@ -1,21 +1,23 @@
 """Thin BlueStacks canary: Home atlas -> pan Lab into view -> Research radial -> Free Research 1x.
 
-Ordinary development-session path. Pans the Research Lab into the safe radial footprint
-before tapping. No registration, no scheduler, no Heavy ceremony.
+Ordinary development-session path. Reuses the current mapped Research Lab hit region,
+panning when the Lab or its Research radial would be unsafe. The route verifies the
+actual Research radial after entry.
 """
 
 from __future__ import annotations
 
 
 import json
+import math
 import os
 import re
 import sys
 import time
 import argparse
 from contextlib import nullcontext
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -29,14 +31,21 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+from scripts.bluestacks_popup_recognition import recognize_reset_popup
+from scripts.home_atlas_bluestacks import BLUESTACKS_SAFE_INTERACTION_BOX, _plan_mapped_home_entry
 from scripts.atlas_flow_startup import normalize_home_atlas_startup
 from scripts.navigation_development_boundary import DevelopmentSession
 from tasks.home_atlas import load_home_atlas
-from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
+from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition, plan_direct_pan
 from scripts.startup_normalization import is_clean_home_frame
-from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building
-from tasks.home_nav_recognition import recognize_home_nav
-from tasks.nova_praise_vision import recognize_nova_frame
+from tasks.home_atlas_vision import HUD_MASK_RECTS, BlueStacksHomeLocalizer, bind_visible_building
+from scripts.daily_resource_item_bluestacks import _bag_back_arrow_visual
+from scripts.daily_row_claim_bluestacks import _generic_modal_overlay_evidence
+from tasks.nova_praise_vision import (
+    _INITIAL_NOVA_RADIAL_SEARCH_ROI,
+    _RADIAL_ANCHOR_OFFSETS,
+    recognize_nova_frame,
+)
 from tasks.perception_bundle import PerceptionBundleError
 
 
@@ -73,15 +82,15 @@ def _session_root() -> Path:
     return ROOT / ".local-captures" / "development-sessions" / f"bioenhancer-free-{stamp}"
 
 
-def _ocr_tokens(frame_bgr: np.ndarray, roi: tuple[int, int, int, int]) -> list[dict[str, Any]]:
+def _ocr_tokens(frame_bgr: np.ndarray, roi: tuple[int, int, int, int], *,
+                psm: int = 11, scale: int = 2) -> list[dict[str, Any]]:
     x0, y0, x1, y1 = roi
     crop = frame_bgr[y0:y1, x0:x1]
     if crop.size == 0:
         return []
-    scale = 2
     up = cv2.resize(crop, (crop.shape[1] * scale, crop.shape[0] * scale), interpolation=cv2.INTER_CUBIC)
     gray = cv2.cvtColor(up, cv2.COLOR_BGR2GRAY)
-    data = pytesseract.image_to_data(gray, output_type=Output.DICT, config="--psm 11")
+    data = pytesseract.image_to_data(gray, output_type=Output.DICT, config=f"--psm {psm}")
     tokens: list[dict[str, Any]] = []
     n = len(data.get("text", []))
     for i in range(n):
@@ -141,6 +150,78 @@ def evaluate_free_research_postcondition(token_text: str) -> dict[str, bool]:
     }
 
 
+def parse_free_research_cooldown(token_text: str, *, now: datetime) -> dict[str, Any] | None:
+    """Parse one positive, bounded footer timer; this proves no new research."""
+    text = " ".join(token_text.casefold().split())
+    matches = list(re.finditer(r"\bfree\s+in\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\b(?![:\d])", text))
+    if len(matches) != 1 or len(re.findall(r"\bfree\s+in\b", text)) != 1:
+        return None
+    first, second, third = matches[0].groups()
+    hours, minutes, seconds = (int(first), int(second), int(third)) if third is not None else (0, int(first), int(second))
+    remaining = hours * 3600 + minutes * 60 + seconds
+    if minutes >= 60 or seconds >= 60 or not 0 < remaining <= 86400:
+        return None
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("Bioenhancer cooldown observation requires UTC-aware time")
+    observed = now.astimezone(timezone.utc)
+    return {
+        "recognized": True, "seconds_remaining": remaining,
+        "observed_utc": observed.isoformat(),
+        "next_due_utc": (observed + timedelta(seconds=remaining)).isoformat(),
+    }
+
+
+def recognize_free_research_cooldown(
+    frame: np.ndarray, *, now: datetime | None = None,
+) -> dict[str, Any] | None:
+    """Require the exact Bioenhancer page plus its own lower-left free timer."""
+    if bind_bioenhancer_back(frame) is None:
+        return None
+    tokens = _ocr_tokens(frame, (0, 1000, 420, 1280))
+    result = parse_free_research_cooldown(
+        " ".join(token["text_cf"] for token in tokens),
+        now=datetime.now(timezone.utc) if now is None else now,
+    )
+    if result is not None:
+        result["ocr_tokens"] = [token["text"] for token in tokens]
+    return result
+
+
+def _complete_cooldown_no_work(
+    result, cooldown, source, *, session, runtime, capture,
+    session_directory: Path, settle_seconds: float,
+) -> dict[str, Any]:
+    result["no_work"] = True
+    result["cooldown"] = {
+        **cooldown,
+        "frame_path": source.path.relative_to(session_directory).as_posix(),
+        "frame_sha256": source.sha256,
+    }
+    result["return_home"] = _return_to_home(
+        session=session, runtime=runtime, capture=capture,
+        session_directory=session_directory, settle_seconds=settle_seconds,
+    )
+    home_proof = result["return_home"].get("terminal_home_frame")
+    returned = bool(
+        result["return_home"].get("status") == "home_returned"
+        and isinstance(home_proof, dict)
+        and home_proof.get("frame_path") and home_proof.get("frame_sha256")
+    )
+    if returned:
+        result["terminal_home_frame"] = dict(home_proof)
+    result.update(
+        status="completed" if returned else "evidence_required",
+        reason="free_research_cooldown_active" if returned else "bioenhancer_return_home_not_proven",
+        terminal_home_verified=returned,
+        input_count=session.input_count,
+    )
+    session.terminal_status = result["status"]
+    (session_directory / "result.json").write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+    )
+    return result
+
+
 def _union_roi(rois: list[tuple[int, int, int, int]]) -> tuple[int, int, int, int]:
     return (
         min(r[0] for r in rois),
@@ -176,14 +257,13 @@ def _atlas_stack(frame_bgr: np.ndarray):
 
 
 def bind_research_lab(frame_bgr: np.ndarray) -> BoundControl | None:
-    nav = recognize_home_nav(frame_bgr)
-    if not nav.is_home:
+    if not is_clean_home_frame(frame_bgr):
         return None
     atlas, localization = _atlas_stack(frame_bgr)
     if not localization.recognized:
         return None
     binding = bind_visible_building(frame_bgr, localization, atlas.lookup_building(RESEARCH_LAB_ID), home_is_clean=is_clean_home_frame)
-    if binding is None:
+    if binding is None or not _research_radial_viewport_safe(binding):
         return None
     return BoundControl(
         identity=RESEARCH_LAB_ID,
@@ -200,9 +280,62 @@ def plan_research_lab_pan(frame_bgr: np.ndarray, navigator: DirectPanNavigator):
     if not is_clean_home_frame(frame_bgr):
         return localization, None, None
     binding = bind_visible_building(frame_bgr, localization, atlas.lookup_building(RESEARCH_LAB_ID), home_is_clean=is_clean_home_frame)
-    # Plan without accepting a clipped binding as complete — radial footprint matters.
-    plan = navigator.plan(localization, None)
+    if binding is not None and _research_radial_viewport_safe(binding):
+        plan = _plan_mapped_home_entry(navigator, localization, binding)
+    else:
+        # Near the right HUD, the generic radial placement can leave only a
+        # correction shorter than our calibrated minimum. Preview a larger
+        # camera-only move; the next frame must still bind the Lab and Research.
+        normal = plan_direct_pan(atlas, localization, RESEARCH_LAB_ID,
+                                 navigator.safe_region, navigator.calibration)
+        below_minimum = normal.reason == "gesture_below_effective_minimum" or bool(
+            dict(normal.viewport.rejection_counts).get("gesture_below_effective_minimum", 0)
+        )
+        original_safe = navigator.safe_region
+        waypoint = replace(original_safe, screen_box=(145, 180, 390, 1010),
+                           placement_anchor=(260, 380), planning_policy=None)
+        candidate = None
+        if binding is not None and normal.disposition is PlanDisposition.REJECTED and below_minimum:
+            candidate = plan_direct_pan(atlas, localization, RESEARCH_LAB_ID,
+                                        waypoint, navigator.calibration)
+        if (candidate is not None and candidate.disposition is PlanDisposition.PAN
+                and candidate.viewport.target_screen_anchor is not None
+                and _research_radial_viewport_safe(replace(
+                    binding, screen_anchor=candidate.viewport.target_screen_anchor))):
+            try:
+                navigator.safe_region = waypoint
+                # Admit exactly once through the existing history and pan cap.
+                plan = navigator.plan(localization)
+            finally:
+                navigator.safe_region = original_safe
+        else:
+            plan = navigator.plan(localization, binding)
     return localization, binding, plan
+
+
+def _clear_research_roi(roi: tuple[int, int, int, int]) -> bool:
+    x0, y0, x1, y1 = roi
+    sx0, sy0, sx1, sy1 = BLUESTACKS_SAFE_INTERACTION_BOX
+    return bool(
+        sx0 <= x0 < x1 <= sx1 and sy0 <= y0 < y1 <= sy1
+        and not any(x0 < hx1 and x1 > hx0 and y0 < hy1 and y1 > hy0
+                    for hx0, hy0, hx1, hy1 in HUD_MASK_RECTS)
+    )
+
+
+def _research_radial_viewport_safe(binding) -> bool:
+    """Forecast radial clearance only; actual controls still require recognition."""
+    anchor = binding.screen_anchor
+    if anchor is None or not all(math.isfinite(float(value)) for value in anchor):
+        return False
+    nova_dx, nova_dy = _RADIAL_ANCHOR_OFFSETS["nova"]
+    nx, ny = (round(anchor[0] + nova_dx), round(anchor[1] + nova_dy))
+    half = RADIAL_TARGET_HALF_SIZE
+    sx0, sy0, sx1, sy1 = _INITIAL_NOVA_RADIAL_SEARCH_ROI
+    if not (sx0 <= nx - half < nx + half <= sx1 and sy0 <= ny - half < ny + half <= sy1):
+        return False
+    cx, cy = nx + RESEARCH_TO_NOVA_CENTER[0], ny + RESEARCH_TO_NOVA_CENTER[1]
+    return _clear_research_roi((cx - half, cy - half, cx + half, cy + half))
 
 
 def bind_research_radial_option(frame_bgr: np.ndarray) -> BoundControl | None:
@@ -234,13 +367,14 @@ def bind_research_radial_option(frame_bgr: np.ndarray) -> BoundControl | None:
     cx = nx + RESEARCH_TO_NOVA_CENTER[0]
     cy = ny + RESEARCH_TO_NOVA_CENTER[1]
     half = RADIAL_TARGET_HALF_SIZE
-    if not (half <= cx < 800 - half and half <= cy < 1280 - half):
+    target_roi = (cx - half, cy - half, cx + half, cy + half)
+    if not _clear_research_roi(target_roi):
         return None
     ocr_terms = tuple(radial.get("ocr_terms") or ())
     hough_terms = tuple(radial.get("hough_only_anchors") or ())
     return BoundControl(
         identity="research-lab-radial-research",
-        target_roi=(cx - half, cy - half, cx + half, cy + half),
+        target_roi=target_roi,
         evidence=(
             f"template_nova_roi:{tuple(nova)}",
             f"research_offset:{RESEARCH_TO_NOVA_CENTER}",
@@ -253,37 +387,14 @@ def bind_research_radial_option(frame_bgr: np.ndarray) -> BoundControl | None:
 
 
 def bind_free_research(frame_bgr: np.ndarray) -> BoundControl | None:
-    x0, y0, x1, y1 = FREE_RESEARCH_SEED_ROI
-    search = (max(0, x0 - 40), max(0, y0 - 80), min(800, x1 + 80), min(1280, y1 + 40))
-    tokens = _ocr_tokens(frame_bgr, search)
+    tokens = _ocr_tokens(frame_bgr, FREE_RESEARCH_SEED_ROI, psm=6, scale=3)
     texts = [t["text_cf"] for t in tokens]
     blob = " ".join(texts)
-    if _free_research_cooldown_visible(blob):
+    if re.fullmatch(r"free\s+research\s*1\s*x", blob) is None:
         return None
-    if "free" not in blob:
-        return None
-    free_token = next((t for t in tokens if t["text_cf"] == "free"), None)
-    if free_token is None:
-        leftish = [t for t in tokens if t["roi"][2] < 420]
-        if not leftish:
-            return None
-        roi = _union_roi([t["roi"] for t in leftish])
-    else:
-        neighbors = [
-            t
-            for t in tokens
-            if abs(((t["roi"][1] + t["roi"][3]) // 2) - ((free_token["roi"][1] + free_token["roi"][3]) // 2))
-            < 80
-            and t["roi"][0] < 420
-        ]
-        roi = (
-            _union_roi([free_token["roi"], *[t["roi"] for t in neighbors]])
-            if neighbors
-            else free_token["roi"]
-        )
-    roi = (roi[0], roi[1], min(roi[2], 420), roi[3])
+    roi = _union_roi([t["roi"] for t in tokens])
     if roi[2] - roi[0] < 40 or roi[3] - roi[1] < 20:
-        roi = FREE_RESEARCH_SEED_ROI
+        return None
     return BoundControl(
         identity="bioenhancer-free-research",
         target_roi=roi,
@@ -302,6 +413,57 @@ def _dispatch_tap(runtime: LocalBlueStacksRuntime, before, control: BoundControl
     )
 
 
+def _bioenhancer_blocking_modal(frame_bgr: np.ndarray) -> bool:
+    """Distinguish a popup from the full-page Research chamber's rectangular art."""
+
+    popup = recognize_reset_popup(frame_bgr)
+    if popup.get("recognized") or popup.get("blocking_unknown_modal"):
+        return True
+    modal = _generic_modal_overlay_evidence(frame_bgr)
+    if not modal.get("recognized"):
+        return False
+    panels = modal.get("panel_candidates", ())
+    if not panels:
+        return True
+    for x0, y0, x1, y1 in panels:
+        if not (40 <= x0 < x1 <= 760 and 300 <= y0 <= 800 and y1 <= 1100
+                and 400 <= x1 - x0 <= 760 and 220 <= y1 - y0 <= 700):
+            continue
+        if x0 >= 145 and x1 <= 700:
+            return True
+        # Broad edge-aligned chamber contours are not dialogs. A neutral modal
+        # face independently corroborates an opaque panel inside those edges.
+        interior = frame_bgr[y0 + 20:y1 - 20, x0 + 20:x1 - 20]
+        saturation = cv2.cvtColor(interior, cv2.COLOR_BGR2HSV)[:, :, 1]
+        if float(np.count_nonzero(saturation <= 60)) / saturation.size >= 0.65:
+            return True
+    return False
+
+
+def bind_bioenhancer_back(frame_bgr: np.ndarray) -> BoundControl | None:
+    """Bind the visible game arrow only on an unobscured Bioenhancer page."""
+
+    if frame_bgr.shape != (1280, 800, 3):
+        return None
+    title_tokens = _ocr_tokens(frame_bgr, (140, 0, 700, 80))
+    title = re.sub(r"[^a-z]", "", "".join(token["text_cf"] for token in title_tokens))
+    if title not in {"bioenhancer", "bioenhancerresearch"}:
+        return None
+    if _bioenhancer_blocking_modal(frame_bgr):
+        return None
+    # This existing pixel detector measures the standard bright game arrow;
+    # the independent title above binds its Bioenhancer context.
+    target = _bag_back_arrow_visual(frame_bgr, maximum_left=90, search_right=180)
+    if target is None:
+        return None
+    return BoundControl(
+        identity="bioenhancer-in-game-back",
+        target_roi=target,
+        evidence=("current_bioenhancer_title", "current_standard_game_arrow"),
+        confidence=0.9,
+    )
+
+
 def _return_to_home(
     *,
     session: DevelopmentSession,
@@ -309,56 +471,75 @@ def _return_to_home(
     capture,
     session_directory: Path,
     settle_seconds: float,
-    maximum_backs: int = 2,
 ) -> dict[str, Any]:
-    """Back out of Bioenhancer/radial surfaces and prove native Home."""
+    """Leave an exact Bioenhancer page through its visible arrow once."""
 
     attempts: list[dict[str, Any]] = []
-    for ordinal in range(maximum_backs):
-        def dispatch_back(before, index=ordinal) -> None:
-            runtime.back(
-                before,
-                action_key=f"bioenhancer-return-home:{index}:{before.sha256[:12]}",
-            )
+    verified_home = {}
 
-        def recognize_successor(after, index=ordinal) -> str:
-            time.sleep(settle_seconds)
-            settled = capture(f"return-home-{index}-settled")
-            (session_directory / f"return-home-{index}-settled.png").write_bytes(
-                settled.png
-            )
-            recognition = recognize_home_nav(settled.frame)
-            attempts.append(
-                {
-                    "ordinal": index,
-                    "frame_sha256": settled.sha256,
-                    "is_home": recognition.is_home,
-                    "correlation": recognition.correlation,
-                    "reason": recognition.reason,
-                }
-            )
-            return "home_nav_recognized" if recognition.is_home else "unknown"
+    def home_reference(captured):
+        return {
+            "frame_path": captured.path.relative_to(session_directory).as_posix(),
+            "frame_sha256": captured.sha256,
+        }
 
-        action = session.run_action(
-            action_class="navigation",
-            label=f"bioenhancer-return-home-{ordinal}",
-            capture=capture,
-            dispatch=dispatch_back,
-            recognize=recognize_successor,
-            consequence_class="navigation_only",
-        )
-        if attempts and attempts[-1]["is_home"]:
-            return {
-                "status": "home_returned",
-                "input_count": ordinal + 1,
-                "attempts": attempts,
-            }
-        if getattr(action, "status", None) != "completed":
-            break
+    source = session.observe(capture, label="bioenhancer-return-home-source")
+    if is_clean_home_frame(source.frame):
+        return {
+            "status": "home_returned", "input_count": 0, "attempts": [],
+            "terminal_home_frame": home_reference(source),
+        }
+    control = bind_bioenhancer_back(source.frame)
+    if control is None:
+        return {
+            "status": "home_return_not_proven",
+            "reason": "bioenhancer_source_or_visible_back_not_bound",
+            "input_count": 0,
+            "attempts": [],
+        }
+
+    def dispatch_exit(before) -> None:
+        rebound = bind_bioenhancer_back(before.frame)
+        if rebound is None:
+            raise RuntimeError("Bioenhancer visible back changed before dispatch")
+        _dispatch_tap(runtime, before, rebound, f"bioenhancer-return-home:{before.sha256[:12]}")
+
+    def authorize_exit(before) -> None:
+        if bind_bioenhancer_back(before.frame) is None:
+            raise RuntimeError("Bioenhancer source or visible back not bound before dispatch")
+
+    def recognize_successor(after) -> str:
+        home = is_clean_home_frame(after.frame)
+        attempts.append({"frame_sha256": after.sha256, "is_home": home})
+        if home:
+            verified_home["frame"] = after
+        return "home_nav_recognized" if home else "unknown"
+
+    def settled_successor():
+        time.sleep(settle_seconds)
+        settled = capture("return-home-settled")
+        (session_directory / "return-home-settled.png").write_bytes(settled.png)
+        return settled
+
+    inputs_before = session.input_count
+    action = session.run_action(
+        action_class="navigation",
+        label="bioenhancer-return-home",
+        capture=capture,
+        dispatch=dispatch_exit,
+        authorize=authorize_exit,
+        recognize=recognize_successor,
+        settled_successor=settled_successor,
+        target_roi=control.target_roi,
+        consequence_class="navigation_only",
+    )
+    home = verified_home.get("frame")
+    returned = bool(action.status == "completed" and home is not None and action.after_sha256 == home.sha256)
     return {
-        "status": "home_return_not_proven",
-        "input_count": len(attempts),
+        "status": "home_returned" if returned else "home_return_not_proven",
+        "input_count": session.input_count - inputs_before,
         "attempts": attempts,
+        "terminal_home_frame": home_reference(home) if returned else None,
     }
 
 
@@ -397,7 +578,6 @@ def return_to_home_only(*, max_inputs: int = 2, settle_seconds: float = 1.5) -> 
                     capture=capture,
                     session_directory=session_directory,
                     settle_seconds=settle_seconds,
-                    maximum_backs=max_inputs,
                 )
             )
             session.terminal_status = str(result["status"])
@@ -461,6 +641,27 @@ def run(
             def capture(label: str):
                 return runtime.capture(label)
 
+            startup = session.observe(capture, label="bioenhancer-startup-context")
+            cooldown = recognize_free_research_cooldown(startup.frame)
+            if cooldown is not None:
+                return _complete_cooldown_no_work(
+                    result, cooldown, startup,
+                    session=session, runtime=runtime, capture=capture,
+                    session_directory=session_directory, settle_seconds=settle_seconds,
+                )
+
+            if (bind_bioenhancer_back(startup.frame) is not None
+                    and bind_free_research(startup.frame) is not None):
+                result["startup_return_home"] = _return_to_home(
+                    session=session, runtime=runtime, capture=capture,
+                    session_directory=session_directory, settle_seconds=settle_seconds,
+                )
+                if result["startup_return_home"].get("status") != "home_returned":
+                    result.update(reason="bioenhancer_startup_home_not_proven", input_count=session.input_count)
+                    session.terminal_status = "evidence_required"
+                    (session_directory / "result.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+                    return result
+
             atlas = load_home_atlas(ATLAS_PATH)
             safe, calibration = normalize_home_atlas_startup(
                 session=session,
@@ -482,7 +683,7 @@ def run(
                 maximum_pans=6,
             )
 
-            # --- 1) Pan Lab into a radial-safe viewport ---
+            # Bind the Lab only where its Research radial also clears the HUD.
             for pan_i in range(6):
                 before = session.observe(capture, label=f"pan-{pan_i:02d}-before")
                 (session_directory / f"pan-{pan_i:02d}-before.png").write_bytes(before.png)
@@ -508,7 +709,7 @@ def run(
                     }
                 )
                 if plan.disposition in {PlanDisposition.COMPLETE, PlanDisposition.BIND, PlanDisposition.ALREADY_SAFE}:
-                    result["viewport"] = "radial_safe"
+                    result["viewport"] = "building_entry_ready"
                     break
                 if plan.disposition is not PlanDisposition.PAN or plan.drag_start is None or plan.drag_end is None:
                     result["reason"] = f"pan_blocked:{plan.reason}"
@@ -584,7 +785,7 @@ def run(
             else:
                 result["reason"] = "maximum_pans_exhausted"
 
-            if result.get("viewport") != "radial_safe" and "reason" in result and result["reason"]:
+            if result.get("viewport") != "building_entry_ready" and "reason" in result and result["reason"]:
                 (session_directory / "result.json").write_text(
                     json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
                 )
@@ -705,6 +906,8 @@ def run(
                     action_key=f"open-research:{before.sha256[:12]}",
                 )
 
+            cooldown_successor = {}
+
             def recognize_after_radial(after) -> str:
                 time.sleep(settle_seconds)
                 settled = capture("bioenhancer-screen-settled")
@@ -715,6 +918,10 @@ def run(
                     json.dumps(tokens, indent=2) + "\n", encoding="utf-8"
                 )
                 if free is None:
+                    cooldown = recognize_free_research_cooldown(settled.frame)
+                    if cooldown is not None:
+                        cooldown_successor.update(cooldown=cooldown, source=settled)
+                        return "bioenhancer_cooldown"
                     return "unknown"
                 _annotate(settled.frame, free, session_directory / "annotate-free-research.png")
                 result["free_research"] = {
@@ -735,6 +942,12 @@ def run(
                 consequence_class="navigation_only",
             )
             result["steps"].append({"step": "tap_research_radial", "status": getattr(action2, "status", None)})
+            if cooldown_successor:
+                return _complete_cooldown_no_work(
+                    result, cooldown_successor["cooldown"], cooldown_successor["source"],
+                    session=session, runtime=runtime, capture=capture,
+                    session_directory=session_directory, settle_seconds=settle_seconds,
+                )
             if "free_research" not in result:
                 result["reason"] = "free_research_not_bound"
                 (session_directory / "result.json").write_text(
@@ -835,7 +1048,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--return-home-only",
         action="store_true",
-        help="Back out of the current Bioenhancer screen without repeating research",
+        help="Leave the current Bioenhancer screen through its visible arrow without repeating research",
     )
     args = parser.parse_args()
     payload = return_to_home_only() if args.return_home_only else run()

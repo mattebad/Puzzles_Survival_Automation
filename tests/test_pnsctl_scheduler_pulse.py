@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 from automation_service.registry import (
     CAMPAIGN_FLOW_ID,
-    NOVA_FLOW_ID,
     RECRUITMENT_FLOW_ID,
     WORLD_FLOW_ID,
 )
@@ -352,16 +351,21 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
     def test_healthy_pulse_requires_sqlite_service_and_flow_enablement(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "scheduler.sqlite3"
+            # A fresh due observation isolates the service and flow gates here.
             base = [
                 "automation-service",
                 "pulse",
                 "--state-path",
                 str(path),
                 "--flow-id",
-                NOVA_FLOW_ID,
+                RECRUITMENT_FLOW_ID,
                 "--now-utc-epoch",
                 "100",
                 "--health-ok",
+                "--projection-observed-at-utc",
+                "95",
+                "--projection-next-eligible-at",
+                "90",
             ]
 
             disabled = StringIO()
@@ -380,7 +384,7 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
                             "--state-path",
                             str(path),
                             "--now-utc-epoch",
-                            "101",
+                            "100",
                         ]
                     ),
                     0,
@@ -401,11 +405,11 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
                         [
                             "automation-service",
                             "enable",
-                            NOVA_FLOW_ID,
+                            RECRUITMENT_FLOW_ID,
                             "--state-path",
                             str(path),
                             "--now-utc-epoch",
-                            "102",
+                            "100",
                         ]
                     ),
                     0,
@@ -416,10 +420,10 @@ class PnsctlSchedulerPulseTests(unittest.TestCase):
                 self.assertEqual(main(base), 0)
             payload = json.loads(selected.getvalue())
             self.assertEqual(payload["status"], "selected")
-            self.assertEqual(payload["candidate"]["flow_id"], NOVA_FLOW_ID)
+            self.assertEqual(payload["candidate"]["flow_id"], RECRUITMENT_FLOW_ID)
             self.assertIsNone(payload["result"])
             self.assertEqual(payload["transport_count"], 0)
-            self.assertEqual(payload["accepted_product"], "nova_praise")
+            self.assertEqual(payload["accepted_product"], "noahs_tavern_recruitment")
             self.assertTrue(payload["scheduler_eligible"])
 
     def test_recruitment_pulse_requires_fresh_due_projection_and_is_restart_safe(

@@ -1,7 +1,8 @@
 # Recovery execution guide
 
-This guide indexes the 74 inactive recovery tickets. It describes how to read and bound future
-planning work; it is not a queue, registry, scheduler, conductor, evidence authority, or runtime
+This guide indexes 74 reconciled recovery records, including existing local implementation
+and remaining future work. Dated notes distinguish implemented overlap from full ticket closure;
+it describes how to read and bound future planning work; it is not a queue, registry, scheduler, conductor, evidence authority, or runtime
 control plane. The root [`BACKLOG.md`](../../BACKLOG.md) is a small index. The four linked ticket
 files below are the current planning records, and the original 148-record backlog is preserved at
 [`docs/archive/backlog-legacy.md`](../archive/backlog-legacy.md).

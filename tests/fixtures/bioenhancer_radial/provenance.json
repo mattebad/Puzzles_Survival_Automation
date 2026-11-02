@@ -1,0 +1,19 @@
+{
+  "recorded_utc": "2026-10-29T14:23:33.347388+00:00",
+  "frames": [
+    {
+      "fixture": "home-research-under-event-hud.png",
+      "source": ".local-captures/automation-service-authorized/soak-20261029T141719001593Z-b475f9be/bioenhancer/bioenhancer-20261029T141719042600Z-0cf25a31/bioenhancer-native-20261029T141719194894Z/frames/0006-open-research-lab-immediate-before.png",
+      "file_sha256": "1bc736b3e74537010489dbfd4a9e80ca0fb1fac7efab14b386aec7b404f26a75",
+      "runtime_profile": "native-800x1280",
+      "purpose": "Actual canonical Bioenhancer navigation failure: Research radial overlaps fixed event HUD; no Research consumption."
+    },
+    {
+      "fixture": "radial-research-under-event-hud.png",
+      "source": ".local-captures/automation-service-authorized/soak-20261029T141719001593Z-b475f9be/bioenhancer/bioenhancer-20261029T141719042600Z-0cf25a31/bioenhancer-native-20261029T141719194894Z/frames/0009-open-research-immediate-before.png",
+      "file_sha256": "da8ab3848f292a61b0a798a8c7064b9572d57046b3b47bd3172ee8474fef2840",
+      "runtime_profile": "native-800x1280",
+      "purpose": "Actual canonical Bioenhancer navigation failure: Research radial overlaps fixed event HUD; no Research consumption."
+    }
+  ]
+}

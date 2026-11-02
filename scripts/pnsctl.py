@@ -34,6 +34,16 @@ from scripts.bluestacks_adb_readiness import (  # noqa: E402
 )
 
 PACKAGE = "com.global.ztmslg"
+# This is deliberately a narrow admission check for the bootstrap command.  A
+# launcher-looking window is not enough: only these verified BlueStacks Home
+# packages may be used as the safe source for starting the installed game.
+BLUESTACKS_LAUNCHER_PACKAGES = frozenset(
+    {
+        "com.bluestacks.launcher",
+        "com.bluestacks.gamecenter",
+        "com.uncube.launcher3",
+    }
+)
 NAVIGATION_ASSET_ROOT = "tasks/assets/navigation/800x1280"
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 BLUESTACKS_ADB = Path(r"C:\Program Files\BlueStacks_nxt\HD-Adb.exe")
@@ -82,6 +92,7 @@ FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
 BLUESTACKS_FLOW_IDS = (
     "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
     "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+    "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION",
     CAMPAIGN_AP_FLOW_ID,
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
     "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
@@ -183,6 +194,14 @@ def _register_checked_in_bluestacks_handlers() -> None:
             register as register_bioenhancer,
         )
     try:
+        from scripts.flow_delivery_personal_might_bluestacks import (
+            register as register_personal_might,
+        )
+    except ImportError:
+        from flow_delivery_personal_might_bluestacks import (
+            register as register_personal_might,
+        )
+    try:
         from scripts.flow_delivery_daily_row_claim_bluestacks import (
             register as register_daily_row_claim,
         )
@@ -267,6 +286,11 @@ def _register_checked_in_bluestacks_handlers() -> None:
         _BLUESTACKS_RECOVERY_HANDLERS,
     )
     register_supply_depot(
+        _BLUESTACKS_FLOW_RUNNERS,
+        _BLUESTACKS_EVIDENCE_VALIDATORS,
+        _BLUESTACKS_RECOVERY_HANDLERS,
+    )
+    register_personal_might(
         _BLUESTACKS_FLOW_RUNNERS,
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,
@@ -660,6 +684,32 @@ def _focused_package(dumpsys_output: str) -> str:
     raise OperatorError("focused Android application could not be parsed")
 
 
+def _resolve_installed_game_activity() -> str:
+    """Resolve the installed P&S launcher activity with an exact package bind."""
+
+    raw = str(
+        _run_fixed_bluestacks_adb(
+            "shell",
+            "cmd",
+            "package",
+            "resolve-activity",
+            "--brief",
+            "-a",
+            "android.intent.action.MAIN",
+            "-c",
+            "android.intent.category.LAUNCHER",
+            PACKAGE,
+        )
+    ).strip()
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
+    resolved_activity = lines[-1] if lines else ""
+    if not resolved_activity.startswith(f"{PACKAGE}/"):
+        raise OperatorError(
+            "installed Puzzles & Survival launcher activity was not resolved"
+        )
+    return resolved_activity
+
+
 def _run_fixed_bluestacks_adb(*arguments: str, binary: bool = False) -> bytes | str:
     if not BLUESTACKS_ADB.is_file():
         raise OperatorError("approved BlueStacks HD-Adb executable is unavailable")
@@ -753,6 +803,42 @@ def _development_runtime_observation() -> tuple[dict[str, Any], bytes]:
     )
 
 
+def _development_launcher_observation() -> tuple[dict[str, Any], bytes]:
+    """Capture a native frame while admitting the launcher as a source state.
+
+    This is intentionally separate from the ordinary development observation:
+    ordinary route work must already be in P&S, while crash recovery may only
+    start from the positively identified BlueStacks launcher.
+    """
+
+    state = str(_run_fixed_bluestacks_adb("get-state")).strip()
+    frame = _run_fixed_bluestacks_adb("exec-out", "screencap", "-p", binary=True)
+    if (
+        not isinstance(frame, bytes)
+        or frame[:8] != b"\x89PNG\r\n\x1a\n"
+        or len(frame) < 24
+    ):
+        raise OperatorError("launch-game observation did not receive a valid PNG frame")
+    width = int.from_bytes(frame[16:20], "big")
+    height = int.from_bytes(frame[20:24], "big")
+    focus = str(_run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
+    focused_package = _focused_package(focus)
+    if state != "device":
+        raise OperatorError("approved runtime serial is not in device state")
+    if (width, height) != (BLUESTACKS_NATIVE_WIDTH, BLUESTACKS_NATIVE_HEIGHT):
+        raise OperatorError("launch-game frame is not native 800x1280")
+    return (
+        {
+            "device_state": state,
+            "foreground_package": focused_package,
+            "native_width": width,
+            "native_height": height,
+            "frame_sha256": hashlib.sha256(frame).hexdigest(),
+        },
+        frame,
+    )
+
+
 def _checkpoint_hashes() -> dict[str, str]:
     hashes: dict[str, str] = {}
     for path in DEVELOPMENT_CHECKPOINT_PATHS:
@@ -774,6 +860,258 @@ def _development_session_directory(invocation_id: str) -> Path:
     return DEVELOPMENT_SESSION_ROOT / safe
 
 
+class ApplicationStartupError(OperatorError):
+    def __init__(self, reason: str, result: Mapping[str, Any]):
+        super().__init__(reason)
+        self.startup_result = dict(result)
+
+
+def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_directory: Path,
+                                    flow_id: str | None = None, require_ready: bool = False) -> dict[str, Any]:
+    """Observe or launch once using the caller's already-held runtime owner."""
+    from scripts.navigation_development_boundary import NavigationBoundaryError, require_canonical_unresolved_clear
+
+    def gate():
+        try:
+            require_canonical_unresolved_clear()
+        except NavigationBoundaryError as exc:
+            raise OperatorError(str(exc)) from exc
+
+    def fence():
+        runtime_input_lock.assert_held(runtime_input_lock.owner, runtime_input_lock.invocation_id)
+        checkpoint()
+
+    fence()
+    gate()
+    session_directory = Path(session_directory)
+    session_directory.mkdir(parents=True, exist_ok=False)
+    result = {"status": "unresolved", "session_directory": str(session_directory),
+              "serial": BLUESTACKS_SERIAL, "system_launch_count": 0, "game_input_count": 0,
+              "input_count": 0, "dispatch": False, "route_ready": False}
+
+    def persist():
+        (session_directory / "result.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    def capture(label):
+        fence()
+        observation, frame = _development_launcher_observation()
+        fence()
+        (session_directory / f"{label}.png").write_bytes(frame)
+        return observation, frame
+
+    transport_started = False
+    try:
+        before, _ = capture("before")
+        result.update(before_observation=before, before_frame="before.png")
+        persist()
+        focused = str(before["foreground_package"])
+        if focused == PACKAGE:
+            # Existing route owns validation of its current Profile/Chapter context.
+            result.update(status="already_foreground", foreground_package=focused,
+                          action="observe_existing_game")
+            after, _ = capture("after")
+            if after["foreground_package"] != PACKAGE:
+                raise OperatorError("Puzzles & Survival foreground changed during startup observation")
+            result.update(after_observation=after, after_frame="after.png")
+            persist()
+            return result
+        if focused not in BLUESTACKS_LAUNCHER_PACKAGES:
+            raise OperatorError(f"launch-game requires the positively identified BlueStacks launcher; focused package was {focused!r}")
+        activity = _resolve_installed_game_activity()
+        if require_ready:
+            immediate, _ = capture("immediate-before")
+            if immediate["foreground_package"] != focused:
+                raise OperatorError("launcher source changed before application start")
+            result.update(immediate_before_observation=immediate, immediate_before_frame="immediate-before.png")
+            persist()
+        fence()
+        gate()
+        fence()
+        result.update(system_launch_count=1, action="start_checked_in_activity_from_bluestacks_launcher",
+                      resolved_activity=activity, transport_status="attempted",
+                      launch_intent={"action": "android.intent.action.MAIN",
+                                     "category": "android.intent.category.LAUNCHER",
+                                     "flags": "0x10000000", "component": activity})
+        # Persist the attempt before transport: an exception cannot authorize retry.
+        persist()
+        fence()
+        transport_started = True
+        # Match the measured BlueStacks icon intent: MAIN/LAUNCHER + NEW_TASK.
+        # Do not add RESET_TASK_IF_NEEDED; this launcher's icon does not use it.
+        transport = _run_fixed_bluestacks_adb(
+            "shell", "am", "start", "-W", "-a", "android.intent.action.MAIN",
+            "-c", "android.intent.category.LAUNCHER", "-f", "0x10000000", "-n", activity,
+        )
+        result.update(transport_status="returned", transport_result=str(transport))
+        persist()
+        # Allow cold loading to settle before requiring Home or an owned popup.
+        # The same owner/checkpoints remain active and no launch is retried.
+        deadline = time.monotonic() + 90.0
+        ordinal = 0
+        while True:
+            fence()
+            focus = str(_run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
+            fence()
+            package = _focused_package(focus)
+            if package not in BLUESTACKS_LAUNCHER_PACKAGES and package != PACKAGE:
+                unexpected, _ = capture("unexpected-foreground")
+                result.update(after_observation=unexpected, after_frame="unexpected-foreground.png")
+                persist()
+                raise OperatorError(f"launch-game encountered manual or unknown foreground package {package!r}")
+            if package == PACKAGE:
+                label = "after" if not require_ready else f"readiness-{ordinal:03d}"
+                after, frame = capture(label)
+                if after["foreground_package"] != PACKAGE:
+                    raise OperatorError("Puzzles & Survival foreground was not stable after launch")
+                result.update(after_observation=after, after_frame=f"{label}.png", foreground_package=PACKAGE)
+                if not require_ready:
+                    result.update(status="launched")
+                    persist()
+                    return result
+                from scripts.startup_recovery import classify_startup_frame
+                from scripts.startup_normalization import is_clean_home_frame
+                import cv2
+                import numpy as np
+                decoded = cv2.imdecode(np.frombuffer(frame, dtype=np.uint8), cv2.IMREAD_COLOR)
+                plan = classify_startup_frame(str(flow_id or ""), frame)
+                fence()
+                ready = decoded is not None and is_clean_home_frame(decoded)
+                fence()
+                if (ready or (plan.status in {"recovery_required", "route_owned"}
+                             and bool(plan.recovery_owner))):
+                    result.update(status="launched", route_ready=True,
+                                  readiness="clean_home" if ready else "known_startup_overlay")
+                    persist()
+                    return result
+                ordinal += 1
+            if time.monotonic() >= deadline:
+                terminal, _ = capture("timeout")
+                result.update(after_observation=terminal, after_frame="timeout.png",
+                              foreground_package=terminal["foreground_package"])
+                raise OperatorError("Puzzles & Survival did not reach a recognized startup surface")
+            time.sleep(1.0)
+    except Exception as exc:
+        if result.get("transport_status") == "attempted" and not transport_started:
+            result.update(system_launch_count=0, transport_status="not_attempted")
+        result.update(status="unresolved", reason=str(exc))
+        try:
+            persist()
+        except OSError:
+            pass
+        raise ApplicationStartupError(str(exc), result) from exc
+
+
+def _cold_restart_game(*, runtime_input_lock, session_directory: Path) -> dict[str, Any]:
+    """Explicit operator test: stop only a clean idle game, then reuse startup."""
+    from automation_service.state import BotStateManager
+    from scripts.navigation_development_boundary import NavigationBoundaryError, require_canonical_unresolved_clear
+    from scripts.startup_normalization import is_clean_home_frame
+    import cv2
+    import numpy as np
+
+    with BotStateManager(read_only=True) as state:
+        if Path(state.db_path).resolve() != BotStateManager.DEFAULT_DB_PATH.resolve() or not Path(state.db_path).is_file():
+            raise OperatorError("cold restart requires the existing canonical state database")
+
+        def checkpoint():
+            runtime_input_lock.assert_held(runtime_input_lock.owner, runtime_input_lock.invocation_id)
+            try:
+                require_canonical_unresolved_clear()
+            except NavigationBoundaryError as exc:
+                raise OperatorError(str(exc)) from exc
+            if state.get_service_enabled() or state._db.execute(
+                "SELECT 1 FROM flow_state WHERE enabled=1"
+            ).fetchone():
+                raise OperatorError("cold restart requires disabled service and flow controls")
+            if state.get_service_lease().owner_instance_id is not None or state._db.execute(
+                "SELECT 1 FROM runs WHERE state IN ('CLAIMED','RUNNING','STOP_REQUESTED','RECOVERING')"
+            ).fetchone():
+                raise OperatorError("cold restart requires no active service operator or run")
+
+        checkpoint()
+        session_directory.mkdir(parents=True, exist_ok=False)
+        result: dict[str, Any] = {
+            "status": "unresolved", "session_directory": str(session_directory),
+            "authorization": "Explicit launch-game --cold-restart --live --yes; current user requested cold process restart validation.",
+            "system_stop_count": 0, "system_launch_count": 0, "game_input_count": 0,
+            "input_count": 0, "cold_stop_verified": False,
+        }
+        try:
+            before, frame = _development_launcher_observation()
+            (session_directory / "before.png").write_bytes(frame)
+            result.update(before_observation=before, before_frame="before.png")
+            decoded = cv2.imdecode(np.frombuffer(frame, dtype=np.uint8), cv2.IMREAD_COLOR)
+            if before["foreground_package"] != PACKAGE or decoded is None or not is_clean_home_frame(decoded):
+                raise OperatorError("cold restart requires positively recognized clean Home")
+            checkpoint()
+            activity = _resolve_installed_game_activity()
+            immediate, immediate_frame = _development_launcher_observation()
+            (session_directory / "immediate-before.png").write_bytes(immediate_frame)
+            result.update(immediate_before_observation=immediate, immediate_before_frame="immediate-before.png")
+            decoded = cv2.imdecode(np.frombuffer(immediate_frame, dtype=np.uint8), cv2.IMREAD_COLOR)
+            if immediate["foreground_package"] != PACKAGE or decoded is None or not is_clean_home_frame(decoded):
+                raise OperatorError("clean Home changed before the cold stop")
+            checkpoint()
+            # Persist the single attempt before transport. An uncertain stop is
+            # retained and never retried by this invocation.
+            result["system_stop_count"] = 1
+            with (session_directory / "stop-attempt.json").open("x", encoding="utf-8") as stream:
+                json.dump(result, stream, indent=2, sort_keys=True)
+            stop_result = _run_fixed_bluestacks_adb("shell", "am", "force-stop", PACKAGE)
+            checkpoint()
+            processes = str(_run_fixed_bluestacks_adb("shell", "ps", "-A")).splitlines()
+            rows = [line.split() for line in processes[1:] if line.split()]
+            if not processes or not rows or processes[0].split()[-1:] != ["NAME"]:
+                raise OperatorError("cold stop process observation is unreadable")
+            remaining = [row[-1] for row in rows if (
+                row[-1] == PACKAGE or row[-1].startswith(PACKAGE + ":")
+            )]
+            if remaining:
+                raise OperatorError("game process remains after the single cold stop")
+            stopped, stopped_frame = _development_launcher_observation()
+            if stopped["foreground_package"] not in BLUESTACKS_LAUNCHER_PACKAGES:
+                raise OperatorError("cold stop did not expose the known BlueStacks launcher")
+            (session_directory / "stopped.png").write_bytes(stopped_frame)
+            result.update(cold_stop_verified=True, stopped_observation=stopped,
+                          stopped_frame="stopped.png", stop_transport_result=str(stop_result),
+                          resolved_activity=activity)
+            startup = owner_bound_application_startup(
+                runtime_input_lock=runtime_input_lock, checkpoint=checkpoint,
+                session_directory=session_directory / "startup", flow_id=CAMPAIGN_AP_FLOW_ID,
+                require_ready=True,
+            )
+            result.update(status="cold_restarted", startup=startup,
+                          system_launch_count=startup["system_launch_count"],
+                          route_ready=startup["route_ready"], readiness=startup.get("readiness"))
+        except Exception as exc:
+            result.update(reason=f"{type(exc).__name__}: {exc}")
+            if isinstance(exc, ApplicationStartupError):
+                result.update(startup=exc.startup_result,
+                              system_launch_count=exc.startup_result.get("system_launch_count", 0))
+            raise ApplicationStartupError(str(exc), result) from exc
+        finally:
+            with (session_directory / "result.json").open("x", encoding="utf-8") as stream:
+                json.dump(result, stream, indent=2, sort_keys=True)
+                stream.write("\n")
+        return result
+
+
+def development_session_launch_game(*, live: bool, yes: bool, cold_restart: bool = False) -> str:
+    if not live or not yes:
+        raise OperatorError("launch-game requires explicit --live --yes")
+    from scripts.navigation_development_boundary import RuntimeInputLock
+    invocation_id = f"launch-game-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    owner = "pnsctl-development-session:launch-game"
+    with RuntimeInputLock(owner=owner, invocation_id=invocation_id) as lock:
+        if cold_restart:
+            result = _cold_restart_game(runtime_input_lock=lock,
+                session_directory=_development_session_directory(invocation_id))
+        else:
+            result = owner_bound_application_startup(runtime_input_lock=lock, checkpoint=lambda: None,
+                session_directory=_development_session_directory(invocation_id))
+    return json.dumps(result, sort_keys=True)
+
+
 def _run_shared_startup_recovery(
     *,
     flow_id: str,
@@ -786,8 +1124,7 @@ def _run_shared_startup_recovery(
 ) -> dict[str, Any]:
     """Recover the exact shared startup surface within the active flow boundary."""
     from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
-    from scripts.startup_recovery import recover_known_startup_overlay
-    from tasks.home_nav_recognition import recognize_home_nav
+    from scripts.startup_recovery import classify_startup_frame, recover_known_startup_overlay
 
     runtime = LocalBlueStacksRuntime.connect(
         adb=str(BLUESTACKS_ADB),
@@ -798,19 +1135,46 @@ def _run_shared_startup_recovery(
     )
     if runtime_holder is not None:
         runtime_holder["runtime"] = runtime
-    runtime.max_inputs = min(runtime.max_inputs, max_inputs, 1)
-    result = recover_known_startup_overlay(
-        runtime,
-        task_id=task_id,
-        recognize_successor=lambda frame: bool(recognize_home_nav(frame).is_home),
-        recovery_scope=recovery_scope,
-        expected_source_sha256=expected_source_sha256,
-    )
-    payload = result.to_mapping()
+    runtime.max_inputs = min(runtime.max_inputs, max_inputs, 2)
+    actions: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    while len(actions) < 2:
+        result = recover_known_startup_overlay(
+            runtime,
+            task_id=task_id,
+            # This proves only a retained, nonblack native successor. The
+            # active route must recognize its own context before acting.
+            recognize_successor=lambda frame: bool(
+                frame.shape == (1280, 800, 3) and frame.any()
+            ),
+            successor_state="RETAINED_STARTUP_SUCCESSOR",
+            recovery_scope=recovery_scope,
+            expected_source_sha256=expected_source_sha256,
+        )
+        item = result.to_mapping()
+        actions.append(item)
+        identity = str(result.popup_identity or "")
+        seen.add(identity)
+        if result.status not in {"surface_dismissed_successor_captured", "recovered"}:
+            break
+        post = runtime.capture("startup-recovery-chain-observation")
+        plan = classify_startup_frame(flow_id, post.png)
+        if plan.status == "clear" or plan.status == "route_owned":
+            break
+        if (plan.status != "recovery_required" or plan.popup_identity in seen
+                or runtime.input_count >= runtime.max_inputs):
+            item = dict(item, status="evidence_required", reason=(
+                "startup_successor_blocked_or_repeated_or_budget_exhausted"
+            ))
+            break
+        expected_source_sha256 = post.sha256
+    payload = dict(item)
+    payload["actions"] = actions
     payload["flow_id"] = flow_id
-    payload["recovery_input_count"] = int(result.input_count)
+    payload["recovery_input_count"] = sum(int(action["input_count"]) for action in actions)
+    payload["input_count"] = payload["recovery_input_count"]
     payload["route_input_count"] = 0
-    payload["total_input_count"] = int(result.input_count)
+    payload["total_input_count"] = payload["recovery_input_count"]
     return payload
 
 def _canonical_action_identity(row: Mapping[str, Any]) -> str | None:
@@ -836,6 +1200,12 @@ def _startup_recovery_action_rows(
 
     if not isinstance(result, Mapping):
         return []
+    actions = result.get("actions")
+    if isinstance(actions, list):
+        rows = [row for action in actions for row in _startup_recovery_action_rows(action)]
+        for ordinal, row in enumerate(rows):
+            row["ordinal"] = ordinal
+        return rows
     try:
         input_count = int(
             result.get("input_count")
@@ -3585,7 +3955,7 @@ def development_session_run_flow(
     *,
     live: bool,
     yes: bool,
-    max_inputs: int = 12,
+    max_inputs: int | None = None,
     recovery_only: bool = False,
     search_entry_only: bool = False,
     recovery_session: Path | None = None,
@@ -3608,6 +3978,15 @@ def development_session_run_flow(
     _resource_wall_clock: Callable[[], datetime] | None = None,
 ) -> str:
     """Run a complete registered flow without queue, lease, replay, or preflight ceremony."""
+
+    if live and flow_id == CAMPAIGN_AP_FLOW_ID and recovery_only is not True:
+        raise OperatorError(
+            "Ordinary Campaign execution uses pnsctl automation-service "
+            "--mode supervised --adapter bluestacks serve --live --flow campaign; "
+            "the legacy one-battle runner is retired."
+        )
+    if max_inputs is None:
+        max_inputs = _CONDUCT_DEFAULT_MAX_INPUTS.get(flow_id, 12)
 
     from scripts.navigation_development_boundary import (
         DevelopmentInitialObservation,
@@ -3690,16 +4069,38 @@ def development_session_run_flow(
     if live and not yes:
         raise OperatorError("live development session requires --yes")
     if recovery_only:
+        if flow_id == CAMPAIGN_AP_FLOW_ID:
+            if recovery_session is None:
+                raise OperatorError("Campaign victory recovery requires --recovery-session")
+            from tasks.campaign_victory_recovery import load_victory_recovery_proof
+
+            try:
+                load_victory_recovery_proof(Path(recovery_session))
+            except (ValueError, OSError) as exc:
+                raise OperatorError(f"Campaign victory recovery proof rejected: {exc}") from exc
+        if (
+            flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+            and recovery_session is None
+        ):
+            raise OperatorError("Ultimate recovery requires --recovery-session")
         if (
             flow_id == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
             and recovery_session is None
         ):
             raise OperatorError("Ruins recovery requires --recovery-session")
+        if (
+            flow_id == "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION"
+            and recovery_session is None
+        ):
+            raise OperatorError("Personal Might recovery requires --recovery-session")
         if flow_id not in {
+            CAMPAIGN_AP_FLOW_ID,
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
             "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
             "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
             "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
             "WORLD-MAP-NAVIGATION-FOUNDATION",
+            "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION",
         }:
             raise OperatorError(
                 "recovery-only is unsupported for this development flow"
@@ -3755,7 +4156,7 @@ def development_session_run_flow(
             )
         identity_now = datetime.now(timezone.utc)
         enhancement_reset_identity = (
-            f"local-{identity_now.date().isoformat()}-enhancement-{enhancement_variant}"
+            f"local-{identity_now.date().isoformat()}-enhancement-family"
         )
     if chest_continuation is not None:
         from tasks.ruins_challenge_continuation import (
@@ -3864,12 +4265,12 @@ def development_session_run_flow(
                     or 0
                 )
                 recovery_status = str(startup_recovery_result.get("status") or "")
-                if recovery_status == "evidence_required" and startup_recovery_input_count == 1:
+                if recovery_status == "evidence_required" and startup_recovery_input_count > 0:
                     startup_recovery_terminal_status = "evidence_required"
                 elif recovery_status not in {
                     "surface_dismissed_successor_captured",
                     "recovered",
-                } or startup_recovery_input_count != 1:
+                } or not 1 <= startup_recovery_input_count <= min(max_inputs, 2):
                     session.blocker = str(
                         startup_recovery_result.get("reason")
                         or "shared startup recovery did not reconcile"
@@ -3916,6 +4317,14 @@ def development_session_run_flow(
                     observation, frame = _development_runtime_observation()
                     observation = dict(observation)
                     observation.setdefault("frame_sha256", hashlib.sha256(frame).hexdigest())
+                if startup_runtime is not None:
+                    route_plan = classify_startup_frame(flow_id, frame)
+                    if route_plan.status not in {"clear", "route_owned"}:
+                        startup_recovery_terminal_status = "evidence_required"
+                        startup_recovery_result = dict(
+                            startup_recovery_result,
+                            reason="startup_route_observation_requires_reassessment",
+                        )
             if live and startup_recovery_plan.status == "blocked":
                 (session_directory / "source.png").write_bytes(frame)
                 session.blocker = startup_recovery_plan.reason
@@ -3948,14 +4357,7 @@ def development_session_run_flow(
                 session.remember_control(key, value)
             if startup_recovery_terminal_status is not None:
                 session.terminal_status = startup_recovery_terminal_status
-                startup_recovery_terminal_home_verified = (
-                    startup_recovery_terminal_status == "completed"
-                    and recovery_status
-                    in {
-                        "surface_dismissed_successor_captured",
-                        "recovered",
-                    }
-                )
+                startup_recovery_terminal_home_verified = False
                 session.remember_control(
                     "terminal_home_verified", startup_recovery_terminal_home_verified
                 )
@@ -4064,20 +4466,39 @@ def development_session_run_flow(
                     },
                     sort_keys=True,
                 )
-            elif "live" in inspect.signature(runner).parameters:
-                raw = runner(queue_context, runtime_context, live=live)
-            elif live:
-                raw = runner(queue_context, runtime_context)
             else:
-                raw = json.dumps(
-                    {
-                        "status": "dry_run",
-                        "flow_id": flow_id,
-                        "dispatch": False,
-                        "session_directory": "",
-                    },
-                    sort_keys=True,
-                )
+                try:
+                    if "live" in inspect.signature(runner).parameters:
+                        raw = runner(queue_context, runtime_context, live=live)
+                    elif live:
+                        raw = runner(queue_context, runtime_context)
+                    else:
+                        raw = json.dumps(
+                            {
+                                "status": "dry_run",
+                                "flow_id": flow_id,
+                                "dispatch": False,
+                                "session_directory": "",
+                            },
+                            sort_keys=True,
+                        )
+                except BaseException:
+                    # The route did not return a result to project below, but
+                    # startup transport already happened in its own runtime.
+                    # Preserve it alongside any actions recorded by the route.
+                    startup_rows = _startup_recovery_action_rows(startup_recovery_result)
+                    if startup_recovery_input_count:
+                        session.input_count += startup_recovery_input_count
+                        session.remember_control(
+                            "failed_route_startup_transport_count", startup_recovery_input_count
+                        )
+                        session.actions = _unique_action_rows([*startup_rows, *session.actions])
+                        with (session_directory / "actions.jsonl").open(
+                            "a", encoding="utf-8", newline="\n"
+                        ) as handle:
+                            for row in startup_rows:
+                                handle.write(json.dumps(row, sort_keys=True) + "\n")
+                    raise
             result = json.loads(raw)
             child_text = str(result.get("session_directory") or "")
             child = Path(child_text) if child_text else None
@@ -4309,30 +4730,12 @@ def bluestacks_reload_game() -> str:
     state = str(_run_fixed_bluestacks_adb("get-state")).strip()
     if state != "device":
         raise OperatorError("approved BlueStacks serial is not in device state")
-    resolved_activity = (
-        str(
-            _run_fixed_bluestacks_adb(
-                "shell",
-                "cmd",
-                "package",
-                "resolve-activity",
-                "--brief",
-                "-a",
-                "android.intent.action.MAIN",
-                "-c",
-                "android.intent.category.LAUNCHER",
-                PACKAGE,
-            )
-        )
-        .strip()
-        .splitlines()[-1]
-    )
-    if not resolved_activity.startswith(f"{PACKAGE}/"):
-        raise OperatorError(
-            "installed Puzzles & Survival launcher activity was not resolved"
-        )
+    resolved_activity = _resolve_installed_game_activity()
     _run_fixed_bluestacks_adb("shell", "am", "force-stop", PACKAGE)
-    _run_fixed_bluestacks_adb("shell", "am", "start", "-W", "-n", resolved_activity)
+    _run_fixed_bluestacks_adb(
+        "shell", "am", "start", "-W", "-a", "android.intent.action.MAIN",
+        "-c", "android.intent.category.LAUNCHER", "-f", "0x10000000", "-n", resolved_activity,
+    )
     deadline = time.monotonic() + 30.0
     focused_package = None
     while time.monotonic() < deadline:
@@ -6421,7 +6824,10 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
                 "unresolved_action_state": "clear",
             }
         elif retained_flow_id in {
+            CAMPAIGN_AP_FLOW_ID,
+            RECRUITMENT_MAINTENANCE_FLOW_ID,
             "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+            "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION",
             "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
             "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
             "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
@@ -7415,6 +7821,25 @@ def noahs_tavern_recruit(args: argparse.Namespace) -> str:
         return route_module.run_noahs_tavern_unified_recruitment(args, identity)
 
 
+def _canonical_service_serve_argv(command_argv: Sequence[str]) -> list[str] | None:
+    """Forward only canonical serve syntax; leave its parser authoritative."""
+
+    if not command_argv or command_argv[0] != "automation-service":
+        return None
+    index = 1
+    while index < len(command_argv):
+        value = command_argv[index]
+        if value == "serve":
+            return list(command_argv[1:])
+        option, separator, _value = value.partition("=")
+        if option not in {"--mode", "--adapter", "--state-path"}:
+            return None
+        # A separate option value can itself be named "serve". Skip it rather
+        # than mistaking a path or invalid mode value for the command.
+        index += 1 if separator else 2
+    return None
+
+
 def automation_service_offline(args: argparse.Namespace) -> int:
     """Delegate automation-service commands through its canonical CLI facade."""
 
@@ -7623,12 +8048,13 @@ _CONDUCT_DEFAULT_MAX_INPUTS = {
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": 16,
     "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": 8,
     "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION": 8,
+    "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION": 8,
     "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION": 4,
     "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": 10,
     "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": 10,
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": 24,
     RECRUITMENT_MAINTENANCE_FLOW_ID: 12,
-    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": 12,
+    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": 16,
     "TROOP-TRAINING-END-TO-END-CONSOLIDATION": 32,
 }
 _CONDUCT_KNOWLEDGE_PATHS = (
@@ -7776,25 +8202,28 @@ def _conductor_live_summary(
                         }
                     )
             elif flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION":
-                if retained.get("proof_topology") != "composite":
+                terminal_recovery = retained.get("terminal_recovery")
+                recovered = isinstance(terminal_recovery, Mapping) and all(
+                    terminal_recovery.get(key)
+                    for key in ("session_directory", "result_sha256", "reset_identity", "runtime_profile_id")
+                )
+                if retained.get("proof_topology") != ("composite" if recovered else "continuous"):
                     summary.update(
                         {
                             "status": "evidence_required",
-                            "reason": "Ultimate retained Flee proof must remain composite",
+                            "reason": "Ultimate Daily proof must be continuous",
                         }
                     )
-                elif retained.get("terminal_reconciliation_topology") != "continuous":
+                elif retained.get("new_flee_transport_count") != (
+                    0
+                    if recovered or (retained.get("ultimate_challenge_result") or {}).get("terminal")
+                    == "already_completed"
+                    else 1
+                ):
                     summary.update(
                         {
                             "status": "evidence_required",
-                            "reason": "Ultimate terminal reconciliation must be continuous",
-                        }
-                    )
-                elif retained.get("new_flee_transport_count") != 0:
-                    summary.update(
-                        {
-                            "status": "evidence_required",
-                            "reason": "Ultimate terminal reconciliation must perform zero new Flee actions",
+                            "reason": "Ultimate Daily Flee count does not match its current terminal",
                         }
                     )
                 elif retained.get("causal_trace_count") != 1:
@@ -7860,6 +8289,12 @@ def conduct_flow(
     (never bypasses pnsctl).
     """
 
+    if live and summary_path is None and flow_id == CAMPAIGN_AP_FLOW_ID:
+        raise OperatorError(
+            "Ordinary Campaign execution uses pnsctl automation-service "
+            "--mode supervised --adapter bluestacks serve --live --flow campaign; "
+            "the legacy one-battle conductor is retired."
+        )
     from tasks.flow_conductor import (
         FramingChecklist,
         apply_framing,
@@ -7937,7 +8372,12 @@ def conduct_flow(
                 "flow_id": flow_id,
                 "state_path": str(path),
                 "plan": plan,
-                "note": "Pass --live --yes to observe then run-flow through pnsctl.",
+                "note": (
+                    "Use pnsctl automation-service --mode supervised --adapter "
+                    "bluestacks serve --live --flow campaign for normal Campaign execution."
+                    if flow_id == CAMPAIGN_AP_FLOW_ID
+                    else "Pass --live --yes to observe then run-flow through pnsctl."
+                ),
             },
             sort_keys=True,
         )
@@ -8054,6 +8494,17 @@ def parser() -> argparse.ArgumentParser:
     development_observe.add_argument("--flow-id")
     development_observe.add_argument("--scenario")
     development_observe.add_argument("--variant")
+    development_launch = development_sub.add_parser(
+        "launch-game",
+        help=(
+            "Bootstrap the installed game from the BlueStacks launcher only; "
+            "live requires --live --yes"
+        ),
+    )
+    development_launch.add_argument("--live", action="store_true")
+    development_launch.add_argument("--yes", action="store_true")
+    development_launch.add_argument("--cold-restart", action="store_true",
+        help="explicitly cold-stop a clean idle game, verify process exit, then reuse guarded startup")
     daily_row_recon = development_sub.add_parser("daily-row-reconnaissance")
     daily_row_recon.add_argument("--max-inputs", type=int, required=True)
     daily_row_recon.add_argument("--delegated-receipt", type=Path, required=True)
@@ -8087,7 +8538,7 @@ def parser() -> argparse.ArgumentParser:
     development_run.add_argument("flow_id", choices=BLUESTACKS_FLOW_IDS)
     development_run.add_argument("--live", action="store_true")
     development_run.add_argument("--yes", action="store_true")
-    development_run.add_argument("--max-inputs", type=int, default=12)
+    development_run.add_argument("--max-inputs", type=int, default=None)
     development_mode = development_run.add_mutually_exclusive_group()
     development_mode.add_argument("--recovery-only", action="store_true")
     development_mode.add_argument("--search-entry-only", action="store_true")
@@ -8277,6 +8728,12 @@ def parser() -> argparse.ArgumentParser:
     automation_sub = automation.add_subparsers(
         dest="automation_service_command", required=True
     )
+    # main forwards serve before this parser runs, so the canonical CLI owns
+    # its options, validation, help and existing runtime controls.
+    automation_sub.add_parser(
+        "serve",
+        help="canonical native service; put --mode, --adapter and --state-path before serve",
+    )
     automation_status = automation_sub.add_parser("status")
     automation_status.add_argument(
         "--mode", choices=("disabled", "observe_only", "dry_run"), default="disabled"
@@ -8349,6 +8806,11 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     command_argv = list(sys.argv[1:] if argv is None else argv)
+    canonical_argv = _canonical_service_serve_argv(command_argv)
+    if canonical_argv is not None:
+        from automation_service.cli import main as automation_main
+
+        return automation_main(canonical_argv)
     args = parser().parse_args(argv)
     if args.command == "nova-praise-pulse":
         try:
@@ -8459,6 +8921,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     scenario=args.scenario,
                     variant=args.variant,
                     command_argv=command_argv,
+                )
+            elif args.development_command == "launch-game":
+                output = development_session_launch_game(
+                    live=bool(args.live),
+                    yes=bool(args.yes),
+                    cold_restart=bool(args.cold_restart),
                 )
             elif args.development_command == "daily-row-reconnaissance":
                 output = development_session_daily_row_reconnaissance(

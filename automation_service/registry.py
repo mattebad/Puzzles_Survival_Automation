@@ -68,6 +68,36 @@ CAMPAIGN_SELECTION_HANDLER_ID = CAMPAIGN_HANDLER_ID
 CAMPAIGN_PROFILE = CAMPAIGN_PROFILE_ID
 CAMPAIGN_PRODUCT = CAMPAIGN_PRODUCT_ID
 CAMPAIGN_REVISION = CAMPAIGN_PRODUCT_REVISION
+BIOENHANCER_FLOW_ID = "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"
+BIOENHANCER_PRODUCT_ID = "bioenhancer_research"
+BIOENHANCER_PRODUCT_REVISION = "bioenhancer_research-v1"
+BIOENHANCER_HANDLER_ID = "bioenhancer_research_execution_handler"
+BIOENHANCER_PROFILE_ID = WORLD_PROFILE_ID
+BIOENHANCER_PHASE_MODE = "phase_canary"
+SUPPLY_FLOW_ID = "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION"
+SUPPLY_PRODUCT_ID = "supply_depot"
+SUPPLY_PRODUCT_REVISION = "supply_depot-v2"
+SUPPLY_HANDLER_ID = "supply_depot_execution_handler"
+SUPPLY_PROFILE_ID = WORLD_PROFILE_ID
+SUPPLY_PHASE_MODE = "phase_canary"
+ULTIMATE_FLOW_ID = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+ULTIMATE_PRODUCT_ID = "ultimate_challenge_daily"
+ULTIMATE_PRODUCT_REVISION = "ultimate_challenge_daily-v1"
+ULTIMATE_HANDLER_ID = "ultimate_challenge_daily_execution_handler"
+ULTIMATE_PROFILE_ID = WORLD_PROFILE_ID
+ULTIMATE_PHASE_MODE = "phase_canary"
+ENHANCEMENT_FLOW_ID = "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+ENHANCEMENT_PRODUCT_ID = "enhancement_family"
+ENHANCEMENT_PRODUCT_REVISION = "enhancement_family-v1"
+ENHANCEMENT_HANDLER_ID = "enhancement_family_execution_handler"
+ENHANCEMENT_PROFILE_ID = WORLD_PROFILE_ID
+ENHANCEMENT_PHASE_MODE = "phase_canary"
+PERSONAL_MIGHT_FLOW_ID = "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION"
+PERSONAL_MIGHT_PRODUCT_ID = "personal_might_praise"
+PERSONAL_MIGHT_PRODUCT_REVISION = "personal_might_praise-v1"
+PERSONAL_MIGHT_HANDLER_ID = "personal_might_praise_execution_handler"
+PERSONAL_MIGHT_PROFILE_ID = WORLD_PROFILE_ID
+PERSONAL_MIGHT_PHASE_MODE = "phase_canary"
 
 
 _FIXED_BINDINGS = {
@@ -108,6 +138,56 @@ _FIXED_BINDINGS = {
         "production_handler": CAMPAIGN_HANDLER_ID,
         "profile": CAMPAIGN_PROFILE_ID,
         "mode": CAMPAIGN_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    BIOENHANCER_FLOW_ID: {
+        "flow_id": BIOENHANCER_FLOW_ID,
+        "product_id": BIOENHANCER_PRODUCT_ID,
+        "product_revision": BIOENHANCER_PRODUCT_REVISION,
+        "production_handler": BIOENHANCER_HANDLER_ID,
+        "profile": BIOENHANCER_PROFILE_ID,
+        "mode": BIOENHANCER_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    SUPPLY_FLOW_ID: {
+        "flow_id": SUPPLY_FLOW_ID,
+        "product_id": SUPPLY_PRODUCT_ID,
+        "product_revision": SUPPLY_PRODUCT_REVISION,
+        "production_handler": SUPPLY_HANDLER_ID,
+        "profile": SUPPLY_PROFILE_ID,
+        "mode": SUPPLY_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    ULTIMATE_FLOW_ID: {
+        "flow_id": ULTIMATE_FLOW_ID,
+        "product_id": ULTIMATE_PRODUCT_ID,
+        "product_revision": ULTIMATE_PRODUCT_REVISION,
+        "production_handler": ULTIMATE_HANDLER_ID,
+        "profile": ULTIMATE_PROFILE_ID,
+        "mode": ULTIMATE_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    ENHANCEMENT_FLOW_ID: {
+        "flow_id": ENHANCEMENT_FLOW_ID,
+        "product_id": ENHANCEMENT_PRODUCT_ID,
+        "product_revision": ENHANCEMENT_PRODUCT_REVISION,
+        "production_handler": ENHANCEMENT_HANDLER_ID,
+        "profile": ENHANCEMENT_PROFILE_ID,
+        "mode": ENHANCEMENT_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    PERSONAL_MIGHT_FLOW_ID: {
+        "flow_id": PERSONAL_MIGHT_FLOW_ID,
+        "product_id": PERSONAL_MIGHT_PRODUCT_ID,
+        "product_revision": PERSONAL_MIGHT_PRODUCT_REVISION,
+        "production_handler": PERSONAL_MIGHT_HANDLER_ID,
+        "profile": PERSONAL_MIGHT_PROFILE_ID,
+        "mode": PERSONAL_MIGHT_PHASE_MODE,
         "registration_status": "REGISTERED",
         "scheduler_eligible": True,
     },
@@ -294,6 +374,12 @@ class CanonicalFlowRegistration:
     def build_handler(self) -> Any:
         """Instantiate the fixed handler without importing handlers at module load."""
 
+        if self.flow_id in {BIOENHANCER_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID}:
+            # Only explicit supervised serve installs its executor and held-owner
+            # checkpoint. Generic composition must never create native authority.
+            from .handlers import DisabledHandler
+            return DisabledHandler(self.descriptor)
+
         from .handlers import (
             CampaignApSelectionHandler,
             NovaPraiseSelectionHandler,
@@ -321,6 +407,7 @@ def _canonical_registration(
     cadence: str,
     reset_scoped: bool = True,
     recurrence: RecurrenceProjection | None = None,
+    observation_only_completion: bool = False,
 ) -> CanonicalFlowRegistration:
     binding = _FIXED_BINDINGS[flow_id]
     snapshot = RegisteredDispatchSnapshot(
@@ -353,6 +440,7 @@ def _canonical_registration(
             default_enabled=False,
             priority=descriptor.priority,
             cadence=cadence,
+            observation_only_completion=observation_only_completion,
         ),
         descriptor=descriptor,
         registration=snapshot,
@@ -373,7 +461,8 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         NOVA_FLOW_ID,
         family="nova_praise",
         variant="supervised_one_free_pulse",
-        cadence="daily_once_per_reset",
+        cadence="cooldown_pulse",
+        reset_scoped=False,
     ),
     _canonical_registration(
         RECRUITMENT_FLOW_ID,
@@ -385,14 +474,49 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     _canonical_registration(
         CAMPAIGN_FLOW_ID,
         family="campaign_ap",
-        variant="one_auto_battle",
-        cadence="ap_regeneration_pulse",
+        variant="drain_available_ap",
+        cadence="after_ap_drain",
         reset_scoped=False,
         recurrence=RecurrenceProjection(
             RecurrenceClass.AP_REGENERATION,
             observed_at_utc=0.0,
             observed_balance=0.0,
         ),
+    ),
+    _canonical_registration(
+        BIOENHANCER_FLOW_ID,
+        family="bioenhancer_research",
+        variant="one_free_pulse",
+        cadence="cooldown_pulse",
+        reset_scoped=False,
+    ),
+    _canonical_registration(
+        SUPPLY_FLOW_ID,
+        family="supply_depot",
+        variant="free_until_exhausted",
+        cadence="daily_once_per_reset",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        ULTIMATE_FLOW_ID,
+        family="ultimate_challenge_daily",
+        variant="one_daily_flee",
+        cadence="daily_once_per_reset",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        ENHANCEMENT_FLOW_ID,
+        family="enhancement_family",
+        variant="gear_chip_module",
+        cadence="daily_once_per_reset",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        PERSONAL_MIGHT_FLOW_ID,
+        family="personal_might_praise",
+        variant="one_daily_praise",
+        cadence="daily_once_per_reset",
+        observation_only_completion=True,
     ),
 )
 
@@ -812,6 +936,30 @@ __all__ = [
     "CAMPAIGN_PRODUCT",
     "CAMPAIGN_REVISION",
     "CAMPAIGN_PHASE_MODE",
+    "SUPPLY_FLOW_ID",
+    "SUPPLY_PRODUCT_ID",
+    "SUPPLY_PRODUCT_REVISION",
+    "SUPPLY_HANDLER_ID",
+    "SUPPLY_PROFILE_ID",
+    "SUPPLY_PHASE_MODE",
+    "ULTIMATE_FLOW_ID",
+    "ULTIMATE_PRODUCT_ID",
+    "ULTIMATE_PRODUCT_REVISION",
+    "ULTIMATE_HANDLER_ID",
+    "ULTIMATE_PROFILE_ID",
+    "ULTIMATE_PHASE_MODE",
+    "ENHANCEMENT_FLOW_ID",
+    "ENHANCEMENT_PRODUCT_ID",
+    "ENHANCEMENT_PRODUCT_REVISION",
+    "ENHANCEMENT_HANDLER_ID",
+    "ENHANCEMENT_PROFILE_ID",
+    "ENHANCEMENT_PHASE_MODE",
+    "PERSONAL_MIGHT_FLOW_ID",
+    "PERSONAL_MIGHT_PRODUCT_ID",
+    "PERSONAL_MIGHT_PRODUCT_REVISION",
+    "PERSONAL_MIGHT_HANDLER_ID",
+    "PERSONAL_MIGHT_PROFILE_ID",
+    "PERSONAL_MIGHT_PHASE_MODE",
     "consume_registered_entry",
     "consume_world_registration",
     "consume_nova_registration",

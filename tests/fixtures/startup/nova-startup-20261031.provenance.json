@@ -1,0 +1,12 @@
+{
+  "nova-vip-reset-20261031.png": {
+    "source": ".local-captures/automation-service-authorized/soak-20261031T001231585579Z-5c32ae35/application-startup/61835604cda84a2db431b2bb4c85b2ad-5264e851863146e296328a632b1b9031/after.png",
+    "sha256": "7a81391321de4ddd3a8cad3570576258b4c1b62c0a3cedaafe926c0262d47715",
+    "scope": "Immutable retained native source; copied byte-for-byte for offline route recovery tests."
+  },
+  "nova-home-parent-20261030.png": {
+    "source": ".local-captures/development-sessions/restart-startup-home-20261030T235156699396Z/home.png",
+    "sha256": "03bcabe87915f50cc4071132e60ec5efa8ea94ecbffd639fcaa64fbf523b057d",
+    "scope": "Immutable retained native source; copied byte-for-byte for offline route recovery tests."
+  }
+}

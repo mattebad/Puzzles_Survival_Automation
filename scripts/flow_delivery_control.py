@@ -48,9 +48,6 @@ DEFAULT_LEASE_PATH = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.js
 DEFAULT_WRITABLE_MARKER_PATH = (
     REPO_ROOT / ".local-orchestrator" / "writable-subagent.json"
 )
-DEFAULT_ROUTING_EVENTS_PATH = (
-    REPO_ROOT / ".local-orchestrator" / "model-routing-events.jsonl"
-)
 DEFAULT_AUTHORIZATION_EVENTS_PATH = (
     REPO_ROOT / ".local-orchestrator" / "task-authorization-events.jsonl"
 )
@@ -109,7 +106,6 @@ VALIDATION_PROFILES = {
     "focused_tests",
     "architecture_tests",
     "full_suite",
-    "governance",
     "shared_navigation",
     "promotion",
     "detector",
@@ -1917,7 +1913,6 @@ class FlowDeliveryController:
         policy_path: Path = DEFAULT_POLICY_PATH,
         lease_path: Path = DEFAULT_LEASE_PATH,
         writable_marker_path: Path = DEFAULT_WRITABLE_MARKER_PATH,
-        routing_events_path: Path = DEFAULT_ROUTING_EVENTS_PATH,
         loop_policy_path: Path = DEFAULT_LOOP_POLICY_PATH,
         progress_path: Path = DEFAULT_PROGRESS_PATH,
         *,
@@ -1927,7 +1922,6 @@ class FlowDeliveryController:
         self.policy_path = policy_path
         self.lease_path = lease_path
         self.writable_marker_path = writable_marker_path
-        self.routing_events_path = routing_events_path
         self.authorization_events_path = authorization_events_path
         self.loop_policy_path = loop_policy_path
         self.progress_path = progress_path
@@ -3541,9 +3535,6 @@ def parser() -> argparse.ArgumentParser:
         "--writable-marker", type=Path, default=DEFAULT_WRITABLE_MARKER_PATH
     )
     root.add_argument(
-        "--routing-events", type=Path, default=DEFAULT_ROUTING_EVENTS_PATH
-    )
-    root.add_argument(
         "--authorization-events",
         type=Path,
         default=DEFAULT_AUTHORIZATION_EVENTS_PATH,
@@ -3705,7 +3696,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         policy_path=args.policy,
         lease_path=args.lease,
         writable_marker_path=args.writable_marker,
-        routing_events_path=args.routing_events,
         authorization_events_path=args.authorization_events,
         loop_policy_path=args.loop_policy,
         progress_path=args.progress,

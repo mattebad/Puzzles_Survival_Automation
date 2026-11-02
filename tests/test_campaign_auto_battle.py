@@ -270,6 +270,136 @@ class CampaignAutoBattleTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             reconcile_observed_ap(progress, ap_observed=61)
 
+    def test_whole_drain_repeats_after_observed_regeneration_affords_an_extra_win(self):
+        stage = CampaignStage.parse("1-15-9")
+        config = replace(self.config, target_stage=stage, ap_cost=14, ap_budget=168, max_runs=12)
+        progress = CampaignRouteProgress(initial_ap=120, current_ap=120)
+        chapter = CampaignRouteObservation(
+            screen=CampaignScreen.CHAPTER_MAP, selected_tier=1,
+            chapter_number=15, visible_stage_numbers=(9,),
+        )
+        self.assertEqual(planned_run_count(ap_available=120, ap_cost=14, ap_budget=168, max_runs=12), 8)
+
+        # Six independently observed AP points during the first eight wins
+        # afford another battle beyond the initial balance's eight whole runs.
+        for regenerated in (1, 1, 1, 1, 1, 1, 0, 0):
+            progress = record_verified_victory(progress, ap_cost=14,
+                ap_after=progress.current_ap - 14 + regenerated, ap_regenerated=regenerated)
+            decision = campaign_next_decision(config, progress, chapter)
+            self.assertEqual(decision.action, CampaignAction.SELECT_STAGE)
+            self.assertFalse(decision.terminal)
+        self.assertEqual((progress.completed_runs, progress.ap_spent, progress.ap_regenerated, progress.current_ap),
+                         (8, 112, 6, 14))
+        dialog = CampaignRouteObservation(screen=CampaignScreen.STAGE_DIALOG,
+            stage_dialog=stage, ap_current=14, ap_cost=14, challenge_ready=True)
+        self.assertEqual(campaign_next_decision(config, progress, dialog).action,
+                         CampaignAction.CHALLENGE_STAGE)
+
+        progress = record_verified_victory(progress, ap_cost=14, ap_after=0)
+        self.assertEqual((progress.completed_runs, progress.ap_spent, progress.ap_regenerated), (9, 126, 6))
+        self.assertEqual(campaign_next_decision(config, progress, chapter).action,
+                         CampaignAction.LEAVE_CHAPTER_MAP)
+        home = campaign_next_decision(config, progress, CampaignRouteObservation(screen=CampaignScreen.HOME_BASE))
+        self.assertEqual(home.action, CampaignAction.COMPLETE)
+        self.assertTrue(home.terminal)
+
+    def test_observed_regeneration_before_exit_restores_exactly_one_affordable_run(self):
+        stage = CampaignStage.parse("1-15-9")
+        config = replace(self.config, target_stage=stage, ap_cost=14, ap_budget=168, max_runs=12)
+        progress = record_verified_victory(CampaignRouteProgress(initial_ap=27, current_ap=27),
+                                          ap_cost=14, ap_after=13)
+        chapter = CampaignRouteObservation(screen=CampaignScreen.CHAPTER_MAP,
+            selected_tier=1, chapter_number=15, visible_stage_numbers=(9,))
+        self.assertEqual(campaign_next_decision(config, progress, chapter).action,
+                         CampaignAction.LEAVE_CHAPTER_MAP)
+        observed = reconcile_observed_ap(progress, ap_observed=14)
+        self.assertEqual(observed.ap_regenerated, 1)
+        self.assertEqual(campaign_next_decision(config, observed, chapter).action,
+                         CampaignAction.SELECT_STAGE)
+        drained = record_verified_victory(observed, ap_cost=14, ap_after=0)
+        self.assertEqual(campaign_next_decision(config, drained, chapter).action,
+                         CampaignAction.LEAVE_CHAPTER_MAP)
+
+    def test_budget_or_run_backstop_cannot_complete_or_unwind_with_affordable_ap(self):
+        stage = CampaignStage.parse("1-15-9")
+        progress = CampaignRouteProgress(initial_ap=120, current_ap=106,
+                                         completed_runs=1, ap_spent=14)
+        configs = (
+            replace(self.config, target_stage=stage, ap_cost=14, ap_budget=14, max_runs=12),
+            replace(self.config, target_stage=stage, ap_cost=14, ap_budget=168, max_runs=1),
+        )
+        for config in configs:
+            for screen in (CampaignScreen.HOME_BASE, CampaignScreen.TIER_MAP,
+                           CampaignScreen.CHAPTER_MAP, CampaignScreen.STAGE_DIALOG):
+                with self.subTest(ap_budget=config.ap_budget, max_runs=config.max_runs, screen=screen):
+                    decision = campaign_next_decision(config, progress,
+                        CampaignRouteObservation(screen=screen, selected_tier=1, chapter_number=15,
+                            visible_stage_numbers=(9,), stage_dialog=stage,
+                            ap_current=106, ap_cost=14, challenge_ready=True))
+                    self.assertEqual(decision.action, CampaignAction.BLOCKED)
+                    self.assertTrue(decision.terminal)
+                    self.assertFalse(decision.dispatch_authorized)
+                    self.assertIsNone(decision.expected_successor)
+
+    def test_exact_drain_can_finish_when_run_and_ap_backstops_are_also_reached(self):
+        stage = CampaignStage.parse("1-15-9")
+        config = replace(self.config, target_stage=stage, ap_cost=14, ap_budget=112, max_runs=8)
+        progress = CampaignRouteProgress(initial_ap=120, current_ap=8,
+                                         completed_runs=8, ap_spent=112)
+        for screen, expected in (
+            (CampaignScreen.CHAPTER_MAP, CampaignAction.LEAVE_CHAPTER_MAP),
+            (CampaignScreen.TIER_MAP, CampaignAction.RETURN_HOME),
+            (CampaignScreen.HOME_BASE, CampaignAction.COMPLETE),
+        ):
+            with self.subTest(screen=screen):
+                self.assertEqual(campaign_next_decision(config, progress,
+                    CampaignRouteObservation(screen=screen)).action, expected)
+
+    def test_explicit_victory_home_recovery_unwinds_without_weakening_normal_drain(self):
+        stage = CampaignStage.parse("1-15-9")
+        normal = CampaignAutoBattleConfig(target_stage=stage, ap_cost=14, ap_budget=14, max_runs=1)
+        progress = record_verified_victory(CampaignRouteProgress(initial_ap=120, current_ap=120),
+                                          ap_cost=14, ap_after=106)
+        recovery = replace(normal, victory_home_only=True)
+        for screen, expected in (
+            (CampaignScreen.STAGE_DIALOG, CampaignAction.CLOSE_STAGE_DIALOG),
+            (CampaignScreen.CHAPTER_MAP, CampaignAction.LEAVE_CHAPTER_MAP),
+            (CampaignScreen.TIER_MAP, CampaignAction.RETURN_HOME),
+            (CampaignScreen.HOME_BASE, CampaignAction.COMPLETE),
+        ):
+            with self.subTest(screen=screen):
+                observed = CampaignRouteObservation(screen=screen, selected_tier=1,
+                    chapter_number=15, visible_stage_numbers=(9,), stage_dialog=stage,
+                    ap_current=106, ap_cost=14, challenge_ready=True)
+                self.assertEqual(campaign_next_decision(normal, progress, observed).action,
+                                 CampaignAction.BLOCKED)
+                decision = campaign_next_decision(recovery, progress, observed)
+                self.assertEqual(decision.action, expected)
+                self.assertFalse(decision.dispatch_authorized)
+                self.assertEqual(decision.terminal, screen is CampaignScreen.HOME_BASE)
+        for invalid in (None, 0, 1, "true"):
+            with self.subTest(victory_home_only=invalid), self.assertRaises(ValueError):
+                replace(normal, victory_home_only=invalid)
+        with self.assertRaises(ValueError):
+            replace(normal, navigation_only=True, victory_home_only=True)
+
+    def test_drain_rejects_inconsistent_spend_or_regeneration_ledger(self):
+        drained = CampaignRouteProgress(initial_ap=120, current_ap=8,
+                                        completed_runs=8, ap_spent=112)
+        config = replace(self.config, target_stage=CampaignStage.parse("1-15-9"),
+                         ap_cost=14, ap_budget=168, max_runs=12)
+        for progress in (
+            replace(drained, completed_runs=7),
+            replace(drained, ap_spent=111),
+            replace(drained, current_ap=9),
+            replace(drained, ap_regenerated=1),
+        ):
+            with self.subTest(progress=progress):
+                decision = campaign_next_decision(config, progress,
+                    CampaignRouteObservation(screen=CampaignScreen.HOME_BASE))
+                self.assertEqual(decision.action, CampaignAction.BLOCKED)
+                self.assertTrue(decision.terminal)
+
     def test_insufficient_ap_unwinds_campaign_without_refill(self):
         progress = CampaignRouteProgress(initial_ap=6, current_ap=6)
         dialog = CampaignRouteObservation(

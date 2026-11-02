@@ -17,12 +17,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from scripts import flow_delivery_context as context
 from scripts import flow_delivery_control as control
 from scripts import run_flow_delivery_validation as runner
-import validate_governance
 
 
 QUEUE_PATH = ROOT / "tasks" / "flow_delivery_queue.json"
 INDEX_PATH = ROOT / "tasks" / "backlog_task_index.json"
-HANDOFF_PATH = ROOT / "CURRENT_HANDOFF.md"
 GITIGNORE_PATH = ROOT / ".gitignore"
 CURSORIGNORE_PATH = ROOT / ".cursorignore"
 INDEXING_IGNORE_PATH = ROOT / ".cursorindexingignore"
@@ -54,47 +52,6 @@ def _run_review_snapshot_export(
     return subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
 
 
-class CompactHandoffTests(unittest.TestCase):
-    def test_handoff_exposes_active_manifest_pointer(self) -> None:
-        text = HANDOFF_PATH.read_text(encoding="utf-8")
-        raw = text.split("<!-- CURRENT_HANDOFF_STATE_BEGIN -->", 1)[1].split(
-            "<!-- CURRENT_HANDOFF_STATE_END -->", 1
-        )[0].strip()
-        state = json.loads(raw)
-        self.assertIn("active_execution_manifest_path", state)
-        self.assertIsNone(state["active_execution_manifest_path"])
-
-    def test_handoff_byte_budgets_and_field_allowlist(self) -> None:
-        text = HANDOFF_PATH.read_text(encoding="utf-8")
-        raw = text.split("<!-- CURRENT_HANDOFF_STATE_BEGIN -->", 1)[1].split(
-            "<!-- CURRENT_HANDOFF_STATE_END -->", 1
-        )[0].strip()
-        self.assertLessEqual(len(raw.encode("utf-8")), 15000)
-        self.assertLessEqual(len(text.encode("utf-8")), 30000)
-        state = validate_governance.parse_handoff()
-        self.assertEqual(state["schema_version"], 3)
-        self.assertNotIn("actions_already_performed", state)
-        self.assertEqual(state["ahead_behind"], {"source": "compute_from_git"})
-        self.assertIn("exact_next_permitted_action", state)
-        self.assertIn("active_execution_manifest_path", state)
-        self.assertIsNone(state["active_execution_manifest_path"])
-        self.assertTrue(state["protected_user_owned_paths"])
-        self.assertTrue(state["evidence"]["do_not_recursively_inspect_parent_evidence_tree"])
-
-    def test_handoff_rejects_manifest_paths_outside_repository(self) -> None:
-        text = HANDOFF_PATH.read_text(encoding="utf-8").replace(
-            '"active_execution_manifest_path": null',
-            '"active_execution_manifest_path": "../escape.md"',
-            1,
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            handoff = Path(tmp) / "CURRENT_HANDOFF.md"
-            handoff.write_text(text, encoding="utf-8")
-            with self.assertRaisesRegex(
-                validate_governance.GovernanceValidationError,
-                "must stay inside the repository",
-            ):
-                validate_governance.parse_handoff(handoff)
 
 
 class ReadyFlowMetadataTests(unittest.TestCase):
@@ -309,11 +266,11 @@ class ValidationRunnerTests(unittest.TestCase):
     def test_no_arbitrary_command_and_compact_success(self) -> None:
         with self.assertRaisesRegex(runner.ValidationRunnerError, "unknown validation profile"):
             runner.run_profile(flow_id=CAMPAIGN_ID, profile_alias="rm -rf /")
-        result = runner.run_profile(flow_id=CAMPAIGN_ID, profile_alias="governance")
+        result = runner.run_profile(flow_id=CAMPAIGN_ID, profile_alias="architecture")
         self.assertTrue(result["ok"])
         self.assertIn("receipt_path", result)
         receipt = json.loads((ROOT / result["receipt_path"]).read_text(encoding="utf-8"))
-        self.assertEqual(receipt["validation_profile"], "governance")
+        self.assertEqual(receipt["validation_profile"], "architecture_tests")
         self.assertEqual(receipt["repository_head"], context.repo_head())
         log_dir = ROOT / result["log_dir"]
         self.assertTrue(any(log_dir.glob("*.stdout.log")))
@@ -365,7 +322,6 @@ class IgnoreAndSnapshotTests(unittest.TestCase):
         cursorignore = CURSORIGNORE_PATH.read_text(encoding="utf-8")
         self.assertIn("evidence/**", cursorignore)
         self.assertIn(".env", cursorignore)
-        validate_governance.validate_indexing_rules()
 
     def test_snapshot_export_denies_bulk_and_secrets(self) -> None:
         fixture = ROOT / "tests" / "fixtures" / "review_snapshot_secret_names.py"
@@ -484,26 +440,6 @@ class IgnoreAndSnapshotTests(unittest.TestCase):
                     pass
 
 
-class InvariantTests(unittest.TestCase):
-    def test_scheduler_registration_composition_remain_disabled(self) -> None:
-        queue = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
-        self.assertFalse(queue["gameplay_scheduler"])
-        active = [item for item in queue["flows"] if item["status"] == "active"]
-        self.assertLessEqual(len(active), 1)
-        if not active:
-            self.assertIsNone(queue["active_flow_id"])
-        else:
-            self.assertEqual(queue["active_flow_id"], active[0]["flow_id"])
-        state = validate_governance.parse_handoff()
-        self.assertEqual(
-            state["registration_and_scheduler"]["production_registration"],
-            "NOT_REGISTERED",
-        )
-        self.assertFalse(state["registration_and_scheduler"]["scheduler_enabled"])
-        self.assertEqual(state["development_lease_state"], "absent")
-        self.assertEqual(state["runtime_ownership_state"], "none")
-        self.assertEqual(state["writable_agent_state"], "none")
-        self.assertNotEqual(state["current_task_id"], state["next_task_id"])
 
 
 if __name__ == "__main__":

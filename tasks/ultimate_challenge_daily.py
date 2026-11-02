@@ -8,8 +8,8 @@ production registration, or gameplay scheduling.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass, replace
+from datetime import date, datetime, timezone
 import json
 from pathlib import Path
 import re
@@ -98,8 +98,19 @@ class UltimateChallengeResetWindowState:
     schema_version: int = 1
     flow_id: str = FLOW_ID
     objective: str = ULTIMATE_CHALLENGE_OBJECTIVE
+    pending_home_session: str | None = None
+    pending_home_result_sha256: str | None = None
 
     def __post_init__(self) -> None:
+        if self.pending_home_session is not None or self.pending_home_result_sha256 is not None:
+            if (
+                not isinstance(self.pending_home_session, str)
+                or not self.pending_home_session.strip()
+                or not isinstance(self.pending_home_result_sha256, str)
+                or not _SHA256_RE.fullmatch(self.pending_home_result_sha256)
+                or self.completion_state != COMPLETION_UNKNOWN
+            ):
+                raise ValueError("invalid Ultimate Challenge pending Home evidence")
         if self.flow_id != FLOW_ID:
             raise ValueError("Ultimate Challenge reset state must use the UC flow id")
         if self.objective != ULTIMATE_CHALLENGE_OBJECTIVE:
@@ -493,6 +504,13 @@ def evaluate_already_completed(
 ) -> UltimateChallengeNavigationDecision:
     """Return already_completed or fail closed; never authorizes challenge dispatch."""
 
+    if state.pending_home_session is not None:
+        return UltimateChallengeNavigationDecision(
+            terminal=TERMINAL_BLOCKED,
+            reason="verified Flee awaits Home recovery; another challenge is prohibited",
+            dispatch_authorized=False,
+            reset_identity=current_reset_identity,
+        )
     if observation is not None and observation.already_completed_marker:
         # Generic OCR "claimed" / "already"+"complet" must not terminal without a bound UC entry.
         if not (
@@ -540,6 +558,32 @@ def evaluate_already_completed(
                 reset_identity=current_reset_identity,
             )
         if state.last_success_reset_identity != current_reset_identity:
+            try:
+                previous_day = date.fromisoformat(
+                    state.last_success_reset_identity.removeprefix("game-day-")
+                )
+                current_day = date.fromisoformat(
+                    current_reset_identity.removeprefix("game-day-")
+                )
+            except ValueError:
+                previous_day = current_day = None
+            if (
+                state.last_success_reset_identity.startswith("game-day-")
+                and current_reset_identity.startswith("game-day-")
+                and state.reset_identity == state.last_success_reset_identity
+                and previous_day is not None
+                and current_day is not None
+                and previous_day < current_day
+            ):
+                # An earlier completed day is history, not a completion or an
+                # unresolved action in the new day. Normal fresh entry binding
+                # and the execution policy still gate every new input.
+                return UltimateChallengeNavigationDecision(
+                    terminal=TERMINAL_BLOCKED,
+                    reason="not already_completed",
+                    dispatch_authorized=False,
+                    reset_identity=current_reset_identity,
+                )
             return UltimateChallengeNavigationDecision(
                 terminal=TERMINAL_BLOCKED,
                 reason="completion_state=completed but last success is outside current reset window",
@@ -657,6 +701,25 @@ def record_verified_home_success(
     )
 
 
+def record_pending_home(
+    state: UltimateChallengeResetWindowState,
+    *,
+    reset_identity: str,
+    session_directory: str,
+    result_sha256: str,
+) -> UltimateChallengeResetWindowState:
+    """Retain a validated Flee effect until its terminal Home is verified."""
+    if not reset_identity_is_positive(reset_identity):
+        raise ValueError("pending Home requires positive reset identity")
+    return replace(
+        state,
+        reset_identity=reset_identity,
+        completion_state=COMPLETION_UNKNOWN,
+        pending_home_session=session_directory,
+        pending_home_result_sha256=result_sha256,
+    )
+
+
 def empty_reset_window_state() -> UltimateChallengeResetWindowState:
     return UltimateChallengeResetWindowState(
         reset_identity=None,
@@ -684,6 +747,8 @@ def load_reset_window_state(path: Path) -> UltimateChallengeResetWindowState:
         schema_version=int(raw.get("schema_version") or 1),
         flow_id=str(raw["flow_id"]),
         objective=str(raw["objective"]),
+        pending_home_session=raw.get("pending_home_session"),
+        pending_home_result_sha256=raw.get("pending_home_result_sha256"),
     )
 
 

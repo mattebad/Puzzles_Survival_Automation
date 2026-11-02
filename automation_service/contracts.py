@@ -45,7 +45,11 @@ class RecurrenceClass(str, Enum):
 
 @dataclass(frozen=True)
 class RecurrenceProjection:
-    """Persistable, product-observation-bound recurrence projection."""
+    """Recurrence facts, or an explicit request to observe AP inside a claim.
+
+    Pending requests carry canonical schedule metadata and assert no product
+    balance or game observation timestamp.
+    """
 
     recurrence_class: RecurrenceClass
     next_eligible_at: float | None = None
@@ -63,8 +67,17 @@ class RecurrenceProjection:
     revision_within_reset: int | None = None
     ui_changed: bool = False
     reconciled: bool = False
+    observation_pending: bool = False
 
     def __post_init__(self) -> None:
+        if type(self.observation_pending) is not bool:
+            raise ValueError("observation_pending must be bool")
+        if self.observation_pending and (
+            self.recurrence_class is not RecurrenceClass.AP_REGENERATION
+            or not isinstance(self.generation, str) or not self.generation.strip()
+            or self.observed_balance is not None or self.observed_at_utc is not None
+        ):
+            raise ValueError("pending AP observation requires a generation and no game observation")
         values = (
             self.next_eligible_at,
             self.observed_at_utc,
@@ -106,7 +119,7 @@ class RecurrenceProjection:
         if self.recurrence_class in {
             RecurrenceClass.AP_REGENERATION,
             RecurrenceClass.STAMINA_REGENERATION,
-        } and (self.observed_balance is None or self.observed_at_utc is None):
+        } and not self.observation_pending and (self.observed_balance is None or self.observed_at_utc is None):
             raise ValueError("resource regeneration requires a fresh timestamped observed balance")
         if self.revision_within_reset is not None and (
             type(self.revision_within_reset) is not int
@@ -187,8 +200,15 @@ class FlowDescriptor:
     product_revision: str | None = None
     registration_status: str = "NOT_REGISTERED"
     recurrence: RecurrenceProjection | None = None
+    allows_pending_resource_observation: bool = False
 
     def __post_init__(self) -> None:
+        if type(self.allows_pending_resource_observation) is not bool:
+            raise ValueError("allows_pending_resource_observation must be bool")
+        if self.allows_pending_resource_observation and (
+            self.reset_scoped or self.recurrence_class is not RecurrenceClass.AP_REGENERATION
+        ):
+            raise ValueError("pending observation admission requires non-reset AP recurrence")
         if not all(
             isinstance(value, str) and value.strip()
             for value in (self.flow_id, self.owner, self.family, self.variant, self.cadence)

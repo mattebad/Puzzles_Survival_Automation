@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 
 from tasks.noahs_tavern_recruit import (
     HERO_RECRUIT_RESULT_SCREEN,
@@ -24,14 +26,18 @@ from tasks.noahs_tavern_recruit_maintenance import (
     PersistedTierState,
     TierPassEvidence,
     TierPassOutcome,
+    project_maintenance_terminal_home,
     replay_noahs_tavern_maintenance,
     rollover_maintenance_state,
     rollover_persisted_maintenance_state,
 )
-from tasks.scheduler_task_result import SchedulerIdentity, SchedulerTaskOutcome
+from tasks.scheduler_task_result import (
+    SchedulerAwareTaskResult, SchedulerIdentity, SchedulerInvocationState, SchedulerTaskOutcome,
+)
 from safe_action_core import SafetyStore, SQLiteSchedulerInvocationRepository
+from safe_action_core.store import StoreError
 from tasks.noahs_tavern_recruit_runtime import NoahTavernRecruitRuntimeController
-from scripts.noahs_tavern_recruit_bluestacks import NoahTavernIntegratedRoute
+from scripts.noahs_tavern_recruit_bluestacks import NoahTavernIntegratedRoute, NoahTavernNavigationResult
 
 
 class MaintenanceFixtures:
@@ -174,6 +180,62 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
             controller.state.tiers[RecruitTier.BASIC].next_eligible_at,
             700.0,
         )
+
+    def test_basic_native_remaining_calibrates_mid_day_startup_conservatively(self):
+        for remaining, expected in ((4, 1), (3, 2)):
+            with self.subTest(remaining=remaining):
+                state = NoahMaintenanceState.for_identity(self.identity)
+                controller = NoahTavernMaintenanceController(state, now=100.0)
+                observation = self.f.before(RecruitTier.BASIC, remaining=remaining)
+                controller.current_tier_eligible(observation, RecruitTier.BASIC)
+                self.assertEqual(controller.state.basic_daily_count, expected)
+
+    def test_basic_own_verified_action_increments_calibrated_count_once(self):
+        state = NoahMaintenanceState.for_identity(self.identity)
+        state.basic_daily_count = 1
+        controller = NoahTavernMaintenanceController(state, now=100.0)
+        controller.record_verified_transition(
+            RecruitTier.BASIC,
+            self.f.before(RecruitTier.BASIC, remaining=3),
+        )
+        # Two prior attempts are visible in the native counter; this action
+        # contributes exactly one more.
+        self.assertEqual(controller.state.basic_daily_count, 3)
+
+    def test_restart_and_cooldown_observation_never_erases_or_invents_basic_count(self):
+        state = NoahMaintenanceState.for_identity(self.identity)
+        state.basic_daily_count = 1
+        controller = NoahTavernMaintenanceController(state, now=100.0)
+        source = self.f.before(RecruitTier.BASIC, remaining=3)
+        controller.current_tier_eligible(source, RecruitTier.BASIC)
+        self.assertEqual(controller.state.basic_daily_count, 2)
+
+        restored = NoahMaintenanceState.from_json(controller.state.to_json())
+        restarted = NoahTavernMaintenanceController(restored, now=101.0)
+        cooldown = self.f.before(
+            RecruitTier.BASIC,
+            remaining=3,
+            cooldown=True,
+            enabled=False,
+        )
+        self.assertFalse(restarted.current_tier_eligible(cooldown, RecruitTier.BASIC))
+        self.assertEqual(restarted.state.basic_daily_count, 2)
+
+    def test_unknown_basic_counter_does_not_calibrate_from_fallback(self):
+        state = NoahMaintenanceState.for_identity(self.identity)
+        observation = self.f.before(RecruitTier.BASIC)
+        unknown = replace(
+            observation.tier(RecruitTier.BASIC),
+            attempts_remaining=None,
+            recognized=False,
+        )
+        observation = replace(
+            observation,
+            tiers=tuple(unknown if item.tier is RecruitTier.BASIC else item for item in observation.tiers),
+        )
+        controller = NoahTavernMaintenanceController(state, now=100.0)
+        controller.current_tier_eligible(observation, RecruitTier.BASIC)
+        self.assertEqual(controller.state.basic_daily_count, 0)
 
     def test_basic_maximum_is_idempotent_and_int_adv_still_run(self):
         state = NoahMaintenanceState.for_identity(self.identity)
@@ -353,7 +415,7 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
                 atlas_binding=bind_atlas,
             )
             with patch(
-                "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+                "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
                 side_effect=lambda runtime, captured, **kwargs: __import__(
                     "scripts.startup_recovery", fromlist=["ContextualPopupRecoveryResult"]
                 ).ContextualPopupRecoveryResult(
@@ -421,7 +483,7 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
             post_input_delay=0.0,
         )
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=lambda runtime, captured, **kwargs: __import__(
                 "scripts.startup_recovery", fromlist=["ContextualPopupRecoveryResult"]
             ).ContextualPopupRecoveryResult(
@@ -486,6 +548,196 @@ class NoahMaintenanceControllerTests(unittest.TestCase):
         result = NoahTavernMaintenanceController(self.state, now=100.0).run_pass(self.all_evidence(), self.f.home(), identity=identity)
         self.assertEqual(result.scheduler_result.identity.task_id, DAILY_RECRUITMENT_TASK_ID)
         self.assertFalse(result.scheduler_result.consequence.get("claim_dispatched", False))
+
+
+class NoahMaintenanceTerminalHomeProjectionTests(unittest.TestCase):
+    """Terminal Home changes a fact, never a recruit transition or its guards."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.store = SafetyStore(self.root / "terminal-home.sqlite3")
+        self.addCleanup(self.store.close)
+        self.repo = SQLiteSchedulerInvocationRepository(self.store)
+        self.identity = SchedulerIdentity("account", "server", "game-day-2026-10-29", MAINTENANCE_TASK_ID)
+        self.progress = {
+            "basic_daily_count": 2,
+            "tiers": {
+                RecruitTier.BASIC.value: {
+                    "attempts_remaining": 3, "next_eligible_at": 700.0,
+                    "cooldown_seconds": 600, "last_outcome": "action_performed",
+                },
+                RecruitTier.INT.value: {
+                    "attempts_remaining": 0, "next_eligible_at": 86500.0,
+                    "cooldown_seconds": 86400, "last_outcome": "deferred",
+                },
+                RecruitTier.ADV.value: {
+                    "attempts_remaining": 0, "next_eligible_at": 172900.0,
+                    "cooldown_seconds": 172800, "last_outcome": "action_performed",
+                },
+            },
+            "terminal_home_verified": False,
+            "route_context": {"source": "verified-tier-transitions"},
+        }
+        self.before = SchedulerInvocationState(
+            identity=self.identity, status="deferred", revision=7,
+            next_eligible_at=700.0, last_reason_code="verified_transition_persisted",
+            observed_progress_json=json.dumps(self.progress, sort_keys=True),
+            action_count_total=2, unresolved_action=False,
+            evidence_refs_json='["verified-basic", "verified-advanced"]',
+        )
+        self.repo.save(self.before, 100.0)
+
+    def raw_row(self):
+        return self.store.get_scheduler_invocation_state(
+            self.identity.account_id, self.identity.server_id, self.identity.reset_id, self.identity.task_id,
+        )
+
+    def project(self, verified, *, updated_at=110.0):
+        return project_maintenance_terminal_home(
+            self.repo, self.identity, terminal_home_verified=verified, updated_at=updated_at,
+        )
+
+    def assert_only_home_changed(self, before, after, expected):
+        self.assertEqual(replace(after, observed_progress_json=before.observed_progress_json), before)
+        progress = json.loads(before.observed_progress_json)
+        progress["terminal_home_verified"] = expected
+        self.assertEqual(json.loads(after.observed_progress_json), progress)
+
+    def navigation_return(self, result, *, repository=True, identity=True):
+        controller = NoahTavernRecruitRuntimeController(
+            now=110.0,
+            maintenance_state=NoahMaintenanceState.from_scheduler_invocation(self.before),
+            repository=self.repo if repository else None,
+            scheduler_identity=self.identity if identity else None,
+            utc_clock=lambda: 110.0,
+        )
+        route = NoahTavernIntegratedRoute(
+            SimpleNamespace(session=self.root / "offline-native"), controller=controller,
+            recognizer=Mock(side_effect=AssertionError("OCR and device access forbidden")),
+            post_input_delay=0,
+        )
+        navigation = SimpleNamespace(_return_home=Mock(return_value=result))
+        with patch.object(route, "_navigation_route", return_value=navigation):
+            return route._return_home(object(), SimpleNamespace(observation=object()), 2)
+
+    def test_verified_home_changes_only_terminal_fact_and_repeat_is_idempotent(self):
+        projected = self.project(True)
+        self.assert_only_home_changed(self.before, projected, True)
+        self.assertEqual(self.repo.get(self.identity), projected)
+        restored = NoahMaintenanceState.from_scheduler_invocation(projected)
+        self.assertEqual(restored.basic_daily_count, 2)
+        self.assertEqual(restored.tiers[RecruitTier.ADV].next_eligible_at, 172900.0)
+        saved = self.raw_row()
+        self.assertEqual(self.project(True, updated_at=120.0), projected)
+        self.assertEqual(self.raw_row(), saved)
+
+    def test_failed_home_clears_only_terminal_fact_without_repeating_effects(self):
+        earlier = replace(self.before, observed_progress_json=json.dumps(
+            dict(self.progress, terminal_home_verified=True), sort_keys=True,
+        ))
+        self.repo.save(earlier, 105.0)
+        projected = self.project(False)
+        self.assert_only_home_changed(earlier, projected, False)
+        saved = self.raw_row()
+        self.project(False, updated_at=120.0)
+        self.assertEqual(self.raw_row(), saved)
+
+    def test_unknown_blocked_manual_and_unresolved_rows_cannot_be_healed_true(self):
+        cases = [(status, False) for status in (
+            "pending", "blocked", "manual_required", "unresolved", "reconciliation_required",
+        )] + [("deferred", True)]
+        for status, unresolved in cases:
+            with self.subTest(status=status, unresolved=unresolved):
+                guarded = replace(self.before, status=status, unresolved_action=unresolved)
+                self.repo.save(guarded, 105.0)
+                saved = self.raw_row()
+                self.project(True)
+                self.assertEqual(self.repo.get(self.identity), guarded)
+                self.assertEqual(self.raw_row(), saved)
+
+    def test_missing_row_and_unconfigured_route_do_not_create_or_change_state(self):
+        other = replace(self.identity, reset_id="game-day-2026-10-30")
+        self.assertIsNone(project_maintenance_terminal_home(
+            self.repo, other, terminal_home_verified=True, updated_at=110.0,
+        ))
+        self.assertIsNone(self.repo.get(other))
+        navigation = NoahTavernNavigationResult(
+            "completed", "verified current Home", 1, 0, True, (), "offline-native",
+        )
+        for options in ({"repository": False}, {"identity": False}):
+            with self.subTest(options=options):
+                saved = self.raw_row()
+                self.assertEqual(self.navigation_return(navigation, **options).status, "completed")
+                self.assertEqual(self.raw_row(), saved)
+        self.assertEqual(len(self.repo.list()), 1)
+
+    def test_integrated_return_projects_verified_home_including_known_popup_dismissal(self):
+        for status, home, dismissed, expected, returned_status in (
+            ("completed", True, False, True, "completed"),
+            ("blocked", False, False, False, "blocked"),
+            ("unresolved", False, False, False, "unresolved"),
+            ("completed", False, False, False, "blocked"),
+            ("completed", True, True, True, "completed"),
+            ("blocked", False, True, False, "blocked"),
+            ("unresolved", False, True, False, "unresolved"),
+            ("completed", False, True, False, "blocked"),
+        ):
+            with self.subTest(status=status, home=home, dismissed=dismissed):
+                self.repo.save(self.before, 100.0)
+                navigation = NoahTavernNavigationResult(
+                    status, "current navigation result", 1, 0, home, (), "offline-native", dismissed,
+                )
+                result = self.navigation_return(navigation)
+                self.assertEqual(result.status, returned_status)
+                self.assertEqual(result.actions_completed, 2)
+                self.assert_only_home_changed(self.before, self.repo.get(self.identity), expected)
+
+    def test_dismissal_home_fact_is_idempotent_without_recruit_or_timestamp_changes(self):
+        for status, home in (("blocked", False), ("completed", True)):
+            with self.subTest(status=status, home=home):
+                self.repo.save(self.before, 100.0)
+                records = ({"source_captured_monotonic": 101.0, "post_captured_monotonic": 102.0},)
+                navigation = NoahTavernNavigationResult(
+                    status, "current popup-dismissal successor", 1, 0, home,
+                    records, "offline-native", True,
+                )
+                returned = self.navigation_return(navigation)
+                self.assertEqual(returned.status, status)
+                self.assertEqual(returned.actions_completed, 2)
+                self.assert_only_home_changed(self.before, self.repo.get(self.identity), home)
+                saved = self.raw_row()
+                repeated = self.navigation_return(navigation)
+                self.assertEqual(repeated.actions_completed, 2)
+                self.assertEqual(self.raw_row(), saved)
+                self.assertEqual(navigation.records, records)
+
+    def test_newer_reconciliation_outcome_wins_over_stale_terminal_projection(self):
+        original_save = self.repo.save
+        newer_rows = []
+
+        def save_after_newer_outcome(candidate, updated_at):
+            newer_progress = dict(self.progress, basic_daily_count=3)
+            newer = SchedulerAwareTaskResult.reconciliation_required(
+                self.identity, "newer_unknown_result", verified=False,
+                observed_progress=newer_progress, evidence_refs=("newer-unknown-result",),
+            )
+            with patch.object(self.repo, "save", new=original_save):
+                newer_rows.append(self.repo.apply_result(newer, 109.0))
+            return original_save(candidate, updated_at)
+
+        with patch.object(self.repo, "save", side_effect=save_after_newer_outcome):
+            try:
+                self.project(True)
+            except StoreError:
+                pass
+        current = self.repo.get(self.identity)
+        self.assertEqual(current, newer_rows[0])
+        self.assertTrue(current.unresolved_action)
+        self.assertEqual(current.status, "reconciliation_required")
+        self.assertFalse(json.loads(current.observed_progress_json)["terminal_home_verified"])
+        self.assertEqual(json.loads(current.observed_progress_json)["basic_daily_count"], 3)
 
 
 if __name__ == "__main__":

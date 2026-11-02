@@ -95,6 +95,8 @@ class UltimateChallengeVisualTests(unittest.TestCase):
         cv2.rectangle(frame, (60, 360), (740, 750), (48, 48, 48), -1)
         cv2.rectangle(frame, (60, 360), (740, 750), (220, 220, 220), 12)
         cv2.rectangle(frame, (72, 372), (728, 435), (0, 0, 180), -1)
+        cv2.putText(frame, "Warning", (310, 415), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.05, (255, 255, 255), 2, cv2.LINE_AA)
         cv2.putText(
             frame,
             text,
@@ -107,8 +109,12 @@ class UltimateChallengeVisualTests(unittest.TestCase):
         )
         cv2.rectangle(frame, (100, 600), (330, 700), (0, 0, 220), -1)
         cv2.rectangle(frame, (470, 600), (700, 700), (0, 180, 220), -1)
+        cv2.putText(frame, "Fight", (175, 670), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.1, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(frame, "Flee", (530, 670), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.1, (255, 255, 255), 2, cv2.LINE_AA)
         if extra_panel:
-            cv2.rectangle(frame, (5, 20), (795, 320), (180, 180, 180), 12)
+            cv2.rectangle(frame, (5, 20), (795, 800), (180, 180, 180), -1)
         return frame
 
     @staticmethod
@@ -198,11 +204,32 @@ class UltimateChallengeVisualTests(unittest.TestCase):
         self.assertFalse(observation.entry_control_visible)
         self.assertIsNone(observation.entry_roi)
 
-    def test_home_check_is_template_only_not_generic_text(self) -> None:
-        source = Path(ultimate.__file__).read_text(encoding="utf-8")
-        self.assertIn("recognize_home_nav", source)
-        self.assertNotIn("_ocr_folded", source)
-        self.assertNotIn("_UC_RETAINED_SOURCE", source)
+    def test_home_terminal_accepts_native_variants_and_rejects_missing_anchors(self) -> None:
+        frames = [
+            cv2.imread(
+                str(ROOT / "tests/fixtures/nova_praise_preflight" / name),
+                cv2.IMREAD_COLOR,
+            )
+            for name in ("zoomed-home-a.png", "zoomed-home-b.png")
+        ]
+        self.assertNotEqual(ultimate.frame_sha256(frames[0]), ultimate.frame_sha256(frames[1]))
+        for frame in frames:
+            with self.subTest(digest=ultimate.frame_sha256(frame)):
+                self.assertTrue(ultimate._home_nav_terminal(frame))
+                no_navigation = frame.copy()
+                no_navigation[1160:1280] = 0
+                self.assertFalse(ultimate._home_nav_terminal(no_navigation))
+                no_scene = frame.copy()
+                no_scene[180:1160] = 0
+                self.assertFalse(ultimate._home_nav_terminal(no_scene))
+
+    def test_home_terminal_rejects_popup_even_with_home_underneath(self) -> None:
+        frame = cv2.imread(
+            str(ROOT / "tests/fixtures/nova_praise_preflight/zoomed-home-a.png"),
+            cv2.IMREAD_COLOR,
+        )
+        with patch.object(ultimate, "_unexpected_visual_popup", return_value=True):
+            self.assertFalse(ultimate._home_nav_terminal(frame))
 
     def test_unexpected_overlay_rejects_each_actionable_state(self) -> None:
         blank = np.zeros((1280, 800, 3), dtype=np.uint8)
@@ -249,36 +276,28 @@ class UltimateChallengeVisualTests(unittest.TestCase):
             self.assertIsNone(ultimate._recognize_ultimate_main(blank))
             self.assertIsNone(ultimate._bind_active_battle_exit(blank))
 
-    def test_flee_warning_requires_one_bounded_spatially_matched_popup(self) -> None:
-        """R7 acceptance: an extra full-frame popup must fail closed."""
+    def test_unknown_popup_covering_warning_rejects_flee(self) -> None:
+        """A blocking unknown surface cannot inherit the warning's controls."""
         valid_frame = self._flee_warning_frame()
         self.assertIsNotNone(ultimate._recognize_flee_warning(valid_frame))
 
         overbroad_frame = valid_frame.copy()
-        # Independently measured full-frame panel, deliberately separate from
-        # the modal geometry above and from production ROI constants.
+        # A real blocking surface replaces the dialog pixels. Unrelated scene
+        # outlines behind a fully verified dialog supply no action authority.
         cv2.rectangle(
             overbroad_frame,
             (8, 18),
             (792, 1262),
             (180, 180, 180),
-            12,
+            -1,
         )
         self.assertEqual(overbroad_frame.shape, (1280, 800, 3))
         self.assertIsNone(ultimate._recognize_flee_warning(overbroad_frame))
 
-    def test_flee_popup_collapses_duplicate_modal_detections(self) -> None:
-        """Candidate-clustering unit coverage, separate from r7 acceptance."""
-        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-        duplicate = (67, 367, 733, 743)
-        with patch.object(
-            ultimate,
-            "_visual_popup_candidates",
-            return_value=[ultimate._FLEE_MODAL_ROI, duplicate],
-        ):
-            panels = ultimate._flee_popup_panel_candidates(frame)
-        self.assertEqual(len(panels), 1)
-        self.assertTrue(ultimate._flee_modal_popup_matches(panels[0]))
+    def test_warning_title_is_required_even_with_controls_and_failure_text(self) -> None:
+        frame = self._flee_warning_frame()
+        frame[385:425, 270:530] = (0, 0, 180)
+        self.assertIsNone(ultimate._recognize_flee_warning(frame))
 
     def test_repair_rebinds_entry_on_exact_immediate_before_and_enforces_ceiling(self) -> None:
         source = Path(ultimate.__file__).read_text(encoding="utf-8")
@@ -292,11 +311,11 @@ class UltimateChallengeLineupTests(unittest.TestCase):
     """Deterministic native Hero Lineup recognition and route regressions."""
 
     _CARD_ROIS = (
-        (29, 621, 168, 808),
-        (180, 620, 323, 810),
-        (332, 620, 475, 810),
-        (485, 620, 628, 810),
-        (639, 621, 778, 808),
+        (42, 570, 185, 710),
+        (185, 570, 328, 710),
+        (328, 570, 471, 710),
+        (471, 570, 614, 710),
+        (614, 570, 758, 710),
     )
     _CARD_GRID_CANDIDATE = (84, 373, 750, 1050)
     _GOLD = (0, 180, 220)
@@ -320,11 +339,16 @@ class UltimateChallengeLineupTests(unittest.TestCase):
             3,
             cv2.LINE_AA,
         )
+        check = cv2.imread(str(ultimate._HERO_LINEUP_CHECK_MASK), cv2.IMREAD_GRAYSCALE)
         for index, (x0, y0, x1, y1) in enumerate(cls._CARD_ROIS):
-            color = cls._BACKGROUND if index == obscured_card else cls._GOLD
-            cv2.rectangle(frame, (x0, y0), (x1 - 1, y1 - 1), color, -1)
+            if index != obscured_card:
+                cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+                crop = frame[cy - 19:cy + 20, cx - 25:cx + 26]
+                crop[check > 0] = cls._GOLD
         if button:
             cv2.rectangle(frame, (280, 1145), (520, 1265), cls._GOLD, -1)
+            cv2.putText(frame, "Challenge", (300, 1225), cv2.FONT_HERSHEY_SIMPLEX, 1.2,
+                        (255, 255, 255), 2, cv2.LINE_AA)
         return frame
 
     @staticmethod
@@ -344,10 +368,15 @@ class UltimateChallengeLineupTests(unittest.TestCase):
         ocr_data: dict[str, list[str]] | None = None,
         popup_candidates: list[tuple[int, int, int, int]] | None = None,
     ):
+        data = ocr_data or self._ocr_data()
+        title_ok = tuple(
+            str(text).lower() for text, confidence in zip(data["text"], data["conf"])
+            if float(confidence) >= 80
+        ) == ("hero", "lineup")
         with patch.object(
-            ultimate.pytesseract,
-            "image_to_data",
-            return_value=ocr_data or self._ocr_data(),
+            ultimate,
+            "_ocr_ordered_tokens",
+            side_effect=lambda _frame, _roi, expected: title_ok if expected == ("hero", "lineup") else True,
         ), patch.object(
             ultimate,
             "_central_popup_candidates",
@@ -362,7 +391,7 @@ class UltimateChallengeLineupTests(unittest.TestCase):
     def test_native_positive_lineup_accepts_title_cards_button_and_grid_artifact(self) -> None:
         frame = self._lineup_frame()
         self.assertTrue(
-            ultimate._ocr_ordered_tokens(frame, ultimate._UC_TITLE_ROI, ("hero", "lineup"))
+            ultimate._ocr_ordered_tokens(frame, ultimate._HERO_LINEUP_TITLE_ROI, ("hero", "lineup"))
         )
         self.assertEqual(ultimate._central_popup_candidates(frame), [])
         with patch.object(
@@ -372,43 +401,12 @@ class UltimateChallengeLineupTests(unittest.TestCase):
         ):
             bound = ultimate._bind_lineup_challenge_button(frame)
 
-        self.assertEqual(bound, (300, 1175, 500, 1230))
+        self.assertEqual(bound, (290, 1153, 511, 1258))
 
-    def test_lineup_grid_requires_exact_measured_allowlist(self) -> None:
-        expected = {
-            (84, 373, 750, 1050),
-            (84, 373, 729, 1050),
-            (84, 373, 715, 1050),
-            (85, 435, 750, 1050),
-            (101, 435, 750, 1050),
-            (85, 435, 729, 1050),
-            (106, 435, 750, 1050),
-            (85, 435, 715, 1050),
-            (101, 435, 729, 1050),
-            (106, 435, 729, 1050),
-            (101, 435, 715, 1050),
-            (106, 435, 715, 1050),
-            (84, 373, 750, 891),
-            (84, 373, 748, 891),
-            (85, 435, 750, 891),
-            (85, 435, 748, 891),
-            (101, 435, 750, 891),
-            (101, 435, 748, 891),
-            (106, 435, 750, 891),
-            (106, 435, 748, 891),
-        }
-        self.assertEqual(ultimate._HERO_LINEUP_CARD_GRID_BOXES, expected)
-        self.assertTrue(
-            ultimate._lineup_card_grid_candidate_matches(self._CARD_GRID_CANDIDATE)
-        )
-        for candidate in (
-            (80, 370, 750, 1050),
-            (84, 373, 750, 1051),
-        ):
+    def test_lineup_grid_variance_is_not_an_exact_pixel_allowlist(self) -> None:
+        for candidate in ((84, 373, 750, 1050), (80, 370, 750, 1051), (41, 420, 758, 1093)):
             with self.subTest(candidate=candidate):
-                self.assertFalse(
-                    ultimate._lineup_card_grid_candidate_matches(candidate)
-                )
+                self.assertIsNotNone(self._bind(self._lineup_frame(), popup_candidates=[candidate]))
 
     def test_lineup_title_and_visual_requirements_fail_closed(self) -> None:
         frame = self._lineup_frame()
@@ -760,7 +758,7 @@ class UltimateChallengeLineupTests(unittest.TestCase):
 
 class UltimateVipResetContinuationTests(unittest.TestCase):
     POPUP_FRAME = ROOT / "tasks/assets/navigation/800x1280/reset_popup_source.png"
-    LINEUP_ROI = (300, 1175, 500, 1230)
+    LINEUP_ROI = (290, 1153, 511, 1258)
 
     class _Runtime:
         def __init__(
@@ -834,8 +832,8 @@ class UltimateVipResetContinuationTests(unittest.TestCase):
     @staticmethod
     def _lineup_ocr() -> dict[str, list[str]]:
         return {
-            "text": ["Hero", "Lineup"],
-            "conf": ["96", "96"],
+            "text": ["Hero", "Lineup", "Challenge"],
+            "conf": ["96", "96", "96"],
         }
 
     def _initial_popup(self, root: Path) -> CapturedNativeFrame:
@@ -1271,14 +1269,11 @@ class UltimateVipResetContinuationTests(unittest.TestCase):
 class UltimateHomeNormalizationTests(unittest.TestCase):
     @staticmethod
     def _home_frame(*, marker: int = 0) -> np.ndarray:
-        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-        template = cv2.imread(
-            str(ROOT / "tasks/assets/home_nav/800x1280/home_nav_strip.png"),
+        frame = cv2.imread(
+            str(ROOT / "tests/fixtures/nova_praise_preflight/zoomed-home-a.png"),
             cv2.IMREAD_COLOR,
         )
-        frame[1213:1280] = template
-        if marker:
-            frame[300, 300] = (marker, marker, marker)
+        frame[300, 300] = (marker, marker, marker)
         return frame
 
     @staticmethod
@@ -2360,7 +2355,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             fixture,
             "campaign-exit-base",
         )
-        self.assertEqual(measured_roi, self.EXIT_ROI)
+        self.assertEqual(measured_roi, (715, 970, 767, 1024))
         self.assertGreater(score, 0.55)
 
     def test_normal_post_flee_route_uses_measured_exit_not_campaign_back(self) -> None:
@@ -3342,6 +3337,10 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 ultimate, "_home_nav_terminal", return_value=True
             ), patch.object(
                 ultimate,
+                "_normalize_ultimate_home_before_campaign",
+                return_value=(True, {"status": "completed", "zoom_input_count": 0}),
+            ), patch.object(
+                ultimate,
                 "run_verified_ultimate_challenge_campaign_door",
                 return_value={
                     "status": "blocked_fail_closed",
@@ -3373,7 +3372,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             self.assertEqual(result["terminal"], "blocked_fail_closed")
             self.assertEqual(
                 result["reason"],
-                "fresh template Home was not positively recognized",
+                "LOCALIZATION_NOT_RECOGNIZED",
             )
             self.assertEqual(result["input_count"], 0)
             for name in ("ledger.jsonl", "capability-audit.jsonl", "journal.jsonl"):
@@ -3545,7 +3544,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
         terminal: str,
         home_nav_recognized: bool,
         child_returncode: int | None = None,
-        input_count: int = 0,
+        input_count: int | None = None,
         expect_failure: bool | None = None,
         queue_diagnosis: str = "historical gold Flee input diagnosis",
         queue_context: dict | None = None,
@@ -3553,6 +3552,8 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
     ):
         fake_pnsctl = self.FakePnsctl(root / "artifacts")
         commands: list[list[str]] = []
+        if input_count is None:
+            input_count = 6 if terminal == "complete_for_reset" else 0
         result = {
             "flow_id": FLOW_ID,
             "terminal": terminal,
@@ -3560,6 +3561,10 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             "home_nav_recognized": home_nav_recognized,
             "input_count": input_count,
             "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0},
+            "completed_actions": (
+                [{"action": "tap_flee", "before_sha256": "a" * 64, "post_sha256": "b" * 64}]
+                if terminal == "complete_for_reset" else []
+            ),
         }
 
         def fake_run(command, **_kwargs):
@@ -3570,12 +3575,10 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             frames.mkdir(parents=True, exist_ok=True)
             frame = np.zeros((1280, 800, 3), dtype=np.uint8)
             if home_nav_recognized:
-                template_path = (
-                    ROOT
-                    / "tasks/assets/home_nav/800x1280/home_nav_strip.png"
+                frame = cv2.imread(
+                    str(ROOT / "tests/fixtures/nova_praise_preflight/zoomed-home-a.png"),
+                    cv2.IMREAD_COLOR,
                 )
-                template = cv2.imread(str(template_path), cv2.IMREAD_COLOR)
-                frame[1213:1280, 0:800] = template
             frame_path = frames / "canonical-home-terminal.png"
             cv2.imwrite(str(frame_path), frame)
             payload = frame_path.read_bytes()
@@ -3596,7 +3599,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                                 "type": "dispatch",
                                 "execute": True,
                                 "target_identity": (
-                                    "ultimate-challenge-back"
+                                    "tap_flee"
                                     if index == 0
                                     else "campaign-exit-base"
                                 ),
@@ -3711,30 +3714,26 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 )
 
         self.assertEqual(command[command.index("--max-total-inputs") + 1], "16")
-        self.assertIn("--post-flee-home-only", command)
-        self.assertNotIn("--daily", command)
+        self.assertIn("--daily", command)
+        self.assertNotIn("--post-flee-home-only", command)
         self.assertIsNone(delivery_result["attempt_budget"])
         self.assertIsNone(delivery_result["legacy_attempt_budget"])
         self.assertEqual(delivery_result["max_inputs"], 16)
         self.assertEqual(delivery_result["session_max_inputs"], 16)
-        self.assertEqual(delivery_result["new_flee_transport_count"], 0)
+        self.assertEqual(delivery_result["new_flee_transport_count"], 1)
         self.assertEqual(
             delivery_result["actions"][0]["action_class"],
-            "terminal_reconciliation",
+            "zero_resource_flee",
         )
-        self.assertEqual(delivery_result["proof_topology"], "composite")
-        self.assertEqual(
-            delivery_result["terminal_reconciliation_topology"], "continuous"
-        )
+        self.assertEqual(delivery_result["proof_topology"], "continuous")
         self.assertEqual(delivery_result["causal_trace_count"], 1)
         self.assertEqual(
-            delivery_result["retained_effect_evidence_refs"],
-            list(delivery.RETAINED_EFFECT_EVIDENCE_REFS),
+            delivery_result["semantic_effect_state"], "flee_confirmed"
         )
         self.assertEqual(verified["status"], "verified")
         self.assertTrue(verified["initial_observation_verified"])
         self.assertTrue(verified["transport_accounting_verified"])
-        self.assertTrue(verified["zero_new_flee_verified"])
+        self.assertEqual(verified["new_flee_transport_count"], 1)
 
     def test_terminal_session_rejects_equal_but_nonidentical_initial_observation(
         self,
@@ -4267,7 +4266,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                         terminal=terminal,
                         home_nav_recognized=False,
                     )
-                load_state.assert_not_called()
+                load_state.assert_called_once()
                 record_home.assert_not_called()
                 save_state.assert_not_called()
 
@@ -4280,7 +4279,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 child_returncode=3,
                 expect_failure=True,
             )
-        load_state.assert_not_called()
+        load_state.assert_called_once()
         record_home.assert_not_called()
         save_state.assert_not_called()
 
@@ -4293,9 +4292,43 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 input_count=delivery.MAX_TOTAL_INPUTS + 1,
                 expect_failure=True,
             )
-        load_state.assert_not_called()
+        load_state.assert_called_once()
         record_home.assert_not_called()
         save_state.assert_not_called()
+
+    def test_complete_for_reset_without_current_flee_does_not_persist(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _command, load_state, record_home, save_state = self._run_wrapper(
+                Path(directory),
+                terminal="complete_for_reset",
+                home_nav_recognized=True,
+                input_count=0,
+                expect_failure=True,
+            )
+        load_state.assert_called_once()
+        record_home.assert_not_called()
+        save_state.assert_not_called()
+
+    def test_current_flee_effect_requires_one_transport_and_bound_successor(self) -> None:
+        result = {
+            "terminal": "complete_for_reset",
+            "completed_actions": [
+                {"action": "tap_flee", "before_sha256": "a" * 64, "post_sha256": "b" * 64}
+            ],
+        }
+        self.assertEqual(delivery._daily_effect_state(result, 1), "flee_confirmed")
+        self.assertEqual(
+            delivery._daily_effect_state({**result, "terminal": "blocked_fail_closed"}, 1),
+            "flee_confirmed",
+        )
+        for count in (0, 2):
+            self.assertIsNone(delivery._daily_effect_state(result, count))
+        self.assertIsNone(delivery._daily_effect_state({**result, "completed_actions": []}, 1))
+        self.assertEqual(
+            delivery._daily_effect_state({"terminal": "already_completed"}, 0),
+            "already_completed",
+        )
+        self.assertIsNone(delivery._daily_effect_state({"terminal": "already_completed"}, 1))
 
     def test_already_completed_is_idempotent_without_persistence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -4304,7 +4337,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 terminal="already_completed",
                 home_nav_recognized=False,
             )
-        load_state.assert_not_called()
+        load_state.assert_called_once()
         record_home.assert_not_called()
         save_state.assert_not_called()
 
@@ -4315,7 +4348,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 terminal="already_completed",
                 home_nav_recognized=True,
             )
-        load_state.assert_not_called()
+        load_state.assert_called_once()
         record_home.assert_not_called()
         save_state.assert_not_called()
 
@@ -4324,12 +4357,10 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             root = Path(directory)
             frames = root / "frames"
             frames.mkdir()
-            template = cv2.imread(
-                str(ROOT / "tasks/assets/home_nav/800x1280/home_nav_strip.png"),
+            home = cv2.imread(
+                str(ROOT / "tests/fixtures/nova_praise_preflight/zoomed-home-a.png"),
                 cv2.IMREAD_COLOR,
             )
-            home = np.zeros((1280, 800, 3), dtype=np.uint8)
-            home[1213:1280] = template
             path = frames / "canonical-home-terminal.png"
             cv2.imwrite(str(path), home)
             digest = hashlib.sha256(path.read_bytes()).hexdigest()

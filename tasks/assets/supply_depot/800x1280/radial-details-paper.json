@@ -1,0 +1,16 @@
+{
+  "id": "radial-details-paper",
+  "file_sha256": "434e00d6dbe1628a5a6be85e9288cdcba16f4273960cedddce02cb9cacdf3325",
+  "runtime_profile": "native-800x1280",
+  "source": {
+    "path": "tests/fixtures/supply_depot/native-raised-radial-20261029.png",
+    "file_sha256": "be07531df6650ae59bb804f136b9b032d71b053c85909583d532dc60aae0c738",
+    "crop_xyxy": [
+      481,
+      819,
+      519,
+      862
+    ]
+  },
+  "purpose": "Proposes an OCR search region only; never a target position, menu identity, or standalone authority."
+}

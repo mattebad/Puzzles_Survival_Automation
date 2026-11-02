@@ -1,0 +1,105 @@
+{
+  "schema_version": 2,
+  "flow_id": "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION",
+  "product_purpose": "Navigate the recognized Home/More/Rankings path, perform at most one free Personal Might Praise per fixed account/server/UTC reset, prove the disabled successor and return Home. Known More-menu resume is supported.",
+  "trigger_cadence_type": "daily_once",
+  "reset_scope": "fixed_runtime_account_server_utc_daily_reset",
+  "required_starting_context": ["home_ready"],
+  "shared_primitive_dependencies": [
+    {"primitive_id": "home_navigation_primitives", "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST", "required": true},
+    {"primitive_id": "native_bluestacks_capture_and_session_boundary", "version_digest_field": "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST", "required": true}
+  ],
+  "recognized_states": ["home_ready", "more_menu", "rankings", "personal_might_rank", "praise_confirmed", "already_complete", "home_returned", "blocked", "manual_required"],
+  "transition_contracts": [
+    {
+      "transition_id": "open-more", "from": "home_ready", "to": "more_menu",
+      "planner": "scripts.personal_might_praise_bluestacks",
+      "permitted_input": "tap-current-more", "postconditions": ["More menu positively recognized"],
+      "terminal_outcomes": ["blocked", "manual_required"]
+    },
+    {
+      "transition_id": "open-rankings", "from": "more_menu", "to": "rankings",
+      "planner": "scripts.personal_might_praise_bluestacks",
+      "permitted_input": "tap-current-rankings", "postconditions": ["Rankings caption and trophy body recognized in the current capture"],
+      "terminal_outcomes": ["blocked", "manual_required"]
+    },
+    {
+      "transition_id": "open-personal-might", "from": "rankings", "to": "personal_might_rank",
+      "planner": "scripts.personal_might_praise_bluestacks",
+      "permitted_input": "tap-current-personal-might", "postconditions": ["Personal Might Rank 1 surface recognized"],
+      "terminal_outcomes": ["blocked", "manual_required"]
+    },
+    {
+      "transition_id": "praise-once", "from": "personal_might_rank", "to": "praise_confirmed",
+      "planner": "automation_service.personal_might.PersonalMightRunner",
+      "permitted_input": "praise-personal-might-free",
+      "postconditions": ["one fenced zero-cost Praise dispatch", "gold-to-persistent-gray control successor proven from distinct source-linked captures; transport alone is insufficient"],
+      "terminal_outcomes": ["action_performed", "blocked", "manual_required"]
+    },
+    {
+      "transition_id": "observe-already-complete", "from": "personal_might_rank", "to": "already_complete",
+      "planner": "automation_service.personal_might.PersonalMightRunner",
+      "permitted_input": null, "postconditions": ["current disabled Rank 1 thumb or canonical daily completion; no new Praise"],
+      "terminal_outcomes": ["already_complete", "blocked"]
+    },
+    {
+      "transition_id": "return-after-praise", "from": "praise_confirmed", "to": "home_returned",
+      "planner": "scripts.personal_might_praise_bluestacks",
+      "permitted_input": "bounded-recognized-back", "postconditions": ["known route successors and final Home verified; unknown screens stop"],
+      "terminal_outcomes": ["complete_for_reset", "blocked", "manual_required"]
+    },
+    {
+      "transition_id": "return-already-complete", "from": "already_complete", "to": "home_returned",
+      "planner": "scripts.personal_might_praise_bluestacks",
+      "permitted_input": "bounded-recognized-back", "postconditions": ["Home verified without another Praise"],
+      "terminal_outcomes": ["already_complete", "blocked", "manual_required"]
+    }
+  ],
+  "permitted_inputs": ["tap-current-more", "tap-current-rankings", "tap-current-personal-might", "praise-personal-might-free", "bounded-recognized-back"],
+  "consequential_action_class": "zero_cost_consequential",
+  "cost_quantity_requirements": {"free_only": true, "maximum_cost": 0, "quantity": 1, "resource_or_currency": "none", "notes": "One Praise per canonical fixed-slot daily key; no paid control."},
+  "completion_identity": "tasks.personal_might_praise.personal_might_daily_key(runtime_scope, account_id, server_id, reset_id)",
+  "terminal_outcomes": ["action_performed", "deferred", "complete_for_reset", "already_complete", "blocked", "manual_required"],
+  "cooldown_deferred_behavior": "Already-complete state schedules the next actual UTC reset. Unknown or sent/unresolved results block duplicate Praise.",
+  "bounded_recovery_behavior": "Recognized route states and shared known-popup recovery only. Reconciliation validates the exact original action and persistent gray captures without a new Praise. Manual-only states stop.",
+  "product_policy_refs": [
+    {"policy_id": "personal-might-one-free-per-reset", "source": "tasks/personal_might_praise.py"},
+    {"policy_id": "zero-cost-consequential-action", "source": "safe_action_core.CentralPolicy"}
+  ],
+  "evidence_requirements": [
+    "Preserve proposal, immediate-before, transport, distinct persistent disabled successors and final Home with fixed account/server/reset provenance.",
+    "The retained October 31 action required source-linked reconciliation; a fully uninterrupted consuming route remains evidence_required.",
+    "Runtime dispatch requires separate current authorization, service claims, leases and resource-effect fencing. This contract grants no input authority."
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "uninterrupted-native-acceptance", "status": "evidence_required", "blocks": ["unattended-praise-acceptance"],
+      "required_evidence": ["one uninterrupted native Home-to-Praise-to-Home route with complete source-linked successor proof"],
+      "permitted_inputs": []
+    }
+  ],
+  "replay_fixture_requirements": [
+    {"fixture_id": "personal-might-native-route", "status": "required_evidence", "path": null, "notes": "Individual native reader fixtures and interrupted-action reconciliation exist; they do not prove uninterrupted unattended acceptance."}
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "unattended-praise-acceptance", "mode": "blocked_until_evidence", "start_state": "home_ready", "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": ["tap-current-more", "tap-current-rankings", "tap-current-personal-might", "praise-personal-might-free", "bounded-recognized-back"],
+      "required_transitions": [], "evidence_gate_ids": ["uninterrupted-native-acceptance"]
+    },
+    {
+      "scenario_id": "already-praised-return", "mode": "navigation_only", "start_state": "personal_might_rank", "terminal_state": "home_returned",
+      "permitted_inputs": ["bounded-recognized-back"], "forbidden_inputs": ["praise-personal-might-free"],
+      "required_transitions": ["observe-already-complete", "return-already-complete"], "evidence_gate_ids": []
+    }
+  ],
+  "unsupported_or_manual_only_states": ["login", "credentials", "account_selection_or_switching", "tutorial", "captcha", "unknown_modal", "ambiguous_rank_or_praise_state", "paid_praise", "unresolved_prior_dispatch"],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "current",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "registration_state": "disabled",
+  "production_eligible": false
+}

@@ -1,0 +1,12 @@
+{
+  "capture_kind": "byte-for-byte native source copy",
+  "frames": [
+    {
+      "fixture": "after-noah-home-20261029.png",
+      "height": 1280,
+      "source": ".local-captures/automation-service-authorized/soak-20261029T141236151646Z-62a228ca/campaign/campaign-ap-1-15-9-20261029T141511108737Z/frames/0007-campaign-entry-01-immediate-before.png",
+      "transport_sha256": "f359f8ba0af308fe2d9c9b038200d195c92f9a2ab3cfd48f6393471310937cd3",
+      "width": 800
+    }
+  ]
+}

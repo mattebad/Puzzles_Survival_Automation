@@ -1,0 +1,15 @@
+{
+  "captured_from": "manual BlueStacks app-icon launch, observed under zero-input DevelopmentSession",
+  "source_inspection": ".local-captures\\development-sessions\\launch-intent-20261030T234511009104Z\\operator-inspection.json",
+  "source_inspection_sha256": "19231b2d0146fc1ff41034541a0e651a5d7526f6cdc799a29c6064a070a05bd9",
+  "source_task_dump_sha256": "0bfe1379a87ef346c27fcbb1bd6237e166ee56775faba42538e782587cbead7f",
+  "source_logical_lf_sha256": "651853493ec1d28abe3d03aadc0be7bc7aa859ad755773a25039480bbd8d13b3",
+  "provenance_note": "Original inspector hashed LF-normalized command text; Windows retained the text file with CRLF. Both digests are explicit here; original source and receipt are unchanged.",
+  "raw_task_intent": "intent={act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10000000 cmp=com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity bnds=[601,151][695,257]}",
+  "intent": {
+    "action": "android.intent.action.MAIN",
+    "category": "android.intent.category.LAUNCHER",
+    "flags": "0x10000000",
+    "component": "com.global.ztmslg/com.games37.sdk.AtlasPluginDemoActivity"
+  }
+}

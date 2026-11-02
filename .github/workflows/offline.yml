@@ -12,15 +12,21 @@ jobs:
   offline:
     name: Offline checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    env:
+      # Match the live validation process before OCR worker/library startup.
+      OMP_THREAD_LIMIT: "1"
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
+      - name: Enable long retained-evidence paths on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
       - name: Check out repository
         uses: actions/checkout@v7
         with:
-          # Governance checks validate retained commit ancestry, not only HEAD.
+          # Retain commit history for provenance and ancestry checks.
           fetch-depth: 0
       - name: Set up Python 3.11
         uses: actions/setup-python@v7
@@ -40,6 +46,17 @@ jobs:
           choco install tesseract --version=5.5.3.20260724 --no-progress -y
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "C:\Program Files\Tesseract-OCR" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Repeat native Supply Depot binding checks
+        shell: bash
+        run: |
+          for attempt in {1..8}; do
+            python -m unittest \
+              tests.test_supply_depot_vision.SupplyDepotVisionTests.test_actual_hud_occluded_radial_stays_recognized_but_not_actionable \
+              tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_raised_radial_uses_tight_label_and_book_occlusion_stays_blocked \
+              tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_collapsed_drawer_keeps_safe_button_despite_covered_lower_caption \
+              tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_real_daylight_circle_survives_proposal_variation_with_same_final_gates \
+              tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_actual_reset_hud_caption_binds_only_with_complete_word_and_safe_button
+          done
       - name: Run deterministic offline checks
         run: python scripts/check.py
       - name: Run REC-F01 provenance regressions
@@ -50,6 +67,8 @@ jobs:
           tests.test_semantic_ocr_crop
           tests.test_native_frame_mutation
           tests.test_supply_depot_vision
+          tests.test_supply_claim_button
+          tests.test_supply_camera_reframe
           tests.test_supply_depot_verified_route
           tests.test_daily_supply_depot
           tests.test_supply_depot
@@ -62,18 +81,74 @@ jobs:
         run: python -m unittest tests.test_automation_service_handlers tests.test_automation_service_contracts tests.test_automation_service_canonical_authority tests.test_automation_service_scheduler
       - name: Run REC-F08 evidence accounting regressions
         run: python -m unittest tests.test_bluestacks_native_runtime tests.test_pnsctl_scheduler_pulse tests.test_world_map_navigation_bluestacks
+      - name: Run canonical route execution regressions without a device
+        run: >-
+          python -m unittest
+          tests.test_service_application_startup
+          tests.test_service_campaign_ap
+          tests.test_service_campaign_dispatch
+          tests.test_service_nova
+          tests.test_service_bioenhancer
+          tests.test_service_bioenhancer_dispatch
+          tests.test_service_supply
+          tests.test_service_supply_dispatch
+          tests.test_service_ultimate
+          tests.test_service_ultimate_dispatch
+          tests.test_service_enhancement
+          tests.test_service_enhancement_dispatch
+          tests.test_authorized_daily_repeat
+          tests.test_service_personal_might
+          tests.test_service_personal_might_dispatch
+          tests.test_service_cooldown_reset_edge
+      - name: Run route policy and recovery boundary regressions
+        run: >-
+          python -m unittest
+          tests.test_campaign_ap_challenge_policy
+          tests.test_campaign_ap_native_runner
+          tests.test_enhancement_category_resume
+          tests.test_recovered_executor_accounting
+          tests.test_noah_rollover_observation_schedule
+          tests.test_enhancement_ocr_deadline
+          tests.test_enhancement_atomic_progress
+          tests.test_vip_points_popup
+      - name: Run portable native recognition regressions without a device
+        run: >-
+          python -m unittest
+          tests.test_noah_free_tier_counter_scope
+          tests.test_noah_basic_rollover_observation
+          tests.test_nova_zero_counter
+          tests.test_bioenhancer_free_control_native
+          tests.test_campaign_ap_hud_native
+          tests.test_campaign_navigation_revalidation
+          tests.test_campaign_atlas_chapter_nav.PortableCampaignAtlasReframeTests.test_native_chapter_15_hud_occlusion_reframes_without_tapping
+          tests.test_campaign_atlas_chapter_nav.PortableCampaignAtlasReframeTests.test_unbound_reframe_requires_supported_localization_near_edge
+          tests.test_campaign_auto_battle_runtime.CampaignRuntimeControllerTests.test_unbound_edge_reframe_needs_progress_and_fresh_binding
+          tests.test_enhancement_selection_context_native
+          tests.test_enhancement_module_selection_native
+          tests.test_enhancement_quantity_modal_native
+          tests.test_enhancement_chip_quantity_native
+          tests.test_enhancement_module_quantity_native
+          tests.test_ultimate_battle_popup_native
+          tests.test_ultimate_defeat_recovery
+          tests.test_home_control_layouts
+          tests.test_startup_recovery
+          tests.test_contextual_startup_recovery
+          tests.test_nova_startup_recovery
+          tests.test_noahs_tavern_recruit.ContextualPopupRouteTests
+          tests.test_personal_might_bluestacks.PersonalMightNativeTests.test_native_fragmented_rankings_caption_still_binds_current_trophy_body
       - name: Run directly affected cleanup regressions
         run: >-
           python -m unittest
-          tests.test_governance_validation
           tests.test_bliss_porting_toolbox
           tests.test_daily_quest_planning
           tests.test_development_session
           tests.test_flow_delivery_orchestrator
           tests.test_flow_delivery_lean_workflow
+          tests.test_flow_delivery_validation_profiles
+          tests.test_campaign_story_destinations
+          tests.test_flow_delivery_token_context_hygiene.ValidationRunnerTests
           tests.test_runtime_trace_projection
           tests.test_resource_effect_authority_history
-          tests.test_flow_delivery_token_context_hygiene.CompactHandoffTests
       - name: Compile Python sources
         run: python -m compileall -q automation_service safe_action_core scripts tasks tools
       - name: Check committed diff whitespace

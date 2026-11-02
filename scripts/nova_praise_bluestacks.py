@@ -14,14 +14,13 @@ import sys
 import time
 from typing import Callable
 
-import cv2
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tasks.nova_praise_runtime import NovaPraiseRuntimeController
-from tasks.nova_praise import NOVA_SCREEN, nova_authorizeable
+from tasks.nova_praise import NOVA_PRAISE_TARGET, NOVA_SCREEN
 from tasks.nova_praise_vision import (
     NovaFrameRecognition,
     RESEARCH_LAB_UPGRADE_SCREEN,
@@ -120,6 +119,21 @@ class BlueStacksNovaPraiseAdapter:
         return command
 
 
+class NovaNativePartialResultError(RuntimeError):
+    """A failed native run with retained, non-success outcome facts.
+
+    The partial result is intentionally unresolved at the route level.  It carries
+    only counts and identities retained by the runtime event ledger; callers must
+    not promote it to semantic success or retry an identical consequential input.
+    """
+
+    def __init__(self, message: str, *, partial_result: dict[str, object]) -> None:
+        super().__init__(message)
+        if not isinstance(partial_result, dict):
+            raise TypeError("Nova partial result must be a mapping")
+        self.partial_result = dict(partial_result)
+
+
 class NovaPraiseIntegratedRoute:
     """Drive Home → Research Lab → Nova → one Praise → verified cooldown → Home."""
 
@@ -182,31 +196,6 @@ class NovaPraiseIntegratedRoute:
             actions,
             str(self.runtime.session),
         )
-
-    def reconcile_unresolved_praise(self, *, before_frame: Path, action_key: str) -> IntegratedRouteResult:
-        """Reconcile one retained Praise from the current cooldown frame; never Praise again."""
-
-        if not self.runtime.execute:
-            return IntegratedRouteResult("dry-run", "resume_transport_disabled", 0, str(self.runtime.session))
-        captured, recognition = self._observe("resume-current-source")
-        if recognition.observation.screen_state != NOVA_SCREEN or not recognition.observation.recognized:
-            return IntegratedRouteResult("unresolved", "current_nova_postcondition_not_recognized", 0, str(self.runtime.session))
-        before_frame_data = read_frame(before_frame)
-        before = self.recognizer(
-            before_frame_data,
-            captured_monotonic=max(0.0, captured.captured_monotonic - 1.0),
-            stale=False,
-        ).observation
-        if not nova_authorizeable(before):
-            return IntegratedRouteResult("blocked", "retained_nova_source_not_authorized", 0, str(self.runtime.session))
-        self.controller.progress.awaiting_postcondition = True
-        self.controller.now = captured.captured_monotonic
-        self.runtime.in_flight_action = action_key
-        if not self.controller.accept_postcondition(before, recognition.observation):
-            self.runtime.reconcile(action_key, "unresolved", captured, "retained decrement/cooldown not proven")
-            return IntegratedRouteResult("unresolved", "retained_nova_postcondition_not_proven", 0, str(self.runtime.session))
-        self.runtime.reconcile(action_key, "confirmed", captured, "retained exact decrement and cooldown verified")
-        return self._return_home(captured, recognition, 1)
 
     def run(self, *, max_steps: int = 20) -> IntegratedRouteResult:
         if not self.runtime.execute:
@@ -280,6 +269,11 @@ class NovaNavigationCanaryResult:
     terminal_home_verified: bool
     records: tuple[dict[str, object], ...]
     session: str
+    attempts_before: int | None = None
+    attempts_after: int | None = None
+    cooldown_seconds: int | None = None
+    next_eligible_at: float | None = None
+    scheduler_outcome: str | None = None
 
     def to_mapping(self) -> dict[str, object]:
         return {
@@ -290,6 +284,11 @@ class NovaNavigationCanaryResult:
             "terminal_home_verified": self.terminal_home_verified,
             "records": list(self.records),
             "session": self.session,
+            "attempts_before": self.attempts_before,
+            "attempts_after": self.attempts_after,
+            "cooldown_seconds": self.cooldown_seconds,
+            "next_eligible_at": self.next_eligible_at,
+            "scheduler_outcome": self.scheduler_outcome,
         }
 
 
@@ -314,6 +313,9 @@ class NovaNavigationCanaryRoute:
     ) -> None:
         declaration = route_declaration or nova_navigation_route_declaration()
         declaration.validate()
+        # Shared startup recovery retains this caller's native ledger and owner.
+        # Ordinary route navigation still passes through the navigation firewall.
+        self._startup_runtime = runtime
         if isinstance(runtime, NavigationGuardedRuntime):
             self.runtime: NativeRuntimePort = runtime
         else:
@@ -343,6 +345,10 @@ class NovaNavigationCanaryRoute:
         self.on_nova_lab_recognized = on_nova_lab_recognized
         self.records: list[dict[str, object]] = []
         self.input_count = 0
+        # Navigation inputs are transport evidence until a positively recognized
+        # successor is observed.  Keep reconciliation idempotent at this route
+        # boundary so a recovery/return branch cannot emit duplicate terminal rows.
+        self._reconciled_action_keys: set[str] = set()
         self._home_localization_cache: dict[str, object] = {}
         self._base_surface_cache: dict[str, object] = {}
 
@@ -470,6 +476,27 @@ class NovaNavigationCanaryRoute:
             }
         )
         self.input_count += 1
+
+    def _reconcile_verified_transition(
+        self,
+        action_key: str,
+        successor: CapturedNativeFrame,
+        *,
+        reason: str,
+    ) -> None:
+        """Journal one transport only after its semantic successor is verified.
+
+        Navigation success is never inferred from a returned transport call.  The
+        caller must invoke this only after its route-specific positive successor
+        check.  Dry-run runtimes deliberately remain un-reconciled/unknown.
+        """
+
+        if not action_key or not bool(getattr(self.runtime, "execute", False)):
+            return
+        if action_key in self._reconciled_action_keys:
+            return
+        self.runtime.reconcile(action_key, "confirmed", successor, reason)
+        self._reconciled_action_keys.add(action_key)
 
     def _recognize(self, captured, *, provenance=None, home_visible=False):
         return self.recognizer(
@@ -711,12 +738,13 @@ class NovaNavigationCanaryRoute:
                     str(self.runtime.session),
                 ), None
             self._prepare_from_recognition(immediate_before, rebound)
+            action_key = (
+                f"nova-canary:start-return:{ordinal + 1}:"
+                f"{immediate_before.sha256}"
+            )
             self.runtime.back(
                 immediate_before,
-                action_key=(
-                    f"nova-canary:start-return:{ordinal + 1}:"
-                    f"{immediate_before.sha256}"
-                ),
+                action_key=action_key,
             )
             _immediate_post, settled = self._settle(
                 f"canary-start-return-{ordinal + 1:02d}-immediate-post",
@@ -728,6 +756,26 @@ class NovaNavigationCanaryRoute:
                 settled,
                 provenance=None,
             )
+            settled_surface = self._navigation_surface(current_recognition)
+            positive_home = settled_surface == "HOME_BASE" and (
+                self._home_localized(settled)
+                or self._base_surface_recognized(settled)
+                or measured_home
+            )
+            positive_radial = (
+                self._research_radial_geometry_present(current_recognition)
+                and current_recognition.target(NOVA_INTERACTION_TARGET) is not None
+            )
+            if positive_home or positive_radial:
+                self._reconcile_verified_transition(
+                    action_key,
+                    settled,
+                    reason=(
+                        "verified_known_start_home_successor"
+                        if positive_home
+                        else "verified_known_start_research_lab_successor"
+                    ),
+                )
         return None, NovaNavigationCanaryResult(
             "blocked",
             "maximum_initial_safe_return_inputs",
@@ -789,11 +837,12 @@ class NovaNavigationCanaryRoute:
             radial_rebound,
             target_roi=target,
         )
+        action_key = f"nova-canary:open-nova:{nova_before.sha256}"
         self.runtime.tap(
             nova_before,
             target_identity=NOVA_INTERACTION_TARGET,
             target_roi=target,
-            action_key=f"nova-canary:open-nova:{nova_before.sha256}",
+            action_key=action_key,
             consequential=False,
         )
         _immediate_post, nova_capture = self._settle(
@@ -815,6 +864,11 @@ class NovaNavigationCanaryRoute:
                 tuple(self.records),
                 str(self.runtime.session),
             )
+        self._reconcile_verified_transition(
+            action_key,
+            nova_capture,
+            reason="verified_nova_screen_successor",
+        )
         if self.on_nova_lab_recognized is not None:
             seam = self.on_nova_lab_recognized(nova_capture, nova)
             if seam is not None:
@@ -876,9 +930,10 @@ class NovaNavigationCanaryRoute:
                     str(self.runtime.session),
                 )
             self._prepare_from_recognition(immediate_before, rebound)
+            action_key = f"nova-canary:return:{ordinal}:{immediate_before.sha256}"
             self.runtime.back(
                 immediate_before,
-                action_key=f"nova-canary:return:{ordinal}:{immediate_before.sha256}",
+                action_key=action_key,
             )
             _immediate_post, settled = self._settle(
                 f"canary-return-{ordinal:02d}-immediate-post",
@@ -890,6 +945,11 @@ class NovaNavigationCanaryRoute:
             )
             settled_surface = self._navigation_surface(settled_recognition)
             if settled_surface == "HOME_BASE" and self._home_localized(settled):
+                self._reconcile_verified_transition(
+                    action_key,
+                    settled,
+                    reason="verified_home_successor",
+                )
                 return NovaNavigationCanaryResult(
                     "completed",
                     "verified_safe_return_home",
@@ -900,6 +960,11 @@ class NovaNavigationCanaryRoute:
                     str(self.runtime.session),
                 )
             if settled_surface == "HOME_BASE" and self._base_surface_recognized(settled):
+                self._reconcile_verified_transition(
+                    action_key,
+                    settled,
+                    reason="verified_home_base_successor",
+                )
                 recovered = self._recover_canonical_after_return(settled, ordinal)
                 if recovered is not None:
                     return recovered
@@ -946,6 +1011,7 @@ class NovaNavigationCanaryRoute:
         ):
             return None
         try:
+            action_key = f"home-zoom-out:{captured.sha256}"
             self.runtime.dispatch_zoom_out(
                 captured,
                 make_source_safety_facts(
@@ -964,6 +1030,11 @@ class NovaNavigationCanaryRoute:
         )
         self._record_input("bounded_zoom_out", captured, settled)
         if self._home_localized(settled):
+            self._reconcile_verified_transition(
+                action_key,
+                settled,
+                reason="verified_home_after_zoom_successor",
+            )
             return NovaNavigationCanaryResult(
                 "completed",
                 "verified_safe_return_home",
@@ -976,7 +1047,44 @@ class NovaNavigationCanaryRoute:
         return None
 
     def run(self) -> NovaNavigationCanaryResult:
+        from scripts.startup_recovery import (
+            classify_startup_frame, recover_contextual_startup_overlay,
+        )
+
         source = self._capture("canary-source")
+        plan = classify_startup_frame("NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE", source.png)
+        if plan.status == "recovery_required" and plan.recovery_owner in {
+            "shared_home_startup_recovery", "shared_startup_surface_recovery",
+        }:
+            before = getattr(self._startup_runtime, "input_count", None)
+            recovery = None
+            try:
+                recovery = recover_contextual_startup_overlay(
+                    self._startup_runtime, source, source_context="nova-startup",
+                    recognize_successor=lambda frame: (
+                        self._base_surface_recognized(frame) or self._home_context_measured(frame)
+                    ),
+                    action_key="nova-initial-startup-overlay",
+                    settle_seconds=self.settle_seconds,
+                )
+            finally:
+                after = getattr(self._startup_runtime, "input_count", None)
+                consumed = after - before if type(before) is int and type(after) is int else 0
+                self.input_count += max(0, consumed)
+                self.records.append({
+                    "action": "startup_overlay_recovery" if consumed else "no_input_startup_overlay_recovery",
+                    "source_sha256": source.sha256,
+                    "input_count": max(0, consumed),
+                    "reason": recovery.reason if recovery is not None else "startup_recovery_interrupted",
+                    "resume_ready": recovery.resume_ready if recovery is not None else False,
+                    "steps": [step.to_mapping(self._startup_runtime.session) for step in recovery.steps] if recovery else [],
+                })
+            if not recovery.resume_ready or recovery.settled_frame is None:
+                return NovaNavigationCanaryResult(
+                    "blocked", "startup_overlay:" + recovery.reason, self.input_count, 0,
+                    False, tuple(self.records), str(self.runtime.session),
+                )
+            source = recovery.settled_frame
         _normalized, blocked, bound_radial = self._normalize_known_start_to_home(source)
         if blocked is not None:
             return blocked
@@ -1022,6 +1130,7 @@ class NovaNavigationCanaryRoute:
                         raise NavigationBoundaryError(
                             "home localization not positively established"
                         )
+                    action_key = f"home-zoom-out:{immediate_before.sha256}"
                     self.runtime.dispatch_zoom_out(
                         immediate_before,
                         make_source_safety_facts(
@@ -1060,6 +1169,12 @@ class NovaNavigationCanaryRoute:
                     f"canary-zoom-{ordinal:02d}-settled",
                 )
                 self._record_input("bounded_zoom_out", immediate_before, settled)
+                if self._home_localized(settled) or self._home_context_measured(settled):
+                    self._reconcile_verified_transition(
+                        action_key,
+                        settled,
+                        reason="verified_home_after_zoom_successor",
+                    )
                 continue
             if step.disposition is HomeDriverDisposition.PAN:
                 plan = step.plan
@@ -1093,11 +1208,12 @@ class NovaNavigationCanaryRoute:
                         tuple(self.records),
                         str(self.runtime.session),
                     )
+                action_key = f"nova-canary:pan:{ordinal}:{immediate_before.sha256}"
                 self.runtime.swipe(
                     immediate_before,
                     start=plan.drag_start,
                     end=plan.drag_end,
-                    action_key=f"nova-canary:pan:{ordinal}:{immediate_before.sha256}",
+                    action_key=action_key,
                     target_identity="home-camera-click-drag",
                 )
                 _immediate_post, settled = self._settle(
@@ -1126,6 +1242,11 @@ class NovaNavigationCanaryRoute:
                         tuple(self.records),
                         str(self.runtime.session),
                     )
+                self._reconcile_verified_transition(
+                    action_key,
+                    settled,
+                    reason="verified_accepted_home_pan_successor",
+                )
                 continue
             if step.disposition is HomeDriverDisposition.BIND:
                 self.records.append(
@@ -1203,6 +1324,11 @@ class NovaNavigationCanaryRoute:
                         tuple(self.records),
                         str(self.runtime.session),
                     )
+                self._reconcile_verified_transition(
+                    action_key,
+                    radial_capture,
+                    reason="verified_research_lab_menu_successor",
+                )
                 return self._tap_bound_nova(provenance=provenance)
             return NovaNavigationCanaryResult(
                 "blocked",
@@ -1291,6 +1417,7 @@ class NovaSupervisedOneFreePulseRoute:
         self.action_boundary = action_boundary
         self._praise_invocations = 0
         self._boundary_result = None
+        self._no_work_result: NovaNavigationCanaryResult | None = None
         self.canary = NovaNavigationCanaryRoute(
             runtime,
             identity,
@@ -1333,6 +1460,48 @@ class NovaSupervisedOneFreePulseRoute:
         if self._praise_invocations > 0:
             return self._fail_closed("blocked", "duplicate_praise_invocation_prohibited")
         self._praise_invocations += 1
+        observation = nova.observation
+        if not observation.recognized or observation.screen_state != NOVA_SCREEN:
+            return self._fail_closed(
+                "blocked",
+                "no_work_requires_positive_nova_screen",
+            )
+        attempts = observation.attempts_remaining
+        depleted = type(attempts) is int and attempts == 0
+        visible_cooldown = (
+            type(attempts) is int
+            and attempts > 0
+            and observation.cooldown_active is True
+            and type(observation.cooldown_seconds) is int
+            and observation.cooldown_seconds > 0
+            and type(observation.next_eligible_at) in (int, float)
+        )
+        if depleted or visible_cooldown:
+            # A positively recognized depleted/cooldown Nova is benign no-work.
+            # It still must return Home before the scheduler may defer it; no
+            # Praise transport or fabricated action journal row is created.
+            home = self.canary._return_home(nova_capture, nova)
+            if home.status != "completed":
+                return self._fail_closed(
+                    "unresolved",
+                    str(home.reason or "nova_no_work_home_return_unresolved"),
+                )
+            outcome = "complete_for_reset" if depleted else "deferred"
+            self._no_work_result = NovaNavigationCanaryResult(
+                outcome,
+                "verified_nova_no_work_and_safe_return_home",
+                home.navigation_input_count,
+                0,
+                True,
+                home.records,
+                home.session,
+                attempts_before=attempts,
+                attempts_after=attempts,
+                cooldown_seconds=observation.cooldown_seconds,
+                next_eligible_at=observation.next_eligible_at,
+                scheduler_outcome=outcome,
+            )
+            return self._no_work_result
         # No generic popup cleanup around consequential Praise.
         result = self.action_boundary.execute_praise(nova_capture, nova)
         self._boundary_result = result
@@ -1365,20 +1534,21 @@ class NovaSupervisedOneFreePulseRoute:
         navigation = self.canary.run()
         boundary = self._boundary_result
         if boundary is None:
+            no_work = self._no_work_result
             return NovaSupervisedOneFreePulseResult(
                 status=navigation.status,
                 reason=navigation.reason,
                 navigation_input_count=navigation.navigation_input_count,
                 praise_transport_calls=0,
                 praise_taps=0,
-                attempts_before=None,
-                attempts_after=None,
-                cooldown_seconds=None,
-                next_eligible_at=None,
+                attempts_before=no_work.attempts_before if no_work else None,
+                attempts_after=no_work.attempts_after if no_work else None,
+                cooldown_seconds=no_work.cooldown_seconds if no_work else None,
+                next_eligible_at=no_work.next_eligible_at if no_work else None,
                 action_id=None,
                 action_key=None,
                 journal_status=None,
-                scheduler_outcome=None,
+                scheduler_outcome=no_work.scheduler_outcome if no_work else None,
                 evidence_refs=(),
                 terminal_home_verified=navigation.terminal_home_verified,
                 records=navigation.records,
@@ -1528,8 +1698,112 @@ def run_nova_navigation_canary(args, identity: VerifiedRuntimeIdentity) -> str:
     )
 
 
+def _nova_native_dispatch_rows(
+    runtime: LocalBlueStacksRuntime,
+) -> tuple[dict[str, dict[str, object]], bool, str | None]:
+    events_path = runtime.events
+    dispatches: dict[str, dict[str, object]] = {}
+    accounting_error: str | None = None
+    try:
+        lines = events_path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError) as exc:
+        return {}, False, f"events ledger unreadable: {type(exc).__name__}"
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            accounting_error = accounting_error or f"events ledger malformed JSON: line {exc.lineno}"
+            continue
+        if not isinstance(event, dict):
+            accounting_error = accounting_error or "events ledger row is not an object"
+            continue
+        if event.get("type") != "dispatch":
+            continue
+        if event.get("execute") is not True or event.get("transport_attempted") is False:
+            continue
+        action_key = event.get("action_key")
+        if not isinstance(action_key, str) or not action_key.strip():
+            accounting_error = accounting_error or "dispatch row is missing an action_key"
+            continue
+        previous = dispatches.get(action_key)
+        if previous is not None:
+            comparable = ("target_identity", "source_sha256", "execute", "transport_attempted")
+            if any(previous.get(field) != event.get(field) for field in comparable):
+                accounting_error = accounting_error or (
+                    f"conflicting duplicate dispatch identity: {action_key}"
+                )
+            continue
+        dispatches[action_key] = event
+    return dispatches, accounting_error is None, accounting_error
+
+
+def _nova_native_partial_result_count(runtime: LocalBlueStacksRuntime) -> int:
+    dispatches, _verified, _error = _nova_native_dispatch_rows(runtime)
+    return max(len(dispatches), int(getattr(runtime, "input_count", 0)))
+
+
+def _nova_native_partial_result(
+    runtime: LocalBlueStacksRuntime,
+    route: object | None,
+    *,
+    status: str,
+    reason: str,
+) -> dict[str, object]:
+    """Project retained dispatch counts for a failed native invocation."""
+
+    dispatches, accounting_verified, accounting_error = _nova_native_dispatch_rows(runtime)
+    events_path = runtime.events
+    retained_dispatch_count = len(dispatches)
+    runtime_input_count = int(getattr(runtime, "input_count", 0))
+    accounting_lower_bound = max(retained_dispatch_count, runtime_input_count)
+    praise = sum(
+        event.get("target_identity") == NOVA_PRAISE_TARGET
+        for event in dispatches.values()
+    )
+    boundary = getattr(route, "_boundary_result", None)
+    boundary_status = getattr(boundary, "status", None)
+    return {
+        "status": status,
+        "reason": reason,
+        "session_directory": str(runtime.session),
+        "events_path": str(events_path),
+        "transport_calls": accounting_lower_bound,
+        "total_input_count": accounting_lower_bound,
+        "navigation_input_count": max(0, accounting_lower_bound - praise),
+        "praise_transport_calls": praise,
+        "praise_taps": praise,
+        "retained_dispatch_count": retained_dispatch_count,
+        "runtime_input_count": runtime_input_count,
+        "accounting_lower_bound": accounting_lower_bound,
+        "accounting_verified": accounting_verified,
+        "accounting_error": accounting_error,
+        "max_inputs": int(runtime.max_inputs),
+        "action_id": getattr(boundary, "action_id", None),
+        "action_key": getattr(boundary, "action_key", None),
+        "journal_status": getattr(boundary, "journal_status", None),
+        "effect_status": boundary_status or "unknown",
+        "effect_reconciliation_required": not (
+            praise > 0 and boundary_status == "confirmed"
+        ),
+        "semantic_status": "unknown",
+        "terminal_home_verified": False,
+        "terminal_home_status": "unknown",
+        "identical_retry_denied": True,
+        "production_registration": "NOT_REGISTERED",
+        "scheduler_enabled": False,
+    }
+
+
 def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> str:
     """Checked-in supervised one-Praise runner; uses durable SafetyStore and canary composition."""
+
+    checkpoint = getattr(args, "checkpoint", None)
+    if checkpoint is not None and not callable(checkpoint):
+        raise RuntimeError("Nova runtime checkpoint must be callable")
+    raw_max_inputs = getattr(args, "max_inputs", 8)
+    if type(raw_max_inputs) is not int or not 1 <= raw_max_inputs <= 8:
+        raise RuntimeError("Nova max_inputs must be an integer between 1 and 8")
+    max_inputs = raw_max_inputs
 
     from safe_action_core import SafetyStore
     from scripts.nova_praise_centralized import NovaPraiseActionBoundary
@@ -1554,9 +1828,14 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
         "canonical action store",
     )
     database.parent.mkdir(parents=True, exist_ok=True)
+    utc_clock = getattr(args, "utc_clock", time.time)
+    monotonic_clock = getattr(args, "monotonic_clock", time.monotonic)
+    if not callable(utc_clock) or not callable(monotonic_clock):
+        raise RuntimeError("Nova paired clocks must be callable")
     owner = str(getattr(args, "owner", None) or "nova-praise-supervised")
     invocation_id = str(
-        getattr(args, "invocation_id", None) or f"nova-praise-one-free-{int(time.time())}"
+        getattr(args, "invocation_id", None)
+        or f"nova-praise-one-free-{int(utc_clock())}"
     )
     lease_ttl = float(getattr(args, "lease_ttl", 3600.0) or 3600.0)
     runtime = LocalBlueStacksRuntime.connect(
@@ -1566,6 +1845,8 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
         workflow="nova-praise-one-free-pulse",
         execute=True,
     )
+    runtime.checkpoint = checkpoint
+    runtime.max_inputs = max_inputs
     store = SafetyStore(database)
     leased = False
     result = None
@@ -1577,7 +1858,7 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
             raise RuntimeError(
                 "canonical unresolved or nonterminal action blocks supervised Praise"
             )
-        store.acquire_lease(owner, time.time(), lease_ttl)
+        store.acquire_lease(owner, utc_clock(), lease_ttl)
         leased = True
         pulse = NovaPulseController(
             SchedulerIdentity(
@@ -1587,7 +1868,7 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
                 NOVA_TASK_ID,
             ),
             load_home_atlas(atlas_path),
-            now=time.monotonic(),
+            now=monotonic_clock(),
             replay_mode=False,
         )
         boundary = NovaPraiseActionBoundary(
@@ -1598,6 +1879,8 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
             owner_id=owner,
             invocation_id=invocation_id,
             execute=True,
+            monotonic_clock=monotonic_clock,
+            wall_clock=utc_clock,
         )
         route = NovaSupervisedOneFreePulseRoute(
             runtime,
@@ -1637,7 +1920,7 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
     finally:
         if leased:
             try:
-                store.release_lease(owner, time.time())
+                store.release_lease(owner, utc_clock())
             except BaseException as exc:
                 lease_release_error = exc
         store.close()
@@ -1647,7 +1930,15 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
             runtime.session,
             status=result.status
             if result.status
-            in {"completed", "blocked", "manual_required", "unresolved", "failed"}
+            in {
+                "completed",
+                "deferred",
+                "complete_for_reset",
+                "blocked",
+                "manual_required",
+                "unresolved",
+                "failed",
+            }
             else "blocked",
             reason=result.reason,
             records=result.records,
@@ -1695,21 +1986,48 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
             )
 
     if route_error is not None:
+        # Preserve process-control interrupts exactly; ordinary failures carry
+        # retained counts so the service can account for attempted inputs before
+        # blocking the run.  Neither path claims a semantic success.
+        if isinstance(route_error, (KeyboardInterrupt, SystemExit)):
+            raise route_error
+        detail = f"native route failed: {type(route_error).__name__}: {route_error}"
         if lease_release_error is not None:
-            raise RuntimeError(
-                f"supervised pulse failed ({route_error}); "
-                f"lease release also failed without overwriting journal "
+            detail = (
+                f"{detail}; lease release also failed without overwriting journal "
                 f"(status={getattr(result, 'status', None)}): {lease_release_error}"
-            ) from route_error
-        raise route_error
+            )
+        partial = _nova_native_partial_result(
+            runtime,
+            route,
+            status="unresolved" if _nova_native_partial_result_count(runtime) > 0 else "blocked",
+            reason=detail,
+        )
+        raise NovaNativePartialResultError(detail, partial_result=partial) from route_error
     if result is None:
         raise RuntimeError("supervised pulse produced no result")
     if lease_release_error is not None:
-        raise RuntimeError(
+        detail = (
             f"SafetyStore lease release failed after status={result.status}; "
             f"action journal was not overwritten: {lease_release_error}"
-        ) from lease_release_error
+        )
+        partial = _nova_native_partial_result(
+            runtime,
+            route,
+            status="unresolved" if _nova_native_partial_result_count(runtime) > 0 else "blocked",
+            reason=detail,
+        )
+        raise NovaNativePartialResultError(detail, partial_result=partial) from lease_release_error
 
+    completed_at_utc = float(utc_clock())
+    monotonic_now = float(monotonic_clock())
+    next_eligible_at_utc = None
+    if result.next_eligible_at is not None:
+        if type(result.next_eligible_at) not in (int, float):
+            raise RuntimeError("Nova monotonic cooldown deadline is invalid")
+        next_eligible_at_utc = completed_at_utc + (
+            float(result.next_eligible_at) - monotonic_now
+        )
     return json.dumps(
         {
             "status": result.status,
@@ -1723,7 +2041,8 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
             "attempts_before": result.attempts_before,
             "attempts_after": result.attempts_after,
             "cooldown_seconds": result.cooldown_seconds,
-            "next_eligible_at": result.next_eligible_at,
+            "next_eligible_at": next_eligible_at_utc,
+            "next_eligible_at_utc": next_eligible_at_utc,
             "action_id": result.action_id,
             "action_key": result.action_key,
             "journal_status": result.journal_status,
@@ -1733,34 +2052,11 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
             "action_database": str(database),
             "production_registration": "NOT_REGISTERED",
             "scheduler_enabled": False,
+            "time_basis": "utc",
+            "completed_at_utc": completed_at_utc,
         },
         sort_keys=True,
     )
-
-
-def read_frame(path: Path):
-    frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
-    if frame is None:
-        raise ValueError(f"cannot read BlueStacks frame: {path}")
-    return frame
-
-
-def load_unresolved_praise(session: Path) -> tuple[Path, str]:
-    events = [json.loads(line) for line in (session / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
-    unresolved = next((event for event in reversed(events) if event.get("type") == "reconcile" and event.get("status") == "unresolved"), None)
-    if unresolved is None:
-        raise RuntimeError("session has no unresolved Nova Praise")
-    action_key = str(unresolved["action_key"])
-    dispatch = next((event for event in events if event.get("type") == "dispatch" and event.get("action_key") == action_key and event.get("consequential") is True), None)
-    if dispatch is None:
-        raise RuntimeError("unresolved Nova action has no retained dispatch")
-    capture = next((event for event in events if event.get("type") == "capture" and event.get("sha256") == dispatch.get("source_sha256")), None)
-    if capture is None:
-        raise RuntimeError("unresolved Nova source frame is missing")
-    source = Path(str(capture["path"]))
-    if not source.is_absolute():
-        source = ROOT / source
-    return source, action_key
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1769,7 +2065,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--serial", required=True)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--yes", action="store_true", help="confirm the exact local BlueStacks target non-interactively")
-    parser.add_argument("--resume-unresolved-session", type=Path)
     parser.add_argument("--output-directory", type=Path, default=Path(".local-captures/nova-praise-integrated"))
     args = parser.parse_args(argv)
     if args.execute:
@@ -1788,11 +2083,7 @@ def main(argv: list[str] | None = None) -> int:
         execute=False,
     )
     route = NovaPraiseIntegratedRoute(runtime)
-    if args.resume_unresolved_session is not None:
-        before_frame, action_key = load_unresolved_praise(args.resume_unresolved_session)
-        result = route.reconcile_unresolved_praise(before_frame=before_frame, action_key=action_key)
-    else:
-        result = route.run()
+    result = route.run()
     print(json.dumps(result.__dict__, sort_keys=True))
     return 0 if result.status in {"completed", "dry-run"} else 3
 

@@ -1,0 +1,12 @@
+{
+  "capture_kind": "byte-for-byte native source copy",
+  "frames": [
+    {
+      "fixture": "campaign-home-hud-edge-20261030.png",
+      "source": ".local-captures/automation-service-authorized/soak-20261030T063331129533Z-3720411a/campaign/campaign-ap-1-15-9-20261030T071102524293Z/frames/0011-campaign-entry-02-immediate-before.png",
+      "transport_sha256": "bf134117efc7cfbcfb5f8611d29c34187fca76d8df940f78eb9df4a79d53cf54",
+      "width": 800,
+      "height": 1280
+    }
+  ]
+}

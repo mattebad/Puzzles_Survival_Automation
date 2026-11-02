@@ -1255,8 +1255,14 @@ class RuntimeBoundaryTests(unittest.TestCase):
                     deadlines.append(deadline)
                     return ocr_request_for_cycle(cycle, deadline)
 
+                completed_at: list[float] = []
+                class TimedRouter(ScreenRouter):
+                    def observe(self, cycle: CaptureCycle, *, deadline_monotonic: float | None = None) -> ScreenObservation:
+                        observation = super().observe(cycle, deadline_monotonic=deadline_monotonic)
+                        completed_at.append(time.monotonic())
+                        return observation
 
-                perception = ScreenRouter(
+                perception = TimedRouter(
                     [
                         ScreenDefinition(
                             ScreenId.HOME,
@@ -1268,7 +1274,11 @@ class RuntimeBoundaryTests(unittest.TestCase):
                     callback_timeout_seconds=2.0,
                 )
                 result = ActionExecutor(session, perception).execute(intent())
-                self.assertLessEqual(time.monotonic(), deadlines[0])
+                # The OCR deadline covers recognition and owned-worker drain.
+                # Executor terminalization and SQLite lease release happen
+                # afterward and retain their own boundary checks below.
+                self.assertEqual(len(completed_at), 1)
+                self.assertLessEqual(completed_at[0], deadlines[0])
                 self.assertEqual(result.outcome, ActionOutcome.BLOCKED)
                 self.assertEqual(result.reason, "OCR_DEADLINE")
                 self.assertTrue(marker.exists())

@@ -6,6 +6,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 from pathlib import Path
 import shutil
 import subprocess
@@ -20,12 +21,14 @@ from scripts.flow_delivery_evidence import (
     require_operator_evidence,
 )
 from tasks.ultimate_challenge_daily import (
+    BLUESTACKS_RUNTIME_PROFILE_ID,
     TERMINAL_COMPLETE_FOR_RESET,
     load_reset_window_state,
     record_verified_home_success,
+    record_pending_home,
     save_reset_window_state,
 )
-from tasks.home_nav_recognition import recognize_home_nav
+from scripts.startup_normalization import is_clean_home_frame
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
@@ -36,12 +39,7 @@ UC_RECOVERY_HANDLER_ID = "ultimate_challenge_navigation_only_recovery"
 UC_DAILY_RUNNER_ID = "ultimate_challenge_daily_runner"
 UC_DAILY_EVIDENCE_VALIDATOR_ID = "ultimate_challenge_daily_evidence"
 UC_DAILY_RECOVERY_HANDLER_ID = "ultimate_challenge_daily_recovery"
-TERMINAL_RECONCILIATION_TOPOLOGY = "continuous"
-RETAINED_FLEE_PROOF_TOPOLOGY = "composite"
-RETAINED_EFFECT_EVIDENCE_REFS = (
-    "tasks/flow_delivery_queue.json#ultimate-attempt-13",
-    "tasks/flow_delivery_queue.json#ultimate-attempt-14",
-)
+DAILY_PROOF_TOPOLOGY = "continuous"
 
 
 def _utc_stamp() -> str:
@@ -78,7 +76,7 @@ def _verified_home_evidence(
     if hashlib.sha256(payload).hexdigest() != expected_hash:
         return False, None
     frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
-    if frame is None or not recognize_home_nav(frame).is_home:
+    if frame is None or not is_clean_home_frame(frame):
         return False, None
     return True, candidate
 
@@ -354,13 +352,168 @@ def _retained_flee_transport_count(session: Path) -> int:
     )
 
 
-def _write_terminal_causal_trace(
+def _daily_effect_state(result: Mapping[str, Any], flee_count: int) -> str | None:
+    if result.get("terminal") == "already_completed" and flee_count == 0:
+        return "already_completed"
+    actions = result.get("completed_actions") or []
+    if result.get("terminal") != "already_completed" and flee_count == 1:
+        for action in actions:
+            if not isinstance(action, Mapping) or action.get("action") != "tap_flee":
+                continue
+            if all(
+                isinstance(action.get(key), str)
+                and len(action[key]) == 64
+                and all(char in "0123456789abcdef" for char in action[key])
+                for key in ("before_sha256", "post_sha256")
+            ):
+                return "flee_confirmed"
+    return None
+
+
+def _defeat_flee_recovery_evidence(session: Path, result: Mapping[str, Any]) -> dict[str, str]:
+    """Replay a single Flee-to-defeat transition without changing its failed receipt."""
+    from scripts import bluestacks_ultimate_challenge as native
+
+    if (result.get("terminal") != "blocked_fail_closed"
+            or result.get("completed_actions") != [] or result.get("input_count") != 1):
+        raise ValueError("defeat recovery requires an isolated failed Flee attempt")
+    rows = [json.loads(line) for line in (session / "runtime/events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    if any(not isinstance(row, dict) or row.get("type") not in {"capture", "dispatch"} for row in rows):
+        raise ValueError("defeat recovery journal contains an invalid row")
+    dispatches = [(index, row) for index, row in enumerate(rows) if row.get("type") == "dispatch"]
+    if len(dispatches) != 1:
+        raise ValueError("defeat recovery requires exactly one retained dispatch")
+    index, dispatch = dispatches[0]
+    if (dispatch.get("target_identity") != "tap_flee" or dispatch.get("execute") is not True
+            or dispatch.get("consequential") is not True
+            or not dispatch.get("action_key") or dispatch["action_key"] != result.get("flee_action_key")):
+        raise ValueError("defeat recovery dispatch is not the original Flee")
+
+    def timestamp(row):
+        value = datetime.fromisoformat(row["timestamp"])
+        if (value.tzinfo is None or value.utcoffset().total_seconds() != 0
+                or value > datetime.now(timezone.utc)):
+            raise ValueError("defeat recovery timestamp is missing UTC or in the future")
+        return value
+
+    def capture(row):
+        raw = Path(row["path"])
+        path = (raw if raw.is_absolute() else session / raw).resolve()
+        if raw.is_symlink() or not path.is_relative_to(session):
+            raise ValueError("defeat recovery capture escaped its session")
+        payload = path.read_bytes()
+        if hashlib.sha256(payload).hexdigest() != row["sha256"]:
+            raise ValueError("defeat recovery capture hash changed")
+        frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if frame is None or frame.shape != (1280, 800, 3):
+            raise ValueError("defeat recovery capture is not native")
+        return frame
+
+    captures = [(i, row) for i, row in enumerate(rows) if row.get("type") == "capture"]
+    previous = -1.0
+    for _, row in captures:
+        value = row.get("captured_monotonic")
+        if type(value) not in (int, float) or not math.isfinite(value) or value <= previous:
+            raise ValueError("defeat recovery capture chronology is invalid")
+        previous = value
+        timestamp(row)
+    sources = [row for i, row in captures if i < index and row.get("sha256") == dispatch.get("source_sha256")]
+    posts = [row for i, row in captures if i > index]
+    if not sources or len(posts) < 2:
+        raise ValueError("defeat recovery lacks its warning source or persistent successor")
+    source = sources[-1]
+    target = native._bind_flee_warning_button(capture(source))
+    if target is None or list(target) != dispatch.get("target_roi"):
+        raise ValueError("defeat recovery Flee source/target is not verified")
+    sent = timestamp(dispatch)
+    if timestamp(source) > sent:
+        raise ValueError("defeat recovery source follows its dispatch")
+    for post in posts[-2:]:
+        if (timestamp(post) < sent
+                or native._bind_ultimate_defeat_continue(capture(post)) is None):
+            raise ValueError("defeat recovery lacks a verified post-Flee defeat successor")
+    return {"recovery_kind": "defeat_after_flee", "flee_action_key": dispatch["action_key"],
+        "flee_before_sha256": source["sha256"], "flee_after_sha256": posts[-1]["sha256"]}
+
+
+def _validated_flee_recovery(
+    session: Path, reset_identity: str, expected_result_sha256: str | None = None,
+) -> dict[str, str]:
+    """Validate one exact retained Flee effect; this grants no input authority."""
+    session = session.resolve()
+    try:
+        result, _ = require_operator_evidence(session)
+        result_hash = hashlib.sha256((session / "result.json").read_bytes()).hexdigest()
+        delivery = json.loads((session / "flow-delivery-result.json").read_text(encoding="utf-8"))
+        if (
+            result.get("flow_id") != FLOW_ID
+            or result.get("reset_identity") != reset_identity
+            or delivery.get("flow_id") != FLOW_ID
+            or delivery.get("serial") != _pnsctl().BLUESTACKS_SERIAL
+            or delivery.get("native_width") != 800
+            or delivery.get("native_height") != 1280
+            or delivery.get("runtime_profile_id", BLUESTACKS_RUNTIME_PROFILE_ID) != BLUESTACKS_RUNTIME_PROFILE_ID
+            or delivery.get("ultimate_challenge_result") != result
+            or (expected_result_sha256 is not None and result_hash != expected_result_sha256)
+            or _retained_transport_count(session) != result.get("input_count")
+            or type(result.get("input_count")) is not int
+            or not 1 <= result["input_count"] <= MAX_TOTAL_INPUTS
+        ):
+            raise ValueError("flow/reset/profile/Flee accounting mismatch")
+        if _daily_effect_state(result, _retained_flee_transport_count(session)) != "flee_confirmed":
+            evidence = _defeat_flee_recovery_evidence(session, result)
+            return {"session_directory": str(session), "result_sha256": result_hash,
+                "reset_identity": reset_identity, "runtime_profile_id": BLUESTACKS_RUNTIME_PROFILE_ID,
+                **evidence}
+        actions = [row for row in result["completed_actions"] if isinstance(row, Mapping) and row.get("action") == "tap_flee"]
+        if len(actions) != 1:
+            raise ValueError("exactly one confirmed Flee action is required")
+        effect = actions[0]
+        events = _read_events(session)
+        dispatch = next(row for row in events if row.get("type") == "dispatch" and row.get("target_identity") == "tap_flee" and row.get("execute") is not False)
+        if dispatch.get("source_sha256") != effect["before_sha256"] or not any(
+            row.get("type") == "reconcile"
+            and row.get("action_key") == dispatch.get("action_key")
+            and row.get("status") == "confirmed"
+            and row.get("post_sha256") == effect["post_sha256"]
+            for row in events
+        ):
+            raise ValueError("Flee dispatch and confirmed successor do not match")
+        for digest in (effect["before_sha256"], effect["post_sha256"]):
+            captures = [row for row in events if row.get("type") == "capture" and row.get("sha256") == digest]
+            valid = False
+            for capture in captures:
+                path = Path(str(capture.get("path") or ""))
+                path = (path if path.is_absolute() else session / path).resolve()
+                if session not in path.parents or not path.is_file():
+                    continue
+                data = path.read_bytes()
+                frame = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+                if hashlib.sha256(data).hexdigest() == digest and frame is not None and frame.shape == (1280, 800, 3):
+                    valid = True
+                    break
+            if not valid:
+                raise ValueError("Flee source/successor native capture integrity failed")
+        return {
+            "session_directory": str(session),
+            "result_sha256": result_hash,
+            "reset_identity": reset_identity,
+            "runtime_profile_id": BLUESTACKS_RUNTIME_PROFILE_ID,
+        }
+    except (OSError, ValueError, TypeError, KeyError, StopIteration, FlowEvidenceIntegrityError) as exc:
+        raise _pnsctl().OperatorError(f"Ultimate recovery evidence rejected: {exc}") from exc
+
+
+def _write_daily_causal_trace(
     session: Path,
     *,
     initial_observation: Mapping[str, Any],
     transport_count: int,
     terminal: str,
     home_verified: bool,
+    flee_count: int,
+    semantic_effect_state: str | None,
+    recovery_evidence: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     trace = {
         "schema_version": 1,
@@ -370,20 +523,18 @@ def _write_terminal_causal_trace(
         "flow_id": FLOW_ID,
         "invocation_id": str(initial_observation.get("invocation_id") or ""),
         "initial_frame_sha256": str(initial_observation.get("frame_sha256") or ""),
-        "stages": [
-            "typed_initial_observation",
-            "retained_flee_effect_state",
-            "ultimate_main_recognition",
-            "ultimate_to_campaign_successor",
-            "measured_campaign_exit",
-            "canonical_home_terminal",
-        ],
-        "proof_topology": RETAINED_FLEE_PROOF_TOPOLOGY,
-        "terminal_reconciliation_topology": TERMINAL_RECONCILIATION_TOPOLOGY,
+        "stages": ["typed_initial_observation"] + (
+            ["challenge_flee_confirmed", "canonical_home_terminal"]
+            if semantic_effect_state == "flee_confirmed" and home_verified
+            else ["already_completed_reset_check", "canonical_home_terminal"]
+            if semantic_effect_state == "already_completed" and home_verified
+            else ["route_evidence_required"]
+        ),
+        "proof_topology": "composite" if recovery_evidence else DAILY_PROOF_TOPOLOGY,
+        "terminal_recovery": dict(recovery_evidence) if recovery_evidence else None,
         "transport_count": transport_count,
-        "new_flee_transport_count": 0,
-        "semantic_effect_state": "retained_flee_confirmed",
-        "retained_effect_evidence_refs": list(RETAINED_EFFECT_EVIDENCE_REFS),
+        "new_flee_transport_count": flee_count,
+        "semantic_effect_state": semantic_effect_state,
         "terminal": terminal,
         "canonical_home_verified": home_verified,
     }
@@ -410,18 +561,40 @@ def run_ultimate_challenge_daily(
     session.mkdir(parents=True, exist_ok=False)
     reset_identity = _current_reset_identity()
     reset_state_path = _reset_window_state_path()
+    state = load_reset_window_state(reset_state_path)
+    if state.pending_home_session and state.reset_identity != reset_identity:
+        raise pnsctl.OperatorError("Ultimate pending Home belongs to another reset; no new combat is allowed")
+    recovery_path = lease.get("recovery_session") if lease.get("recovery_only") else state.pending_home_session
+    if lease.get("recovery_only") and not recovery_path:
+        raise pnsctl.OperatorError("Ultimate recovery requires a retained session")
+    recovery_evidence = None
+    if recovery_path:
+        if state.pending_home_session and Path(recovery_path).resolve() != Path(state.pending_home_session).resolve():
+            raise pnsctl.OperatorError("Ultimate recovery does not match the pending Flee session")
+        recovery_evidence = _validated_flee_recovery(
+            Path(recovery_path), reset_identity, state.pending_home_result_sha256,
+        )
+        if state.last_success_reset_identity == reset_identity:
+            raise pnsctl.OperatorError("Ultimate is already completed for this reset")
+        state = record_pending_home(
+            state, reset_identity=reset_identity,
+            session_directory=recovery_evidence["session_directory"],
+            result_sha256=recovery_evidence["result_sha256"],
+        )
+        save_reset_window_state(reset_state_path, state)
     command = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "bluestacks_ultimate_challenge.py"),
-        "--post-flee-home-only" if migrated_session else "--daily",
+        "--post-flee-home-only" if recovery_evidence else "--daily",
         "--adb", str(pnsctl.BLUESTACKS_ADB),
         "--serial", pnsctl.BLUESTACKS_SERIAL,
         "--execute", "--yes",
         "--reset-identity", reset_identity,
-        "--reset-state-path", str(reset_state_path),
         "--max-total-inputs", str(maximum),
         "--output-directory", str(session),
     ]
+    if recovery_evidence is None:
+        command.extend(["--reset-state-path", str(reset_state_path)])
     completed = subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
     (session / "operator-stdout.log").write_text(completed.stdout or "", encoding="utf-8")
     (session / "operator-stderr.log").write_text(completed.stderr or "", encoding="utf-8")
@@ -434,24 +607,22 @@ def run_ultimate_challenge_daily(
     terminal = uc_result.get("terminal")
     home_verified, home_path = _verified_home_evidence(uc_session, uc_result)
     input_count = uc_result.get("input_count")
-    permitted_terminals = (
-        {TERMINAL_COMPLETE_FOR_RESET}
-        if migrated_session
-        else {TERMINAL_COMPLETE_FOR_RESET, "already_completed"}
-    )
+    retained_transport = _retained_transport_count(uc_session)
+    retained_flee = _retained_flee_transport_count(uc_session)
+    semantic_effect_state = _daily_effect_state(uc_result, retained_flee)
+    if recovery_evidence is not None:
+        if retained_flee != 0:
+            raise pnsctl.OperatorError("Ultimate terminal recovery dispatched a new Flee")
+        semantic_effect_state = "flee_confirmed"
     ok = (
         completed.returncode == 0
-        and terminal in permitted_terminals
+        and terminal in {TERMINAL_COMPLETE_FOR_RESET, "already_completed"}
         and home_verified
         and type(input_count) is int
         and 0 <= input_count <= maximum
+        and retained_transport == input_count
+        and semantic_effect_state is not None
     )
-    retained_transport = _retained_transport_count(uc_session)
-    retained_flee = _retained_flee_transport_count(uc_session)
-    if migrated_session and retained_flee != 0:
-        raise pnsctl.OperatorError(
-            "Ultimate terminal reconciliation attempted a forbidden new Flee"
-        )
     if migrated_session and retained_transport != input_count:
         raise pnsctl.OperatorError(
             "Ultimate terminal retained transports do not match route accounting"
@@ -462,7 +633,6 @@ def run_ultimate_challenge_daily(
                 "Ultimate Challenge completion lacks verified template Home evidence"
             )
         try:
-            state = load_reset_window_state(reset_state_path)
             updated = record_verified_home_success(
                 state,
                 reset_identity=reset_identity,
@@ -483,15 +653,18 @@ def run_ultimate_challenge_daily(
         retained_initial.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, retained_initial)
         initial_observation["frame_path"] = "frames/0000-initial-observation.png"
-        trace = _write_terminal_causal_trace(
+        trace = _write_daily_causal_trace(
             uc_session,
             initial_observation=initial_observation,
             transport_count=retained_transport,
             terminal=str(terminal or "blocked"),
             home_verified=home_verified,
+            flee_count=retained_flee,
+            semantic_effect_state=semantic_effect_state,
+            recovery_evidence=recovery_evidence,
         )
         outer_session.set_causal_trace(trace)
-        outer_session.remember_control("ultimate_semantic_effect_state", "retained_flee_confirmed")
+        outer_session.remember_control("ultimate_semantic_effect_state", semantic_effect_state)
         outer_session.remember_control(
             "ultimate_terminal_reconciliation",
             "canonical_home_verified" if ok else "evidence_required",
@@ -509,16 +682,8 @@ def run_ultimate_challenge_daily(
         "ultimate_challenge_result": uc_result,
         "actions": [
             {
-                "action_class": (
-                    "terminal_reconciliation"
-                    if migrated_session
-                    else "zero_resource_flee"
-                ),
-                "path": (
-                    "retained_flee_ultimate_to_campaign_measured_exit_home"
-                    if migrated_session
-                    else "home_to_ultimate_challenge_flee_home"
-                ),
+                "action_class": "terminal_recovery" if recovery_evidence else "zero_resource_flee",
+                "path": "validated_flee_to_home" if recovery_evidence else "home_to_ultimate_challenge_flee_home",
                 "outcome": terminal,
             }
         ],
@@ -545,16 +710,11 @@ def run_ultimate_challenge_daily(
         "verified_home_path": str(home_path.relative_to(uc_session)).replace("\\", "/")
         if home_path is not None
         else None,
-        "semantic_effect_state": "retained_flee_confirmed" if migrated_session else None,
-        "semantic_effect_verified": migrated_session,
-        "retained_effect_evidence_refs": (
-            list(RETAINED_EFFECT_EVIDENCE_REFS) if migrated_session else []
-        ),
+        "semantic_effect_state": semantic_effect_state,
+        "semantic_effect_verified": semantic_effect_state is not None,
         "terminal_completion_verified": ok,
-        "proof_topology": RETAINED_FLEE_PROOF_TOPOLOGY if migrated_session else "composite",
-        "terminal_reconciliation_topology": (
-            TERMINAL_RECONCILIATION_TOPOLOGY if migrated_session else None
-        ),
+        "proof_topology": "composite" if recovery_evidence else DAILY_PROOF_TOPOLOGY,
+        "terminal_recovery": recovery_evidence,
         "initial_observation": initial_observation,
         "initial_frame_sha256": (
             str(initial_observation.get("frame_sha256") or "")
@@ -570,6 +730,15 @@ def run_ultimate_challenge_daily(
     if reconciliation_required:
         delivery["status"] = "effect_reconciliation_required"
     (uc_session / "flow-delivery-result.json").write_text(json.dumps(delivery, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if not ok and recovery_evidence is None and semantic_effect_state == "flee_confirmed":
+        pending = _validated_flee_recovery(uc_session, reset_identity)
+        save_reset_window_state(
+            reset_state_path,
+            record_pending_home(
+                state, reset_identity=reset_identity,
+                session_directory=pending["session_directory"], result_sha256=pending["result_sha256"],
+            ),
+        )
     if not ok and not reconciliation_required:
         raise pnsctl.OperatorError("Ultimate Challenge Daily failed: " + str(uc_result.get("reason") or completed.stderr or completed.stdout or "unknown"))
     return json.dumps(
@@ -580,9 +749,6 @@ def run_ultimate_challenge_daily(
             "session_directory": str(uc_session),
             "dispatch": retained_transport > 0,
             "proof_topology": delivery["proof_topology"],
-            "terminal_reconciliation_topology": delivery[
-                "terminal_reconciliation_topology"
-            ],
             "causal_trace_count": delivery["causal_trace_count"],
             "effect_reconciliation_required": reconciliation_required,
             "retained_transport_count": retained_transport,
@@ -702,33 +868,46 @@ def verify_ultimate_challenge_daily(
             initial_ok = False
     retained_transport = _retained_transport_count(session_directory)
     retained_flee = _retained_flee_transport_count(session_directory)
+    expected_effect = _daily_effect_state(uc, retained_flee)
+    recovery = result.get("terminal_recovery")
+    recovery_ok = False
+    if isinstance(recovery, Mapping):
+        try:
+            checked = _validated_flee_recovery(
+                Path(str(recovery.get("session_directory") or "")),
+                str(result.get("reset_identity") or ""),
+                str(recovery.get("result_sha256") or ""),
+            )
+            recovery_ok = checked == dict(recovery) and retained_flee == 0
+        except pnsctl.OperatorError:
+            recovery_ok = False
+        expected_effect = "flee_confirmed" if recovery_ok else None
+    topology = "composite" if recovery is not None else DAILY_PROOF_TOPOLOGY
     transport_ok = bool(
         retained_transport == result.get("input_count")
         and retained_transport == result.get("dispatch_count")
-        and 2 <= retained_transport <= MAX_TOTAL_INPUTS
-        and retained_flee == result.get("new_flee_transport_count") == 0
+        and 0 <= retained_transport <= MAX_TOTAL_INPUTS
+        and retained_flee == result.get("new_flee_transport_count")
+        and expected_effect is not None
     )
     trace_ok = bool(
-        result.get("proof_topology") == RETAINED_FLEE_PROOF_TOPOLOGY
-        and result.get("terminal_reconciliation_topology")
-        == TERMINAL_RECONCILIATION_TOPOLOGY
+        result.get("proof_topology") == topology
         and result.get("causal_trace_count") == 1
         and isinstance(trace, Mapping)
         and trace.get("trace_count") == 1
         and trace.get("read_only") is True
         and trace.get("input_authority") is False
-        and trace.get("proof_topology") == RETAINED_FLEE_PROOF_TOPOLOGY
-        and trace.get("terminal_reconciliation_topology")
-        == TERMINAL_RECONCILIATION_TOPOLOGY
+        and trace.get("proof_topology") == topology
+        and trace.get("terminal_recovery") == recovery
         and trace.get("initial_frame_sha256") == result.get("initial_frame_sha256")
         and trace.get("transport_count") == retained_transport
-        and trace.get("new_flee_transport_count") == 0
+        and trace.get("new_flee_transport_count") == retained_flee
+        and trace.get("semantic_effect_state") == expected_effect
     )
     semantic_effect_ok = bool(
-        result.get("semantic_effect_state") == "retained_flee_confirmed"
+        expected_effect is not None
+        and result.get("semantic_effect_state") == expected_effect
         and result.get("semantic_effect_verified") is True
-        and result.get("retained_effect_evidence_refs")
-        == list(RETAINED_EFFECT_EVIDENCE_REFS)
         and result.get("terminal_completion_verified") is True
     )
     verified = bool(
@@ -751,13 +930,12 @@ def verify_ultimate_challenge_daily(
         "verified_home_path": str(home_path.relative_to(session_directory.resolve())).replace("\\", "/"),
         "initial_observation_verified": initial_ok,
         "transport_accounting_verified": transport_ok,
-        "zero_new_flee_verified": retained_flee == 0,
+        "new_flee_transport_count": retained_flee,
         "causal_trace_verified": trace_ok,
         "semantic_effect_verified": semantic_effect_ok,
-        "retained_effect_evidence_refs": list(RETAINED_EFFECT_EVIDENCE_REFS),
         "terminal_completion_verified": result.get("terminal_completion_verified") is True,
-        "proof_topology": RETAINED_FLEE_PROOF_TOPOLOGY,
-        "terminal_reconciliation_topology": TERMINAL_RECONCILIATION_TOPOLOGY,
+        "proof_topology": topology,
+        "terminal_recovery_verified": recovery_ok,
         "production_registration": "NOT_REGISTERED",
         "scheduler_enabled": False,
     }

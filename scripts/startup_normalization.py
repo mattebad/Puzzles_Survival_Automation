@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 import sys
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Sequence, Tuple
@@ -21,10 +22,44 @@ from typing import Dict, Iterable, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.bounded_tesseract import call_ocr, OcrDeadline
+
 
 FRAME_WIDTH = 800
 FRAME_HEIGHT = 1280
 FRAME_SHAPE = (FRAME_HEIGHT, FRAME_WIDTH)
+
+# These are the four native Home quick-control labels.  Each crop excludes the
+# adjacent icon/badge artwork so animation and notification changes cannot
+# perturb the label OCR.  The labels are corroboration only; clean Home still
+# requires the independent footer, popup, and Nova gates below.
+_HOME_CONTROL_LABEL_ROIS: Tuple[Tuple[str, Tuple[int, int, int, int]], ...] = (
+    ("build", (18, 298, 78, 323)),
+    ("research", (10, 383, 90, 414)),
+    ("pit", (20, 472, 80, 500)),
+    ("idle", (28, 502, 72, 523)),
+)
+
+# A settled zoomed Home can move the right edge of the Research/Pit glyphs by a
+# few pixels.  These remain label-only native ROIs and are tried only when the
+# primary crop does not contain the exact token; they avoid admitting a broad
+# scene crop or turning a partial OCR token into a match.
+_HOME_CONTROL_FALLBACK_ROIS: Dict[str, Tuple[Tuple[int, int, int, int], ...]] = {
+    "research": ((5, 380, 110, 415),),
+    "pit": ((18, 470, 60, 500),),
+}
+
+# A second native HUD layout spaces the same controls farther apart.  Keep
+# these crops confined to the label glyphs and evaluate this layout separately.
+_HOME_SPACED_CONTROL_LABEL_ROIS: Tuple[Tuple[str, Tuple[int, int, int, int]], ...] = (
+    ("build", (10, 330, 95, 359)),
+    ("research", (5, 431, 100, 459)),
+    ("pit", (25, 532, 78, 559)),
+    ("idle", (20, 558, 85, 582)),
+)
 
 # These are feature ROIs in the locked 800x1280 logical frame.  They are not an authorization
 # by themselves; authorization requires positive recognition immediately before an input.
@@ -94,6 +129,43 @@ def sha256_file(path: Path) -> str:
 def _crop(frame: np.ndarray, roi: Tuple[int, int, int, int]) -> np.ndarray:
     x0, y0, x1, y1 = roi
     return frame[y0:y1, x0:x1]
+
+
+def _recognize_home_control_labels(frame: np.ndarray) -> Tuple[list[str], str]:
+    """OCR four bounded Home controls with exact token matching.
+
+    The individual label crops are deliberately small and grayscale.  PSM 7
+    treats each crop as one line, while the finite timeout keeps a stalled OCR
+    backend fail-closed at the caller.
+    """
+
+    import pytesseract
+
+    hits: list[str] = []
+    raw_text: list[str] = []
+    for layout in (_HOME_CONTROL_LABEL_ROIS, _HOME_SPACED_CONTROL_LABEL_ROIS):
+        layout_hits: list[str] = []
+        for label, roi in layout:
+            rois = (roi,)
+            if layout is _HOME_CONTROL_LABEL_ROIS:
+                rois += _HOME_CONTROL_FALLBACK_ROIS.get(label, ())
+            for candidate_roi in rois:
+                crop = cv2.cvtColor(_crop(frame, candidate_roi), cv2.COLOR_BGR2GRAY)
+                enlarged = cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+                text = call_ocr(pytesseract.image_to_string,
+                    enlarged,
+                    config="--psm 7",
+                ).casefold()
+                raw_text.append(f"{label}:{text}")
+                # Punctuation is presentation noise, but partial words are not matches.
+                if label in re.findall(r"[a-z]+", text):
+                    layout_hits.append(label)
+                    break
+        if len(layout_hits) > len(hits):
+            hits = layout_hits
+        if len(hits) >= 2:
+            break
+    return hits, "\n".join(raw_text)
 
 
 def _feature_similarity(candidate: np.ndarray, reference: np.ndarray) -> float:
@@ -450,8 +522,16 @@ def classify_home_base_live(
         import pytesseract
 
         # Navigation labels are scattered among icons, not a uniform text block.
-        navigation_text = pytesseract.image_to_string(navigation_roi, config="--psm 11").lower()
-        scene_text = pytesseract.image_to_string(scene_roi, config="--psm 6").lower()
+        # Keep icon artwork, notification badges and chat outside label OCR.
+        # The opaque label row is fixed on this native profile even when those
+        # neighboring regions animate or acquire a different notification count.
+        label_row = cv2.resize(
+            frame[1238:1278, :], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC
+        )
+        navigation_text = call_ocr(pytesseract.image_to_string, label_row, config="--psm 6").lower()
+        scene_hits, scene_text = _recognize_home_control_labels(frame)
+    except OcrDeadline:
+        raise
     except Exception as exc:  # pragma: no cover - environment capability is deliberately fail-closed
         return {
             "state": "UNKNOWN",
@@ -460,9 +540,8 @@ def classify_home_base_live(
         }
 
     navigation_terms = ("quest", "bag", "mail", "more", "alliance", "hero", "world")
-    scene_terms = ("headquarters", "watch tower", "warehouse", "camp", "research", "depot")
     navigation_hits = sorted(term for term in navigation_terms if term in navigation_text)
-    scene_hits = sorted(term for term in scene_terms if term in scene_text)
+    scene_hits = sorted(scene_hits)
     recognized = (
         safe_os_surface
         and cash_mall_rejected
@@ -503,12 +582,18 @@ def is_clean_home_frame(frame: np.ndarray) -> bool:
     ):
         return False
     from scripts.bluestacks_popup_recognition import recognize_reset_popup
+    from tasks.nova_praise import NOVA_HOME
+    from tasks.nova_praise_vision import recognize_nova_frame
 
     popup = recognize_reset_popup(frame)
-    return (
-        popup.get("recognized") is False
-        and popup.get("blocking_unknown_modal") is False
-    )
+    if popup.get("recognized") is not False or popup.get("blocking_unknown_modal") is not False:
+        return False
+    # An open Research Lab radial retains the town controls and navigation.
+    # Reuse its existing template-backed classifier before granting clean Home.
+    nova = recognize_nova_frame(
+        frame, captured_monotonic=time.monotonic(), home_context_visible=True
+    ).observation
+    return bool(nova.recognized and nova.screen_state == NOVA_HOME)
 
 
 def write_annotation(frame: np.ndarray, decision: CashMallDecision, output: Path) -> None:

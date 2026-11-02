@@ -233,7 +233,7 @@ class NoahContractTests(unittest.TestCase):
             )
 
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=popup_absent,
         ), patch.object(
             runtime,
@@ -713,6 +713,12 @@ class NoahRuntimeTests(unittest.TestCase):
             controller.progress.tiers[tier] = TierState(tier, {RecruitTier.BASIC: 5, RecruitTier.INT: 1, RecruitTier.ADV: 1}[tier], 0, 600, True, next_at)
             controller.progress.inspected_tiers.add(tier)
         obs = self.f.tavern(basic_remaining=0)
+        obs = replace(obs, tiers=tuple(
+            replace(item, free_control_enabled=False, cooldown_active=True,
+                    cooldown_text="Free in 00:10:00", cooldown_duration_seconds=600,
+                    next_eligible_timestamp=700.0)
+            if item.tier is RecruitTier.BASIC else item for item in obs.tiers
+        ))
         command = controller.next_command(self.rec(obs))
         self.assertEqual(command.action, NoahAction.WAIT_COOLDOWN)
         self.assertTrue(command.scheduler_ready)
@@ -851,6 +857,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             self.frames = list(frames)
             self.taps = []
             self.backs = []
+            self.reconciles = []
             self.input_count = 0
             self.in_flight_action = None
 
@@ -866,7 +873,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             self.backs.append((captured, kwargs))
 
         def reconcile(self, *_args):
-            return None
+            self.reconciles.append(_args)
 
     def test_home_popup_returns_settled_frame_and_invalidates_old_target(self):
         home = replace(
@@ -895,7 +902,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             settled, False, True, True, 0, "exact_vip_popup_absent"
         )
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=(recovered, absent),
         ), patch(
             "scripts.noahs_tavern_recruit_bluestacks.recognize_reset_popup",
@@ -931,7 +938,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
 
         route = NoahTavernIntegratedRoute(runtime, recognizer=recognize, post_input_delay=0.0)
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=recover,
         ):
             captured, recognition = route._observe("post-dismissal")
@@ -940,15 +947,15 @@ class ContextualPopupRouteTests(unittest.TestCase):
         self.assertEqual(timestamps, [222.0])
         self.assertEqual(recognition.observation.captured_monotonic, 222.0)
 
-    def test_second_exact_popup_hits_one_dismissal_bound_without_helper_or_input(self):
+    def test_repeated_exact_popup_is_denied_without_helper_or_input(self):
         source = self.frame("c" * 64, 3)
         runtime = self.Runtime([source])
-        session = _ContextualPopupSession(dismissal_used=True)
+        session = _ContextualPopupSession(input_count=1, attempted_identities={"VIP_POINTS_GET_PTS"})
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recognize_reset_popup",
-            return_value={"recognized": True, "popup_identity": "VIP_POINTS_GET_PTS"},
+            "scripts.noahs_tavern_recruit_bluestacks.contextual_startup_identity",
+            return_value="VIP_POINTS_GET_PTS",
         ), patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             side_effect=AssertionError("second contextual close dispatched"),
         ):
             result = _contextual_recovery(
@@ -958,9 +965,85 @@ class ContextualPopupRouteTests(unittest.TestCase):
                 recognize_successor=lambda _frame: True,
                 session=session,
             )
-        self.assertEqual(result.reason, "contextual_popup_dismissal_already_used")
+        self.assertEqual(result.reason, "contextual_popup_recovery_attempt_denied")
         self.assertEqual(result.input_count, 0)
         self.assertEqual(runtime.input_count, 0)
+
+    def test_two_used_dismissals_deny_another_known_surface(self):
+        source = self.frame("c" * 64, 3)
+        runtime = self.Runtime([source])
+        session = _ContextualPopupSession(input_count=2)
+        with patch("scripts.noahs_tavern_recruit_bluestacks.contextual_startup_identity",
+                   return_value="SCARLETT_THREE_DAY_PACK"), \
+             patch("scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
+                   side_effect=AssertionError("second contextual dismissal dispatched")):
+            result = _contextual_recovery(runtime, source, source_context="home-or-tavern",
+                                          recognize_successor=lambda _: True, session=session)
+        self.assertEqual(result.reason, "contextual_popup_recovery_attempt_denied")
+        self.assertEqual(runtime.input_count, 0)
+
+    def test_native_two_overlay_sequence_retains_route_accounting_and_failure_lock(self):
+        from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+        from scripts import startup_recovery as shared
+        from tests.test_contextual_startup_recovery import (
+            PngDevice, ContextualStartupRecoveryTests, VIP, SCARLETT, ARTWORK, HOME, UNKNOWN, marker,
+        )
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(shared, "recognize_startup_surface", side_effect=ContextualStartupRecoveryTests.startup_surface), \
+                patch.object(shared, "recognize_reset_popup", side_effect=ContextualStartupRecoveryTests.reset_popup):
+            device = PngDevice()
+            device.frames = [VIP, VIP, SCARLETT, ARTWORK, HOME]
+            runtime = LocalBlueStacksRuntime(device, Path(directory) / "ready", execute=True)
+            runtime.max_inputs = 8
+            session = _ContextualPopupSession()
+            result = _contextual_recovery(runtime, runtime.capture("source"), source_context="home-or-tavern",
+                recognize_successor=lambda frame: marker(frame.frame) == HOME, session=session,
+                settle_seconds=0, sleep=lambda _: None)
+            self.assertTrue(result.resume_ready)
+            self.assertEqual((session.input_count, runtime.input_count, len(session.records[0]["steps"])), (2, 2, 2))
+            self.assertFalse(session.failed)
+            self.assertEqual(len(session.attempted_identities), 2)
+            device = PngDevice()
+            device.frames = [VIP, VIP, UNKNOWN, SCARLETT, ARTWORK, HOME]
+            runtime = LocalBlueStacksRuntime(device, Path(directory) / "blocked", execute=True)
+            runtime.max_inputs = 8
+            session = _ContextualPopupSession()
+            first = _contextual_recovery(runtime, runtime.capture("source"), source_context="home-or-tavern",
+                recognize_successor=lambda frame: marker(frame.frame) == HOME, session=session,
+                settle_seconds=0, sleep=lambda _: None)
+            self.assertFalse(first.resume_ready)
+            self.assertTrue(session.failed)
+            second = _contextual_recovery(runtime, runtime.capture("different-overlay"), source_context="home-or-tavern",
+                recognize_successor=lambda frame: marker(frame.frame) == HOME, session=session,
+                settle_seconds=0, sleep=lambda _: None)
+            self.assertFalse(second.resume_ready)
+            self.assertEqual((session.input_count, runtime.input_count, len(device.taps)), (1, 1, 1))
+
+    def test_zero_input_unknown_observation_does_not_consume_a_later_fresh_recovery(self):
+        from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+        from scripts import startup_recovery as shared
+        from tests.test_contextual_startup_recovery import (
+            PngDevice, ContextualStartupRecoveryTests, VIP, HOME, UNKNOWN, marker,
+        )
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(shared, "recognize_startup_surface", side_effect=ContextualStartupRecoveryTests.startup_surface), \
+                patch.object(shared, "recognize_reset_popup", side_effect=ContextualStartupRecoveryTests.reset_popup):
+            device = PngDevice()
+            device.frames = [UNKNOWN, VIP, VIP, HOME]
+            runtime = LocalBlueStacksRuntime(device, Path(directory), execute=True)
+            runtime.max_inputs = 8
+            session = _ContextualPopupSession()
+            unknown = _contextual_recovery(runtime, runtime.capture("unknown"), source_context="home-or-tavern",
+                recognize_successor=lambda frame: marker(frame.frame) == HOME, session=session,
+                settle_seconds=0, sleep=lambda _: None)
+            self.assertFalse(unknown.resume_ready)
+            self.assertFalse(session.failed)
+            self.assertEqual((session.input_count, runtime.input_count), (0, 0))
+            fresh = _contextual_recovery(runtime, runtime.capture("fresh-known"), source_context="home-or-tavern",
+                recognize_successor=lambda frame: marker(frame.frame) == HOME, session=session,
+                settle_seconds=0, sleep=lambda _: None)
+            self.assertTrue(fresh.resume_ready)
+            self.assertEqual((session.input_count, runtime.input_count, len(device.taps)), (1, 1, 1))
 
     def test_popup_after_free_transport_keeps_pending_action_and_never_recruits_again(self):
         result_observation = self.f.result(RecruitTier.ADV)
@@ -983,7 +1066,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             source, False, True, True, 0, "exact_vip_popup_absent"
         )
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             return_value=absent,
         ):
             _captured, recognition = route._observe("result-after-free")
@@ -992,6 +1075,105 @@ class ContextualPopupRouteTests(unittest.TestCase):
         command = controller.next_command(recognition)
         self.assertEqual(command.action, NoahAction.CLOSE_RESULT)
         self.assertNotEqual(command.action, NoahAction.RECRUIT_FREE)
+
+    def test_integrated_route_reconciles_each_verified_input_once(self):
+        """The native-shaped route must journal navigation, free recruit, close, and Home."""
+
+        fixtures = self.f
+        before = fixtures.tavern(selected=RecruitTier.BASIC, basic_remaining=5, digest="c" * 64)
+        after = fixtures.after(before, tier=RecruitTier.BASIC, digest="f" * 64)
+        observations = {
+            1: replace(
+                before,
+                screen_state=HOME_BASE_SCREEN,
+                selected_tier=None,
+                frame_sha256="a" * 64,
+                home_tavern_target_roi=(100, 300, 260, 470),
+            ),
+            2: fixtures.tavern(selected=RecruitTier.BASIC, digest="b" * 64),
+            3: fixtures.result(RecruitTier.BASIC, digest="d" * 64),
+            4: fixtures.result(RecruitTier.BASIC, digest="e" * 64),
+            5: after,
+            6: after,
+            7: after,
+            8: replace(after, screen_state=HOME_BASE_SCREEN, selected_tier=None, frame_sha256="g" * 64),
+            9: replace(after, screen_state=HOME_BASE_SCREEN, selected_tier=None, frame_sha256="h" * 64),
+        }
+        runtime = self.Runtime([self.frame("x" * 64, marker) for marker in range(1, 10)])
+        runtime.measure_device_state = lambda: "device"
+        runtime.measure_foreground_package = lambda: "com.global.ztmslg"
+
+        def recognize(frame, **_kwargs):
+            return observations[int(frame[0, 0, 0])]
+
+        route = NoahTavernIntegratedRoute(
+            runtime,
+            max_recruits=1,
+            recognizer=recognize,
+            atlas_binding=lambda _captured: (100, 300, 260, 470),
+            post_input_delay=0.0,
+        )
+        absent = lambda _runtime, captured, **_kwargs: ContextualPopupRecoveryResult(
+            captured, False, True, True, 0, "exact_vip_popup_absent"
+        )
+        with patch(
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
+            side_effect=absent,
+        ):
+            result = route.run(max_steps=10)
+
+        self.assertEqual(
+            result.status,
+            "completed",
+            f"{result.reason}; awaiting={route.controller.progress.awaiting_tier!r}; taps={len(runtime.taps)}",
+        )
+        self.assertEqual(result.recruitment_dispatch_count, 1)
+        self.assertEqual(
+            [(item[0], item[1]) for item in runtime.reconciles],
+            [
+                (runtime.taps[0][1]["action_key"], "confirmed"),
+                (runtime.taps[1][1]["action_key"], "confirmed"),
+                (runtime.taps[2][1]["action_key"], "confirmed"),
+                (runtime.backs[0][1]["action_key"], "confirmed"),
+            ],
+        )
+
+    def test_integrated_route_keeps_missing_result_unresolved_without_retry(self):
+        home = replace(
+            self.f.tavern(selected=RecruitTier.BASIC, digest="a" * 64),
+            screen_state=HOME_BASE_SCREEN,
+            selected_tier=None,
+            home_tavern_target_roi=(100, 300, 260, 470),
+        )
+        tavern = self.f.tavern(selected=RecruitTier.BASIC, digest="b" * 64)
+        runtime = self.Runtime([self.frame("x" * 64, 1), self.frame("y" * 64, 2)])
+
+        def recognize(frame, **_kwargs):
+            return home if int(frame[0, 0, 0]) == 1 else tavern
+
+        route = NoahTavernIntegratedRoute(
+            runtime,
+            max_recruits=1,
+            recognizer=recognize,
+            atlas_binding=lambda _captured: (100, 300, 260, 470),
+            post_input_delay=0.0,
+            result_timeout=0.0,
+        )
+        absent = lambda _runtime, captured, **_kwargs: ContextualPopupRecoveryResult(
+            captured, False, True, True, 0, "exact_vip_popup_absent"
+        )
+        with patch(
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
+            side_effect=absent,
+        ):
+            result = route.run(max_steps=4)
+
+        self.assertEqual(result.status, "unresolved")
+        self.assertEqual(result.reason, "recruit_result_not_recognized")
+        self.assertEqual(result.recruitment_dispatch_count, 1)
+        self.assertEqual(len(runtime.taps), 2)
+        self.assertEqual(len(runtime.reconciles), 1)
+        self.assertEqual(runtime.reconciles[0][1], "confirmed")
     def test_resume_unresolved_result_preserves_phase_context_without_duplicate_recruit(self):
         before = self.f.tavern(selected=RecruitTier.ADV, digest="a" * 64)
         result = self.f.result(RecruitTier.ADV, digest="b" * 64)
@@ -1042,7 +1224,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             self.assertTrue(cv2.imwrite(str(before_path), np.full((1280, 800, 3), 1, dtype=np.uint8)))
             self.assertTrue(cv2.imwrite(str(result_path), np.full((1280, 800, 3), 2, dtype=np.uint8)))
             with patch(
-                "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+                "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
                 side_effect=contextual_recovery,
             ), patch(
                 "scripts.noahs_tavern_recruit_bluestacks.recognize_reset_popup",
@@ -1093,7 +1275,7 @@ class ContextualPopupRouteTests(unittest.TestCase):
             source, False, True, True, 0, "exact_vip_popup_absent"
         )
         with patch(
-            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_vip_popup",
+            "scripts.noahs_tavern_recruit_bluestacks.recover_contextual_startup_overlay",
             return_value=absent,
         ):
             guarded = route._pre_dispatch(

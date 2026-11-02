@@ -1,0 +1,206 @@
+{
+  "source_session": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20261029T045123809625Z",
+  "source_files": [
+    {
+      "path": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20261029T045123809625Z/runtime/1-15-9-20261029T045133578622Z/events.jsonl",
+      "sha256": "52565dd5e1735c35765a6f23d9255565353d20231b6a7e2e973cf0c623559dee"
+    },
+    {
+      "path": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20261029T045123809625Z/runtime/1-15-9-20261029T045133578622Z/home-atlas-entry-20261029T045139517755Z/events.jsonl",
+      "sha256": "fd47a3c93571bbe05d35bf82a6a78ae4cadeb03be4f406f5201da938cf3c018d"
+    },
+    {
+      "path": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20261029T045123809625Z/runtime/campaign-exit-to-home/campaign-exit-to-home-20261029T045126740164Z/events.jsonl",
+      "sha256": "85e632703e069a088e17758b35cbcf171e467cb47823d3bc7b9ae33676f09a93"
+    }
+  ],
+  "derivation": "Counted input records copied from retained native logs; excludes observations. No transport or execution authority.",
+  "input_rows": [
+    {
+      "action": "SELECT_TIER",
+      "kind": "tap",
+      "progress": {
+        "ap_regenerated": 0,
+        "ap_spent": 0,
+        "completed_runs": 0,
+        "current_ap": 120,
+        "initial_ap": 120,
+        "loss_seen": false
+      },
+      "reason": "configured Campaign tier is not selected",
+      "step": 2,
+      "swipe": null,
+      "tap_point": [
+        458,
+        89
+      ],
+      "target_identity": "campaign-tier-1",
+      "target_roi": [
+        413,
+        59,
+        503,
+        119
+      ],
+      "type": "command"
+    },
+    {
+      "action": "NAVIGATE_CHAPTER",
+      "kind": "swipe",
+      "progress": {
+        "ap_regenerated": 0,
+        "ap_spent": 0,
+        "completed_runs": 0,
+        "current_ap": 120,
+        "initial_ap": 120,
+        "loss_seen": false
+      },
+      "reason": "Campaign atlas-directed pan right to safely frame Chapter 15 before binding (bound=False; search window cannot contain landmark template; orb_residual=0.00)",
+      "step": 3,
+      "swipe": [
+        377,
+        580,
+        217,
+        580,
+        350
+      ],
+      "tap_point": null,
+      "target_identity": null,
+      "target_roi": null,
+      "type": "command"
+    },
+    {
+      "action": "NAVIGATE_CHAPTER",
+      "kind": "swipe",
+      "progress": {
+        "ap_regenerated": 0,
+        "ap_spent": 0,
+        "completed_runs": 0,
+        "current_ap": 120,
+        "initial_ap": 120,
+        "loss_seen": false
+      },
+      "reason": "Campaign atlas-directed pan right to safely frame Chapter 15 before binding (bound=False; search window cannot contain landmark template; orb_residual=0.34); stronger atlas-directed pan after measured progress",
+      "step": 4,
+      "swipe": [
+        377,
+        580,
+        157,
+        580,
+        350
+      ],
+      "tap_point": null,
+      "target_identity": null,
+      "target_roi": null,
+      "type": "command"
+    },
+    {
+      "action": "NAVIGATE_CHAPTER",
+      "kind": "swipe",
+      "progress": {
+        "ap_regenerated": 0,
+        "ap_spent": 0,
+        "completed_runs": 0,
+        "current_ap": 120,
+        "initial_ap": 120,
+        "loss_seen": false
+      },
+      "reason": "Campaign atlas-directed pan right to safely frame Chapter 15 before binding (bound=False; search window cannot contain landmark template; ocr_anchors_weak=2;orb=CampaignAmbiguityState.INSUFFICIENT_LANDMARKS)",
+      "step": 5,
+      "swipe": [
+        377,
+        580,
+        217,
+        580,
+        350
+      ],
+      "tap_point": null,
+      "target_identity": null,
+      "target_roi": null,
+      "type": "command"
+    },
+    {
+      "action": "NAVIGATE_CHAPTER",
+      "kind": "tap",
+      "progress": {
+        "ap_regenerated": 0,
+        "ap_spent": 0,
+        "completed_runs": 0,
+        "current_ap": 120,
+        "initial_ap": 120,
+        "loss_seen": false
+      },
+      "reason": "enter the recognized configured chapter; complete chapter ROI is safely framed",
+      "step": 6,
+      "swipe": null,
+      "tap_point": [
+        446,
+        279
+      ],
+      "target_identity": "campaign-chapter-15",
+      "target_roi": [
+        419,
+        252,
+        473,
+        306
+      ],
+      "type": "command"
+    },
+    {
+      "action": "SELECT_STAGE",
+      "kind": "tap",
+      "progress": {
+        "ap_regenerated": 0,
+        "ap_spent": 0,
+        "completed_runs": 0,
+        "current_ap": 120,
+        "initial_ap": 120,
+        "loss_seen": false
+      },
+      "reason": "select the exact visible configured stage",
+      "step": 7,
+      "swipe": null,
+      "tap_point": [
+        200,
+        428
+      ],
+      "target_identity": "campaign-stage-1-15-9",
+      "target_roi": [
+        179,
+        407,
+        221,
+        449
+      ],
+      "type": "command"
+    },
+    {
+      "action_key": "home-zoom-out:cfe4750606956c4cf23320b2374d6c8e9cb593428e6421fbac442f52b9840df6",
+      "consequential": false,
+      "execute": true,
+      "source_sha256": "cfe4750606956c4cf23320b2374d6c8e9cb593428e6421fbac442f52b9840df6",
+      "target_identity": "home-zoom-out",
+      "timestamp": "2026-10-29T04:51:45.420594+00:00",
+      "transport": "adapter-owned-native-zoom",
+      "type": "dispatch"
+    },
+    {
+      "action_class": "navigation",
+      "action_key": "7cf9d04d-6507-4b68-b95f-28aefa4bd849:campaign-open:a18881fbc3d19fcc",
+      "consequential": false,
+      "execute": true,
+      "point": [
+        481,
+        241
+      ],
+      "source_sha256": "3cfea355049ddbb3114d5f1a44ed653f3123a440829cc96a26227d013e89a35f",
+      "target_identity": "home.building.campaign",
+      "target_roi": [
+        420,
+        180,
+        542,
+        302
+      ],
+      "timestamp": "2026-10-29T04:52:00.204196+00:00",
+      "type": "dispatch"
+    }
+  ]
+}

@@ -563,8 +563,8 @@ class CampaignApSelectionHandler:
             flow_id=CAMPAIGN_FLOW_ID,
             owner="automation_service",
             family="campaign_ap",
-            variant="one_auto_battle",
-            cadence="ap_regeneration_pulse",
+            variant="drain_available_ap",
+            cadence="after_ap_drain",
             priority=1,
             reset_scoped=False,
             scheduler_eligible=True,
@@ -598,6 +598,17 @@ class CampaignApSelectionHandler:
         ):
             return False
         projection = facts.projections.get(CAMPAIGN_FLOW_ID)
+        if projection is not None and projection.observation_pending:
+            return bool(
+                self.selection_only is False
+                and descriptor.allows_pending_resource_observation
+                and self.minimum_observed_ap == 0
+                and projection.recurrence_class is RecurrenceClass.AP_REGENERATION
+                and isinstance(projection.generation, str) and projection.generation.strip()
+                and projection.observed_at_utc is None and projection.observed_balance is None
+                and (projection.next_eligible_at is None or projection.next_eligible_at <= facts.now_utc_epoch)
+                and (perception is None or perception.profile_id == CAMPAIGN_PROFILE_ID)
+            )
         if (
             projection is None
             or projection.recurrence_class is not RecurrenceClass.AP_REGENERATION

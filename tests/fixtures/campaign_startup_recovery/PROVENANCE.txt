@@ -1,0 +1,6 @@
+Source: .local-captures/automation-service-authorized/campaign-ap-counter-home-recovery-20261030T002202508109Z/campaign-exit-to-home/campaign-exit-to-home-20261030T002202846555Z/frames/0001-exit-00-immediate-before.png
+SHA256: 71d306b16a24af414a5c6cf17771cdfcda6a579792c105551260439135faeb4f
+Captured before any input in the Home recovery attempt. The scene is a VIP points popup over Chapter 15. It is historical source evidence; simulated successors in tests are not live acceptance.
+Home AP fixture source: .local-captures/automation-service-authorized/soak-20261029T212334751683Z-dbf4db8b/campaign/campaign-ap-1-15-9-20261029T223714229155Z/frames/0001-campaign-service-initial-home.png
+SHA256: bb74ff8f02809a2ba77435ba481e4638e0befe4a359d66e754d2a2574ad6caf3
+This retained capture shows Home AP 12. The combined popup/Chapter/Tier/Home test composes historical images and synthetic navigation frames; that scenario is not native acceptance evidence.

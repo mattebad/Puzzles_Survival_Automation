@@ -20,6 +20,8 @@ id_ed25519*
 .local-captures/
 .local-orchestrator/
 .local-reference/
+.local-validation/
+.test-tmp/
 .cursor/plans/
 .specstory/
 .vscode/

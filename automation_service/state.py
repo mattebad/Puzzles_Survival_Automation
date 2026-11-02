@@ -1368,25 +1368,40 @@ class BotStateManager:
                 )
             return self._flow(db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone())
 
-    def block_flow(self, flow_id: str, reason: str, *, now_utc_epoch: float | None = None) -> FlowState | None:
+    def block_flow(self, flow_id: str, reason: str, *, now_utc_epoch: float | None = None,
+                   expected_row_version: int | None = None, expected_generation: int | None = None,
+                   expected_blocked_reason: str | None | object = _UNSET) -> FlowState | None:
         """Block a flow without changing enabled or generation state."""
 
         flow_id = _text(flow_id, "flow_id")
         reason = _text(reason, "reason")
         _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
         with self._transaction() as db:
-            if db.execute("SELECT 1 FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone() is None:
+            row = db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone()
+            if row is None:
+                return None
+            if ((expected_row_version is not None and row["row_version"] != expected_row_version)
+                    or (expected_generation is not None and row["generation"] != expected_generation)
+                    or (expected_blocked_reason is not _UNSET and (
+                        row["blocked_reason"] != expected_blocked_reason
+                        or (expected_blocked_reason is None and bool(row["blocked"]))))):
                 return None
             db.execute("UPDATE flow_state SET blocked = 1, blocked_reason = ?, row_version = row_version + 1 WHERE flow_id = ?", (reason, flow_id))
             return self._flow(db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone())
 
-    def unblock_flow(self, flow_id: str, *, now_utc_epoch: float | None = None) -> FlowState | None:
+    def unblock_flow(self, flow_id: str, *, now_utc_epoch: float | None = None,
+                     expected_generation: int | None = None,
+                     expected_blocked_reason: str | None | object = _UNSET) -> FlowState | None:
         """Unblock a flow without changing enabled or generation state."""
 
         flow_id = _text(flow_id, "flow_id")
         _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
         with self._transaction() as db:
-            if db.execute("SELECT 1 FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone() is None:
+            row = db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone()
+            if row is None:
+                return None
+            if ((expected_generation is not None and row["generation"] != expected_generation)
+                    or (expected_blocked_reason is not _UNSET and row["blocked_reason"] != expected_blocked_reason)):
                 return None
             db.execute("UPDATE flow_state SET blocked = 0, blocked_reason = NULL, row_version = row_version + 1 WHERE flow_id = ?", (flow_id,))
             return self._flow(db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone())
@@ -1405,6 +1420,11 @@ class BotStateManager:
         schedule_anchor_utc: float | None | object = _UNSET,
         eligible_since_utc: float | None | object = _UNSET,
         now_utc_epoch: float | None = None,
+        expected_row_version: int | None = None,
+        expected_generation: int | None = None,
+        expected_reset_id: str | None | object = _UNSET,
+        expected_next_due_at_utc: float | None | object = _UNSET,
+        require_enabled_unblocked: bool = False,
     ) -> FlowState | None:
         """Update schedule facts without overwriting reset, retry, or gate facts."""
 
@@ -1448,7 +1468,13 @@ class BotStateManager:
             return self.get_flow(flow_id)
         values.append(flow_id)
         with self._transaction() as db:
-            if db.execute("SELECT 1 FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone() is None:
+            row = db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone()
+            if (row is None
+                    or (expected_row_version is not None and row["row_version"] != expected_row_version)
+                    or (expected_generation is not None and row["generation"] != expected_generation)
+                    or (expected_reset_id is not _UNSET and row["reset_id"] != expected_reset_id)
+                    or (expected_next_due_at_utc is not _UNSET and row["next_due_at_utc"] != expected_next_due_at_utc)
+                    or (require_enabled_unblocked and (not row["enabled"] or row["blocked"]))):
                 return None
             db.execute(f"UPDATE flow_state SET {', '.join(changes)}, row_version = row_version + 1 WHERE flow_id = ?", values)
             return self._flow(db.execute("SELECT * FROM flow_state WHERE flow_id = ?", (flow_id,)).fetchone())
@@ -1578,6 +1604,7 @@ class BotStateManager:
         queue_generation: str | int | None = None,
         march_generation: str | int | None = None,
         operator_request_id: str | None = None,
+        allow_completed_daily: bool = False,
         manual_request_id: str | None = None,
         operator_request: str | None = None,
         sequence: str | int | None = None,
@@ -1698,7 +1725,14 @@ class BotStateManager:
                 if not _is_non_reset_occurrence_kind(kind):
                     release_claim_lease(db)
                     return None
-            if flow["next_due_at_utc"] is not None and float(flow["next_due_at_utc"]) > now:
+            repeat_daily = (allow_completed_daily is True and mode == "manual"
+                and kind == "manual" and flow["cadence"] == "daily_once_per_reset"
+                and isinstance(operator_request_id, str) and bool(operator_request_id.strip()))
+            if allow_completed_daily and not repeat_daily:
+                release_claim_lease(db)
+                return None
+            if (flow["next_due_at_utc"] is not None and float(flow["next_due_at_utc"]) > now
+                    and not repeat_daily):
                 release_claim_lease(db)
                 return None
             if flow["retry_not_before_utc"] is not None and float(flow["retry_not_before_utc"]) > now:
@@ -2374,6 +2408,7 @@ class BotStateManager:
         run_token: str | None = None,
         lease_generation: int | None = None,
         now_utc_epoch: float | None = None,
+        terminal_accounting: bool = False,
     ) -> RunRecord | None:
         """Reconcile executor-bound native totals without creating duplicate actions."""
 
@@ -2395,7 +2430,10 @@ class BotStateManager:
         assert now is not None
         with self._transaction() as db:
             run = db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
-            if run is None or run["state"] != RunState.RUNNING.value:
+            allowed = {RunState.RUNNING.value}
+            if terminal_accounting is True:
+                allowed.add(RunState.STOP_REQUESTED.value)
+            if run is None or run["state"] not in allowed:
                 return None
             if (
                 run["owner_instance_id"] != owner
@@ -2431,6 +2469,86 @@ class BotStateManager:
             return self._run(
                 db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
             )
+
+    def record_recovered_executor_consumption(
+        self,
+        run_id: str,
+        *,
+        consumed_inputs: int,
+        consumed_actions: int,
+        owner_instance_id: str,
+        process_start_token: str,
+        run_token: str,
+        lease_generation: int,
+        expected_row_version: int,
+        now_utc_epoch: float | None = None,
+    ) -> RunRecord | None:
+        """Record independently verified native totals after an orphan takeover.
+
+        The recovery controller must retain the original executor proof before
+        calling this bookkeeping operation. It grants no dispatch authority and
+        does not resolve actions, terminalize the run, or change controls. Runs
+        with canonical actions must use their existing action reconciliation.
+        """
+
+        _nonnegative_int(consumed_inputs, "consumed_inputs")
+        _nonnegative_int(consumed_actions, "consumed_actions")
+        _nonnegative_int(expected_row_version, "expected_row_version")
+        if (
+            owner_instance_id is None
+            or process_start_token is None
+            or run_token is None
+            or type(lease_generation) is not int
+            or lease_generation < 1
+        ):
+            return None
+        run_id = _text(run_id, "run_id")
+        owner = _text(owner_instance_id, "owner_instance_id")
+        process_token = _text(process_start_token, "process_start_token")
+        token = _text(run_token, "run_token")
+        now = _epoch(_now() if now_utc_epoch is None else now_utc_epoch, "now", allow_none=False)
+        assert now is not None
+        with self._transaction() as db:
+            run = db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+            if (
+                run is None
+                or run["state"] != RunState.RECOVERING.value
+                or int(run["row_version"]) != expected_row_version
+                or run["owner_instance_id"] != owner
+                or run["process_start_token"] != process_token
+                or run["run_token"] != token
+                or int(run["lease_generation"]) != lease_generation
+                or self._lease_matches(
+                    db,
+                    owner_instance_id=owner,
+                    process_start_token=process_token,
+                    lease_generation=lease_generation,
+                    now_utc_epoch=now,
+                ) is not None
+                or db.execute("SELECT 1 FROM actions WHERE run_id = ? LIMIT 1", (run_id,)).fetchone()
+            ):
+                return None
+            if (
+                consumed_inputs < int(run["consumed_inputs"])
+                or consumed_actions < int(run["consumed_actions"])
+                or consumed_inputs > int(run["max_inputs"])
+                or consumed_actions > int(run["max_actions"])
+            ):
+                return None
+            if (
+                consumed_inputs == int(run["consumed_inputs"])
+                and consumed_actions == int(run["consumed_actions"])
+            ):
+                return self._run(run)
+            updated = db.execute(
+                """UPDATE runs SET consumed_inputs = ?, consumed_actions = ?,
+                   row_version = row_version + 1
+                   WHERE run_id = ? AND state = 'RECOVERING' AND row_version = ?""",
+                (consumed_inputs, consumed_actions, run_id, expected_row_version),
+            )
+            if updated.rowcount != 1:
+                return None
+            return self._run(db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone())
 
     def reserve_action(
         self,
@@ -2885,6 +3003,7 @@ class BotStateManager:
         run_token: str | None = None,
         lease_generation: int | None = None,
         now_utc_epoch: float | None = None,
+        allow_executor_marker: bool = False,
     ) -> DispatchValidation:
         service = db.execute("SELECT * FROM service_control WHERE singleton_id = 1").fetchone()
         run = db.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
@@ -2923,7 +3042,11 @@ class BotStateManager:
             return DispatchValidation(False, lease_reason, *base)
         if not bool(service["enabled"]):
             return DispatchValidation(False, "SERVICE_DISABLED", *base)
-        if not bool(flow["enabled"]) or bool(flow["blocked"]):
+        own_executor_marker = (
+            allow_executor_marker is True
+            and flow["blocked_reason"] == f"EXECUTOR_INTERRUPTED_REQUIRES_INSPECTION:{run_id}"
+        )
+        if not bool(flow["enabled"]) or (bool(flow["blocked"]) and not own_executor_marker):
             return DispatchValidation(False, "FLOW_DISABLED_OR_BLOCKED", *base)
         if state is not RunState.RUNNING:
             return DispatchValidation(False, "RUN_NOT_RUNNING", *base)
@@ -2947,6 +3070,7 @@ class BotStateManager:
         lease_generation: int | None = None,
         action_id: str | None = None,
         now_utc_epoch: float | None = None,
+        allow_executor_marker: bool = False,
     ) -> DispatchValidation:
         """Atomically validate service/flow/run/lease generations before dispatch."""
 
@@ -2961,6 +3085,7 @@ class BotStateManager:
                 run_token=run_token,
                 lease_generation=lease_generation,
                 now_utc_epoch=now_utc_epoch,
+                allow_executor_marker=allow_executor_marker,
             )
 
     def list_orphan_runs(self, *, now_utc_epoch: float | None = None, heartbeat_timeout_seconds: float = 60.0) -> tuple[RunRecord, ...]:

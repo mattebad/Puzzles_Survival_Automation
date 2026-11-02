@@ -23,7 +23,6 @@ from scripts.home_atlas_bluestacks import (
     SUPPLY_DEPOT_EXIT_SEMANTIC_ACTION,
     SUPPLY_DEPOT_EXIT_TARGET_ROI,
     SUPPLY_DEPOT_RADIAL_POSTCONDITION,
-    SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI,
     build_supply_depot_building_observation,
     build_supply_depot_building_perception_bundle,
     build_supply_depot_exit_observation,
@@ -33,7 +32,6 @@ from scripts.home_atlas_bluestacks import (
     SUPPLY_DEPOT_ROUTE_TASK_ID,
     build_supply_depot_radial_observation,
     build_supply_depot_radial_perception_bundle,
-    build_supply_depot_safe_exit_probe,
     command_supply_depot_radial,
     dispatch_verified_supply_depot_building_tap,
     dispatch_verified_supply_depot_exit_tap,
@@ -272,10 +270,6 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                 runtime.taps[1]["target_roi"],
                 SUPPLY_DEPOT_EXIT_TARGET_ROI,
             )
-            self.assertNotEqual(
-                runtime.taps[1]["target_roi"],
-                SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI,
-            )
             self.assertFalse(runtime.taps[0]["consequential"])
             payload = json.loads(
                 (root / "radial-result.json").read_text(
@@ -335,10 +329,14 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                 SUPPLY_DEPOT_EXIT_TARGET_ROI,
             )
             self.assertEqual(
-                payload["home_safe_exit_probe"]["safe_exit_binding"]["candidate"][
-                    "candidate_id"
-                ],
-                "supply-depot-exterior-close-anchor",
+                payload["home_safe_exit_probe"],
+                {
+                    "authorize_dispatch": False,
+                    "candidate": None,
+                    "reason_code": "EXTERIOR_CLOSE_UNPROVEN",
+                    "status": "unavailable",
+                    "target_roi": None,
+                },
             )
             self.assertIn(
                 "pre_dispatch_frame_sha256",
@@ -860,28 +858,6 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
             )
         self.assertIsNone(result)
 
-    def test_safe_exit_binder_is_same_capture_and_non_authorizing(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            runtime = _FakeRuntime(Path(directory))
-            captured = runtime.capture("safe-exit-probe")
-            identity = _identity(runtime, captured)
-            result = build_supply_depot_safe_exit_probe(
-                identity,
-                radial_binding=_binding(captured.frame),
-            )
-            self.assertEqual(result.reason_code, "SAFE_EXIT_CANDIDATE_BOUND")
-            self.assertFalse(result.authorize_dispatch)
-            self.assertTrue(result.source_frame.same_capture_event(identity))
-            self.assertIsNotNone(result.candidate)
-            self.assertIsNone(result.candidate.capability_grant)
-            self.assertIsNone(result.candidate.policy_grant)
-            self.assertTrue(
-                any(
-                    proof.regions
-                    for proof in result.exclusion_inventory.coverage
-                )
-            )
-
     def test_session_chain_is_single_authoritative_radial_session(self) -> None:
         auth = AuthorizationScope(
             task_id=SUPPLY_DEPOT_ROUTE_TASK_ID,
@@ -989,7 +965,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                             runtime.taps[-1]["frame_digest"], obs.frame_sha256
                         )
 
-    def test_recapture_rebuilds_distinct_observation_not_issuance_identity(self) -> None:
+    def test_recapture_supplies_actual_issuance_observation_once(self) -> None:
         module = importlib.import_module("scripts.home_atlas_bluestacks")
         real_executor = module.SafeActionExecutor
         recorded: dict[str, object] = {}
@@ -997,6 +973,14 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
         def _spy(*args, **kwargs):
             instance = real_executor(*args, **kwargs)
             recorded["recapture"] = instance.recapture
+            original = instance.recapture
+
+            def observe():
+                observation = original()
+                recorded["observed"] = observation
+                return observation
+
+            instance.recapture = observe
             return instance
 
         with tempfile.TemporaryDirectory() as directory:
@@ -1031,16 +1015,9 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                 self.assertTrue(issued.authorized)
                 assert execution is not None
                 recapture = recorded["recapture"]
-                first = recapture()
-                second = recapture()
-                self.assertIsNot(first, second)
-                self.assertIsNot(first, obs)
-                self.assertIsNot(second, obs)
-                self.assertEqual(first.frame_sha256, obs.frame_sha256)
-                self.assertEqual(
-                    first.capture_completed_monotonic,
-                    obs.capture_completed_monotonic,
-                )
+                self.assertIs(recorded["observed"], obs)
+                with self.assertRaises(ValueError):
+                    recapture()
 
     def test_stale_pre_dispatch_ordinal_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1195,7 +1172,6 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
             # Facility binder selects the chrome Back-arrow proposal; geometry may
             # equal the legacy constant, but authority is binder selection.
             self.assertEqual(selected, SUPPLY_DEPOT_EXIT_TARGET_ROI)
-            self.assertNotEqual(selected, SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI)
             self.assertFalse(binding.authorize_dispatch)
             self.assertEqual(
                 binding.candidate.candidate_id, "supply-depot-facility-back-arrow"
@@ -1205,7 +1181,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
         with self.assertRaises(PerceptionBundleError) as raised:
             reject_fixed_exit_roi_bypass(
                 dispatch_roi=SUPPLY_DEPOT_EXIT_TARGET_ROI,
-                binder_selected_roi=SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI,
+                binder_selected_roi=(10, 10, 20, 20),
             )
         self.assertEqual(raised.exception.reason_code, "FIXED_EXIT_ROI_BYPASS_REJECTED")
 
@@ -1241,26 +1217,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                     )
             self.assertEqual(
                 missing.exception.reason_code,
-                "FACILITY_SCREEN_NOT_RECOGNIZED_PRE_DISPATCH",
-            )
-
-            overlapping = replace(
-                _binding(captured.frame),
-                target_roi=SUPPLY_DEPOT_SAFE_EXIT_CANDIDATE_ROI,
-            )
-            probe = build_supply_depot_safe_exit_probe(
-                identity,
-                radial_binding=overlapping,
-            )
-            with self.assertRaises(PerceptionBundleError) as ambiguous:
-                require_binder_selected_safe_exit_roi(probe)
-            self.assertIn(
-                ambiguous.exception.reason_code,
-                {
-                    "NO_VALID_SAFE_EXIT_CANDIDATE",
-                    "AMBIGUOUS_MULTIPLE_VALID_CANDIDATES",
-                    "SAFE_EXIT_CANDIDATE_REQUIRED",
-                },
+                "FACILITY_SCREEN_NOT_RECOGNIZED_PLANNING",
             )
 
             facility = build_supply_depot_facility_safe_exit_probe(identity)
@@ -1284,10 +1241,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
                 )
             self.assertEqual(building.exception.reason_code, "SEMANTIC_DIGEST_MISMATCH")
 
-            probe = build_supply_depot_safe_exit_probe(
-                second_identity,
-                radial_binding=_binding(second.frame),
-            )
+            probe = build_supply_depot_facility_safe_exit_probe(second_identity)
             with self.assertRaises(PerceptionBundleError) as exit_bundle:
                 build_supply_depot_exit_perception_bundle(
                     first_identity,

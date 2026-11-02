@@ -1,0 +1,21 @@
+{
+  "source_frame": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T031708993240Z/nav-20261101T031709679323Z/runtime/frames/0008-flee-confirmed-successor-06.png",
+  "source_sha256": "bd4c2a69d52e80fbc92f58312c9402cf4ddd5da2adfb0f9dd427356ef8cacb91",
+  "captured_at_utc": "2026-11-01T03:17:25.614288+00:00",
+  "captured_monotonic": 944201.0,
+  "native_width": 800,
+  "native_height": 1280,
+  "transformation": "grayscale crop",
+  "source_run_status": "one Flee transported; completion blocked on retained defeat overlay; no Home proof",
+  "source_roi": [
+    180,
+    65,
+    620,
+    205
+  ],
+  "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+  "template_sha256": "eb5f35415d60ba6946d9bab8db05c554247533a733a1de1b00a0e00e2dccefba",
+  "template_width": 440,
+  "template_height": 140,
+  "semantic_role": "LOSE glyph corroborates defeat state only; it never supplies a click target."
+}

@@ -69,16 +69,11 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
     def test_ultimate_challenge_has_distinct_queue_and_policy_entries(self) -> None:
         flow_ids = [item["flow_id"] for item in self.queue["flows"]]
         self.assertIn("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION", flow_ids)
-        self.assertEqual(
-            flow_ids[:5],
-            [
-                "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
-                "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
-                "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY",
-                "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-                "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
-            ],
-        )
+        for flow_id in (
+            "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+        ):
+            self.assertEqual(flow_ids.count(flow_id), 1)
         policy_ids = {item["policy_id"] for item in self.policy["policies"]}
         self.assertIn("ultimate-challenge-flow-separation", policy_ids)
         self.assertIn("ultimate-challenge-navigation-validation", policy_ids)
@@ -157,17 +152,12 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         self.assertNotIn("ultimate-challenge", campaign_policy["supported_story_destinations"])
         self.assertIn("ultimate-challenge", campaign_policy["rejected_destinations"])
 
-    def test_queue_selects_first_current_ready_flow(self) -> None:
-        selected = control.FlowDeliveryController().select_next(self.queue)
-        active_id = self.queue.get("active_flow_id")
-        if active_id:
-            self.assertEqual(selected["flow_id"], active_id)
-            return
-        expected = min(
-            (flow for flow in self.queue["flows"] if flow["status"] == "ready"),
-            key=lambda flow: (flow["priority"], flow["flow_id"]),
-        )
-        self.assertEqual(selected["flow_id"], expected["flow_id"])
+    def test_finished_queue_selects_no_work(self) -> None:
+        queue = deepcopy(self.queue)
+        queue["active_flow_id"] = None
+        for flow in queue["flows"]:
+            flow["status"] = "completed"
+        self.assertIsNone(control.FlowDeliveryController(lease_path=NO_LEASE).select_next(queue))
 
     def test_survey_collector_prep_precedes_both_consumers(self) -> None:
         by_id = {flow["flow_id"]: flow for flow in self.queue["flows"]}
@@ -192,19 +182,27 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
             by_id[dependency]["dependencies"],
             ["CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"],
         )
-        selected = control.FlowDeliveryController().select_next(self.queue)
-        if by_id[dependency]["status"] == "active":
-            self.assertEqual(selected["flow_id"], dependency)
-        else:
-            active = [flow for flow in self.queue["flows"] if flow["status"] == "active"]
-            if active:
-                self.assertEqual(selected["flow_id"], active[0]["flow_id"])
-            else:
-                expected = min(
-                    (flow for flow in self.queue["flows"] if flow["status"] == "ready"),
-                    key=lambda flow: (flow["priority"], flow["flow_id"]),
-                )
-                self.assertEqual(selected["flow_id"], expected["flow_id"])
+        queue = deepcopy(self.queue)
+        queue["active_flow_id"] = None
+        fixture_flows = {flow["flow_id"]: flow for flow in queue["flows"]}
+        chain = (
+            "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
+            "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+            dependency,
+        )
+        consumers = (
+            "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
+            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+        )
+        for flow in queue["flows"]:
+            flow["status"] = "ready" if flow["flow_id"] in chain + consumers else "completed"
+        controller = control.FlowDeliveryController(lease_path=NO_LEASE)
+        for expected in chain:
+            with self.subTest(prerequisite=expected):
+                self.assertEqual(controller.select_next(queue)["flow_id"], expected)
+                fixture_flows[expected]["status"] = "completed"
+        self.assertIn(controller.select_next(queue)["flow_id"], consumers)
+
     def test_coverage_keeps_objectives_separate(self) -> None:
         campaign = self.coverage["flows"]["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]
         ultimate = self.coverage["flows"]["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]

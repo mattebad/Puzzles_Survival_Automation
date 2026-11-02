@@ -2,14 +2,18 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from contextlib import closing
 import json
 import math
+import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 import time
 
 from tasks.noahs_tavern_recruit import RecruitTier
-from tasks.noahs_tavern_recruit_maintenance import NoahMaintenanceState
+from tasks.noahs_tavern_recruit_maintenance import (
+    MAINTENANCE_TASK_ID, NoahMaintenanceState, basic_rollover_observation_pending,
+)
 
 from .handlers import RecruitmentMaintenanceSelectionHandler
 
@@ -45,6 +49,68 @@ class RecruitmentRunner:
         self.maintenance_path = maintenance_path
         self.utc_clock = utc_clock
 
+    def observation_deadline(self, identity, completed_at, now):
+        """Read the existing invocation without creating or migrating its store."""
+        if (identity.task_id != MAINTENANCE_TASK_ID or type(completed_at) not in (int, float)
+                or not math.isfinite(completed_at) or completed_at < 0 or completed_at > now):
+            return None
+        from safe_action_core import SQLiteSchedulerInvocationRepository
+
+        try:
+            uri = self.maintenance_path.resolve().as_uri() + "?mode=ro"
+            with closing(sqlite3.connect(uri, uri=True)) as db:
+                db.row_factory = sqlite3.Row
+
+                def get_row(account, server, reset, task):
+                    row = db.execute(
+                        "SELECT * FROM scheduler_invocation_state WHERE account_id=? AND server_id=? AND reset_id=? AND task_id=?",
+                        (account, server, reset, task),
+                    ).fetchone()
+                    return dict(row) if row is not None else None
+
+                invocation = SQLiteSchedulerInvocationRepository(
+                    SimpleNamespace(get_scheduler_invocation_state=get_row)
+                ).get(identity)
+            if invocation is None or invocation.unresolved_action or invocation.status != "deferred":
+                return None
+            progress = json.loads(invocation.observed_progress_json)
+            if (not isinstance(progress, dict) or progress.get("terminal_home_verified") is not True
+                    or type(progress.get("basic_daily_count")) is not int
+                    or progress["basic_daily_count"] not in (0, 5)
+                    or not isinstance(progress.get("tiers"), dict)
+                    or set(progress["tiers"]) != {tier.value for tier in RecruitTier}):
+                return None
+            basic = progress["tiers"][RecruitTier.BASIC.value]
+            if (not isinstance(basic, dict)
+                    or set(basic) != {"attempts_remaining", "next_eligible_at", "cooldown_seconds", "last_outcome"}
+                    or type(basic["attempts_remaining"]) is not int
+                    or type(basic["cooldown_seconds"]) is not int
+                    or not isinstance(basic["last_outcome"], str)
+                    or (basic["next_eligible_at"] is not None
+                        and (type(basic["next_eligible_at"]) not in (int, float)
+                             or not math.isfinite(basic["next_eligible_at"])))):
+                return None
+            for tier in (RecruitTier.INT, RecruitTier.ADV):
+                item = progress["tiers"][tier.value]
+                if (not isinstance(item, dict)
+                        or set(item) != {"attempts_remaining", "next_eligible_at", "cooldown_seconds", "last_outcome"}
+                        or type(item["attempts_remaining"]) is not int
+                        or item["attempts_remaining"] not in (0, 1)
+                        or type(item["cooldown_seconds"]) is not int
+                        or item["cooldown_seconds"] != (86400 if tier is RecruitTier.INT else 172800)
+                        or not isinstance(item["last_outcome"], str)
+                        or (item["next_eligible_at"] is not None
+                            and (type(item["next_eligible_at"]) not in (int, float)
+                                 or not math.isfinite(item["next_eligible_at"]) or item["next_eligible_at"] < 0))):
+                    return None
+            # Parse all tiers too; malformed or incomplete progress is not a scheduling fact.
+            state = NoahMaintenanceState.from_scheduler_invocation(invocation)
+            if not basic_rollover_observation_pending(state):
+                return None
+            return completed_at + 600
+        except (OSError, sqlite3.Error, ValueError, TypeError, KeyError, OverflowError):
+            return None
+
     def __call__(self, identity, previous_reset_id, checkpoint):
         from scripts.noahs_tavern_recruit_bluestacks import run_noahs_tavern_unified_recruitment
 
@@ -77,6 +143,10 @@ def recruitment_next_due(result, identity, started_at: float) -> float:
     next_reset = (math.floor(completed / 86400) + 1) * 86400
     deadlines = [next_reset]
     for tier, item in state.tiers.items():
+        if (tier is RecruitTier.BASIC and state.basic_daily_count in (0, 5)
+                and basic_rollover_observation_pending(state)):
+            deadlines.append(completed + 600)
+            continue
         if tier is RecruitTier.BASIC and state.basic_daily_count >= 5:
             continue
         if item.next_eligible_at is not None and item.next_eligible_at > completed:

@@ -1,0 +1,7 @@
+{
+  "source": ".local-captures\\automation-service-authorized\\soak-20261101T011013119241Z-94248345\\supply\\supply-depot-20261101T011014687468Z-43f7a282\\supply-depot-native-20261101T011014804169Z\\frames\\0025-supply-depot-radial-settled.png",
+  "sha256": "0dde05f18a4149d9c487d60fefd6e5fc920c0ce92d6cb2817bb6f23786b8c82e",
+  "copied_at_utc": "2026-11-01T01:22:09.137093+00:00",
+  "source_head": "fb0ec9e5d2330082ff9e2f980cf982b1cf30b2af",
+  "purpose": "Unmodified failed live Supply entry: exact radial identity exists, Claim Supply is HUD-occluded, and one expanded drawer down-chevron is visible. No Hold/resource action occurred."
+}

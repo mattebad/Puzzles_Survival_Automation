@@ -52,6 +52,15 @@ from .promotional import (
     PROMOTIONAL_STATE,
     SAFE_PROMOTIONAL_BACK,
 )
+from tasks.personal_might_praise import (
+    CONSEQUENCE as PERSONAL_MIGHT_CONSEQUENCE,
+    CONTROL_CLASS as PERSONAL_MIGHT_CONTROL_CLASS,
+    FLOW_ID as PERSONAL_MIGHT_FLOW_ID,
+    POSTCONDITION as PERSONAL_MIGHT_POSTCONDITION,
+    SEMANTIC_ACTION as PERSONAL_MIGHT_SEMANTIC_ACTION,
+    SOURCE_STATE as PERSONAL_MIGHT_SOURCE_STATE,
+    TARGET_IDENTITY as PERSONAL_MIGHT_TARGET_IDENTITY,
+)
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_SIZE = (800, 1280)
@@ -64,6 +73,27 @@ RESOURCE_CONSEQUENCE = "ordinary_non_idempotent_resource_item_use"
 RESOURCE_TARGET_IDENTITY = "daily-resource-item:use-1k-food"
 RESOURCE_COST_TYPE = "owned_inventory_item"
 RESOURCE_VARIANT = "1k_food"
+# Campaign AP is a route-owned effect, not a reopening of the generic spend
+# class and not a ResourceEffectAuthority item.  Keep this contract narrow and
+# task-keyed until a canonical native runner supplies the same exact fields.
+CAMPAIGN_AP_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
+CAMPAIGN_AP_PRODUCT_ID = "campaign_ap"
+CAMPAIGN_AP_PRODUCT_REVISION = "campaign_ap-v1"
+CAMPAIGN_AP_SEMANTIC_ACTION = "dispatch_campaign_ap_auto_battle"
+CAMPAIGN_AP_COSTS = {"1-15-9": 14, "1-20-9": 16, "2-2-9": 20}
+CAMPAIGN_AP_MAXIMUM_BALANCE = 120
+CAMPAIGN_AP_SOURCE_STATE = "CAMPAIGN_STAGE_DIALOG"
+CAMPAIGN_AP_CONTROL_CLASS = "CHALLENGE"
+CAMPAIGN_AP_ENTRY_CONSEQUENCE = "campaign_ap_auto_battle"
+CAMPAIGN_AP_ENTRY_POSTCONDITION = "CAMPAIGN_HERO_LINEUP"
+CAMPAIGN_AP_TARGET_PREFIX = "campaign-challenge-"
+CAMPAIGN_AP_CURRENCY = "AP"
+CAMPAIGN_AP_PRECONDITIONS = (
+    f"campaign_ap_product={CAMPAIGN_AP_PRODUCT_ID}",
+    "campaign_ap_current_ap=",
+    "campaign_ap_no_refill",
+    "campaign_ap_effect_ordinal=1",
+)
 # Supervised authorization is task-owned.  Retired legacy flows must not
 # remain enabled implicitly; active callers provide their reviewed task set.
 DEFAULT_SUPERVISED_TASKS = frozenset()
@@ -118,6 +148,27 @@ def _exact_roi(value: object, *, optional: bool = False) -> bool:
 
 def _string_tuple(value: object) -> bool:
     return type(value) is tuple and all(_exact_string(item) for item in value)
+
+
+def _campaign_ap_current_balance(request: PolicyRequest) -> Optional[int]:
+    """Extract the route-owned current AP fact from the closed precondition tuple."""
+
+    preconditions = request.semantic_preconditions
+    if type(preconditions) is not tuple or len(preconditions) != len(CAMPAIGN_AP_PRECONDITIONS):
+        return None
+    if preconditions[0] != CAMPAIGN_AP_PRECONDITIONS[0] or preconditions[2:] != CAMPAIGN_AP_PRECONDITIONS[2:]:
+        return None
+    marker = preconditions[1]
+    prefix = CAMPAIGN_AP_PRECONDITIONS[1]
+    if type(marker) is not str or not marker.startswith(prefix):
+        return None
+    value = marker[len(prefix) :]
+    if not value.isascii() or not value.isdecimal():
+        return None
+    current = int(value)
+    if str(current) != value or current < 0 or current > CAMPAIGN_AP_MAXIMUM_BALANCE:
+        return None
+    return current
 
 
 def _request_schema_valid(request: object) -> bool:
@@ -908,6 +959,15 @@ class CentralPolicy:
             return deny, "GO_NOT_CLAIM", "Go cannot be classified or authorized as Claim"
         if req.semantic_action == "CLAIM_DAILY_QUEST" and obs.control_class != "CLAIM":
             return deny, "CLAIM_TARGET_NOT_RECOGNIZED", "Claim requires an exact Claim control classification"
+        if (
+            req.semantic_action == PERSONAL_MIGHT_SEMANTIC_ACTION
+            or obs.target_identity == PERSONAL_MIGHT_TARGET_IDENTITY
+            or (
+                req.action_class is not ActionClass.NAVIGATION_ONLY
+                and (req.task_id == PERSONAL_MIGHT_FLOW_ID or obs.source_state == PERSONAL_MIGHT_SOURCE_STATE)
+            )
+        ):
+            return self._decide_personal_might_praise(req)
         if req.action_class == ActionClass.NAVIGATION_ONLY:
             if obs.os_surface or obs.hard_stop_detected or not obs.package_foreground:
                 return lock, "NAVIGATION_HARD_STOP", "foreground, OS, or account/session safety is not proven"
@@ -931,19 +991,16 @@ class CentralPolicy:
             if req.semantic_action == "DISMISS_RESET_POPUP":
                 if obs.source_state != "RESET_POPUP" or obs.target_identity != "reset-popup-close":
                     return deny, "RESET_POPUP_CLOSE_REQUIRED", "only the recognized reset popup Close control is allowed"
-                # Narrow task-keyed successor: Campaign atlas survey may expect
-                # CAMPAIGN_TIER_MAP; all other tasks keep HOME_BASE only.
+                # The shared startup path may retain the post-dismissal frame
+                # for the active route to recognize; that is not Home proof.
+                # Existing route-specific successors retain their restrictions.
                 campaign_atlas_task = (
                     req.task_id == "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
                 )
-                if campaign_atlas_task:
-                    if obs.expected_postcondition != "CAMPAIGN_TIER_MAP":
-                        return deny, "RESET_POPUP_SUCCESSOR_REQUIRED", (
-                            "Campaign atlas VIP dismissal must return to CAMPAIGN_TIER_MAP"
-                        )
-                elif obs.expected_postcondition != "HOME_BASE":
+                route_successor = "CAMPAIGN_TIER_MAP" if campaign_atlas_task else "HOME_BASE"
+                if obs.expected_postcondition not in {route_successor, "RETAINED_STARTUP_SUCCESSOR"}:
                     return deny, "RESET_POPUP_SUCCESSOR_REQUIRED", (
-                        "reset popup dismissal must return to Home/Base"
+                        "reset popup dismissal requires a bounded route or retained startup successor"
                     )
                 x0, y0, x1, y1 = obs.target_roi
                 if x0 < 200 or y0 < 700 or x1 > 600 or y1 > 920:
@@ -959,6 +1016,8 @@ class CentralPolicy:
                 or obs.expected_postcondition != "BIOENHANCER_RESEARCH_SUCCESS"
             ):
                 return deny, "BIOENHANCER_TARGET_NOT_EXACT", "only the exact current-frame Free Research 1x target is allowed"
+        if req.action_class is ActionClass.CAMPAIGN_AP_CHALLENGE:
+            return self._decide_campaign_ap_challenge(req)
         if not obs.consequence or obs.consequence == "unknown":
             return deny, "UNKNOWN_CONSEQUENCE", "consequence must be exact and known"
         if not obs.expected_postcondition:
@@ -973,6 +1032,93 @@ class CentralPolicy:
         if obs.consequence not in ALLOWED_R1_CONSEQUENCES:
             return deny, "CONSEQUENCE_DENIED", "the consequence is not allowlisted for supervised zero-cost R1"
         return PolicyDecision.AUTHORIZE, "AUTHORIZED_ZERO_COST_R1", "all supervised zero-cost R1 guards passed"
+
+    @staticmethod
+    def _decide_personal_might_praise(req: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
+        """Keep the one daily rank-one Praise inside its exact zero-cost R1 contract."""
+
+        deny = PolicyDecision.DENY
+        obs = req.observation
+        if req.task_id != PERSONAL_MIGHT_FLOW_ID:
+            return deny, "PERSONAL_MIGHT_FLOW_MISMATCH", "Personal Might Praise is bound to its exact task"
+        if (
+            req.semantic_action != PERSONAL_MIGHT_SEMANTIC_ACTION
+            or req.action_class is not ActionClass.ZERO_COST_CONSEQUENTIAL
+        ):
+            return deny, "PERSONAL_MIGHT_ACTION_NOT_EXACT", "only the exact zero-cost Personal Might Praise action is allowed"
+        if not req.game_day_id:
+            return deny, "GAME_DAY_REQUIRED", "Personal Might Praise requires a current game-day identity"
+        if (
+            obs.source_state != PERSONAL_MIGHT_SOURCE_STATE
+            or obs.target_identity != PERSONAL_MIGHT_TARGET_IDENTITY
+            or obs.control_class != PERSONAL_MIGHT_CONTROL_CLASS
+            or obs.consequence != PERSONAL_MIGHT_CONSEQUENCE
+            or obs.expected_postcondition != PERSONAL_MIGHT_POSTCONDITION
+            or obs.cost_type != "none"
+            or obs.cost_amount != 0
+            or obs.quantity != 1
+            or obs.target_isolated is not True
+            or req.free_only is not True
+            or req.maximum_cost != 0
+        ):
+            return deny, "PERSONAL_MIGHT_ACTION_NOT_EXACT", "Personal Might rank-one target, zero cost, and successor must match"
+        if obs.os_surface or obs.hard_stop_detected or not obs.package_foreground:
+            return PolicyDecision.GLOBAL_INPUT_LOCK, "PERSONAL_MIGHT_HARD_STOP", "foreground and runtime safety are not proven"
+        if obs.forbidden_region_intersects_target:
+            return deny, "PERSONAL_MIGHT_TARGET_DANGEROUS", "Personal Might Praise intersects a forbidden region"
+        return PolicyDecision.AUTHORIZE, "AUTHORIZED_PERSONAL_MIGHT_PRAISE", "exact current-frame free rank-one Praise guards passed"
+
+    @staticmethod
+    def _decide_campaign_ap_challenge(req: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
+        """Authorize only the bounded Campaign Stage Dialog -> Hero Lineup entry.
+
+        This is an entry reservation.  The AP effect is committed by the route
+        runner only after its existing Victory -> Chapter Map AP delta and
+        canonical Home reconciliation prove the whole run.
+        """
+
+        deny = PolicyDecision.DENY
+        obs = req.observation
+        if req.task_id != CAMPAIGN_AP_FLOW_ID:
+            return deny, "CAMPAIGN_AP_FLOW_MISMATCH", "Campaign AP action is bound to its exact flow"
+        if req.semantic_action != CAMPAIGN_AP_SEMANTIC_ACTION:
+            return deny, "CAMPAIGN_AP_ACTION_NOT_EXACT", "only the bounded Campaign AP action is allowed"
+        if req.action_kind != CAMPAIGN_AP_PRODUCT_REVISION:
+            return deny, "CAMPAIGN_AP_PRODUCT_REVISION_MISMATCH", "Campaign AP product revision is not exact"
+        if req.subject not in CAMPAIGN_AP_COSTS:
+            return deny, "CAMPAIGN_AP_STAGE_NOT_ALLOWED", "stage is not an approved Campaign AP destination"
+        stage = req.subject
+        expected_cost = CAMPAIGN_AP_COSTS[stage]
+        current_ap = _campaign_ap_current_balance(req)
+        if current_ap is None:
+            return deny, "CAMPAIGN_AP_BALANCE_NOT_EXACT", "current AP must be a bounded route precondition"
+        if current_ap < expected_cost:
+            return deny, "CAMPAIGN_AP_BALANCE_INSUFFICIENT", "current AP does not cover the exact stage cost"
+        if (
+            obs.source_state != CAMPAIGN_AP_SOURCE_STATE
+            or obs.target_identity != f"{CAMPAIGN_AP_TARGET_PREFIX}{stage}"
+            or obs.control_class != CAMPAIGN_AP_CONTROL_CLASS
+            or obs.consequence != CAMPAIGN_AP_ENTRY_CONSEQUENCE
+            or obs.expected_postcondition != CAMPAIGN_AP_ENTRY_POSTCONDITION
+            or obs.cost_type != CAMPAIGN_AP_CURRENCY
+            or obs.cost_amount != expected_cost
+            or req.resource_or_currency != CAMPAIGN_AP_CURRENCY
+            or req.maximum_cost != expected_cost
+            or obs.quantity != 1
+            or req.free_only is not False
+            or req.semantic_postconditions != (CAMPAIGN_AP_ENTRY_POSTCONDITION,)
+            or obs.target_isolated is not True
+        ):
+            return deny, "CAMPAIGN_AP_ACTION_NOT_EXACT", "Campaign AP source, target, cost, and Hero Lineup successor must match"
+        if obs.os_surface or obs.hard_stop_detected or not obs.package_foreground:
+            return PolicyDecision.GLOBAL_INPUT_LOCK, "CAMPAIGN_AP_HARD_STOP", "foreground and runtime safety are not proven"
+        if obs.forbidden_region_intersects_target:
+            return deny, "CAMPAIGN_AP_TARGET_DANGEROUS", "Campaign AP target intersects a forbidden region"
+        return (
+            PolicyDecision.AUTHORIZE,
+            "AUTHORIZED_CAMPAIGN_AP_ENTRY",
+            "exact Campaign AP stage entry and bounded current-frame guards passed",
+        )
 
     @staticmethod
     def _decide_resource_item(req: PolicyRequest) -> Tuple[PolicyDecision, str, str]:

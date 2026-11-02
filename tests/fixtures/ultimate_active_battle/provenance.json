@@ -1,0 +1,11 @@
+{
+  "source_frame": ".local-captures/automation-service-authorized/soak-20261101T021101103929Z-fd5b6482/ultimate/ultimate-daily-20261101T022700798386Z/frames/0021-active-challenge-successor-10.png",
+  "source_sha256": "268189b36fbf99615e7a8339d317bcb22db491db207433ae273cb67131574767",
+  "captured_at_utc": "2026-11-01T02:28:10.968551+00:00",
+  "native_width": 800,
+  "native_height": 1280,
+  "transformation": "none; exact native PNG bytes",
+  "source_run_status": "blocked_fail_closed after Hero Lineup Challenge; no Exit or Flee transport",
+  "observation": "Active puzzle board with upper-right Exit. Generic Hough panel candidates include unrelated grid lines.",
+  "captured_monotonic": 941246.468
+}

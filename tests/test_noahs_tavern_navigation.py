@@ -106,6 +106,7 @@ class ScriptedTavernRuntime:
         self.screens = list(screens)
         self.pos = 0
         self.calls: list[tuple[str, dict]] = []
+        self.reconciles: list[tuple[object, ...]] = []
         self._device_state = "device"
         self._foreground_package = EXPECTED_PACKAGE
         self._n = 0
@@ -148,7 +149,7 @@ class ScriptedTavernRuntime:
         self._advance()
 
     def reconcile(self, *args, **kwargs) -> None:
-        return None
+        self.reconciles.append(tuple(args))
 
     def record_recovery(self, **kwargs) -> None:
         return None
@@ -227,6 +228,13 @@ class NoahTavernNavigationRouteTests(unittest.TestCase):
         for gesture in guarded.authorized_gestures:
             self.assertFalse(gesture["consequential"])
             self.assertTrue(gesture["transport_observed"])
+        self.assertEqual(
+            [(item[0], item[1]) for item in stub.reconciles],
+            [
+                (stub.calls[0][1]["action_key"], "confirmed"),
+                (stub.calls[1][1]["action_key"], "confirmed"),
+            ],
+        )
 
     def test_missing_home_tavern_target_is_blocked(self) -> None:
         stub = ScriptedTavernRuntime(["HOME_NO_ROI"])
@@ -253,6 +261,7 @@ class NoahTavernNavigationRouteTests(unittest.TestCase):
         self.assertEqual(result.navigation_input_count, 2)
         self.assertEqual(len(stub.calls), 2)
         self.assertEqual(result.records[-1]["target_identity"], NOAHS_TAVERN_SAFE_EXIT_TARGET)
+        self.assertEqual(stub.reconciles[-1][1], "unresolved")
 
     def test_safe_exit_rejects_unrecognized_tavern_source_without_input(self) -> None:
         stub = ScriptedTavernRuntime(["UNKNOWN"])

@@ -1,0 +1,6 @@
+{
+  "source": ".local-captures\\automation-service-authorized\\soak-20261030T235502345129Z-51907c84\\campaign\\campaign-ap-1-15-9-20261030T235503878590Z\\frames\\0001-campaign-service-startup.png",
+  "sha256": "3838b3710fa6bad1d44f52d2f635bead52f8563498d34c7b2f04542194ae3136",
+  "ground_truth": "Root visually verified AP120/120 and stamina120/120; actual clean headquarters Home. Valid AP-icon score0.878; original3x OCR returned empty without a blank margin.",
+  "baseline_production_sha256": "8755c88fd9a4de5537f57abbcac6650e87307827b2f2f2d271a9f4a075518aa4"
+}

@@ -1,0 +1,29 @@
+{
+  "captured_date_utc": "2026-11-01",
+  "copied_at_utc": "2026-11-01T00:49:51.055155+00:00",
+  "source_runtime": ".local-captures\\automation-service-authorized\\soak-20261101T004216229879Z-c26a49a6\\enhancement\\enhancement-20261101T004217488898Z-b9978497\\runtime\\enhancement-family-20261101T004247045246Z",
+  "source_head": "3d2a4462106fcc989d1a3fb8bb3bdba978af8f8c",
+  "purpose": "Unmodified four current-run Chip selection witnesses from the live stop before any Chip Confirm. Gear was separately confirmed; no uninterrupted-family acceptance is implied.",
+  "files": [
+    {
+      "name": "0035-open-enhance-panel-immediate-before.png",
+      "source": ".local-captures\\automation-service-authorized\\soak-20261101T004216229879Z-c26a49a6\\enhancement\\enhancement-20261101T004217488898Z-b9978497\\runtime\\enhancement-family-20261101T004247045246Z\\frames\\0035-open-enhance-panel-immediate-before.png",
+      "sha256": "489618057fef0fca78c2bfe5671f23ed0eb18c2e0be398ce67b9fa1fb95812af"
+    },
+    {
+      "name": "0038-select-exact-one-star-material-immediate-before.png",
+      "source": ".local-captures\\automation-service-authorized\\soak-20261101T004216229879Z-c26a49a6\\enhancement\\enhancement-20261101T004217488898Z-b9978497\\runtime\\enhancement-family-20261101T004247045246Z\\frames\\0038-select-exact-one-star-material-immediate-before.png",
+      "sha256": "a7ff780f3d0dea3027e56c8f6553370e325bc7cd4f73e3fa2e2a6f2207931364"
+    },
+    {
+      "name": "0041-apply-quantity-selection-immediate-before.png",
+      "source": ".local-captures\\automation-service-authorized\\soak-20261101T004216229879Z-c26a49a6\\enhancement\\enhancement-20261101T004217488898Z-b9978497\\runtime\\enhancement-family-20261101T004247045246Z\\frames\\0041-apply-quantity-selection-immediate-before.png",
+      "sha256": "bc5df9c1de8c7d4fcfb1c32f75c41c8aa71729cd0a18126886c6ac7afeb01891"
+    },
+    {
+      "name": "0045-apply-quantity-selection-settled-3.png",
+      "source": ".local-captures\\automation-service-authorized\\soak-20261101T004216229879Z-c26a49a6\\enhancement\\enhancement-20261101T004217488898Z-b9978497\\runtime\\enhancement-family-20261101T004247045246Z\\frames\\0045-apply-quantity-selection-settled-3.png",
+      "sha256": "acd175ed81acd1136af84bfa1acef644a1aa6b94f8a6955ed49ce8604f3f286c"
+    }
+  ]
+}

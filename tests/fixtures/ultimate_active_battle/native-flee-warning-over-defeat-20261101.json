@@ -1,0 +1,11 @@
+{
+  "source_frame": ".local-captures/flow-delivery/ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION/daily-20261101T030337320080Z/nav-20261101T030338026945Z/runtime/frames/0001-campaign-resume-source.png",
+  "source_sha256": "7aab4f419c5500aa76c60b583573f807ea4fb8507b78dfaeb3eac2a64aeec747",
+  "captured_at_utc": "2026-11-01T03:03:38.272894+00:00",
+  "captured_monotonic": 943373.703,
+  "native_width": 800,
+  "native_height": 1280,
+  "transformation": "none; exact native PNG bytes",
+  "source_run_status": "blocked_fail_closed before any input",
+  "observation": "Same foreground Warning/Fight/Flee/failure dialog as prior battle capture; battle progressed to LOSE underneath while operator was stopped."
+}

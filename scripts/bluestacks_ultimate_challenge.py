@@ -63,6 +63,7 @@ from navigation_development_boundary import (
 )
 from scripts.bluestacks_popup_recognition import recognize_reset_popup
 from scripts.flow_delivery_evidence import require_operator_evidence
+from scripts.startup_normalization import is_clean_home_frame
 from world_map_navigation_bluestacks import _visual_popup_panel_candidates
 from tasks import campaign_atlas_vision, troop_training_vision
 from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
@@ -70,7 +71,6 @@ from tasks.campaign_auto_battle_vision import recognize_campaign_frame
 from tasks.home_atlas import ZoomIdentity
 from tasks.home_context import HomeReadyObservation
 from tasks.home_atlas_vision import classify_zoom
-from tasks.home_nav_recognition import recognize_home_nav
 from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
 from tasks.ultimate_challenge_daily import (
     FLOW_ID,
@@ -95,42 +95,22 @@ _ULTIMATE_HOME_ZOOM_TARGET_IDENTITY = "home-zoom-out"
 _UC_PORTAL_SEARCH_ROI = (400, 700, 700, 970)
 _UC_ENTRY_SEMANTIC_ROI = (400, 850, 700, 1030)
 _UC_TITLE_ROI = (120, 0, 680, 90)
+_HERO_LINEUP_TITLE_ROI = (200, 5, 620, 70)
 _HERO_LINEUP_SELECTED_CARD_ROIS = (
-    (29, 621, 168, 808),
-    (180, 620, 323, 810),
-    (332, 620, 475, 810),
-    (485, 620, 628, 810),
-    (639, 621, 778, 808),
+    (42, 570, 185, 710),
+    (185, 570, 328, 710),
+    (328, 570, 471, 710),
+    (471, 570, 614, 710),
+    (614, 570, 758, 710),
 )
-_HERO_LINEUP_CARD_GRID_BOXES = frozenset(
-    {
-        (84, 373, 750, 1050),
-        (84, 373, 729, 1050),
-        (84, 373, 715, 1050),
-        (85, 435, 750, 1050),
-        (101, 435, 750, 1050),
-        (85, 435, 729, 1050),
-        (106, 435, 750, 1050),
-        (85, 435, 715, 1050),
-        (101, 435, 729, 1050),
-        (106, 435, 729, 1050),
-        (101, 435, 715, 1050),
-        (106, 435, 715, 1050),
-        (84, 373, 750, 891),
-        (84, 373, 748, 891),
-        (85, 435, 750, 891),
-        (85, 435, 748, 891),
-        (101, 435, 750, 891),
-        (101, 435, 748, 891),
-        (106, 435, 750, 891),
-        (106, 435, 748, 891),
-    }
-)
-_HERO_LINEUP_SELECTED_COLOR_MINIMUM = 400
+_HERO_LINEUP_CHECK_MASK = REPO_ROOT / "tasks/assets/ultimate_challenge/800x1280/selected-check-mask.png"
 _FLEE_MODAL_ROI = (65, 365, 735, 745)
+_FLEE_WARNING_TITLE_ROI = (270, 385, 530, 425)
 _FLEE_MODAL_TEXT_ROI = (120, 450, 680, 590)
 _FLEE_FIGHT_SEARCH_ROI = (80, 590, 390, 740)
 _FLEE_FLEE_SEARCH_ROI = (390, 590, 720, 740)
+_DEFEAT_LOSE_ASSET = REPO_ROOT / "tasks/assets/ultimate_challenge/800x1280/defeat-lose-word.png"
+_DEFEAT_CONTINUE_ROI = (270, 1212, 530, 1270)
 # Keep contour boxes touching the native horizontal edge margins classified as scenery.
 _CENTRAL_POPUP_HORIZONTAL_MARGIN = int(NATIVE_WIDTH * 0.05)
 
@@ -231,12 +211,13 @@ def _ocr_ordered_tokens(
 ) -> bool:
     """Require high-confidence OCR tokens in their native reading order."""
 
-    if frame is None or frame.shape[:2] != (1280, 800):
+    if frame is None or frame.shape != (1280, 800, 3):
         return False
     x0, y0, x1, y1 = region
     crop = frame[y0:y1, x0:x1]
     if crop.size == 0:
         return False
+    crop = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     enlarged = cv2.resize(
         crop,
         None,
@@ -277,77 +258,6 @@ def _visual_popup_candidates(frame: np.ndarray) -> list[tuple[int, int, int, int
     return _visual_popup_panel_candidates(frame)
 
 
-def _roi_area(roi: tuple[int, int, int, int]) -> int:
-    return max(0, roi[2] - roi[0]) * max(0, roi[3] - roi[1])
-
-
-def _roi_intersection_area(
-    left: tuple[int, int, int, int],
-    right: tuple[int, int, int, int],
-) -> int:
-    return max(0, min(left[2], right[2]) - max(left[0], right[0])) * max(
-        0, min(left[3], right[3]) - max(left[1], right[1])
-    )
-
-
-def _flee_modal_popup_iou(
-    popup: tuple[int, int, int, int],
-) -> float:
-    intersection = _roi_intersection_area(popup, _FLEE_MODAL_ROI)
-    union = _roi_area(popup) + _roi_area(_FLEE_MODAL_ROI) - intersection
-    return intersection / union if intersection > 0 and union > 0 else 0.0
-
-
-def _flee_popup_is_materially_overbroad(
-    popup: tuple[int, int, int, int],
-) -> bool:
-    """Keep a frame-anchored candidate too large for the bounded modal separate."""
-
-    # The shared Hough primitive emits many nested interior rectangles from
-    # one modal.  Preserve those for duplicate collapse, but keep a genuinely
-    # broad panel that is anchored to the native frame independently visible.
-    x0, y0, x1, y1 = popup
-    modal_area = _roi_area(_FLEE_MODAL_ROI)
-    materially_large = _roi_area(popup) >= modal_area * 2.0
-    frame_anchored = x0 <= 10 or y0 <= 10 or x1 >= 790 or y1 >= 1270
-    return materially_large and frame_anchored
-
-
-def _flee_popup_panel_candidates(
-    frame: np.ndarray,
-) -> list[tuple[int, int, int, int]]:
-    """Collapse modal duplicates while preserving independent panel evidence."""
-
-    raw = _visual_popup_candidates(frame)
-    clusters: list[list[tuple[int, int, int, int]]] = []
-    for candidate in raw:
-        area = _roi_area(candidate)
-        joined = False
-        for cluster in clusters:
-            for existing in cluster:
-                if (
-                    _flee_popup_is_materially_overbroad(candidate)
-                    or _flee_popup_is_materially_overbroad(existing)
-                ):
-                    continue
-                overlap = _roi_intersection_area(candidate, existing)
-                if overlap and (
-                    overlap / max(1, min(area, _roi_area(existing))) >= 0.60
-                    or overlap / max(1, area + _roi_area(existing) - overlap) >= 0.35
-                ):
-                    cluster.append(candidate)
-                    joined = True
-                    break
-            if joined:
-                break
-        if not joined:
-            clusters.append([candidate])
-    return [
-        max(cluster, key=_flee_modal_popup_iou)
-        for cluster in clusters
-    ]
-
-
 def _central_popup_candidates(
     frame: np.ndarray,
 ) -> list[tuple[int, int, int, int]]:
@@ -367,11 +277,40 @@ def _central_popup_candidates(
     return candidates
 
 
-def _unexpected_visual_popup(frame: np.ndarray) -> bool:
+def _unexpected_visual_popup(frame: np.ndarray, *, puzzle_board: bool = False) -> bool:
     """Reject bounded unexpected panels, including resource/purchase prompts."""
 
     panels = _central_popup_candidates(frame)
-    if not panels:
+    if not panels and not puzzle_board:
+        return False
+    if puzzle_board:
+        # Hough can pair unrelated gem-grid lines into fictional rectangles.
+        # On a separately proved puzzle board, require the proposed panel's
+        # top and bottom borders to continue across its width. The other
+        # actionable states retain the existing geometry-only denial.
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 40, 140)
+        # Closed panel contours remain blocking even when the Hough pairing
+        # limit has filled with the board's many unrelated lines.
+        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            x, y, width, height = cv2.boundingRect(contour)
+            if not (40 < x and x + width < 760 and 300 <= y <= 800
+                    and 450 <= y + height <= 1100
+                    and 400 <= width <= 780 and 220 <= height <= 700):
+                continue
+            corners = cv2.approxPolyDP(contour, 0.015 * cv2.arcLength(contour, True), True)
+            if len(corners) == 4 and cv2.contourArea(contour) >= width * height * 0.90:
+                return True
+        for x0, y0, x1, y1 in panels:
+            if y0 < 440 or y1 > 1030:
+                return True
+            borders = (
+                edges[y0 - 5:y0 + 6, x0 + 12:x1 - 12],
+                edges[y1 - 5:y1 + 6, x0 + 12:x1 - 12],
+            )
+            if all(float(np.mean(np.any(border, axis=0))) >= 0.90 for border in borders):
+                return True
         return False
     # An unexpected panel is denied by geometry alone.  Resource/purchase/refill
     # semantics, when present, are corroboration rather than authorization.
@@ -379,9 +318,9 @@ def _unexpected_visual_popup(frame: np.ndarray) -> bool:
 
 
 def _home_nav_terminal(frame: np.ndarray) -> bool:
-    """Recognize template Home only when no unexpected popup is visible."""
+    """Recognize current Home semantics only when no unexpected popup is visible."""
 
-    return not _unexpected_visual_popup(frame) and recognize_home_nav(frame).is_home
+    return not _unexpected_visual_popup(frame) and is_clean_home_frame(frame)
 
 
 def _ultimate_home_zoom_route_declaration() -> NavigationRouteDeclaration:
@@ -652,7 +591,7 @@ def _normalize_ultimate_home_before_campaign(
     maximum_pans: int,
     post_input_delay: float,
 ) -> tuple[bool, dict[str, object]]:
-    """Normalize a fresh template Home in-session before Campaign Atlas binding."""
+    """Normalize fresh, clean Home in-session before Campaign Atlas binding."""
 
     records: list[dict[str, object]] = []
     detail: dict[str, object] = {
@@ -662,9 +601,8 @@ def _normalize_ultimate_home_before_campaign(
         "records": records,
         "zoom_records": records,
     }
-    home_nav = recognize_home_nav(source.frame)
-    if not home_nav.is_home or _unexpected_visual_popup(source.frame):
-        detail["reason"] = "fresh template Home was not positively recognized"
+    if not _home_nav_terminal(source.frame):
+        detail["reason"] = "fresh clean Home was not positively recognized"
         return False, detail
 
     try:
@@ -1285,45 +1223,47 @@ def _bind_red_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int] |
     return (320, 1195, 480, 1245)
 
 
-def _lineup_selected_card_color_counts(hsv: np.ndarray) -> tuple[int, ...]:
-    """Count the existing selected-color signature in each fixed card ROI."""
+def _lineup_has_five_selected_checks(hsv: np.ndarray) -> bool:
+    """Require a selection-check glyph in each slot, independent of hero artwork."""
 
-    selected = cv2.inRange(hsv, np.array([15, 120, 140]), np.array([40, 255, 255]))
-    return tuple(
-        int(np.count_nonzero(selected[y0:y1, x0:x1]))
-        for x0, y0, x1, y1 in _HERO_LINEUP_SELECTED_CARD_ROIS
-    )
-
-
-def _lineup_selected_card_union_area() -> int:
-    """Return the area of the independently bound five-card union."""
-
-    return sum(_roi_area(roi) for roi in _HERO_LINEUP_SELECTED_CARD_ROIS)
+    template = cv2.imread(str(_HERO_LINEUP_CHECK_MASK), cv2.IMREAD_GRAYSCALE)
+    if template is None:
+        return False
+    selected = cv2.inRange(hsv, np.array([15, 90, 150]), np.array([40, 255, 255]))
+    for x0, y0, x1, y1 in _HERO_LINEUP_SELECTED_CARD_ROIS:
+        count, labels, stats, _centroids = cv2.connectedComponentsWithStats(selected[y0:y1, x0:x1])
+        matches = 0
+        for index in range(1, count):
+            x, y, width, height, area = stats[index]
+            if not (30 <= width <= 65 and 24 <= height <= 55 and 200 <= area <= 1500):
+                continue
+            glyph = (labels[y:y + height, x:x + width] == index).astype(np.uint8) * 255
+            normalized = cv2.resize(glyph, (template.shape[1], template.shape[0]), interpolation=cv2.INTER_NEAREST)
+            if float(cv2.matchTemplate(normalized, template, cv2.TM_CCOEFF_NORMED)[0, 0]) >= 0.70:
+                matches += 1
+        if matches != 1:
+            return False
+    return True
 
 
 def _lineup_card_grid_candidate_matches(
     candidate: tuple[int, int, int, int],
 ) -> bool:
-    """Recognize only the measured nested card-grid contour artifact."""
+    """Exclude outer hero-grid edges only after all five checks are visible."""
 
-    if candidate not in _HERO_LINEUP_CARD_GRID_BOXES:
-        return False
-    selected_union_area = _lineup_selected_card_union_area()
-    if selected_union_area <= 0:
-        return False
-    intersection = sum(
-        _roi_intersection_area(candidate, roi)
-        for roi in _HERO_LINEUP_SELECTED_CARD_ROIS
-    )
-    return intersection / selected_union_area >= 0.78
+    x0, y0, x1, y1 = candidate
+    return 30 <= x0 <= 155 and 350 <= y0 <= 600 and 725 <= x1 <= 765 and 850 <= y1 <= 1125
 
 
 def _bind_lineup_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bind the gold Hero Lineup Challenge control from current native geometry."""
 
-    if frame is None or frame.shape[:2] != (1280, 800):
+    if frame is None or frame.shape != (1280, 800, 3):
         return None
-    if not _ocr_ordered_tokens(frame, _UC_TITLE_ROI, ("hero", "lineup")):
+    if not _ocr_ordered_tokens(frame, _HERO_LINEUP_TITLE_ROI, ("hero", "lineup")):
+        return None
+    popup = recognize_reset_popup(frame)
+    if popup.get("recognized") or popup.get("blocking_unknown_modal"):
         return None
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     gold = cv2.inRange(hsv, np.array([10, 80, 80]), np.array([35, 255, 255]))
@@ -1338,13 +1278,14 @@ def _bind_lineup_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int
         width = int(stats[index, cv2.CC_STAT_WIDTH])
         height = int(stats[index, cv2.CC_STAT_HEIGHT])
         cx, cy = centroids[index]
-        if area >= 18000 and width >= 240 and height >= 70 and 380 <= cx <= 420 and 1180 <= cy <= 1220 and x >= 240 and y >= 1140:
+        if 8000 <= area <= 40000 and 180 <= width <= 330 and 55 <= height <= 130 and 360 <= cx <= 440 and 1180 <= cy <= 1240 and x >= 220 and y >= 1140:
             candidates.append(index)
-    selected_counts = _lineup_selected_card_color_counts(hsv)
-    if len(candidates) != 1 or any(
-        count < _HERO_LINEUP_SELECTED_COLOR_MINIMUM
-        for count in selected_counts
-    ):
+    if len(candidates) != 1 or not _lineup_has_five_selected_checks(hsv):
+        return None
+    index = candidates[0]
+    x, y, width, height, _area = (int(value) for value in stats[index])
+    target = (x + 10, y + 8, x + width - 10, y + height - 8)
+    if not _ocr_ordered_tokens(frame, target, ("challenge",)):
         return None
     try:
         popup_candidates = _central_popup_candidates(frame)
@@ -1353,9 +1294,7 @@ def _bind_lineup_challenge_button(frame: np.ndarray) -> tuple[int, int, int, int
     for popup in popup_candidates:
         if not _lineup_card_grid_candidate_matches(popup):
             return None
-    if len(selected_counts) != 5:
-        return None
-    return (300, 1175, 500, 1230)
+    return target
 
 
 def _continue_from_vip_reset_popup(
@@ -1576,7 +1515,7 @@ def _continue_from_vip_reset_popup(
 def _bind_active_battle_exit(frame: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bind the icon-only upper-right Exit after proving the native puzzle board."""
 
-    if _unexpected_visual_popup(frame):
+    if _unexpected_visual_popup(frame, puzzle_board=True):
         return None
     if _has_warning_modal_geometry(frame):
         return None
@@ -1673,34 +1612,10 @@ def _visual_control_candidates(
     return candidates
 
 
-def _flee_modal_popup_matches(
-    popup: tuple[int, int, int, int],
-) -> bool:
-    """Require a bounded two-way spatial match to the expected Flee modal."""
-
-    intersection = _roi_intersection_area(popup, _FLEE_MODAL_ROI)
-    popup_area = _roi_area(popup)
-    modal_area = _roi_area(_FLEE_MODAL_ROI)
-    if intersection <= 0 or popup_area <= 0 or modal_area <= 0:
-        return False
-    return (
-        intersection / popup_area >= 0.75
-        and intersection / modal_area >= 0.75
-        and _flee_modal_popup_iou(popup) >= 0.60
-    )
-
-
 def _recognize_flee_warning(
     frame: np.ndarray,
 ) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]] | None:
-    """Require modal geometry, both controls, and narrow warning text."""
-
-    popup_panels = _flee_popup_panel_candidates(frame)
-    if len(popup_panels) != 1:
-        return None
-    popup = popup_panels[0]
-    if not _flee_modal_popup_matches(popup):
-        return None
+    """Bind the exact foreground dialog independently of the battle behind it."""
     if not _has_warning_modal_geometry(frame):
         return None
     fight = _visual_control_candidates(
@@ -1726,6 +1641,10 @@ def _recognize_flee_warning(
         return None
     if "flee now" not in text or "failure" not in text:
         return None
+    if (not _ocr_ordered_tokens(frame, _FLEE_WARNING_TITLE_ROI, ("warning",))
+            or _ocr_region_text(frame, fight[0], psm=7) != "fight"
+            or _ocr_region_text(frame, flee[0], psm=7) != "flee"):
+        return None
     return fight[0], flee[0]
 
 
@@ -1737,6 +1656,33 @@ def _bind_flee_warning_button(frame: np.ndarray) -> tuple[int, int, int, int] | 
         return None
     _fight_roi, flee_roi = controls
     return flee_roi
+
+
+def _bind_ultimate_defeat_continue(frame: np.ndarray) -> tuple[int, int, int, int] | None:
+    """Bind only the defeat overlay's bottom Continue, outside Buy Now."""
+    if frame is None or frame.shape != (1280, 800, 3) or _has_warning_modal_geometry(frame):
+        return None
+    try:
+        payload = _DEFEAT_LOSE_ASSET.read_bytes()
+        metadata = json.loads(_DEFEAT_LOSE_ASSET.with_suffix(".json").read_text(encoding="utf-8"))
+        if (metadata["runtime_profile_id"] != NATIVE_RUNTIME_PROFILE_ID
+                or hashlib.sha256(payload).hexdigest() != metadata["template_sha256"]):
+            return None
+        template = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+        if template is None or template.shape != (metadata["template_height"], metadata["template_width"]):
+            return None
+        search = cv2.cvtColor(frame[:285, 40:760], cv2.COLOR_BGR2GRAY)
+        if template.shape[0] > search.shape[0] or template.shape[1] > search.shape[1]:
+            return None
+        score = float(cv2.matchTemplate(search, template, cv2.TM_CCOEFF_NORMED).max())
+        if not np.isfinite(score) or score < 0.90:
+            return None
+    except (OSError, ValueError, KeyError, TypeError, cv2.error):
+        return None
+    if (not _ocr_ordered_tokens(frame, (250, 290, 550, 340), ("improve", "might"))
+            or not _ocr_ordered_tokens(frame, _DEFEAT_CONTINUE_ROI, ("tap", "to", "continue"))):
+        return None
+    return _DEFEAT_CONTINUE_ROI
 
 
 def _recognize_active_battle(frame: np.ndarray) -> tuple[int, int, int, int] | None:
@@ -1878,6 +1824,28 @@ def _poll_zero_input_until(
     return latest, False, None
 
 
+def _retain_already_home_terminal(
+    runtime, home, *, session, events, reset_identity, completed_actions, event_type,
+) -> dict[str, object]:
+    """Retain a freshly recognized Home terminal without another input."""
+
+    home_frame, home_hash = _retain_top_level_frame(session, home, "canonical-home-terminal.png")
+    append_event(events, {"type": event_type, "home_sha256": home.sha256, "home_nav_recognized": True})
+    return {
+        "status": TERMINAL_COMPLETE_FOR_RESET,
+        "reason": "current canonical Home recognized without further input",
+        "completed_actions": list(completed_actions),
+        "home_sha256": home.sha256,
+        "home_frame": home_frame,
+        "home_frame_sha256": home_hash,
+        "home_nav_recognized": True,
+        "reset_identity": reset_identity,
+        "input_count": _runtime_input_count(runtime),
+        "navigation_input_count": _runtime_input_count(runtime),
+        "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0},
+    }
+
+
 def _run_measured_campaign_exit_home_route(
     *,
     runtime: LocalBlueStacksRuntime,
@@ -1939,6 +1907,11 @@ def _run_measured_campaign_exit_home_route(
         )
         return TERMINAL_BLOCKED, detail
     if not campaign_recognized:
+        if _home_nav_terminal(immediate_before.frame):
+            return TERMINAL_COMPLETE_FOR_RESET, _retain_already_home_terminal(
+                runtime, immediate_before, session=session, events=events,
+                reset_identity=reset_identity, completed_actions=completed_actions, event_type=event_type,
+            )
         detail["reason"] = "Campaign exit immediate-before was not positively recognized"
         return TERMINAL_BLOCKED, detail
 
@@ -1948,13 +1921,89 @@ def _run_measured_campaign_exit_home_route(
             "campaign-exit-base",
         )
         exit_score = float(exit_score)
-    except BaseException as exc:
-        detail.update(
-            {
-                "reason": "Campaign exit target was not measured on the current frame",
-                "measurement_error": f"{type(exc).__name__}: {exc}",
-            }
+    except RuntimeError as exc:
+        detail["measurement_error"] = f"{type(exc).__name__}: {exc}"
+        recognition = _classify_campaign_ui_open(immediate_before.frame)
+        request_roi = next((roi for name, roi in recognition.targets if name == "campaign-base-request"), None)
+        if (
+            not recognition.observation.recognized
+            or recognition.observation.screen is not CampaignScreen.TIER_MAP
+            or not _valid_native_roi(request_roi)
+        ):
+            detail["reason"] = "Campaign exit target was not measured on the current frame"
+            return TERMINAL_BLOCKED, detail
+        request_key = f"campaign-base-request:{immediate_before.sha256}"
+        input_count_before = _runtime_input_count(runtime)
+        action_keys_before = _runtime_action_keys(runtime)
+        detail["base_request_attempted"] = True
+        detail["base_request_action_key"] = request_key
+        try:
+            runtime.tap(immediate_before, target_identity="campaign-base-request", target_roi=request_roi,
+                        action_key=request_key, consequential=False)
+        except BaseException as request_error:
+            accounted = _runtime_tap_dispatch_was_accounted(
+                runtime, action_key=request_key, input_count_before=input_count_before,
+                action_keys_before=action_keys_before,
+            )
+            if accounted:
+                runtime.reconcile(request_key, "unresolved", immediate_before, "Campaign Base request transport failed")
+            detail.update(reason="Campaign Base request transport failed", runtime_accounted=accounted,
+                          base_request_sent=accounted,
+                          tap_error=f"{type(request_error).__name__}: {request_error}")
+            return TERMINAL_BLOCKED, detail
+        if not _runtime_tap_dispatch_was_accounted(
+            runtime, action_key=request_key, input_count_before=input_count_before,
+            action_keys_before=action_keys_before,
+        ):
+            detail["reason"] = "Campaign Base request was not runtime-accounted"
+            return TERMINAL_BLOCKED, detail
+        detail["base_request_sent"] = True
+
+        successor: dict[str, object] = {}
+
+        def exit_or_home(frame):
+            if _home_nav_terminal(frame):
+                successor["home"] = True
+                return True
+            if not _campaign_context_recognized(frame):
+                return False
+            try:
+                roi, score = campaign_atlas_vision.measured_survey_target(frame, "campaign-exit-base")
+            except RuntimeError:
+                return False
+            if not _valid_native_roi(roi):
+                return False
+            successor.update(exit_roi=roi, exit_score=float(score))
+            return True
+
+        after_request, recognized, poll_error = _poll_zero_input_until(
+            runtime, label="campaign-base-request-successor", predicate=exit_or_home,
+            attempts=6, settle_seconds=max(0.8, post_input_delay),
         )
+        if not recognized or after_request is None or poll_error is not None:
+            evidence = after_request or immediate_before
+            runtime.reconcile(request_key, "unresolved", evidence, "Campaign Base request successor was not recognized")
+            detail.update(reason="Campaign exit did not appear after one Base request",
+                          latest_capture_sha256=evidence.sha256)
+            return TERMINAL_BLOCKED, detail
+        completed_actions.append({"action": "tap_campaign_base_request", "target_roi": request_roi,
+                                  "before_sha256": immediate_before.sha256, "post_sha256": after_request.sha256})
+        if successor.get("home"):
+            home_detail = _retain_already_home_terminal(
+                runtime, after_request, session=session, events=events, reset_identity=reset_identity,
+                completed_actions=completed_actions, event_type=event_type,
+            )
+            runtime.reconcile(request_key, "confirmed", after_request, "Home recognized after Campaign Base request")
+            return TERMINAL_COMPLETE_FOR_RESET, {**detail, **home_detail}
+        runtime.reconcile(request_key, "confirmed", after_request, "Measured Campaign exit recognized after Base request")
+        immediate_before = after_request
+        exit_roi, exit_score = successor["exit_roi"], successor["exit_score"]
+        immediate_path, _ = _retain_top_level_frame(session, immediate_before, "campaign-exit-after-base.png")
+        detail.update(campaign_exit_immediate_before=immediate_path,
+                      campaign_exit_immediate_before_sha256=immediate_before.sha256)
+    except BaseException as exc:
+        detail.update(reason="Campaign exit target measurement failed",
+                      measurement_error=f"{type(exc).__name__}: {exc}")
         return TERMINAL_BLOCKED, detail
     if not _valid_native_roi(exit_roi):
         detail.update(
@@ -2325,8 +2374,11 @@ def _continue_from_exit_dialog(
             "recovery_input_count": recovery_input_count,
         }
     )
-    if terminal == TERMINAL_COMPLETE_FOR_RESET and recovery_input_count != 2:
-        exit_detail["reason"] = "exit-dialog recovery did not account exactly two inputs"
+    expected_inputs = len(exit_detail.get("completed_actions", ()))
+    if terminal == TERMINAL_COMPLETE_FOR_RESET and (
+        expected_inputs not in (2, 3) or recovery_input_count != expected_inputs
+    ):
+        exit_detail["reason"] = "exit-dialog recovery input count did not match Cancel and Campaign exit actions"
         return TERMINAL_BLOCKED, exit_detail
     return terminal, exit_detail
 
@@ -2341,7 +2393,7 @@ def _run_post_flee_home_route(
     runtime: LocalBlueStacksRuntime | None = None,
     completed_actions: list[dict[str, object]] | None = None,
 ) -> tuple[str, dict[str, object]]:
-    """Return UC main → Campaign tier map → measured exit → canonical Home."""
+    """Return UC main to Home, or resume terminal navigation from Campaign/Home."""
 
     runtime = runtime or LocalBlueStacksRuntime(runner, session / "runtime", execute=True)
     completed_actions = list(completed_actions or [])
@@ -2352,9 +2404,63 @@ def _run_post_flee_home_route(
         capture_label="post-flee-ultimate-immediate-before",
         frame_filename="post-flee-ultimate-immediate-before.png",
         event_type="post_flee_home_source",
-        event_payload={"state": "ultimate_challenge_main"},
+        event_payload={"state": "terminal_resume_source"},
     )
+    if _bind_ultimate_defeat_continue(uc.frame) is not None:
+        before = runtime.capture("post-flee-defeat-continue-immediate-before")
+        target = _bind_ultimate_defeat_continue(before.frame)
+        if target is None:
+            return TERMINAL_BLOCKED, {"reason": "defeat Continue changed before dispatch", "completed_actions": completed_actions}
+        key = f"ultimate-defeat-continue-{utc_stamp()}"
+        count_before = _runtime_input_count(runtime)
+        keys_before = _runtime_action_keys(runtime)
+        try:
+            runtime.tap(before, target_identity="ultimate-defeat-continue", target_roi=target, action_key=key)
+        except BaseException as exc:
+            accounted = _runtime_tap_dispatch_was_accounted(runtime, action_key=key,
+                input_count_before=count_before, action_keys_before=keys_before)
+            if accounted:
+                runtime.reconcile(key, "unresolved", before, "defeat Continue transport failed; no post capture")
+            return TERMINAL_BLOCKED, {"reason": f"defeat Continue transport requires inspection: {exc}",
+                "completed_actions": completed_actions, "continue_action_key": key, "runtime_accounted": accounted}
+        if not _runtime_tap_dispatch_was_accounted(runtime, action_key=key,
+                input_count_before=count_before, action_keys_before=keys_before):
+            return TERMINAL_BLOCKED, {"reason": "defeat Continue was not runtime-accounted",
+                "completed_actions": completed_actions, "continue_action_key": key, "runtime_accounted": False}
+        try:
+            after = _capture_until(runtime, label="post-defeat-ultimate-successor",
+                predicate=lambda frame: _recognize_ultimate_main(frame) is not None,
+                attempts=6, settle_seconds=max(0.8, post_input_delay))
+        except BaseException as exc:
+            evidence = getattr(runtime, "_latest_capture_until", None) or before
+            runtime.reconcile(key, "unresolved", evidence, "defeat Continue successor requires inspection")
+            return TERMINAL_BLOCKED, {"reason": f"defeat Continue requires inspection: {exc}",
+                "completed_actions": completed_actions, "continue_action_key": key}
+        if after is None or _recognize_ultimate_main(after.frame) is None:
+            if after is not None:
+                runtime.reconcile(key, "unresolved", after, "Ultimate main not verified after defeat Continue")
+            return TERMINAL_BLOCKED, {"reason": "Ultimate main not verified after defeat Continue",
+                "completed_actions": completed_actions, "continue_action_key": key}
+        runtime.reconcile(key, "confirmed", after, "defeat overlay dismissed to Ultimate main")
+        completed_actions.append({"action": "continue_ultimate_defeat", "target_roi": target,
+            "before_sha256": before.sha256, "post_sha256": after.sha256})
+        uc, uc_frame, uc_frame_sha256 = _capture_and_retain_terminal_source(
+            runtime, session=session, events=events,
+            capture_label="post-defeat-ultimate-immediate-before",
+            frame_filename="post-defeat-ultimate-immediate-before.png",
+            event_type="post_defeat_home_source", event_payload={"state": "ultimate_main"})
     if _recognize_ultimate_main(uc.frame) is None:
+        if _home_nav_terminal(uc.frame):
+            return TERMINAL_COMPLETE_FOR_RESET, _retain_already_home_terminal(
+                runtime, uc, session=session, events=events, reset_identity=reset_identity,
+                completed_actions=completed_actions, event_type="post_flee_home_route",
+            )
+        if _campaign_context_recognized(uc.frame):
+            return _run_measured_campaign_exit_home_route(
+                runtime=runtime, session=session, events=events, reset_identity=reset_identity,
+                post_input_delay=post_input_delay, completed_actions=completed_actions,
+                campaign_source=uc, event_type="post_flee_home_route",
+            )
         return TERMINAL_BLOCKED, {
             "reason": "post-Flee Ultimate Challenge main not positively recognized",
             "completed_actions": completed_actions,
@@ -2524,7 +2630,7 @@ def _run_daily_route(
     resume_capture: CapturedNativeFrame | None = None,
     resume_lineup_roi: tuple[int, int, int, int] | None = None,
 ) -> tuple[str, dict[str, object]]:
-    """Execute the exact bounded Challenge → Exit → Flee → Home route."""
+    """Execute the exact bounded Challenge -> Exit -> Flee -> Home route."""
 
     completed_actions: list[dict[str, object]] = []
     if starting_state == "flee_warning":
@@ -2681,13 +2787,15 @@ def _run_daily_route(
     fled = _capture_until(
         runtime,
         label="flee-confirmed-successor",
-        predicate=lambda frame: _recognize_ultimate_main(frame) is not None,
+        predicate=lambda frame: (_recognize_ultimate_main(frame) is not None
+                                 or _bind_ultimate_defeat_continue(frame) is not None),
         attempts=6,
         settle_seconds=max(0.8, post_input_delay),
     )
-    if fled is None or _recognize_ultimate_main(fled.frame) is None:
+    if fled is None or (_recognize_ultimate_main(fled.frame) is None
+                        and _bind_ultimate_defeat_continue(fled.frame) is None):
         return TERMINAL_BLOCKED, {"reason": "Flee completion not positively recognized", "completed_actions": completed_actions, "flee_action_key": flee_key}
-    runtime.reconcile(flee_key, "confirmed", fled, "Ultimate Challenge main recognized after Flee")
+    runtime.reconcile(flee_key, "confirmed", fled, "Ultimate main or its defeat overlay recognized after Flee")
     completed_actions.append({"action": "tap_flee", "target_text": flee_text, "target_roi": flee_roi, "before_sha256": warning.sha256, "post_sha256": fled.sha256})
     append_event(events, {"type": "consequential_step", "action": "tap_flee", "target_text": flee_text, "target_roi": flee_roi, "before_sha256": warning.sha256, "post_sha256": fled.sha256, "resource_delta": {"ap": 0, "stamina": 0, "currency": 0, "items": 0}})
 
@@ -2714,13 +2822,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--daily",
         action="store_true",
-        help="execute the approved zero-resource Challenge → Exit → Flee Daily route",
+        help="execute the approved zero-resource Challenge -> Exit -> Flee Daily route",
     )
-    parser.add_argument("--post-flee-home-only", action="store_true", help="resume only the verified UC-main → Campaign → Home terminal route")
+    parser.add_argument("--post-flee-home-only", action="store_true", help="resume only the verified UC-main -> Campaign -> Home terminal route")
     parser.add_argument(
         "--campaign-exit-home-only",
         action="store_true",
-        help="resume from a recognized Campaign tier map: measured transparent-icon exit → canonical Home only",
+        help="resume from a recognized Campaign tier map: measured transparent-icon exit -> canonical Home only",
     )
     parser.add_argument("--atlas", type=Path, default=DEFAULT_HOME_ATLAS)
     parser.add_argument("--execute", action="store_true", help="allow bounded tap/swipe dispatch")
@@ -2763,8 +2871,8 @@ def main(argv: list[str] | None = None) -> int:
             "select exactly one of --navigation-only, --daily, --post-flee-home-only, "
             "or --campaign-exit-home-only"
         )
-    if args.max_total_inputs != MAX_TOTAL_INPUTS:
-        parser.error("Ultimate Challenge aggregate input ceiling is exactly 16")
+    if not 1 <= args.max_total_inputs <= MAX_TOTAL_INPUTS:
+        parser.error("Ultimate Challenge input budget must be between 1 and 16")
     if not is_permitted_local_bluestacks_serial(args.serial):
         parser.error("serial is not a permitted local BlueStacks endpoint")
     require_campaign_home_atlas_building(args.atlas)
@@ -2926,7 +3034,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if runtime.input_count > args.max_total_inputs:
             terminal = TERMINAL_BLOCKED
-            detail["reason"] = "aggregate runtime input count exceeded 16"
+            detail["reason"] = f"aggregate runtime input count exceeded {args.max_total_inputs}"
         result = {"status": terminal, "terminal": terminal, "flow_id": FLOW_ID, "session": str(session), "navigation_only": False, "dispatch": terminal == TERMINAL_COMPLETE_FOR_RESET, **detail, "input_count": runtime.input_count, "navigation_input_count": runtime.input_count}
         _write_result(session, result)
         return 0 if terminal == TERMINAL_COMPLETE_FOR_RESET else 3
@@ -2949,7 +3057,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if runtime.input_count > args.max_total_inputs:
             terminal = TERMINAL_BLOCKED
-            detail["reason"] = "aggregate runtime input count exceeded 16"
+            detail["reason"] = f"aggregate runtime input count exceeded {args.max_total_inputs}"
         result = {
             "status": terminal,
             "terminal": terminal,
@@ -3288,7 +3396,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if runtime.input_count > args.max_total_inputs:
             terminal = TERMINAL_BLOCKED
-            detail["reason"] = "aggregate runtime input count exceeded 16"
+            detail["reason"] = f"aggregate runtime input count exceeded {args.max_total_inputs}"
         result = {
             "status": terminal,
             "terminal": terminal,
@@ -3378,7 +3486,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if runtime.input_count > args.max_total_inputs:
             terminal = TERMINAL_BLOCKED
-            detail["reason"] = "aggregate runtime input count exceeded 16"
+            detail["reason"] = f"aggregate runtime input count exceeded {args.max_total_inputs}"
         result = {
             "status": terminal,
             "terminal": terminal,

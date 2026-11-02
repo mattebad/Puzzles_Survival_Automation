@@ -1,0 +1,19 @@
+{
+  "description": "Exact landmark geometry transcribed from retained atlas manifest for offline test stand-in; this fixture is not an accepted atlas or input authority.",
+  "source": ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/campaign-atlas-native-800x1280-v4/atlas.json",
+  "source_sha256": "11214e52a1004cb72c15df0dab5db2b11047b96c0b0f17f078d73208b67b5ac7",
+  "landmarks": {
+    "Chapter 15": [
+      1736,
+      845,
+      1796,
+      905
+    ],
+    "Chapter 24": [
+      1052,
+      1142,
+      1121,
+      1201
+    ]
+  }
+}

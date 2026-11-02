@@ -829,6 +829,53 @@ class DevelopmentSessionTests(unittest.TestCase):
         self.assertEqual(result["total_input_count"], 2)
         self.assertEqual(result["initial_frame_sha256"], hashlib.sha256(post).hexdigest())
 
+    def test_pnsctl_adapter_exception_retains_shared_recovery_actions(self):
+        for count in (1, 2):
+            with self.subTest(recovery_inputs=count), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source, post = b"startup-source", b"post-recovery-source"
+                def observation(payload):
+                    return ({"device_state": "device", "foreground_package": pnsctl.PACKAGE,
+                             "native_width": 800, "native_height": 1280,
+                             "frame_sha256": hashlib.sha256(payload).hexdigest()}, payload)
+                observations = iter((observation(source), observation(post)))
+                plan = StartupRecoveryPlan(
+                    "recovery_required", "FLOW", "SCARLETT_THREE_DAY_PACK",
+                    "shared_startup_surface_recovery", False, "known startup surface",
+                )
+                actions = [
+                    {"status": "recovered", "input_count": 1,
+                     "action_key": f"startup-action-{i}", "popup_identity": f"popup-{i}",
+                     "before_sha256": "a" * 64, "after_sha256": "b" * 64}
+                    for i in range(count)
+                ]
+                recovery = {"status": "recovered", "input_count": count,
+                            "recovery_input_count": count, "actions": actions}
+                def runner(_queue, lease, *, live=True):
+                    self.assertEqual(lease["route_max_inputs"], 3 - count)
+                    raise RuntimeError("adapter rejected input budget")
+                with patch.object(pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"), \
+                     patch.object(pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()), \
+                     patch.object(pnsctl, "BLUESTACKS_FLOW_IDS", ("FLOW",)), \
+                     patch.object(pnsctl, "_load_bluestacks_flow_registry", return_value={"FLOW": {"runner": "runner"}}), \
+                     patch.dict(pnsctl._BLUESTACKS_FLOW_RUNNERS, {"runner": runner}), \
+                     patch.object(pnsctl, "_development_runtime_observation", side_effect=observations), \
+                     patch.object(pnsctl, "_run_shared_startup_recovery", return_value=recovery), \
+                     patch("scripts.startup_recovery.classify_startup_frame", return_value=plan), \
+                     patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"):
+                    with self.assertRaisesRegex(RuntimeError, "adapter rejected input budget"):
+                        pnsctl.development_session_run_flow("FLOW", live=True, yes=True, max_inputs=3)
+                session = next((root / "sessions").iterdir())
+                summary = json.loads((session / "summary.json").read_text(encoding="utf-8"))
+                rows = [json.loads(line) for line in (session / "actions.jsonl").read_text(encoding="utf-8").splitlines()]
+                self.assertEqual(summary["status"], "failed")
+                self.assertEqual(summary["input_count"], count)
+                self.assertEqual(summary["action_count"], count)
+                self.assertTrue(summary["ownership_released"])
+                self.assertIn("adapter rejected input budget", summary["blocker"])
+                self.assertEqual([row["action_key"] for row in rows],
+                                 [action["action_key"] for action in actions])
+
     def test_pnsctl_full_budget_recovery_reports_retained_input_without_route(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -925,7 +972,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                 result["result"]["completion_scope"],
                 "startup_recovery_only",
             )
-            self.assertTrue(result["result"]["terminal_home_verified"])
+            self.assertFalse(result["result"]["terminal_home_verified"])
             summary = json.loads(
                 (Path(result["session_directory"]) / "summary.json").read_text(
                     encoding="utf-8"
@@ -933,9 +980,9 @@ class DevelopmentSessionTests(unittest.TestCase):
             )
             self.assertEqual(summary["status"], "completed")
             self.assertEqual(summary["input_count"], 1)
-            self.assertTrue(result["terminal_home_verified"])
-            self.assertTrue(summary["terminal_home_verified"])
-            self.assertEqual(summary["control_memory"]["terminal_home_verified"], True)
+            self.assertFalse(result["terminal_home_verified"])
+            self.assertFalse(summary["terminal_home_verified"])
+            self.assertFalse(summary["control_memory"]["terminal_home_verified"])
             self.assertTrue(summary["ownership_released"])
             self.assertNotIn("blocker", summary)
             self.assertEqual(

@@ -1,0 +1,29 @@
+{
+  "fixture": "home-ap5-stamina120-20261030.png",
+  "source": ".local-captures/automation-service-authorized/soak-20261030T083722299894Z-d5bcdc00/campaign/campaign-ap-1-15-9-20261030T090851766137Z/frames/0002-campaign-service-initial-normalization-settled.png",
+  "sha256": "32fa45a5822504b570e3dda775732366121dc9babac2871583c892e0bb6a1347",
+  "native_size": [
+    800,
+    1280
+  ],
+  "observed_lightning_ap": "5/120",
+  "observed_orange_vial": "120/120",
+  "ground_truth": "Visual inspection of the immutable native screenshot and independently icon-bound AP row; report-0006 OCR value9 is the defect, not ground truth.",
+  "baseline_hud_ap_fraction": [
+    9,
+    120
+  ],
+  "corrected_hud_ap_fraction": [
+    5,
+    120
+  ],
+  "baseline_number_box": [
+    27,
+    205,
+    122,
+    234
+  ],
+  "baseline_preprocessing": "grayscale, cubic resize5x, threshold150, psm7, digits/slash whitelist",
+  "corrected_preprocessing": "grayscale, cubic resize3x, threshold150, psm7, digits/slash whitelist",
+  "context": "Retained source copied byte-for-byte for offline recognition regression. No live acceptance or execution authority."
+}

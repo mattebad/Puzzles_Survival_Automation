@@ -9,11 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from .campaign_auto_battle import (
+    BattleResult,
     CampaignAction,
     CampaignAutoBattleConfig,
     CampaignRouteProgress,
     CampaignScreen,
     campaign_next_decision,
+    classify_battle_result,
     reconcile_observed_ap,
     record_verified_victory,
 )
@@ -168,6 +170,8 @@ class CampaignRuntimeController:
             else None
         )
         self._awaiting_victory_ap = False
+        self._latest_map_ap: int | None = None
+        self._stage_ap_read_waits = 0
         self._return_request_sent = False
         self._last_frame_hash: str | None = None
         self._last_dispatched_signature: tuple[object, ...] | None = None
@@ -308,6 +312,7 @@ class CampaignRuntimeController:
             return command
         if (
             decision.kind == "blocked"
+            and not decision.localization_recognized
             and self._remembered_atlas_pan_direction is not None
             and not self._atlas_lost_localization_continuation_sent
         ):
@@ -317,21 +322,36 @@ class CampaignRuntimeController:
             )
 
             self._atlas_lost_localization_continuation_sent = True
+            swipe = hud_safe_pan_gesture(
+                self._remembered_atlas_pan_direction,
+                travel_px=HUD_SAFE_PAN_HALF_TRAVEL_STRONG_PX,
+            ).as_swipe()
+            if (CampaignAction.NAVIGATE_CHAPTER, "swipe", None, None, swipe) == self._last_dispatched_signature:
+                swipe = hud_safe_pan_gesture(self._remembered_atlas_pan_direction).as_swipe()
             return self._checked(
                 CampaignRuntimeCommand(
                     CampaignAction.NAVIGATE_CHAPTER,
                     "swipe",
-                    "one bounded continuation of the last atlas-directed pan after localization support dropped",
-                    swipe=hud_safe_pan_gesture(
-                        self._remembered_atlas_pan_direction,
-                        travel_px=HUD_SAFE_PAN_HALF_TRAVEL_STRONG_PX,
-                    ).as_swipe(),
+                    "one bounded atlas-directed camera reframe after localization support dropped; current destination binding still required",
+                    swipe=swipe,
                 )
             )
         return self._terminal(CampaignAction.BLOCKED, decision.reason)
 
     def _initialize_or_reconcile(self, recognition: CampaignFrameRecognition) -> str | None:
         observation = recognition.observation
+        if observation.screen == CampaignScreen.HOME_BASE:
+            self._latest_map_ap = None
+        elif (observation.screen == CampaignScreen.CHAPTER_MAP and observation.recognized
+              and observation.overlay_state in {"none", "none_observed"}
+              and observation.ap_current is not None):
+            self._latest_map_ap = observation.ap_current
+        elif (not self.config.navigation_only and observation.screen == CampaignScreen.STAGE_DIALOG
+              and self._latest_map_ap is not None and observation.ap_current is not None
+              and observation.ap_current > self._latest_map_ap + 1):
+            # Stage selection and its immediate revalidation follow a fresh map.
+            # One tick may cross that transition; a large OCR jump is not regen.
+            return "stage AP conflicts with the immediately preceding map balance"
         if observation.screen == CampaignScreen.BATTLE and observation.auto_enabled:
             self._auto_confirmed_for_current_battle = True
         elif observation.screen not in {CampaignScreen.BATTLE, CampaignScreen.UNKNOWN}:
@@ -418,12 +438,41 @@ class CampaignRuntimeController:
             return self._terminal(CampaignAction.BLOCKED, "unchanged unknown frame")
         self._last_frame_hash = recognition.frame_sha256
 
+        observation = recognition.observation
+        if (not self.config.navigation_only
+                and observation.screen == CampaignScreen.STAGE_DIALOG and observation.recognized
+                and observation.stage_dialog == self.config.target_stage
+                and observation.overlay_state in {"none", "none_observed"}
+                and observation.ap_current is None and observation.ap_cost == self.config.ap_cost
+                and not observation.refill_visible
+                and recognition.diagnostics.get("stage_ap_icon_verified") is True
+                and "challenge" in str(recognition.diagnostics.get("stage_challenge_text", "")).split()):
+            self._stage_ap_read_waits += 1
+            if self._stage_ap_read_waits <= 2:
+                return CampaignRuntimeCommand(
+                    CampaignAction.WAIT_FOR_AP_READ, "wait", "wait for the stage AP row to settle",
+                    wait_seconds=0.5,
+                )
+            return self._terminal(CampaignAction.BLOCKED, "stage AP row remained unreadable")
+        self._stage_ap_read_waits = 0
         error = self._initialize_or_reconcile(recognition)
         if error:
             return self._terminal(CampaignAction.BLOCKED, error)
         assert self.progress is not None
 
         observation = recognition.observation
+        if (
+            self._awaiting_victory_ap
+            and observation.recognized
+            and observation.overlay_state in {"none", "none_observed"}
+            and classify_battle_result(observation) is BattleResult.VICTORY
+        ):
+            return CampaignRuntimeCommand(
+                CampaignAction.WAIT_FOR_BATTLE_RESULT,
+                "wait",
+                "Victory Continue was already sent; wait for the post-victory AP surface",
+                wait_seconds=self.config.battle_poll_seconds,
+            )
         if self._destination_verified and self.config.navigation_only:
             return self._terminal(
                 CampaignAction.NAVIGATION_ONLY_COMPLETE,

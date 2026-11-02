@@ -1508,7 +1508,9 @@ def _home_bag_target(
     return HOME_BAG_ICON_ROI
 
 
-def _bag_back_arrow_visual(frame: np.ndarray) -> NativeBox | None:
+def _bag_back_arrow_visual(
+    frame: np.ndarray, *, maximum_left: int = 35, search_right: int = 140
+) -> NativeBox | None:
     """Bind the top-left Bag back arrow from current-frame pixels only."""
 
     if not isinstance(frame, np.ndarray) or frame.shape[:2] != (NATIVE_HEIGHT, NATIVE_WIDTH):
@@ -1517,7 +1519,7 @@ def _bag_back_arrow_visual(frame: np.ndarray) -> NativeBox | None:
     # Native evidence shows one bright neutral arrow component inside the
     # top-left Bag chrome. Require its measured pixels rather than authorizing
     # the enclosing profile region or an OCR label.
-    crop = frame[0:90, 0:140]
+    crop = frame[0:90, 0:search_right]
     hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
     neutral = cv2.inRange(
         hsv,
@@ -1530,7 +1532,7 @@ def _bag_back_arrow_visual(frame: np.ndarray) -> NativeBox | None:
         x, y, width, height, area = (int(value) for value in stats[index])
         if (
             700 <= area <= 2000
-            and 10 <= x <= 35
+            and 10 <= x <= maximum_left
             and 5 <= y <= 25
             and 50 <= width <= 90
             and 30 <= height <= 55

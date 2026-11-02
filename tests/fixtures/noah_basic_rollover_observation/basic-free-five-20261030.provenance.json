@@ -1,0 +1,10 @@
+{
+  "capture_kind": "byte-for-byte retained native source copy",
+  "source": ".local-captures/automation-service-authorized/noah-fresh-availability-20261030/noahs-tavern-navigation-canary-20261030T041755654024Z/frames/0008-tavern-safe-exit-immediate-before.png",
+  "fixture": "basic-free-five-20261030.png",
+  "transport_sha256": "c0f3c1bcb4c7c0493e84c75bee22a1803fb602261c10a8d0fa0609846fcf225d",
+  "decoded_frame_sha256": "19a8242956b300b6fa363d8169909ee81cde7cfdba8b7fb37d6921521dc41c63",
+  "width": 800,
+  "height": 1280,
+  "observation": "Offline OCR independently recognizes selected Basic Recruit, Daily free attempts 5 and enabled zero-cost Free Recruit 1x; historical capture is not live execution authorization."
+}

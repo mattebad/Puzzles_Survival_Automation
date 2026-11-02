@@ -1,0 +1,10 @@
+    @unittest.skipUnless(capture.is_dir(), "ignored local BlueStacks replay is unavailable")
+    def test_production_controller_zero_transport_replay_clears_gate(self):
+        result = run_campaign_ap_production_zero_transport_replay()
+        self.assertEqual(result.status, PRODUCTION_REPLAY_VERIFIED)
+        self.assertEqual(result.transport_count, 0)
+        self.assertFalse(result.dispatch_authorized)
+        self.assertEqual(result.battle_outcome, "victory")
+        self.assertEqual((result.ap_before, result.ap_after, result.ap_cost), (120, 100, 20))
+        self.assertEqual(result.terminal_screen, CampaignScreen.HOME_BASE.value)
+

@@ -122,6 +122,11 @@ class ActionClass(str, Enum):
     NAVIGATION_ONLY = "navigation_only"
     ZERO_COST_CONSEQUENTIAL = "zero_cost_consequential"
     SPEND_OR_STRATEGIC = "spend_or_strategic"
+    # The bounded Campaign Story route is a separately governed owned-AP
+    # effect.  It is intentionally not an alias for SPEND_OR_STRATEGIC:
+    # generic spend remains disabled and this class is admitted only by the
+    # exact Campaign AP policy branch.
+    CAMPAIGN_AP_CHALLENGE = "campaign_ap_challenge"
     OWNED_ITEM_NON_IDEMPOTENT = "owned_item_non_idempotent"
 
 

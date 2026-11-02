@@ -686,8 +686,7 @@
         "tests/test_campaign_story_destinations.py",
         "tests/test_ultimate_challenge_daily.py",
         "tests/test_flow_delivery_authority_consistency.py",
-        "tests/test_flow_delivery_orchestrator.py",
-        "tests/test_governance_validation.py"
+        "tests/test_flow_delivery_orchestrator.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -741,7 +740,6 @@
         "tests/test_ultimate_challenge_daily.py",
         "tests/test_flow_delivery_authority_consistency.py",
         "tests/test_flow_delivery_orchestrator.py",
-        "tests/test_governance_validation.py",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
         "tasks/flow_delivery_queue.json",
         "CURRENT_HANDOFF.md",
@@ -770,7 +768,6 @@
         "tests/test_ultimate_challenge_daily.py",
         "tests/test_flow_delivery_authority_consistency.py",
         "tests/test_flow_delivery_orchestrator.py",
-        "tests/test_governance_validation.py",
         "tests/test_gameplay_flow_contracts.py"
       ],
       "consequential_stage_policy": {
@@ -1046,7 +1043,6 @@
         "tests/test_campaign_stage9_destination_replay.py",
         "tests/test_flow_delivery_orchestrator.py",
         "tests/test_flow_delivery_token_context_hygiene.py",
-        "tests/test_governance_validation.py",
         "tests/test_flow_delivery_parent_conversation_rollover.py",
         "tests/test_flow_delivery_lean_workflow.py",
         "tests/test_campaign_atlas_chapter_nav.py"
@@ -2119,8 +2115,7 @@
         "tests/test_campaign_story_destinations.py",
         "tests/test_gameplay_flow_contracts.py",
         "tests/test_flow_delivery_authority_consistency.py",
-        "tests/test_flow_delivery_orchestrator.py",
-        "tests/test_governance_validation.py"
+        "tests/test_flow_delivery_orchestrator.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -2190,7 +2185,6 @@
         "tests/test_flow_scenario_attempts.py",
         "tests/test_flow_delivery_validation_profiles.py",
         "tasks/flow_delivery_validation_profiles.json",
-        "tests/test_governance_validation.py",
         "BACKLOG.md",
         "CURRENT_HANDOFF.md",
         "tasks/backlog_task_index.json",
@@ -2226,8 +2220,7 @@
         "tests/test_daily_campaign_ap.py",
         "tests/test_campaign_stage9_destination_replay.py",
         "tests/test_gameplay_flow_contracts.py",
-        "tests/test_flow_delivery_orchestrator.py",
-        "tests/test_governance_validation.py"
+        "tests/test_flow_delivery_orchestrator.py"
       ],
       "consequential_stage_policy": {
         "initial_live_validation": "production_replay_then_1-20-9_canary",

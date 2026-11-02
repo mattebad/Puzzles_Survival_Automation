@@ -1,0 +1,26 @@
+{
+  "current-stage15.png": {
+    "source": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20261029T045123809625Z/runtime/1-15-9-20261029T045133578622Z/frames/frame-0010.png",
+    "sha256": "7b53201dfed3ec5c86dacc963b83e1a0b0e1f7e0017afd0ff763b51a5ddf6978",
+    "native_size": [
+      800,
+      1280
+    ]
+  },
+  "current-chapter15.png": {
+    "source": ".local-captures/development-sessions/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY-20261029T045123809625Z/runtime/1-15-9-20261029T045133578622Z/frames/frame-0007.png",
+    "sha256": "c13a89ca83680028ecb0a4a4affc2e862271df2831011c2b4329ac1991b7a3a5",
+    "native_size": [
+      800,
+      1280
+    ]
+  },
+  "retained-stage15.png": {
+    "source": ".local-captures/campaign-ap-live/1-15-9-20260724T220628066834Z/frames/frame-stage-dialog.png",
+    "sha256": "860856e2918e320cc9ca97db810e7808e40339ac819e657c9ee0268f4a5f0352",
+    "native_size": [
+      800,
+      1280
+    ]
+  }
+}

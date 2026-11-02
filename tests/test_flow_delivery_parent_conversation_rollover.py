@@ -90,7 +90,6 @@ class ParentConversationRolloverControllerTests(unittest.TestCase):
             policy,
             root / "lease.json",
             root / "writable-subagent.json",
-            root / "routing.jsonl",
             loop_policy,
             root / "parent-conversation-progress.json",
         )

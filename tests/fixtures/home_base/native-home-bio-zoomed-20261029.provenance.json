@@ -1,0 +1,8 @@
+{
+  "fixture": "native-home-bio-zoomed-20261029.png",
+  "source": ".local-captures/development-sessions/BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION-20261029T074525453609Z/runtime/bioenhancer-free-research-20261029T074536715462Z-20261029T074536806640Z/frames/0002-home-atlas-startup-source.png",
+  "source_sha256": "a288ede46d036f8a681c983d15edaff33ac721842c70ff7c414ecc7250c77c58",
+  "native_shape": [1280, 800, 3],
+  "capture_context": "Post-Scarlett recovery clean Home at the Bioenhancer Atlas startup source; Build/Research/Pit/Idle controls and standard footer visible.",
+  "retained_for": "bounded per-label grayscale PSM7 Home recognition regression"
+}

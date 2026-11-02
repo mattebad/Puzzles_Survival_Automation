@@ -49,6 +49,9 @@
 
 ## Changes and ownership
 
+- Use high or higher reasoning effort for every sub-agent. Set the effort
+  explicitly when creating agents; reuse only agents known to meet this minimum.
+  Do not use light, low, minimal, or unspecified effort for delegated work.
 - Make the smallest complete change for the active task. Keep edits narrow,
   cohesive, reviewable, and attributable; do not mix unrelated refactors or
   speculative abstractions.

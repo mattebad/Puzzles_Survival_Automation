@@ -1,6 +1,6 @@
 # Recovery operations backlog
 
-This file is the planning record for the operations slice. The tickets are inactive recovery work;
+This file is the planning record for the operations slice. Dated notes record existing local implementation alongside remaining recovery work;
 none authorizes a device, host, NAS, VM, ADB, gameplay, credential, token, LLM, MCP, or protected
 evidence operation. The direct Android-focused VM remains the selected hosted runtime. Any fallback
 is another runtime hosted inside Unraid (an Android VM first, then BlueStacks inside an Unraid Windows
@@ -64,16 +64,17 @@ These gates are ordered for future operators; they are not being executed by thi
 - Task ID: `REC-O01`
 - Type: Decision
 - Priority: P1
-- Status: READY
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-11-02: The reliability implementation and obsolete-governance cleanup are committed/published in draft PR16. The reviewed code head7d75b05 passed both COMPLETE Windows/Linux CI87 jobs. Detailed route-ticket status reconciliation is documentation follow-up; remaining broader backlog work is not represented as merged, deployed or enabled.
 - Objective: Publish and maintain the operations-owned mapping from every legacy heading in the audited backlog ranges to a deliberate retain/reuse/supersede/defer disposition, while coordinating (not reviewing, opening, pulling, merging, or creating) the separate repository-cleanup PR. Preserve every old status, accepted fact, and evidence pointer; treat a source rename/rebase checkpoint as coordination work, never as a blanket runtime blocker.
 - Dependencies: none
 - Related work: `GOV-DURABLE-STATE`, `EVIDENCE-RETENTION-HYGIENE`, `STAGE-11-FINAL-RECONCILIATION`, and `RUNTIME-RELIABILITY-MERGE-BOUNDARY` are retained as historical records; their statuses and evidence are not rewritten. The old delivery/queue headings are superseded only as runtime authority by `REC-O12`/`REC-O13`; the old Home/popup wrappers are superseded only by `REC-O14` after cutover.
-- Evidence: `docs/archive/backlog-legacy.md` audited at ranges `1-598`, `1099-1641`, `4299-5494`, `5640-6712`, and `7414-7717`; `governance-simplification-plan.md` phases 0–7 and gates 1–38; `docs/archive/runtime-reliability-convergence-status.md`; `docs/pns-operations-runbook.md`.
+- Evidence: `docs/archive/backlog-legacy.md` audited at ranges `1-598`, `1099-1641`, `4299-5494`, `5640-6712`, and `7414-7717`; `docs/archive/governance-simplification-plan.md` phases 0–7 and gates 1–38; `docs/archive/runtime-reliability-convergence-status.md`; `docs/pns-operations-runbook.md`.
 - Scope: `docs/backlog/operations.md`, `docs/archive/backlog-legacy.md` (read-only coordination), `CURRENT_HANDOFF.md` (read-only coordination), `docs/pns-operations-runbook.md`
 - Changes: Keep the reconciliation table below complete and one-row-per-heading for the audited ranges; classify old completed labels as historical rather than canonical readiness; link every new operational ticket by stable `REC-Oxx` ID; record cleanup-PR coordination and exact changed-path comparisons without fetching or reviewing that PR; record source rename/rebase checkpoints only when they affect an owned path; keep legacy work in Related work rather than Dependencies.
 - Non-goals: Do not edit `docs/archive/backlog-legacy.md`, `CURRENT_HANDOFF.md`, the contract guide, the index, or any peer backlog file; do not inspect or create a cleanup PR; do not alter evidence, statuses, source, branches, commits, or runtime state.
 - Acceptance: (1) Every heading in each audited range has exactly one table row below. (2) Each row names retain/reuse/supersede/defer and either a new owner or explicit historical-completed/no-new-work disposition. (3) No old evidence is deleted, relabeled as current canonical acceptance, or silently changed. (4) Cleanup coordination is explicitly separated from review/fetch/merge and from runtime authorization. (5) No unresolved legacy live authority is presented as a fallback.
-- Verification: Prescribed but not executed: a future parser check for one row per heading plus `PYTHONDONTWRITEBYTECODE=1 python -m unittest tests.test_governance_validation tests.test_flow_delivery_authority_consistency`; compare only named paths after the cleanup PR owner supplies its revision.
+- Verification: A future parser check for one row per heading plus `PYTHONDONTWRITEBYTECODE=1 python -m unittest tests.test_flow_delivery_validation_profiles tests.test_flow_delivery_authority_consistency`; compare only named paths after the cleanup PR owner supplies its revision. The retired governance test is no longer an executable target.
 - Native gate: none for this documentation decision; it grants no host/device access and no runtime authority.
 - Integration owner: Main owns shared `docs/archive/backlog-legacy.md` pointers, `CURRENT_HANDOFF.md`, contract/index updates, and the final union/duplicate check; this ticket owns only this document's operations record.
 - PR boundary: documentation-only record, branch `recovery/rec-o01`; no PR is created now.
@@ -189,7 +190,8 @@ These gates are ordered for future operators; they are not being executed by thi
 - Task ID: `REC-O07`
 - Type: Validation
 - Priority: P1
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Canonical status/health, bounded controllers and clean terminal ownership are implemented locally. Hosted monitoring, retention operations and complete recovery acceptance are not established.
 - Objective: Establish bounded local status, structured logs/evidence retention, health checks, and recovery decisions for disk-full/read-only storage, SQLite contention, ADB/adapter loss, stale frames, process failure, and scheduler lag without creating a telemetry framework or an authorization side channel.
 - Dependencies: `REC-F14`, `REC-F15`, `REC-O05`, `REC-O06`
 - Related work: `EVIDENCE-RETENTION-HYGIENE` is retained as historical archive-before-removal evidence; `GF-MVP-006-EXECUTABLE-AND-EVIDENCE-INTEGRITY` and `GF-MVP-007-NAMED-SCENARIO-FAILURE-ACCOUNTING` are reused for bounded evidence/accounting semantics, not runtime authority. `RT-012` is retained as a 4-hour observe-only health record; it does not satisfy 24-hour/72-hour/7-day/21-day gates.
@@ -262,7 +264,8 @@ Each record below is a segment subcheck within the single parent run; no segment
 - Task ID: `REC-O10`
 - Type: Validation
 - Priority: P0
-- Status: BLOCKED_NATIVE
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-11-02: All eight canonical BlueStacks route runners are implemented. Their development effect/Home evidence is recorded below and in the November2 report, with cfe449c fresh uninterrupted Gear/Chip/Module separate from3c222af cadence and earlier reset/cold receipts. Selected-Daily attribution, fresh Advanced maturity, other Campaign destinations and hosted/NAS scenarios remain separate; O10 is not globally closed.
 - Objective: Maintain a route-by-route supervised current-native acceptance ledger for every retained route, with each scenario independently dispatchable, its exact implementation dependency, named budget/approval, independent positive/negative/recovery criteria, and disabled authority until that named record passes. The common stage prerequisite is the exact `REC-O09-24H-NAVIGATION` validation record, not completion of the `REC-O09` umbrella; O10 is a ledger/validation epic, not one generic “validate all” checklist and not a global gate for D12.
 - Dependencies: `REC-O09-24H-NAVIGATION`, `REC-O02`, `REC-O03`, `REC-O05`, `REC-O07`, `REC-F13`, `REC-F15`
 - Related work: Every old DQ/RT/GF/Campaign heading in the reconciliation table is retained as historical or superseded only at its stated boundary. `M6-DQ-TRANSITION-CORPUS` remains a distinct evidence promotion; standalone legacy-native recruitment and Ruins successes are reusable evidence inputs but not current canonical acceptance. `REC-O08` supplies only named World records. `REC-D12` must depend on the exact qualifying O10 scenario IDs selected for its routine, never on umbrella O10 completion.
@@ -278,6 +281,29 @@ Each record below is a segment subcheck within the single parent run; no segment
 - Rollback: disable only the affected row and global gate as needed; preserve evidence and resource authority; never restore a second live route or legacy fallback.
 - Runtime authorization: none until the named scenario's approval, budget, prerequisites, and both SQLite gates are accepted.
 - Completion: the ledger contains accepted selected rows and explicit blocked/deferred rows; named rows may feed `REC-O09-72H-CLAIM-ONLY` after the 24-hour record, but O10 does not close the O09 umbrella, enable a route, or call omitted scope implemented.
+
+#### Implemented BlueStacks development portfolio, November 2
+
+All rows below have implemented canonical runners; controls remain OFF. These are
+scoped BlueStacks development receipts, not acceptance on the future hosted profile.
+The [November2 report](../bluestacks-route-status-20261102.md) owns exact source limits
+and immutable audit references. Later shared OCR timeouts are separately offline/
+affected-family proven; they do not relabel older whole-portfolio receipts.
+
+| Related ticket/scenario | Implemented route and development proof | Full-ticket work still separate |
+| --- | --- | --- |
+| REC-D05 / REC-O10-D05 | Ultimate: one Flee and verified Home; November2 ordinary run8inputs. | Daily Join1/1/+5 attribution; DefeatContinue live only if naturally encountered; hosted acceptance. |
+| REC-D06 / REC-O10-D06 | Bioenhancer: one Free Research, cooldown/result and Home. | Selected-Daily1/1 attribution and hosted acceptance. |
+| REC-D07 / REC-O10-D07A/D07B | Noah: canonical independent Basic/24h/48h maintenance. Five actual reset-crossing Basic recruits with result/cooldown/Home; earlier due Intermediate proof separate. | Fresh Advanced maturity and full selected-Daily/hosted acceptance. Later due does not mean exhausted. |
+| REC-D09 / REC-O10-D09 | Personal Might: one actual rank-one Praise, gold-to-used effect and Home. | Selected-Daily attribution and hosted acceptance; Nova remains distinct. |
+| REC-D10 / REC-O10-D10 | Supply: fresh Home/one Hold/free9to0/Home in4inputs. | Independently observed Daily progress/5of5 and hosted acceptance. |
+| REC-D11 / REC-O10-D11 | Nova: one free Praise per eligible pulse, persisted cooldown/attempts, seven new-day Praises with Home. | Hosted/profile acceptance and explicit enablement. |
+| REC-R03/R04/R05 / matching O10 rows | Gear/Chip/Module: cfe449c ONE Profile/Home,23inputs/3Confirms; each EXP100to110 and stock minus1. Fresh continuous proof, no retained composition. | Hosted/profile acceptance and explicit enablement; no separate per-category Home run is pending. |
+| REC-R10/R11 / REC-O10-R10/R11 | Campaign1-15-9: affordable AP drain/Home then completion+300seconds; actual3before/5after00UTC entries and separately scoped two-hour cadence. | Independent1-20-9/2-2-9 acceptance and hosted/profile acceptance. |
+
+The existing scenario table below retains the broader selected-Daily and hosted
+requirements. Its disabled deployment posture does not mean these BlueStacks
+runners are unimplemented, nor does a development receipt close the broader row.
 
 #### REC-O10 route scenario ledger
 
@@ -362,7 +388,7 @@ are not an umbrella enable switch. The route's SQLite row remains disabled other
 - Objective: Remove receipts, Git/content fingerprints, queue activation, delegated leases, conductor runtime state, and other development-delivery authority from the live path only after every retained caller has an exclusive canonical cutover or an explicit disabled retirement; leave no live shim or legacy fallback.
 - Dependencies: `REC-F13`, `REC-F14`, `REC-F15`, `REC-F16`, `REC-D03`, `REC-D05`, `REC-D07`, `REC-D08`, `REC-D09`, `REC-D10`, `REC-D11`, `REC-R02`, `REC-R03`, `REC-R04`, `REC-R05`, `REC-R06`, `REC-R07`, `REC-R08`, `REC-R09`, `REC-R10`, `REC-R11`, `REC-R12`, `REC-R13`, `REC-R14`, `REC-R15`, `REC-R16`, `REC-R17`, `REC-R18`
 - Related work: `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-ORCHESTRATOR`, `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-HARDENING`, `AUTONOMOUS-BLUESTACKS-FLOW-DELIVERY-IDE-NATIVE-RECEIPT-CLOSURE`, `FLOW-DELIVERY-PRETOOLUSE-TASK-ENFORCEMENT`, `FLOW-DELIVERY-PARENT-CONVERSATION-ROLLOVER`, and `FLOW-DELIVERY-TOKEN-AND-CONTEXT-HYGIENE` are retained as historical development workflow records and superseded as runtime authority. `REC-O11` is intentionally not a dependency; retirement follows code cutovers/explicit route retirements, not final soak closure.
-- Evidence: governance-simplification-plan.md §§3, 6, 7, 23, 24; `scripts/flow_delivery_control.py`; `scripts/pnsctl.py`; `tasks/flow_delivery_queue.json`; `tasks/flow_delivery_disabled_production_registry.json`; `docs/chat-execution-ownership-policy.md`.
+- Evidence: docs/archive/governance-simplification-plan.md §§3, 6, 7, 23, 24; `scripts/flow_delivery_control.py`; `scripts/pnsctl.py`; `tasks/flow_delivery_queue.json`; `tasks/flow_delivery_disabled_production_registry.json`; `docs/chat-execution-ownership-policy.md`.
 - Scope: `scripts/flow_delivery_control.py`, `scripts/pnsctl.py`, `tasks/flow_delivery_queue.json`, `tasks/flow_delivery_disabled_production_registry.json`, `automation_service/service.py`
 - Changes: Inventory every live caller and route; disable global service gate; drain/reconcile active runs; remove or hard-disable receipt/queue/Git/conductor/flow-delivery leases and wrappers; route all remaining input through the SQLite gates, fenced service lease, canonical session, and action executor; keep retained adapters replay/fixture-only and structurally zero-input; record explicit retirements for omitted flows.
 - Non-goals: No deletion of historical docs/evidence, no migration of old queue state into production, no fallback to old scheduler/receipt/lease authority, no removal of ResourceEffectAuthority before R01 parity, no O11 dependency or circular closure.
@@ -379,11 +405,12 @@ are not an umbrella enable switch. The route's SQLite row remains disabled other
 - Task ID: `REC-O13`
 - Type: Retirement
 - Priority: P1
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: Canonical service admission uses static code facts and SQLite gates rather than legacy JSON registration. Other legacy controllers/registries/ledgers still exist; repository-wide retirement is unfinished.
 - Objective: Retire duplicate static registries, legacy scheduler/CLI branches, matrix/queue runtime reads, and route-local ledgers after route parity and caller migration, while preserving historical documents as non-runtime records.
 - Dependencies: `REC-F13`, `REC-F14`, `REC-F15`, `REC-F16`, `REC-D01`, `REC-D02`, `REC-D03`, `REC-D04`, `REC-D07`, `REC-D08`, `REC-D09`, `REC-D10`, `REC-D11`, `REC-R01`, `REC-R02`, `REC-R03`, `REC-R04`, `REC-R05`, `REC-R06`, `REC-R07`, `REC-R08`, `REC-R09`, `REC-R10`, `REC-R11`, `REC-R12`, `REC-R13`, `REC-R14`, `REC-R15`, `REC-R16`, `REC-R17`, `REC-R18`
 - Related work: `CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION`, `FLOW-PRODUCT-POLICY-RECONCILIATION-20260723`, all old M5/M6/GNB/DQ matrix headings, `GF-MVP-001-AUTHORITY-BASELINE`, and `GF-MVP-006-EXECUTABLE-AND-EVIDENCE-INTEGRITY` are retained as historical reconciliation/evidence. `REC-O11` is not a dependency. `tasks/daily_quest_execution_matrix.json` and delivery registries may remain readable project-management records but cannot remain runtime authority.
-- Evidence: governance-simplification-plan.md §§6–7, 23; `tasks/flow_delivery_queue.json`; `tasks/daily_quest_execution_matrix.json`; `tasks/flow_delivery_disabled_production_registry.json`; `tasks/flow_delivery_bluestacks_registry.json`; `automation_service/registry.py`; `automation_service/scheduler.py`.
+- Evidence: docs/archive/governance-simplification-plan.md §§6–7, 23; `tasks/flow_delivery_queue.json`; `tasks/daily_quest_execution_matrix.json`; `tasks/flow_delivery_disabled_production_registry.json`; `tasks/flow_delivery_bluestacks_registry.json`; `automation_service/registry.py`; `automation_service/scheduler.py`.
 - Scope: `tasks/flow_delivery_queue.json`, `tasks/daily_quest_execution_matrix.json`, `tasks/flow_delivery_disabled_production_registry.json`, `tasks/flow_delivery_bluestacks_registry.json`, `scripts/pnsctl.py`
 - Changes: Search every import/read/write of duplicate registries, matrix, queue, route-local ledgers, and legacy CLI scheduler branches; migrate each live caller to static `FlowSpec` plus SQLite state or explicitly retire it; remove runtime reads and enable decisions; preserve files/docs for history with clear non-authority boundary; retain ResourceEffectAuthority behind canonical actions until R01 parity.
 - Non-goals: No historical rewrite/deletion, no automatic migration of conflicting mutable statuses, no generic registry compatibility shim, no O11 dependency, no route enablement during deletion, and no use of evidence files as a replacement authority.
@@ -400,11 +427,12 @@ are not an umbrella enable switch. The route's SQLite row remains disabled other
 - Task ID: `REC-O14`
 - Type: Retirement
 - Priority: P1
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-10-30: The accepted eight-route portfolio reuses shared Home/Back/startup/popup components with route-owned verification. Remaining legacy wrappers and unused callers still need a bounded cutover audit.
 - Objective: Consolidate duplicate Home/Back/popup/perception/fresh-frame/input-accounting wrappers behind the canonical router, overlay manager, session, and executor after every caller migrates; keep compact evidence truthful and handle any colon/ADS filename migration as a separate user-protected change.
 - Dependencies: `REC-F01`, `REC-F02`, `REC-F03`, `REC-F09`, `REC-F11`, `REC-F13`, `REC-F14`, `REC-F15`, `REC-F17`, `REC-D03`, `REC-D08`, `REC-D09`, `REC-D10`, `REC-D11`, `REC-R10`, `REC-R12`
 - Related work: `VIP-GET-PTS-POPUP-DISMISSAL`, `TOOLS-HOME-BASE-ATLAS-BLUESTACKS`, `HOME-ATLAS-LOCALIZATION-RESTORATION`, `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION`, `HOME-ATLAS-VERIFIED-ROUTE-SEAM-CLOSURE`, `SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION`, `SUPPLY-DEPOT-RADIAL-TARGET-BINDING-CLOSURE`, `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE`, `VISION-SEMANTIC-OCR-CROP-PIPELINE`, `BLUESTACKS-HOME-SAFE-EXIT-BINDING`, `HOME-NAVIGATION-OBSERVABILITY`, `HOME-NAVIGATION-BOUNDED-SESSION-CALIBRATION`, and `RUNTIME-INPUT-CAPABILITY-FIREWALL` are retained as historical or reused after caller migration. `REC-O11` is not a dependency; this retirement follows route cutovers/explicit retirements.
-- Evidence: governance-simplification-plan.md §§6–7, 23–24; `scripts/bluestacks_popup_recognition.py`; `scripts/startup_recovery.py`; `scripts/world_map_navigation_bluestacks.py`; `automation_service/screens.py`; `automation_service/overlays.py`; `docs/runtime-input-safety-policy.md`.
+- Evidence: docs/archive/governance-simplification-plan.md §§6–7, 23–24; `scripts/bluestacks_popup_recognition.py`; `scripts/startup_recovery.py`; `scripts/world_map_navigation_bluestacks.py`; `automation_service/screens.py`; `automation_service/overlays.py`; `docs/runtime-input-safety-policy.md`.
 - Scope: `scripts/bluestacks_popup_recognition.py`, `scripts/startup_recovery.py`, `scripts/world_map_navigation_bluestacks.py`, `automation_service/screens.py`, `automation_service/overlays.py`
 - Changes: Inventory all callers; route VIP/Get Pts, exit dialogs, known modals, Home recognition, Back semantics, bounded settle/reclassification, fresh-frame identity, target binding, input accounting, successor checks, and compact run evidence through canonical owners; retain route semantics and explicit per-screen Back allowlists; remove duplicate transport/recognition/ledger wrappers only after zero live callers remain. Any evidence filename colon/Windows ADS migration is a separate narrowly authorized user-protected task, never bundled into this retirement.
 - Non-goals: No blind Back/close, generic popup watcher, full-frame-hash authority, protected evidence rewrite/rename, filename migration, source fixture deletion, broad perception rewrite, O11 dependency, or live fallback to route-local wrappers.

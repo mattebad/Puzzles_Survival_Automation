@@ -12,8 +12,11 @@ authorizes planning, scheduling, runtime, transport, or evidence changes.
 Paths inside byte-preserved records retain their original repository-root context; they were not
 rewritten during archival. Use the current backlog and architecture links for active instructions.
 
-The current runtime direction is documented by [`../../governance-simplification-plan.md`](../../governance-simplification-plan.md)
+The current runtime architecture is documented by [the service guide](../automation-service.md)
 and the canonical implementation under [`../../automation_service/`](../../automation_service/).
+The [original simplification proposal](governance-simplification-plan.md) is preserved byte-for-byte
+from its pre-archival working copy. Its counts, phases and verification list describe that proposal;
+they are not current task state or additional runtime gates.
 
 ## Archived model-specific records
 
@@ -30,3 +33,10 @@ model, operator, review, runtime action, or retry:
 References inside these files retain their original path context to preserve historical meaning.
 Use current `AGENTS.md`, the current flow contracts, and the supported runtime controls for active
 work.
+
+## Retired governance and route-status records
+
+- [`retired-governance/`](retired-governance/) preserves the removed staged validator and its tests as non-executable text.
+- [`campaign-route-status-before-cleanup-20261030.md`](campaign-route-status-before-cleanup-20261030.md) preserves the former Campaign run-status chronology.
+
+These records do not impose current handoff fields, CI gates, route authorization, or operator state.

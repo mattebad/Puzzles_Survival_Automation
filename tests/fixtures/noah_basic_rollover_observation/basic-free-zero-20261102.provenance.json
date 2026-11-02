@@ -1,0 +1,10 @@
+{
+  "capture_kind": "byte-for-byte retained native source copy",
+  "source": ".local-captures/automation-service-authorized/soak-20261102T005914068282Z-d4a08d63/recruitment/noahs-tavern-unified-recruitment-20261102T010018283206Z/frames/0010-step-002-source.png",
+  "fixture": "basic-free-zero-20261102.png",
+  "transport_sha256": "40573947784ab55655a496b42e34b7604e29f7ae692e9d8b48b29c5bc5132299",
+  "decoded_frame_sha256": "2100fc079252cca9c77c9377ef768720c3e5a21eff53f57a221c16d172dabbab",
+  "width": 800,
+  "height": 1280,
+  "observation": "Basic Daily free attempts 0 contradicts enabled purple Free Recruit 1x. The free control governs eligibility; no historical capture authorizes execution."
+}

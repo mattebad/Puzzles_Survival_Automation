@@ -1,0 +1,8 @@
+{
+  "fixture": "native-home-control-ocr-failure-20261029.png",
+  "source": ".local-captures/development-sessions/SUPPLY-DEPOT-BLUESTACKS-INTEGRATION-20261029T040159709179Z/runtime/supply-depot-20261029T040202165377Z-20261029T040202259246Z/frames/0001-supply-depot-source.png",
+  "source_sha256": "2bdf640418043e39b999bc283525ae095d8cb7ca66db6699a0d61e96c84adaf7",
+  "native_shape": [1280, 800, 3],
+  "capture_context": "plain clean zoomed Home; broad x0:120 y260:535 PSM11 omitted stable quick-control labels",
+  "retained_for": "bounded per-label grayscale PSM7 Home recognition regression"
+}

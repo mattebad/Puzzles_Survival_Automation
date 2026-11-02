@@ -137,7 +137,7 @@ class NoahTavernRecruitRuntimeController:
 
     def _remember_tier(self, observation: NoahTavernObservation, tier: RecruitTier) -> None:
         item = observation.tier(tier)
-        if item.attempts_remaining is None and not item.cooldown_active:
+        if item.attempts_remaining is None and not item.cooldown_active and not noah_recruit_authorizeable(observation, tier):
             return
         self.progress.inspected_tiers.add(tier)
         prior = self.progress.tiers.get(tier)
@@ -244,7 +244,7 @@ class NoahTavernRecruitRuntimeController:
                 return NoahCommand(NoahAction.WAIT_COOLDOWN, scheduler_ready=True, next_eligible_timestamp=min(cooldowns), reason="all_shared_policy_tiers_deferred")
             return NoahCommand(NoahAction.RETURN_HOME, reason="no_shared_policy_eligible_free_tier")
         current = self.progress.tiers.get(obs.selected_tier)
-        if current and current.attempts_remaining and not current.cooldown_active:
+        if current and not current.cooldown_active and noah_recruit_authorizeable(obs, obs.selected_tier):
             if recognition.frame_sha256 in self.progress.seen_frame_hashes:
                 return self._stop("duplicate_frame_dispatch_guard")
             action_key = f"{obs.selected_tier.name}:{recognition.frame_sha256}:{current.attempts_remaining}:{current.next_eligible_timestamp}"

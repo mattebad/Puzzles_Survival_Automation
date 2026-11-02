@@ -1,0 +1,8 @@
+{
+  "fixture": "native-bio-research-cooldown.png",
+  "source": ".local-captures/development-sessions/BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION-20261029T070206318913Z/runtime/bioenhancer-free-research-20261029T070209283797Z-20261029T070209390816Z/frames/0013-bioenhancer-return-home-source.png",
+  "transport_sha256": "a8bbbf38dd1634d053d19b7368099f87069b1db771ecdc50e78e7fd460557dd4",
+  "width": 800,
+  "height": 1280,
+  "capture_kind": "byte-for-byte native source copy"
+}
