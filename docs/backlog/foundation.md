@@ -259,7 +259,7 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Type: Story
 - Priority: P0
 - Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Shared startup, Home Atlas, Back and known VIP recovery are integrated for the accepted routes. Remaining legacy-wrapper consolidation belongs to REC-O14.
+- Reconciled 2026-11-02: Shared Home/Atlas/Back and known Scarlett/VIP recovery are implemented for the eight canonical BlueStacks runners, with route-owned recapture/successor checks. Broader legacy-wrapper consolidation stays REC-O14; later shared OCR timeouts have offline and affected-family/Home proof, not a new full-portfolio live pass.
 - Objective: Compose one shared typed Home/Atlas/startup/Back/overlay boundary with exact VIP/Get Pts, exit-dialog, Scarlett, Home-ready, and terminal Home ownership; remove route-specific duplicate recognizers and do not infer a successor from transport. This addresses AF03, AF05, and AF11.
 - Dependencies: `REC-F01`, `REC-F02`, `REC-F03`
 - Related work: `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE` — reuse same-capture typed facts; `HOME-ATLAS-VERIFIED-ROUTE-INTEGRATION` — retain verified Home route seams; `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` — retain binder-selected safe-exit semantics; `VIP-GET-PTS-POPUP-DISMISSAL` — retain its inactive/missing-evidence disposition.
@@ -281,7 +281,7 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Type: Story
 - Priority: P1
 - Status: IMPLEMENTED_LOCAL
-- Reconciled 2026-10-30: Fresh Atlas localization, mapped-anchor binding and bounded Campaign camera placement have focused native-frame checks and live Home entry/return proof. Local implementation remains uncommitted.
+- Reconciled 2026-11-02: Fresh Atlas localization and mapped-anchor binding are implemented and published in PR16. Recorded Home entry/return and Campaign1-15-9 evidence are scoped to their actual sources; the obsolete uncommitted label is removed. Historical task dispositions grant no runtime authority.
 - Objective: Repair and validate the existing Home Atlas localizer’s stable semantic/Atlas-target ROI behavior offline, preserving the existing `HOME-ATLAS-LOCALIZATION-RESTORATION` outcome and explicitly refusing to turn this replacement ticket into a Campaign/AP retry or authorization.
 - Dependencies: `REC-F01`, `REC-F02`
 - Related work: `HOME-ATLAS-LOCALIZATION-RESTORATION` — retain its inactive, evidence-gated outcome and reuse its exact native bounds/negative controls; this ticket supersedes only the need for a new planning record, not its historical outcome or no-Campaign-retry rule; `TOOLS-HOME-ATLAS-DIRECT-PAN-PLANNER` — reuse planner/localizer contracts; `HOME-ATLAS-RECOVERY-AWARE-VIEWPORT-PLANNING` — reuse non-authorizing recovery planning.
@@ -324,7 +324,7 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Type: Story
 - Priority: P0
 - Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: A continuous7200-second canonical run completed21 Campaign passes with correct due admission and shutdown. Native reset/cold-start follow-up is active; full planned fairness/crash matrix is not closed.
+- Reconciled 2026-11-02: Canonical serial scheduling, completion+300 Campaign cadence and disabled cleanup are implemented. The3c222af7200.333-second run completed29reports/allHome; actual consuming UTC crossing and guarded cold tests are recorded separately. These bounded BlueStacks receipts do not close the full fairness/crash/hosted matrix.
 - Objective: Make the service loop perform real bounded UTC pulses—lease, clock check, atomic due selection/claim, fenced execution, heartbeat, terminalization, retry/backoff, fairness, and shutdown—rather than health-only sleep or zero-transport selector completion. This addresses AF10.
 - Dependencies: `REC-F05`, `REC-F07`, `REC-F09`, `REC-F13`
 - Related work: `HOME-NAVIGATION-OBSERVABILITY` — reuse deterministic timing/reporting shape; `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION-FINAL-READINESS` — retain review boundary; `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` — remain blocked until readiness and cutovers.
@@ -368,7 +368,7 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Type: Validation
 - Priority: P0
 - Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Focused startup/reset/fencing checks and bounded native cadence evidence exist. Remaining current-source native crossing/cold-start tests are active; this is not the complete hosted acceptance package.
+- Reconciled 2026-11-02: The bounded BlueStacks portfolio, actual consuming reset and guarded cold/recovery evidence are retained with exact source limits. Fresh cfe449c uninterrupted enhancement is accepted separately. No remaining reset/cold/family test is active from the completed goal; the broader hosted concurrency/crash/fairness package remains open.
 - Objective: Deliver one offline acceptance package proving process concurrency, fenced ownership, crash recovery, reset/timer/retry behavior, clock rollback, fairness, contention, and restart budget invariants for the canonical runtime without assuming resources or native success. It includes the AF06 resource-parity regression package.
 - Dependencies: `REC-F14`, `REC-F15`
 - Related work: `RUNTIME-RELIABILITY-MERGE-BOUNDARY` — retain its historical reliability evidence as non-native context; `RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION` — retain blocked status; `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE` — reuse identity fixtures.
@@ -389,7 +389,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F17`
 - Type: Story
 - Priority: P1
-- Status: WAITING_DEPENDENCIES
+- Status: PARTIAL_LOCAL
+- Reconciled 2026-11-02: Enhancement and its shared Home/popup/Nova readers now use bounded Tesseract calls; public Enhancement recognizers share a fifteen-second budget and runtime checkpoints. The timed TSV path avoids an unbounded version probe. This implemented bridge is not full capture-bound OCR-worker migration or process-tree containment; other direct callers and hosted adoption remain open. See `scripts/bounded_tesseract.py` and the November2 report.
 - Objective: After F02, migrate every remaining direct `pytesseract`/OCR callsite to the one bounded, capture-identity-bound ROI engine without creating a second pipeline, broad full-frame fallback, or route-specific timeout authority. This addresses AF12.
 - Dependencies: `REC-F02`
 - Related work: `VISION-SEMANTIC-OCR-CROP-PIPELINE` — reuse its single identity-bound crop contract; `SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT` — retain its no-supported-caller evidence and do not infer that all legacy OCR callers are retired; `RUNTIME-IMMUTABLE-FRAME-PERCEPTION-BUNDLE` — reuse immutable same-capture observations.

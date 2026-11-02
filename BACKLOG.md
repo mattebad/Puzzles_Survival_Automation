@@ -1,5 +1,39 @@
 # Canonical execution backlog
 
+## Implemented BlueStacks route portfolio
+
+Reconciled November2 against the code and retained native evidence. All eight
+routes below are **implemented** in the canonical service on the MR16 branch.
+`IMPLEMENTED_LOCAL` in the detailed records means implemented repository/PR code,
+including committed/pushed code; it does not mean uncommitted, merged or enabled.
+
+| Route | Implementation | Proven BlueStacks behavior | Detailed backlog |
+| --- | --- | --- | --- |
+| Campaign AP | IMPLEMENTED_LOCAL | Configured1-15-9 drains affordable AP, returns Home, next check whole-completion+300seconds; actual consuming reset crossing proved. | [REC-R10/R11](docs/backlog/resources.md#rec-r11--campaign-ap-auto-battle-at-exact-configured-destinations) |
+| Ultimate | IMPLEMENTED_LOCAL | One Flee and verified Home; DefeatContinue remains offline-proven. | [REC-D05](docs/backlog/daily.md#rec-d05--migrate-ultimate-daily-join-to-the-zero-resource-flee-route) |
+| Nova | IMPLEMENTED_LOCAL | One free Praise per due pulse; seven new-day Praises, cooldown/attempt gating and Home. | [REC-D11](docs/backlog/daily.md#rec-d11--canonicalize-nova-to-one-free-praise-pulse) |
+| Noah's Tavern | IMPLEMENTED_LOCAL | Independent Basic/Intermediate/Advanced maintenance; five actual Basic free recruits across reset with result/cooldown/Home. | [REC-D07](docs/backlog/daily.md#rec-d07--unify-daily-recruitment-and-three-tier-maintenance) |
+| Supply Depot | IMPLEMENTED_LOCAL | Fresh Home to Depot, one free Hold exhausts9to0, then Home. | [REC-D10](docs/backlog/daily.md#rec-d10--exhaust-only-free-supply-depot-collections-and-reconcile-daily-progress) |
+| Gear/Chip/Module enhancement | IMPLEMENTED_LOCAL | All three once in ONE Profile visit/Home; fresh23inputs/3Confirms, all EXP100to110 and stock minus1. | [REC-R03 through R05](docs/backlog/resources.md#rec-r03--gear-one-star-single-material-enhancement) |
+| Bioenhancer | IMPLEMENTED_LOCAL | One Free Research, positive cooldown/result and Home. | [REC-D06](docs/backlog/daily.md#rec-d06--migrate-bioenhancer-to-one-free-research-action) |
+| Personal Might | IMPLEMENTED_LOCAL | One rank-one Praise, positive used-control/effect and Home, distinct from Nova. | [REC-D09](docs/backlog/daily.md#rec-d09--implement-personal-might-praise-separately-from-nova) |
+
+Native acceptance is scoped to the actual recorded sources in the
+[November2 report](docs/bluestacks-route-status-20261102.md): fresh Enhancement at
+`cfe449c`, full two-hour cadence at `3c222af`, and separately recorded reset/cold/
+other-route receipts. Later shared OCR timeouts have their own offline and affected-
+family/Home proof; this table does not assert a new whole-head rerun of every route.
+The reviewed code head `7d75b05` passed both complete CI87 jobs. Any later publication
+head still requires its own CI; old green is not new-head validation.
+
+Several broader tickets remain `PARTIAL_LOCAL` because their selected-Daily point/
+completion attribution, other Campaign destinations, fresh Advanced recruitment
+acceptance or hosted/NAS scope is unfinished. Each now names **Route implementation**
+and **Remaining ticket scope** separately. Gear/Chip/Module and standalone Nova
+implementation records are `IMPLEMENTED_LOCAL`. The [O10 development ledger](docs/backlog/operations.md#implemented-bluestacks-development-portfolio-november-2)
+records this portfolio separately from future hosted acceptance. All nine controls
+stay OFF; none of these records authorizes a live run or closes the broader backlog.
+
 ## Astra pre-merge corrections, November 2
 
 Implemented and offline-proven: bound Enhancement OCR calls and whole observations, atomically replace
@@ -130,7 +164,11 @@ by the canonical controller. PR16 remains draft/unmerged; no permanent schedulin
 This portfolio does not close the74 broader records below. `CURRENT_HANDOFF.md`
 records volatile operator state; historical receipts never grant live authority.
 
-These updates do not turn the historical October 31 rows below into fresh runs.
+## Historical acceptance, October31 and earlier
+
+These dated rows preserve what remained at that time; they are not the current
+implementation backlog. The current portfolio and November2 report above supersede
+their pending reset/family labels without rewriting the historical receipts.
 
 | Route | Retained acceptance | October31 reset status / remaining work |
 | --- | --- | --- |
@@ -175,7 +213,7 @@ Campaign crossing above supplies that later live evidence; synthetic tests do no
 ## Reconciled recovery records and remaining work
 
 The 74 stable ticket IDs have been reviewed against the local kernel and retained route evidence.
-Thirty-one overlapping records now state `IMPLEMENTED_LOCAL` or `PARTIAL_LOCAL`, with a dated
+Overlapping records state `IMPLEMENTED_LOCAL` or `PARTIAL_LOCAL`, with a dated
 explanation of what exists and what their broader acceptance still requires. The remaining records
 keep their explicit future dependency, policy or native gates. No ticket was marked fully closed,
 merged, deployed or enabled merely because a standalone route passed.
@@ -184,7 +222,8 @@ Generic due scheduling is implemented. Aggregate Daily claims, milestone chests,
 point attribution, Alliance Help, training, gathering, shops, broader World work and hosted
 acceptance remain separate work. The code snapshot is committed locally on
 `codex/bluestacks-route-reliability`; [draft PR #16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16)
-is published. Remaining acceptance, CI completion and review precede any merge.
+is published. For the agreed BlueStacks scope, actual latest-head CI and formal review precede merge;
+this does not require closing unrelated Daily/World/hosted tickets.
 These Markdown records are not a runtime queue or authority.
 
 Read the [recovery execution guide](docs/backlog/execution-guide.md) before assigning work, then read
@@ -201,7 +240,10 @@ final production is NAS/Unraid-hosted. No live readiness is claimed for these fu
 controls, `ResourceEffectAuthority`, leases/fencing, manual-only states, and live gates remain
 unchanged and authoritative where they already apply.
 
-## Integrated Atlas and Recruitment status
+## Historical Atlas and Recruitment integration baseline
+
+This subsection describes the earlier branch baseline. Current implementation and
+acceptance are recorded in the portfolio and detailed November2 ticket notes above.
 
 The `refactor/lean-bot-backlog` implementation adds Atlas-defined Home building entry and the
 executor-bound Windows/BlueStacks Recruitment slice. Atlas Tavern entry, repeated free-recruit

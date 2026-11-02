@@ -48,8 +48,11 @@
 - Task ID: `REC-R03`
 - Type: Story
 - Priority: P2
-- Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Gear used1 material, stock9561→9560 and EXP20→30. Same-Profile Gear/Chip/Module proof is composite interrupted/resumed; fresh uninterrupted family validation is active at the next natural reset.
+- Status: IMPLEMENTED_LOCAL
+- Reconciled 2026-11-02: Implementation and BlueStacks acceptance are recorded separately from the full ticket objective.
+- Route implementation: IMPLEMENTED_LOCAL. Equipped Gear/one-star/quantity-one execution is implemented through EnhancementRunner and the shared family controller. Fresh cfe449c proof: stock9553 to9552, EXP100 to110, one Gear Confirm within uninterrupted Gear/Chip/Module, ONE Profile visit/Home (23inputs/3Confirms total).
+- Remaining ticket scope: No further BlueStacks Gear implementation or separate Gear/Home run is required. Sibling Chip/Module actions run once in the same family; Daily attribution and hosted enablement remain separate.
+- Acceptance references: [November2 report](../bluestacks-route-status-20261102.md) and [current route portfolio](../../BACKLOG.md#implemented-bluestacks-route-portfolio). Runtime/code source scopes in those records apply; these notes never authorize execution.
 - Objective: Route one selected equipped Gear `Enhance` action through the shared family contract using exactly one positively identified one-star material, preserving exact target, cost, material, successor, and effect accounting.
 - Dependencies: `REC-F09`, `REC-F10`, `REC-F11`, `REC-R01`
 - Related work: `DQ-FLOW-ENHANCE-GEAR` (retain exact Gear/one-star/quantity-one semantics and offline coverage; its Passed label is not canonical readiness); `ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION` (reuse the family runner and historical per-category reservations; retain the documented family mutex).
@@ -59,7 +62,7 @@
 - Non-goals: No Chip/Module dispatch, Auto Select, higher-star material, Promote, Modify, Replace, Unequip, Inherit, premium currency, or Claim ownership.
 - Acceptance: 1. Gear is the only accepted family identity. 2. Quantity is exactly one and material star is exactly one; unknown cost or resource blocks. 3. Source/target ROIs and successor are same-category and current-frame bound. 4. A changed level/material/result is required after one dispatch; unknown effect is terminal and never automatically retried. 5. Selected-Daily reconciliation, if applicable, remains external to the enhancement route.
 - Verification: Existing `python -m unittest tests.test_enhancement tests.test_daily_enhancement tests.test_flow_delivery_enhancement` is prescribed after implementation; no command is run here.
-- Native gate: `REC-O10` must later assign a current Gear scenario with native before/after, exact one-star material, one dispatch, effect delta, and Home; retained local/family sessions are not current acceptance.
+- Native gate: BlueStacks development effect/Home acceptance is satisfied by `.local-orchestrator/logs/astra-corrections-fresh-continuous-independent-audit-20261102.json` at cfe449c. The named hosted/profile scenario and explicit enablement remain separate; do not schedule another consuming run from this record.
 - Integration owner: Update `automation_service/registry.py:CANONICAL_FLOW_REGISTRY`, `automation_service/handlers.py`, `scripts/flow_delivery_enhancement_bluestacks.py:register`, and the Gear row in `tasks/gameplay_flow_contracts/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION.json` in one disabled-gate cutover; retain one shared family owner.
 - PR boundary: `recovery/rec-r03` — Gear-only enhancement variant.
 - Rollback: Disable Gear flow and preserve family reservations/effect authority; never enable the old Gear dispatch alongside canonical actions.
@@ -70,8 +73,11 @@
 - Task ID: `REC-R04`
 - Type: Story
 - Priority: P2
-- Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Chip used1 material, stock11534→11533 and EXP20→30, within the same Profile family visit before Home. Fresh uninterrupted family validation is active; no repeat of accepted current-reset work.
+- Status: IMPLEMENTED_LOCAL
+- Reconciled 2026-11-02: Implementation and BlueStacks acceptance are recorded separately from the full ticket objective.
+- Route implementation: IMPLEMENTED_LOCAL. Equipped Chip/one-star/quantity-one execution is implemented through EnhancementRunner and the shared family controller. Fresh cfe449c proof: stock11526 to11525, EXP100 to110, one Chip Confirm within uninterrupted Gear/Chip/Module, ONE Profile visit/Home. The real dim selected-fraction failure and its strict corroboration/negative fixtures are retained.
+- Remaining ticket scope: No further BlueStacks Chip implementation or separate Chip/Home run is required. Gear is never repeated to resume pending siblings; Daily attribution and hosted enablement remain separate.
+- Acceptance references: [November2 report](../bluestacks-route-status-20261102.md) and [current route portfolio](../../BACKLOG.md#implemented-bluestacks-route-portfolio). Runtime/code source scopes in those records apply; these notes never authorize execution.
 - Objective: Route one selected equipped Chip `Enhance` action through the shared family contract using exactly one one-star material and no unapproved resource or premium behavior.
 - Dependencies: `REC-F09`, `REC-F10`, `REC-F11`, `REC-R01`
 - Related work: `DQ-FLOW-ENHANCE-CHIP` (retain Chip-specific identity and focused tests; historical Passed is not canonical readiness); `ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION` (reuse shared family implementation and validator, with a serial variant merge).
@@ -81,7 +87,7 @@
 - Non-goals: No Gear/Module dispatch, Auto Select, higher-star material, Promote/Modify/Replace/Unequip/Inherit, premium, purchase, or Daily Claim.
 - Acceptance: 1. Only Chip identity and its current-frame target can authorize. 2. Exactly one one-star material is selected; unknown resource or cost blocks. 3. No same-frame duplicate or cross-category target is accepted. 4. Positive Chip successor/effect is required; `UNKNOWN` is retained for reconciliation and never retried automatically. 5. Existing selected-Daily owner remains separate.
 - Verification: Existing `python -m unittest tests.test_enhancement tests.test_enhance_chip tests.test_daily_enhancement_chip tests.test_flow_delivery_enhancement` is prescribed after implementation; no command is run here.
-- Native gate: `REC-O10` must later assign a current Chip scenario and independently verify exact target, material, effect, and Home; historical family evidence is reusable context only.
+- Native gate: BlueStacks development effect/Home acceptance is satisfied by `.local-orchestrator/logs/astra-corrections-fresh-continuous-independent-audit-20261102.json` at cfe449c. The named hosted/profile scenario and explicit enablement remain separate; do not schedule another consuming run from this record.
 - Integration owner: Update the same canonical family registry/handler and `scripts/flow_delivery_enhancement_bluestacks.py:register` with a Chip-specific row in the shared contract, atomically and while the global gate is disabled.
 - PR boundary: `recovery/rec-r04` — Chip-only enhancement variant.
 - Rollback: Disable Chip row and preserve R01/family authority; no legacy concurrent dispatch.
@@ -92,8 +98,11 @@
 - Task ID: `REC-R05`
 - Type: Story
 - Priority: P2
-- Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Module used1 material, stock8298→8297 and EXP20→30, within the same Profile family visit before Home. Fresh uninterrupted family validation is active; this is local, uncommitted route acceptance.
+- Status: IMPLEMENTED_LOCAL
+- Reconciled 2026-11-02: Implementation and BlueStacks acceptance are recorded separately from the full ticket objective.
+- Route implementation: IMPLEMENTED_LOCAL. Equipped Module/one-star/quantity-one execution is implemented through EnhancementRunner and the shared family controller. Fresh cfe449c proof: stock8290 to8289, EXP100 to110, one Module Confirm within uninterrupted Gear/Chip/Module, ONE Profile visit/Home. Atomic progress, all three category effects and terminal Home passed independent replay.
+- Remaining ticket scope: No further BlueStacks Module implementation or separate Module/Home run is required. Historical composite/failure receipts stay distinct; Daily attribution and hosted enablement remain separate.
+- Acceptance references: [November2 report](../bluestacks-route-status-20261102.md) and [current route portfolio](../../BACKLOG.md#implemented-bluestacks-route-portfolio). Runtime/code source scopes in those records apply; these notes never authorize execution.
 - Objective: Route one selected equipped Module `Enhance` action through the shared family contract using exactly one one-star material, with Module-specific target and effect reconciliation.
 - Dependencies: `REC-F09`, `REC-F10`, `REC-F11`, `REC-R01`
 - Related work: `DQ-FLOW-ENHANCE-MODULE` (retain Module identity and focused tests; historical Passed is not canonical readiness); `ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION` (reuse family runner and serial category reservations).
@@ -103,7 +112,7 @@
 - Non-goals: No Gear/Chip dispatch, Auto Select, higher-star material, Promote/Modify/Replace/Unequip/Inherit, premium, purchase, or Claim.
 - Acceptance: 1. Module identity must be positively current-frame bound. 2. Exactly one one-star material and known non-premium cost are required. 3. One dispatch maximum per occurrence; duplicate target or stale frame is refused. 4. Positive Module effect/successor is required; `UNKNOWN` never auto-retries. 5. Daily progress/Claim remains owned by its separate canonical route.
 - Verification: Existing `python -m unittest tests.test_enhancement tests.test_enhance_module tests.test_daily_enhancement_module tests.test_flow_delivery_enhancement` is prescribed after implementation; no command is run here.
-- Native gate: `REC-O10` must later assign a current Module scenario with exact material/effect and Home proof; old family labels and captures are not canonical acceptance.
+- Native gate: BlueStacks development effect/Home acceptance is satisfied by `.local-orchestrator/logs/astra-corrections-fresh-continuous-independent-audit-20261102.json` at cfe449c. The named hosted/profile scenario and explicit enablement remain separate; do not schedule another consuming run from this record.
 - Integration owner: Update the canonical family registry/handler, `scripts/flow_delivery_enhancement_bluestacks.py:register`, and Module contract row atomically under the disabled gate; do not leave an old family runner live.
 - PR boundary: `recovery/rec-r05` — Module-only enhancement variant.
 - Rollback: Disable Module row and retain R01/family authority; never restore a parallel legacy dispatcher.
@@ -199,7 +208,10 @@
 - Type: Story
 - Priority: P1
 - Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Current1-15-9 entry uses fresh Atlas binding and verified destination controls. Historical navigation records for other approved destinations remain scoped to their original source; do not infer current consuming acceptance.
+- Reconciled 2026-11-02: Implementation and BlueStacks acceptance are recorded separately from the full ticket objective.
+- Route implementation: IMPLEMENTED_LOCAL. The canonical configured Campaign1-15-9 navigation is implemented, with fresh Atlas binding, route-owned controls and safe return. Its navigation is also exercised by the accepted consuming drains.
+- Remaining ticket scope: Independent native acceptance of1-20-9 and2-2-9, and broader navigation-only/hosted cutover scope, are not closed by1-15-9.
+- Acceptance references: [November2 report](../bluestacks-route-status-20261102.md) and [current route portfolio](../../BACKLOG.md#implemented-bluestacks-route-portfolio). Runtime/code source scopes in those records apply; these notes never authorize execution.
 - Objective: Provide one exclusive, zero-AP Home Atlas → Campaign → Story destination navigation route that recognizes exactly `1-20-9`, `1-15-9`, and `2-2-9`, then returns Home without Challenge, Auto Battle, AP, or any resource effect.
 - Dependencies: `REC-F09`, `REC-F10`, `REC-F11`, `REC-F12`
 - Related work: `CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY` (reuse atlas/localization and zero-transport replay); `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` (retain all-three destination ground truth and navigation semantics, not old Completed status as canonical readiness); `AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE` (historical navigation-only boundary); `CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION` (retain Campaign/Ultimate separation).
@@ -221,7 +233,10 @@
 - Type: Story
 - Priority: P1
 - Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Current1-15-9 drains affordable AP and waits300 seconds after completion. Full7200-second native cadence passed with2wins/28AP; other configured consuming destinations and full native UTC crossing remain separately scoped.
+- Reconciled 2026-11-02: Implementation and BlueStacks acceptance are recorded separately from the full ticket objective.
+- Route implementation: IMPLEMENTED_LOCAL. CampaignRunner/CampaignExecutionHandler and the affordable-AP drain are implemented for configured1-15-9, followed by Home and whole-drain completion+300seconds. Actual continuous-client reset proof entered3stages before November2 00UTC and5after (8wins/112AP/Home). The3c222af two-hour cadence separately proves2wins/28AP plus16zero-input checks.
+- Remaining ticket scope: Other configured consuming destinations and hosted acceptance remain separate. Later shared OCR time limits are not a new whole-head midnight/two-hour rerun; no AP refill or identical ambiguous-result retry is authorized.
+- Acceptance references: [November2 report](../bluestacks-route-status-20261102.md) and [current route portfolio](../../BACKLOG.md#implemented-bluestacks-route-portfolio). Runtime/code source scopes in those records apply; these notes never authorize execution.
 - Objective: Execute only configured Story Auto Battle runs at `1-15-9` (14 AP), `1-20-9` (16 AP), or `2-2-9` (20 AP), capped at 120 AP with natural regeneration of exactly 1 AP per 360 seconds, and return Home without refill or mode substitution.
 - Dependencies: `REC-F09`, `REC-F10`, `REC-F11`, `REC-F12`, `REC-R01`, `REC-R10`
 - Related work: `DQ-FLOW-CAMPAIGN-AP` (retain exact AP arithmetic and exclusions); `CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY` (retain production-controller shape and historical AP/Home evidence, not old completion as canonical readiness); `DQ-FLOW-CAMPAIGN-AUTO-BATTLE` (reuse dormant controller/replay); `CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION` (destination dependency only, not execution authorization).

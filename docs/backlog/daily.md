@@ -93,7 +93,10 @@ Reconciled recovery records. `IMPLEMENTED_LOCAL` describes existing local code; 
 - Type: Story
 - Priority: P1
 - Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Ultimate daily entry/Flee and terminal Home are live-accepted, including same-reset no-op behavior. Selected-Daily attribution and complete legacy-caller retirement are not implied.
+- Reconciled 2026-11-02: Implementation and BlueStacks acceptance are recorded separately from the full ticket objective.
+- Route implementation: IMPLEMENTED_LOCAL. UltimateRunner/UltimateExecutionHandler and the canonical one-Flee/Home route are implemented and published in PR16. Ordinary November2 acceptance is eight inputs/one Flee/Home; DefeatContinue remains offline-proven, not naturally encountered.
+- Remaining ticket scope: Selected-Daily Join 1/1 and +5 observation/attribution, plus the broader ticket cutover and hosted acceptance, remain separate.
+- Acceptance references: [November2 report](../bluestacks-route-status-20261102.md) and [current route portfolio](../../BACKLOG.md#implemented-bluestacks-route-portfolio). Runtime/code source scopes in those records apply; these notes never authorize execution.
 - Objective: Make the selected-Daily Ultimate `Join` objective a distinct zero-resource route that starts directly from canonical Home, performs the exact challenge path through Flee, returns to canonical Home, and reconciles Daily progress from `0/1` to `1/1` with the visible `+5`. Current-reset Daily facts and completion are observed through the canonical provider in separately provenance-bound frames; a Daily frame need not share the Flee source/target frame or precede the direct Home route. Main `Clear`, Campaign AP, and any projected challenge result are not substitutes.
 - Dependencies: `REC-D01`, `REC-D02`, `REC-F09`, `REC-F10`, `REC-F11`, `REC-F12`
 - Related work: `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION` — retain exact historical route/action facts but supersede its legacy LIVE_VALIDATED readiness label for current canonical acceptance; `ULTIMATE-CHALLENGE-NATIVE-EVIDENCE-AND-CANARY` — retain as the native scenario/budget gate and do not repeat its non-repeatable Flee action; `CAMPAIGN-AND-ULTIMATE-CHALLENGE-FLOW-SCOPE-CORRECTION` — retain the separation from Campaign AP `REC-R11`.
@@ -115,7 +118,10 @@ Reconciled recovery records. `IMPLEMENTED_LOCAL` describes existing local code; 
 - Type: Story
 - Priority: P1
 - Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: One actual free Bioenhancer Research and terminal Home are accepted with preserved cooldown. The pre-native reset edge is offline-proven; native reset follow-up is active. No selected-Daily point credit is inferred.
+- Reconciled 2026-11-02: Implementation and BlueStacks acceptance are recorded separately from the full ticket objective.
+- Route implementation: IMPLEMENTED_LOCAL. BioenhancerRunner/BioenhancerExecutionHandler, Atlas entry, one Free Research, cooldown verification and Home are implemented in PR16. November2 ordinary free Research/Home is accepted at its recorded source; the older pre-native reset deferral keeps its own scope.
+- Remaining ticket scope: Selected-Daily 1/1 observation/attribution and hosted acceptance are not proved by standalone Research.
+- Acceptance references: [November2 report](../bluestacks-route-status-20261102.md) and [current route portfolio](../../BACKLOG.md#implemented-bluestacks-route-portfolio). Runtime/code source scopes in those records apply; these notes never authorize execution.
 - Objective: Migrate the Bioenhancer Daily route to exactly one current zero-cost `Free Research 1x` action from canonical Home, prove its cooldown/result and selected-Daily `0/1`→`1/1` progression, and return Home. Current-reset Daily facts and completion are observed through the canonical provider in separate provenance-bound observations from the fresh native Research source/target; do not force selected-Daily entry before direct Home. Paid Research, `10x`, and the old Bliss evidence must never authorize current BlueStacks dispatch.
 - Dependencies: `REC-D01`, `REC-D02`, `REC-F09`, `REC-F10`, `REC-F11`, `REC-F12`
 - Related work: `DQ-FLOW-BIOENHANCER` — retain its implementation and historical same-day action facts but supersede its old current-acceptance label for the BlueStacks gate; `BIOENHANCER-GNBOTS-PARITY` — retain the finding that GnBots has no Bioenhancer routine; `BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION` — retain its flow contract/development artifact, with unresolved/current evidence state explicitly carried forward.
@@ -137,7 +143,10 @@ Reconciled recovery records. `IMPLEMENTED_LOCAL` describes existing local code; 
 - Type: Story
 - Priority: P1
 - Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Canonical Noah maintenance collected all5 Basic frees and1 naturally due Intermediate free with Home; independent Basic/24h/48h gates are preserved. Fresh Advanced maturity and selected-Daily attribution remain separate.
+- Reconciled 2026-11-02: Implementation and BlueStacks acceptance are recorded separately from the full ticket objective.
+- Route implementation: IMPLEMENTED_LOCAL. RecruitmentRunner and one canonical three-tier dispatcher are implemented. Five actual Basic free recruits across the real reset each proved result/cooldown/Home; enabled Free Recruit 1x takes precedence over a stale zero counter. Basic cap and independent Intermediate24h/Advanced48h deadlines persist. Earlier naturally due Intermediate/Home proof is retained separately.
+- Remaining ticket scope: Fresh Advanced maturity/native acceptance and selected-Daily integration remain evidence_required; a later due timer is not proof of exhaustion or permission for another attempt.
+- Acceptance references: [November2 report](../bluestacks-route-status-20261102.md) and [current route portfolio](../../BACKLOG.md#implemented-bluestacks-route-portfolio). Runtime/code source scopes in those records apply; these notes never authorize execution.
 - Objective: Use one recruitment controller/dispatcher for both the selected-Daily Basic objective (five free singles, one per exact 600-second window) and independent Basic/Intermediate/Advanced free maintenance (Basic 600 seconds, Intermediate 86400 seconds, Advanced 172800 seconds). Persist each tier independently, release while waiting, return Home after every pass, and reject paid, premium, item-backed, 10x, or ambiguous recruitment.
 - Dependencies: `REC-D01`, `REC-D02`, `REC-F09`, `REC-F10`, `REC-F11`, `REC-F12`
 - Related work: `DQ-FLOW-RECRUITMENT` — retain its historical five-window Basic and independent-tier facts, but require current canonical replay under this ticket; `RECRUITMENT-BLUESTACKS-INTEGRATION` — reuse its Daily ownership contract; `RECRUITMENT-FREE-ATTEMPT-MAINTENANCE` — reuse its durable three-tier maintenance policy and native evidence while not treating legacy Completed as current acceptance; `NOAHS-TAVERN-HOME-ATLAS-MIGRATION` — retain canonical Tavern navigation and safe return.
@@ -180,7 +189,10 @@ Reconciled recovery records. `IMPLEMENTED_LOCAL` describes existing local code; 
 - Type: Story
 - Priority: P1
 - Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Separate Personal Might Praise runner and one current-reset Praise/Home are live-accepted. Nova remains a separate owner; broader Daily and legacy-caller closure is not inferred.
+- Reconciled 2026-11-02: Implementation and BlueStacks acceptance are recorded separately from the full ticket objective.
+- Route implementation: IMPLEMENTED_LOCAL. PersonalMightRunner/PersonalMightExecutionHandler are implemented separately from Nova. November2 one actual Praise/Home is accepted: six inputs, rank-one gold-to-used successor and committed effect independently checked.
+- Remaining ticket scope: Selected-Daily attribution and broader caller/hosted closure remain separate from standalone Praise.
+- Acceptance references: [November2 report](../bluestacks-route-status-20261102.md) and [current route portfolio](../../BACKLOG.md#implemented-bluestacks-route-portfolio). Runtime/code source scopes in those records apply; these notes never authorize execution.
 - Objective: Implement one free native Praise for the exact Personal Might rank-one target, reconcile `personal_might_praise` only from its positive successor, and return Home without conflating the action with Nova Praise or dispatching Claim.
 - Dependencies: `REC-D01`, `REC-D02`, `REC-F09`, `REC-F10`, `REC-F11`, `REC-F12`
 - Related work: `DQ-FLOW-PERSONAL-MIGHT-PRAISE` — retain its exact target/zero-cost/offline contract but supersede attribution-only execution ownership with this native route; `PERSONAL-MIGHT-PRAISE-BLISS-PILOT` — retain historical Bliss evidence as non-current proof; `DQ-CLAIM-DAILY` — retain aggregate Claim separation; `GF-NOVA-PRAISE-SUPERVISED-20260722` — retain as Nova-only historical evidence and explicitly not a Personal Might substitute.
@@ -202,7 +214,10 @@ Reconciled recovery records. `IMPLEMENTED_LOCAL` describes existing local code; 
 - Type: Story
 - Priority: P1
 - Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Supply free exhaustion9→0 through1Hold/Home and a zero-attempt round trip are accepted. Selected-Daily progress reconciliation and complete caller cutover remain evidence_required.
+- Reconciled 2026-11-02: Implementation and BlueStacks acceptance are recorded separately from the full ticket objective.
+- Route implementation: IMPLEMENTED_LOCAL. SupplyRunner/SupplyExecutionHandler and bounded free-hold exhaustion are implemented. Fresh Home to Depot to one Hold, attempts9 to0, then Home passed in four inputs with the repaired caption/circle binding at its recorded source.
+- Remaining ticket scope: Independent selected-Daily before/after progress and observed5/5 completion remain evidence_required; free exhaustion never substitutes for Daily credit.
+- Acceptance references: [November2 report](../bluestacks-route-status-20261102.md) and [current route portfolio](../../BACKLOG.md#implemented-bluestacks-route-portfolio). Runtime/code source scopes in those records apply; these notes never authorize execution.
 - Objective: Run the existing bounded Supply Depot Free-hold route against a positively recognized current Free Food control, exhausting exactly the observed free-attempt count in the supported `1..10` range before any paid/unknown action, while independently observing selected-Daily `supply_depot` progress before and after within the current reset. Claim Daily completion only when the actual observed successor is `5/5`; if positive free exhaustion leaves progress partial or advances it without reaching `5/5`, record successful bounded maintenance and defer Daily completion rather than forcing paid/unknown input. Collection count/effect and Daily completion are separate observations; neither may be projected from the other.
 - Dependencies: `REC-D01`, `REC-D02`, `REC-F09`, `REC-F10`, `REC-F11`, `REC-F12`, `REC-R01`
 - Related work: `DQ-FLOW-SUPPLY-DEPOT` — retain its selected-Daily/navigation and free-target contract, superseding evidence-only status with this current all-free sequence; `SUPPLY-DEPOT-VERIFIED-ROUTE-SEAM-CLOSURE` — retain canonical Home Atlas/target-binding seam facts; `SUPPLY-DEPOT-BLUESTACKS-INTEGRATION` — retain route artifacts but require current Free-disappearance and independent Daily reconciliation; `TOOLS-HOME-BASE-ATLAS-BLUESTACKS` — reuse canonical Home/Base navigation; `SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT` — retain completed legacy retirement and do not revive its blind/fixed collection path.
@@ -223,8 +238,11 @@ Reconciled recovery records. `IMPLEMENTED_LOCAL` describes existing local code; 
 - Task ID: `REC-D11`
 - Type: Story
 - Priority: P1
-- Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Nova one-free-praise cadence is implemented; all7 current-reset praises with Home and exhaustion gating are accepted. Complete legacy-caller/merged-code closure remains separate.
+- Status: IMPLEMENTED_LOCAL
+- Reconciled 2026-11-02: Implementation and BlueStacks acceptance are recorded separately from the full ticket objective.
+- Route implementation: IMPLEMENTED_LOCAL. NovaRunner/NovaExecutionHandler, independent one-free-Praise cadence and persisted attempt/cooldown state are implemented in PR16. Seven actual new-day Praises with Home and exhaustion gating are accepted at their recorded sources.
+- Remaining ticket scope: No remaining code work for the agreed BlueStacks standalone route; future hosted/profile acceptance and explicit enablement remain separate. Nova is not Personal Might or a Daily Claim owner.
+- Acceptance references: [November2 report](../bluestacks-route-status-20261102.md) and [current route portfolio](../../BACKLOG.md#implemented-bluestacks-route-portfolio). Runtime/code source scopes in those records apply; these notes never authorize execution.
 - Objective: Canonicalize Nova as one free Praise pulse from Home through Research Lab, preserving its attempt decrement/cooldown successor (fixed 300-second cooldown), bounded return Home, and no Personal Might/Daily conflation.
 - Dependencies: `REC-F09`, `REC-F10`, `REC-F11`, `REC-F12`
 - Related work: `NOVA-PRAISE-HOME-ATLAS-MIGRATION` — retain canonical Home Atlas navigation facts and historical readiness gaps; `NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE` — retain one-free-pulse contract and prior native records, but require the current REC-O10 scenario; `GF-NOVA-PRAISE-SUPERVISED-20260722` — retain historical supervised Nova result only; `PERSONAL-MIGHT-PRAISE-BLISS-PILOT` — retain as a negative identity boundary, never a Nova implementation.

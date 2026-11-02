@@ -65,7 +65,7 @@ These gates are ordered for future operators; they are not being executed by thi
 - Type: Decision
 - Priority: P1
 - Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Stale Campaign chronology and retired staged-governance tooling are being archived, with active callers removed and this backlog reconciled. No commit, push or cleanup PR has been authorized or created.
+- Reconciled 2026-11-02: The reliability implementation and obsolete-governance cleanup are committed/published in draft PR16. The reviewed code head7d75b05 passed both COMPLETE Windows/Linux CI87 jobs. Detailed route-ticket status reconciliation is documentation follow-up; remaining broader backlog work is not represented as merged, deployed or enabled.
 - Objective: Publish and maintain the operations-owned mapping from every legacy heading in the audited backlog ranges to a deliberate retain/reuse/supersede/defer disposition, while coordinating (not reviewing, opening, pulling, merging, or creating) the separate repository-cleanup PR. Preserve every old status, accepted fact, and evidence pointer; treat a source rename/rebase checkpoint as coordination work, never as a blanket runtime blocker.
 - Dependencies: none
 - Related work: `GOV-DURABLE-STATE`, `EVIDENCE-RETENTION-HYGIENE`, `STAGE-11-FINAL-RECONCILIATION`, and `RUNTIME-RELIABILITY-MERGE-BOUNDARY` are retained as historical records; their statuses and evidence are not rewritten. The old delivery/queue headings are superseded only as runtime authority by `REC-O12`/`REC-O13`; the old Home/popup wrappers are superseded only by `REC-O14` after cutover.
@@ -265,7 +265,7 @@ Each record below is a segment subcheck within the single parent run; no segment
 - Type: Validation
 - Priority: P0
 - Status: PARTIAL_LOCAL
-- Reconciled 2026-10-30: Eight local BlueStacks routes have scoped effect/Home evidence in BACKLOG.md and retained audits. Enhancement proof is currently composite; Advanced maturity and broader Daily/World scenarios remain evidence_required. This is not NAS or global portfolio closure.
+- Reconciled 2026-11-02: All eight canonical BlueStacks route runners are implemented. Their development effect/Home evidence is recorded below and in the November2 report, with cfe449c fresh uninterrupted Gear/Chip/Module separate from3c222af cadence and earlier reset/cold receipts. Selected-Daily attribution, fresh Advanced maturity, other Campaign destinations and hosted/NAS scenarios remain separate; O10 is not globally closed.
 - Objective: Maintain a route-by-route supervised current-native acceptance ledger for every retained route, with each scenario independently dispatchable, its exact implementation dependency, named budget/approval, independent positive/negative/recovery criteria, and disabled authority until that named record passes. The common stage prerequisite is the exact `REC-O09-24H-NAVIGATION` validation record, not completion of the `REC-O09` umbrella; O10 is a ledger/validation epic, not one generic “validate all” checklist and not a global gate for D12.
 - Dependencies: `REC-O09-24H-NAVIGATION`, `REC-O02`, `REC-O03`, `REC-O05`, `REC-O07`, `REC-F13`, `REC-F15`
 - Related work: Every old DQ/RT/GF/Campaign heading in the reconciliation table is retained as historical or superseded only at its stated boundary. `M6-DQ-TRANSITION-CORPUS` remains a distinct evidence promotion; standalone legacy-native recruitment and Ruins successes are reusable evidence inputs but not current canonical acceptance. `REC-O08` supplies only named World records. `REC-D12` must depend on the exact qualifying O10 scenario IDs selected for its routine, never on umbrella O10 completion.
@@ -281,6 +281,29 @@ Each record below is a segment subcheck within the single parent run; no segment
 - Rollback: disable only the affected row and global gate as needed; preserve evidence and resource authority; never restore a second live route or legacy fallback.
 - Runtime authorization: none until the named scenario's approval, budget, prerequisites, and both SQLite gates are accepted.
 - Completion: the ledger contains accepted selected rows and explicit blocked/deferred rows; named rows may feed `REC-O09-72H-CLAIM-ONLY` after the 24-hour record, but O10 does not close the O09 umbrella, enable a route, or call omitted scope implemented.
+
+#### Implemented BlueStacks development portfolio, November 2
+
+All rows below have implemented canonical runners; controls remain OFF. These are
+scoped BlueStacks development receipts, not acceptance on the future hosted profile.
+The [November2 report](../bluestacks-route-status-20261102.md) owns exact source limits
+and immutable audit references. Later shared OCR timeouts are separately offline/
+affected-family proven; they do not relabel older whole-portfolio receipts.
+
+| Related ticket/scenario | Implemented route and development proof | Full-ticket work still separate |
+| --- | --- | --- |
+| REC-D05 / REC-O10-D05 | Ultimate: one Flee and verified Home; November2 ordinary run8inputs. | Daily Join1/1/+5 attribution; DefeatContinue live only if naturally encountered; hosted acceptance. |
+| REC-D06 / REC-O10-D06 | Bioenhancer: one Free Research, cooldown/result and Home. | Selected-Daily1/1 attribution and hosted acceptance. |
+| REC-D07 / REC-O10-D07A/D07B | Noah: canonical independent Basic/24h/48h maintenance. Five actual reset-crossing Basic recruits with result/cooldown/Home; earlier due Intermediate proof separate. | Fresh Advanced maturity and full selected-Daily/hosted acceptance. Later due does not mean exhausted. |
+| REC-D09 / REC-O10-D09 | Personal Might: one actual rank-one Praise, gold-to-used effect and Home. | Selected-Daily attribution and hosted acceptance; Nova remains distinct. |
+| REC-D10 / REC-O10-D10 | Supply: fresh Home/one Hold/free9to0/Home in4inputs. | Independently observed Daily progress/5of5 and hosted acceptance. |
+| REC-D11 / REC-O10-D11 | Nova: one free Praise per eligible pulse, persisted cooldown/attempts, seven new-day Praises with Home. | Hosted/profile acceptance and explicit enablement. |
+| REC-R03/R04/R05 / matching O10 rows | Gear/Chip/Module: cfe449c ONE Profile/Home,23inputs/3Confirms; each EXP100to110 and stock minus1. Fresh continuous proof, no retained composition. | Hosted/profile acceptance and explicit enablement; no separate per-category Home run is pending. |
+| REC-R10/R11 / REC-O10-R10/R11 | Campaign1-15-9: affordable AP drain/Home then completion+300seconds; actual3before/5after00UTC entries and separately scoped two-hour cadence. | Independent1-20-9/2-2-9 acceptance and hosted/profile acceptance. |
+
+The existing scenario table below retains the broader selected-Daily and hosted
+requirements. Its disabled deployment posture does not mean these BlueStacks
+runners are unimplemented, nor does a development receipt close the broader row.
 
 #### REC-O10 route scenario ledger
 
