@@ -1,9 +1,50 @@
 # Canonical execution backlog
 
+## Astra pre-merge corrections, November 2
+
+Implemented and offline-proven: bound Enhancement OCR calls and whole observations, atomically replace
+mutable family progress, explicitly run the five omitted route/recovery modules in
+Windows/Linux CI, and reconcile the service guide. Fault tests exercise a real hung
+child process, timeout accounting before/after confirmation, cancellation, failed
+flush/replace and process termination before publication.
+
+Live accepted at `cfe449c`: fresh continuous Gear/Chip/Module in one Profile visit,
+23 inputs/three Confirms/Home. Each EXP100 to110; stocks9553 to9552,11526 to11525,
+8290 to8289. Independent audit checks453 unchanged sources,34 prior family files,
+117 historical evidence files,87 PNGs/83 capture links, every due/ordinal and the
+other eight flow rows. Audit:
+`.local-orchestrator/logs/astra-corrections-fresh-continuous-independent-audit-20261102.json`.
+
+The first attempt stopped13inputs/one Gear Confirm at Chip1/11527 OCR confidence0.
+Original evidence remains. A bounded luminance-preserving corroboration requires
+three independent modes to agree with the original complete line; any competing
+valid fraction still denies. Existing negatives and the actual failure fixture pass.
+Independent Gear proof, two-navigation/zero-Confirm Home and exact inspection
+preceded SAME-request15input/two-Confirm Chip/Module completion, explicitly composite.
+That request is consumed and separate from the fresh continuous proof.
+
+Local checks:104 route/recovery,113 shared Home/VIP/Nova,81 native/service cases,
+then21 final context/fault and6 Module-context cases plus the new conflict negatives.
+Counts overlap; full discovery was not run. Actual new-head CI remains
+`evidence_required` until BOTH complete Windows/Linux jobs match the PR head in
+`.local-validation/pr16-astra-corrections-current-head-ci-20261102.json` and
+[PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks).
+
+Deferred: repeated historical Enhancement replay/admission optimization; preserve
+native replay, claims and effect fences when designing that change. CI duration and
+ordinary duplicate invocations remain under
+[issue 17](https://github.com/mattebad/Puzzles_Survival_Automation/issues/17).
+The inherited synthetic test
+`DirectCommanderRouteTests.test_unknown_use_successor_stays_evidence_required_and_reconciles`
+fails at `CURRENT_RUN_MODAL_WITNESS_UNPROVEN` on unchanged `f96fc4b` as well as the
+correction branch. Rebuild its causal fixture in a separate test-maintenance pass;
+do not weaken current native witness requirements. Baseline log:
+`.local-validation/astra-corrections-inherited-fixture-baseline-f96-20261102.log`.
+
 ## BlueStacks reliability validation
 
 The [November 2 report](docs/bluestacks-route-status-20261102.md) records the
-accepted portfolio, exact source scopes and retained failures. Latest Enhancement
+accepted portfolio, exact source scopes and retained failures. Earlier Enhancement
 runtime `044ecb9` passed fresh continuous Gear â†’ Chip â†’ Module in one Profile visit:
 23 inputs/three Confirms/Home, each stockâˆ’1 and EXP80â†’90. Independent replay checked
 443 unchanged source files, 32 unchanged prior family records, 87 screenshots and
@@ -24,8 +65,9 @@ completed five remaining Nova Praises, four remaining Basic recruits, the earlie
 22-input family, one Personal Might Praise and two Campaign wins. Campaign's 18
 reports comprise two wins/28 AP/29 inputs and 16 zero-input low-AP checks; every due
 is exactly whole-completion +300 seconds. Already-completed Supply/Bio/Ultimate
-stayed due-gated. Later edits affect only Enhancement OCR, now freshly live-proven;
-no whole-head two-hour rerun is inferred for those later edits.
+stayed due-gated. The later shared OCR time limits and Enhancement persistence/
+recognition changes have the affected-route proof above; no new whole-head two-hour
+rerun is inferred.
 
 Five actual Basic free recruits completed in the continuing reset client, each
 result/cooldown/Home verified. Enabled Free Recruit 1x overrode a stale zero counter;
@@ -36,7 +78,7 @@ Hold, attempts9â†’0 â†’ Home, four inputs, on the final unchanged Supp
 
 The actual continuous Campaign reset drain entered three native stages before
 November2 00UTC and five after: eight wins/112 AP/48 inputs/Home. Its supplement
-checks63 unchanged critical code paths,239 preserved PNG hashes and actual Core
+checks63 unchanged critical code paths at the earlier recorded revision,239 preserved PNG hashes and actual Core
 policy-authorized immediate-input/Stage/Lineup links. Fresh process/restart tests
 proved zero-work daily guards and two consecutive guarded cold/sharedScarlett/Home
 passes with unchanged flow/due rows. The first cold launch had a genuine native
@@ -50,7 +92,8 @@ failure frames passed eight fresh-process repetitions (16 cases). CI78 passed
 Windows but caught the actual Linux denominator failure; diagnostic CI79/80 failures
 are retained. Temporary diagnostics were removed. Actual final-head Windows/Linux
 CI is authoritative in [PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks)
-and `.local-validation/pr16-final-current-head-ci-20261102.json`. Older green is not
+and the matching new receipt above. The historical CI83/f96fc4b receipt remains
+`.local-validation/pr16-final-current-head-ci-20261102.json`. Older green is not
 final-head validation. CI speed optimization is deferred to [issue17](https://github.com/mattebad/Puzzles_Survival_Automation/issues/17)
 and excluded from this goal.
 CI82 Windows caught Supply OCR deadlines before text; parentOMP1 now matches

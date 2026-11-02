@@ -1,20 +1,65 @@
 # BlueStacks acceptance, November 2 UTC
 
-The latest live-accepted Enhancement runtime is `044ecb9`. Its fresh full family
-proves both final OCR corrections. The earlier two-hour cadence remains scoped to
-`3c222af`; scheduler, Campaign, startup/recovery and other route code paths are
-unchanged. Later publication changes workflow/docs only; live-tested runtime is unchanged. PR [#16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16)
-remains draft/unmerged and permanent scheduling stays OFF.
+The Astra pre-merge correction pass is live-accepted at `cfe449c`. MR [#16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16) stays draft/unmerged; all nine flow/service controls are OFF.
 
-Actual final-head Windows/Linux CI is authoritative in [PR checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks)
-and `.local-validation/pr16-final-current-head-ci-20261102.json`. A missing receipt
-or an older green run is not validation of the final head.
+## Astra corrections and fresh acceptance
+
+Enhancement and its shared Home/popup/Nova readers now use Tesseract's existing
+five-second subprocess timeout. Enhancement recognition shares a fifteen-second
+budget and checks runtime cancellation between calls. The timed TSV reader retains
+the existing DICT parser while avoiding an unbounded version probe. Timeout yields
+unknown evidence and cannot authorize another confirmation. This is not a claim of
+the semantic OCR worker's process-tree containment.
+
+All five mutable family-progress writers flush a unique sibling temporary file and
+atomically replace the destination. Failed flush/replace and a process killed before
+publication leave the prior valid document intact. Immutable receipts are unchanged.
+The workflow explicitly selects the five omitted route/recovery modules, both new
+fault modules, VIP popup tests and Module's native selection-context tests. The
+service guide now reflects the actual cadence/reset receipts and their source limits.
+
+| Current corrective pass | Observed result |
+| --- | --- |
+| First attempt,34a426b | Stopped13inputs/one Gear Confirm at Chip selected1/11527. Binary OCR's complete line had confidence0; no Chip/Module Confirm was sent. Gear independently replayed:EXP90 to100,stock9554 to9553. Failed receipt/images preserved. |
+| Repair and recovery | Retain original glyph luminance only as bounded corroboration when the binary line lacks confidence:all three modes must agree with the original complete fraction. Competing valid fractions, missing digits/checkmarks, wrong stock/quantity and broken causal witnesses still deny. Two navigation inputs/zero Confirms returned Home; progress/reservations unchanged, exact inspection disposition only. |
+| Same-request continuation,cfe449c |15inputs/two Confirms/Home, only Chip and Module newly consumed, Gear retained. All3effects90 to100/stock minus1 across the request. Independently audited COMPOSITE; not continuous acceptance. |
+| Fresh continuous family,cfe449c |23inputs/three Confirms, ONE Profile visit/Home, no retained categories, recovery or relaunch. Every EXP100 to110. Gear9553 to9552,Chip11526 to11525,Module8290 to8289. |
+| Fresh independent audit |453 unchanged source files,34 unchanged prior family records,117 historical evidence files,87 PNGs/83 native capture links. Existing strict verifier replays all three current category chains. New atomic progress contains all3complete; every daily due/ordinal and the other eight flow rows unchanged, all owners released. |
+
+Fresh audit:
+`.local-orchestrator/logs/astra-corrections-fresh-continuous-independent-audit-20261102.json`.
+Failed and composite audits remain respectively
+`astra-corrections-chip-stop-gear-independent-audit-20261102.json` and
+`astra-corrections-same-request-composite-independent-audit-20261102.json` in the same logs directory.
+
+Local checks passed104 route/recovery,113 shared Home/VIP/Nova and81 native/service
+cases, followed by21 final context/fault and6 Module-context cases and the new
+conflict negatives. These scopes overlap; full unittest discovery was not run. The
+older synthetic `DirectCommanderRouteTests.test_unknown_use_successor_stays_evidence_required_and_reconciles`
+also fails on unchanged `f96fc4b` at `CURRENT_RUN_MODAL_WITNESS_UNPROVEN`; it is tracked
+separately in the backlog. Current native witnesses were not weakened for it.
+
+Actual newest-head Windows/Linux CI is authoritative in [PR checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks)
+and `.local-validation/pr16-astra-corrections-current-head-ci-20261102.json`.
+A missing or nonmatching receipt means CI remains pending. Historical CI83 on
+`f96fc4b` is retained in `.local-validation/pr16-final-current-head-ci-20261102.json`;
+it cannot validate these changes. CI speed/duplicate-invocation work remains
+[issue17](https://github.com/mattebad/Puzzles_Survival_Automation/issues/17); repeated
+historical replay optimization is deferred separately. No new goal or automation
+was created, and the completed reset goal's follow-up remains paused.
+
+## Earlier portfolio acceptance at recorded sources
+
+The earlier Enhancement family is scoped to `044ecb9`; the two-hour cadence to
+`3c222af`. Shared OCR timeout wrappers changed after those receipts. Campaign/AP
+eligibility and reset policy remain unchanged, but no new whole-portfolio two-hour,
+midnight or cold-start rerun is inferred from the affected-family proof above.
 
 ## Live results
 
 | Check | Actual result and scope |
 | --- | --- |
-| Final Enhancement,044ecb9 | Fresh continuous Gear â†’ Chip â†’ Module, ONE Profile visit/Home,23 inputs/three Confirms, no retained composition. Each EXP80â†’90; Gear9555â†’9554,Chip11528â†’11527,Module8292â†’8291. Profile reopened on Module, requiring one extra Gear tab selection. |
+| Earlier Enhancement,044ecb9 | Fresh continuous Gear â†’ Chip â†’ Module, ONE Profile visit/Home,23 inputs/three Confirms, no retained composition. Each EXP80â†’90; Gear9555â†’9554,Chip11528â†’11527,Module8292â†’8291. Profile reopened on Module, requiring one extra Gear tab selection. |
 | Final family audit | Existing strict native verifier independently replayed source/equipped-item/baseline/quantity/selected/dispatch/effect/Home chains.443 source/asset/fixture/controller hashes,32 prior family files and87 PNGs checked;82 native capture links plus the initial source verified. No source or prior family record changed during execution. |
 | Two-hour cadence,3c222af | 7,200.333 seconds,29 completed reports,100 inputs/15 confirmed actions, every terminal Home independently replayed. Five remaining Nova Praises,four remaining Basic recruits,the earlier22-input family,Personal Might and two Campaign wins completed. Already-completed Bio/Supply/Ultimate stayed future-due. No full-head two-hour rerun is inferred for the later Enhancement-only changes. |
 | Campaign cadence |18 reports:two wins/28 AP/29 inputs and16 zero-input low-AP checks. Every next due is exactly whole-drain/low-AP Home completion +300 seconds. Actual Stage/Lineup/Core/AP links verified. |
@@ -113,7 +158,8 @@ after startup. All five native Supply fixtures passed eight fresh processes
 (40 cases) with the same two-second deadline and unchanged assertions. Exact
 hosted contention cause remains unproved; final-head CI must confirm this process
 configuration alignment. This uses the supported [Tesseract thread setting](https://tesseract-ocr.github.io/tessdoc/FAQ.html#can-i-increase-speed-of-ocr).
-No recognition/runtime code or timeout changed. CI duration optimization is deferred to
+That earlier CI configuration alignment changed no runtime or timeout; the later
+Astra corrections above do. CI duration optimization is deferred to
 [issue17](https://github.com/mattebad/Puzzles_Survival_Automation/issues/17),outside this goal.
 
 All nine flow/service controls are OFF,no active/orphan/input/effect owner and leases

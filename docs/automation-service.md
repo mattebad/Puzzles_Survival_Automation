@@ -9,10 +9,11 @@ Campaign/Home semantics remain the source contracts.
 
 Current dated route acceptance and source limits are in the
 [November 2 status report](bluestacks-route-status-20261102.md). The two-hour serial
-cadence is scoped to `3c222af`; the later uninterrupted Enhancement family is scoped
-to `044ecb9`. Accepted daily routes are not forced to repeat for coverage. Subsequent
-Enhancement OCR deadline and atomic progress changes require their own affected-route
-validation; older receipts do not establish acceptance of changed code.
+cadence is scoped to `3c222af`. After the Astra corrections, `cfe449c` passed a fresh
+uninterrupted Gear/Chip/Module family: one Profile visit, 23 inputs, three Confirms
+and Home, each stock minus one and EXP100 to110. Its independent audit also checks
+atomic progress and the shared Home path. Broader route/cadence receipts keep their
+earlier source scopes; accepted daily routes are not forced to repeat for coverage.
 
 ## Boundaries
 
@@ -78,8 +79,9 @@ validation; older receipts do not establish acceptance of changed code.
   across UTC midnight, with ownership, lease and dispatch fences preserved. That boundary has
   offline proof and actual continuous-client acceptance: three stage entries before
   November 2 00 UTC and five after, eight wins/112 AP/Home. The November 2 report
-  records the unchanged critical code paths checked against that historical receipt;
-  this is not a whole-head rerun of later Enhancement changes.
+  records the critical-path comparison at its historical revision. Later shared OCR
+  time limits and Enhancement changes are separately scoped; this is not a new
+  whole-head midnight or two-hour rerun.
 
 ## Canonical `pnsctl` serve facade
 
