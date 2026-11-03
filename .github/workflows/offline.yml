@@ -28,6 +28,17 @@ jobs:
         with:
           # Retain commit history for provenance and ancestry checks.
           fetch-depth: 0
+      - name: Check fresh checkout is clean
+        shell: bash
+        run: |
+          # A fresh checkout must not report modified files on any runner
+          # (line-ending normalization drift is the known failure mode).
+          dirty="$(git status --porcelain)"
+          if [[ -n "$dirty" ]]; then
+            echo "Fresh checkout is dirty:"
+            echo "$dirty"
+            exit 1
+          fi
       - name: Set up Python 3.11
         uses: actions/setup-python@v7
         with:
