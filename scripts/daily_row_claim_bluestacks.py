@@ -19,6 +19,7 @@ import cv2
 import numpy as np
 
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, NativeBox
+from scripts.bounded_tesseract import call_ocr, tesseract_data
 from tasks.available_daily_claim import (
     AvailableDailyClaimObservation,
     available_daily_claim_authorizeable,
@@ -210,13 +211,7 @@ def _clamp_roi(roi: Sequence[int]) -> NativeBox | None:
 
 
 def _default_ocr(image: np.ndarray) -> Mapping[str, Sequence[object]]:
-    import pytesseract
-
-    return pytesseract.image_to_data(
-        image,
-        config="--psm 11",
-        output_type=pytesseract.Output.DICT,
-    )
+    return call_ocr(tesseract_data, image, config="--psm 11")
 
 
 def _ocr_tokens(

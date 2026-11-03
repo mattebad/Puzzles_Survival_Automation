@@ -7,7 +7,8 @@ from typing import Callable
 
 import cv2
 import numpy as np
-import pytesseract
+
+from scripts.bounded_tesseract import call_ocr, tesseract_data
 
 from tasks.home_atlas_vision import BLUESTACKS_PROFILE_ID, native_frame_guard
 from tasks.perception_bundle import ImmutableTargetObservation, NativeFrameIdentity
@@ -33,7 +34,7 @@ def _tokens(frame, roi, *, source_frame, source_png, psm=7, scale=2):
     try:
         upscale = NormalizationOp.UPSCALE_3X if scale == 3 else NormalizationOp.UPSCALE_2X
         _provenance, pixels = prepare_ocr_crop(frame, CropRoiRequest(source_frame, roi, source_png=source_png), normalization=(NormalizationOp.TO_GRAYSCALE, upscale))
-        data = pytesseract.image_to_data(pixels, config=f"--psm {psm}", output_type=pytesseract.Output.DICT, timeout=2)
+        data = call_ocr(tesseract_data, pixels, call_timeout=2, config=f"--psm {psm}")
     except (SemanticOcrCropError, RuntimeError, OSError, ValueError):
         return ()
     result = []

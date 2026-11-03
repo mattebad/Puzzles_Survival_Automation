@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 
 from scripts.bluestacks_native_runtime import NATIVE_HEIGHT, NATIVE_RUNTIME_PROFILE_ID, NATIVE_WIDTH
+from scripts.bounded_tesseract import call_ocr, tesseract_string
 
 SCARLETT_THREE_DAY_PACK = "SCARLETT_THREE_DAY_PACK"
 SCARLETT_SURFACE_KIND = "full_page"
@@ -93,12 +94,10 @@ def _crop(frame: np.ndarray, roi: tuple[int, int, int, int]) -> np.ndarray:
 
 def _title_text(frame: np.ndarray) -> str:
     try:
-        import pytesseract
-
         title = _crop(frame, SCARLETT_TITLE_ROI)
         enlarged = cv2.resize(title, None, fx=4.0, fy=4.0, interpolation=cv2.INTER_CUBIC)
-        return _normalise(pytesseract.image_to_string(
-            enlarged, config="--psm 7", timeout=3.0
+        return _normalise(call_ocr(
+            tesseract_string, enlarged, call_timeout=3.0, config="--psm 7"
         ))
     except Exception:
         return ""
@@ -145,14 +144,12 @@ def _evidence_roi_hashes(frame: np.ndarray) -> tuple[tuple[str, str], ...]:
 def _scarlett_page_context(frame: np.ndarray) -> bool:
     """Require the current offer's text/layout, excluding character artwork."""
     try:
-        import pytesseract
-
         def text(roi, scale=1.0):
             pixels = _crop(frame, roi)
             if scale != 1.0:
                 pixels = cv2.resize(pixels, None, fx=scale, fy=scale)
-            return _normalise(pytesseract.image_to_string(
-                pixels, config="--psm 11", timeout=3.0
+            return _normalise(call_ocr(
+                tesseract_string, pixels, call_timeout=3.0, config="--psm 11"
             ))
 
         benefits = _letters(text(SCARLETT_BENEFITS_ROI))
@@ -169,7 +166,7 @@ def _scarlett_page_context(frame: np.ndarray) -> bool:
                     if gold else cv2.cvtColor(pixels, cv2.COLOR_BGR2GRAY))
                 pixels = cv2.resize(pixels, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
                 pixels = cv2.copyMakeBorder(pixels, 15, 15, 15, 15, cv2.BORDER_CONSTANT, value=255)
-                lines.append(_letters(pytesseract.image_to_string(pixels, config="--psm 7", timeout=3.0)))
+                lines.append(_letters(call_ocr(tesseract_string, pixels, call_timeout=3.0, config="--psm 7")))
             benefits = " ".join(line if term in line else "" for line, term in zip(lines, benefit_terms))
         days = _letters(text(SCARLETT_DAYS_ROI, 2.0))
         notice = _letters(text(SCARLETT_NOTICE_ROI))
@@ -252,10 +249,8 @@ def commercial_surface_signal(frame: np.ndarray) -> dict[str, Any]:
     )
     candidate = _crop(frame, HOME_COMMERCIAL_SCENE_ROI) if home_context else frame
     try:
-        import pytesseract
-
-        text = _normalise(pytesseract.image_to_string(
-            candidate, config="--psm 11", timeout=COMMERCIAL_OCR_TIMEOUT_SECONDS
+        text = _normalise(call_ocr(
+            tesseract_string, candidate, call_timeout=COMMERCIAL_OCR_TIMEOUT_SECONDS, config="--psm 11"
         ))
     except Exception:
         text = ""

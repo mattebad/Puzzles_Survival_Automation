@@ -28,7 +28,6 @@ from typing import Any, Callable, Mapping
 
 import cv2
 import numpy as np
-import pytesseract
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -49,6 +48,7 @@ from scripts.atlas_startup_normalizer import (
     BlueStacksAtlasStartupNormalizer,
 )
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
+from scripts.bounded_tesseract import call_ocr, tesseract_string
 from tasks.home_atlas import BuildingBinding, LocalizationResult, ZoomIdentity, load_home_atlas, point_in_coverage
 from tasks.home_atlas_planner import (
     BuildingViewportPlan,
@@ -5615,7 +5615,7 @@ def command_supply_depot_radial(args) -> int:
 def _recognize_exact_title(frame: np.ndarray, expected: str) -> tuple[bool, str]:
     title = cv2.cvtColor(frame[0:110, 100:700], cv2.COLOR_BGR2GRAY)
     title = cv2.resize(title, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    text = f"{pytesseract.image_to_string(title, config='--psm 6')} {pytesseract.image_to_string(title, config='--psm 11')}"
+    text = f"{call_ocr(tesseract_string, title, config='--psm 6')} {call_ocr(tesseract_string, title, config='--psm 11')}"
     normalized = re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
     return expected in normalized, text
 

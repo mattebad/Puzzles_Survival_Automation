@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 import cv2
+import pytesseract
 
 from tasks.nova_praise import nova_postcondition_verified
 from tasks import nova_praise_vision as vision
@@ -99,7 +100,7 @@ class NovaZeroCounterTests(unittest.TestCase):
     def test_digit_ocr_modes_must_agree(self):
         for readings in (("0", "8"), ("0", ""), ("O", "O")):
             with self.subTest(readings=readings), patch.object(
-                vision.pytesseract, "image_to_string", side_effect=readings,
+                pytesseract, "image_to_string", side_effect=readings,
             ):
                 self.assertIsNone(vision._attempts_from_frame(self.after, "interaction attempts left: ©"))
 

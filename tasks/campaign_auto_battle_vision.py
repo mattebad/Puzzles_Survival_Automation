@@ -16,8 +16,8 @@ import unicodedata
 
 import cv2
 import numpy as np
-import pytesseract
-from pytesseract import Output
+
+from scripts.bounded_tesseract import call_ocr, tesseract_data, tesseract_string
 
 from .campaign_auto_battle import CampaignRouteObservation, CampaignScreen, CampaignStage
 
@@ -98,7 +98,7 @@ def _ocr(frame: np.ndarray, box: Box, *, psm: int = 7, whitelist: str | None = N
     config = f"--psm {psm}"
     if whitelist:
         config += f" -c tessedit_char_whitelist={whitelist}"
-    return _normalized(pytesseract.image_to_string(image, config=config))
+    return _normalized(call_ocr(tesseract_string, image, config=config))
 
 
 def _threshold_ocr(
@@ -113,7 +113,8 @@ def _threshold_ocr(
     gray = cv2.resize(gray, None, fx=upscale, fy=upscale, interpolation=cv2.INTER_CUBIC)
     _, binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
     return _normalized(
-        pytesseract.image_to_string(
+        call_ocr(
+            tesseract_string,
             binary,
             config=f"--psm 7 -c tessedit_char_whitelist={whitelist}",
         )
@@ -134,8 +135,8 @@ def _hud_ap_text(frame: np.ndarray, box: Box) -> str:
     # Give Tesseract a blank line margin; a tightly cropped full AP bar can
     # otherwise segment as empty despite independently verified icon identity.
     binary = cv2.copyMakeBorder(binary, 12, 12, 12, 12, cv2.BORDER_CONSTANT, value=0)
-    return _normalized(pytesseract.image_to_string(
-        binary, config="--psm 7 -c tessedit_char_whitelist=0123456789/",
+    return _normalized(call_ocr(
+        tesseract_string, binary, config="--psm 7 -c tessedit_char_whitelist=0123456789/",
     ))
 
 
@@ -417,7 +418,7 @@ def _ocr_boxes(frame: np.ndarray, box: Box) -> list[tuple[str, Box, float]]:
     x0, y0, _, _ = box
     scale = 3
     enlarged = cv2.resize(_crop(frame, box), None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
-    data = pytesseract.image_to_data(enlarged, config="--psm 11", output_type=Output.DICT)
+    data = call_ocr(tesseract_data, enlarged, config="--psm 11")
     found: list[tuple[str, Box, float]] = []
     for index, raw in enumerate(data["text"]):
         text = raw.strip()
@@ -484,7 +485,7 @@ def _bind_victory_continue(frame: np.ndarray) -> tuple[Box | None, dict[str, obj
         # The word is stable while the crest and flare behind it animate. Remove
         # only low-frequency illumination before reading the complete caption.
         letters = cv2.addWeighted(gray, 1.0, cv2.GaussianBlur(gray, (0, 0), 15), -1.0, 128)
-        captions.append(_normalized(pytesseract.image_to_string(letters, config="--psm 8")))
+        captions.append(_normalized(call_ocr(tesseract_string, letters, config="--psm 8")))
     diagnostics["winner_captions"] = captions
     return (continue_roi if captions.count("winner") == 1 else None), diagnostics
 
@@ -541,7 +542,8 @@ def _chapter_medallion_targets(frame: np.ndarray, box: Box) -> dict[int, Box]:
         )
         digit = cv2.cvtColor(_crop(frame, digit_roi), cv2.COLOR_BGR2GRAY)
         enlarged = cv2.resize(digit, None, fx=8, fy=8, interpolation=cv2.INTER_CUBIC)
-        token = pytesseract.image_to_string(
+        token = call_ocr(
+            tesseract_string,
             enlarged,
             config="--psm 8 -c tessedit_char_whitelist=0123456789",
         ).strip()
@@ -583,7 +585,8 @@ def _stage_node_targets(frame: np.ndarray) -> dict[int, Box]:
         center = cv2.resize(center, None, fx=8, fy=8, interpolation=cv2.INTER_CUBIC)
         center_hsv = cv2.cvtColor(center, cv2.COLOR_BGR2HSV)
         white = cv2.inRange(center_hsv, np.array([0, 0, 130]), np.array([179, 100, 255]))
-        text = pytesseract.image_to_string(
+        text = call_ocr(
+            tesseract_string,
             white,
             config="--psm 8 -c tessedit_char_whitelist=0123456789",
         ).strip()

@@ -38,6 +38,12 @@ def call_ocr(reader, image, *, call_timeout=CALL_TIMEOUT_SECONDS, **options):
     return result
 
 
+def tesseract_string(image, *, config: str, timeout: float) -> str:
+    """Timed ``image_to_string``; resolved lazily so the engine stays the one import site."""
+    import pytesseract
+    return pytesseract.image_to_string(image, config=config, timeout=timeout)
+
+
 def tesseract_data(image, *, config: str, timeout: float):
     # image_to_data first runs an unbounded --version probe. Supported Tesseract
     # versions provide TSV; retain its timed process and identical DICT parser.

@@ -265,7 +265,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
 
 
     def test_radial_identity_alone_does_not_supply_a_button_target(self):
-        with patch.object(supply_depot_module.pytesseract, "image_to_data", return_value={"text": []}):
+        with patch.object(supply_depot_module, "tesseract_data", return_value={"text": []}):
             for text in ("Details Upgrade Claim Supply", "Details grade Claim Supply",
                          "etail Clai rage Supp", "etail Clai Upgrade Sup",
                          "Det Clai: rade Upgrade Supply"):
@@ -286,7 +286,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
         with (
             patch.object(supply_depot_module, "_recognized_supply_radial_roi", return_value=(145, 840, 800, 1120)),
             patch("scripts.bluestacks_popup_recognition.recognize_reset_popup", return_value={}),
-            patch.object(supply_depot_module.pytesseract, "image_to_data", side_effect=RuntimeError("OCR timeout")) as engine,
+            patch.object(supply_depot_module, "tesseract_data", side_effect=RuntimeError("OCR timeout")) as engine,
         ):
             self.assertIsNone(bind_supply_depot_claim_supply(self.frame))
         self.assertEqual(engine.call_args.kwargs["timeout"], 5)

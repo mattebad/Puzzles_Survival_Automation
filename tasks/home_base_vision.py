@@ -17,7 +17,8 @@ import unicodedata
 
 import cv2
 import numpy as np
-import pytesseract
+
+from scripts.bounded_tesseract import call_ocr, tesseract_string
 
 
 NATIVE_WIDTH = 800
@@ -86,7 +87,7 @@ def _digest(frame: np.ndarray) -> str:
 def _ocr(frame: np.ndarray, box: Box, *, psm: int = 6) -> str:
     image = frame[box[1] : box[3], box[0] : box[2]]
     enlarged = cv2.resize(image, None, fx=2.5, fy=2.5, interpolation=cv2.INTER_CUBIC)
-    return _normalized(pytesseract.image_to_string(enlarged, config=f"--psm {psm}"))
+    return _normalized(call_ocr(tesseract_string, enlarged, config=f"--psm {psm}"))
 
 
 def _band_text(frame: np.ndarray, box: Box) -> str:

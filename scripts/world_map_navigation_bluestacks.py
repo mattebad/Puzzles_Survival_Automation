@@ -21,6 +21,8 @@ from typing import Any, Callable, Mapping
 import cv2
 import numpy as np
 
+from scripts.bounded_tesseract import call_ocr, tesseract_data, tesseract_string
+
 from scripts.bluestacks_native_runtime import (
     CapturedNativeFrame,
     NATIVE_HEIGHT,
@@ -234,12 +236,10 @@ def _ocr_hits(frame: np.ndarray) -> list[tuple[str, tuple[int, int, int, int]]]:
     if frame is None or getattr(frame, "shape", ())[:2] != (NATIVE_HEIGHT, NATIVE_WIDTH):
         return []
     try:
-        import pytesseract
-
-        data = pytesseract.image_to_data(
+        data = call_ocr(
+            tesseract_data,
             cv2.resize(frame, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC),
             config="--psm 11",
-            output_type=pytesseract.Output.DICT,
         )
     except Exception:
         return []
@@ -281,9 +281,8 @@ def _footer_navigation_ocr_hits(
     if crop.size == 0:
         return []
     try:
-        import pytesseract
-
-        data = pytesseract.image_to_data(
+        data = call_ocr(
+            tesseract_data,
             cv2.resize(
                 crop,
                 None,
@@ -292,7 +291,6 @@ def _footer_navigation_ocr_hits(
                 interpolation=cv2.INTER_CUBIC,
             ),
             config="--psm 6",
-            output_type=pytesseract.Output.DICT,
         )
     except Exception:
         return []
@@ -388,9 +386,8 @@ def _ocr_text_in_roi(
     if crop.size == 0:
         return ""
     try:
-        import pytesseract
-
-        return pytesseract.image_to_string(
+        return call_ocr(
+            tesseract_string,
             cv2.resize(crop, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC),
             config=f"--psm {psm}",
         )

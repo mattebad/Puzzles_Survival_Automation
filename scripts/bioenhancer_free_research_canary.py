@@ -23,8 +23,6 @@ from typing import Any
 
 import cv2
 import numpy as np
-import pytesseract
-from pytesseract import Output
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -32,6 +30,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from scripts.bluestacks_popup_recognition import recognize_reset_popup
+from scripts.bounded_tesseract import call_ocr, tesseract_data
 from scripts.home_atlas_bluestacks import BLUESTACKS_SAFE_INTERACTION_BOX, _plan_mapped_home_entry
 from scripts.atlas_flow_startup import normalize_home_atlas_startup
 from scripts.navigation_development_boundary import DevelopmentSession
@@ -90,7 +89,7 @@ def _ocr_tokens(frame_bgr: np.ndarray, roi: tuple[int, int, int, int], *,
         return []
     up = cv2.resize(crop, (crop.shape[1] * scale, crop.shape[0] * scale), interpolation=cv2.INTER_CUBIC)
     gray = cv2.cvtColor(up, cv2.COLOR_BGR2GRAY)
-    data = pytesseract.image_to_data(gray, output_type=Output.DICT, config=f"--psm {psm}")
+    data = call_ocr(tesseract_data, gray, config=f"--psm {psm}")
     tokens: list[dict[str, Any]] = []
     n = len(data.get("text", []))
     for i in range(n):

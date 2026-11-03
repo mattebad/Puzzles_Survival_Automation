@@ -2431,8 +2431,8 @@ class NovaPraiseFastRevalidationTests(unittest.TestCase):
         def boom(*_args, **_kwargs):
             raise AssertionError("fast revalidation must not invoke OCR")
 
-        with patch.object(nova_praise_vision.pytesseract, "image_to_string", boom), patch.object(
-            nova_praise_vision.pytesseract, "image_to_data", boom
+        with patch("pytesseract.image_to_string", boom), patch.object(
+            nova_praise_vision, "tesseract_data", boom
         ), patch.object(nova_praise_vision, "_text", boom), patch.object(
             nova_praise_vision, "_ocr_boxes", boom
         ):
