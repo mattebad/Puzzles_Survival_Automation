@@ -151,6 +151,17 @@ jobs:
           tests.test_resource_effect_authority_history
       - name: Compile Python sources
         run: python -m compileall -q automation_service safe_action_core scripts tasks tools
+      - name: Check tracked text files match declared line endings
+        shell: bash
+        run: |
+          # Paths declared `eol=lf` in .gitattributes must be stored with LF in
+          # the index; otherwise every fresh clone starts with modified files.
+          violations="$(git ls-files --eol | awk '($1=="i/crlf" || $1=="i/mixed") && $3=="attr/text" && $4=="eol=lf"')"
+          if [[ -n "$violations" ]]; then
+            echo "Files committed with CRLF despite eol=lf (run: git add --renormalize <path>):"
+            echo "$violations"
+            exit 1
+          fi
       - name: Check committed diff whitespace
         shell: bash
         env:
