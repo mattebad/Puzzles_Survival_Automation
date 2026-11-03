@@ -2109,8 +2109,6 @@
         "tests/test_campaign_atlas_chapter_nav.py",
         "tests/test_campaign_auto_battle.py",
         "tests/test_campaign_auto_battle_runtime.py",
-        "tests/test_campaign_ap.py",
-        "tests/test_daily_campaign_ap.py",
         "tests/test_campaign_stage9_destination_replay.py",
         "tests/test_campaign_story_destinations.py",
         "tests/test_gameplay_flow_contracts.py",
@@ -2172,8 +2170,6 @@
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
         "tests/test_campaign_auto_battle.py",
         "tests/test_campaign_auto_battle_runtime.py",
-        "tests/test_campaign_ap.py",
-        "tests/test_daily_campaign_ap.py",
         "tests/test_campaign_stage9_destination_replay.py",
         "tests/test_campaign_story_destinations.py",
         "tests/test_gameplay_flow_contracts.py",
@@ -2216,8 +2212,6 @@
       "completion_tests": [
         "tests/test_campaign_auto_battle.py",
         "tests/test_campaign_auto_battle_runtime.py",
-        "tests/test_campaign_ap.py",
-        "tests/test_daily_campaign_ap.py",
         "tests/test_campaign_stage9_destination_replay.py",
         "tests/test_gameplay_flow_contracts.py",
         "tests/test_flow_delivery_orchestrator.py"

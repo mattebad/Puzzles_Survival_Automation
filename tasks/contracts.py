@@ -21,19 +21,6 @@ class TaskOutcome(str, Enum):
     FAILED_SAFE = "failed_safe"
 
 
-class PopupMode(str, Enum):
-    NAVIGATION = "navigation"
-    ACTION_TRANSACTION = "action_transaction"
-
-
-class PopupOutcome(str, Enum):
-    HANDLED = "handled"
-    BLOCKING = "blocking"
-    FATAL = "fatal"
-    NOT_PRESENT = "not_present"
-    UNKNOWN = "unknown"
-
-
 @dataclass(frozen=True)
 class AnchorSpec:
     """A fixed-profile local anchor with its own evidence-backed recognition budget."""
@@ -71,33 +58,6 @@ class AnchorSpec:
             raise ValueError("reference manifest IDs must use stable GNB- identifiers")
         if not self.production_validated and not self.evidence_dependency:
             raise ValueError("provisional anchor requires an explicit evidence dependency")
-
-
-@dataclass(frozen=True)
-class NavigationStep:
-    name: str
-    source_state: Optional[str]
-    semantic_action: str
-    expected_successors: Tuple[str, ...]
-    timeout_seconds: float = 10.0
-    allow_one_safe_retry: bool = True
-    source_anchor: Optional[AnchorSpec] = None
-    target_anchor: Optional[AnchorSpec] = None
-    input_kind: str = "tap"
-    input_macro: Tuple[int, ...] = ()
-    postcondition_anchor: Optional[AnchorSpec] = None
-    old_anchor_must_disappear: bool = False
-    recovery_outcome: TaskOutcome = TaskOutcome.RETRY
-
-    def __post_init__(self) -> None:
-        if not self.source_state and self.source_anchor is None:
-            raise ValueError("navigation requires a source state or local source anchor")
-        if not self.semantic_action or not self.expected_successors:
-            raise ValueError("navigation requires a semantic action and successor set")
-        if self.input_kind not in {"tap", "swipe", "macro"}:
-            raise ValueError("unsupported navigation input kind")
-        if self.timeout_seconds <= 0:
-            raise ValueError("navigation timeout must be positive")
 
 
 @dataclass(frozen=True)

@@ -69,7 +69,6 @@ class CatalogTests(unittest.TestCase):
                 "PERSONAL-MIGHT-PRAISE-BLISS-PILOT",
                 "personal_might_daily_claim",
                 "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
-                "scripts/daily_claim_canary.py",
             },
         )
         for entry in entries.values():

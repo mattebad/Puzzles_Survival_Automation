@@ -13,7 +13,7 @@ from tasks.campaign_auto_battle import (
 ROOT = Path(__file__).resolve().parents[1]
 QUEUE_PATH = ROOT / "tasks" / "flow_delivery_queue.json"
 POLICY_PATH = ROOT / "tasks" / "flow_delivery_product_policy.json"
-SCHEDULER_PATH = ROOT / "tasks" / "scheduler.py"
+SCHEDULER_PATH = ROOT / "automation_service" / "scheduler.py"
 
 
 class CampaignStoryDestinationParserTests(unittest.TestCase):
@@ -125,7 +125,6 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
     def test_production_scheduler_and_registration_remain_unchanged(self) -> None:
         self.assertFalse(self.queue["gameplay_scheduler"])
         scheduler = SCHEDULER_PATH.read_text(encoding="utf-8")
-        self.assertIn("offline Phase F work", scheduler)
         self.assertNotIn("flow_delivery_queue", scheduler)
         self.assertNotIn("ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION", scheduler)
         by_id = {flow["flow_id"]: flow for flow in self.queue["flows"]}

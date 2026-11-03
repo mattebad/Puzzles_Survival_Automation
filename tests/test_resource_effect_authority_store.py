@@ -472,13 +472,6 @@ class ResourceAuthorityStoreTests(unittest.TestCase):
 
     def test_v3_rows_survive_additive_reopen(self) -> None:
         self.store.connection.execute(
-            """INSERT INTO task_state(
-                task_id,completion_key,game_day_id,status,next_due_monotonic,
-                revision,last_reason,updated_at
-            ) VALUES(?,?,?,?,?,?,?,?)""",
-            ("task", "completion", "day", "pending", None, 0, "", 1.0),
-        )
-        self.store.connection.execute(
             """INSERT INTO scheduler_invocation_state(
                 account_id,server_id,reset_id,task_id,status,next_eligible_at,
                 revision,last_reason_code,observed_progress_json,action_count_total,
@@ -491,7 +484,6 @@ class ResourceAuthorityStoreTests(unittest.TestCase):
         self.store.close()
         self.store = SafetyStore(self.path)
         self.assertEqual(self.store.schema_version, 4)
-        self.assertIsNotNone(self.store.get_task_state("task"))
         self.assertIsNotNone(
             self.store.get_scheduler_invocation_state("account", "server", "reset", "task")
         )

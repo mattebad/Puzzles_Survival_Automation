@@ -140,12 +140,6 @@
           "state": "completed_canonical_route_migration",
           "replacement": "accepted canonical Home Atlas Supply Depot route",
           "runtime_authority": false
-        },
-        {
-          "legacy_id": "scripts/daily_claim_canary.py",
-          "state": "retired_compatibility_shim",
-          "replacement": "receipt-bound pnsctl Daily Claim route",
-          "runtime_authority": false
         }
       ],
       "invariants": [
@@ -844,8 +838,8 @@
       "promotion_state": "EVIDENCE_GATED",
       "current_runtime_registration_status": "NOT_REGISTERED",
       "scheduler_eligibility": false,
-      "existing_implementation": "tasks/campaign_auto_battle.py/runtime/vision and scripts/bluestacks_campaign_ap.py; legacy tasks/campaign_ap.py and daily adapter do not own final execution policy",
-      "existing_tests": ["tests/test_campaign_auto_battle.py", "tests/test_campaign_auto_battle_runtime.py", "tests/test_campaign_ap.py", "tests/test_daily_campaign_ap.py"],
+      "existing_implementation": "tasks/campaign_auto_battle.py/runtime/vision and scripts/bluestacks_campaign_ap.py",
+      "existing_tests": ["tests/test_campaign_auto_battle.py", "tests/test_campaign_auto_battle_runtime.py"],
       "bliss_native_evidence": [],
       "gnbots_provenance": [],
       "missing_work": "integrate static cost map, 120 AP, 360-second regeneration/defer, and canonical Home into production path",

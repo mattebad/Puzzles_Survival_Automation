@@ -148,6 +148,65 @@ class StoreCase(StoreFixture, unittest.TestCase):
         with self.assertRaises(SchemaVersionError):
             SafetyStore(other)
 
+    def _task_state_tables(self, path: Path) -> list:
+        db = sqlite3.connect(str(path))
+        try:
+            return db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='task_state'"
+            ).fetchall()
+        finally:
+            db.close()
+
+    def _legacy_task_state_store(self, rows: int) -> Path:
+        """Return a closed pre-retirement store: schema v3 plus a task_state table."""
+        path = Path(self.temp.name) / "legacy-task-state.sqlite3"
+        SafetyStore(path).close()
+        db = sqlite3.connect(str(path))
+        db.execute(
+            """CREATE TABLE task_state (
+                task_id TEXT PRIMARY KEY, completion_key TEXT NOT NULL,
+                game_day_id TEXT NOT NULL, status TEXT NOT NULL,
+                next_due_monotonic REAL, revision INTEGER NOT NULL,
+                last_reason TEXT NOT NULL, updated_at REAL NOT NULL)"""
+        )
+        for index in range(rows):
+            db.execute(
+                "INSERT INTO task_state VALUES(?,?,?,?,?,?,?,?)",
+                (f"task-{index}", "completion", "day", "pending", None, 0, "", 1.0),
+            )
+        db.execute("UPDATE schema_version SET version=3 WHERE singleton=1")
+        db.commit()
+        db.close()
+        return path
+
+    def test_new_store_does_not_create_task_state(self):
+        self.assertEqual(self._task_state_tables(self.path), [])
+
+    def test_legacy_store_with_empty_task_state_opens_and_drops_it(self):
+        path = self._legacy_task_state_store(rows=0)
+        store = SafetyStore(path)
+        try:
+            self.assertEqual(store.schema_version, CURRENT_SCHEMA_VERSION)
+        finally:
+            store.close()
+        self.assertEqual(self._task_state_tables(path), [])
+
+    def test_legacy_store_with_task_state_rows_keeps_them_and_opens(self):
+        path = self._legacy_task_state_store(rows=2)
+        store = SafetyStore(path)
+        try:
+            self.assertEqual(store.schema_version, CURRENT_SCHEMA_VERSION)
+        finally:
+            store.close()
+        db = sqlite3.connect(str(path))
+        try:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM task_state").fetchone()[0], 2)
+        finally:
+            db.close()
+        before = path.read_bytes()
+        SafetyStore(path).close()
+        self.assertEqual(path.read_bytes(), before)
+
     def test_transactional_transitions_and_durable_reload(self):
         self.store.prepare_action(intent(), self.policy, 1000.0)
         self.store.mark_input_sent("action-1", 1000.1, TransportResult(True, "OK"))

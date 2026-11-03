@@ -18,8 +18,8 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
 ## Boundaries
 
 - Context classification is read-only. Flow handlers own action semantics.
-- The service scheduler uses UTC epoch `next_eligible_at` values. It never interprets
-  `tasks.scheduler.TaskState.next_due_monotonic` and does not compose two schedulers.
+- The service scheduler uses UTC epoch `next_eligible_at` values. It does not
+  compose two schedulers.
 - Fake and replay adapters have zero transport.
 - The BlueStacks adapter is supervised-only, requires a flow-bound single-use admission token,
   and can dispatch only through `SafeActionExecutor` with a bound core request/capability. The
