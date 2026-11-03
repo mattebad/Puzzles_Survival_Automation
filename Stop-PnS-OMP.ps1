@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$benchmarkRoot = "C:\Users\burni\Documents\Qwen38_Benchmarking"
+$benchmarkRoot = Join-Path $env:USERPROFILE "Documents\Qwen38_Benchmarking"
 $receiptPath = Join-Path $benchmarkRoot "logs\production\production-server-current.json"
 $expectedExecutable = Join-Path $benchmarkRoot "native-llama-b10603\llama-server.exe"
 $port = 1235

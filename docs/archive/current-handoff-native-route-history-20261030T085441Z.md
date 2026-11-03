@@ -231,24 +231,24 @@
       "input_count": 1,
       "praise_transport_calls": 1,
       "terminal_home_verified": true,
-      "session": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T094829659146Z\\runtime\\personal-might-discovery-20261029T094832746727Z",
+      "session": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T094829659146Z\\runtime\\personal-might-discovery-20261029T094832746727Z",
       "log": ".local-orchestrator/logs/personal-might-first-praise-20261029.json",
       "action_id": "personal-might-praise-8af5b231f7ed7b36f35b268a3da9828fadcce1f784d9cd3428391f08d7811834",
       "action_key": "personal-might-praise:daily:bae12bd12d07a0affb3e609ca2c924010ac886894058472a7a041075dafdb1b8",
       "journal_status": "confirmed",
-      "source_frame": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T094829659146Z\\runtime\\personal-might-discovery-20261029T094832746727Z\\frames\\0002-personal-might-praise-proposal.png",
-      "immediate_frame": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T094829659146Z\\runtime\\personal-might-discovery-20261029T094832746727Z\\frames\\0003-personal-might-praise-policy-immediate-before.png",
+      "source_frame": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T094829659146Z\\runtime\\personal-might-discovery-20261029T094832746727Z\\frames\\0002-personal-might-praise-proposal.png",
+      "immediate_frame": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T094829659146Z\\runtime\\personal-might-discovery-20261029T094832746727Z\\frames\\0003-personal-might-praise-policy-immediate-before.png",
       "post_frames": [
-        "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T094829659146Z\\runtime\\personal-might-discovery-20261029T094832746727Z\\frames\\0004-personal-might-praise-immediate-post.png",
-        "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T094829659146Z\\runtime\\personal-might-discovery-20261029T094832746727Z\\frames\\0005-personal-might-praise-settled.png"
+        "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T094829659146Z\\runtime\\personal-might-discovery-20261029T094832746727Z\\frames\\0004-personal-might-praise-immediate-post.png",
+        "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T094829659146Z\\runtime\\personal-might-discovery-20261029T094832746727Z\\frames\\0005-personal-might-praise-settled.png"
       ],
       "retry_denied": false,
-      "recovery_session": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T101628290485Z\\runtime\\personal-might-discovery-20261029T101631403331Z",
+      "recovery_session": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T101628290485Z\\runtime\\personal-might-discovery-20261029T101631403331Z",
       "recovery_log": ".local-orchestrator/logs/personal-might-reconcile-home-20261029.json",
       "recovery_inputs": 2,
       "recovery_new_praise": 0,
       "full_home_repeat": {
-        "session": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T101846188925Z\\runtime\\personal-might-discovery-20261029T101849110287Z",
+        "session": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION-20261029T101846188925Z\\runtime\\personal-might-discovery-20261029T101849110287Z",
         "inputs": 5,
         "semantic_completed_count": 5,
         "new_praise": 0,
@@ -268,7 +268,7 @@
     },
     "nova_corrected_canonical": {
       "status": "completed_two_natural_cooldown_pulses_and_restart_before_due",
-      "session": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\nova-20261029T102720098764Z\\nova-praise-one-free-pulse-20261029T102720314997Z",
+      "session": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\nova-20261029T102720098764Z\\nova-praise-one-free-pulse-20261029T102720314997Z",
       "input_count": 5,
       "praise_transport_calls": 1,
       "attempts_before": 5,
@@ -315,7 +315,7 @@
       "ap_spent": 0,
       "reason": "no_recoverable_actionable_viewport",
       "run_id": "22a542e96c104f89a6bc6ea37af55a7e",
-      "output_directory": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\campaign-20261029T104211889782Z"
+      "output_directory": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\campaign-20261029T104211889782Z"
     },
     "enhancement_corrected_canonical_attempt": {
       "status": "blocked_before_Use",
@@ -323,7 +323,7 @@
       "uses": 0,
       "reason": "native item detail modal not recognized by old crop; exit gaps also identified",
       "run_id": "71b309165944407983d8780ab33783e6",
-      "session": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\enhancement-20261029T104929619983Z\\enhancement-20261029T104929637700Z-3d4fe933\\runtime\\enhancement-family-20261029T104930494057Z",
+      "session": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\enhancement-20261029T104929619983Z\\enhancement-20261029T104929637700Z-3d4fe933\\runtime\\enhancement-family-20261029T104930494057Z",
       "last_frame": "frames/0007-open-enhance-panel-immediate-before.png",
       "current_day_reservations": "allthreevalidandreusable; noneconsumed; do notdeleteorrearm"
     },

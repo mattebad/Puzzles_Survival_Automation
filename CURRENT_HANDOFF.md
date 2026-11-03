@@ -156,11 +156,11 @@
   "preserved_user_work": "The session snapshot is committed on codex/bluestacks-route-reliability. Unrelated Stop-PnS-OMP.ps1, evidence/current-evidence-manifest.json and two loose root plans remain uncommitted and unchanged. Retained stash/evidence/temp files remain local; do not reset/stash/clean them.",
   "subagent_preferences": "All delegates explicit high-or-higher effort/current approved tier. All agents and test processes have stopped.",
   "history_archive": "docs/archive/current-handoff-native-route-history-20261030T085441Z.md",
-  "history_archive_sha256": "86f9a338b97150fcdaddac77b0dded3030565e3ff2e8bb3fd8fc961ca096d8eb",
+  "history_archive_sha256": "08425dcadfe9814ce094b2c8b8db5f1e66731c067906e7f9ea537b885848a481",
   "live_ap_digit_verification": {
     "5": {
       "status": "live_accepted",
-      "report": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\soak-20261030T093002301699Z-1d7d1315\\report-0011.json",
+      "report": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\soak-20261030T093002301699Z-1d7d1315\\report-0011.json",
       "frame_sha256": "7b4c43f068fcd07a268fee5c95c131b2269e231dbc82368f5afd28145d817381",
       "root_visual_value": 5,
       "reported_value": 5,
@@ -169,7 +169,7 @@
     },
     "6": {
       "status": "live_accepted",
-      "report": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\soak-20261030T093002301699Z-1d7d1315\\report-0012.json",
+      "report": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\automation-service-authorized\\soak-20261030T093002301699Z-1d7d1315\\report-0012.json",
       "frame_sha256": "e896054fa1d52c63440dd6e0a02ab997adc591628a29cfd01501c0cf40718b3c",
       "root_visual_value": 6,
       "reported_value": 6,

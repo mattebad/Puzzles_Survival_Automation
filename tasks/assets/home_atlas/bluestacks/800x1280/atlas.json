@@ -2877,12 +2877,12 @@
   ],
   "rejected_viewports": [
     {
-      "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\home-base-atlas-discovery\\full-grid\\home-atlas-four-corner-grid-20260718T220754613718Z\\frames\\0007-grid-02-corner-up-settled.png",
+      "path": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\home-base-atlas-discovery\\full-grid\\home-atlas-four-corner-grid-20260718T220754613718Z\\frames\\0007-grid-02-corner-up-settled.png",
       "reason": "duplicate_viewport",
       "sha256": "2375f9da577c9b7695786a41fd1f18e0f854f1f66d334637b95c33221632ea1a"
     },
     {
-      "path": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\home-base-atlas-discovery\\full-grid\\home-atlas-four-corner-grid-20260718T220754613718Z\\frames\\0070-grid-23-row-sweep-right-settled.png",
+      "path": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\home-base-atlas-discovery\\full-grid\\home-atlas-four-corner-grid-20260718T220754613718Z\\frames\\0070-grid-23-row-sweep-right-settled.png",
       "reason": "duplicate_viewport",
       "sha256": "dc687ba82ffc503e95d19af2ee706fe5dfc7145aebce3a5f196b7ad0a24809c0"
     }

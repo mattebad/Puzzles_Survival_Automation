@@ -28,6 +28,7 @@ OFFLINE_TEST_MODULES: tuple[str, ...] = (
     "tests.test_transition_stability",
     "tests.test_native_frame_replay",
     "tests.test_runtime_trace_projection",
+    "tests.test_host_identifier_guard",
 )
 
 _RUNTIME_ENVIRONMENT_KEYS = (

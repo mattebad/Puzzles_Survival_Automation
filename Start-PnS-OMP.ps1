@@ -3,7 +3,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$benchmarkRoot = "C:\Users\burni\Documents\Qwen38_Benchmarking"
+$benchmarkRoot = Join-Path $env:USERPROFILE "Documents\Qwen38_Benchmarking"
 $serverLauncher = Join-Path $benchmarkRoot "Start-Qwen38-Production.ps1"
 $ompLauncher = Join-Path $benchmarkRoot "Start-OMP-PS.ps1"
 $endpoint = "http://127.0.0.1:1235"

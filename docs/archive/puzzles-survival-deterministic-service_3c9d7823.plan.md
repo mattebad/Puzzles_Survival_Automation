@@ -239,12 +239,12 @@ Hardware audit is complete:
 
 Administrative access used for Milestone 1:
 
-- SSH endpoints: `nas.local` or `192.168.50.92`; administrative user: `root`.
-- The Bliss guest ADB endpoint is `192.168.122.79:5555` on libvirt's private
-  `192.168.122.0/24` NAT network; development access must remain reachable only through the
+- SSH endpoints: `<nas-host>` or `<nas-lan-ip>`; administrative user: `<admin-user>`.
+- The Bliss guest ADB endpoint is `<bliss-guest-ip>:5555` on libvirt's private
+  `<libvirt-nat-subnet>` NAT network; development access must remain reachable only through the
   approved private host path or transient pinned SSH tunnel. Production uses the local/private
   Unraid worker-to-VM path.
-- Pinned ED25519 host-key fingerprint: `f0:b5:ee:95:fb:d2:6c:e5:f5:bf:d2:86:67:9b:21:55`.
+- Pinned ED25519 host-key fingerprint: `<redacted-host-key-fingerprint>`.
 - Plaintext password is intentionally excluded from this durable plan, repository, command
   history, evidence, and retained logs; it must not be embedded directly in scripts.
   Development-only scripts may read a temporary credential from the process-only
@@ -280,10 +280,10 @@ Current candidate and verified results:
 - Working rollback: QXL plus Bliss no-hardware entry boots SwiftShader/OpenGL ES 3.0 at `1024×768`, 160 dpi. Baseline inactive XML is backed up, mode `0600`, hashed, and boot-regression tested.
 - Runtime identity: domain `PnS-BlissOS-PoC`, UUID
   `5500a07f-4352-4ce5-b1cf-7cf668e3a9f4`, disk
-  `/mnt/cache/domains/PnS-BlissOS-PoC/system.qcow2`. Baseline XML is
-  `/mnt/cache/domains/PnS-BlissOS-PoC/rollback/20260710-rt001-qxl-baseline.xml` with SHA-256
+  `/mnt/<cache-pool>/domains/PnS-BlissOS-PoC/system.qcow2`. Baseline XML is
+  `/mnt/<cache-pool>/domains/PnS-BlissOS-PoC/rollback/20260710-rt001-qxl-baseline.xml` with SHA-256
   `f8011eeed1e3f464ad317610973e74bf97f2c922c261142eab51c7f9c002624e`; selected VirGL
-  candidate XML is `/mnt/cache/domains/PnS-BlissOS-PoC/rollback/20260710-rt003-virgl-trial-01.xml`
+  candidate XML is `/mnt/<cache-pool>/domains/PnS-BlissOS-PoC/rollback/20260710-rt003-virgl-trial-01.xml`
   with SHA-256 `9ed03ee6cabedbabf30271fbffe2869b0d5c96207e90a1927c6122f5f7f97c16`.
 - Selected graphics profile: retained VNC for firmware/GRUB, added `egl-headless` on the UHD 770 render node, replaced QXL with primary VirtIO video, and enabled `accel3d`. Candidate XML passed strict libvirt schema validation and native QEMU translation.
 - Accelerated renderer: Mesa VirGL on Intel UHD 770, OpenGL ES 3.2/Mesa 24.0.8. Host `intel_gpu_top` correlated nonzero QEMU Render/3D activity; sampled client busy values included about 18%, 34%, and 22%, with aggregate samples up to about 61%.
@@ -293,7 +293,7 @@ Current candidate and verified results:
 - Boot persistence: the first accelerated boot required selecting `VM Options → QEMU/KVM - Virgl - SW-FFMPEG`. GRUB saved that entry; three later cold boots reached `sys.boot_completed=1` on Mesa VirGL with no GRUB input.
 - Rollback: preserved QXL XML booted successfully through the no-hardware entry, then the validated VirGL candidate was restored and reverified. EFI `grub.cfg`, sourced `android.cfg`, and `grubenv` are backed up and hashed. Read-only NBD inspection was fully disconnected after use.
 - Host safety: Home Assistant remained running; no sampled i915/DRM reset, GPU hang/fault, OOM, or QEMU startup failure was found.
-- ADB: stable at `192.168.122.79:5555` on libvirt's private `192.168.122.0/24` NAT network and
+- ADB: stable at `<bliss-guest-ip>:5555` on libvirt's private `<libvirt-nat-subnet>` NAT network and
   usable through a transient localhost SSH tunnel for development evidence. Current adbd accepted
   the host without an authorization prompt; RT-008 passed strict isolation, but protocol
   authentication remains unavailable. Production uses the local/private Unraid path.
@@ -773,14 +773,14 @@ State dimensions:
 
 Recognition requires base-screen evidence and overlay evidence separately. `UNKNOWN` is valid and non-actionable. Red dots provide weak context only.
 
-Current corpus: [screenshot folder](C:/Users/burni/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots) contains 24 iOS PNGs, `IMG_5076.PNG`–`IMG_5099.PNG`, all 1206×2622. Useful sequences:
+Current corpus: [screenshot folder](C:/Users/owner/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots) contains 24 iOS PNGs, `IMG_5076.PNG`–`IMG_5099.PNG`, all 1206×2622. Useful sequences:
 
-- [Daily Quest](C:/Users/burni/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5076.PNG) through `5079`: Claim/Go rows, milestones, points, reset.
-- [Base](C:/Users/burni/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5080.PNG) through `5082`: stable chrome/navigation; moving building positions.
-- `5083`–[5089](C:/Users/burni/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5089.PNG): Commander and pre-confirm 1-star enhancement.
-- [Rally list](C:/Users/burni/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5091.PNG): Lv.46 lair and unvalidated Quick Join.
-- `5092`–[5095](C:/Users/burni/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5095.PNG): radial/Nova/Bioenhancer; `Free in...` is a paid-state negative.
-- `5096`–[5099](C:/Users/burni/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5099.PNG): Gear Factory/Nanoweapon; result screen does not prove free production.
+- [Daily Quest](C:/Users/owner/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5076.PNG) through `5079`: Claim/Go rows, milestones, points, reset.
+- [Base](C:/Users/owner/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5080.PNG) through `5082`: stable chrome/navigation; moving building positions.
+- `5083`–[5089](C:/Users/owner/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5089.PNG): Commander and pre-confirm 1-star enhancement.
+- [Rally list](C:/Users/owner/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5091.PNG): Lv.46 lair and unvalidated Quick Join.
+- `5092`–[5095](C:/Users/owner/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5095.PNG): radial/Nova/Bioenhancer; `Free in...` is a paid-state negative.
+- `5096`–[5099](C:/Users/owner/Documents/Coding_Projects/Puzzle_Survival_Example_Screenshots/IMG_5099.PNG): Gear Factory/Nanoweapon; result screen does not prove free production.
 
 These are planning context only. Every executable asset must be recaptured from final Android runtime profile.
 

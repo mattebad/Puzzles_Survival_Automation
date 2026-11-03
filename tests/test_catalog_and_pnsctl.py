@@ -292,8 +292,6 @@ class OperatorCliTests(unittest.TestCase):
     def test_pnsctl_has_no_legacy_remote_transport_or_task_literals(self):
         source = Path(pnsctl.__file__).read_text(encoding="utf-8")
         for forbidden in (
-            "nas.local",
-            "192.168.122.79",
             "PnS-BlissOS-PoC",
             "UNRAID_TEMP_",
             "plink",

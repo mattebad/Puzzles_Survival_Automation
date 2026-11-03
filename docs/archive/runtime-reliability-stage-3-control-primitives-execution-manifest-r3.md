@@ -34,8 +34,8 @@
 ## Frozen architecture decision
 
 - Preserve all r1 production code unchanged. Add only a minimal Enhancement evidence projection and executable replay test.
-- The authoritative retained result is `.local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/flow-delivery-result.json`, SHA-256 `bc36407fb2ede1d202d4b18ced544192c4fcb8125af3943e8364f1fb109dde0b`.
-- The corrected authoritative retained event digest is `4a78a4a648f15ecd171b0ec2bbdc220d9659e982ecdfce0db37ae0648e7fc07b`.
+- The authoritative retained result is `.local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/flow-delivery-result.json`, SHA-256 `ff093c4288855c7b940fc2d585a0ba1bd461b136b17ed5a7a73b948143019fe1`.
+- The corrected authoritative retained event digest is `8b06bb7815a5fc2540aa4b31e0d0ac5a0d1c770135c0a59519b0dff41a15b3d7`.
 - Preserve profile `pns-bluestacks-5-p64-800x1280-v1`, native 800×1280 geometry, immediate-post hash `1bd6a28ba8680f17ac4bfc13c8a32661389fcc92ab51f9357b9a0e3b2389bb92`, first-settled hash `434f4ebb55b8606824247a727229c79accddfb2f243d528328b253726eac6c5b`, and terminal-settled hash `f1814d91384522e0f2c67c1796d13a7838f5081ad2e016887b78b9b597bdf2ea`.
 - SafetyStore, primitives, production adapters, runtime ownership, native-frame authority, Home Atlas, registration, and scheduling remain unchanged.
 
