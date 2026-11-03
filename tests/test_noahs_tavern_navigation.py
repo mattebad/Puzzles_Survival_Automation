@@ -392,13 +392,9 @@ class NoahTavernNavigationIsolationTests(unittest.TestCase):
         for needle in (
             "flow_delivery_queue",
             "flow-delivery-lease",
-            "flow_delivery_control",
-            "flow_delivery_context",
             "validate_governance",
             "validation-receipt",
             "gameplay_flow_contracts",
-            "flow_delivery_coverage",
-            "backlog_task_index",
             "current_handoff",
         ):
             self.assertNotIn(needle, source)

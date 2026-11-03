@@ -36,7 +36,6 @@
 - Exactly one live runtime operator may exist. Development chats, agents, tests,
   collectors, and automation MUST NOT share or overlap a live operator.
 - Every live attempt requires explicit current authorization recorded by the controller/operator; documentation, receipts, and retained evidence never grant live authority.
-- The `begin-delegation` command/API requires an explicit non-empty free-form attribution; it has no default persona, provider, or model.
 - Do not use ad-hoc ADB, SSH, remote shells, device access, VM access, or live
   input in offline development. Login, account switching, credentials, tutorial,
   CAPTCHA, and other explicitly manual-only states stop for a human.

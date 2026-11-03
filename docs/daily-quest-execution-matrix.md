@@ -234,7 +234,7 @@ Independent gameplay maintenance identities are support flows, not new catalog o
 
 `ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION` is a reset-bound Daily gameplay identity outside
 the selected-Daily row catalog. The complete reconciled eight-identity coverage is recorded in
-`tasks/flow_delivery_coverage.json` and `docs/flow_delivery_coverage.md`.
+`docs/flow_delivery_coverage.md`.
 
 Historical Praise, Personal Might Claim, individual Help, and Help All evidence
 remains retained, but their Bliss gameplay adapters and operator registrations

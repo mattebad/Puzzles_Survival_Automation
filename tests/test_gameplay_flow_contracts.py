@@ -25,6 +25,7 @@ from tasks.product_authority import AUTHORITY_REVISION
 
 ROOT = Path(__file__).resolve().parents[1]
 QUEUE_PATH = ROOT / "tasks" / "flow_delivery_queue.json"
+POLICY_PATH = ROOT / "tasks" / "flow_delivery_product_policy.json"
 MATRIX_PATH = ROOT / "tasks" / "daily_quest_execution_matrix.json"
 CATALOG_PATH = ROOT / "tasks" / "daily_quest_catalog.json"
 
@@ -766,6 +767,19 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(matrix_task["maximum_resource_list_swipes"], 6)
         self.assertEqual(catalog_identity["maximum_inputs"], 10)
         self.assertEqual(catalog_identity["maximum_resource_list_swipes"], 6)
+
+    def test_contract_policy_refs_into_product_policy_resolve(self):
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        policy_ids = {item["policy_id"] for item in policy["policies"]}
+        checked = 0
+        for flow_id, contract in load_all_flow_contracts().items():
+            for ref in contract.get("product_policy_refs", []):
+                if Path(str(ref["source"])).name != POLICY_PATH.name:
+                    continue
+                checked += 1
+                with self.subTest(flow_id=flow_id, policy_id=ref["policy_id"]):
+                    self.assertIn(ref["policy_id"], policy_ids)
+        self.assertGreater(checked, 0)
 
 
 if __name__ == "__main__":

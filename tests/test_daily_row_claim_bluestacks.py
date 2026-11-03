@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 
 from scripts import daily_row_claim_bluestacks as daily
-from scripts import flow_delivery_control as control
+from scripts import delegated_runtime_receipts as control
 from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
@@ -1615,7 +1615,7 @@ class PnsctlDailyRowCommandTests(unittest.TestCase):
                 control,
                 "DelegatedRuntimeReceiptController",
                 return_value=controller,
-            ), self.assertRaises(control.FlowDeliveryError):
+            ), self.assertRaises(control.DelegatedReceiptError):
                 pnsctl.development_session_daily_row_reconnaissance(
                     max_inputs=2,
                     delegated_receipt=state,
@@ -1928,7 +1928,7 @@ class PnsctlDailyRowCommandTests(unittest.TestCase):
             self.assertIsNotNone(terminal)
             self.assertEqual(terminal[0], "evidence_required")
             self.assertEqual(json.loads(terminal[1])["status"], "evidence_required")
-            with self.assertRaisesRegex(control.FlowDeliveryError, "terminal result"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "terminal result"):
                 controller.record_result(
                     receipt,
                     status="observed",

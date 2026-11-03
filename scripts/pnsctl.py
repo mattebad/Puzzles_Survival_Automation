@@ -1450,7 +1450,7 @@ def _consume_delegated_receipt(
     variant: str,
     max_inputs: int | None = None,
 ):
-    from scripts.flow_delivery_control import (
+    from scripts.delegated_runtime_receipts import (
         DelegatedRuntimeContext,
         DelegatedRuntimeReceiptController,
     )
@@ -2047,7 +2047,7 @@ def development_session_daily_row_reconnaissance(
         DevelopmentSession,
         delegated_runtime_context,
     )
-    from scripts.flow_delivery_control import DelegatedRuntimeReceiptController
+    from scripts.delegated_runtime_receipts import DelegatedRuntimeReceiptController
 
     # Inspect before consumption so an incorrectly scoped receipt remains issued.
     inspected = DelegatedRuntimeReceiptController(delegated_receipt).inspect()
@@ -2757,7 +2757,7 @@ def development_session_daily_row_claim(
         run_daily_row_claim_prepare,
         run_daily_row_claim_return_home,
     )
-    from scripts.flow_delivery_control import DelegatedRuntimeReceiptController
+    from scripts.delegated_runtime_receipts import DelegatedRuntimeReceiptController
     from scripts.navigation_development_boundary import (
         DevelopmentSession,
         delegated_runtime_context,
