@@ -118,14 +118,6 @@ class CanonicalServeFacadeTests(unittest.TestCase):
             for operation in (receipt, registry, session, observe):
                 operation.assert_not_called()
 
-    def test_ordinary_campaign_conductor_stops_before_state_or_runtime(self):
-        with patch("tasks.flow_conductor.load_state") as load, patch.object(
-            pnsctl, "development_session_run_flow"
-        ) as run, patch.object(pnsctl, "development_session_observe") as observe:
-            with self.assertRaises(pnsctl.OperatorError):
-                pnsctl.conduct_flow(pnsctl.CAMPAIGN_AP_FLOW_ID, live=True, yes=True)
-            for operation in (load, run, observe):
-                operation.assert_not_called()
 
     def test_explicit_campaign_recovery_keeps_its_existing_proof_gate(self):
         flow = pnsctl.CAMPAIGN_AP_FLOW_ID
@@ -139,24 +131,6 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                                                     recovery_session=Path("retained-proof"))
             proof.assert_called_once_with(Path("retained-proof"))
             session.assert_not_called()
-
-    def test_campaign_offline_conductor_modes_remain_available(self):
-        framing = {key: True for key in ("intent_match", "no_documented_unsafe_input", "no_manual_only_precondition",
-                                        "consequential_actions_enumerated", "durable_knowledge_consulted")}
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            summary = root / "summary.json"
-            summary.write_text(json.dumps({"status": "blocked", "reason": "retained offline result"}), encoding="utf-8")
-            with patch.object(pnsctl, "_derive_conductor_framing", return_value=framing), patch.object(
-                pnsctl, "development_session_run_flow"
-            ) as run, patch.object(pnsctl, "development_session_observe") as observe:
-                dry = json.loads(pnsctl.conduct_flow(pnsctl.CAMPAIGN_AP_FLOW_ID, state_root=root))
-                self.assertEqual(dry["status"], "dry_run")
-                classified = json.loads(pnsctl.conduct_flow(pnsctl.CAMPAIGN_AP_FLOW_ID, live=True, yes=True,
-                                                          state_root=root, summary_path=summary))
-                self.assertIn("state_path", classified)
-                run.assert_not_called()
-                observe.assert_not_called()
 
 
 if __name__ == "__main__":

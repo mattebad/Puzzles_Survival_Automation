@@ -154,31 +154,6 @@ class DevelopmentLaunchGameTests(unittest.TestCase):
                 for item in reversed(patches):
                     item.stop()
 
-    def test_legacy_reload_uses_the_measured_icon_intent(self):
-        icon = json.loads((Path(__file__).parent / "fixtures/startup/bluestacks-icon-launch-intent-20261030.json").read_text(encoding="utf-8"))["intent"]
-        calls = []
-
-        def adb(*args):
-            calls.append(args)
-            if args == ("get-state",):
-                return "device"
-            if args == ("shell", "dumpsys", "window"):
-                return _focus(BLUESTACKS_PACKAGE)
-            return ""
-
-        with patch.object(pnsctl, "_load_flow_delivery_state", return_value=(
-            {"active_flow_id": "test-flow"},
-            {"runtime_ownership_state": "held", "unresolved_action_state": "clear"},
-        )), patch.object(pnsctl, "_resolve_installed_game_activity", return_value=icon["component"]), patch.object(
-            pnsctl, "_run_fixed_bluestacks_adb", side_effect=adb,
-        ):
-            result = json.loads(pnsctl.bluestacks_reload_game())
-        self.assertEqual(result["status"], "reloaded")
-        self.assertEqual([call for call in calls if call[:3] == ("shell", "am", "start")], [(
-            "shell", "am", "start", "-W", "-a", icon["action"], "-c", icon["category"],
-            "-f", icon["flags"], "-n", icon["component"],
-        )])
-        self.assertEqual(calls.count(("shell", "am", "force-stop", BLUESTACKS_PACKAGE)), 1)
 
     def test_measured_bluestacks_gamecenter_source_can_start_without_force_stop(self):
         self.assert_launcher_starts_without_force_stop("com.bluestacks.gamecenter")

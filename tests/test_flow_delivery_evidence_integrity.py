@@ -6,9 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
 
-from scripts import pnsctl
 from scripts.flow_delivery_evidence import (
     FlowEvidenceIntegrityError,
     REQUIRED_OPERATOR_ARTIFACTS,
@@ -75,98 +73,6 @@ class FlowDeliveryEvidenceIntegrityTests(unittest.TestCase):
             self.assertNotIn('_run_fixed_bluestacks_adb("exec-out", "screencap"', source)
 
 
-class NovaPnsctlBoundaryTests(unittest.TestCase):
-    def test_nova_command_is_narrow_and_parseable(self) -> None:
-        args = pnsctl.parser().parse_args(["nova-praise-pulse"])
-        self.assertEqual(args.command, "nova-praise-pulse")
-        self.assertFalse(args.live)
-        self.assertEqual(args.scenario, "nova_navigation_round_trip_no_praise")
-        self.assertFalse(hasattr(args, "tap"))
-        self.assertFalse(hasattr(args, "swipe"))
-
-    def test_offline_command_runs_retained_production_replay(self) -> None:
-        args = pnsctl.parser().parse_args(["nova-praise-pulse"])
-        result = json.loads(pnsctl.nova_praise_pulse_replay(args))
-        self.assertEqual(result["status"], "replay_confirmed")
-        self.assertEqual(result["transport_calls"], 0)
-        self.assertEqual(len(result["intended_inputs"]), 1)
-        self.assertFalse(result["operational_state_mutated"])
-        self.assertEqual(result["scenario_record"]["phase"], "pre_input")
-        self.assertFalse(result["scenario_record"]["consumes_execution_budget"])
-        self.assertEqual(result["production_registration"], "NOT_REGISTERED")
-        self.assertFalse(result["scheduler_enabled"])
-
-    def test_live_command_missing_identity_stops_before_runtime_connection(self) -> None:
-        args = pnsctl.parser().parse_args(
-            [
-                "nova-praise-pulse",
-                "--live",
-                "--yes",
-                "--supervised-live-opt-in",
-            ]
-        )
-        result = json.loads(pnsctl.nova_praise_pulse_live(args))
-        self.assertEqual(result["status"], "manual_required")
-        self.assertFalse(result["runtime_connected"])
-        self.assertEqual(result["transport_calls"], 0)
-        self.assertIn("identity_evidence", result["missing_configuration_fields"])
-        self.assertEqual(
-            result["scenario_record"]["failure_class"],
-            "supervised_identity",
-        )
-        self.assertFalse(result["scenario_record"]["consumes_execution_budget"])
-
-    def test_verified_identity_is_passed_only_to_checked_in_navigation_runner(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            evidence = Path(directory) / "identity.json"
-            evidence.write_text(
-                json.dumps(
-                    {
-                        "account_id": "acct-1",
-                        "server_id": "server-1",
-                        "reset_id": "reset-1",
-                        "assurance": "supervised_navigation_binding",
-                        "evidence_refs": ["operator-bound-current-frame"],
-                    }
-                ),
-                encoding="utf-8",
-            )
-            args = pnsctl.parser().parse_args(
-                [
-                    "nova-praise-pulse",
-                    "--live",
-                    "--yes",
-                    "--supervised-live-opt-in",
-                    "--runtime-scope",
-                    "bluestacks-dev-primary",
-                    "--account-id",
-                    "acct-1",
-                    "--server-id",
-                    "server-1",
-                    "--reset-id",
-                    "reset-1",
-                    "--identity-evidence",
-                    str(evidence),
-                ]
-            )
-            with patch(
-                "scripts.nova_praise_bluestacks.run_nova_navigation_canary",
-                return_value=json.dumps(
-                    {
-                        "status": "completed",
-                        "scenario_id": "nova_navigation_round_trip_no_praise",
-                        "transport_calls": 3,
-                        "navigation_input_count": 3,
-                        "praise_taps": 0,
-                    }
-                ),
-            ) as runner:
-                result = json.loads(pnsctl.nova_praise_pulse_live(args))
-            runner.assert_called_once()
-            self.assertEqual(result["status"], "completed")
-            self.assertEqual(result["praise_taps"], 0)
-            self.assertEqual(result["scenario_record"]["phase"], "execution")
-            self.assertTrue(result["scenario_record"]["consumes_execution_budget"])
 
 
 if __name__ == "__main__":

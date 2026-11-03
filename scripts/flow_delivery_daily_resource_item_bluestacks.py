@@ -1,4 +1,4 @@
-"""Thin pnsctl conduct adapter for the Daily 1K Food flow."""
+"""Thin development-session adapter for the Daily 1K Food flow."""
 
 from __future__ import annotations
 

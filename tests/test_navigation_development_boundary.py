@@ -656,32 +656,6 @@ class NavigationDevelopmentBoundaryTests(unittest.TestCase):
             self.assertNotIn("transport_observed", audit_text)
             self.assertNotIn('"authorized": true', audit_text.lower())
 
-    def test_bluestacks_run_flow_live_is_retired_before_runtime_or_state(self) -> None:
-        import scripts.pnsctl as pnsctl
-
-        with tempfile.TemporaryDirectory() as directory:
-            artifact_root = Path(directory) / "artifacts"
-            with (
-                patch.object(pnsctl, "BLUESTACKS_FLOW_IDS", ("FLOW-X",)),
-                patch.object(pnsctl, "_load_bluestacks_flow_registry") as registry,
-                patch.object(pnsctl, "_load_flow_delivery_state") as state,
-                patch.object(pnsctl, "_development_runtime_observation") as observe,
-                patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", artifact_root),
-                patch.dict(
-                    pnsctl._BLUESTACKS_FLOW_RUNNERS,
-                    {"runner-x": lambda _queue, _lease: "unexpected"},
-                ),
-            ):
-                with self.assertRaisesRegex(
-                    pnsctl.OperatorError,
-                    "legacy bluestacks run-flow --live is retired",
-                ):
-                    pnsctl.bluestacks_run_flow("FLOW-X", live=True)
-
-            registry.assert_not_called()
-            state.assert_not_called()
-            observe.assert_not_called()
-            self.assertFalse(artifact_root.exists())
 
     def test_settle_successor_only_observes_and_preserves_typed_states(self) -> None:
         captures: list[str] = []

@@ -1377,156 +1377,15 @@ class DevelopmentSessionTests(unittest.TestCase):
             self.assertEqual(result["proof_topology"], "composite")
             self.assertTrue(result["persistent_checkpoint_artifacts_unchanged"])
 
-    def test_direct_nova_praise_consumes_before_session_and_rejects_repeat(self) -> None:
-        flow_id = registration.NOVA_FLOW_ID
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            registry_path = root / "registry.json"
-            checked_in = (
-                Path(__file__).resolve().parents[1]
-                / "tasks"
-                / "flow_delivery_disabled_production_registry.json"
-            )
-            payload = json.loads(checked_in.read_text(encoding="utf-8"))
-            disable_non_target_registrations(payload, flow_id)
-            payload["flows"][flow_id] = {
-                "production_handler": registration.NOVA_HANDLER_ID,
-                "profile": registration.NOVA_PROFILE_ID,
-                "supported_profiles": [registration.NOVA_PROFILE_ID],
-                "mode": registration.NOVA_PHASE_MODE,
-                "registration_status": "REGISTERED",
-                "scheduler_eligible": True,
-                "product_id": registration.NOVA_PRODUCT_ID,
-                "product_revision": registration.NOVA_PRODUCT_REVISION,
-            }
-            registry_path.write_text(json.dumps(payload), encoding="utf-8")
-            identity_evidence = root / "identity.json"
-            identity_evidence.write_text(
-                json.dumps(
-                    {
-                        "account_id": "acct-1",
-                        "server_id": "server-1",
-                        "reset_id": "game-day-2026-08-25",
-                        "assurance": "supervised_navigation_binding",
-                        "evidence_refs": ["current-frame"],
-                    }
-                ),
-                encoding="utf-8",
-            )
-            args = pnsctl.parser().parse_args(
-                [
-                    "nova-praise-pulse",
-                    "--live",
-                    "--yes",
-                    "--supervised-live-opt-in",
-                    "--scenario",
-                    "nova_praise_one_free_pulse",
-                    "--runtime-scope",
-                    "bluestacks-dev-primary",
-                    "--account-id",
-                    "acct-1",
-                    "--server-id",
-                    "server-1",
-                    "--reset-id",
-                    "game-day-2026-08-25",
-                    "--identity-evidence",
-                    str(identity_evidence),
-                ]
-            )
-            events: list[str] = []
 
-            def registry_consumed() -> None:
-                self.assertFalse(
-                    any(
-                        entry.registered
-                        for entry in registration.load_disabled_registry(registry_path)
-                    )
-                )
-
-            class FakeSession:
-                def __init__(self, **_kwargs):
-                    events.append("session_init")
-                    registry_consumed()
-
-                def __enter__(self):
-                    events.append("session_enter")
-                    return self
-
-                def __exit__(self, *_args):
-                    events.append("session_exit")
-
-            def runner(route_args, _identity):
-                events.append("runner")
-                self.assertIsInstance(
-                    route_args.registration_snapshot,
-                    registration.RegisteredDispatchSnapshot,
-                )
-                self.assertFalse(
-                    any(
-                        entry.registered
-                        for entry in registration.load_disabled_registry(registry_path)
-                    )
-                )
-                return json.dumps(
-                    {
-                        "status": "blocked",
-                        "reason": "recognition_needed",
-                        "navigation_input_count": 0,
-                        "praise_transport_calls": 0,
-                        "session_directory": "",
-                    }
-                )
-
-            def guard(*_args, **_kwargs):
-                events.append("guard")
-                self.assertFalse(
-                    any(
-                        entry.registered
-                        for entry in registration.load_disabled_registry(registry_path)
-                    )
-                )
-
-            args.output_directory = root / "output"
-            args.action_database = root / "actions.sqlite3"
-            with (
-                patch.object(registration, "REGISTRY_PATH", registry_path),
-                patch.object(pnsctl, "REPO_ROOT", root),
-                patch.object(pnsctl, "NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT", root / "output"),
-                patch.object(pnsctl, "NOVA_SUPERVISED_ACTION_DATABASE", root / "actions.sqlite3"),
-                patch.object(boundary, "NavigationDevelopmentSession", FakeSession),
-                patch.object(pnsctl, "_create_nova_supervised_invocation_guard", side_effect=guard),
-                patch.object(pnsctl, "_finalize_nova_supervised_invocation_guard"),
-                patch(
-                    "scripts.nova_praise_bluestacks.run_nova_praise_one_free_pulse",
-                    side_effect=runner,
-                ),
-                patch(
-                    "subprocess.run",
-                    return_value=CompletedProcess(
-                        ["git", "rev-parse", "HEAD"],
-                        0,
-                        stdout="a" * 40 + "\n",
-                    ),
-                ),
-            ):
-                args.output_directory = pnsctl.NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT
-                args.action_database = pnsctl.NOVA_SUPERVISED_ACTION_DATABASE
-                first = json.loads(pnsctl.nova_praise_pulse_live(args))
-                self.assertEqual(first["status"], "blocked")
-                self.assertEqual(events, ["guard", "session_init", "session_enter", "runner", "session_exit"])
-                with self.assertRaisesRegex(pnsctl.OperatorError, "not registered"):
-                    pnsctl.nova_praise_pulse_live(args)
-            self.assertFalse(
-                any(
-                    entry.registered
-                    for entry in registration.load_disabled_registry(registry_path)
-                )
-            )
-
-
-    def test_direct_nova_praise_persists_dispatch_evidence_in_all_artifacts(self) -> None:
+    def test_persisted_nova_dispatch_evidence_is_verified_across_all_artifacts(self) -> None:
         flow_id = registration.NOVA_FLOW_ID
         from safe_action_core import SafetyStore
+        from tasks.flow_scenario_attempts import (
+            ScenarioOutcome,
+            ScenarioPhase,
+            SupervisedNovaPulseScenarioAttemptRecord,
+        )
         from tasks.nova_praise_pulse import NOVA_TASK_ID
 
         with tempfile.TemporaryDirectory() as directory:
@@ -1550,19 +1409,6 @@ class DevelopmentSessionTests(unittest.TestCase):
                 "product_revision": registration.NOVA_PRODUCT_REVISION,
             }
             registry_path.write_text(json.dumps(payload), encoding="utf-8")
-            identity_evidence = root / "identity.json"
-            identity_evidence.write_text(
-                json.dumps(
-                    {
-                        "account_id": "acct-1",
-                        "server_id": "server-1",
-                        "reset_id": "game-day-2026-08-25",
-                        "assurance": "supervised_navigation_binding",
-                        "evidence_refs": ["current-frame"],
-                    }
-                ),
-                encoding="utf-8",
-            )
             output = (
                 root
                 / ".local-captures"
@@ -1571,105 +1417,80 @@ class DevelopmentSessionTests(unittest.TestCase):
             )
             session = output / "nova-praise-one-free-pulse-20260825T000000000000Z"
             action_database = root / ".local-orchestrator" / "bluestacks-actions.sqlite3"
-            args = pnsctl.parser().parse_args(
-                [
-                    "nova-praise-pulse",
-                    "--live",
-                    "--yes",
-                    "--supervised-live-opt-in",
-                    "--scenario",
-                    "nova_praise_one_free_pulse",
-                    "--runtime-scope",
-                    "bluestacks-dev-primary",
-                    "--account-id",
-                    "acct-1",
-                    "--server-id",
-                    "server-1",
-                    "--reset-id",
-                    "game-day-2026-08-25",
-                    "--identity-evidence",
-                    str(identity_evidence),
-                ]
-            )
-            observed_snapshot: dict[str, object] = {}
 
-            def runner(route_args, _identity):
-                self.assertIsInstance(
-                    route_args.registration_snapshot,
-                    registration.RegisteredDispatchSnapshot,
+            snapshot = registration.consume_nova_registration(registry_path)
+            self.assertIsInstance(snapshot, registration.RegisteredDispatchSnapshot)
+            observed_snapshot = snapshot.to_mapping()
+            self.assertFalse(
+                any(
+                    entry.registered
+                    for entry in registration.load_disabled_registry(registry_path)
                 )
-                self.assertFalse(
-                    any(
-                        entry.registered
-                        for entry in registration.load_disabled_registry(registry_path)
-                    )
+            )
+            session.mkdir(parents=True)
+            (session / "frame.png").write_bytes(b"native-frame")
+            (session / "events.jsonl").write_text(
+                "\n".join(
+                    [
+                        json.dumps({"type": "navigation", "action": "open_lab"}),
+                        json.dumps(
+                            {
+                                "type": "dispatch",
+                                "consequential": True,
+                                "action_key": "nova-praise:key",
+                            }
+                        ),
+                    ]
                 )
-                observed_snapshot.update(route_args.registration_snapshot.to_mapping())
-                session.mkdir(parents=True)
-                (session / "frame.png").write_bytes(b"native-frame")
-                (session / "events.jsonl").write_text(
-                    "\n".join(
-                        [
-                            json.dumps({"type": "navigation", "action": "open_lab"}),
-                            json.dumps(
-                                {
-                                    "type": "dispatch",
-                                    "consequential": True,
-                                    "action_key": "nova-praise:key",
-                                }
-                            ),
-                        ]
-                    )
-                    + "\n",
-                    encoding="utf-8",
+                + "\n",
+                encoding="utf-8",
+            )
+            (session / "ledger.jsonl").write_text(
+                json.dumps({"action": "navigation", "authorized": True}) + "\n",
+                encoding="utf-8",
+            )
+            (session / "journal.jsonl").write_text(
+                json.dumps(
+                    {
+                        "scenario_id": pnsctl.NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                        "action_id": "nova-action",
+                        "action_key": "nova-praise:key",
+                        "journal_status": "confirmed",
+                        "attempts_before": 6,
+                        "attempts_after": 5,
+                        "cooldown_seconds": 300,
+                        "terminal_home_verified": True,
+                    }
                 )
-                (session / "ledger.jsonl").write_text(
-                    json.dumps({"action": "navigation", "authorized": True}) + "\n",
-                    encoding="utf-8",
-                )
-                (session / "journal.jsonl").write_text(
-                    json.dumps(
-                        {
-                            "scenario_id": pnsctl.NOVA_SUPERVISED_PULSE_SCENARIO_ID,
-                            "action_id": "nova-action",
-                            "action_key": "nova-praise:key",
-                            "journal_status": "confirmed",
-                            "attempts_before": 6,
-                            "attempts_after": 5,
-                            "cooldown_seconds": 300,
-                            "terminal_home_verified": True,
-                        }
-                    )
-                    + "\n",
-                    encoding="utf-8",
-                )
-                runner_result = {
-                    "schema_version": 1,
-                    "flow_id": flow_id,
-                    "scenario_id": pnsctl.NOVA_SUPERVISED_PULSE_SCENARIO_ID,
-                    "status": "completed",
-                    "reason": "confirmed_praise_and_verified_safe_return_home",
-                    "session_directory": str(session),
-                    "navigation_input_count": 4,
-                    "praise_transport_calls": 1,
-                    "attempts_before": 6,
-                    "attempts_after": 5,
-                    "cooldown_seconds": 300,
-                    "action_id": "nova-action",
-                    "action_key": "nova-praise:key",
-                    "journal_status": "confirmed",
-                    "terminal_home_verified": True,
-                    "evidence_refs": ["frame.png"],
-                    "action_database": str(action_database),
-                    "production_registration": "NOT_REGISTERED",
-                    "scheduler_enabled": False,
-                    "runner_marker": "preserved",
-                }
-                (session / "result.json").write_text(
-                    json.dumps(runner_result, indent=2, sort_keys=True) + "\n",
-                    encoding="utf-8",
-                )
-                return json.dumps(runner_result)
+                + "\n",
+                encoding="utf-8",
+            )
+            runner_result = {
+                "schema_version": 1,
+                "flow_id": flow_id,
+                "scenario_id": pnsctl.NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                "status": "completed",
+                "reason": "confirmed_praise_and_verified_safe_return_home",
+                "session_directory": str(session),
+                "navigation_input_count": 4,
+                "praise_transport_calls": 1,
+                "attempts_before": 6,
+                "attempts_after": 5,
+                "cooldown_seconds": 300,
+                "action_id": "nova-action",
+                "action_key": "nova-praise:key",
+                "journal_status": "confirmed",
+                "terminal_home_verified": True,
+                "evidence_refs": ["frame.png"],
+                "action_database": str(action_database),
+                "production_registration": "NOT_REGISTERED",
+                "scheduler_enabled": False,
+                "runner_marker": "preserved",
+            }
+            (session / "result.json").write_text(
+                json.dumps(runner_result, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
 
             action_database.parent.mkdir(parents=True)
             store = SafetyStore(action_database)
@@ -1697,31 +1518,49 @@ class DevelopmentSessionTests(unittest.TestCase):
             finally:
                 store.close()
 
-            args.output_directory = output
-            args.action_database = action_database
+            trace = {
+                "schema_version": 1,
+                "trace_count": 1,
+                "read_only": True,
+                "input_authority": False,
+                "stages": ["observation", "transport", "terminal_home"],
+                "proof_topology": "continuous",
+                "flow_id": flow_id,
+                "scheduler_enabled": False,
+                "registration_snapshot": dict(observed_snapshot),
+                "dispatch_registration": dict(observed_snapshot),
+            }
             with (
-                patch.object(registration, "REGISTRY_PATH", registry_path),
                 patch.object(pnsctl, "REPO_ROOT", root),
                 patch.object(pnsctl, "NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT", output),
                 patch.object(pnsctl, "NOVA_SUPERVISED_ACTION_DATABASE", action_database),
-                patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"),
-                patch.object(pnsctl, "_create_nova_supervised_invocation_guard"),
-                patch.object(pnsctl, "_bind_nova_supervised_invocation_guard_session"),
-                patch.object(pnsctl, "_finalize_nova_supervised_invocation_guard"),
-                patch(
-                    "scripts.nova_praise_bluestacks.run_nova_praise_one_free_pulse",
-                    side_effect=runner,
-                ),
-                patch(
-                    "subprocess.run",
-                    return_value=CompletedProcess(
-                        ["git", "rev-parse", "HEAD"],
-                        0,
-                        stdout="a" * 40 + "\n",
-                    ),
-                ),
             ):
-                result = json.loads(pnsctl.nova_praise_pulse_live(args))
+                result = pnsctl._persist_nova_session_result(
+                    session,
+                    {
+                        "candidate_commit": "a" * 40,
+                        "production_registration": "REGISTERED",
+                        "scheduler_enabled": False,
+                        "registration_snapshot": dict(observed_snapshot),
+                        "dispatch_registration": dict(observed_snapshot),
+                        "causal_trace": trace,
+                        "causal_trace_count": 1,
+                        "scenario_record": SupervisedNovaPulseScenarioAttemptRecord(
+                            pnsctl.NOVA_SUPERVISED_PULSE_SCENARIO_ID,
+                            ScenarioPhase.EXECUTION,
+                            ScenarioOutcome.COMPLETED,
+                            "a" * 40,
+                            4,
+                            1,
+                            "mixed_navigation_and_one_consequential",
+                            True,
+                            "confirmed_praise_and_verified_safe_return_home",
+                            evidence_refs=(str(session),),
+                            terminal_ownership_state="released",
+                        ).to_mapping(),
+                    },
+                    candidate_commit="a" * 40,
+                )
                 self.assertEqual(result["runner_marker"], "preserved")
                 self.assertEqual(result["production_registration"], "REGISTERED")
                 result_path = session / "result.json"

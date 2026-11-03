@@ -317,52 +317,6 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                 ["development-session", "resource-identity-observe"]
             )
 
-    def test_resource_conduct_skips_identity_receipt_and_observe_prestep(self):
-        framing = {
-            "intent_match": True,
-            "no_documented_unsafe_input": True,
-            "no_manual_only_precondition": True,
-            "consequential_actions_enumerated": True,
-            "durable_knowledge_consulted": True,
-        }
-        with tempfile.TemporaryDirectory() as tmp:
-            run = Mock(
-                return_value=json.dumps(
-                    {
-                        "status": "blocked",
-                        "flow_id": delivery.FLOW_ID,
-                        "runtime_session_directory": "",
-                        "reason": "offline test",
-                    }
-                )
-            )
-            with patch.object(
-                pnsctl,
-                "development_session_observe",
-                side_effect=AssertionError("Resource conduct must not observe first"),
-            ) as observe:
-                with patch.object(pnsctl, "development_session_run_flow", run):
-                    with patch.object(
-                        pnsctl,
-                        "_conductor_live_summary",
-                        return_value=(
-                            {
-                                "status": "blocked",
-                                "flow_id": delivery.FLOW_ID,
-                                "reason": "offline test",
-                            },
-                            {},
-                        ),
-                    ):
-                        pnsctl.conduct_flow(
-                            delivery.FLOW_ID,
-                            live=True,
-                            yes=True,
-                            state_root=Path(tmp),
-                            framing=framing,
-                        )
-            observe.assert_not_called()
-            self.assertNotIn("identity_evidence", run.call_args.kwargs)
 
     def test_direct_resource_run_flow_ignores_identity_evidence_path(self):
         poisoned = Path("C:/poisoned-resource-identity-receipt.json")
@@ -987,7 +941,7 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
             delivery.MAX_RESOURCE_LIST_SWIPES, route.MAX_RESOURCE_LIST_SWIPES
         )
         self.assertEqual(
-            pnsctl._CONDUCT_DEFAULT_MAX_INPUTS[delivery.FLOW_ID],
+            pnsctl._DEFAULT_MAX_INPUTS[delivery.FLOW_ID],
             route.MAX_ROUTE_INPUTS,
         )
         self.assertEqual(

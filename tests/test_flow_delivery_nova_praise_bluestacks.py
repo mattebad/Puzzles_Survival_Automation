@@ -116,7 +116,8 @@ class NovaFlowDeliveryBindingTests(unittest.TestCase):
             ]
         )
         self.assertEqual(args.flow_id, FLOW_ID)
-        self.assertEqual(pnsctl._conduct_max_inputs(args.flow_id, args.max_inputs), 8)
+        self.assertIsNone(args.max_inputs)
+        self.assertEqual(pnsctl._DEFAULT_MAX_INPUTS[args.flow_id], 8)
         self.assertEqual(args.reset_id, "game-day-2026-08-18")
 
     def test_one_praise_ceiling_is_frozen(self) -> None:

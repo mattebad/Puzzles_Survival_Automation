@@ -225,7 +225,7 @@ def build_activated_survey_readiness_payload(
             "disposition": CollectorDisposition.BLOCKED_FAIL_CLOSED.value,
             "reason": (
                 "campaign_atlas_bluestacks activated-survey refuses direct --execute; "
-                "live dispatch is only available through scripts/pnsctl.py bluestacks run-flow"
+                "live dispatch is only available through scripts/pnsctl.py development-session run-flow"
             ),
             "transport_dispatched": False,
             "transport_input_count": 0,
@@ -260,7 +260,7 @@ def build_activated_survey_readiness_payload(
             "live_runner": "scripts.flow_delivery_campaign_atlas_bluestacks.run_bounded_campaign_atlas_survey",
         },
         "live_interface": (
-            "python scripts/pnsctl.py bluestacks run-flow "
+            "python scripts/pnsctl.py development-session run-flow "
             "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
         ),
         "live_preflight_admissible": False,

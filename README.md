@@ -52,7 +52,8 @@ Account, server, device, state and output paths must match the intended local in
 command preserves persisted service/flow enablement and blocks; it does not turn them on.
 Use `automation-service status` to inspect those controls, and the explicit `enable <flow_id>`,
 `disable <flow_id>`, `service-enable`, and `service-disable` commands to manage an authorized
-session. Do not start another controller while a live owner exists. Static code registration is separate from enablement; persisted service/flow controls are off
+session; `emergency-stop` is the global stop. The full command reference and safety notes are in the
+[`operations runbook`](docs/pns-operations-runbook.md). Do not start another controller while a live owner exists. Static code registration is separate from enablement; persisted service/flow controls are off
 after bounded tests, and permanent deployment remains unchanged. See [`the service guide`](docs/automation-service.md)
 for the control and execution boundaries.
 

@@ -89,7 +89,9 @@ The supported live boundary is `scripts/pnsctl.py automation-service`. The thin 
 the remaining arguments unchanged to `automation_service.cli.main`. It validates the standard
 supervised mode, BlueStacks adapter, and canonical state path
 before serving, and it does not auto-enable, unblock, register, schedule, deploy, or bypass any
-existing control gate.
+existing control gate. The other `pnsctl automation-service` subcommands (`status`, `health`,
+`enable`, `disable`, `service-enable`, `service-disable`, `emergency-stop`, `run`, `pulse`) and their
+safety notes are listed in the [operations runbook](pns-operations-runbook.md).
 
 Import direction: `scripts/pnsctl.py` imports `automation_service`, never the reverse. The fixed
 BlueStacks runtime constants and the fixed-slot binding derivation live in

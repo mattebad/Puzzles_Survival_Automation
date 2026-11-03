@@ -195,20 +195,81 @@ class OperatorCliTests(unittest.TestCase):
             payload = (asset_root / asset["path"]).read_bytes()
             self.assertEqual(hashlib.sha256(payload).hexdigest(), asset["sha256"])
 
-    def test_local_operator_surface_remains_available(self):
-        parser = pnsctl.parser()
-        for command in (
-            "development-session",
-            "reconcile",
-            "nova-praise-pulse",
-            "noahs-tavern-nav",
-            "noahs-tavern-recruit",
-            "nova-praise-supervised-guard",
-            "bluestacks",
-            "automation-service",
+    def test_command_surface_is_exactly_the_documented_set(self):
+        # Adding or removing a command must be deliberate: update this set and
+        # the command reference in docs/pns-operations-runbook.md together.
+        def choices(parser):
+            action = next(
+                item
+                for item in parser._actions
+                if isinstance(item, argparse._SubParsersAction)
+            )
+            return action.choices
+
+        top = choices(pnsctl.parser())
+        actual = {}
+        for name, sub in top.items():
+            try:
+                actual[name] = frozenset(choices(sub))
+            except StopIteration:
+                actual[name] = frozenset()
+        self.assertEqual(
+            actual,
+            {
+                "reconcile": frozenset(),
+                "development-session": frozenset(
+                    {
+                        "observe",
+                        "launch-game",
+                        "daily-row-reconnaissance",
+                        "daily-row-claim",
+                        "delegated-dry-run",
+                        "run-flow",
+                    }
+                ),
+                "nova-praise-supervised-guard": frozenset(
+                    {"reconcile-proven-no-effect"}
+                ),
+                "bluestacks": frozenset(
+                    {
+                        "preflight",
+                        "verify-flow",
+                        "recover-home",
+                        "reconcile-campaign-atlas-survey-action",
+                    }
+                ),
+                "automation-service": frozenset(
+                    {
+                        "serve",
+                        "status",
+                        "health",
+                        "enable",
+                        "disable",
+                        "run",
+                        "service-enable",
+                        "service-disable",
+                        "emergency-stop",
+                        "pulse",
+                    }
+                ),
+            },
+        )
+
+    def test_retired_commands_are_rejected(self):
+        for argv in (
+            ["conduct"],
+            ["nova-praise-pulse"],
+            ["noahs-tavern-nav"],
+            ["noahs-tavern-recruit"],
+            ["bluestacks", "reload-game"],
+            ["bluestacks", "dismiss-reload-overlay"],
+            ["bluestacks", "run-flow"],
+            ["automation-service", "campaign-plan"],
         ):
-            with self.subTest(command=command):
-                self.assertIn(command, parser._subparsers._group_actions[0].choices)
+            with self.subTest(argv=argv), contextlib.redirect_stderr(
+                io.StringIO()
+            ), self.assertRaises(SystemExit):
+                pnsctl.parser().parse_args(argv)
 
     def test_removed_remote_commands_are_rejected(self):
         parser = pnsctl.parser()
@@ -253,11 +314,7 @@ class OperatorCliTests(unittest.TestCase):
 
     def test_flow_commands_offer_exactly_the_selectable_flow_ids(self):
         selectable = set(pnsctl.BLUESTACKS_FLOW_IDS)
-        for argv in (
-            ["conduct"],
-            ["development-session", "run-flow"],
-            ["bluestacks", "run-flow"],
-        ):
+        for argv in (["development-session", "run-flow"],):
             with self.subTest(command=argv):
                 self.assertEqual(set(_flow_id_choices(pnsctl.parser(), argv)), selectable)
 
@@ -275,9 +332,7 @@ class OperatorCliTests(unittest.TestCase):
     def test_contract_only_milestone_flow_is_rejected_before_runtime_work(self):
         self.assertNotIn(MILESTONE_FLOW_ID, pnsctl.BLUESTACKS_FLOW_IDS)
         for argv in (
-            ["conduct", MILESTONE_FLOW_ID],
             ["development-session", "run-flow", MILESTONE_FLOW_ID],
-            ["bluestacks", "run-flow", MILESTONE_FLOW_ID],
         ):
             with self.subTest(command=argv), patch.object(
                 pnsctl, "_run_fixed_bluestacks_adb"
@@ -286,8 +341,6 @@ class OperatorCliTests(unittest.TestCase):
                     pnsctl.parser().parse_args(argv)
                 self.assertIn("invalid choice", stderr.getvalue())
                 adb.assert_not_called()
-        with self.assertRaisesRegex(pnsctl.OperatorError, "allowlist"):
-            pnsctl.bluestacks_run_flow(MILESTONE_FLOW_ID, live=False)
 
     def test_pnsctl_has_no_legacy_remote_transport_or_task_literals(self):
         source = Path(pnsctl.__file__).read_text(encoding="utf-8")
