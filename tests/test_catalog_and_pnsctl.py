@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import argparse
+import contextlib
 import hashlib
+import io
 import json
 from pathlib import Path
 import unittest
@@ -9,7 +12,23 @@ from unittest.mock import patch
 from scripts import pnsctl
 from tasks.catalog import CATALOG_PATH, catalog_summary, load_catalog, objective_for_text
 from tasks.daily_quest import AllianceHelpHandler, AllianceHelpObservation
+from tasks.gameplay_flow_contracts import CONTRACTS_DIR
+MILESTONE_FLOW_ID = "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION"
 MATRIX_PATH = Path(__file__).resolve().parents[1] / "tasks" / "daily_quest_execution_matrix.json"
+
+
+def _flow_id_choices(parser: argparse.ArgumentParser, command: list[str]):
+    """Return the ``flow_id`` choices of the (nested) subcommand named by ``command``."""
+
+    for name in command:
+        action = next(
+            item
+            for item in parser._actions
+            if isinstance(item, argparse._SubParsersAction)
+        )
+        parser = action.choices[name]
+    flow_action = next(item for item in parser._actions if item.dest == "flow_id")
+    return flow_action.choices
 
 
 class CatalogTests(unittest.TestCase):
@@ -214,6 +233,62 @@ class OperatorCliTests(unittest.TestCase):
         ):
             with self.subTest(command=command), self.assertRaises(SystemExit):
                 parser.parse_args([command])
+
+    def test_every_selectable_flow_id_has_a_registered_runner(self):
+        registry = pnsctl._load_bluestacks_flow_registry()
+        self.assertTrue(pnsctl.BLUESTACKS_FLOW_IDS)
+        # A registry route without code-bound handlers must fail here rather
+        # than be silently dropped from the selectable set.
+        self.assertEqual(set(pnsctl.BLUESTACKS_FLOW_IDS), set(registry))
+        for flow_id in pnsctl.BLUESTACKS_FLOW_IDS:
+            with self.subTest(flow_id=flow_id):
+                route = registry.get(flow_id)
+                self.assertIsNotNone(route, "no registry route")
+                self.assertIn(route["runner"], pnsctl._BLUESTACKS_FLOW_RUNNERS)
+                self.assertIn(
+                    route["evidence_validator"], pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS
+                )
+                self.assertIn(
+                    route["recovery_handler"], pnsctl._BLUESTACKS_RECOVERY_HANDLERS
+                )
+
+    def test_flow_commands_offer_exactly_the_selectable_flow_ids(self):
+        selectable = set(pnsctl.BLUESTACKS_FLOW_IDS)
+        for argv in (
+            ["conduct"],
+            ["development-session", "run-flow"],
+            ["bluestacks", "run-flow"],
+        ):
+            with self.subTest(command=argv):
+                self.assertEqual(set(_flow_id_choices(pnsctl.parser(), argv)), selectable)
+
+    def test_contract_only_flows_are_not_selectable(self):
+        contract_only = set()
+        for path in CONTRACTS_DIR.glob("*.json"):
+            if path.name == "schema.json":
+                continue
+            contract = json.loads(path.read_text(encoding="utf-8"))
+            if contract.get("implementation_status") == "contract_only":
+                contract_only.add(contract["flow_id"])
+        self.assertIn(MILESTONE_FLOW_ID, contract_only)
+        self.assertFalse(contract_only & set(pnsctl.BLUESTACKS_FLOW_IDS))
+
+    def test_contract_only_milestone_flow_is_rejected_before_runtime_work(self):
+        self.assertNotIn(MILESTONE_FLOW_ID, pnsctl.BLUESTACKS_FLOW_IDS)
+        for argv in (
+            ["conduct", MILESTONE_FLOW_ID],
+            ["development-session", "run-flow", MILESTONE_FLOW_ID],
+            ["bluestacks", "run-flow", MILESTONE_FLOW_ID],
+        ):
+            with self.subTest(command=argv), patch.object(
+                pnsctl, "_run_fixed_bluestacks_adb"
+            ) as adb, contextlib.redirect_stderr(io.StringIO()) as stderr:
+                with self.assertRaises(SystemExit):
+                    pnsctl.parser().parse_args(argv)
+                self.assertIn("invalid choice", stderr.getvalue())
+                adb.assert_not_called()
+        with self.assertRaisesRegex(pnsctl.OperatorError, "allowlist"):
+            pnsctl.bluestacks_run_flow(MILESTONE_FLOW_ID, live=False)
 
     def test_pnsctl_has_no_legacy_remote_transport_or_task_literals(self):
         source = Path(pnsctl.__file__).read_text(encoding="utf-8")
