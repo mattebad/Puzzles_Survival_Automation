@@ -318,8 +318,7 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
             )
 
 
-    def test_direct_resource_run_flow_ignores_identity_evidence_path(self):
-        poisoned = Path("C:/poisoned-resource-identity-receipt.json")
+    def test_direct_resource_run_flow_produces_its_own_runtime_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             produced_identity = Mock()
@@ -356,10 +355,6 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                 pnsctl, "_build_resource_runtime_components", return_value=None
             ) as build, patch.object(
                 pnsctl,
-                "_nova_supervised_identity",
-                side_effect=AssertionError("Resource must not load Nova identity evidence"),
-            ) as nova_loader, patch.object(
-                pnsctl,
                 "_load_bluestacks_flow_registry",
                 return_value={delivery.FLOW_ID: {"runner": "resource-test-runner"}},
             ), patch.dict(
@@ -372,7 +367,6 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                     live=True,
                     yes=True,
                     max_inputs=1,
-                    identity_evidence=poisoned,
                     _resource_wall_clock=lambda: datetime(
                         2026, 8, 19, 10, tzinfo=timezone.utc
                     ),
@@ -382,7 +376,6 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
             self.assertEqual(payload["status"], "observed")
             produce.assert_called_once()
             build.assert_called_once()
-            nova_loader.assert_not_called()
 
     def test_resource_authorization_window_rejects_naive_timestamps(self):
         observed = datetime(2026, 8, 20, 10, tzinfo=timezone.utc)

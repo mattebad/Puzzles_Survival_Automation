@@ -344,56 +344,5 @@ class NoahTavernNavigationIsolationTests(unittest.TestCase):
             self.assertNotIn(needle, source)
 
 
-
-
-class NoahAtlasStartupBindingTests(unittest.TestCase):
-    def test_startup_binding_seeds_route_evidence_and_input_count(self) -> None:
-        from scripts.noah_atlas_startup import bind_noah_route_startup
-
-        localizer = object()
-        startup_records = [{"phase": "atlas_startup_zoom_normalization"}]
-        route = SimpleNamespace(
-            atlas=object(),
-            atlas_path=Path("atlas.json"),
-            home_localizer=None,
-            _home_localizer_injected=False,
-            records=[],
-            input_count=0,
-        )
-        runtime = SimpleNamespace(input_count=1)
-        with patch(
-            "scripts.noah_atlas_startup.prepare_noah_home_atlas_startup",
-            return_value=(localizer, startup_records),
-        ):
-            bind_noah_route_startup(route, runtime=runtime, settle_seconds=0.0)
-
-        self.assertIs(route.home_localizer, localizer)
-        self.assertTrue(route._home_localizer_injected)
-        self.assertEqual(route.records, startup_records)
-        self.assertEqual(route.input_count, 1)
-
-    def test_blocked_startup_retains_evidence_and_propagates(self) -> None:
-        from scripts.atlas_runtime_startup import AtlasRuntimeStartupError
-        from scripts.noah_atlas_startup import bind_noah_route_startup
-
-        record = {"phase": "atlas_startup_zoom_normalization", "disposition": "blocked"}
-        route = SimpleNamespace(
-            atlas=object(),
-            atlas_path=Path("atlas.json"),
-            records=[],
-            input_count=0,
-        )
-        runtime = SimpleNamespace(input_count=1)
-        with patch(
-            "scripts.noah_atlas_startup.prepare_noah_home_atlas_startup",
-            side_effect=AtlasRuntimeStartupError("blocked", [record]),
-        ):
-            with self.assertRaises(AtlasRuntimeStartupError):
-                bind_noah_route_startup(route, runtime=runtime, settle_seconds=0.0)
-
-        self.assertEqual(route.records, [record])
-        self.assertEqual(route.input_count, 1)
-
-
 if __name__ == "__main__":
     unittest.main()

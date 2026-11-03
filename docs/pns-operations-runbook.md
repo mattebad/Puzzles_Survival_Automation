@@ -37,10 +37,7 @@ python scripts/pnsctl.py automation-service disable <flow-id>
 
 ## Live service boundary
 
-The only supported route executor is the canonical `serve` facade; the old per-route `pnsctl`
-commands (`conduct`, `nova-praise-pulse`, `noahs-tavern-nav`, `noahs-tavern-recruit`,
-`bluestacks run-flow`, `reload-game`, `dismiss-reload-overlay`, `automation-service campaign-plan`)
-were removed. Nova and Recruitment run as `serve --flow nova` / `--flow recruitment`.
+The only supported route executor is the canonical `serve` facade. Every route, including Nova and Recruitment, runs as `serve --flow <route>`; `pnsctl` has no per-route runner commands.
 
 ```text
 python scripts/pnsctl.py automation-service --mode supervised --adapter bluestacks --state-path .local-orchestrator/bot-state.sqlite3 serve --live --flow campaign --campaign-stage 1-15-9 --campaign-cadence-seconds 300 --adb "C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe" --serial emulator-5554 --account-id primary-account --server-id primary-server --output-directory .local-captures/automation-service-live
@@ -77,10 +74,9 @@ exact set; `tests/test_catalog_and_pnsctl.py` fails if the parser and this table
 | `bluestacks verify-flow <session-dir>` | Verify a retained session's result, frames, events, ledger, capability audit, journal, runtime owner and terminal state | Offline, reads retained files only | Operator |
 | `bluestacks recover-home` | Verified Cultivation-Center-to-Home recovery | Issues input (Back/Home) only through the existing recovery handler; cannot Back from an unrecognized Home screen; needs a live-stage queue/lease or the retained Troop Training recovery candidate | Operator (live) |
 | `reconcile` | Offline reconciliation of one unresolved action | Edits a **copy** (`--output`) of a retained SafetyStore database (`--source` is never modified), only if the action is `unresolved`; records `--outcome` (`proven_no_effect` or `positive_postcondition`) with `--evidence` and an audit row. It does not touch the live state DB and cannot clear a blocked running service | Operator (offline) |
-| `development-session run-flow <flow-id>` | Run one registered flow in a development session | Development and recovery only; `--live` needs `--yes`; ordinary Campaign execution is refused (use `serve --flow campaign`); several routes need a registration, identity or receipt | Dev-only |
+| `development-session run-flow <flow-id>` | Run one registered flow in a development session | Development and recovery only; `--live` needs `--yes`; ordinary Campaign execution is refused (use `serve --flow campaign`); several routes need a consumed registration or a delegated receipt | Dev-only |
 | `development-session daily-row-reconnaissance`, `daily-row-claim`, `delegated-dry-run` | Daily row reconnaissance/claim and receipt validation | Require a delegated receipt bound to agent, task, flow, scenario, variant and `--max-inputs`; `delegated-dry-run` has no runtime access | Dev-only |
 | `bluestacks reconcile-campaign-atlas-survey-action` | Reconcile one unresolved Campaign atlas survey action | Offline, zero input, retained frames only; session must be under the Campaign atlas artifact root | Dev-only |
-| `nova-praise-supervised-guard reconcile-proven-no-effect` | Archive a Nova one-pulse invocation guard after audited proof of no effect | Offline; no ADB. Guards are created only by `development-session run-flow NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE`; requires a verified session, SafetyStore and commit evidence | Dev-only |
 
 Normal `launch-game` preserves an already running game. For an explicitly authorized cold-process
 restart test, add `--cold-restart`. This requires clean Home, the existing canonical database,

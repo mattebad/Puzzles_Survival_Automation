@@ -227,9 +227,6 @@ class OperatorCliTests(unittest.TestCase):
                         "run-flow",
                     }
                 ),
-                "nova-praise-supervised-guard": frozenset(
-                    {"reconcile-proven-no-effect"}
-                ),
                 "bluestacks": frozenset(
                     {
                         "preflight",
@@ -259,6 +256,7 @@ class OperatorCliTests(unittest.TestCase):
         for argv in (
             ["conduct"],
             ["nova-praise-pulse"],
+            ["nova-praise-supervised-guard", "reconcile-proven-no-effect"],
             ["noahs-tavern-nav"],
             ["noahs-tavern-recruit"],
             ["bluestacks", "reload-game"],
