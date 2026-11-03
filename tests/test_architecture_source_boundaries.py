@@ -31,6 +31,9 @@ class BoundaryRule:
     case_sensitive: bool = False
     # Fixed-length integer tuple literals (e.g. a hard-coded frame size) forbidden.
     integer_tuples: tuple[tuple[int, ...], ...] = ()
+    # Names/attributes that must never be compared against a numeric literal
+    # (a hard-coded threshold instead of the reviewed policy function).
+    literal_comparisons: tuple[str, ...] = ()
 
 
 def _import_names(node: ast.AST) -> list[str]:
@@ -109,6 +112,15 @@ def boundary_violations(source: str, rule: BoundaryRule) -> list[tuple[int, str,
             )
             if len(values) == len(node.elts) and values in rule.integer_tuples:
                 found.append((line, "literal", repr(values)))
+        if isinstance(node, ast.Compare) and rule.literal_comparisons:
+            operands = (node.left, *node.comparators)
+            numeric = any(
+                isinstance(item, ast.Constant) and type(item.value) in {int, float} for item in operands
+            )
+            for item in operands if numeric else ():
+                name = item.attr if isinstance(item, ast.Attribute) else getattr(item, "id", None)
+                if name in rule.literal_comparisons:
+                    found.append((line, "threshold", name))
     return sorted(set(found))
 
 
@@ -221,6 +233,16 @@ RULES: dict[str, BoundaryRule] = {
         identifiers=("ADBRunner", "LocalBlueStacksRuntime"),
         case_sensitive=True,
     ),
+    "campaign_atlas_survey_has_no_static_roi_or_overlap_fallback": BoundaryRule(
+        reason=(
+            "the live Campaign Atlas survey must bind exit/difficulty targets from measured frames "
+            "and gate overlap via the reviewed policy, never static ROIs or a literal overlap threshold"
+        ),
+        targets=("scripts/flow_delivery_campaign_atlas_bluestacks.py",),
+        identifiers=("CAMPAIGN_EXIT_ROI", "TIER_ONE_ROI", "TIER_TWO_ROI"),
+        literal_comparisons=("overlap_ratio",),
+        case_sensitive=True,
+    ),
     "reference_tree_is_not_a_runtime_dependency": BoundaryRule(
         reason="the vendor reference tree is research material and must not be a runtime dependency",
         targets=_package_files("safe_action_core", "tasks", "scripts"),
@@ -249,7 +271,11 @@ class SourceBoundaryArchitectureTests(unittest.TestCase):
                 self.assertTrue(rule.reason.strip())
                 self.assertTrue(rule.targets)
                 self.assertTrue(
-                    rule.import_fragments or rule.identifiers or rule.text_fragments or rule.integer_tuples
+                    rule.import_fragments
+                    or rule.identifiers
+                    or rule.text_fragments
+                    or rule.integer_tuples
+                    or rule.literal_comparisons
                 )
 
     def test_offline_survey_reconciler_never_touches_transport(self) -> None:
@@ -324,10 +350,33 @@ class SourceBoundaryScannerSelfTests(unittest.TestCase):
             samples += [f"{identifier} = 1\n" for identifier in rule.identifiers]
             samples += [f"value = {fragment!r}\n" for fragment in rule.text_fragments]
             samples += [f"value = {values!r}\n" for values in rule.integer_tuples]
+            samples += [f"ok = measurement.{name} >= 0.2\n" for name in rule.literal_comparisons]
             self.assertTrue(samples, name)
             for sample in samples:
                 with self.subTest(rule=name, sample=sample):
                     self.assertTrue(boundary_violations(sample, rule))
+
+    def test_scanner_flags_literal_threshold_comparisons_only(self) -> None:
+        rule = BoundaryRule(reason="self-test", targets=("unused.py",), literal_comparisons=("overlap_ratio",))
+        flagged = (
+            "ok = m.overlap_ratio >= 0.2\n",
+            "ok = 0.2 <= overlap_ratio\n",
+            "ok = 0 < m.overlap_ratio < 1\n",
+            "if m.overlap_ratio > 1: pass\n",
+        )
+        for source in flagged:
+            with self.subTest(source=source):
+                self.assertTrue(boundary_violations(source, rule))
+        ignored = (
+            "# ok = m.overlap_ratio >= 0.2\n",
+            "ratio = float(m.overlap_ratio)\n",
+            "ok = m.overlap_ratio >= policy.minimum\n",
+            "ok = m.residual_px >= 0.2\n",
+            "x = 'overlap_ratio >= 0.2'\n",
+        )
+        for source in ignored:
+            with self.subTest(source=source):
+                self.assertEqual(boundary_violations(source, rule), [])
 
     def test_function_scanner_is_scoped_to_one_function(self) -> None:
         source = (
