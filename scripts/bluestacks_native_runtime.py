@@ -28,6 +28,7 @@ from scripts.bluestacks_flow_collector import (
     is_permitted_local_bluestacks_serial,
     parse_foreground_package,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 def current_delegated_runtime_context():
@@ -43,7 +44,7 @@ def current_delegated_runtime_context():
 NativeBox = tuple[int, int, int, int]
 NATIVE_WIDTH = 800
 NATIVE_HEIGHT = 1280
-NATIVE_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+NATIVE_RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 _CAMPAIGN_BATTLE_CHILDREN = {
     "campaign-lineup-challenge": True,
     "campaign-auto": False,

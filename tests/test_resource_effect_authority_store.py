@@ -17,6 +17,7 @@ from safe_action_core.resource_effect_authority import (
     ResourceFenceError,
 )
 from safe_action_core.store import SafetyStore, SchemaVersionError
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -175,7 +176,7 @@ class ResourceAuthorityStoreTests(unittest.TestCase):
                 "[1,2,3,4]",
                 "a" * 64,
                 1.0,
-                "pns-bluestacks-5-p64-800x1280-v1",
+                ACTIVE_RUNTIME_PROFILE_ID,
                 reset_id,
                 "RESOURCES_1K_FOOD_USED",
                 "ordinary_non_idempotent_resource_item_use",
@@ -853,7 +854,7 @@ class ResourceAuthorityStoreTests(unittest.TestCase):
                 "[1,2,3,4]",
                 "a" * 64,
                 1.0,
-                "pns-bluestacks-5-p64-800x1280-v1",
+                ACTIVE_RUNTIME_PROFILE_ID,
                 "reset-retry",
                 "RESOURCES_1K_FOOD_USED",
                 "ordinary_non_idempotent_resource_item_use",

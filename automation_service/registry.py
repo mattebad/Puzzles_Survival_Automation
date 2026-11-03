@@ -17,6 +17,7 @@ import time
 from typing import Any, Callable, Iterator, Mapping
 
 from .contracts import FlowDescriptor, FlowSpec, RecurrenceClass, RecurrenceProjection
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 REGISTRY_PATH = (
@@ -28,7 +29,7 @@ WORLD_FLOW_ID = "WORLD-MAP-NAVIGATION-FOUNDATION"
 WORLD_PRODUCT_ID = "world_map_navigation"
 WORLD_PRODUCT_REVISION = "world_map_navigation-v1"
 WORLD_HANDLER_ID = "world_map_navigation_foundation_selection_handler"
-WORLD_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+WORLD_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 WORLD_PHASE_MODE = "phase_canary"
 # Explicit aliases keep the fixed binding easy to consume without introducing
 # a second registration vocabulary.

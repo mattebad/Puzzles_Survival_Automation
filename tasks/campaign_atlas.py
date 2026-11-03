@@ -18,9 +18,10 @@ import math
 import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
+from .profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-CAMPAIGN_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+CAMPAIGN_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 CAMPAIGN_PLATFORM = "BlueStacks 5 / Android"
 CAMPAIGN_PACKAGE = "com.global.ztmslg"
 NATIVE_WIDTH = 800

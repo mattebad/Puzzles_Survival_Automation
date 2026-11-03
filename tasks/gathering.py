@@ -12,14 +12,13 @@ import re
 from typing import Optional
 
 from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
-from .profile import PROFILE_ID
+from .profile import ACTIVE_RUNTIME_PROFILE_ID, BLUESTACKS_NATIVE_TARGET_PROVENANCE
 from .world_stamina import WorldStaminaObservation, world_route_authorizeable
 
 
 GATHERING_SCREEN = "WORLD"
 GATHERING_DESTINATION = "RESOURCE_NODE"
 GATHERING_TARGET = "gather-resource"
-BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
 SUPPORTED_VARIANTS = {
     "wood": ("WOOD", "gather_wood", 30000),
     "steel": ("STEEL", "gather_steel", 6000),
@@ -71,7 +70,7 @@ class GatheringObservation:
     evidence_refs: tuple[str, ...] = ()
     overlay_state: str = "none_observed"
     reset_guard_active: bool = False
-    runtime_profile_id: str = PROFILE_ID
+    runtime_profile_id: str = ACTIVE_RUNTIME_PROFILE_ID
     recognized: bool = True
 
 
@@ -92,15 +91,15 @@ def _target_inside_panel(observation: GatheringObservation) -> bool:
     return bool(px0 <= tx0 < tx1 <= px1 and py0 <= ty0 < ty1 <= py1)
 
 
-def _has_bliss_native_source(observation: GatheringObservation) -> bool:
+def _has_bluestacks_native_source(observation: GatheringObservation) -> bool:
     refs = tuple(str(ref) for ref in observation.evidence_refs)
     return bool(
-        observation.target_provenance == BLISS_NATIVE_TARGET_PROVENANCE
+        observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE
         and _SHA256_RE.fullmatch(observation.source_frame_sha256 or "")
         and refs
         and all(ref and "local-reference" not in ref for ref in refs)
         and any(ref.startswith(("evidence/", "synthetic:")) for ref in refs)
-        and observation.runtime_profile_id == PROFILE_ID
+        and observation.runtime_profile_id == ACTIVE_RUNTIME_PROFILE_ID
     )
 
 
@@ -195,7 +194,7 @@ def gathering_transaction_spec(
             "available_march_slot",
             "known_formation_and_duration",
             "current_frame_target_binding",
-            "bliss_native_target_evidence",
+            "bluestacks_native_target_evidence",
         ),
         semantic_postconditions=(
             "outbound_march_or_positive_gather_result",
@@ -222,7 +221,7 @@ def gathering_postcondition_verified(
         or after.node_identity != before.node_identity
         or after.game_day_id != before.game_day_id
         or after.runtime_profile_id != before.runtime_profile_id
-        or not _has_bliss_native_source(after)
+        or not _has_bluestacks_native_source(after)
         or after.successor_state not in {"MARCHES", "GATHERING_RESULT", "DAILY_RECONCILED"}
     ):
         return False

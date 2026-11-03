@@ -26,12 +26,13 @@ from safe_action_core.store import (
     SchemaVersionError,
     is_no_effect_cancelled,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 ROOT = Path(__file__).resolve().parents[1]
-PROFILE = json.loads((ROOT / "runtime-profile/manifest.json").read_text(encoding="utf-8"))
-RETAINED_PROFILE_ID = PROFILE["profile_id"]
-PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 M6_MANIFEST = ROOT / "evidence/sessions/20260712-m6-dq-bootstrap/assets/asset-manifest.json"
+# The retired Bliss profile is only ever a negative case; its id comes from the immutable M6 record.
+RETAINED_PROFILE_ID = json.loads(M6_MANIFEST.read_text(encoding="utf-8"))["profile_id"]
 TEST_TASK_ID = "TEST-SUPERVISED-R1"
 TEST_TASKS = frozenset({TEST_TASK_ID})
 
@@ -560,7 +561,7 @@ class M6FixtureCase(unittest.TestCase):
         manifest = json.loads(M6_MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(len(manifest["assets"]), 6)
         self.assertTrue(all(asset["profile_id"] == RETAINED_PROFILE_ID for asset in manifest["assets"]))
-        self.assertTrue(all(asset["profile_content_sha256"] == PROFILE["profile_content_sha256"] for asset in manifest["assets"]))
+        self.assertEqual(len({asset["profile_content_sha256"] for asset in manifest["assets"]}), 1)
 
     def test_go_negative_and_clipped_fixture_cannot_authorize_claim(self):
         manifest = json.loads(M6_MANIFEST.read_text(encoding="utf-8"))

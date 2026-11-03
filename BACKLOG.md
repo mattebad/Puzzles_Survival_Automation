@@ -235,8 +235,8 @@ the complete linked ticket and the [proportionate planning contract](docs/backlo
 - [Operations tickets REC-O01ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“REC-O14](docs/backlog/operations.md)
 
 The linked records distinguish local implementation, code merged, native evidence,
-scheduler acceptance, and explicit enablement. BlueStacks remains the development environment;
-final production is NAS/Unraid-hosted. No live readiness is claimed for these future records. Runtime launchers,
+scheduler acceptance, and explicit enablement. BlueStacks is the runtime; there is no
+NAS/Unraid production target. No live readiness is claimed for these future records. Runtime launchers,
 controls, `ResourceEffectAuthority`, leases/fencing, manual-only states, and live gates remain
 unchanged and authoritative where they already apply.
 

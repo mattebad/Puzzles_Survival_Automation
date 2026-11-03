@@ -21,10 +21,11 @@ from tasks.nova_praise_replay import assert_contract_fixtures_aligned, load_repl
 from tasks.nova_praise_vision import NOVA_PRAISE_ROI
 from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
 from tasks.scheduler_task_result import SchedulerIdentity, SchedulerTaskOutcome
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 def _atlas() -> HomeAtlas:
-    profile = PlatformProfile("BlueStacks 5 / Android", "pns-bluestacks-5-p64-800x1280-v1", (800, 1280), "com.global.ztmslg")
+    profile = PlatformProfile("BlueStacks 5 / Android", ACTIVE_RUNTIME_PROFILE_ID, (800, 1280), "com.global.ztmslg")
     viewport = AtlasViewport(
         "v1",
         "tile.png",
@@ -85,7 +86,7 @@ def _loc() -> LocalizationResult:
     return LocalizationResult(
         True,
         "BlueStacks 5 / Android",
-        "pns-bluestacks-5-p64-800x1280-v1",
+        ACTIVE_RUNTIME_PROFILE_ID,
         ZoomIdentity.FULLY_ZOOMED_OUT,
         ((1, 0, 0), (0, 1, 0), (0, 0, 1)),
         ((0, 0), (800, 0), (800, 1280), (0, 1280)),

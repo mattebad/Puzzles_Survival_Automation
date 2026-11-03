@@ -150,7 +150,6 @@ jobs:
       - name: Run directly affected cleanup regressions
         run: >-
           python -m unittest
-          tests.test_bliss_porting_toolbox
           tests.test_daily_quest_planning
           tests.test_development_session
           tests.test_flow_delivery_orchestrator
@@ -161,7 +160,7 @@ jobs:
           tests.test_runtime_trace_projection
           tests.test_resource_effect_authority_history
       - name: Compile Python sources
-        run: python -m compileall -q automation_service safe_action_core scripts tasks tools
+        run: python -m compileall -q automation_service safe_action_core scripts tasks
       - name: Check tracked text files match declared line endings
         shell: bash
         run: |

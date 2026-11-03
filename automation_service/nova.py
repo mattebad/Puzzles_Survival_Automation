@@ -15,6 +15,7 @@ from tasks.runtime_identity import (
 )
 
 from .handlers import NovaPraiseSelectionHandler
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 class NovaExecutionHandler(NovaPraiseSelectionHandler):
@@ -44,7 +45,7 @@ class NovaRunner:
         self.utc_clock = utc_clock
         self.monotonic_clock = monotonic_clock
         self.binding = derive_fixed_runtime_binding(
-            serial, "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg",
+            serial, ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg",
             "primary-login-slot-v1",
         )
 

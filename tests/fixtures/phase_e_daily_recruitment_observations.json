@@ -1,6 +1,6 @@
 {
   "schema": "phase-e-daily-recruitment-observations-v1",
-  "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
   "before": {
     "selected_daily_row": true,
     "objective_key": "recruit_noahs_tavern",
@@ -21,12 +21,12 @@
       "recruitment_count": 0,
       "unknown_confirmation": false,
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
       "evidence_refs": ["synthetic:daily-recruitment-before"],
       "overlay_state": "none_observed",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     }
   },
@@ -52,12 +52,12 @@
         "recruitment_count": 1,
         "unknown_confirmation": false,
         "game_day_id": "synthetic-day-1",
-        "target_provenance": "bliss-native",
+        "target_provenance": "bluestacks-native",
         "source_frame_sha256": "7878787878787878787878787878787878787878787878787878787878787878",
         "evidence_refs": ["synthetic:daily-recruitment-1"],
         "overlay_state": "none_observed",
         "reset_guard_active": false,
-        "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+        "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
         "recognized": true
       }
     },
@@ -82,12 +82,12 @@
         "recruitment_count": 2,
         "unknown_confirmation": false,
         "game_day_id": "synthetic-day-1",
-        "target_provenance": "bliss-native",
+        "target_provenance": "bluestacks-native",
         "source_frame_sha256": "7979797979797979797979797979797979797979797979797979797979797979",
         "evidence_refs": ["synthetic:daily-recruitment-2"],
         "overlay_state": "none_observed",
         "reset_guard_active": false,
-        "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+        "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
         "recognized": true
       }
     },
@@ -112,12 +112,12 @@
         "recruitment_count": 3,
         "unknown_confirmation": false,
         "game_day_id": "synthetic-day-1",
-        "target_provenance": "bliss-native",
+        "target_provenance": "bluestacks-native",
         "source_frame_sha256": "8080808080808080808080808080808080808080808080808080808080808080",
         "evidence_refs": ["synthetic:daily-recruitment-3"],
         "overlay_state": "none_observed",
         "reset_guard_active": false,
-        "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+        "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
         "recognized": true
       }
     },
@@ -142,12 +142,12 @@
         "recruitment_count": 4,
         "unknown_confirmation": false,
         "game_day_id": "synthetic-day-1",
-        "target_provenance": "bliss-native",
+        "target_provenance": "bluestacks-native",
         "source_frame_sha256": "8181818181818181818181818181818181818181818181818181818181818181",
         "evidence_refs": ["synthetic:daily-recruitment-4"],
         "overlay_state": "none_observed",
         "reset_guard_active": false,
-        "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+        "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
         "recognized": true
       }
     },
@@ -172,12 +172,12 @@
         "recruitment_count": 5,
         "unknown_confirmation": false,
         "game_day_id": "synthetic-day-1",
-        "target_provenance": "bliss-native",
+        "target_provenance": "bluestacks-native",
         "source_frame_sha256": "8282828282828282828282828282828282828282828282828282828282828282",
         "evidence_refs": ["synthetic:daily-recruitment-5"],
         "overlay_state": "none_observed",
         "reset_guard_active": false,
-        "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+        "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
         "recognized": true
       }
     }

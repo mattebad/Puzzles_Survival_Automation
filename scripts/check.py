@@ -15,6 +15,7 @@ import sys
 OFFLINE_TEST_MODULES: tuple[str, ...] = (
     "tests.test_safe_action_core",
     "tests.test_input_capability_firewall",
+    "tests.test_runtime_profile_unification",
     "tests.test_pre_dispatch_freshness",
     "tests.test_resource_effect_authority_store",
     "tests.test_resource_effect_authority_history",

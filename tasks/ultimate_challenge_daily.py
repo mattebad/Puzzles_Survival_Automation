@@ -16,7 +16,8 @@ import re
 from typing import Mapping, Optional
 
 from .contracts import ROI
-BLUESTACKS_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+from .profile import ACTIVE_RUNTIME_PROFILE_ID
+BLUESTACKS_RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 
 
 FLOW_ID = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"

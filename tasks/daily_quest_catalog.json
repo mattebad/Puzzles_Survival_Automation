@@ -1,6 +1,5 @@
 {
   "catalog_version": 3,
-  "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
   "authority": {
     "identity": "catalog",
     "current_status": "tasks/daily_quest_execution_matrix.json",

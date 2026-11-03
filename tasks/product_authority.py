@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 import re
 from typing import Any, Mapping, Sequence
+from .profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -26,7 +27,7 @@ PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
 CONTRACT_BINDING_FIELD = "product_authority_binding"
 BLUESTACKS_PLATFORM = "bluestacks"
-BLUESTACKS_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+BLUESTACKS_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 BLUESTACKS_PACKAGE_ID = "com.global.ztmslg"
 KNOWN_BLUESTACKS_BINDING_IDS = frozenset(
     {

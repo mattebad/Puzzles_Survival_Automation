@@ -59,9 +59,10 @@ from safe_action_core.models import (
     _CAPABILITY_MINT_SEAL,
     snapshot,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE = ACTIVE_RUNTIME_PROFILE_ID
 RETIRED_PROFILE = "pns-blissos-poc-virgl-800x1280-v1"
 SESSION = "runtime-session-capability-1"
 NAV_ROI = (250, 1130, 410, 1280)

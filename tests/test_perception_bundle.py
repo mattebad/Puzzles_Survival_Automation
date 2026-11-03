@@ -45,11 +45,12 @@ from tasks.perception_bundle import (
     semantic_validity,
     transport_freshness,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "perception_bundle_evidence.json"
-PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE = ACTIVE_RUNTIME_PROFILE_ID
 PLATFORM = "BlueStacks 5 / Android"
 
 

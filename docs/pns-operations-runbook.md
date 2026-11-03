@@ -62,24 +62,6 @@ Daily points increase and no ordinary Claim control remains. Objective flows
 may prove completion but never own a Claim tap. There is no per-row loop,
 objective binding, fixed point delta, or identical retry.
 
-## Future Bliss porting toolbox
-
-Reusable remote infrastructure is isolated under `tools/experimental/bliss_porting/` and
-`docker/bliss-porting-tooling.Dockerfile`. It is manual-only and is not
-imported, registered, scheduled, or exposed by `pnsctl`.
-
-Only an explicitly selected future Bliss porting task may invoke:
-
-```text
-python -m tools.experimental.bliss_porting.cli --help
-```
-
-The toolbox requires explicit host, host key, serial, container, image,
-workspace, evidence path, private loopback ADB socket, ADB binary, Plink, and
-PSCP arguments. Temporary credentials remain process-only. It contains no
-gameplay flow identities or fixed gameplay coordinates, and it publishes no
-ADB port.
-
 ## Canonical governance references
 
 This runbook is an operational entry point, not a duplicate authority. Permanent invariants are in

@@ -18,11 +18,12 @@ from scripts.navigation_development_boundary import (
 
 from .contracts import FlowDescriptor, NormalizedOutcome, NormalizedResult
 from .registry import RegisteredDispatchSnapshot
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 PRODUCT_ID = "bioenhancer_research"
 PRODUCT_REVISION = "bioenhancer_research-v1"
-PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 
 
 class BioenhancerNativePartialResultError(RuntimeError):

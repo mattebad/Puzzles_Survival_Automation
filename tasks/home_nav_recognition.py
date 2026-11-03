@@ -20,10 +20,11 @@ from typing import Mapping, Optional, Tuple
 
 import cv2
 import numpy as np
+from .profile import ACTIVE_RUNTIME_PROFILE_ID
 
 NATIVE_WIDTH = 800
 NATIVE_HEIGHT = 1280
-RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 
 # Fixed nav bar region on the native profile (half-open: [x0,x1) x [y0,y1)).
 NAV_STRIP_BOX: Tuple[int, int, int, int] = (0, 1213, 800, 1280)

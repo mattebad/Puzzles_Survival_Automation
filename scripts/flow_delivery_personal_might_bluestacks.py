@@ -21,6 +21,7 @@ from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIden
 from tasks import personal_might_vision as vision
 from tasks.personal_might_praise import SEMANTIC_ACTION, SOURCE_STATE, TARGET_IDENTITY, CONSEQUENCE, POSTCONDITION, personal_might_daily_key
 from scripts.startup_normalization import is_clean_home_frame
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 FLOW_ID = "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION"
 RUNNER_ID = "personal_might_bluestacks_runner"
@@ -69,7 +70,7 @@ def _retained_result(root, retained):
         raise ValueError("Personal Might retained result is malformed")
     if names[0] == "personal-might-result.json":
         backend = record.get("backend_identity")
-        if (record.get("task_id") != "personal_might_praise" or record.get("runtime_profile_id") != "pns-bluestacks-5-p64-800x1280-v1"
+        if (record.get("task_id") != "personal_might_praise" or record.get("runtime_profile_id") != ACTIVE_RUNTIME_PROFILE_ID
                 or record.get("time_basis") != "utc" or not isinstance(backend, dict)
                 or record.get("reset_id") != "game-day-" + str(backend.get("reset_start_utc", ""))[:10]):
             raise ValueError("Personal Might canonical source identity differs")

@@ -13,14 +13,12 @@ import re
 from typing import Optional
 
 from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
+from .profile import ACTIVE_RUNTIME_PROFILE_ID, BLUESTACKS_NATIVE_TARGET_PROVENANCE
 
 
 ENHANCEMENT_SCREEN = "COMMANDER_INFO"
 ENHANCEMENT_TARGET = "enhancement-confirm"
-BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
-BLUESTACKS_NATIVE_TARGET_PROVENANCE = "bluestacks-native"
-BLUESTACKS_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
-LEGACY_BLISS_RUNTIME_PROFILE_ID = "pns-blissos-poc-virgl-800x1280-v1"
+BLUESTACKS_RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 SUPPORTED_VARIANTS = frozenset({"gear", "chip", "module"})
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -88,22 +86,22 @@ def _target_inside_panel(observation: EnhancementObservation) -> bool:
     return bool(px0 <= tx0 < tx1 <= px1 and py0 <= ty0 < ty1 <= py1)
 
 
-def _has_bliss_native_source(observation: EnhancementObservation) -> bool:
+def _has_offline_native_source(observation: EnhancementObservation) -> bool:
     refs = tuple(str(ref) for ref in observation.evidence_refs)
     return bool(
-        observation.target_provenance == BLISS_NATIVE_TARGET_PROVENANCE
+        observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE
         and _SHA256_RE.fullmatch(observation.source_frame_sha256 or "")
         and refs
         and all(ref and "local-reference" not in ref for ref in refs)
         and any(ref.startswith(("evidence/", "synthetic:")) for ref in refs)
-        and observation.runtime_profile_id == LEGACY_BLISS_RUNTIME_PROFILE_ID
+        and observation.runtime_profile_id == ACTIVE_RUNTIME_PROFILE_ID
     )
 
 
 def _has_bluestacks_native_source(observation: EnhancementObservation) -> bool:
     """Require independently retained native BlueStacks frame provenance.
 
-    Synthetic fixture references intentionally remain valid for the Bliss-only
+    Synthetic fixture references intentionally remain valid for the offline
     contract, but can never authorize the BlueStacks adapter.
     """
 
@@ -166,11 +164,11 @@ def enhancement_authorizeable(
     *,
     variant: str = "gear",
 ) -> bool:
-    """Authorize the existing Bliss-native offline contract only."""
+    """Authorize the offline fixture contract only; never the BlueStacks adapter."""
 
     return bool(
         _enhancement_semantics_authorizeable(observation, variant=variant)
-        and _has_bliss_native_source(observation)
+        and _has_offline_native_source(observation)
     )
 
 
@@ -182,7 +180,7 @@ def enhancement_bluestacks_authorizeable(
     """Authorize one exact native BlueStacks enhancement target.
 
     This separate entry point prevents BlueStacks provenance from weakening
-    Bliss behavior or making synthetic fixture observations dispatchable.
+    the offline contract or making synthetic fixture observations dispatchable.
     """
 
     expected_kind = _variant_identity(variant)
@@ -264,7 +262,7 @@ def enhancement_transaction_spec(
     if not enhancement_authorizeable(observation, variant=variant):
         raise ValueError("enhancement preconditions are not positively recognized")
     return _enhancement_transaction_spec(
-        observation, variant=variant, provenance="bliss"
+        observation, variant=variant, provenance="offline"
     )
 
 

@@ -1,6 +1,6 @@
 {
   "schema": "phase-e-disabled-training-observations-v1",
-  "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
   "observations": {
     "fighter_valid": {
       "screen_state": "TRAINING",
@@ -25,12 +25,12 @@
       "cost_amount": 25000,
       "daily_progress_before": 0,
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "2424242424242424242424242424242424242424242424242424242424242424",
       "evidence_refs": ["synthetic:disabled-training-fighter"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "rider_valid": {
@@ -56,12 +56,12 @@
       "cost_amount": 25000,
       "daily_progress_before": 0,
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "2525252525252525252525252525252525252525252525252525252525252525",
       "evidence_refs": ["synthetic:disabled-training-rider"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "shooter_valid": {
@@ -87,12 +87,12 @@
       "cost_amount": 25000,
       "daily_progress_before": 0,
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "2626262626262626262626262626262626262626262626262626262626262626",
       "evidence_refs": ["synthetic:disabled-training-shooter"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "vehicle_valid": {
@@ -118,12 +118,12 @@
       "cost_amount": 25000,
       "daily_progress_before": 0,
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "2727272727272727272727272727272727272727272727272727272727272727",
       "evidence_refs": ["synthetic:disabled-training-vehicle"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     }
   }
