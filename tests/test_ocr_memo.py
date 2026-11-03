@@ -46,6 +46,22 @@ class OcrMemoTests(unittest.TestCase):
         self.assertEqual(len(self.runs), 5)
         self.assertEqual(self.memo.hits, 0)
 
+    def test_nice_difference_is_a_distinct_input(self):
+        engine.run_and_get_output(self.frame, config="--psm 7")
+        engine.run_and_get_output(self.frame, config="--psm 7", nice=5)
+        self.assertEqual(len(self.runs), 2)
+        self.assertEqual(self.memo.hits, 0)
+
+    def test_replay_only_within_the_callers_timeout(self):
+        with patch("tests.ocr_memo.time.monotonic", side_effect=[0.0, 1.5]):
+            engine.run_and_get_output(self.frame, config="--psm 7", timeout=5)
+        engine.run_and_get_output(self.frame, config="--psm 7", timeout=2)
+        engine.run_and_get_output(self.frame, config="--psm 7")
+        self.assertEqual((len(self.runs), self.memo.hits), (1, 2))
+        with patch("tests.ocr_memo.time.monotonic", side_effect=[0.0, 0.1]):
+            engine.run_and_get_output(self.frame, config="--psm 7", timeout=1)
+        self.assertEqual(len(self.runs), 2, "a shorter timeout than the recorded run must reach Tesseract")
+
     def test_failures_are_never_cached(self):
         for _ in range(2):
             with self.assertRaises(bounded.OcrDeadline):
