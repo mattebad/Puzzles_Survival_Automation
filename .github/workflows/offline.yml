@@ -153,11 +153,7 @@ jobs:
           tests.test_bliss_porting_toolbox
           tests.test_daily_quest_planning
           tests.test_development_session
-          tests.test_flow_delivery_orchestrator
-          tests.test_flow_delivery_lean_workflow
-          tests.test_flow_delivery_validation_profiles
           tests.test_campaign_story_destinations
-          tests.test_flow_delivery_token_context_hygiene.ValidationRunnerTests
           tests.test_runtime_trace_projection
           tests.test_resource_effect_authority_history
       - name: Compile Python sources

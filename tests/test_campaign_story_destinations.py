@@ -2,23 +2,17 @@ from __future__ import annotations
 
 import json
 import unittest
-from copy import deepcopy
 from pathlib import Path
 
-from scripts import flow_delivery_control as control
 from tasks.campaign_auto_battle import (
     REJECTED_CAMPAIGN_AP_DESTINATIONS,
     SUPPORTED_CAMPAIGN_STORY_DESTINATIONS,
     parse_supported_campaign_story_destination,
 )
 
-NO_LEASE = Path(".local-orchestrator") / "campaign-story-test-no-lease.json"
-
-
 ROOT = Path(__file__).resolve().parents[1]
 QUEUE_PATH = ROOT / "tasks" / "flow_delivery_queue.json"
 POLICY_PATH = ROOT / "tasks" / "flow_delivery_product_policy.json"
-COVERAGE_PATH = ROOT / "tasks" / "flow_delivery_coverage.json"
 SCHEDULER_PATH = ROOT / "tasks" / "scheduler.py"
 
 
@@ -64,7 +58,6 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.queue = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
         self.policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
-        self.coverage = json.loads(COVERAGE_PATH.read_text(encoding="utf-8"))
 
     def test_ultimate_challenge_has_distinct_queue_and_policy_entries(self) -> None:
         flow_ids = [item["flow_id"] for item in self.queue["flows"]]
@@ -92,47 +85,6 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
             ["1-2-9", "ultimate-challenge"],
         )
 
-    def test_completion_states_remain_independent(self) -> None:
-        queue = deepcopy(self.queue)
-        queue["active_flow_id"] = None
-        for flow in queue["flows"]:
-            if flow["flow_id"].startswith("CAMPAIGN-ATLAS-"):
-                flow["status"] = "completed"
-                flow["last_completed_stage"] = "completed"
-                flow["blocked_reason"] = ""
-            if flow["flow_id"] == "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY":
-                flow["status"] = "ready"
-                flow["last_completed_stage"] = None
-        campaign = next(
-            item
-            for item in queue["flows"]
-            if item["flow_id"] == "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
-        )
-        ultimate = next(
-            item
-            for item in queue["flows"]
-            if item["flow_id"] == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
-        )
-        ultimate["status"] = "ready"
-        ultimate["last_completed_stage"] = None
-        ultimate["blocked_reason"] = ""
-        campaign["status"] = "completed"
-        campaign["last_completed_stage"] = "completed"
-        self.assertEqual(ultimate["status"], "ready")
-        selected = control.FlowDeliveryController(lease_path=NO_LEASE).select_next(queue)
-        self.assertEqual(selected["flow_id"], "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION")
-
-        ultimate["status"] = "completed"
-        ultimate["last_completed_stage"] = "completed"
-        campaign["status"] = "ready"
-        campaign["last_completed_stage"] = None
-        campaign["blocked_reason"] = ""
-        selected_campaign = control.FlowDeliveryController(lease_path=NO_LEASE).select_next(queue)
-        self.assertEqual(
-            selected_campaign["flow_id"],
-            "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-        )
-
     def test_campaign_parser_cannot_select_ultimate_challenge(self) -> None:
         with self.assertRaises(ValueError):
             parse_supported_campaign_story_destination("ultimate-challenge")
@@ -151,91 +103,6 @@ class CampaignUltimateChallengeSeparationTests(unittest.TestCase):
         self.assertNotIn("rejected_destinations", campaign)
         self.assertNotIn("ultimate-challenge", campaign_policy["supported_story_destinations"])
         self.assertIn("ultimate-challenge", campaign_policy["rejected_destinations"])
-
-    def test_finished_queue_selects_no_work(self) -> None:
-        queue = deepcopy(self.queue)
-        queue["active_flow_id"] = None
-        for flow in queue["flows"]:
-            flow["status"] = "completed"
-        self.assertIsNone(control.FlowDeliveryController(lease_path=NO_LEASE).select_next(queue))
-
-    def test_survey_collector_prep_precedes_both_consumers(self) -> None:
-        by_id = {flow["flow_id"]: flow for flow in self.queue["flows"]}
-        dependency = "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
-        self.assertEqual(
-            by_id["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]["dependencies"],
-            [dependency],
-        )
-        self.assertEqual(
-            by_id["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]["backlog_task_id"],
-            "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-        )
-        self.assertEqual(
-            by_id["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]["dependencies"],
-            [dependency],
-        )
-        self.assertEqual(
-            by_id["CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"]["dependencies"],
-            ["CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP"],
-        )
-        self.assertEqual(
-            by_id[dependency]["dependencies"],
-            ["CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"],
-        )
-        queue = deepcopy(self.queue)
-        queue["active_flow_id"] = None
-        fixture_flows = {flow["flow_id"]: flow for flow in queue["flows"]}
-        chain = (
-            "CAMPAIGN-ATLAS-SURVEY-CONTRACT-AND-COLLECTOR-PREP",
-            "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
-            dependency,
-        )
-        consumers = (
-            "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
-        )
-        for flow in queue["flows"]:
-            flow["status"] = "ready" if flow["flow_id"] in chain + consumers else "completed"
-        controller = control.FlowDeliveryController(lease_path=NO_LEASE)
-        for expected in chain:
-            with self.subTest(prerequisite=expected):
-                self.assertEqual(controller.select_next(queue)["flow_id"], expected)
-                fixture_flows[expected]["status"] = "completed"
-        self.assertIn(controller.select_next(queue)["flow_id"], consumers)
-
-    def test_coverage_keeps_objectives_separate(self) -> None:
-        campaign = self.coverage["flows"]["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"]
-        ultimate = self.coverage["flows"]["ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"]
-        campaign_policy = next(
-            item
-            for item in self.policy["policies"]
-            if item["policy_id"] == "campaign-supported-destinations"
-        )
-        for field in (
-            "home_navigation_state",
-            "story_destination_navigation_state",
-            "ap_execution_state",
-            "destination_policy_id",
-        ):
-            self.assertIn(field, campaign)
-        for field in (
-            "campaign_entry_state",
-            "ultimate_challenge_navigation_state",
-            "daily_execution_state",
-            "already_completed_detection_state",
-            "reset_idempotency_state",
-        ):
-            self.assertIn(field, ultimate)
-        self.assertEqual(campaign["destination_policy_id"], "campaign-supported-destinations")
-        self.assertNotIn("supported_story_destinations", campaign)
-        self.assertNotIn("rejected_destinations", campaign)
-        self.assertEqual(
-            campaign_policy["supported_story_destinations"],
-            ["1-20-9", "1-15-9", "2-2-9"],
-        )
-        self.assertEqual(ultimate["supported_story_destinations"], [])
-        self.assertEqual(campaign["ultimate_challenge_coverage"], "not_applicable_to_this_flow")
-        self.assertEqual(ultimate["campaign_ap_coverage"], "not_applicable_to_this_flow")
 
     def test_campaign_home_atlas_entry_seam_is_canonical(self) -> None:
         from scripts.home_atlas_bluestacks import (

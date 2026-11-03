@@ -10,7 +10,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
-from scripts import flow_delivery_control as control
+from scripts import delegated_runtime_receipts as control
 from scripts import navigation_development_boundary as boundary
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
 

@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from scripts import flow_delivery_control as control
+from scripts import delegated_runtime_receipts as control
 from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
@@ -124,7 +124,7 @@ class ReceiptTests(unittest.TestCase):
             self.assertEqual(controller.inspect()["status"], "consumed")
             with self.assertRaises(TypeError):
                 controller.consume(receipt_id=receipt["receipt_id"])
-            with self.assertRaisesRegex(control.FlowDeliveryError, "already consumed"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "already consumed"):
                 self._consume(controller, receipt)
 
     def test_wrong_identity_task_flow_and_command_fail_closed(self) -> None:
@@ -147,7 +147,7 @@ class ReceiptTests(unittest.TestCase):
                     "variant": "variant-a",
                 }
                 kwargs[field] = value
-                with self.assertRaises(control.FlowDeliveryError):
+                with self.assertRaises(control.DelegatedReceiptError):
                     controller.consume(receipt_id=receipt["receipt_id"], **kwargs)
                 self.assertEqual(controller.inspect()["status"], "issued")
 
@@ -156,24 +156,24 @@ class ReceiptTests(unittest.TestCase):
             controller = self._controller(Path(directory))
             receipt = self._issue(controller)
             controller._candidate = lambda: ("changed-head", "fingerprint")  # type: ignore[method-assign]
-            with self.assertRaisesRegex(control.FlowDeliveryError, "HEAD changed"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "HEAD changed"):
                 self._consume(controller, receipt)
         with tempfile.TemporaryDirectory() as directory:
             controller = self._controller(Path(directory))
             controller._candidate = lambda: (_ for _ in ()).throw(
-                control.FlowDeliveryError("delegated receipt denied: dirty or untracked")
+                control.DelegatedReceiptError("delegated receipt denied: dirty or untracked")
             )  # type: ignore[method-assign]
-            with self.assertRaises(control.FlowDeliveryError):
+            with self.assertRaises(control.DelegatedReceiptError):
                 self._issue(controller)
 
     def test_argument_scenario_variant_and_expiration_are_bound(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             controller = self._controller(Path(directory))
             receipt = self._issue(controller)
-            with self.assertRaises(control.FlowDeliveryError):
+            with self.assertRaises(control.DelegatedReceiptError):
                 self._consume(controller, receipt, scenario="other")
             controller.now = lambda: time_now(receipt["expires_at"])
-            with self.assertRaisesRegex(control.FlowDeliveryError, "expired"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "expired"):
                 self._consume(controller, receipt)
 
     def test_reconnaissance_capability_separation_and_canary_gates(self) -> None:
@@ -190,7 +190,7 @@ class ReceiptTests(unittest.TestCase):
                 gates=False,
             )
             self.assertEqual(recon["max_combat_confirmations"], 0)
-            with self.assertRaises(control.FlowDeliveryError):
+            with self.assertRaises(control.DelegatedReceiptError):
                 controller.issue(
                     task_id="T",
                     flow_id="F",
@@ -210,7 +210,7 @@ class ReceiptTests(unittest.TestCase):
                 )
         with tempfile.TemporaryDirectory() as directory:
             controller = self._controller(Path(directory))
-            with self.assertRaisesRegex(control.FlowDeliveryError, "self-check"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "self-check"):
                 self._issue(controller, gates=False)
 
     def test_zero_input_observation_capability_issues_and_cannot_reserve(self) -> None:
@@ -239,7 +239,7 @@ class ReceiptTests(unittest.TestCase):
             self.assertEqual(receipt["permitted_action_classes"], ["observation"])
             consumed = self._consume(controller, receipt)
             with self.assertRaisesRegex(
-                control.FlowDeliveryError,
+                control.DelegatedReceiptError,
                 "budget exhausted|identical action retry",
             ):
                 controller.reserve_input(
@@ -253,7 +253,7 @@ class ReceiptTests(unittest.TestCase):
     def test_reconnaissance_rejects_old_claim_prepare_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             controller = self._controller(Path(directory))
-            with self.assertRaisesRegex(control.FlowDeliveryError, "forbidden capability"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "forbidden capability"):
                 self._issue(
                     controller,
                     receipt_class="reconnaissance",
@@ -296,14 +296,14 @@ class ReceiptTests(unittest.TestCase):
             )
             self.assertEqual(reservation["ordinal"], 1)
             context.mark_reconciled("action-a", unresolved=True)
-            with self.assertRaisesRegex(control.FlowDeliveryError, "unresolved"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "unresolved"):
                 context.reserve_input(
                     action_identity="target-a",
                     action_class="navigation",
                     consequence_class="navigation_only",
                     action_key="retry",
                 )
-            with self.assertRaisesRegex(control.FlowDeliveryError, "pending"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "pending"):
                 context.record_terminal(status="completed", payload={})
             context.record_terminal(
                 status="evidence_required",
@@ -318,9 +318,9 @@ class ReceiptTests(unittest.TestCase):
             context = control.DelegatedRuntimeContext(
                 controller, consumed, result_identity="result-a"
             )
-            with self.assertRaises(control.FlowDeliveryError):
+            with self.assertRaises(control.DelegatedReceiptError):
                 context.record_terminal(status="completed", payload={})
-            with self.assertRaisesRegex(control.FlowDeliveryError, "result identity"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "result identity"):
                 control.DelegatedRuntimeContext(
                     controller, consumed, result_identity="other"
                 ).record_terminal(status="dry_run", payload={})
@@ -346,7 +346,7 @@ class ReceiptTests(unittest.TestCase):
                 action_key="same-key",
             )
             context.mark_reconciled("same-key")
-            with self.assertRaisesRegex(control.FlowDeliveryError, "identical"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "identical"):
                 context.reserve_input(
                     action_identity="target-a",
                     action_class="navigation",
@@ -442,7 +442,7 @@ class ReceiptTests(unittest.TestCase):
                     action_key=key,
                 )
                 context.mark_reconciled(key)
-            with self.assertRaisesRegex(control.FlowDeliveryError, "resource-affecting"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "resource-affecting"):
                 context.reserve_input(
                     action_identity="claim-two",
                     action_class="claim",
@@ -466,7 +466,7 @@ class ReceiptTests(unittest.TestCase):
             context = control.DelegatedRuntimeContext(
                 controller, consumed, result_identity="result-a"
             )
-            with self.assertRaisesRegex(control.FlowDeliveryError, "resource-affecting"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "resource-affecting"):
                 context.reserve_input(
                     action_identity="use-one-star-enhancer",
                     action_class="navigation",
@@ -478,7 +478,7 @@ class ReceiptTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             controller = self._controller(Path(directory))
             with self.assertRaisesRegex(
-                control.FlowDeliveryError,
+                control.DelegatedReceiptError,
                 "cannot weaken classification",
             ):
                 self._issue(
@@ -517,7 +517,7 @@ class ReceiptTests(unittest.TestCase):
         ]
         with tempfile.TemporaryDirectory() as directory:
             controller = self._controller(Path(directory))
-            with self.assertRaisesRegex(control.FlowDeliveryError, "exact bindings"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "exact bindings"):
                 self._issue(
                     controller,
                     identities=["navigation-one", "combat-one"],
@@ -552,13 +552,13 @@ class ReceiptTests(unittest.TestCase):
                     context.mark_transported("a")
                 elif pending_status == "unresolved":
                     context.mark_reconciled("a", unresolved=True)
-                with self.assertRaisesRegex(control.FlowDeliveryError, "pending"):
+                with self.assertRaisesRegex(control.DelegatedReceiptError, "pending"):
                     context.record_terminal(status="completed", payload={})
 
     def test_canary_rejects_unsupported_terminal_vocabulary(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             controller = self._controller(Path(directory))
-            with self.assertRaisesRegex(control.FlowDeliveryError, "terminal vocabulary"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "terminal vocabulary"):
                 self._issue(controller, terminals=["not-a-terminal"])
 
     def test_real_git_content_fingerprint_rejects_tracked_and_untracked_changes(self) -> None:
@@ -570,14 +570,14 @@ class ReceiptTests(unittest.TestCase):
             self._consume(controller, receipt)
             receipt2 = self._issue(controller)
             (root / "tracked.txt").write_text("changed\n", encoding="utf-8")
-            with self.assertRaisesRegex(control.FlowDeliveryError, "dirty|changed"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "dirty|changed"):
                 self._consume(controller, receipt2)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             controller = self._git_controller(root)
             receipt = self._issue(controller)
             (root / "untracked.txt").write_text("untracked\n", encoding="utf-8")
-            with self.assertRaisesRegex(control.FlowDeliveryError, "dirty|untracked"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "dirty|untracked"):
                 self._consume(controller, receipt)
 
     def test_direct_development_session_reserves_before_callback_and_releases(self) -> None:
@@ -646,7 +646,7 @@ class ReceiptTests(unittest.TestCase):
                         target_roi=(1, 1, 10, 10),
                         action_key="tap-a",
                     )
-            with self.assertRaisesRegex(control.FlowDeliveryError, "unresolved"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "unresolved"):
                 context.reserve_input(
                     action_identity="target",
                     action_class="navigation",
@@ -896,7 +896,7 @@ class ReceiptTests(unittest.TestCase):
             self.assertEqual(summary["status"], "evidence_required")
             self.assertFalse(result["ownership_released"])
             self.assertFalse(summary["ownership_released"])
-            with self.assertRaisesRegex(control.FlowDeliveryError, "terminal result"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "terminal result"):
                 controller.record_result(
                     consumed,
                     status="observed",
@@ -958,7 +958,7 @@ class ReceiptTests(unittest.TestCase):
             self.assertIsNotNone(terminal)
             self.assertEqual(terminal[0], "evidence_required")
             self.assertEqual(json.loads(terminal[1])["status"], "evidence_required")
-            with self.assertRaisesRegex(control.FlowDeliveryError, "terminal result"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "terminal result"):
                 controller.record_result(
                     receipt,
                     status="observed",
@@ -1011,7 +1011,7 @@ class ReceiptTests(unittest.TestCase):
                 connection.close()
             self.assertEqual(tuple(stored), ("reward_claim", "ordinary_development", "reserved"))
             context.mark_reconciled("daily-claim:aggregate")
-            with self.assertRaisesRegex(control.FlowDeliveryError, "identical action retry"):
+            with self.assertRaisesRegex(control.DelegatedReceiptError, "identical action retry"):
                 context.reserve_input(
                     action_identity="daily-claim:aggregate",
                     action_class="reward_claim",
@@ -1089,7 +1089,7 @@ class ReceiptTests(unittest.TestCase):
             self.assertEqual(reservation["ordinal"], 1)
             context.mark_reconciled("reset-popup-close")
             with self.assertRaisesRegex(
-                control.FlowDeliveryError,
+                control.DelegatedReceiptError,
                 "budget exhausted|identical action retry",
             ):
                 context.reserve_input(

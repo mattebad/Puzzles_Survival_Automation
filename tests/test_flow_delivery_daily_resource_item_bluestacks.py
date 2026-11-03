@@ -979,11 +979,6 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                 / "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION.json"
             ).read_text(encoding="utf-8")
         )
-        profile = json.loads(
-            (REPO / "tasks" / "flow_delivery_validation_profiles.json").read_text(
-                encoding="utf-8"
-            )
-        )["flow_profiles"][delivery.FLOW_ID]
         self.assertEqual(route.MAX_ROUTE_INPUTS, 10)
         self.assertEqual(route.MAX_RESOURCE_LIST_SWIPES, 6)
         self.assertEqual(delivery.MAX_INPUTS, route.MAX_ROUTE_INPUTS)
@@ -1001,10 +996,6 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
         self.assertEqual(
             contract["navigation_input_authorization"]["maximum_resource_list_swipes"],
             route.MAX_RESOURCE_LIST_SWIPES,
-        )
-        self.assertEqual(profile["maximum_inputs"], route.MAX_ROUTE_INPUTS)
-        self.assertEqual(
-            profile["maximum_resource_list_swipes"], route.MAX_RESOURCE_LIST_SWIPES
         )
 
     def test_pnsctl_has_fixed_runner_validator_and_recovery_bindings(self):

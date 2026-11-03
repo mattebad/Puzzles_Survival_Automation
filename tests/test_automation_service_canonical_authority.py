@@ -888,7 +888,6 @@ class CanonicalAutomationAuthorityTests(unittest.TestCase):
     def test_canonical_modules_have_no_forbidden_governance_import_boundary(self) -> None:
         package = Path(__file__).resolve().parents[1] / "automation_service"
         forbidden = (
-            "flow_delivery_control",
             "backlog",
             "current_handoff",
             "flow_delivery_queue",

@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 import unittest
 
-from scripts import flow_delivery_control as control
 from tasks.flow_scenario_attempts import (
     NOVA_CANARY_SCENARIO_ID,
     NOVA_CANARY_TEMPLATE_CORRECTION_REF,
@@ -54,7 +53,6 @@ def _unused_scenario() -> dict:
 class ScenarioAttemptPolicyTests(unittest.TestCase):
     def test_checked_in_queue_retains_completed_no_praise_terminal_state(self) -> None:
         queue = _queue()
-        control.validate_queue(queue)
         scenario = _scenario()
         validate_named_scenario_state(scenario)
         self.assertEqual(scenario["scenario_id"], NOVA_CANARY_SCENARIO_ID)
@@ -262,34 +260,6 @@ class ScenarioAttemptPolicyTests(unittest.TestCase):
                 False,
                 "invalid pre-input transport",
                 failure_class=ScenarioFailureClass.EXECUTABLE_REGISTRATION,
-            )
-
-    def test_queue_application_is_pure_and_flow_specific(self) -> None:
-        queue = _queue()
-        before = deepcopy(queue)
-        updated = control.apply_named_scenario_result(
-            queue,
-            flow_id=FLOW_ID,
-            record=replay_validated_record(
-                candidate_commit="d" * 40,
-                evidence_refs=("replay.json",),
-            ),
-        )
-        self.assertEqual(queue, before)
-        nova = next(item for item in updated["flows"] if item["flow_id"] == FLOW_ID)
-        original_nova = next(item for item in queue["flows"] if item["flow_id"] == FLOW_ID)
-        self.assertEqual(
-            len(nova["named_scenarios"][0]["pre_input_results"]),
-            len(original_nova["named_scenarios"][0]["pre_input_results"]) + 1,
-        )
-        with self.assertRaisesRegex(control.FlowDeliveryError, "only for Nova"):
-            control.apply_named_scenario_result(
-                queue,
-                flow_id="NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
-                record=replay_validated_record(
-                    candidate_commit="d" * 40,
-                    evidence_refs=("replay.json",),
-                ),
             )
 
     def test_mapping_rejects_non_boolean_budget_flag(self) -> None:
