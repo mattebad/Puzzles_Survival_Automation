@@ -13,7 +13,7 @@ import numpy as np
 
 from scripts import flow_delivery_supply_depot_bluestacks as delivery
 from scripts import pnsctl
-from scripts import supply_depot_free_canary as canary
+from scripts import supply_depot_free_route as supply_route
 import scripts.navigation_development_boundary as boundary
 from scripts.navigation_development_boundary import (
     DevelopmentInitialObservation,
@@ -23,7 +23,7 @@ from scripts.atlas_startup_normalizer import AtlasStartupDisposition
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from tasks.home_atlas_planner import PlanDisposition
 from tasks.perception_bundle import PerceptionBundleError
-from scripts.supply_depot_free_canary import (
+from scripts.supply_depot_free_route import (
     exhausted_free_state,
     select_free_food_control,
 )
@@ -143,19 +143,19 @@ def _run_supply_pan_case(
     terminal_status = None
     with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
         with (
-            patch.object(canary, "MAX_PANS", 1),
-            patch.object(canary, "load_home_atlas", return_value=SimpleNamespace()),
-            patch.object(canary, "_supply_pan_contract", return_value=(object(), object())),
-            patch.object(canary, "DirectPanNavigator", return_value=navigator),
-            patch.object(canary, "_checked_supply_camera_plan", side_effect=lambda _nav, _loc, planned: planned),
-            patch.object(canary, "plan_direct_pan", return_value=plan),
-            patch.object(canary, "BlueStacksAtlasStartupNormalizer", return_value=SimpleNamespace(observe=lambda _frame: startup)),
-            patch.object(canary, "BlueStacksHomeLocalizer", return_value=localizer),
-            patch.object(canary, "_recognize", return_value=SimpleNamespace(recognized=False)),
-            patch.object(canary, "_bind_home_building", side_effect=lambda *_args: next(bindings)),
-            patch.object(canary, "bind_supply_depot_claim_supply", return_value=None),
-            patch.object(canary, "recognize_supply_depot_radial", return_value=False),
-            patch.object(canary, "is_clean_home_frame", side_effect=clean_home),
+            patch.object(supply_route, "MAX_PANS", 1),
+            patch.object(supply_route, "load_home_atlas", return_value=SimpleNamespace()),
+            patch.object(supply_route, "_supply_pan_contract", return_value=(object(), object())),
+            patch.object(supply_route, "DirectPanNavigator", return_value=navigator),
+            patch.object(supply_route, "_checked_supply_camera_plan", side_effect=lambda _nav, _loc, planned: planned),
+            patch.object(supply_route, "plan_direct_pan", return_value=plan),
+            patch.object(supply_route, "BlueStacksAtlasStartupNormalizer", return_value=SimpleNamespace(observe=lambda _frame: startup)),
+            patch.object(supply_route, "BlueStacksHomeLocalizer", return_value=localizer),
+            patch.object(supply_route, "_recognize", return_value=SimpleNamespace(recognized=False)),
+            patch.object(supply_route, "_bind_home_building", side_effect=lambda *_args: next(bindings)),
+            patch.object(supply_route, "bind_supply_depot_claim_supply", return_value=None),
+            patch.object(supply_route, "recognize_supply_depot_radial", return_value=False),
+            patch.object(supply_route, "is_clean_home_frame", side_effect=clean_home),
         ):
             with DevelopmentSession(
                 owner="supply-pan-test",
@@ -164,7 +164,7 @@ def _run_supply_pan_case(
                 max_inputs=4,
             ) as session:
                 try:
-                    result = canary.run(
+                    result = supply_route.run(
                         session=session,
                         runtime=runtime,
                         session_directory=root / "session",
@@ -191,15 +191,15 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
         frame = cv2.imread(str(path))
         self.assertIsNotNone(frame)
         self.assertIsNone(_bag_back_arrow_visual(frame))
-        self.assertEqual(canary._arena_exit_target(frame), (47, 2, 128, 61))
+        self.assertEqual(supply_route._arena_exit_target(frame), (47, 2, 128, 61))
         for box in ((335, 7, 480, 56), (170, 87, 300, 140), (470, 85, 710, 138), (0, 0, 180, 90)):
             with self.subTest(missing=box):
                 changed = frame.copy()
                 x0, y0, x1, y1 = box
                 changed[y0:y1, x0:x1] = 0
-                self.assertIsNone(canary._arena_exit_target(changed))
+                self.assertIsNone(supply_route._arena_exit_target(changed))
         with patch("scripts.bluestacks_popup_recognition.recognize_reset_popup", return_value={"blocking_unknown_modal": True}):
-            self.assertIsNone(canary._arena_exit_target(frame))
+            self.assertIsNone(supply_route._arena_exit_target(frame))
 
     def test_arena_back_recovery_continues_once_from_verified_fresh_home(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -214,20 +214,20 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
 
             with (
                 patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
-                patch.object(canary, "load_home_atlas", return_value=object()),
-                patch.object(canary, "_supply_pan_contract", return_value=(object(), object())),
-                patch.object(canary, "DirectPanNavigator", return_value=navigator),
-                patch.object(canary, "_arena_exit_target", side_effect=lambda frame: (47, 2, 128, 61) if int(frame[0, 0, 0]) <= 2 else None),
-                patch.object(canary, "is_clean_home_frame", return_value=True),
-                patch.object(canary, "_recognize", return_value=SimpleNamespace(recognized=False)),
-                patch.object(canary, "bind_supply_depot_claim_supply", return_value=None),
-                patch.object(canary, "recognize_supply_depot_radial", return_value=False),
-                patch.object(canary, "_bind_home_building", return_value=(SimpleNamespace(recognized=True), None)),
-                patch.object(canary, "BlueStacksHomeLocalizer"),
-                patch.object(canary, "BlueStacksAtlasStartupNormalizer", return_value=SimpleNamespace(observe=startup_observe)),
+                patch.object(supply_route, "load_home_atlas", return_value=object()),
+                patch.object(supply_route, "_supply_pan_contract", return_value=(object(), object())),
+                patch.object(supply_route, "DirectPanNavigator", return_value=navigator),
+                patch.object(supply_route, "_arena_exit_target", side_effect=lambda frame: (47, 2, 128, 61) if int(frame[0, 0, 0]) <= 2 else None),
+                patch.object(supply_route, "is_clean_home_frame", return_value=True),
+                patch.object(supply_route, "_recognize", return_value=SimpleNamespace(recognized=False)),
+                patch.object(supply_route, "bind_supply_depot_claim_supply", return_value=None),
+                patch.object(supply_route, "recognize_supply_depot_radial", return_value=False),
+                patch.object(supply_route, "_bind_home_building", return_value=(SimpleNamespace(recognized=True), None)),
+                patch.object(supply_route, "BlueStacksHomeLocalizer"),
+                patch.object(supply_route, "BlueStacksAtlasStartupNormalizer", return_value=SimpleNamespace(observe=startup_observe)),
             ):
                 with DevelopmentSession(owner="supply-arena", invocation_id="arena", session_directory=root / "session", max_inputs=4) as session:
-                    result = canary.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
+                    result = supply_route.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
                     self.assertEqual(session.input_count, 1)
             self.assertEqual(len(runtime.taps), 1)
             self.assertEqual(runtime.taps[0]["target_roi"], (47, 2, 128, 61))
@@ -242,17 +242,17 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
                 runtime = _PanRuntime(root / "runtime")
                 with (
                     patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
-                    patch.object(canary, "_arena_exit_target", return_value=(47, 2, 128, 61) if source_known else None),
-                    patch.object(canary, "is_clean_home_frame", return_value=False),
+                    patch.object(supply_route, "_arena_exit_target", return_value=(47, 2, 128, 61) if source_known else None),
+                    patch.object(supply_route, "is_clean_home_frame", return_value=False),
                 ):
                     with DevelopmentSession(owner="supply-arena", invocation_id="arena", session_directory=root / "session", max_inputs=3) as session:
                         if source_known:
-                            action = canary._recover_arena_home(session, runtime, runtime.capture, settle_seconds=0)
+                            action = supply_route._recover_arena_home(session, runtime, runtime.capture, settle_seconds=0)
                             self.assertNotEqual(action.status, "completed")
                             self.assertEqual(session.input_count, 1)
                         else:
                             with self.assertRaises(PerceptionBundleError):
-                                canary._recover_arena_home(session, runtime, runtime.capture, settle_seconds=0)
+                                supply_route._recover_arena_home(session, runtime, runtime.capture, settle_seconds=0)
                             self.assertEqual(session.input_count, 0)
                 self.assertEqual(len(runtime.taps), int(source_known))
 
@@ -264,17 +264,17 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
         path = Path(__file__).parent / "fixtures/supply_depot/native-low-entry-20261029.png"
         frame = cv2.imread(str(path))
         self.assertIsNotNone(frame)
-        atlas = load_home_atlas(canary.ATLAS_PATH)
-        localization = BlueStacksHomeLocalizer(atlas, canary.ATLAS_PATH).localize(frame)
+        atlas = load_home_atlas(supply_route.ATLAS_PATH)
+        localization = BlueStacksHomeLocalizer(atlas, supply_route.ATLAS_PATH).localize(frame)
         self.assertTrue(localization.recognized)
-        original, calibration = canary.bluestacks_direct_pan_contract()
-        old = plan_direct_pan(atlas, localization, canary.SUPPLY_DEPOT_BUILDING_ID, original, calibration)
+        original, calibration = supply_route.bluestacks_direct_pan_contract()
+        old = plan_direct_pan(atlas, localization, supply_route.SUPPLY_DEPOT_BUILDING_ID, original, calibration)
         self.assertEqual(old.disposition, PlanDisposition.BIND)
-        goal, unchanged_calibration = canary._supply_pan_contract()
+        goal, unchanged_calibration = supply_route._supply_pan_contract()
         self.assertEqual(goal.fixed_hud_masks, original.fixed_hud_masks)
         self.assertEqual(goal.planning_policy, original.planning_policy)
         self.assertEqual(unchanged_calibration, calibration)
-        new = plan_direct_pan(atlas, localization, canary.SUPPLY_DEPOT_BUILDING_ID, goal, calibration)
+        new = plan_direct_pan(atlas, localization, supply_route.SUPPLY_DEPOT_BUILDING_ID, goal, calibration)
         self.assertEqual(new.disposition, PlanDisposition.PAN, new)
         self.assertLess(new.drag_end[1], new.drag_start[1])
         self.assertEqual(new.drag_end[0], new.drag_start[0])
@@ -286,17 +286,17 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
             runtime = _PanRuntime(root / "runtime")
             with (
                 patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
-                patch.object(canary, "load_home_atlas", return_value=object()),
-                patch.object(canary, "_supply_pan_contract", return_value=(object(), object())),
-                patch.object(canary, "DirectPanNavigator"),
-                patch.object(canary, "_recognize", return_value=SimpleNamespace(recognized=False)),
-                patch.object(canary, "bind_supply_depot_claim_supply", return_value=None),
-                patch.object(canary, "recognize_supply_depot_radial", return_value=True),
-                patch.object(canary, "_bind_home_building", side_effect=AssertionError("no unrelated map close target")),
-                patch.object(canary, "BlueStacksAtlasStartupNormalizer", side_effect=AssertionError("non-actionable menu must stop")),
+                patch.object(supply_route, "load_home_atlas", return_value=object()),
+                patch.object(supply_route, "_supply_pan_contract", return_value=(object(), object())),
+                patch.object(supply_route, "DirectPanNavigator"),
+                patch.object(supply_route, "_recognize", return_value=SimpleNamespace(recognized=False)),
+                patch.object(supply_route, "bind_supply_depot_claim_supply", return_value=None),
+                patch.object(supply_route, "recognize_supply_depot_radial", return_value=True),
+                patch.object(supply_route, "_bind_home_building", side_effect=AssertionError("no unrelated map close target")),
+                patch.object(supply_route, "BlueStacksAtlasStartupNormalizer", side_effect=AssertionError("non-actionable menu must stop")),
             ):
                 with DevelopmentSession(owner="supply-radial-stop", invocation_id="radial-stop", session_directory=root / "session", max_inputs=4) as session:
-                    result = canary.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
+                    result = supply_route.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
                     self.assertEqual(session.input_count, 0)
             self.assertEqual(runtime.taps, [])
             self.assertEqual(runtime.swipes, [])
@@ -309,16 +309,16 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
             target = (661, 1077, 728, 1098)
             with (
                 patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
-                patch.object(canary, "load_home_atlas", return_value=object()),
-                patch.object(canary, "_supply_pan_contract", return_value=(object(), object())),
-                patch.object(canary, "DirectPanNavigator"),
-                patch.object(canary, "BlueStacksAtlasStartupNormalizer", side_effect=AssertionError("already-open radial must not normalize Home")),
-                patch.object(canary, "_bind_home_building", side_effect=AssertionError("already-open radial must not rebind building")),
-                patch.object(canary, "_recognize", return_value=SimpleNamespace(recognized=False)),
-                patch.object(canary, "bind_supply_depot_claim_supply", side_effect=lambda frame, **_: SimpleNamespace(target_roi=target, frame_sha256=canary.frame_digest(frame))),
+                patch.object(supply_route, "load_home_atlas", return_value=object()),
+                patch.object(supply_route, "_supply_pan_contract", return_value=(object(), object())),
+                patch.object(supply_route, "DirectPanNavigator"),
+                patch.object(supply_route, "BlueStacksAtlasStartupNormalizer", side_effect=AssertionError("already-open radial must not normalize Home")),
+                patch.object(supply_route, "_bind_home_building", side_effect=AssertionError("already-open radial must not rebind building")),
+                patch.object(supply_route, "_recognize", return_value=SimpleNamespace(recognized=False)),
+                patch.object(supply_route, "bind_supply_depot_claim_supply", side_effect=lambda frame, **_: SimpleNamespace(target_roi=target, frame_sha256=supply_route.frame_digest(frame))),
             ):
                 with DevelopmentSession(owner="supply-resume", invocation_id="resume", session_directory=root / "session", max_inputs=2) as session:
-                    result = canary.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
+                    result = supply_route.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
                     self.assertEqual(session.input_count, 1)
             self.assertEqual(result["reason"], "supply_depot_screen_not_recognized")
             self.assertEqual(len(runtime.taps), 1)
@@ -476,20 +476,17 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
 
     def test_home_zoom_builds_scrcpy_transport_in_runtime_session(self):
         runtime = SimpleNamespace(session=Path("runtime-session"))
-        adb = Path(r"C:\Program Files\BlueStacks_nxt\HD-Adb.exe")
-        pnsctl = SimpleNamespace(
-            BLUESTACKS_ADB=adb,
-            BLUESTACKS_SERIAL="emulator-5554",
-        )
+        adb = Path("adb-under-test")
         with (
-            patch.object(canary, "_pnsctl", return_value=pnsctl),
+            patch.object(supply_route, "BLUESTACKS_ADB", adb),
+            patch.object(supply_route, "BLUESTACKS_SERIAL", "emulator-5554"),
             patch.object(
-                canary,
+                supply_route,
                 "ScrcpyMotionEventZoomTransport",
                 return_value=object(),
             ) as constructor,
         ):
-            transport = canary._build_home_zoom_transport(runtime)
+            transport = supply_route._build_home_zoom_transport(runtime)
 
         self.assertIsNotNone(transport)
         constructor.assert_called_once_with(
@@ -527,7 +524,7 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
         runtime = Runtime()
         transport = ScrcpyTransport()
 
-        canary._dispatch_home_zoom_out(runtime, source, zoom_transport=transport)
+        supply_route._dispatch_home_zoom_out(runtime, source, zoom_transport=transport)
 
         self.assertEqual(len(calls), 1)
         self.assertIs(calls[0][0], source)
@@ -611,7 +608,7 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
                             return_value=SimpleNamespace(session=child),
                         ),
                         patch.object(
-                            canary,
+                            supply_route,
                             "run",
                             return_value={
                                 "status": "completed",

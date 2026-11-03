@@ -1,105 +1,61 @@
 # Puzzles & Survival Automation
 
-Safety-first computer-vision automation for **Puzzles & Survival**. The repository contains an
-implemented `automation_service` kernel, eight explicitly authorized BlueStacks routes, and
-offline planning records for future migration. Current route acceptance and remaining coverage
-are recorded in the [dated route report](docs/bluestacks-route-status-20261031.md) and
-[`BACKLOG.md`](BACKLOG.md); current runtime ownership is in
-[`CURRENT_HANDOFF.md`](CURRENT_HANDOFF.md). Documentation never enables a route.
+Computer-vision automation for the mobile game **Puzzles & Survival**, running against a local
+BlueStacks instance. A supervised service checks which daily or cooldown routes are due, runs one
+at a time, verifies each result from the screen, and returns to the game's Home screen before
+the next one.
 
-## Current boundary
+**Current status:** [November 2 BlueStacks route report](docs/bluestacks-route-status-20261102.md).
+It records which routes are live-accepted, at which commit, and the limits of that evidence.
+Remaining work is planned in [`BACKLOG.md`](BACKLOG.md) and tracked in GitHub issues.
 
-- **Current runtime:** Local BlueStacks, using explicitly authorized supervised service sessions.
-  Selected routes run serially when their persisted daily or cooldown gates permit them.
-- **Runtime:** BlueStacks is the runtime; there is no NAS/Unraid production target.
-- **Readiness:** All eight routes have retained BlueStacks effect/Home evidence, with dated source
-  limits in the backlog. The October 30 source completed a two-hour serial cadence. The latest
-  October 31 source passed 20 minutes with 8 reports, 22 inputs, verified Home returns and disabled cleanup. Later cold
-  process restart and an actual pre-native UTC-reset deferral are live-accepted. Enhancement's
-  Gear, Chip and Module proof covers one physical Profile visit with an interrupted/resumed run;
-  a fully uninterrupted native family remains additional coverage. Historical receipts do not
-  accept later changed code.
-- Runtime launchers and controls, `ResourceEffectAuthority`, leases/fencing, manual-only states,
-  and live gates remain safety authorities. Planning documents cannot enable or authorize them.
+## Routes
 
-Current route evidence and the reconciled 74-ticket plan start at [`BACKLOG.md`](BACKLOG.md). Read the
-[`offline execution guide`](docs/backlog/execution-guide.md) and the linked ticket body before any
-future assignment. The original 148-record backlog is preserved in the
-[`legacy archive`](docs/archive/backlog-legacy.md); it is historical and non-authorizing.
+The service code registers each route in `automation_service/registry.py`. Each row below is one
+registration, named by its registry family. `serve --flow` takes the name in the first column.
 
-## Running the BlueStacks routes
+| `serve --flow` | Registry family | What it does |
+| --- | --- | --- |
+| `recruitment` | `recruitment` | Noah's Tavern: uses free recruit attempts as they become available. |
+| `nova` | `nova_praise` | One free Nova Praise per cooldown. |
+| `campaign` | `campaign_ap` | Spends affordable AP on Auto Battle at `--campaign-stage`, then waits `--campaign-cadence-seconds`. |
+| `bioenhancer` | `bioenhancer_research` | One free Bioenhancer Research per cooldown. |
+| `supply` | `supply_depot` | Collects free Supply Depot rewards until none remain, once per daily reset. |
+| `ultimate` | `ultimate_challenge_daily` | One Ultimate Challenge entry, then Flee, once per daily reset. |
+| `enhancement` | `enhancement_family` | Gear, Chip and Module enhancement once each in a single Profile visit, once per daily reset. |
+| `personal-might` | `personal_might_praise` | One Personal Might Praise, once per daily reset. |
+| none (navigation-only) | `world_map_navigation` | Registered but never executed by `serve`. |
 
-Use the supported `pnsctl` facade and the existing service/flow controls. The service checks due
-times, claims one route, verifies its outcome and return Home, then waits for the next eligible
-route. Campaign drains every affordable battle before its five-minute completion wait.
-Enhancement visits Profile once for Gear, Chip, and Module, then returns Home.
+The `world_map_navigation` registration is navigation-only (registry variant `navigation_only`).
+Its handler, `WorldNavigationSelectionHandler` in `automation_service/handlers.py`, is a
+selection-only stub with no runtime, target or transport capability: it can be selected by the
+scheduler but always reports zero transport, and `serve` has no `--flow` for it. It still has a
+persisted flow control, so `status` lists one more flow than there are routes.
 
-After the Python setup below, this is the service command for all eight routes:
+Each registration has a flow id, used by `enable <flow-id>` and `disable <flow-id>`. Run
+`automation-service status` to list them. `tests/test_readme_consistency.py` fails if this table
+disagrees with the registry or the `serve --flow` choices, or if the status link above is not the
+newest `docs/bluestacks-route-status-*.md` report.
 
-```powershell
-.\.venv\Scripts\python.exe scripts/pnsctl.py automation-service `
-  --mode supervised --adapter bluestacks `
-  --state-path .local-orchestrator/bot-state.sqlite3 serve --live `
-  --flow nova --flow recruitment --flow campaign --flow bioenhancer `
-  --flow supply --flow ultimate --flow enhancement --flow personal-might `
-  --campaign-stage 1-15-9 --campaign-cadence-seconds 300 `
-  --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 `
-  --account-id primary-account --server-id primary-server `
-  --output-directory .local-captures/automation-service-live
-```
+## Safety model
 
-Account, server, device, state and output paths must match the intended local instance. This
-command preserves persisted service/flow enablement and blocks; it does not turn them on.
-Use `automation-service status` to inspect those controls, and the explicit `enable <flow_id>`,
-`disable <flow_id>`, `service-enable`, and `service-disable` commands to manage an authorized
-session. Do not start another controller while a live owner exists. Static code registration is separate from enablement; persisted service/flow controls are off
-after bounded tests, and permanent deployment remains unchanged. See [`the service guide`](docs/automation-service.md)
-for the control and execution boundaries.
+- Nothing runs unless both the service control and that route's flow control are on. They are
+  stored in SQLite, default to off, and `serve` never turns them on. `emergency-stop` turns the
+  service off and stops in-flight runs at their next check.
+- Before any tap, the current screen, overlay and target must be recognized in a fresh frame,
+  and the run must still hold its claim. A tap that was sent is not success: the expected result
+  must be recognized afterwards. Unknown or ambiguous results stop the route and are not retried.
+- Only one live controller may own the device at a time. Login, account switching, CAPTCHA and
+  similar states stop for a human.
+- Documentation, tests and retained evidence never enable a route or authorize live input.
 
-## Target architecture and safety contract
+The [service guide](docs/automation-service.md) and the
+[operations runbook](docs/pns-operations-runbook.md) give the full control and command reference.
 
-Perception must establish a current, typed source and target before any input capability exists.
-Every dispatch must be fenced by fresh-frame identity, stable semantic target binding, ownership,
-resource/policy checks, and the persisted SQLite gates. A transport return is not success: the
-postcondition must be positively recognized. Stale, ambiguous, unknown, contradictory, or
-unreconciled outcomes must fail closed and must not be blindly retried.
+## Setup
 
-```text
-Current frame
-    │
-    ▼
-Perception: screen + overlay + target + provenance
-    │  (no input until this is valid)
-    ▼
-SQLite state / scheduler → fenced runtime session → ActionExecutor → transport
-    ▲                                                        │
-    └──────────── fail-closed postcondition/reconciliation ──┘
-```
-
-The canonical runtime lives in [`automation_service/`](automation_service/). Legacy route code in
-[`scripts/`](scripts/) and [`tasks/`](tasks/) remains under its existing safety boundaries while
-migration is evaluated. [`safe_action_core/`](safe_action_core/) and especially
-`ResourceEffectAuthority` remain retained authorities until equivalent canonical safeguards are
-proved. [`evidence/`](evidence/) records what happened; it never authorizes execution or retry.
-
-## Repository map
-
-- [`automation_service/`](automation_service/) — SQLite state, scheduler, sessions, fencing, action
-  execution, screen routing, and recovery.
-- [`scripts/`](scripts/) — supervised BlueStacks development and maintenance tooling.
-- [`tasks/`](tasks/) — route semantics, recognition, policy, and retained task machinery.
-- [`safe_action_core/`](safe_action_core/) — retained action/resource safety authorities.
-- [`tools/`](tools/) — manual or experimental developer tooling, not production runtime authority.
-- [`tests/`](tests/) — offline, replay, policy, route, and safety checks.
-- [`docs/backlog/`](docs/backlog/) — 74 inactive recovery tickets; planning only.
-- [`docs/archive/`](docs/archive/) — superseded design/status material and the byte-preserved legacy
-  backlog. Archive documents are not current instructions.
-- [`evidence/`](evidence/) — immutable development/evidence records, not runtime authority.
-
-## Development setup
-
-Use Python **3.11 or newer** in a virtual environment. On Windows, the Python Launcher avoids
-accidentally using an older `python` installation; no activation script is required:
+Use Python **3.11 or newer** in a virtual environment. On Windows (the BlueStacks host), the Python
+Launcher avoids picking up an older `python`:
 
 ```powershell
 py -3 -m venv .venv
@@ -115,28 +71,55 @@ python3 -m venv .venv
 .venv/bin/python scripts/check.py
 ```
 
-With that environment activated, the deterministic offline check is the same command used by CI:
+`scripts/check.py` is the deterministic offline check that CI also runs. It needs no device.
 
-```bash
-python scripts/check.py
+## Running
+
+Run everything through `scripts/pnsctl.py`. This serves all routes from the table above:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/pnsctl.py automation-service `
+  --mode supervised --adapter bluestacks `
+  --state-path .local-orchestrator/bot-state.sqlite3 serve --live `
+  --flow nova --flow recruitment --flow campaign --flow bioenhancer `
+  --flow supply --flow ultimate --flow enhancement --flow personal-might `
+  --campaign-stage 1-15-9 --campaign-cadence-seconds 300 `
+  --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 `
+  --account-id primary-account --server-id primary-server `
+  --output-directory .local-captures/automation-service-live
 ```
 
-Relevant broader unittest modules may be run separately when working on a subsystem, for example:
+Account, server, device, state and output paths must match your local instance. The command
+blocks and uses the persisted controls as they are; turn routes on first with `service-enable`
+and `enable <flow-id>`, and check `automation-service status` before and after a session.
+
+## Tests
+
+Run a single module while working on a subsystem:
 
 ```bash
 python -m unittest tests.test_automation_service_state
 ```
 
-The broader `tests.test_world_map_navigation_bluestacks` fixture replay requires a local
-`tesseract` executable on `PATH` (CI installs it). Its checked-in World HUD and Search-menu
-PNGs are authorized byte-exact copies of retained captures, not fresh native acceptance.
+`tests.test_world_map_navigation_bluestacks` and other fixture-replay modules need a `tesseract`
+executable on `PATH` (CI installs it). Tests that need gitignored local captures
+(`.local-captures/`) are skipped unless `PNS_LOCAL_CAPTURES=1` is set; with it set, a missing
+capture fails the test. Shared fakes and loaders live in `tests/support/`. No offline test run is
+a live BlueStacks claim.
 
-New native-runtime capture files use portable filename components; original semantic labels
-remain in structured events. `actions.jsonl` records each canonical action once, including
-failed or unresolved attempts. `transport_attempted_count` counts actual dispatch attempts;
-`semantic_completed_count` requires a confirmed semantic outcome, not successful transport
-or a retained screenshot. Historical evidence paths are not rewritten, and none of these
-records enables a flow or authorizes retry.
+## Repository map
 
-Neither the small offline check nor an offline unittest run is a full-suite or live BlueStacks/ADB
-claim. Native/device operations are separate, supervised work and are not part of repository checks.
+- `automation_service/`: the canonical runtime. SQLite state, scheduler, sessions, fencing,
+  action execution, screen routing, recovery, and the route registry.
+- `safe_action_core/`: action, lease and `ResourceEffectAuthority` safety checks that the
+  service reuses.
+- `tasks/`: route semantics, recognition, policy data and assets.
+- `scripts/`: `pnsctl.py` (the supported command entry point), `check.py`, and BlueStacks
+  route and maintenance tooling.
+- `tests/`: offline unit, replay, policy, route and safety tests.
+- `docs/`: user and maintainer documentation: service guide, runbook, dated status reports,
+  route designs, policies, and the planning tickets in `docs/backlog/`.
+- `docs/agent/`: volatile agent-workflow state (session handoff, implementation prompts, note
+  formats). Not needed to use the bot.
+- `docs/archive/`: superseded records kept for history. Not current instructions.
+- `evidence/`: retained run evidence. It records what happened and never authorizes a run.

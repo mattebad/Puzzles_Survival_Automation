@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import replace
 from pathlib import Path
 import unittest
@@ -14,6 +13,7 @@ from tasks.available_daily_claim import (
 )
 from tasks.contracts import TaskOutcome
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tests.support.observations import load_observation
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,11 +21,10 @@ FIXTURE = ROOT / "tests/fixtures/phase_e_daily_claim_observations.json"
 
 
 def load_fixture(name: str) -> AvailableDailyClaimObservation:
-    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))["observations"][name]
-    payload["row_bounds"] = tuple(payload["row_bounds"])
-    payload["target_roi"] = tuple(payload["target_roi"])
-    payload["evidence_refs"] = tuple(payload["evidence_refs"])
-    return AvailableDailyClaimObservation(**payload)
+    return load_observation(
+        FIXTURE, name, AvailableDailyClaimObservation,
+        ("row_bounds", "target_roi", "evidence_refs"),
+    )
 
 
 class AvailableDailyClaimContractTests(unittest.TestCase):

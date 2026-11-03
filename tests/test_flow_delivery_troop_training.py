@@ -48,6 +48,7 @@ from tasks.troop_training import (
 )
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tasks.runtime_identity import BLUESTACKS_PACKAGE, BLUESTACKS_SERIAL
+from tests.support.local_captures import LOCAL_CAPTURES, require_capture, requires_local_captures
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -526,10 +527,10 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         self.assertTrue(result.final_home_recognized)
         self.assertEqual(runtime.inputs, [])
 
+    @requires_local_captures
     def test_retained_canonical_home_frame_has_spatial_hud_and_facility_proof(self) -> None:
-        frame_path = ROOT / ".local-captures" / "flow-delivery" / FLOW_ID / "run-20260813T175557906902Z" / "troop-training-20260813T175558441756Z" / "frames" / "0003-return-home-final.png"
-        if not frame_path.is_file():
-            self.skipTest("retained post-recovery Home frame is unavailable")
+        frame_path = LOCAL_CAPTURES / "flow-delivery" / FLOW_ID / "run-20260813T175557906902Z" / "troop-training-20260813T175558441756Z" / "frames" / "0003-return-home-final.png"
+        require_capture(frame_path)
         import cv2
 
         from tasks.troop_training_vision import recognize_home
@@ -539,11 +540,11 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         self.assertEqual(set(observation.facilities), {"fighter", "shooter", "rider", "vehicle"})
         self.assertGreaterEqual(len(observation.diagnostics["home_hud_values"]), 3)
 
+    @requires_local_captures
     def test_retained_recovery_home_proof_accepts_clipped_facility_labels(self) -> None:
         """HUD + canonical Atlas remain sufficient when a camera clips a label."""
-        frame_path = ROOT / ".local-captures" / "flow-delivery" / FLOW_ID / "run-20260813T191910848863Z" / "troop-training-20260813T191911410733Z" / "frames" / "0003-return-home-final.png"
-        if not frame_path.is_file():
-            self.skipTest("retained clipped-label recovery Home frame unavailable")
+        frame_path = LOCAL_CAPTURES / "flow-delivery" / FLOW_ID / "run-20260813T191910848863Z" / "troop-training-20260813T191911410733Z" / "frames" / "0003-return-home-final.png"
+        require_capture(frame_path)
         import cv2
 
         from scripts.troop_training_bluestacks import _canonical_home_proof
@@ -597,7 +598,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         self.assertIn(RECOVERY_ID, pnsctl._BLUESTACKS_RECOVERY_HANDLERS)
 
     def test_dry_run_is_bounded_and_does_not_dispatch(self) -> None:
-        with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", ROOT / ".local-captures" / "test-flow-delivery"):
+        with tempfile.TemporaryDirectory() as directory, patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", Path(directory)):
             result = json.loads(run_troop_training_consolidation({}, {"owner": "test", "max_inputs": 32}, live=False))
         self.assertEqual(result["flow_id"], FLOW_ID)
         self.assertFalse(result["dispatch"])
@@ -611,7 +612,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         ):
             run_troop_training_consolidation({}, {}, live=True)
     def test_recovery_is_observe_only(self) -> None:
-        with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", ROOT / ".local-captures" / "test-flow-delivery"):
+        with tempfile.TemporaryDirectory() as directory, patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", Path(directory)):
             result = json.loads(recover_troop_training_consolidation({}, {}))
         self.assertEqual(result["flow_id"], FLOW_ID)
         self.assertEqual(result["status"], "observed")

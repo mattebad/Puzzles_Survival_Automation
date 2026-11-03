@@ -13,7 +13,7 @@ import numpy as np
 from scripts import bluestacks_campaign_ap as live
 from tasks.campaign_auto_battle import CampaignAction, CampaignRouteObservation, CampaignScreen
 from tasks.campaign_auto_battle_runtime import CampaignRuntimeCommand
-from tests.test_campaign_auto_battle_runtime import recognized
+from tests.support.campaign import recognized
 
 
 def victory(*, frame_hash="winner", roi=(271, 1101, 530, 1161)):

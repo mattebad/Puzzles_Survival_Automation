@@ -19,7 +19,7 @@
     {
       "from": "activated_scan_contract_ready",
       "to": "survey_session_prepared",
-      "via": "pnsctl_bluestacks_run_flow_zero_input_scaffold",
+      "via": "pnsctl_development_session_run_flow_zero_input_scaffold",
       "notes": "Prep dry-run remains zero-input; activated live dispatch is pnsctl-only."
     },
     {
@@ -111,7 +111,7 @@
   ],
   "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
-  "operator_interface": "python scripts/pnsctl.py bluestacks run-flow CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
+  "operator_interface": "python scripts/pnsctl.py development-session run-flow CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
   "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
   "production_registration": "NOT_REGISTERED",
   "scheduler_eligible": false

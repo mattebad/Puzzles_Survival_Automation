@@ -6,8 +6,8 @@ describe the November 1 state and are retained as dated history.
 
 This supplements the [October 31 report](bluestacks-route-status-20261031.md).
 Implemented code, offline checks and live acceptance are different evidence.
-PR [#16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16) remains
-draft and unmerged. Permanent scheduling remains disabled. Only explicitly
+PR [#16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16) was
+draft and unmerged at this report; it merged to `main` on 2026-11-02. Permanent scheduling remains disabled. Only explicitly
 authorized bounded controllers temporarily enable selected routes.
 
 ## Current acceptance

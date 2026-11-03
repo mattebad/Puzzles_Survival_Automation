@@ -12,6 +12,7 @@ from tasks.tech_upgrade_disabled import (
     tech_upgrade_disabled_dispatch,
     tech_upgrade_postcondition_verified,
 )
+from tests.support.observations import load_observation
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,11 +21,10 @@ MATRIX = ROOT / "tasks/daily_quest_execution_matrix.json"
 
 
 def load_fixture(name: str) -> TechUpgradeObservation:
-    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))["observations"][name]
-    payload["target_roi"] = tuple(payload["target_roi"])
-    payload["panel_bounds"] = tuple(payload["panel_bounds"])
-    payload["evidence_refs"] = tuple(payload["evidence_refs"])
-    return TechUpgradeObservation(**payload)
+    return load_observation(
+        FIXTURE, name, TechUpgradeObservation,
+        ("target_roi", "panel_bounds", "evidence_refs"),
+    )
 
 
 class DisabledTechUpgradeContractTests(unittest.TestCase):

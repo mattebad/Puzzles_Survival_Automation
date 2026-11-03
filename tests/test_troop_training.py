@@ -42,6 +42,13 @@ from tasks.troop_training_vision import (
     recognize_radial_menu,
     recognize_training,
 )
+from tests.support.local_captures import LOCAL_CAPTURES, require_capture, requires_local_captures
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 RESET = "local-reset-2026-07-16"
@@ -625,10 +632,10 @@ class TroopTrainingContractTests(unittest.TestCase):
         self.assertFalse(no_exact_label.diagnostics["queue_spatially_associated"])
         timer.assert_not_called()
 
+    @requires_local_captures
     def test_retained_training_queue_timer_fallback_recognizes_active_queue(self):
         frame_path = (
-            Path(__file__).resolve().parents[1]
-            / ".local-captures"
+            LOCAL_CAPTURES
             / "flow-delivery"
             / "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
             / "run-20260814T033217263154Z"
@@ -636,8 +643,7 @@ class TroopTrainingContractTests(unittest.TestCase):
             / "frames"
             / "0003-training-screen-source.png"
         )
-        if not frame_path.is_file():
-            self.skipTest("retained Fighter training queue frame unavailable")
+        require_capture(frame_path)
         frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
         recognized = recognize_training(frame)
@@ -653,10 +659,10 @@ class TroopTrainingContractTests(unittest.TestCase):
         self.assertEqual(recognized.diagnostics["queue_timer_band"], QUEUE_TIMER_BAND)
         self.assertTrue(recognized.diagnostics["queue_spatially_associated"])
 
+    @requires_local_captures
     def test_retained_rider_active_queue_accepts_selected_t8_with_queue_t1(self):
         frame_path = (
-            Path(__file__).resolve().parents[1]
-            / ".local-captures"
+            LOCAL_CAPTURES
             / "flow-delivery"
             / "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
             / "run-20260814T052918520044Z"
@@ -664,8 +670,7 @@ class TroopTrainingContractTests(unittest.TestCase):
             / "frames"
             / "0010-tab-rider-post.png"
         )
-        if not frame_path.is_file():
-            self.skipTest("retained Rider active-queue frame unavailable")
+        require_capture(frame_path)
         recognized = recognize_training(cv2.imread(str(frame_path), cv2.IMREAD_COLOR))
         self.assertTrue(recognized.recognized)
         self.assertTrue(recognized.queue_active)
@@ -729,10 +734,10 @@ class TroopTrainingContractTests(unittest.TestCase):
         self.assertEqual(len(runtime.swipes), 1)
         self.assertLess(runtime.swipes[0][0][0], runtime.swipes[0][1][0])
 
+    @requires_local_captures
     def test_retained_rider_tier_strip_marks_question_cards_locked(self):
-        frame_path = Path(__file__).resolve().parents[1] / ".local-captures" / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T185728650296Z" / "troop-training-20260813T185729180830Z" / "frames" / "0020-rider-training-screen-source.png"
-        if not frame_path.is_file():
-            self.skipTest("retained Rider training frame unavailable")
+        frame_path = LOCAL_CAPTURES / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T185728650296Z" / "troop-training-20260813T185729180830Z" / "frames" / "0020-rider-training-screen-source.png"
+        require_capture(frame_path)
         frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
         recognized = recognize_training(frame)
         self.assertTrue(recognized.recognized)
@@ -742,11 +747,11 @@ class TroopTrainingContractTests(unittest.TestCase):
         rider_controller = TrainingController(config(tier=1), reset_identity=RESET)
         self.assertEqual(rider_controller.plan_tier(recognized, "rider"), "select_tier")
 
+    @requires_local_captures
     def test_latest_retained_mixed_unlocked_window_ignores_higher_locked_cards(self):
         """T6-T8 are a safe lower-direction window despite locked T9/T10."""
-        frame_path = Path(__file__).resolve().parents[1] / ".local-captures" / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T194304476354Z" / "troop-training-20260813T194305096396Z" / "frames" / "0006-rider-training-screen-source.png"
-        if not frame_path.is_file():
-            self.skipTest("latest retained mixed Rider training frame unavailable")
+        frame_path = LOCAL_CAPTURES / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T194304476354Z" / "troop-training-20260813T194305096396Z" / "frames" / "0006-rider-training-screen-source.png"
+        require_capture(frame_path)
         frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
         recognized = recognize_training(frame)
         self.assertTrue(recognized.recognized)
@@ -763,17 +768,17 @@ class TroopTrainingContractTests(unittest.TestCase):
         rider_controller = TrainingController(config(tier=1), reset_identity=RESET)
         self.assertEqual(rider_controller.plan_tier(recognized, "rider"), "select_tier")
 
+    @requires_local_captures
     def test_latest_retained_rider_post_swipe_binds_visible_t1_from_card_text(self):
         """Post-swipe T1 is bound by each card's own label, not slot ordinal."""
-        frame_root = Path(__file__).resolve().parents[1] / ".local-captures" / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T202455890793Z" / "troop-training-20260813T202456418961Z" / "frames"
+        frame_root = LOCAL_CAPTURES / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T202455890793Z" / "troop-training-20260813T202456418961Z" / "frames"
         expected = {
             "0002-tier-swipe-rider-0-post.png": (50, 835, 195, 955),
             "0003-tier-swipe-rider-1-post.png": (185, 835, 330, 955),
         }
         for name, expected_roi in expected.items():
             frame_path = frame_root / name
-            if not frame_path.is_file():
-                self.skipTest(f"retained post-swipe Rider frame unavailable: {name}")
+            require_capture(frame_path)
             recognized = recognize_training(cv2.imread(str(frame_path), cv2.IMREAD_COLOR))
             self.assertTrue(recognized.recognized, name)
             self.assertEqual(recognized.troop_type, "rider", name)
@@ -836,11 +841,11 @@ class TroopTrainingContractTests(unittest.TestCase):
         self.assertEqual(runtime.inputs[0][2], post.tier(1).target_roi)
         self.assertEqual(len([item for item in runtime.inputs if item[0] == "swipe"]), 0)
 
+    @requires_local_captures
     def test_retained_rider_t1_visible_path_taps_bound_card_before_swipe(self):
         """The retained post-swipe frame takes the target-first branch."""
-        frame_path = Path(__file__).resolve().parents[1] / ".local-captures" / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T202455890793Z" / "troop-training-20260813T202456418961Z" / "frames" / "0002-tier-swipe-rider-0-post.png"
-        if not frame_path.is_file():
-            self.skipTest("retained post-swipe Rider frame unavailable")
+        frame_path = LOCAL_CAPTURES / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T202455890793Z" / "troop-training-20260813T202456418961Z" / "frames" / "0002-tier-swipe-rider-0-post.png"
+        require_capture(frame_path)
         current = recognize_training(cv2.imread(str(frame_path), cv2.IMREAD_COLOR))
         self.assertIsNotNone(current.tier(1))
         post = replace(observation("rider", tier=1), selected_tier=1)
@@ -876,13 +881,13 @@ class TroopTrainingContractTests(unittest.TestCase):
         self.assertEqual(runtime.inputs[0][2], post.tier(1).target_roi)
         self.assertFalse(any(item[0] == "swipe" for item in runtime.inputs))
 
+    @requires_local_captures
     def test_latest_retained_rider_window_swipes_from_current_centers_and_rebinds(self):
         """The retained T6-T8 window drives one bounded lower-direction swipe."""
         from scripts.troop_training_bluestacks import TroopTrainingIntegratedRoute
 
-        frame_path = Path(__file__).resolve().parents[1] / ".local-captures" / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T194304476354Z" / "troop-training-20260813T194305096396Z" / "frames" / "0006-rider-training-screen-source.png"
-        if not frame_path.is_file():
-            self.skipTest("latest retained mixed Rider training frame unavailable")
+        frame_path = LOCAL_CAPTURES / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T194304476354Z" / "troop-training-20260813T194305096396Z" / "frames" / "0006-rider-training-screen-source.png"
+        require_capture(frame_path)
         current = recognize_training(cv2.imread(str(frame_path), cv2.IMREAD_COLOR))
         post = observation("rider", tier=1)
 
@@ -935,13 +940,13 @@ class TroopTrainingContractTests(unittest.TestCase):
         self.assertEqual(start[1], end[1])
         self.assertIn("training:navigation:swipe:rider:0", runtime.inputs[0][1][2])
 
+    @requires_local_captures
     def test_latest_retained_rider_window_rejects_gapped_or_lower_locked_cards(self):
         """A missing unlocked card or lower locked card blocks before swipe."""
         from scripts.troop_training_bluestacks import TroopTrainingIntegratedRoute
 
-        frame_path = Path(__file__).resolve().parents[1] / ".local-captures" / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T194304476354Z" / "troop-training-20260813T194305096396Z" / "frames" / "0006-rider-training-screen-source.png"
-        if not frame_path.is_file():
-            self.skipTest("latest retained mixed Rider training frame unavailable")
+        frame_path = LOCAL_CAPTURES / "flow-delivery" / "TROOP-TRAINING-END-TO-END-CONSOLIDATION" / "run-20260813T194304476354Z" / "troop-training-20260813T194305096396Z" / "frames" / "0006-rider-training-screen-source.png"
+        require_capture(frame_path)
         current = recognize_training(cv2.imread(str(frame_path), cv2.IMREAD_COLOR))
         gapped = replace(current, visible_tiers=tuple(item for item in current.visible_tiers if item.tier != 7))
         lower_locked = replace(

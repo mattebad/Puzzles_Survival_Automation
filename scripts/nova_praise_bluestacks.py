@@ -7,7 +7,7 @@ It does not register a task or enable the production scheduler.
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 import json
 from pathlib import Path
 import sys
@@ -61,7 +61,7 @@ from tasks.runtime_identity import VerifiedRuntimeIdentity
 
 NovaLabRecognizedHook = Callable[
     [CapturedNativeFrame, NovaFrameRecognition],
-    "NovaNavigationCanaryResult | None",
+    "NovaNavigationResult | None",
 ]
 
 
@@ -261,7 +261,7 @@ class NovaPraiseIntegratedRoute:
 
 
 @dataclass(frozen=True)
-class NovaNavigationCanaryResult:
+class NovaNavigationResult:
     status: str
     reason: str
     navigation_input_count: int
@@ -292,7 +292,7 @@ class NovaNavigationCanaryResult:
         }
 
 
-class NovaNavigationCanaryRoute:
+class NovaNavigationRoute:
     """Bounded no-Praise Home → Research Lab → radial → Nova → Home route."""
 
     def __init__(
@@ -606,12 +606,12 @@ class NovaNavigationCanaryRoute:
             return True
         bind_method = radial.get("bind_method")
         if (
-            bind_method in NovaNavigationCanaryRoute._AUTHORIZED_RADIAL_BIND_METHODS
+            bind_method in NovaNavigationRoute._AUTHORIZED_RADIAL_BIND_METHODS
             and recognition.target(NOVA_INTERACTION_TARGET) is not None
         ):
             return True
         # Explicit template ambiguity may fail-closed as radial-like; Hough ambiguity may not.
-        if bind_method in NovaNavigationCanaryRoute._AMBIGUOUS_RADIAL_BIND_METHODS:
+        if bind_method in NovaNavigationRoute._AMBIGUOUS_RADIAL_BIND_METHODS:
             return True
         return False
 
@@ -634,7 +634,7 @@ class NovaNavigationCanaryRoute:
             and recognition.observation.screen_state == "RESEARCH_LAB_MENU"
         ):
             return "RESEARCH_LAB_MENU"
-        if NovaNavigationCanaryRoute._research_radial_corroborated(recognition):
+        if NovaNavigationRoute._research_radial_corroborated(recognition):
             return "RESEARCH_LAB_MENU"
         return recognition.observation.screen_state
 
@@ -650,7 +650,7 @@ class NovaNavigationCanaryRoute:
             and recognition.observation.screen_state == "RESEARCH_LAB_MENU"
         ):
             return True
-        return NovaNavigationCanaryRoute._research_radial_corroborated(recognition)
+        return NovaNavigationRoute._research_radial_corroborated(recognition)
 
     def _normalize_known_start_to_home(self, source):
         initial_provenance = self.initial_research_lab_tap_provenance
@@ -664,7 +664,7 @@ class NovaNavigationCanaryRoute:
             bound_nova = current_recognition.target(NOVA_INTERACTION_TARGET)
             if self._research_radial_geometry_present(current_recognition):
                 if not self._home_localized(current_capture):
-                    return None, NovaNavigationCanaryResult(
+                    return None, NovaNavigationResult(
                         "blocked",
                         "initial_radial_home_context_not_established",
                         self.input_count,
@@ -685,7 +685,7 @@ class NovaNavigationCanaryRoute:
                 if (
                     isinstance(radial, dict)
                     and radial.get("bind_method")
-                    in NovaNavigationCanaryRoute._AMBIGUOUS_RADIAL_BIND_METHODS
+                    in NovaNavigationRoute._AMBIGUOUS_RADIAL_BIND_METHODS
                 ):
                     reason = "initial_radial_ambiguous"
                 elif current_recognition.observation.stale:
@@ -697,7 +697,7 @@ class NovaNavigationCanaryRoute:
                     reason = "initial_research_lab_radial_not_bound"
                 else:
                     reason = "initial_research_lab_radial_not_bound"
-                return None, NovaNavigationCanaryResult(
+                return None, NovaNavigationResult(
                     "blocked",
                     reason,
                     self.input_count,
@@ -712,7 +712,7 @@ class NovaNavigationCanaryRoute:
             ):
                 return current_capture, None, None
             if surface != NOVA_SCREEN:
-                return None, NovaNavigationCanaryResult(
+                return None, NovaNavigationResult(
                     "blocked",
                     "initial_surface_not_home_or_known_nova_context",
                     self.input_count,
@@ -724,11 +724,11 @@ class NovaNavigationCanaryRoute:
             if ordinal >= self.maximum_return_inputs:
                 break
             immediate_before = self._capture(
-                f"canary-start-return-{ordinal + 1:02d}-immediate-before"
+                f"navigation-start-return-{ordinal + 1:02d}-immediate-before"
             )
             rebound = self._recognize(immediate_before)
             if self._navigation_surface(rebound) != surface:
-                return None, NovaNavigationCanaryResult(
+                return None, NovaNavigationResult(
                     "blocked",
                     "initial_safe_return_revalidation_failed",
                     self.input_count,
@@ -739,7 +739,7 @@ class NovaNavigationCanaryRoute:
                 ), None
             self._prepare_from_recognition(immediate_before, rebound)
             action_key = (
-                f"nova-canary:start-return:{ordinal + 1}:"
+                f"nova-navigation:start-return:{ordinal + 1}:"
                 f"{immediate_before.sha256}"
             )
             self.runtime.back(
@@ -747,8 +747,8 @@ class NovaNavigationCanaryRoute:
                 action_key=action_key,
             )
             _immediate_post, settled = self._settle(
-                f"canary-start-return-{ordinal + 1:02d}-immediate-post",
-                f"canary-start-return-{ordinal + 1:02d}-settled",
+                f"navigation-start-return-{ordinal + 1:02d}-immediate-post",
+                f"navigation-start-return-{ordinal + 1:02d}-settled",
             )
             self._record_input("known_start_safe_return", immediate_before, settled)
             current_capture = settled
@@ -776,7 +776,7 @@ class NovaNavigationCanaryRoute:
                         else "verified_known_start_research_lab_successor"
                     ),
                 )
-        return None, NovaNavigationCanaryResult(
+        return None, NovaNavigationResult(
             "blocked",
             "maximum_initial_safe_return_inputs",
             self.input_count,
@@ -791,9 +791,9 @@ class NovaNavigationCanaryRoute:
         *,
         provenance: ResearchLabTapProvenance | None,
         require_research_lab_tap_provenance: bool = True,
-    ) -> NovaNavigationCanaryResult:
+    ) -> NovaNavigationResult:
         if require_research_lab_tap_provenance and provenance is None:
-            return NovaNavigationCanaryResult(
+            return NovaNavigationResult(
                 "blocked",
                 "fresh_nova_missing_research_lab_provenance",
                 self.input_count,
@@ -802,13 +802,13 @@ class NovaNavigationCanaryRoute:
                 tuple(self.records),
                 str(self.runtime.session),
             )
-        nova_before = self._capture("canary-open-nova-immediate-before")
+        nova_before = self._capture("navigation-open-nova-immediate-before")
         radial_rebound, _measured_home = self._recognize_with_measured_home(
             nova_before,
             provenance=provenance,
         )
         if not self._home_localized(nova_before):
-            return NovaNavigationCanaryResult(
+            return NovaNavigationResult(
                 "blocked",
                 "fresh_nova_home_context_not_established",
                 self.input_count,
@@ -823,7 +823,7 @@ class NovaNavigationCanaryRoute:
             or radial_rebound.observation.screen_state != "RESEARCH_LAB_MENU"
             or target is None
         ):
-            return NovaNavigationCanaryResult(
+            return NovaNavigationResult(
                 "blocked",
                 "fresh_nova_target_not_bound",
                 self.input_count,
@@ -837,7 +837,7 @@ class NovaNavigationCanaryRoute:
             radial_rebound,
             target_roi=target,
         )
-        action_key = f"nova-canary:open-nova:{nova_before.sha256}"
+        action_key = f"nova-navigation:open-nova:{nova_before.sha256}"
         self.runtime.tap(
             nova_before,
             target_identity=NOVA_INTERACTION_TARGET,
@@ -846,8 +846,8 @@ class NovaNavigationCanaryRoute:
             consequential=False,
         )
         _immediate_post, nova_capture = self._settle(
-            "canary-open-nova-immediate-post",
-            "canary-open-nova-settled",
+            "navigation-open-nova-immediate-post",
+            "navigation-open-nova-settled",
         )
         self._record_input("tap_nova_navigation", nova_before, nova_capture)
         nova = self._recognize(nova_capture)
@@ -855,7 +855,7 @@ class NovaNavigationCanaryRoute:
             not nova.observation.recognized
             or nova.observation.screen_state != NOVA_SCREEN
         ):
-            return NovaNavigationCanaryResult(
+            return NovaNavigationResult(
                 "blocked",
                 "nova_lab_successor_not_recognized",
                 self.input_count,
@@ -875,13 +875,13 @@ class NovaNavigationCanaryRoute:
                 return seam
         return self._return_home(nova_capture, nova)
 
-    def _return_home(self, captured, recognition) -> NovaNavigationCanaryResult:
+    def _return_home(self, captured, recognition) -> NovaNavigationResult:
         current_capture = captured
         current_recognition = recognition
         for ordinal in range(1, self.maximum_return_inputs + 1):
             surface = self._navigation_surface(current_recognition)
             if surface == "HOME_BASE" and self._home_localized(current_capture):
-                return NovaNavigationCanaryResult(
+                return NovaNavigationResult(
                     "completed",
                     "verified_safe_return_home",
                     self.input_count,
@@ -896,7 +896,7 @@ class NovaNavigationCanaryRoute:
                 recovered = self._recover_canonical_after_return(current_capture, ordinal)
                 if recovered is not None:
                     return recovered
-                return NovaNavigationCanaryResult(
+                return NovaNavigationResult(
                     "blocked",
                     "return_base_recognized_awaiting_canonical",
                     self.input_count,
@@ -906,7 +906,7 @@ class NovaNavigationCanaryRoute:
                     str(self.runtime.session),
                 )
             if surface != NOVA_SCREEN:
-                return NovaNavigationCanaryResult(
+                return NovaNavigationResult(
                     "blocked",
                     "return_source_not_recognized",
                     self.input_count,
@@ -916,11 +916,11 @@ class NovaNavigationCanaryRoute:
                     str(self.runtime.session),
                 )
             immediate_before = self._capture(
-                f"canary-return-{ordinal:02d}-immediate-before"
+                f"navigation-return-{ordinal:02d}-immediate-before"
             )
             rebound = self._recognize(immediate_before)
             if self._navigation_surface(rebound) != surface:
-                return NovaNavigationCanaryResult(
+                return NovaNavigationResult(
                     "blocked",
                     "return_source_revalidation_failed",
                     self.input_count,
@@ -930,14 +930,14 @@ class NovaNavigationCanaryRoute:
                     str(self.runtime.session),
                 )
             self._prepare_from_recognition(immediate_before, rebound)
-            action_key = f"nova-canary:return:{ordinal}:{immediate_before.sha256}"
+            action_key = f"nova-navigation:return:{ordinal}:{immediate_before.sha256}"
             self.runtime.back(
                 immediate_before,
                 action_key=action_key,
             )
             _immediate_post, settled = self._settle(
-                f"canary-return-{ordinal:02d}-immediate-post",
-                f"canary-return-{ordinal:02d}-settled",
+                f"navigation-return-{ordinal:02d}-immediate-post",
+                f"navigation-return-{ordinal:02d}-settled",
             )
             self._record_input("safe_return_back", immediate_before, settled)
             settled_recognition, _measured_home = self._recognize_with_measured_home(
@@ -950,7 +950,7 @@ class NovaNavigationCanaryRoute:
                     settled,
                     reason="verified_home_successor",
                 )
-                return NovaNavigationCanaryResult(
+                return NovaNavigationResult(
                     "completed",
                     "verified_safe_return_home",
                     self.input_count,
@@ -968,7 +968,7 @@ class NovaNavigationCanaryRoute:
                 recovered = self._recover_canonical_after_return(settled, ordinal)
                 if recovered is not None:
                     return recovered
-                return NovaNavigationCanaryResult(
+                return NovaNavigationResult(
                     "blocked",
                     "return_base_recognized_awaiting_canonical",
                     self.input_count,
@@ -979,7 +979,7 @@ class NovaNavigationCanaryRoute:
                 )
             current_capture = settled
             current_recognition = settled_recognition
-        return NovaNavigationCanaryResult(
+        return NovaNavigationResult(
             "blocked",
             "maximum_safe_return_inputs",
             self.input_count,
@@ -993,7 +993,7 @@ class NovaNavigationCanaryRoute:
         """After Back lands on Base, recover fully-zoomed-out localization without another Back."""
 
         if self._home_localized(captured):
-            return NovaNavigationCanaryResult(
+            return NovaNavigationResult(
                 "completed",
                 "verified_safe_return_home",
                 self.input_count,
@@ -1025,8 +1025,8 @@ class NovaNavigationCanaryRoute:
         except Exception:
             return None
         _immediate_post, settled = self._settle(
-            f"canary-return-zoom-{ordinal:02d}-immediate-post",
-            f"canary-return-zoom-{ordinal:02d}-settled",
+            f"navigation-return-zoom-{ordinal:02d}-immediate-post",
+            f"navigation-return-zoom-{ordinal:02d}-settled",
         )
         self._record_input("bounded_zoom_out", captured, settled)
         if self._home_localized(settled):
@@ -1035,7 +1035,7 @@ class NovaNavigationCanaryRoute:
                 settled,
                 reason="verified_home_after_zoom_successor",
             )
-            return NovaNavigationCanaryResult(
+            return NovaNavigationResult(
                 "completed",
                 "verified_safe_return_home",
                 self.input_count,
@@ -1046,12 +1046,12 @@ class NovaNavigationCanaryRoute:
             )
         return None
 
-    def run(self) -> NovaNavigationCanaryResult:
+    def run(self) -> NovaNavigationResult:
         from scripts.startup_recovery import (
             classify_startup_frame, recover_contextual_startup_overlay,
         )
 
-        source = self._capture("canary-source")
+        source = self._capture("navigation-source")
         plan = classify_startup_frame("NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE", source.png)
         if plan.status == "recovery_required" and plan.recovery_owner in {
             "shared_home_startup_recovery", "shared_startup_surface_recovery",
@@ -1080,7 +1080,7 @@ class NovaNavigationCanaryRoute:
                     "steps": [step.to_mapping(self._startup_runtime.session) for step in recovery.steps] if recovery else [],
                 })
             if not recovery.resume_ready or recovery.settled_frame is None:
-                return NovaNavigationCanaryResult(
+                return NovaNavigationResult(
                     "blocked", "startup_overlay:" + recovery.reason, self.input_count, 0,
                     False, tuple(self.records), str(self.runtime.session),
                 )
@@ -1098,12 +1098,12 @@ class NovaNavigationCanaryRoute:
         provenance: ResearchLabTapProvenance | None = None
         for ordinal in range(1, self.maximum_steps + 1):
             immediate_before = self._capture(
-                f"canary-home-{ordinal:02d}-immediate-before"
+                f"navigation-home-{ordinal:02d}-immediate-before"
             )
             step = self.home_driver.observe(immediate_before.frame)
             if step.disposition is HomeDriverDisposition.RECOVER_ZOOM:
                 if not isinstance(self.runtime, NavigationGuardedRuntime):
-                    return NovaNavigationCanaryResult(
+                    return NovaNavigationResult(
                         "blocked",
                         "navigation_firewall_required_for_host_zoom",
                         self.input_count,
@@ -1113,7 +1113,7 @@ class NovaNavigationCanaryRoute:
                         str(self.runtime.session),
                     )
                 if self.zoom_transport is None:
-                    return NovaNavigationCanaryResult(
+                    return NovaNavigationResult(
                         "blocked",
                         "bounded_zoom_transport_unavailable",
                         self.input_count,
@@ -1142,7 +1142,7 @@ class NovaNavigationCanaryRoute:
                         transport=self.zoom_transport.zoom_out_once,
                     )
                 except NavigationBoundaryError as exc:
-                    return NovaNavigationCanaryResult(
+                    return NovaNavigationResult(
                         "blocked",
                         str(exc),
                         self.input_count,
@@ -1152,7 +1152,7 @@ class NovaNavigationCanaryRoute:
                         str(self.runtime.session),
                     )
                 except Exception as exc:
-                    return NovaNavigationCanaryResult(
+                    return NovaNavigationResult(
                         "failed",
                         f"host_zoom_transport_failed:{type(exc).__name__}",
                         self.input_count,
@@ -1165,8 +1165,8 @@ class NovaNavigationCanaryRoute:
                     step.source_frame_sha256
                 )
                 _immediate_post, settled = self._settle(
-                    f"canary-zoom-{ordinal:02d}-immediate-post",
-                    f"canary-zoom-{ordinal:02d}-settled",
+                    f"navigation-zoom-{ordinal:02d}-immediate-post",
+                    f"navigation-zoom-{ordinal:02d}-settled",
                 )
                 self._record_input("bounded_zoom_out", immediate_before, settled)
                 if self._home_localized(settled) or self._home_context_measured(settled):
@@ -1179,7 +1179,7 @@ class NovaNavigationCanaryRoute:
             if step.disposition is HomeDriverDisposition.PAN:
                 plan = step.plan
                 if plan is None or plan.drag_start is None or plan.drag_end is None:
-                    return NovaNavigationCanaryResult(
+                    return NovaNavigationResult(
                         "blocked",
                         "home_pan_geometry_missing",
                         self.input_count,
@@ -1199,7 +1199,7 @@ class NovaNavigationCanaryRoute:
                         ),
                     )
                 except NavigationBoundaryError as exc:
-                    return NovaNavigationCanaryResult(
+                    return NovaNavigationResult(
                         "blocked",
                         str(exc),
                         self.input_count,
@@ -1208,7 +1208,7 @@ class NovaNavigationCanaryRoute:
                         tuple(self.records),
                         str(self.runtime.session),
                     )
-                action_key = f"nova-canary:pan:{ordinal}:{immediate_before.sha256}"
+                action_key = f"nova-navigation:pan:{ordinal}:{immediate_before.sha256}"
                 self.runtime.swipe(
                     immediate_before,
                     start=plan.drag_start,
@@ -1217,8 +1217,8 @@ class NovaNavigationCanaryRoute:
                     target_identity="home-camera-click-drag",
                 )
                 _immediate_post, settled = self._settle(
-                    f"canary-pan-{ordinal:02d}-immediate-post",
-                    f"canary-pan-{ordinal:02d}-settled",
+                    f"navigation-pan-{ordinal:02d}-immediate-post",
+                    f"navigation-pan-{ordinal:02d}-settled",
                 )
                 after_localization = self.home_driver.localizer.localize(settled.frame)
                 progress = self.home_driver.record_pan_progress(
@@ -1233,7 +1233,7 @@ class NovaNavigationCanaryRoute:
                     progress_accepted=progress.accepted,
                 )
                 if not progress.accepted:
-                    return NovaNavigationCanaryResult(
+                    return NovaNavigationResult(
                         "blocked",
                         f"home_pan_no_progress:{progress.reason}",
                         self.input_count,
@@ -1258,7 +1258,7 @@ class NovaNavigationCanaryRoute:
                 continue
             if step.disposition is HomeDriverDisposition.COMPLETE and step.binding is not None:
                 action_key = (
-                    f"nova-canary:open-research-lab:{immediate_before.sha256}"
+                    f"nova-navigation:open-research-lab:{immediate_before.sha256}"
                 )
                 try:
                     self._prepare_home_navigation(
@@ -1266,7 +1266,7 @@ class NovaNavigationCanaryRoute:
                         target_roi=step.binding.target_roi,
                     )
                 except NavigationBoundaryError as exc:
-                    return NovaNavigationCanaryResult(
+                    return NovaNavigationResult(
                         "blocked",
                         str(exc),
                         self.input_count,
@@ -1292,8 +1292,8 @@ class NovaNavigationCanaryRoute:
                     time.monotonic(),
                 )
                 _immediate_post, radial_capture = self._settle(
-                    "canary-open-lab-immediate-post",
-                    "canary-open-lab-settled",
+                    "navigation-open-lab-immediate-post",
+                    "navigation-open-lab-settled",
                 )
                 self._record_input(
                     "tap_research_lab_navigation",
@@ -1311,7 +1311,7 @@ class NovaNavigationCanaryRoute:
                     or radial.observation.screen_state != "RESEARCH_LAB_MENU"
                     or target is None
                 ):
-                    return NovaNavigationCanaryResult(
+                    return NovaNavigationResult(
                         "blocked",
                         (
                             "research_lab_radial_home_context_not_established"
@@ -1330,7 +1330,7 @@ class NovaNavigationCanaryRoute:
                     reason="verified_research_lab_menu_successor",
                 )
                 return self._tap_bound_nova(provenance=provenance)
-            return NovaNavigationCanaryResult(
+            return NovaNavigationResult(
                 "blocked",
                 step.reason,
                 self.input_count,
@@ -1339,7 +1339,7 @@ class NovaNavigationCanaryRoute:
                 tuple(self.records),
                 str(self.runtime.session),
             )
-        return NovaNavigationCanaryResult(
+        return NovaNavigationResult(
             "blocked",
             "maximum_navigation_steps",
             self.input_count,
@@ -1397,7 +1397,7 @@ class NovaSupervisedOneFreePulseResult:
 
 
 class NovaSupervisedOneFreePulseRoute:
-    """Compose canary navigation with exactly one centralized Praise, then safe Home return."""
+    """Compose Nova navigation with exactly one centralized Praise, then safe Home return."""
 
     def __init__(
         self,
@@ -1417,8 +1417,8 @@ class NovaSupervisedOneFreePulseRoute:
         self.action_boundary = action_boundary
         self._praise_invocations = 0
         self._boundary_result = None
-        self._no_work_result: NovaNavigationCanaryResult | None = None
-        self.canary = NovaNavigationCanaryRoute(
+        self._no_work_result: NovaNavigationResult | None = None
+        self.navigation = NovaNavigationRoute(
             runtime,
             identity,
             atlas_path=atlas_path,
@@ -1438,25 +1438,25 @@ class NovaSupervisedOneFreePulseRoute:
         reason: str,
         *,
         terminal_home_verified: bool = False,
-    ) -> NovaNavigationCanaryResult:
+    ) -> NovaNavigationResult:
         praise_calls = 0
         if self._boundary_result is not None:
             praise_calls = int(self._boundary_result.transport_calls)
-        return NovaNavigationCanaryResult(
+        return NovaNavigationResult(
             status,
             reason,
-            self.canary.input_count,
+            self.navigation.input_count,
             praise_calls,
             terminal_home_verified,
-            tuple(self.canary.records),
-            str(self.canary.runtime.session),
+            tuple(self.navigation.records),
+            str(self.navigation.runtime.session),
         )
 
     def _on_nova_lab_recognized(
         self,
         nova_capture: CapturedNativeFrame,
         nova: NovaFrameRecognition,
-    ) -> NovaNavigationCanaryResult | None:
+    ) -> NovaNavigationResult | None:
         if self._praise_invocations > 0:
             return self._fail_closed("blocked", "duplicate_praise_invocation_prohibited")
         self._praise_invocations += 1
@@ -1480,14 +1480,14 @@ class NovaSupervisedOneFreePulseRoute:
             # A positively recognized depleted/cooldown Nova is benign no-work.
             # It still must return Home before the scheduler may defer it; no
             # Praise transport or fabricated action journal row is created.
-            home = self.canary._return_home(nova_capture, nova)
+            home = self.navigation._return_home(nova_capture, nova)
             if home.status != "completed":
                 return self._fail_closed(
                     "unresolved",
                     str(home.reason or "nova_no_work_home_return_unresolved"),
                 )
             outcome = "complete_for_reset" if depleted else "deferred"
-            self._no_work_result = NovaNavigationCanaryResult(
+            self._no_work_result = NovaNavigationResult(
                 outcome,
                 "verified_nova_no_work_and_safe_return_home",
                 home.navigation_input_count,
@@ -1509,7 +1509,7 @@ class NovaSupervisedOneFreePulseRoute:
             return self._fail_closed(result.status, result.reason)
         if result.after_capture is None or result.after_recognition is None:
             return self._fail_closed("unresolved", "confirmed_praise_missing_after_frame")
-        home = self.canary._return_home(result.after_capture, result.after_recognition)
+        home = self.navigation._return_home(result.after_capture, result.after_recognition)
         praise_calls = int(result.transport_calls)
         # Praise already transported; Home failure is unresolved (no identical retry).
         if home.status == "completed":
@@ -1520,7 +1520,7 @@ class NovaSupervisedOneFreePulseRoute:
             status = "unresolved"
             reason = str(home.reason or "praise_confirmed_home_return_unresolved")
             terminal_home = False
-        return NovaNavigationCanaryResult(
+        return NovaNavigationResult(
             status,
             reason,
             home.navigation_input_count,
@@ -1531,7 +1531,7 @@ class NovaSupervisedOneFreePulseRoute:
         )
 
     def run(self) -> NovaSupervisedOneFreePulseResult:
-        navigation = self.canary.run()
+        navigation = self.navigation.run()
         boundary = self._boundary_result
         if boundary is None:
             no_work = self._no_work_result
@@ -1596,106 +1596,6 @@ class NovaSupervisedOneFreePulseRoute:
 DEFAULT_NOVA_ACTION_DATABASE = CANONICAL_ACTION_STORE_PATH
 
 
-def run_nova_navigation_canary(args, identity: VerifiedRuntimeIdentity) -> str:
-    """Checked-in pnsctl live runner; invoked only by GF-MVP-009 authorization."""
-
-    atlas_path = (
-        ROOT
-        / "tasks"
-        / "assets"
-        / "home_atlas"
-        / "bluestacks"
-        / "800x1280"
-        / "atlas.json"
-    )
-    runtime = LocalBlueStacksRuntime.connect(
-        adb=str(args.adb),
-        serial=args.serial,
-        output_directory=args.output_directory,
-        workflow="nova-navigation-canary",
-        execute=True,
-    )
-    route = NovaNavigationCanaryRoute(
-        runtime,
-        identity,
-        atlas_path=atlas_path,
-        zoom_transport=ScrcpyMotionEventZoomTransport(
-            adb=str(args.adb),
-            serial=args.serial,
-            evidence_directory=runtime.session / "scrcpy-zoom",
-        ),
-        settle_seconds=args.settle_seconds,
-        route_declaration=nova_navigation_route_declaration(),
-    )
-    route_error: BaseException | None = None
-    result = None
-    try:
-        result = route.run()
-    except BaseException as exc:
-        route_error = exc
-        finalize_navigation_evidence(
-            runtime.session,
-            status="failed",
-            reason=f"exception:{type(exc).__name__}",
-            records=tuple(route.records),
-            flow_id="NOVA-PRAISE-HOME-ATLAS-MIGRATION",
-            scenario_id="nova_navigation_round_trip_no_praise",
-            navigation_input_count=route.input_count,
-            authorized_gestures=(
-                route.runtime.authorized_gestures
-                if isinstance(route.runtime, NavigationGuardedRuntime)
-                else ()
-            ),
-            extra={
-                "praise_taps": 0,
-                "terminal_home_verified": False,
-                "production_registration": "NOT_REGISTERED",
-                "scheduler_enabled": False,
-            },
-            exception=exc,
-        )
-        raise
-    assert result is not None
-    finalize_navigation_evidence(
-        runtime.session,
-        status=result.status if result.status in {"completed", "blocked", "manual_required", "unresolved", "failed"} else "blocked",
-        reason=result.reason,
-        records=result.records,
-        flow_id="NOVA-PRAISE-HOME-ATLAS-MIGRATION",
-        scenario_id="nova_navigation_round_trip_no_praise",
-        navigation_input_count=result.navigation_input_count,
-        authorized_gestures=(
-            route.runtime.authorized_gestures
-            if isinstance(route.runtime, NavigationGuardedRuntime)
-            else ()
-        ),
-        extra={
-            "praise_taps": 0,
-            "terminal_home_verified": result.terminal_home_verified,
-            "production_registration": "NOT_REGISTERED",
-            "scheduler_enabled": False,
-            "route_declaration": {
-                "allowed_source_states": sorted(route.declaration.allowed_source_states),
-                "allowed_target_identities": sorted(route.declaration.allowed_target_identities),
-                "allowed_gesture_classes": sorted(route.declaration.allowed_gesture_classes),
-                "consequence_class": route.declaration.consequence_class,
-            },
-        },
-    )
-    return json.dumps(
-        {
-            "status": result.status,
-            "reason": result.reason,
-            "scenario_id": "nova_navigation_round_trip_no_praise",
-            "session_directory": str(runtime.session),
-            "navigation_input_count": result.navigation_input_count,
-            "praise_taps": 0,
-            "transport_calls": result.navigation_input_count,
-            "production_registration": "NOT_REGISTERED",
-            "scheduler_enabled": False,
-        },
-        sort_keys=True,
-    )
 
 
 def _nova_native_dispatch_rows(
@@ -1795,7 +1695,7 @@ def _nova_native_partial_result(
 
 
 def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> str:
-    """Checked-in supervised one-Praise runner; uses durable SafetyStore and canary composition."""
+    """Checked-in supervised one-Praise runner; uses durable SafetyStore and navigation-route composition."""
 
     checkpoint = getattr(args, "checkpoint", None)
     if checkpoint is not None and not callable(checkpoint):
@@ -1901,13 +1801,13 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
             runtime.session,
             status="failed",
             reason=f"exception:{type(exc).__name__}",
-            records=tuple(route.canary.records) if route is not None else (),
+            records=tuple(route.navigation.records) if route is not None else (),
             flow_id="NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
             scenario_id="nova_praise_one_free_pulse",
-            navigation_input_count=route.canary.input_count if route is not None else 0,
+            navigation_input_count=route.navigation.input_count if route is not None else 0,
             authorized_gestures=(
-                route.canary.runtime.authorized_gestures
-                if route is not None and isinstance(route.canary.runtime, NavigationGuardedRuntime)
+                route.navigation.runtime.authorized_gestures
+                if route is not None and isinstance(route.navigation.runtime, NavigationGuardedRuntime)
                 else ()
             ),
             extra={
@@ -1946,8 +1846,8 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
             scenario_id="nova_praise_one_free_pulse",
             navigation_input_count=result.navigation_input_count,
             authorized_gestures=(
-                route.canary.runtime.authorized_gestures
-                if route is not None and isinstance(route.canary.runtime, NavigationGuardedRuntime)
+                route.navigation.runtime.authorized_gestures
+                if route is not None and isinstance(route.navigation.runtime, NavigationGuardedRuntime)
                 else ()
             ),
             extra={
@@ -2070,7 +1970,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.execute:
         parser.error(
             "direct live execution is blocked; use "
-            "`pnsctl nova-praise-pulse --live --yes --supervised-live-opt-in` "
+            "`pnsctl automation-service ... serve --live --flow nova` "
             "as the sole supported operational interface"
         )
     if args.execute and not args.yes:

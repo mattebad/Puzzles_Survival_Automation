@@ -14,7 +14,7 @@ from automation_service.state import (
     BotStateManager, DispatchValidation, RunState, TerminalProjectionError,
 )
 from scripts import navigation_development_boundary as boundary
-from scripts.bioenhancer_free_research_canary import parse_free_research_cooldown
+from scripts.bioenhancer_free_research_route import parse_free_research_cooldown
 from scripts.pnsctl import ApplicationStartupError
 
 

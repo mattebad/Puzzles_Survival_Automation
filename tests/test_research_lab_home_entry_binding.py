@@ -13,7 +13,7 @@ from scripts import home_atlas_bluestacks as home
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
 from tasks.home_atlas_vision import bind_visible_building
-from tests.test_home_atlas_verified_route import _ready
+from tests.support.home_atlas import _ready
 
 
 ROOT = Path(__file__).resolve().parents[1]

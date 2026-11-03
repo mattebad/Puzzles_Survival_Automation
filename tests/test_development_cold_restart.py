@@ -12,7 +12,7 @@ from unittest.mock import patch
 from automation_service.state import BotStateManager
 from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
-from tests.test_development_launch_game import _focus, _frame
+from tests.support.launch_game import _focus, _frame
 from tasks.runtime_identity import BLUESTACKS_PACKAGE
 
 

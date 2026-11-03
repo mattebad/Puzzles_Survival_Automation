@@ -19,9 +19,9 @@ from automation_service.registry import BIOENHANCER_FLOW_ID, CANONICAL_FLOW_REGI
 from automation_service.service import AutomationService, ServiceError
 from automation_service.state import BotStateManager, RunState
 from scripts import navigation_development_boundary as boundary
-from scripts.bioenhancer_free_research_canary import parse_free_research_cooldown
+from scripts.bioenhancer_free_research_route import parse_free_research_cooldown
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
-from tests.test_service_recruitment import VirtualStop
+from tests.support.service_stop import VirtualStop
 
 
 class GuardedBioenhancerRunner:

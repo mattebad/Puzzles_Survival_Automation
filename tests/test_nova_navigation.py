@@ -1,4 +1,4 @@
-"""Offline controller and retained-evidence tests for the no-Praise Nova canary."""
+"""Offline controller and retained-evidence tests for the no-Praise Nova navigation route."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from scripts.navigation_development_boundary import NavigationGuardedRuntime
 from scripts.nova_praise_bluestacks import (
     BlueStacksNovaPraiseAdapter,
     NovaAdapterConfig,
-    NovaNavigationCanaryRoute,
+    NovaNavigationRoute,
     NovaNativePartialResultError,
     NovaSupervisedOneFreePulseRoute,
     _nova_native_partial_result,
@@ -56,42 +56,47 @@ from tasks.nova_praise_vision import (
     revalidate_nova_praise_frame_fast,
 )
 import tasks.nova_praise_vision as nova_praise_vision
-from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
 from scripts.pnsctl import (
     _compact_development_action_results,
     _retained_semantic_completed_count,
 )
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tests.support.nova_navigation import ATLAS_PATH, _identity
+from tests.support.local_captures import LOCAL_CAPTURES, require_capture, requires_local_captures
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ATLAS_PATH = ROOT / "tasks/assets/home_atlas/bluestacks/800x1280/atlas.json"
 FIXTURE_ROOT = ROOT / "tests/fixtures/nova_praise_preflight"
 ASSET_MANIFEST = ROOT / "tasks/assets/nova_praise/800x1280/manifest.json"
 NOVA_FLOW_CAPTURES = (
-    ROOT / ".local-captures" / "flow-delivery" / "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
+    LOCAL_CAPTURES / "flow-delivery" / "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
 )
-SELECTED_HOME_CANARY_FRAME = (
+SELECTED_HOME_RETAINED_FRAME = (
     NOVA_FLOW_CAPTURES
     / "nova-navigation-canary-20260722T152646968017Z"
     / "frames"
     / "0001-canary-source.png"
 )
-POSITIVE_HOME_CANARY_FRAME = (
+POSITIVE_HOME_RETAINED_FRAME = (
     NOVA_FLOW_CAPTURES
     / "nova-navigation-canary-20260722T160241223935Z"
     / "frames"
     / "0001-canary-source.png"
 )
-EXPANDED_RADIAL_CANARY_FRAME = (
+EXPANDED_RADIAL_RETAINED_FRAME = (
     NOVA_FLOW_CAPTURES
     / "nova-navigation-canary-20260722T020656687010Z"
     / "frames"
     / "0008-canary-open-nova-immediate-before.png"
 )
 SUPERVISED_OCR_MISS_NOVA_FRAME = (
-    ROOT
-    / ".local-captures"
+    LOCAL_CAPTURES
     / "flow-delivery"
     / "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
     / "nova-praise-one-free-pulse-20260722T175237968971Z"
@@ -106,17 +111,6 @@ SUPERVISED_OCR_MISS_LAB_PROVENANCE = ResearchLabTapProvenance(
     10.0,
 )
 SUPERVISED_OCR_MISS_NOVA_ROI = (385, 552, 429, 596)
-
-
-def _identity() -> VerifiedRuntimeIdentity:
-    return VerifiedRuntimeIdentity(
-        "bluestacks-dev-primary",
-        "acct-1",
-        "server-1",
-        "reset-1",
-        RuntimeIdentityAssurance.SUPERVISED_NAVIGATION_BINDING,
-        ("operator-bound-current-frame",),
-    )
 
 
 def _localization(digest: str) -> LocalizationResult:
@@ -261,7 +255,7 @@ def _enable_offline_runtime_probes(runtime) -> None:
 class FakeRuntime:
     execute = True
     in_flight_action = None
-    session = Path("nova-navigation-canary-test")
+    session = Path("nova-navigation-test")
 
     def __init__(self) -> None:
         self.ordinal = 0
@@ -374,7 +368,7 @@ class RecordingRecognitionQueue(RecognitionQueue):
         return super().__call__(*_args, **kwargs)
 
 
-class NovaNavigationCanaryTests(unittest.TestCase):
+class NovaNavigationTests(unittest.TestCase):
     def test_native_runner_raises_partial_result_after_retained_praise_dispatch(self) -> None:
         class FakeRunner:
             def dispatch_tap(self, _point) -> None:
@@ -397,7 +391,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
 
             class FailingRoute:
                 def __init__(self, route_runtime, *_args, **_kwargs) -> None:
-                    self.canary = SimpleNamespace(
+                    self.navigation = SimpleNamespace(
                         records=(),
                         input_count=1,
                         runtime=route_runtime,
@@ -594,7 +588,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             checkpoint=lambda: None,
             adb="adb",
             serial="emulator-5554",
-            output_directory=ROOT / ".local-captures" / "nova-config-boundary-test",
+            output_directory=Path(tempfile.gettempdir()) / "nova-config-boundary-test",
             settle_seconds=0.0,
         )
         with patch.object(
@@ -630,7 +624,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             _nova_recognition("d" * 64),
             _home_recognition("e" * 64),
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -659,7 +653,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             _nova_recognition("d" * 64),
             _home_recognition("e" * 64),
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -680,7 +674,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
     def test_unverified_navigation_successor_remains_unknown_without_retry(self) -> None:
         runtime = FakeRuntime()
         unbound = replace(_radial_recognition("a" * 64), targets=())
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -722,7 +716,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         )
         nova = NovaFrameRecognition(depleted, "nova-source", (), {})
         nova_capture = runtime.capture("nova-source")
-        with patch.object(route.canary, "_home_localized", return_value=True):
+        with patch.object(route.navigation, "_home_localized", return_value=True):
             result = route._on_nova_lab_recognized(nova_capture, nova)
 
         self.assertIsNotNone(result)
@@ -757,7 +751,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             _nova_recognition("d" * 64),
             _home_recognition("e" * 64),
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -775,7 +769,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
 
         def settle_with_post_dispatch_latency(immediate_label: str, settled_label: str):
             immediate_post = route._capture(immediate_label)
-            if settled_label == "canary-open-lab-settled":
+            if settled_label == "navigation-open-lab-settled":
                 clock["t"] += 21.2
             settled = route._capture(settled_label)
             return immediate_post, settled
@@ -804,7 +798,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual(provenance.target_roi, (198, 407, 363, 632))
         self.assertEqual(
             provenance.action_key,
-            f"nova-canary:open-research-lab:{home_before_sha}",
+            f"nova-navigation:open-research-lab:{home_before_sha}",
         )
         # Dispatch stamp is post-transport monotonic, not the pre-tap capture time.
         self.assertNotEqual(provenance.dispatched_monotonic, pre_tap_capture)
@@ -848,7 +842,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
 
         runtime.tap = _failing_tap  # type: ignore[method-assign]
         recognizer = RecordingRecognitionQueue(_home_recognition("0" * 64))
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -870,7 +864,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
     def test_unbound_radial_blocks_before_nova_tap(self) -> None:
         runtime = FakeRuntime()
         unbound = replace(_radial_recognition("a" * 64), targets=())
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -885,7 +879,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual([kind for kind, _ in runtime.inputs], ["tap"])
         self.assertEqual(result.praise_taps, 0)
 
-    def test_known_nova_start_returns_home_before_full_canary_route(self) -> None:
+    def test_known_nova_start_returns_home_before_full_navigation_route(self) -> None:
         runtime = FakeRuntime()
         recognizer = RecognitionQueue(
             _nova_recognition("0" * 64),
@@ -897,7 +891,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             _nova_recognition("6" * 64),
             _home_recognition("7" * 64),
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -917,7 +911,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
     def test_bound_radial_start_continues_with_initial_provenance(self) -> None:
         runtime = FakeRuntime()
         provenance = ResearchLabTapProvenance(
-            "nova-canary:open-research-lab:fixture",
+            "nova-navigation:open-research-lab:fixture",
             "home.building.research_lab",
             "2" * 64,
             (198, 407, 363, 632),
@@ -930,7 +924,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             _nova_recognition("3" * 64),
             _home_recognition("4" * 64),
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -959,7 +953,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             _nova_recognition("3" * 64),
             _home_recognition("4" * 64),
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -981,13 +975,13 @@ class NovaNavigationCanaryTests(unittest.TestCase):
     def test_false_measured_home_context_blocks_before_nova_input(self) -> None:
         runtime = FakeRuntime()
         provenance = ResearchLabTapProvenance(
-            "nova-canary:open-research-lab:fixture",
+            "nova-navigation:open-research-lab:fixture",
             "home.building.research_lab",
             "2" * 64,
             (198, 407, 363, 632),
             10.0,
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -1026,7 +1020,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             stale=False,
             overlay=False,
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -1064,7 +1058,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             stale=False,
             overlay=False,
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -1104,7 +1098,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             (),
             {"localize": lambda _self, _frame: quality_zoomed},
         )()
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -1164,14 +1158,14 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             (),
             {"localize": lambda _self, _frame: failed_localization},
         )()
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
             home_driver=driver,
             settle_seconds=0,
         )
-        source = runtime.capture("canary-source")
+        source = runtime.capture("navigation-source")
         self.assertTrue(route._base_surface_recognized(source))
         self.assertFalse(route._home_context_measured(source))
         _normalized, blocked, bound_radial = route._normalize_known_start_to_home(source)
@@ -1189,7 +1183,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             (),
             {"localize": lambda _self, _frame: quality_zoomed},
         )()
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -1198,7 +1192,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             settle_seconds=0,
         )
         provenance = ResearchLabTapProvenance(
-            "nova-canary:open-research-lab:quality-zoomed",
+            "nova-navigation:open-research-lab:quality-zoomed",
             "home.building.research_lab",
             "c" * 64,
             (198, 407, 363, 632),
@@ -1211,7 +1205,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
 
     def test_quality_zoomed_context_cannot_complete_terminal_home(self) -> None:
         def route_for(runtime, recognizer, driver):
-            return NovaNavigationCanaryRoute(
+            return NovaNavigationRoute(
                 runtime,
                 _identity(),
                 atlas_path=ATLAS_PATH,
@@ -1279,7 +1273,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             return _nova_recognition(digest)
 
         runtime = FakeRuntime()
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -1329,7 +1323,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             lambda source_sha256: dispatched_sources.append(source_sha256)
         )
         zoom_transport = ZoomTransport()
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             guarded,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -1354,7 +1348,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             captured_monotonic=11.0,
             expected_sha256=fixture["file_sha256"],
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             FakeRuntime(),
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -1376,13 +1370,13 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         runtime = FakeRuntime()
         unbound = replace(_radial_recognition("0" * 64), targets=())
         provenance = ResearchLabTapProvenance(
-            "nova-canary:open-research-lab:fixture",
+            "nova-navigation:open-research-lab:fixture",
             "home.building.research_lab",
             "2" * 64,
             (198, 407, 363, 632),
             10.0,
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -1505,11 +1499,11 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             load_retained_native_frame(path, captured_monotonic=base - 0.1, expected_sha256=fixture["file_sha256"]),
         ]
         runtime = ReplayNativeRuntime(
-            ROOT / "nova-canary-replay-zero-transport",
+            ROOT / "nova-navigation-replay-zero-transport",
             captures=captures,
         )
         _enable_offline_runtime_probes(runtime)
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -1543,11 +1537,11 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             load_retained_native_frame(path, captured_monotonic=base - 0.1, expected_sha256=fixture["file_sha256"]),
         ]
         runtime = ReplayNativeRuntime(
-            ROOT / "nova-canary-replay-initial-no-provenance",
+            ROOT / "nova-navigation-replay-initial-no-provenance",
             captures=captures,
         )
         _enable_offline_runtime_probes(runtime)
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -1626,7 +1620,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             "ambiguous_or_duplicated_template_match",
         )
         self.assertTrue(
-            NovaNavigationCanaryRoute._research_radial_geometry_present(
+            NovaNavigationRoute._research_radial_geometry_present(
                 ambiguous_recognition
             )
         )
@@ -1753,7 +1747,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             _nova_recognition("3" * 64),
             _home_recognition("4" * 64),
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -2084,9 +2078,9 @@ class NovaNavigationCanaryTests(unittest.TestCase):
                 self.assertFalse(evidence.recognized)
                 self.assertEqual(evidence.semantic_state, "UNKNOWN")
 
+    @requires_local_captures
     def test_supervised_ocr_miss_accepted_template_binds_nova(self) -> None:
-        if not SUPERVISED_OCR_MISS_NOVA_FRAME.is_file():
-            self.skipTest(f"retained frame absent: {SUPERVISED_OCR_MISS_NOVA_FRAME}")
+        require_capture(SUPERVISED_OCR_MISS_NOVA_FRAME)
         frame = cv2.imread(str(SUPERVISED_OCR_MISS_NOVA_FRAME), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
         with patch.object(nova_praise_vision, "_radial_ocr_terms", return_value=()):
@@ -2164,20 +2158,20 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual(radial["bind_method"], "template_nova_from_research_tap")
         self.assertNotIn("research", set(radial.get("hough_only_anchors") or ()))
 
+    @requires_local_captures
     def test_selected_home_hough_only_does_not_promote_radial(self) -> None:
-        if not SELECTED_HOME_CANARY_FRAME.is_file():
-            self.skipTest(f"retained frame absent: {SELECTED_HOME_CANARY_FRAME}")
-        raw = SELECTED_HOME_CANARY_FRAME.read_bytes()
-        frame = cv2.imread(str(SELECTED_HOME_CANARY_FRAME), cv2.IMREAD_COLOR)
+        require_capture(SELECTED_HOME_RETAINED_FRAME)
+        raw = SELECTED_HOME_RETAINED_FRAME.read_bytes()
+        frame = cv2.imread(str(SELECTED_HOME_RETAINED_FRAME), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
         captured = CapturedNativeFrame(
             frame,
             raw,
             hashlib.sha256(raw).hexdigest(),
             11.0,
-            SELECTED_HOME_CANARY_FRAME,
+            SELECTED_HOME_RETAINED_FRAME,
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             FakeRuntime(),
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -2204,20 +2198,20 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertIsNone(initial_radial)
         self.assertIs(home_capture, captured)
 
+    @requires_local_captures
     def test_positive_home_base_wins_over_hough_ambiguity(self) -> None:
-        if not POSITIVE_HOME_CANARY_FRAME.is_file():
-            self.skipTest(f"retained frame absent: {POSITIVE_HOME_CANARY_FRAME}")
-        raw = POSITIVE_HOME_CANARY_FRAME.read_bytes()
-        frame = cv2.imread(str(POSITIVE_HOME_CANARY_FRAME), cv2.IMREAD_COLOR)
+        require_capture(POSITIVE_HOME_RETAINED_FRAME)
+        raw = POSITIVE_HOME_RETAINED_FRAME.read_bytes()
+        frame = cv2.imread(str(POSITIVE_HOME_RETAINED_FRAME), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
         captured = CapturedNativeFrame(
             frame,
             raw,
             hashlib.sha256(raw).hexdigest(),
             11.0,
-            POSITIVE_HOME_CANARY_FRAME,
+            POSITIVE_HOME_RETAINED_FRAME,
         )
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             FakeRuntime(),
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -2241,10 +2235,10 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertIsNone(initial_radial)
         self.assertIs(home_capture, captured)
 
+    @requires_local_captures
     def test_prior_expanded_radial_retained_frame_remains_bound(self) -> None:
-        if not EXPANDED_RADIAL_CANARY_FRAME.is_file():
-            self.skipTest(f"retained frame absent: {EXPANDED_RADIAL_CANARY_FRAME}")
-        frame = cv2.imread(str(EXPANDED_RADIAL_CANARY_FRAME), cv2.IMREAD_COLOR)
+        require_capture(EXPANDED_RADIAL_RETAINED_FRAME)
+        frame = cv2.imread(str(EXPANDED_RADIAL_RETAINED_FRAME), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
         recognized = recognize_nova_frame(
             frame,
@@ -2260,10 +2254,10 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertGreaterEqual(radial["template_margin"], NOVA_TEMPLATE_MIN_MARGIN)
         self.assertEqual(radial["template_match_roi"], (381, 634, 425, 678))
         self.assertTrue(
-            NovaNavigationCanaryRoute._research_radial_geometry_present(recognized)
+            NovaNavigationRoute._research_radial_geometry_present(recognized)
         )
         self.assertEqual(
-            NovaNavigationCanaryRoute._navigation_surface(recognized),
+            NovaNavigationRoute._navigation_surface(recognized),
             "RESEARCH_LAB_MENU",
         )
 
@@ -2289,10 +2283,10 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             },
         )
         self.assertTrue(
-            NovaNavigationCanaryRoute._research_radial_geometry_present(ambiguous)
+            NovaNavigationRoute._research_radial_geometry_present(ambiguous)
         )
         self.assertEqual(
-            NovaNavigationCanaryRoute._navigation_surface(ambiguous),
+            NovaNavigationRoute._navigation_surface(ambiguous),
             "RESEARCH_LAB_MENU",
         )
 
@@ -2313,15 +2307,15 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             },
         )
         self.assertFalse(
-            NovaNavigationCanaryRoute._research_radial_geometry_present(hough_only)
+            NovaNavigationRoute._research_radial_geometry_present(hough_only)
         )
         self.assertNotEqual(
-            NovaNavigationCanaryRoute._navigation_surface(hough_only),
+            NovaNavigationRoute._navigation_surface(hough_only),
             "RESEARCH_LAB_MENU",
         )
 
         runtime = FakeRuntime()
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,
@@ -2336,7 +2330,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
 
     def test_return_back_stops_after_radial_successor(self) -> None:
         runtime = FakeRuntime()
-        route = NovaNavigationCanaryRoute(
+        route = NovaNavigationRoute(
             runtime,
             _identity(),
             atlas_path=ATLAS_PATH,

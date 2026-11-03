@@ -18,7 +18,7 @@ from scripts import home_atlas_bluestacks as home
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from tasks import home_atlas_vision as vision
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition, camera_origin
-from tests.test_home_atlas_verified_route import _ready
+from tests.support.home_atlas import _ready
 
 
 ROOT = Path(__file__).resolve().parents[1]

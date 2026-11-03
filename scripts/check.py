@@ -23,14 +23,17 @@ OFFLINE_TEST_MODULES: tuple[str, ...] = (
     "tests.test_bounded_ocr_architecture",
     "tests.test_automation_service_boundaries",
     "tests.test_architecture_imports",
+    "tests.test_architecture_source_boundaries",
     "tests.test_automation_service_canonical_authority",
     "tests.test_automation_service_scheduler_canonical",
     "tests.test_automation_service_state",
+    "tests.test_flow_id_rename_migration",
     "tests.test_product_authority",
     "tests.test_transition_stability",
     "tests.test_native_frame_replay",
     "tests.test_runtime_trace_projection",
     "tests.test_host_identifier_guard",
+    "tests.test_readme_consistency",
 )
 
 _RUNTIME_ENVIRONMENT_KEYS = (

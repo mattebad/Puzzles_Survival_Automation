@@ -11,7 +11,7 @@ import numpy as np
 
 from scripts import bluestacks_ultimate_challenge as ultimate
 from tasks.campaign_auto_battle import CampaignScreen
-from tests import test_bluestacks_ultimate_challenge as fixtures
+from tests.support.ultimate import CampaignExitRuntime, captured_native_frame
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +29,7 @@ class UltimateCampaignExitTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         root = Path(directory.name)
-        runtime = fixtures.UltimateCampaignExitRecoveryTests._Runtime(root, [self.frame(x) for x in markers])
+        runtime = CampaignExitRuntime(root, [self.frame(x) for x in markers])
         if transport_error:
             actual_tap = runtime.tap
 
@@ -60,7 +60,7 @@ class UltimateCampaignExitTests(unittest.TestCase):
             kwargs = dict(runtime=runtime, session=root, events=root / "events.jsonl",
                           reset_identity="game-day-test", post_input_delay=0)
             if exit_dialog:
-                initial = fixtures.UltimateCampaignExitRecoveryTests._captured(root, self.frame(0), "dialog-source", 91)
+                initial = captured_native_frame(root, self.frame(0), "dialog-source", 91)
                 result = ultimate._continue_from_exit_dialog(
                     initial=initial, initial_observation=(True, (60, 650, 380, 780)), **kwargs
                 )

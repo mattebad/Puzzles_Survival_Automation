@@ -196,9 +196,6 @@ class RecruitmentFlowDeliveryTests(unittest.TestCase):
             delivery._maximum({"max_inputs": 13})
         with self.assertRaises(pnsctl.OperatorError):
             delivery._maximum({"max_inputs": 11})
-        self.assertEqual(pnsctl._conduct_max_inputs(delivery.FLOW_ID, 12), 12)
-        with self.assertRaises(pnsctl.OperatorError):
-            pnsctl._conduct_max_inputs(delivery.FLOW_ID, 8)
 
     def test_live_route_binds_exact_observation_trace_and_counts(self):
         with tempfile.TemporaryDirectory() as directory:

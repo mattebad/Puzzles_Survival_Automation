@@ -24,6 +24,12 @@ from tasks.perception_bundle import PerceptionBundleError
 from tasks.runtime_identity import derive_fixed_runtime_binding, derive_resource_runtime_identity
 from safe_action_core import SafetyStore
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 FIXTURE = Path(__file__).parent / "fixtures/personal_might/native-home-more-20261029.png"
 MENU_FIXTURE = FIXTURE.with_name("native-more-menu-20261029.png")

@@ -7,6 +7,12 @@ import numpy as np
 from tasks.campaign_auto_battle import CampaignAction, CampaignAutoBattleConfig, CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_runtime import CampaignRuntimeController
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures/campaign_victory"

@@ -11,6 +11,13 @@ import cv2
 import numpy as np
 
 from scripts import enhancement_bluestacks as native
+from tests.support.enhancement import exit_runtime
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 FRAME = Path(__file__).parent / "fixtures/enhancement_item_modal/native-chip-quantity-one-20261029.png"
@@ -68,8 +75,7 @@ class ChipQuantityNativeTests(unittest.TestCase):
         self.assertIsNone(result.open_target)
 
     def runtime(self, payloads):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
-        return NativeEnhancementExitTests().runtime(payloads)
+        return exit_runtime(payloads)
 
     def route(self, runtime, session):
         return native.EnhancementIntegratedRoute(runtime, variant="chip", reset_identity="current-reset", session=session)
@@ -152,7 +158,6 @@ class ChipQuantityNativeTests(unittest.TestCase):
 
 class QuantityNavigationBoundaryTests(unittest.TestCase):
     def test_detected_quantity_without_safe_exit_cannot_borrow_underlying_panel_back(self):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
         raw = FRAME.read_bytes()
         quantity_states = (
             native.StageRecognition("navigation", True, "QUANTITY_ONE_USE_NAVIGATION_RECOGNIZED", SHA,
@@ -163,7 +168,7 @@ class QuantityNavigationBoundaryTests(unittest.TestCase):
         )
         for quantity in quantity_states:
             with self.subTest(quantity=quantity):
-                runtime, session = NativeEnhancementExitTests().runtime([raw])
+                runtime, session = exit_runtime([raw])
                 route = native.EnhancementIntegratedRoute(runtime, variant="chip",
                     reset_identity="current-reset", session=session)
                 tempting = native.StageRecognition("navigation", True, "ENHANCEMENT_PANEL_NAVIGATION_ONLY", SHA,

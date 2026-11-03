@@ -19,8 +19,7 @@ from scripts import flow_delivery_ultimate_challenge_bluestacks as delivery
 from scripts import pnsctl
 from scripts.startup_recovery import classify_startup_frame
 from automation_service import ultimate as service
-from tests import test_bluestacks_ultimate_challenge as helpers
-from tests import test_ultimate_challenge_recovery as recovery_helpers
+from tests.support.ultimate import RESET as FLEE_PROOF_RESET, CampaignExitRuntime, flee_proof
 from tasks.runtime_identity import BLUESTACKS_SERIAL
 
 
@@ -166,15 +165,15 @@ class DefeatReceiptTests(unittest.TestCase):
     def test_confirmed_flee_proof_does_not_fall_back_after_metadata_tamper(self):
         with tempfile.TemporaryDirectory() as directory:
             session = Path(directory) / "confirmed"
-            recovery_helpers.flee_proof(session)
-            recovery = delivery._validated_flee_recovery(session, recovery_helpers.RESET)
+            flee_proof(session)
+            recovery = delivery._validated_flee_recovery(session, FLEE_PROOF_RESET)
             self.assertEqual(recovery["session_directory"], str(session.resolve()))
             wrapper_path = session / "flow-delivery-result.json"
             wrapper = json.loads(wrapper_path.read_text(encoding="utf-8"))
             wrapper["native_width"] = 720
             wrapper_path.write_text(json.dumps(wrapper), encoding="utf-8")
             with self.assertRaises(pnsctl.OperatorError):
-                delivery._validated_flee_recovery(session, recovery_helpers.RESET)
+                delivery._validated_flee_recovery(session, FLEE_PROOF_RESET)
 
     def test_failed_one_flee_receipt_requires_two_retained_defeat_successors(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -220,7 +219,7 @@ class DefeatRouteTests(unittest.TestCase):
     def run_route(self, root, frames, runtime_type=None):
         session = root / "session"
         (session / "frames").mkdir(parents=True)
-        runtime_class = runtime_type or helpers.UltimateCampaignExitRecoveryTests._Runtime
+        runtime_class = runtime_type or CampaignExitRuntime
         runtime = runtime_class(root / "fake-runtime", frames)
         def main(frame):
             return (300, 1170, 500, 1260) if int(frame[0, 0, 0]) == 91 else None
@@ -255,7 +254,7 @@ class DefeatRouteTests(unittest.TestCase):
         self.assertEqual(runtime.input_count, 3)
 
     def test_unexpected_successor_or_stop_after_continue_never_retries(self):
-        base = helpers.UltimateCampaignExitRecoveryTests._Runtime
+        base = CampaignExitRuntime
         class StopAfterContinue(base):
             def tap(self, source, **kwargs):
                 super().tap(source, **kwargs)
@@ -272,7 +271,7 @@ class DefeatRouteTests(unittest.TestCase):
                 self.assertEqual(runtime.input_count, 1)
 
     def test_unaccounted_continue_transport_cannot_advance_to_back(self):
-        base = helpers.UltimateCampaignExitRecoveryTests._Runtime
+        base = CampaignExitRuntime
         class UnaccountedContinue(base):
             def tap(self, source, **kwargs):
                 self.taps.append({"source": source, **kwargs})

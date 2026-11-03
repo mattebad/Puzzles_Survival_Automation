@@ -35,16 +35,16 @@ class GameplayFlowContractTests(unittest.TestCase):
         queue = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
         queue_ids = {item["flow_id"] for item in queue["flows"]}
         contract_ids = set(list_flow_contract_ids())
-        conduct_ids = set(pnsctl._CONDUCT_DEFAULT_MAX_INPUTS)
+        default_ids = set(pnsctl._DEFAULT_MAX_INPUTS)
         self.assertTrue(queue_ids <= contract_ids)
         self.assertEqual(
             contract_ids - queue_ids,
-            {"PERSONAL-MIGHT-PRAISE-BLISS-PILOT"} | (conduct_ids - queue_ids),
+            {"PERSONAL-MIGHT-PRAISE-BLISS-PILOT"} | (default_ids - queue_ids),
         )
         contracts = load_all_flow_contracts()
         self.assertEqual(
             len(contracts),
-            len(queue_ids | conduct_ids | {"PERSONAL-MIGHT-PRAISE-BLISS-PILOT"}),
+            len(queue_ids | default_ids | {"PERSONAL-MIGHT-PRAISE-BLISS-PILOT"}),
         )
         for flow_id, contract in contracts.items():
             validate_flow_contract(contract)
@@ -302,7 +302,7 @@ class GameplayFlowContractTests(unittest.TestCase):
 
 
     def test_campaign_ap_contract_binds_typed_record_and_preserves_disabled_state(self):
-        contract = load_flow_contract("CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY")
+        contract = load_flow_contract("CAMPAIGN-AP-AUTO-BATTLE")
         binding = contract["product_authority_binding"]
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "campaign_ap")

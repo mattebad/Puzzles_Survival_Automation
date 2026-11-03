@@ -13,10 +13,7 @@ import cv2
 import numpy as np
 
 from safe_action_core import SafetyStore
-from scripts.bluestacks_native_runtime import (
-    CapturedNativeFrame,
-    NATIVE_RUNTIME_PROFILE_ID,
-)
+from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.startup_recovery import (
     ContextualPopupRecoveryResult,
     StartupRecoveryError,
@@ -26,35 +23,21 @@ from scripts.startup_recovery import (
     recover_known_startup_overlay,
 )
 from scripts.startup_surface_recognition import (
-    SCARLETT_EXPECTED_SUCCESSOR,
     SCARLETT_FORBIDDEN_PURCHASE_ROIS,
     SCARLETT_FRAME_SHA256,
-    SCARLETT_MAX_INPUTS,
     SCARLETT_SAFE_BACK_ROI,
-    SCARLETT_SAFE_BACK_TARGET_IDENTITY,
     SCARLETT_THREE_DAY_PACK,
     commercial_surface_signal,
     is_exact_scarlett_recognition,
     recognize_scarlett_three_day_pack,
 )
+from tests.support.startup_recovery import popup, scarlett_detail
+from tests.ocr_memo import install_module_memo
 
 
-TARGET = (263, 781, 537, 869)
-
-
-def popup(
-    *,
-    target=TARGET,
-    popup_identity: str = "VIP_POINTS_GET_PTS",
-    target_identity: str = "reset-popup-close",
-) -> dict[str, object]:
-    return {
-        "recognized": True,
-        "popup_identity": popup_identity,
-        "target_identity": target_identity,
-        "target": target,
-        "target_center": (400, 825),
-    }
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 class FakeRuntime:
@@ -260,38 +243,6 @@ class StartupRecoveryTests(unittest.TestCase):
         assert frame is not None
         return frame, payload
 
-    @staticmethod
-    def _scarlett_detail() -> dict[str, object]:
-        return {
-            "recognized": True,
-            "surface_identity": SCARLETT_THREE_DAY_PACK,
-            "surface_kind": "full_page",
-            "runtime_profile_id": NATIVE_RUNTIME_PROFILE_ID,
-            "width": 800,
-            "height": 1280,
-            "frame_sha256": SCARLETT_FRAME_SHA256,
-            "title_text": "scarlett 3-day pack",
-            "title_identity": True,
-            "semantic_evidence": (
-                "title:Scarlett 3-Day Pack",
-                "full_page_real_money_promotion",
-                "visible_in_game_back_upper_left",
-                "purchase_regions_excluded",
-                "current_offer_benefits_and_three_day_rows",
-                "current_first_topup_notice",
-            ),
-            "safe_exit_target_identity": SCARLETT_SAFE_BACK_TARGET_IDENTITY,
-            "safe_exit_roi": SCARLETT_SAFE_BACK_ROI,
-            "forbidden_purchase_rois": SCARLETT_FORBIDDEN_PURCHASE_ROIS,
-            "purchase_exclusion_verified": True,
-            "critical_roi_hashes": (("title", "a" * 64),),
-            "page_context_verified": True,
-            "measured_back_roi": (47, 0, 128, 59),
-            "expected_successor": SCARLETT_EXPECTED_SUCCESSOR,
-            "max_inputs": SCARLETT_MAX_INPUTS,
-            "target_count": 1,
-        }
-
     def test_exact_scarlett_fixture_binds_hash_geometry_and_back_roi(self) -> None:
         frame, payload = self._scarlett_fixture()
         with patch(
@@ -342,7 +293,7 @@ class StartupRecoveryTests(unittest.TestCase):
             "safe_back_target_is_ambiguous_or_wrong_geometry",
         )
     def test_scarlett_contract_negatives_fail_closed(self) -> None:
-        detail = self._scarlett_detail()
+        detail = scarlett_detail()
         variants = {
             "title_only": {"semantic_evidence": ("title:Scarlett 3-Day Pack",)},
             "price_only": {"title_text": "$4.99", "title_identity": False},
@@ -533,7 +484,7 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_scarlett_one_input_captures_unknown_successor_without_dismissing_again(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            detail = self._scarlett_detail()
+            detail = scarlett_detail()
             with patch(
                 "scripts.startup_recovery.recognize_startup_surface",
                 side_effect=(detail, detail, detail, {"recognized": False}),
@@ -581,7 +532,7 @@ class StartupRecoveryTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             runtime = SameDigestPostRuntime(Path(directory) / "runtime")
-            detail = self._scarlett_detail()
+            detail = scarlett_detail()
             successor = {
                 "recognized": False,
                 "commercial_looking": False,
@@ -608,7 +559,7 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_scarlett_recovery_allows_animation_between_current_frame_checks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            probe = self._scarlett_detail()
+            probe = scarlett_detail()
             authorization = dict(probe, frame_sha256="1" * 64,
                                  critical_roi_hashes=(("title", "1" * 64),))
             dispatch = dict(probe, frame_sha256="2" * 64,
@@ -624,7 +575,7 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_scarlett_persistent_source_is_terminal_after_one_input(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            detail = self._scarlett_detail()
+            detail = scarlett_detail()
             with patch(
                 "scripts.startup_recovery.recognize_startup_surface",
                 side_effect=(detail, detail, detail, detail),
@@ -647,7 +598,7 @@ class StartupRecoveryTests(unittest.TestCase):
             action_store_factory=lambda: SafetyStore(store_path),
         )
         if kind == "scarlett":
-            detail = self._scarlett_detail()
+            detail = scarlett_detail()
             with patch(
                 "scripts.startup_recovery.recognize_startup_surface",
                 return_value=detail if present_only else None,
@@ -689,7 +640,7 @@ class StartupRecoveryTests(unittest.TestCase):
                     self.assertEqual(store.get_action_by_key(later_result.action_key)["final_status"], "confirmed")
 
     def test_new_startup_invocation_preserves_consequential_unresolved_block(self):
-        from tests.test_safe_action_core import intent, request, TEST_TASK_ID
+        from tests.support.safe_action import intent, request, TEST_TASK_ID
         from safe_action_core import CentralPolicy, TransportResult
         from safe_action_core.store import LeaseError
 
@@ -728,7 +679,7 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_scarlett_unknown_commercial_successor_is_retained_as_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            detail = self._scarlett_detail()
+            detail = scarlett_detail()
             with patch(
                 "scripts.startup_recovery.recognize_startup_surface",
                 side_effect=(detail, detail, detail, {"recognized": False, "commercial_looking": True}),
@@ -848,7 +799,7 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_distinct_vip_then_scarlett_executor_actions_share_budget(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime", max_inputs=2)
-            detail = self._scarlett_detail()
+            detail = scarlett_detail()
             options = dict(task_id="FLOW", recognize_successor=lambda _: True,
                            successor_state="RETAINED_STARTUP_SUCCESSOR", sleep=lambda _: None)
             with patch("scripts.startup_recovery.recognize_startup_surface", return_value={"recognized": False}), \

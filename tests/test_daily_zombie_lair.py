@@ -14,6 +14,7 @@ from tasks.daily_zombie_lair import (
     daily_zombie_lair_transaction_spec,
 )
 from tasks.zombie_lair import ZombieLairObservation
+from tests.support.observations import load_observation
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,11 +23,10 @@ MATRIX = ROOT / "tasks/daily_quest_execution_matrix.json"
 
 
 def load_lair(name: str) -> ZombieLairObservation:
-    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))["observations"][name]
-    payload["target_roi"] = tuple(payload["target_roi"])
-    payload["panel_bounds"] = tuple(payload["panel_bounds"])
-    payload["evidence_refs"] = tuple(payload["evidence_refs"])
-    return ZombieLairObservation(**payload)
+    return load_observation(
+        FIXTURE, name, ZombieLairObservation,
+        ("target_roi", "panel_bounds", "evidence_refs"),
+    )
 
 
 def load_pair() -> tuple[DailyZombieLairObservation, DailyZombieLairObservation]:

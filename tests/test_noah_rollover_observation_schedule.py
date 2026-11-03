@@ -9,12 +9,12 @@ from safe_action_core import SafetyStore, SQLiteSchedulerInvocationRepository
 from tasks.noahs_tavern_recruit import RecruitTier
 from tasks.noahs_tavern_recruit_maintenance import MAINTENANCE_TASK_ID, NoahMaintenanceState, PersistedTierState
 from tasks.scheduler_task_result import SchedulerIdentity
-from tests import test_service_recruitment as fixtures
+from tests.support import recruitment_service as fixtures
 
 
 class ObservationScheduleTests(unittest.TestCase):
     def setUp(self):
-        self.case = fixtures.ServiceRecruitmentTests('runTest')
+        self.case = fixtures.RecruitmentServiceCase('runTest')
         self.case.setUp()
         self.addCleanup(self.case.doCleanups)
         self.now = self.case.stop.now

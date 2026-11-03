@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import replace
 from pathlib import Path
 import unittest
@@ -14,6 +13,7 @@ from tasks.bioenhancer import (
 )
 from tasks.contracts import TaskOutcome
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tests.support.observations import load_observation
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,11 +21,10 @@ FIXTURE = ROOT / "tests/fixtures/phase_e_bioenhancer_observations.json"
 
 
 def load_fixture(name: str) -> BioenhancerObservation:
-    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))["observations"][name]
-    payload["target_roi"] = tuple(payload["target_roi"])
-    payload["panel_bounds"] = tuple(payload["panel_bounds"])
-    payload["evidence_refs"] = tuple(payload["evidence_refs"])
-    return BioenhancerObservation(**payload)
+    return load_observation(
+        FIXTURE, name, BioenhancerObservation,
+        ("target_roi", "panel_bounds", "evidence_refs"),
+    )
 
 
 class BioenhancerContractTests(unittest.TestCase):

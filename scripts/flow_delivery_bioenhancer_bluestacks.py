@@ -316,7 +316,7 @@ def _result_payload(
 
 
 def _verify_no_work_frames(session: Path, result: Mapping[str, Any]) -> bool:
-    from scripts.bioenhancer_free_research_canary import recognize_free_research_cooldown
+    from scripts.bioenhancer_free_research_route import recognize_free_research_cooldown
     from scripts.startup_normalization import is_clean_home_frame
 
     cooldown = result.get("cooldown")
@@ -360,7 +360,7 @@ def run_bioenhancer_free_research(
     *,
     live: bool = True,
 ) -> str:
-    """Run the existing canary inside pnsctl's already-owned session."""
+    """Run the existing route inside pnsctl's already-owned session."""
 
     del queue
     maximum = _max_inputs(lease)
@@ -391,7 +391,7 @@ def run_bioenhancer_free_research(
             execute=True,
         )
         runtime_session = runtime.session
-        from scripts import bioenhancer_free_research_canary as route_module
+        from scripts import bioenhancer_free_research_route as route_module
 
         route_result = route_module.run(
             max_inputs=maximum,

@@ -3,7 +3,7 @@
 This document replaces the retired model-specific execution template. It is an optional
 human-readable note format, not a required development gate or a machine-readable admission
 manifest. Do not create a participant registry, routing matrix, receipt, queue, or controller
-from it. Ordinary offline work follows [AGENTS.md](../AGENTS.md) and the existing task contract.
+from it. Ordinary offline work follows [AGENTS.md](../../AGENTS.md) and the existing task contract.
 
 Record only information useful for the actual change:
 
@@ -22,8 +22,8 @@ Live work is separate: it requires explicit current authorization and every safe
 required by the applicable existing controller/flow contract, including ownership, leases,
 fencing, unresolved-action handling, evidence, and input limits. This optional format cannot
 replace a structured record required by an existing runtime command. See
-[validation boundaries](flow-delivery-validation-policy.md) and
-[execution ownership](chat-execution-ownership-policy.md).
+[validation boundaries](../flow-delivery-validation-policy.md) and
+[execution ownership](../chat-execution-ownership-policy.md).
 
-Original model-specific execution records are retained under [archive/](archive/README.md)
+Original model-specific execution records are retained under [archive/](../archive/README.md)
 as non-authoritative history.

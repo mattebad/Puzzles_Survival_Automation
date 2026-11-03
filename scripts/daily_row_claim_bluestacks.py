@@ -3275,7 +3275,7 @@ def _run_daily_return_home_action(
     return action, terminal
 
 
-def run_daily_row_claim_canary(
+def run_daily_row_claim_once(
     runtime: RuntimeLike,
     session: SessionLike,
     *,

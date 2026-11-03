@@ -9,7 +9,7 @@ from automation_service.contracts import FlowSpec
 from automation_service.state import BotStateManager
 from scripts import flow_delivery_enhancement_bluestacks as delivery
 from scripts import pnsctl
-from tests import test_flow_delivery_enhancement as fixtures
+from tests.support.enhancement_family import write_reset_occurrence_state
 
 FLOW_ID = delivery.FLOW_ID
 
@@ -21,7 +21,7 @@ class AuthorizedDailyRepeatTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / FLOW_ID
             current = root / "occurrences" / self.CURRENT
-            categories = fixtures.EnhancementResetOccurrenceTests()._state(current, self.CURRENT)
+            categories = write_reset_occurrence_state(current, self.CURRENT)
             raw = (current / "family-progress.json").read_bytes()
             request = "one-extra-family"
             key = hashlib.sha256(request.encode()).hexdigest()
@@ -39,7 +39,7 @@ class AuthorizedDailyRepeatTests(unittest.TestCase):
     def test_unresolved_manual_scope_blocks_normal_and_new_manual_family(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / FLOW_ID
-            fixtures.EnhancementResetOccurrenceTests()._state(root / "manual-runs" / ("a" * 64) / "occurrences" / self.CURRENT,
+            write_reset_occurrence_state(root / "manual-runs" / ("a" * 64) / "occurrences" / self.CURRENT,
                         self.CURRENT, pending=True)
             for request in (None, "another-extra-family"):
                 with self.subTest(request=request), self.assertRaises(pnsctl.OperatorError):

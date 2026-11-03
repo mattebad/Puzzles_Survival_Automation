@@ -392,7 +392,7 @@ class NovaPraiseSelectionHandler:
 
 
 class RecruitmentMaintenanceSelectionHandler:
-    """Zero-transport selector for the Recruitment cooldown canary."""
+    """Zero-transport selector for the Recruitment cooldown route."""
 
     handler_id = RECRUITMENT_HANDLER_ID
     selection_only = True
@@ -540,7 +540,7 @@ class RecruitmentMaintenanceSelectionHandler:
 
 
 class CampaignApSelectionHandler:
-    """Zero-transport selector for the Campaign AP canary."""
+    """Zero-transport selector for the Campaign AP route."""
 
     handler_id = CAMPAIGN_HANDLER_ID
     selection_only = True

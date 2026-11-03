@@ -18,7 +18,7 @@ from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
 from tasks.home_atlas_vision import bind_visible_building, frame_digest
 from tasks.perception_bundle import PerceptionBundleError
-from tests.test_home_atlas_tap_actual_proposal import _RecordingPolicy
+from tests.support.home_atlas import _RecordingPolicy
 
 
 ROOT = Path(__file__).resolve().parents[1]

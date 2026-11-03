@@ -14,6 +14,13 @@ import numpy as np
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
 from tasks.enhancement import enhancement_bluestacks_authorizeable, enhancement_bluestacks_postcondition_verified
+from tests.support.enhancement import CategorySession
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 FIXTURES = Path(__file__).parent / "fixtures/enhancement_item_modal"
@@ -229,8 +236,6 @@ class SelectionContextNativeTests(unittest.TestCase):
                 self.assertIsNone(denied.observation)
 
     def test_selected_chip_restart_unwinds_and_requires_new_item_modal_without_reusing_gear(self):
-        from tests.test_enhancement_category_navigation import CategorySession
-
         directory = FIXTURES.parent / "enhancement_chip_selection"
         preview = (directory / "0045-apply-quantity-selection-settled-3.png").read_bytes()
         overview = (directory / "0032-select-equipped-enhancement-item-immediate-before.png").read_bytes()

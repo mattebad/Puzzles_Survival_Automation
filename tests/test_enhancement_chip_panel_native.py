@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 
 from scripts import enhancement_bluestacks as native
+from tests.support.enhancement import exit_runtime
 
 
 FRAME = Path(__file__).parent / "fixtures/enhancement_item_modal/native-chip-zero-selected-20261029.png"
@@ -116,9 +117,8 @@ class ChipPanelNativeTests(unittest.TestCase):
                 self.assert_no_material_authority(self.recognize(frame))
 
     def test_current_panel_back_reaches_commander_with_one_navigation_and_zero_resource(self):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
         commander = FRAME.with_name("native-commander-gear-20261029.png").read_bytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, self.raw, commander, commander])
+        runtime, session = exit_runtime([self.raw, self.raw, commander, commander])
         route = native.EnhancementIntegratedRoute(runtime, variant="chip", reset_identity="current-reset", session=session)
         _, terminal = route._navigate_to("commander_overview")
         self.assertEqual(terminal.detail_state, "commander_overview")
@@ -128,11 +128,10 @@ class ChipPanelNativeTests(unittest.TestCase):
         self.assertEqual([row[1] for row in runtime.journal], ["confirmed"])
 
     def test_fresh_frame_missing_back_cannot_reuse_the_planning_frame_target(self):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
         changed = self.frame.copy()
         changed[:90, :180] = 0
         raw = cv2.imencode(".png", changed)[1].tobytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, raw])
+        runtime, session = exit_runtime([self.raw, raw])
         route = native.EnhancementIntegratedRoute(runtime, variant="chip", reset_identity="current-reset", session=session)
         with self.assertRaises(native._FlowBlocked):
             route._navigate_to("commander_overview")

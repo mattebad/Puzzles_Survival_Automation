@@ -14,6 +14,13 @@ from typing import Any, Dict, Iterator, List, Mapping, Optional
 from .models import ActionIntent, ActionStatus, PolicyResult, snapshot
 
 CURRENT_SCHEMA_VERSION = 4
+# One-time renames of persisted task ids (#36), applied in one transaction
+# when the store opens.  The old id is never accepted as a live alias: two
+# live ids would let one route claim the same reset twice.
+RENAMED_TASK_IDS: tuple[tuple[str, str], ...] = (
+    ("CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY", "CAMPAIGN-AP-AUTO-BATTLE"),
+)
+_TASK_ID_TABLES = ("scheduler_invocation_state", "scheduler_occurrences", "actions", "audit_events")
 SCHEDULER_INVOCATION_STATUSES = frozenset(
     {
         "pending",
@@ -45,6 +52,10 @@ class StoreError(RuntimeError):
 
 class DuplicateActionError(StoreError):
     pass
+
+
+class TaskIdMigrationConflict(StoreError):
+    """A renamed task id has persisted rows under both its old and new id."""
 
 
 class InvalidTransitionError(StoreError):
@@ -639,6 +650,7 @@ class SafetyStore:
             self._migrate()
             self._retire_task_state()
             self._ensure_scheduler_tables()
+            self._migrate_renamed_task_ids()
         except BaseException:
             self.connection.close()
             raise
@@ -938,6 +950,60 @@ class SafetyStore:
             if name not in columns:
                 self.connection.execute(
                     f"ALTER TABLE scheduler_occurrences ADD COLUMN {name} {definition}"
+                )
+
+    @staticmethod
+    def _task_id_row_count(db: sqlite3.Connection, task_id: str) -> int:
+        """Count rows whose task identity column or composite key names ``task_id``."""
+
+        total = sum(
+            int(db.execute(f"SELECT COUNT(*) FROM {table} WHERE task_id=?", (task_id,)).fetchone()[0])
+            for table in _TASK_ID_TABLES
+        )
+        # Projection keys are ``account|server|reset|task|flow``; match a whole
+        # component, since a new id may be a prefix of the old one.
+        total += int(db.execute(
+            "SELECT COUNT(*) FROM scheduler_projection_state WHERE instr('|' || projection_key || '|', ?) > 0",
+            (f"|{task_id}|",),
+        ).fetchone()[0])
+        return total
+
+    def _migrate_renamed_task_ids(self) -> None:
+        """Rewrite each renamed task id once; fail closed if both ids have rows.
+
+        Identity columns (``task_id``) and the composite scheduler occurrence
+        and projection keys are rewritten.  Gate facts (status, deadlines,
+        revisions, claims) are untouched, so a completed or deferred reset
+        stays completed under the new id.  Action keys and JSON payloads are
+        historical evidence and keep their original text.
+        """
+
+        pending = [
+            (old, new) for old, new in RENAMED_TASK_IDS
+            if self._task_id_row_count(self.connection, old)
+        ]
+        if not pending:
+            return
+        with self.transaction() as db:
+            for old, new in pending:
+                if self._task_id_row_count(db, old) == 0:
+                    continue
+                if self._task_id_row_count(db, new) != 0:
+                    raise TaskIdMigrationConflict(
+                        f"persisted task id {old!r} cannot be renamed to {new!r}: rows exist "
+                        "under both ids; resolve the safety store manually before starting"
+                    )
+                for table in _TASK_ID_TABLES:
+                    db.execute(f"UPDATE {table} SET task_id=? WHERE task_id=?", (new, old))
+                db.execute(
+                    "UPDATE scheduler_occurrences SET occurrence_key=REPLACE(occurrence_key, ?, ?) "
+                    "WHERE instr(occurrence_key, ?) > 0",
+                    (old, new, old),
+                )
+                db.execute(
+                    "UPDATE scheduler_projection_state SET projection_key=REPLACE(projection_key, ?, ?) "
+                    "WHERE instr(projection_key, ?) > 0",
+                    (old, new, old),
                 )
 
     def _migrate_resource_v4(self) -> None:

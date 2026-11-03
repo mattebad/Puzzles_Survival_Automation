@@ -19,7 +19,7 @@ from automation_service.service import AutomationService, ServiceError
 from automation_service.state import BotStateManager, RunState
 from scripts import navigation_development_boundary as boundary
 from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
-from tests.test_service_recruitment import VirtualStop
+from tests.support.service_stop import VirtualStop
 
 
 class GuardedPersonalMightRunner:

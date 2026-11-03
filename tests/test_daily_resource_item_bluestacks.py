@@ -12,6 +12,13 @@ import numpy as np
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts import daily_resource_item_bluestacks as route
 
+PORTABLE_FIXTURES = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "resource_effect_authority"
+    / "portable"
+)
+
 
 def _ocr(*rows: tuple[str, int, int, int, int]):
     def recognize(_frame):
@@ -423,15 +430,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         self.assertEqual(result["item_use_transport_calls"], 0)
 
     def test_home_bag_target_requires_unique_current_frame_visual_match(self):
-        frame_path = (
-            Path(__file__).resolve().parents[1]
-            / ".local-captures"
-            / "development-sessions"
-            / "observe-20260819T030029178669Z"
-            / "observe.png"
-        )
-        if not frame_path.is_file():
-            self.skipTest("retained Home frame is unavailable")
+        frame_path = PORTABLE_FIXTURES / "session-2-terminal-home.png"
         retained = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
         self.assertIsNotNone(retained)
         assert retained is not None
@@ -459,15 +458,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         self.assertIsNone(blank_target)
 
     def test_retained_home_frame_binds_measured_bag_icon(self):
-        frame_path = (
-            Path(__file__).resolve().parents[1]
-            / ".local-captures"
-            / "development-sessions"
-            / "observe-20260819T030029178669Z"
-            / "observe.png"
-        )
-        if not frame_path.is_file():
-            self.skipTest("retained Home Bag frame is unavailable")
+        frame_path = PORTABLE_FIXTURES / "session-2-terminal-home.png"
         frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
         assert frame is not None
@@ -492,15 +483,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
                 )
 
     def test_retained_resources_frame_binds_measured_back_arrow(self):
-        frame_path = (
-            Path(__file__).resolve().parents[1]
-            / ".local-captures"
-            / "development-sessions"
-            / "observe-20260819T025359621634Z"
-            / "observe.png"
-        )
-        if not frame_path.is_file():
-            self.skipTest("retained Resources frame is unavailable")
+        frame_path = PORTABLE_FIXTURES / "session-1-transport-source.png"
         frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
         assert frame is not None
@@ -527,15 +510,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         )
 
     def test_return_home_binding_rejects_simulated_large_modal(self):
-        frame_path = (
-            Path(__file__).resolve().parents[1]
-            / ".local-captures"
-            / "development-sessions"
-            / "observe-20260819T025359621634Z"
-            / "observe.png"
-        )
-        if not frame_path.is_file():
-            self.skipTest("retained Resources frame is unavailable")
+        frame_path = PORTABLE_FIXTURES / "session-1-transport-source.png"
         normal = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
         self.assertIsNotNone(normal)
         assert normal is not None

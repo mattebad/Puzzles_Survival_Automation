@@ -28,14 +28,8 @@ from tasks.campaign_auto_battle_runtime import (
 from tasks.campaign_auto_battle_vision import CampaignFrameRecognition, read_campaign_frame
 from tasks.campaign_auto_battle_vision import BUY_NOW_FORBIDDEN_ROI, DEFEAT_CONTINUE_ROI
 from tasks.campaign_auto_battle_vision import _fraction
-
-
-def recognized(
-    observation: CampaignRouteObservation,
-    *targets: tuple[str, tuple[int, int, int, int]],
-    frame_hash: str = "frame",
-) -> CampaignFrameRecognition:
-    return CampaignFrameRecognition(observation, frame_hash, targets, {})
+from tests.support.campaign import recognized
+from tests.support.local_captures import require_capture, requires_local_captures
 
 
 class CampaignRuntimeControllerTests(unittest.TestCase):
@@ -502,23 +496,46 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
         self.assertEqual(relocalization_residual_pixels(None, (30.0, 40.0)), 50.0)
         self.assertIsNone(relocalization_residual_pixels(None, None))
 
-    def test_home_atlas_entry_uses_verified_dispatch_not_raw_adb(self):
-        import inspect
+    def test_home_atlas_entry_delegates_to_verified_route_without_raw_transport(self):
+        import json
+        import tempfile
+
         from scripts import bluestacks_campaign_ap as campaign_ap
-        from scripts import home_atlas_bluestacks as home_atlas
 
-        entry_src = inspect.getsource(campaign_ap._dispatch_home_atlas_campaign_entry)
-        self.assertIn("run_verified_campaign_home_atlas_entry", entry_src)
-        self.assertNotIn("dispatch_swipe", entry_src)
-        self.assertNotIn("dispatch_tap", entry_src)
+        class Runtime:
+            input_count = 0
 
-        verified_src = inspect.getsource(home_atlas.run_verified_campaign_home_atlas_entry)
-        self.assertIn("dispatch_verified_navigate_pan", verified_src)
-        self.assertIn("dispatch_verified_campaign_home_building_tap", verified_src)
-        self.assertNotIn("runner.dispatch_swipe", verified_src)
-        self.assertNotIn("runner.dispatch_tap", verified_src)
-        tap_src = inspect.getsource(home_atlas.dispatch_verified_campaign_home_building_tap)
-        self.assertIn("SafeActionExecutor", tap_src)
+            def tap(self, *_args, **_kwargs):
+                raise AssertionError("entry wrapper must not tap directly")
+
+            def swipe(self, *_args, **_kwargs):
+                raise AssertionError("entry wrapper must not swipe directly")
+
+        calls = []
+
+        def verified(runtime, **kwargs):
+            calls.append((runtime, kwargs))
+            runtime.input_count += 2
+            return {"status": "opened", "tap_telemetry": {"dispatched": True}}
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Runtime()
+            runtime.session = Path(directory)
+            events = Path(directory) / "events.jsonl"
+            with patch.object(campaign_ap, "run_verified_campaign_home_atlas_entry", side_effect=verified):
+                result = campaign_ap._dispatch_home_atlas_campaign_entry(
+                    runtime=runtime, events=events, maximum_pans=3, post_input_delay=0.0,
+                )
+            logged = [json.loads(line) for line in events.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(calls), 1)
+        self.assertIs(calls[0][0], runtime)
+        self.assertIs(calls[0][1]["execute"], True)
+        self.assertEqual(calls[0][1]["maximum_pans"], 3)
+        self.assertIs(calls[0][1]["semantic_opened_check"], campaign_ap._campaign_entry_semantically_opened)
+        self.assertEqual(result["status"], "opened")
+        self.assertEqual(result["navigation_input_count"], 2)
+        self.assertEqual([row["type"] for row in logged], ["home_atlas_entry_verified"])
+        self.assertNotIn("tap_telemetry", logged[0])
 
     def test_campaign_entry_semantic_open_rejects_home_and_unknown(self):
         from unittest.mock import patch
@@ -626,7 +643,20 @@ class CampaignVisionReplayTests(unittest.TestCase):
             self.assertIsNotNone(image)
             self.assertEqual(image.shape[:2], shape)
 
-    @unittest.skipUnless(capture.is_dir(), "ignored local BlueStacks replay is unavailable")
+    def test_committed_frames_recognize_tier_map_and_result(self):
+        # Committed copies of consume-ap-campaign step-002-after / step-008-before
+        # (provenance and sha256 in tests/fixtures/*/manifest.json).
+        stage = CampaignStage.parse("1-3-1")
+        fixtures = Path("tests/fixtures")
+        cases = {
+            fixtures / "campaign_tier_controls/retained-tier2-map.png": CampaignScreen.TIER_MAP,
+            fixtures / "campaign_victory/retained-winner.png": CampaignScreen.RESULT,
+        }
+        for path, screen in cases.items():
+            with self.subTest(name=path.name):
+                self.assertEqual(read_campaign_frame(path, stage).observation.screen, screen)
+
+    @requires_local_captures
     def test_retained_frames_recognize_full_battle_sequence(self):
         stage = CampaignStage.parse("1-3-1")
         cases = {
@@ -641,18 +671,25 @@ class CampaignVisionReplayTests(unittest.TestCase):
         }
         for name, screen in cases.items():
             with self.subTest(name=name):
-                self.assertEqual(read_campaign_frame(self.capture / name, stage).observation.screen, screen)
+                path = require_capture(self.capture / name)
+                self.assertEqual(read_campaign_frame(path, stage).observation.screen, screen)
 
-        self.assertFalse(read_campaign_frame(self.capture / "step-006-after.png", stage).observation.auto_enabled)
-        self.assertTrue(read_campaign_frame(self.capture / "step-007-after.png", stage).observation.auto_enabled)
+        self.assertFalse(
+            read_campaign_frame(
+                require_capture(self.capture / "step-006-after.png"), stage
+            ).observation.auto_enabled
+        )
+        self.assertTrue(
+            read_campaign_frame(
+                require_capture(self.capture / "step-007-after.png"), stage
+            ).observation.auto_enabled
+        )
 
-    @unittest.skipUnless(
-        Path(r"I:\Pictures\BlueStacks\Screenshot_2026.07.16_00.42.21.790.png").is_file(),
-        "user-supplied defeat replay is unavailable",
-    )
     def test_user_defeat_frame_binds_only_bottom_continue(self):
+        # Committed copy of the user-supplied 2026-07-16 defeat screenshot
+        # (tests/fixtures/campaign_victory/manifest.json records its sha256).
         recognition = read_campaign_frame(
-            Path(r"I:\Pictures\BlueStacks\Screenshot_2026.07.16_00.42.21.790.png"),
+            Path("tests/fixtures/campaign_victory/retained-defeat.png"),
             CampaignStage.parse("1-20-9"),
         )
         self.assertEqual(recognition.observation.screen, CampaignScreen.RESULT)

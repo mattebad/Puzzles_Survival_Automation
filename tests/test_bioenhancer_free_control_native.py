@@ -6,7 +6,7 @@ import unittest
 
 import cv2
 
-from scripts import bioenhancer_free_research_canary as bio
+from scripts import bioenhancer_free_research_route as bio
 
 
 FIXTURE = Path(__file__).parent / "fixtures/bioenhancer_free_control/native-free-research-ready-20261031.png"

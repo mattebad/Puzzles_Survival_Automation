@@ -43,6 +43,13 @@ from tasks.ultimate_challenge_daily import (
     UltimateChallengeEntryObservation,
     empty_reset_window_state,
 )
+from tests.support.ultimate import CampaignExitRuntime, captured_native_frame
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -299,12 +306,18 @@ class UltimateChallengeVisualTests(unittest.TestCase):
         frame[385:425, 270:530] = (0, 0, 180)
         self.assertIsNone(ultimate._recognize_flee_warning(frame))
 
-    def test_repair_rebinds_entry_on_exact_immediate_before_and_enforces_ceiling(self) -> None:
-        source = Path(ultimate.__file__).read_text(encoding="utf-8")
-        self.assertIn('runtime.capture("uc-entry-immediate-before")', source)
-        self.assertIn("fresh_entry = _bind_ultimate_challenge_entry", source)
+    def test_input_budget_ceiling_is_enforced_by_the_cli(self) -> None:
         self.assertEqual(ultimate.MAX_TOTAL_INPUTS, 16)
-        self.assertIn("--max-total-inputs", source)
+        for budget in (0, ultimate.MAX_TOTAL_INPUTS + 1):
+            with self.subTest(budget=budget), patch("sys.stderr"):
+                with self.assertRaises(SystemExit) as raised:
+                    ultimate.main([
+                        "--adb", "HD-Adb.exe",
+                        "--serial", "127.0.0.1:5555",
+                        "--navigation-only",
+                        "--max-total-inputs", str(budget),
+                    ])
+            self.assertEqual(raised.exception.code, 2)
 
 
 class UltimateChallengeLineupTests(unittest.TestCase):
@@ -2199,26 +2212,6 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
     EXIT_ROI = (690, 920, 800, 1060)
 
     @staticmethod
-    def _captured(
-        root: Path,
-        frame: np.ndarray,
-        label: str,
-        ordinal: int,
-    ) -> CapturedNativeFrame:
-        encoded_ok, encoded = cv2.imencode(".png", frame)
-        assert encoded_ok
-        payload = encoded.tobytes()
-        path = root / f"{ordinal:04d}-{label}.png"
-        path.write_bytes(payload)
-        return CapturedNativeFrame(
-            frame=frame.copy(),
-            png=payload,
-            sha256=hashlib.sha256(payload).hexdigest(),
-            captured_monotonic=float(ordinal),
-            path=path,
-        )
-
-    @staticmethod
     def _exit_dialog_frame(
         *,
         modal_text: str = "Exit the game?",
@@ -2258,55 +2251,6 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             cv2.LINE_AA,
         )
         return frame
-
-    class _Runtime:
-        def __init__(
-            self,
-            root: Path,
-            frames: list[np.ndarray],
-        ) -> None:
-            self.root = root
-            self.root.mkdir(parents=True, exist_ok=True)
-            self.frames = list(frames)
-            self.captures: list[CapturedNativeFrame] = []
-            self.taps: list[dict[str, object]] = []
-            self.backs: list[dict[str, object]] = []
-            self.reconciliations: list[
-                tuple[str, str, CapturedNativeFrame, str]
-            ] = []
-            self.action_keys: set[str] = set()
-            self.input_count = 0
-            self.runner = SimpleNamespace()
-
-        def capture(self, label: str) -> CapturedNativeFrame:
-            frame = self.frames.pop(0) if self.frames else self.captures[-1].frame
-            captured = UltimateCampaignExitRecoveryTests._captured(
-                self.root,
-                frame,
-                label,
-                len(self.captures) + 1,
-            )
-            self.captures.append(captured)
-            return captured
-
-        def tap(self, source: CapturedNativeFrame, **kwargs) -> None:
-            self.taps.append({"source": source, **kwargs})
-            self.action_keys.add(str(kwargs["action_key"]))
-            self.input_count += 1
-
-        def back(self, source: CapturedNativeFrame, **kwargs) -> None:
-            self.backs.append({"source": source, **kwargs})
-            self.action_keys.add(str(kwargs["action_key"]))
-            self.input_count += 1
-
-        def reconcile(
-            self,
-            action_key: str,
-            status: str,
-            post: CapturedNativeFrame,
-            reason: str,
-        ) -> None:
-            self.reconciliations.append((action_key, status, post, reason))
 
     def test_real_exit_dialog_binds_only_cancel_and_rejects_negatives(self) -> None:
         recognized, cancel_roi = ultimate.troop_training_vision.recognize_exit_dialog(
@@ -2365,14 +2309,14 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             (session / "frames").mkdir(parents=True)
             events = session / "events.jsonl"
             campaign_frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-            runtime = self._Runtime(
+            runtime = CampaignExitRuntime(
                 root,
                 [
                     np.zeros((1280, 800, 3), dtype=np.uint8),
                     np.zeros((1280, 800, 3), dtype=np.uint8),
                 ],
             )
-            campaign = self._captured(root, campaign_frame, "campaign", 90)
+            campaign = captured_native_frame(root, campaign_frame, "campaign", 90)
             with patch.object(
                 ultimate,
                 "_recognize_ultimate_main",
@@ -2427,12 +2371,12 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
         self.assertEqual(detail["resource_delta"], {"ap": 0, "stamina": 0, "currency": 0, "items": 0})
 
     def test_post_flee_uc_back_transport_failure_reconciles_only_accounted_key(self) -> None:
-        class BackFailsAfterAccounting(self._Runtime):
+        class BackFailsAfterAccounting(CampaignExitRuntime):
             def back(self, source, **kwargs) -> None:
                 super().back(source, **kwargs)
                 raise RuntimeError("synthetic UC back transport failure")
 
-        class BackFailsBeforeAccounting(self._Runtime):
+        class BackFailsBeforeAccounting(CampaignExitRuntime):
             def back(self, _source, **_kwargs) -> None:
                 raise RuntimeError("synthetic pre-accounting failure")
 
@@ -2489,12 +2433,12 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
                 session = root / "session"
                 (session / "frames").mkdir(parents=True)
                 events = session / "events.jsonl"
-                runtime = self._Runtime(
+                runtime = CampaignExitRuntime(
                     root,
                     [np.zeros((1280, 800, 3), dtype=np.uint8)],
                 )
                 successor = (
-                    self._captured(
+                    captured_native_frame(
                         root,
                         np.full((1280, 800, 3), 7, dtype=np.uint8),
                         "wrong-successor",
@@ -2543,11 +2487,11 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             session = root / "session"
             (session / "frames").mkdir(parents=True)
             events = session / "events.jsonl"
-            runtime = self._Runtime(
+            runtime = CampaignExitRuntime(
                 root,
                 [np.zeros((1280, 800, 3), dtype=np.uint8)],
             )
-            campaign = self._captured(
+            campaign = captured_native_frame(
                 root,
                 np.full((1280, 800, 3), 9, dtype=np.uint8),
                 "campaign-successor",
@@ -2602,7 +2546,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
                 session = root / "session"
                 (session / "frames").mkdir(parents=True)
                 events = session / "events.jsonl"
-                runtime = self._Runtime(
+                runtime = CampaignExitRuntime(
                     root,
                     [np.zeros((1280, 800, 3), dtype=np.uint8)] * 10,
                 )
@@ -2660,7 +2604,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             ),
             cv2.IMREAD_COLOR,
         )
-        runtime_holder: list[UltimateCampaignExitRecoveryTests._Runtime] = []
+        runtime_holder: list[CampaignExitRuntime] = []
         frames = [dialog, dialog, campaign_frame, campaign_frame, np.zeros((1280, 800, 3), dtype=np.uint8)]
 
         class FakeRunner:
@@ -2673,7 +2617,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             def get_state(self) -> str:
                 return "device"
 
-        class FakeRuntime(self._Runtime):
+        class FakeRuntime(CampaignExitRuntime):
             def __init__(self, runner, session: Path, *, execute: bool) -> None:
                 super().__init__(session / "frames", frames)
                 self.runner = runner
@@ -2770,7 +2714,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             def get_state(self) -> str:
                 return "device"
 
-        class FakeRuntime(self._Runtime):
+        class FakeRuntime(CampaignExitRuntime):
             def __init__(self, runner, session: Path, *, execute: bool) -> None:
                 super().__init__(
                     session / "frames", [np.zeros((1280, 800, 3), dtype=np.uint8)]
@@ -2843,7 +2787,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             def get_state(self) -> str:
                 return "device"
 
-        class FakeRuntime(self._Runtime):
+        class FakeRuntime(CampaignExitRuntime):
             def __init__(self, runner, session: Path, *, execute: bool) -> None:
                 super().__init__(
                     session / "frames", [np.zeros((1280, 800, 3), dtype=np.uint8)]
@@ -2910,7 +2854,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
                 self.session = runtime_session
                 self.execute = execute
                 self.input_count = 0
-                self._captured = UltimateCampaignExitRecoveryTests._captured(
+                self._captured = captured_native_frame(
                     runtime_session,
                     dialog,
                     "campaign-resume-source",
