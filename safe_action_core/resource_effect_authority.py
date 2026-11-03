@@ -1996,14 +1996,22 @@ class ResourceEffectAuthority:
         ).fetchall()
         result: list[datetime] = []
         for row in rows:
-            if row["transport_at_utc"]:
-                try:
-                    value = datetime.fromisoformat(str(row["transport_at_utc"]).replace("Z", "+00:00"))
-                    if value.tzinfo is None:
-                        value = value.replace(tzinfo=timezone.utc)
-                    result.append(value.astimezone(timezone.utc))
-                except ValueError:
-                    continue
+            # An effect whose time cannot be established cannot be proven to
+            # precede a later reset; fail closed instead of dropping it.
+            raw = row["transport_at_utc"]
+            if not raw:
+                raise ResourceAuthorizationDenied(
+                    "historical effect has no transport time; later reset cannot be proven"
+                )
+            try:
+                value = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ResourceAuthorizationDenied(
+                    "historical effect transport time is unparseable; later reset cannot be proven"
+                ) from exc
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=timezone.utc)
+            result.append(value.astimezone(timezone.utc))
         return result
 
     def append_historical_block_resolution(
