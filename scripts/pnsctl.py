@@ -89,32 +89,6 @@ FLOW_DELIVERY_LEASE = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.j
 FLOW_DELIVERY_BLUESTACKS_REGISTRY = (
     REPO_ROOT / "tasks" / "flow_delivery_bluestacks_registry.json"
 )
-BLUESTACKS_FLOW_IDS = (
-    "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE",
-    "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
-    "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION",
-    CAMPAIGN_AP_FLOW_ID,
-    "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
-    "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION",
-    "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
-    "NOVA-PRAISE-HOME-ATLAS-MIGRATION",
-    "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
-    "NOAHS-TAVERN-HOME-ATLAS-MIGRATION",
-    "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
-    "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
-    "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
-    "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
-    "SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT",
-    "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-    "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
-    "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
-    "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
-    "NANOWEAPON-BLUESTACKS-INTEGRATION",
-    RECRUITMENT_MAINTENANCE_FLOW_ID,
-    "WORLD-MAP-NAVIGATION-FOUNDATION",
-    "GATHERING-BLUESTACKS-INTEGRATION",
-    "ZOMBIE-LAIR-BLUESTACKS-INTEGRATION",
-)
 # Handler IDs are fixed code bindings, never arbitrary commands. They remain empty until a flow's
 # reviewed implementation registers all three route-specific capabilities.
 _BLUESTACKS_FLOW_RUNNERS: dict[str, Any] = {}
@@ -658,8 +632,8 @@ def _load_bluestacks_flow_registry() -> dict[str, dict[str, str]]:
         "consequence_class",
     }
     for flow_id, contract in registry["flows"].items():
-        if flow_id not in BLUESTACKS_FLOW_IDS or not isinstance(contract, dict):
-            raise OperatorError("BlueStacks registry contains an unknown flow")
+        if not isinstance(contract, dict):
+            raise OperatorError("BlueStacks flow registry contract is incomplete")
         if set(contract) != required or any(
             not isinstance(contract[field], str) or not contract[field].strip()
             for field in required
@@ -668,6 +642,26 @@ def _load_bluestacks_flow_registry() -> dict[str, dict[str, str]]:
         if contract["consequence_class"] not in {"navigation_only", "consequential"}:
             raise OperatorError("BlueStacks flow registry consequence class is invalid")
     return registry["flows"]
+
+
+def _implemented_bluestacks_flow_ids() -> tuple[str, ...]:
+    """Flow IDs whose registry route has all three handlers bound in code.
+
+    This is the single source for the flow IDs ``pnsctl`` offers and accepts, so
+    a planned or contract-only flow can never be selectable before it has a
+    runner, evidence validator, and recovery handler.
+    """
+
+    return tuple(
+        flow_id
+        for flow_id, route in _load_bluestacks_flow_registry().items()
+        if route["runner"] in _BLUESTACKS_FLOW_RUNNERS
+        and route["evidence_validator"] in _BLUESTACKS_EVIDENCE_VALIDATORS
+        and route["recovery_handler"] in _BLUESTACKS_RECOVERY_HANDLERS
+    )
+
+
+BLUESTACKS_FLOW_IDS = _implemented_bluestacks_flow_ids()
 
 
 def _focused_package(dumpsys_output: str) -> str:
