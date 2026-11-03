@@ -42,6 +42,12 @@ from tasks.troop_training_vision import (
     recognize_radial_menu,
     recognize_training,
 )
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 RESET = "local-reset-2026-07-16"

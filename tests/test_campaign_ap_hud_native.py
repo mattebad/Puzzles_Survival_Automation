@@ -11,6 +11,12 @@ from tasks.campaign_auto_battle_vision import (
     HOME_AP_CURRENT_ROI, HOME_AP_ROI, MAP_AP_CURRENT_ROI, MAP_AP_ROI,
     CampaignFrameRecognition, _ap_fraction, _hud_ap_fraction, recognize_campaign_frame,
 )
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 ROOT = Path(__file__).resolve().parents[1]

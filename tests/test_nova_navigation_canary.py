@@ -62,6 +62,12 @@ from scripts.pnsctl import (
     _retained_semantic_completed_count,
 )
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 ROOT = Path(__file__).resolve().parents[1]

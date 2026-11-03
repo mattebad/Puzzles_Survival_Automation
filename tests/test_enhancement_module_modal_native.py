@@ -11,6 +11,12 @@ import numpy as np
 
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 FRAME = Path(__file__).parent / "fixtures/enhancement_item_modal/native-module-fighter-20261029.png"

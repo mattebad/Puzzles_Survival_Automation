@@ -14,6 +14,12 @@ from automation_service.campaign import CampaignRunner
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
 from scripts.bluestacks_popup_recognition import recognize_reset_popup
 from tasks.campaign_auto_battle import CampaignScreen
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 FIXTURE = Path(__file__).parent / "fixtures/campaign_startup_recovery/vip-chapter-source.png"
 

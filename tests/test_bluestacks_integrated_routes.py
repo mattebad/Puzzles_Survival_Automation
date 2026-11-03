@@ -44,6 +44,12 @@ from tasks.ruins_challenge import (
     RuinsScreenObservation,
 )
 from tasks.ruins_challenge_vision import RuinsDetailRecognition, RuinsFrameRecognition, RuinsResultRecognition, RuinsRewardRecognition
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 RESET = "integration-reset"

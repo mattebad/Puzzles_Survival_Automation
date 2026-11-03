@@ -12,6 +12,12 @@ import cv2
 from scripts import bioenhancer_free_research_canary as bio
 from scripts.home_atlas_bluestacks import bluestacks_direct_pan_contract
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition, plan_direct_pan
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 ROOT = Path(__file__).resolve().parents[1]

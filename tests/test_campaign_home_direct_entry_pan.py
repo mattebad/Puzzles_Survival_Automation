@@ -18,6 +18,12 @@ from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition, _bounded_drag_delta, camera_origin
 from tasks import home_atlas_vision as vision
 from tests.test_home_atlas_verified_route import _ready
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 ROOT = Path(__file__).resolve().parents[1]

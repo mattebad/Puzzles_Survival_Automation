@@ -13,6 +13,12 @@ import numpy as np
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from scripts.nova_praise_bluestacks import NovaNavigationCanaryRoute
 from tests.test_nova_navigation_canary import ATLAS_PATH, _identity
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 FIXTURES = Path(__file__).parent / "fixtures/startup"
