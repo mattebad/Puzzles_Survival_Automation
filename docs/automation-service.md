@@ -91,6 +91,13 @@ supervised mode, BlueStacks adapter, and canonical state path
 before serving, and it does not auto-enable, unblock, register, schedule, deploy, or bypass any
 existing control gate.
 
+Import direction: `scripts/pnsctl.py` imports `automation_service`, never the reverse. The fixed
+BlueStacks runtime constants and the fixed-slot binding derivation live in
+`tasks/runtime_identity.py`. Native serve receives its owner-bound application startup as the
+`application_startup` argument of `automation_service.cli.main`, which `pnsctl` supplies.
+`tests/test_architecture_imports.py` enforces zero `automation_service -> scripts.pnsctl` imports
+and ratchets the remaining `automation_service -> scripts` module edges.
+
 The normal Campaign launch shape is:
 
 ```text

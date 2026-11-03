@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 import hashlib
 import json
+from pathlib import Path
 from typing import Optional
 
 
@@ -22,6 +23,12 @@ FIXED_RUNTIME_SCOPE = "local-bluestacks-primary-login-slot-v1"
 FIXED_RUNTIME_BINDING_VERSION = "v1"
 FIXED_RUNTIME_BINDING_KIND = "fixed_runtime_slot_binding"
 FIXED_RUNTIME_IDENTITY_SEMANTICS = "fixed_runtime_binding_plus_static_utc_reset"
+# The one approved private BlueStacks runtime: its ADB endpoint, serial, profile and game package.
+BLUESTACKS_ADB = Path(r"C:\Program Files\BlueStacks_nxt\HD-Adb.exe")
+BLUESTACKS_SERIAL = "emulator-5554"
+FIXED_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+BLUESTACKS_PACKAGE = "com.global.ztmslg"
+RESOURCE_PRIMARY_LOGIN_SLOT_VERSION = "primary-login-slot-v1"
 RESOURCE_IDENTITY_AUTHORIZATION_FRESHNESS_SECONDS = 600.0
 
 
@@ -119,6 +126,17 @@ def derive_fixed_runtime_binding(
         runtime_profile_id=runtime_profile_id,
         package_id=package_id,
         login_slot_version=login_slot_version,
+    )
+
+
+def resource_fixed_runtime_binding() -> FixedRuntimeBinding:
+    """Derive Resource's fixed slot identity from the checked-in runtime constants."""
+
+    return derive_fixed_runtime_binding(
+        serial=BLUESTACKS_SERIAL,
+        runtime_profile_id=FIXED_RUNTIME_PROFILE_ID,
+        package_id=BLUESTACKS_PACKAGE,
+        login_slot_version=RESOURCE_PRIMARY_LOGIN_SLOT_VERSION,
     )
 
 

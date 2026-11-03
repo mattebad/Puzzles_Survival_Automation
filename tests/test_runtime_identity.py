@@ -17,6 +17,7 @@ from tasks.runtime_identity import (
     derive_resource_runtime_identity,
     derive_static_utc_reset,
     evaluate_runtime_preflight,
+    resource_fixed_runtime_binding,
     verify_runtime_identity,
 )
 
@@ -331,6 +332,13 @@ class RuntimeIdentityTests(unittest.TestCase):
                 self.assertNotEqual(changed.binding_digest, baseline.binding_digest)
                 self.assertNotEqual(changed.account_id, baseline.account_id)
                 self.assertNotEqual(changed.server_id, baseline.server_id)
+
+    def test_resource_fixed_runtime_binding_is_the_checked_in_primary_slot(self) -> None:
+        self.assertEqual(resource_fixed_runtime_binding(), _fixed_binding())
+        self.assertEqual(
+            resource_fixed_runtime_binding().binding_digest,
+            "e2b17f4a5d8f53bc156bc29ab4efb6b44534f6e3d15c2847748a59a5f2ade2a5",
+        )
 
 
 if __name__ == "__main__":

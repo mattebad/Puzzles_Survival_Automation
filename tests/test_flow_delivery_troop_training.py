@@ -46,6 +46,7 @@ from tasks.troop_training import (
     TrainingScreenObservation,
     TroopTrainingConfig,
 )
+from tasks.runtime_identity import BLUESTACKS_PACKAGE, BLUESTACKS_SERIAL
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -342,7 +343,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
 
         observation = {
             "device_state": "device",
-            "foreground_package": pnsctl.PACKAGE,
+            "foreground_package": BLUESTACKS_PACKAGE,
             "native_width": 800,
             "native_height": 1280,
             "frame_sha256": "0" * 64,
@@ -625,7 +626,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
 
         observation = {
             "device_state": "device",
-            "foreground_package": pnsctl.PACKAGE,
+            "foreground_package": BLUESTACKS_PACKAGE,
             "native_width": 800,
             "native_height": 1280,
             "frame_sha256": "0" * 64,
@@ -1106,7 +1107,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                 "schema_version": 1,
                 "flow_id": FLOW_ID,
                 "status": "blocked",
-                "serial": pnsctl.BLUESTACKS_SERIAL,
+                "serial": BLUESTACKS_SERIAL,
                 "native_width": 800,
                 "native_height": 1280,
                 "runtime_owner": "test",
@@ -1766,7 +1767,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                 "schema_version": 1,
                 "flow_id": FLOW_ID,
                 "status": "completed",
-                "serial": pnsctl.BLUESTACKS_SERIAL,
+                "serial": BLUESTACKS_SERIAL,
                 "native_width": 800,
                 "native_height": 1280,
                 "runtime_owner": "test",

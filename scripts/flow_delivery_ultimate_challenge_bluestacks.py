@@ -29,6 +29,7 @@ from tasks.ultimate_challenge_daily import (
     save_reset_window_state,
 )
 from scripts.startup_normalization import is_clean_home_frame
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_PACKAGE, BLUESTACKS_SERIAL
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
@@ -99,9 +100,9 @@ def run_ultimate_challenge_navigation_only(
         sys.executable,
         str(REPO_ROOT / "scripts" / "bluestacks_ultimate_challenge.py"),
         "--adb",
-        str(pnsctl.BLUESTACKS_ADB),
+        str(BLUESTACKS_ADB),
         "--serial",
-        pnsctl.BLUESTACKS_SERIAL,
+        BLUESTACKS_SERIAL,
         "--navigation-only",
         "--execute",
         "--yes",
@@ -145,7 +146,7 @@ def run_ultimate_challenge_navigation_only(
         "schema_version": 1,
         "flow_id": FLOW_ID,
         "status": "completed" if ok else "failed",
-        "serial": pnsctl.BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
         "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": lease["owner"],
@@ -449,7 +450,7 @@ def _validated_flee_recovery(
             result.get("flow_id") != FLOW_ID
             or result.get("reset_identity") != reset_identity
             or delivery.get("flow_id") != FLOW_ID
-            or delivery.get("serial") != _pnsctl().BLUESTACKS_SERIAL
+            or delivery.get("serial") != BLUESTACKS_SERIAL
             or delivery.get("native_width") != 800
             or delivery.get("native_height") != 1280
             or delivery.get("runtime_profile_id", BLUESTACKS_RUNTIME_PROFILE_ID) != BLUESTACKS_RUNTIME_PROFILE_ID
@@ -586,8 +587,8 @@ def run_ultimate_challenge_daily(
         sys.executable,
         str(REPO_ROOT / "scripts" / "bluestacks_ultimate_challenge.py"),
         "--post-flee-home-only" if recovery_evidence else "--daily",
-        "--adb", str(pnsctl.BLUESTACKS_ADB),
-        "--serial", pnsctl.BLUESTACKS_SERIAL,
+        "--adb", str(BLUESTACKS_ADB),
+        "--serial", BLUESTACKS_SERIAL,
         "--execute", "--yes",
         "--reset-identity", reset_identity,
         "--max-total-inputs", str(maximum),
@@ -674,7 +675,7 @@ def run_ultimate_challenge_daily(
         "schema_version": 1,
         "flow_id": FLOW_ID,
         "status": "completed" if ok else "failed",
-        "serial": pnsctl.BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
         "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": lease["owner"],
@@ -811,7 +812,7 @@ def recover_ultimate_challenge_navigation_only(
         raise pnsctl.OperatorError("approved BlueStacks serial is not in device state")
     focus = str(pnsctl._run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
     package = pnsctl._focused_package(focus)
-    if package != pnsctl.PACKAGE:
+    if package != BLUESTACKS_PACKAGE:
         raise pnsctl.OperatorError(
             "Puzzles & Survival is not the foreground package during recovery"
         )

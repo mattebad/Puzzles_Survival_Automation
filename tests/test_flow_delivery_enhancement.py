@@ -47,6 +47,7 @@ from tasks.enhancement import (
     ENHANCEMENT_SCREEN,
 )
 from tasks.gameplay_flow_contracts import load_flow_contract
+from tasks.runtime_identity import BLUESTACKS_SERIAL
 
 
 GEOMETRY = {
@@ -328,7 +329,7 @@ def _family_verifier_structure(session: Path) -> dict[str, object]:
         "flow_id": FLOW_ID,
         "status": "completed",
         "variant": "family",
-        "serial": pnsctl.BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": 800,
         "native_height": 1280,
         "runtime_owner": "test-owner",

@@ -16,6 +16,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
+import automation_service.enhancement as enhancement_service
 import automation_service.registry as registry
 from automation_service.contracts import NormalizedOutcome
 from automation_service.enhancement import (
@@ -30,6 +31,7 @@ from scripts import pnsctl
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from tasks.scheduler_task_result import SchedulerIdentity
 from tests.test_service_recruitment import VirtualStop
+from tasks.runtime_identity import BLUESTACKS_SERIAL
 
 
 START = 1_800_000_000.0
@@ -109,8 +111,8 @@ class ServiceEnhancementTests(unittest.TestCase):
         for target, name, value in (
             (boundary, "RUNTIME_INPUT_LOCK_PATH", self.root / "lock.sqlite3"),
             (pnsctl, "BLUESTACKS_ARTIFACT_ROOT", self.root / "artifacts"),
-            (pnsctl, "BLUESTACKS_ADB", "fake-adb"),
-            (pnsctl, "BLUESTACKS_SERIAL", "emulator-5554"),
+            (enhancement_service, "BLUESTACKS_ADB", "fake-adb"),
+            (delivery, "BLUESTACKS_ADB", "fake-adb"),
         ):
             patched = patch.object(target, name, value)
             patched.start()
@@ -354,7 +356,7 @@ class ServiceEnhancementTests(unittest.TestCase):
                  "state_transition": ["HOME_CANONICAL", "COMMANDER_INFO_RECOGNIZED", "GEAR_SUCCESSOR_RECONCILED",
                                       "CHIP_SUCCESSOR_RECONCILED", "MODULE_SUCCESSOR_RECONCILED", "SAFE_TERMINAL_RECOGNIZED"]}
         result = {"flow_id": FLOW_ID, "status": self.route_status, "variant": "family",
-                  "serial": pnsctl.BLUESTACKS_SERIAL, "native_width": 800, "native_height": 1280,
+                  "serial": BLUESTACKS_SERIAL, "native_width": 800, "native_height": 1280,
                   "input_count": session.input_count, "dispatch_count": runtime.input_count,
                   "resource_affecting_dispatch_count": len(current), "enhancement_result": route,
                   "terminal_recognized": True, "proof_topology": self.topology,

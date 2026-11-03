@@ -15,6 +15,7 @@ from scripts import delegated_runtime_receipts as control
 from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
+from tasks.runtime_identity import BLUESTACKS_PACKAGE
 
 
 def _frame(name: str) -> CapturedNativeFrame:
@@ -737,7 +738,7 @@ class ReceiptTests(unittest.TestCase):
             )
             observation = {
                 "device_state": "device",
-                "foreground_package": pnsctl.PACKAGE,
+                "foreground_package": BLUESTACKS_PACKAGE,
                 "native_width": 800,
                 "native_height": 1280,
                 "frame_sha256": hashlib.sha256(b"png").hexdigest(),
@@ -793,7 +794,7 @@ class ReceiptTests(unittest.TestCase):
             )
             observation = {
                 "device_state": "device",
-                "foreground_package": pnsctl.PACKAGE,
+                "foreground_package": BLUESTACKS_PACKAGE,
                 "native_width": 800,
                 "native_height": 1280,
                 "frame_sha256": "a" * 64,
@@ -863,7 +864,7 @@ class ReceiptTests(unittest.TestCase):
 
             observation = {
                 "device_state": "device",
-                "foreground_package": pnsctl.PACKAGE,
+                "foreground_package": BLUESTACKS_PACKAGE,
                 "native_width": 800,
                 "native_height": 1280,
                 "frame_sha256": "a" * 64,

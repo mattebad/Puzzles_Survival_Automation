@@ -18,6 +18,7 @@ from tasks.scheduler_task_result import SchedulerIdentity
 
 from .contracts import FlowDescriptor, NormalizedOutcome, NormalizedResult
 from .registry import RegisteredDispatchSnapshot
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 FLOW_ID = native.FLOW_ID
@@ -235,7 +236,7 @@ class EnhancementRunner:
         started = _epoch(self.utc_clock(), "start")
         native_reset, _ = _reset(started, identity.reset_id)
         pnsctl = native._pnsctl()
-        if (str(self.adb), self.serial) != (str(pnsctl.BLUESTACKS_ADB), pnsctl.BLUESTACKS_SERIAL):
+        if (str(self.adb), self.serial) != (str(BLUESTACKS_ADB), BLUESTACKS_SERIAL):
             raise ValueError("Enhancement runtime configuration differs from its existing wrapper")
         invocation = f"enhancement-{datetime.fromtimestamp(started, timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}-{uuid4().hex[:8]}"
         session = None

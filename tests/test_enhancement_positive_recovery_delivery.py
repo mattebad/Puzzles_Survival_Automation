@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from scripts import flow_delivery_enhancement_bluestacks as delivery
 from scripts import pnsctl
 from tests import test_enhancement_category_resume as resume_tests
+from tasks.runtime_identity import BLUESTACKS_SERIAL
 
 
 class PositiveRecoveryDeliveryTests(unittest.TestCase):
@@ -55,7 +56,7 @@ class PositiveRecoveryDeliveryTests(unittest.TestCase):
             "proof_kind": "settled_successor", "read_only": True, "input_authority": False, "dispatch": False,
             "input_count": 0, "dispatch_count": 0, "resource_affecting_dispatch_count": 0}
         self.recovery_delivery = {"flow_id": delivery.FLOW_ID, "variant": "family", "status": "recovered_successor",
-            "serial": pnsctl.BLUESTACKS_SERIAL, "native_width": 800, "native_height": 1280,
+            "serial": BLUESTACKS_SERIAL, "native_width": 800, "native_height": 1280,
             "production_registration": "NOT_REGISTERED", "scheduler_enabled": False,
             "frames": [str(Path(row["path"]).relative_to(self.recovery)) for row in rows],
             "events_path": "events.jsonl", "input_count": 0, "dispatch_count": 0,

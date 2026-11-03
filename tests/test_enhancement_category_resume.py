@@ -16,6 +16,7 @@ import numpy as np
 from scripts import flow_delivery_enhancement_bluestacks as delivery
 from scripts import pnsctl
 from tests import test_enhancement_semantic_stage_mapping as context_tests
+from tasks.runtime_identity import BLUESTACKS_SERIAL
 
 
 CATEGORIES = ("gear", "chip", "module")
@@ -71,7 +72,7 @@ class EnhancementCategoryResumeTests(unittest.TestCase):
             postcondition_verified=complete, terminal_recognized=complete, state_transition=TRANSITION)
         case.result.update(
             flow_id=delivery.FLOW_ID, variant="family", status="completed" if complete else "effect_reconciliation_required",
-            serial=pnsctl.BLUESTACKS_SERIAL, native_width=800, native_height=1280,
+            serial=BLUESTACKS_SERIAL, native_width=800, native_height=1280,
             production_registration="NOT_REGISTERED", scheduler_enabled=False,
             proof_topology="composite" if retained else "continuous",
             frames=[str(Path(row["path"]).relative_to(case.session)) for row in rows if row["type"] == "capture"],

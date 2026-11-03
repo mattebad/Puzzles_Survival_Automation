@@ -35,7 +35,8 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                 self.assertEqual(len(parsed.flow), 8)
                 with patch.object(cli, "main", return_value=17) as canonical:
                     self.assertEqual(pnsctl.main(argv), 17)
-                canonical.assert_called_once_with(argv[1:])
+                canonical.assert_called_once_with(
+                    argv[1:], application_startup=pnsctl.owner_bound_application_startup)
 
     def test_a_global_option_value_named_serve_is_not_the_command(self):
         for common in (["--state-path", "serve"], ["--state-path=serve"], ["--mode", "serve"]):
@@ -88,6 +89,20 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                 self.assertFalse(state.get_service_enabled())
                 self.assertFalse(any(row[0] for row in state._db.execute("SELECT enabled FROM flow_state")))
                 self.assertEqual(state._db.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 0)
+
+    def test_direct_service_cli_cannot_serve_native_without_the_pnsctl_startup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = io.StringIO()
+            with patch.object(LocalBlueStacksRuntime, "connect") as connect, redirect_stdout(output):
+                code = cli.main([
+                    "--mode", "supervised", "--adapter", "bluestacks",
+                    "--state-path", str(Path(directory) / "state.sqlite3"), "serve", "--live",
+                    "--flow", "campaign", "--serial", "emulator-5554",
+                    "--account-id", "account", "--server-id", "server",
+                ])
+            self.assertEqual(code, 2)
+            self.assertIn("native application startup is supplied by", json.loads(output.getvalue())["error"])
+            connect.assert_not_called()
 
     def test_ordinary_legacy_campaign_stops_before_receipt_or_runtime(self):
         with patch.object(pnsctl, "_consume_delegated_receipt") as receipt, patch.object(

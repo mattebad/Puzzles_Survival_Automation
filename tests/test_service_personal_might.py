@@ -20,7 +20,7 @@ from scripts import navigation_development_boundary as boundary
 from scripts import personal_might_praise_bluestacks as route
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from scripts.startup_recovery import ContextualPopupRecoveryResult
-from tasks.runtime_identity import derive_resource_runtime_identity
+from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
 from tasks.scheduler_task_result import SchedulerIdentity
 
 
@@ -138,7 +138,7 @@ class ServicePersonalMightTests(unittest.TestCase):
             first = self.run_route()
             self.assertEqual((first["status"], first["total_input_count"], first["praise_transport_calls"]), ("complete_for_reset", 6, 1))
             self.assertTrue(first["terminal_home_verified"])
-            backend = derive_resource_runtime_identity(service._fixed_binding(), datetime.fromtimestamp(START, timezone.utc))
+            backend = derive_resource_runtime_identity(resource_fixed_runtime_binding(), datetime.fromtimestamp(START, timezone.utc))
             self.assertEqual(first["action_key"], service._key(backend))
             self.assertNotEqual(first["backend_identity"]["account_id"], self.identity.account_id)
             self.assertEqual(service.personal_might_next_due(first, self.identity, START), START + 14 * 3600)

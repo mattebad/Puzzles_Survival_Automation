@@ -19,6 +19,7 @@ from automation_service.registry import (
     NOVA_PROFILE_ID,
     RegisteredDispatchSnapshot,
 )
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 _REGISTRATION_FIELDS = frozenset(
@@ -331,7 +332,7 @@ def _write_delivery_result(
         "schema_version": 1,
         "flow_id": FLOW_ID,
         "status": result.get("status"),
-        "serial": _pnsctl().BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": _pnsctl().BLUESTACKS_NATIVE_WIDTH,
         "native_height": _pnsctl().BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
@@ -443,8 +444,8 @@ def run_nova_praise_supervised_one_free_pulse(
         from scripts import nova_praise_bluestacks as route_module
 
         args = SimpleNamespace(
-            adb=pnsctl.BLUESTACKS_ADB,
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=BLUESTACKS_ADB,
+            serial=BLUESTACKS_SERIAL,
             output_directory=pnsctl.NOVA_SUPERVISED_PULSE_OUTPUT_DEFAULT,
             action_database=pnsctl.NOVA_SUPERVISED_ACTION_DATABASE,
             owner=str(lease.get("owner") or "pnsctl-development-session"),

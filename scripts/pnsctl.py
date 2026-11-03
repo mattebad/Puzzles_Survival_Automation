@@ -32,8 +32,13 @@ from scripts.bluestacks_adb_readiness import (  # noqa: E402
     ADBReadinessError,
     ensure_adb_ready,
 )
+from tasks.runtime_identity import (  # noqa: E402
+    BLUESTACKS_ADB,
+    BLUESTACKS_PACKAGE,
+    BLUESTACKS_SERIAL,
+    resource_fixed_runtime_binding,
+)
 
-PACKAGE = "com.global.ztmslg"
 # This is deliberately a narrow admission check for the bootstrap command.  A
 # launcher-looking window is not enough: only these verified BlueStacks Home
 # packages may be used as the safe source for starting the installed game.
@@ -46,13 +51,10 @@ BLUESTACKS_LAUNCHER_PACKAGES = frozenset(
 )
 NAVIGATION_ASSET_ROOT = "tasks/assets/navigation/800x1280"
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
-BLUESTACKS_ADB = Path(r"C:\Program Files\BlueStacks_nxt\HD-Adb.exe")
-BLUESTACKS_SERIAL = "emulator-5554"
 BLUESTACKS_NATIVE_WIDTH = 800
 BLUESTACKS_NATIVE_HEIGHT = 1280
 BLUESTACKS_ARTIFACT_ROOT = REPO_ROOT / ".local-captures" / "flow-delivery"
 DEVELOPMENT_SESSION_ROOT = REPO_ROOT / ".local-captures" / "development-sessions"
-RESOURCE_PRIMARY_LOGIN_SLOT_VERSION = "primary-login-slot-v1"
 RESOURCE_AUTHORIZATION_FRESHNESS_SECONDS = 600.0
 RESOURCE_RESET_INTERVAL_SECONDS = 24 * 60 * 60
 DEVELOPMENT_CHECKPOINT_PATHS = (
@@ -312,20 +314,6 @@ _register_checked_in_bluestacks_handlers()
 
 class OperatorError(RuntimeError):
     pass
-
-
-def _resource_fixed_runtime_binding():
-    """Derive Resource's fixed slot identity from checked-in runtime constants."""
-
-    from scripts.daily_row_claim_bluestacks import BLUESTACKS_RUNTIME_PROFILE_ID
-    from tasks.runtime_identity import derive_fixed_runtime_binding
-
-    return derive_fixed_runtime_binding(
-        serial=BLUESTACKS_SERIAL,
-        runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
-        package_id=PACKAGE,
-        login_slot_version=RESOURCE_PRIMARY_LOGIN_SLOT_VERSION,
-    )
 
 
 _NOVA_RESET_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -698,12 +686,12 @@ def _resolve_installed_game_activity() -> str:
             "android.intent.action.MAIN",
             "-c",
             "android.intent.category.LAUNCHER",
-            PACKAGE,
+            BLUESTACKS_PACKAGE,
         )
     ).strip()
     lines = [line.strip() for line in raw.splitlines() if line.strip()]
     resolved_activity = lines[-1] if lines else ""
-    if not resolved_activity.startswith(f"{PACKAGE}/"):
+    if not resolved_activity.startswith(f"{BLUESTACKS_PACKAGE}/"):
         raise OperatorError(
             "installed Puzzles & Survival launcher activity was not resolved"
         )
@@ -751,7 +739,7 @@ def bluestacks_preflight() -> str:
     if (width, height) != (BLUESTACKS_NATIVE_WIDTH, BLUESTACKS_NATIVE_HEIGHT):
         raise OperatorError("BlueStacks native frame is not 800x1280")
     focused_package = _focused_package(focus)
-    if focused_package != PACKAGE:
+    if focused_package != BLUESTACKS_PACKAGE:
         raise OperatorError("Puzzles & Survival is not the foreground package")
     return json.dumps(
         {
@@ -789,7 +777,7 @@ def _development_runtime_observation() -> tuple[dict[str, Any], bytes]:
         raise OperatorError("approved runtime serial is not in device state")
     if (width, height) != (BLUESTACKS_NATIVE_WIDTH, BLUESTACKS_NATIVE_HEIGHT):
         raise OperatorError("development runtime frame is not native 800x1280")
-    if focused_package != PACKAGE:
+    if focused_package != BLUESTACKS_PACKAGE:
         raise OperatorError("Puzzles & Survival is not the foreground package")
     return (
         {
@@ -905,12 +893,12 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
         result.update(before_observation=before, before_frame="before.png")
         persist()
         focused = str(before["foreground_package"])
-        if focused == PACKAGE:
+        if focused == BLUESTACKS_PACKAGE:
             # Existing route owns validation of its current Profile/Chapter context.
             result.update(status="already_foreground", foreground_package=focused,
                           action="observe_existing_game")
             after, _ = capture("after")
-            if after["foreground_package"] != PACKAGE:
+            if after["foreground_package"] != BLUESTACKS_PACKAGE:
                 raise OperatorError("Puzzles & Survival foreground changed during startup observation")
             result.update(after_observation=after, after_frame="after.png")
             persist()
@@ -953,17 +941,17 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
             focus = str(_run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
             fence()
             package = _focused_package(focus)
-            if package not in BLUESTACKS_LAUNCHER_PACKAGES and package != PACKAGE:
+            if package not in BLUESTACKS_LAUNCHER_PACKAGES and package != BLUESTACKS_PACKAGE:
                 unexpected, _ = capture("unexpected-foreground")
                 result.update(after_observation=unexpected, after_frame="unexpected-foreground.png")
                 persist()
                 raise OperatorError(f"launch-game encountered manual or unknown foreground package {package!r}")
-            if package == PACKAGE:
+            if package == BLUESTACKS_PACKAGE:
                 label = "after" if not require_ready else f"readiness-{ordinal:03d}"
                 after, frame = capture(label)
-                if after["foreground_package"] != PACKAGE:
+                if after["foreground_package"] != BLUESTACKS_PACKAGE:
                     raise OperatorError("Puzzles & Survival foreground was not stable after launch")
-                result.update(after_observation=after, after_frame=f"{label}.png", foreground_package=PACKAGE)
+                result.update(after_observation=after, after_frame=f"{label}.png", foreground_package=BLUESTACKS_PACKAGE)
                 if not require_ready:
                     result.update(status="launched")
                     persist()
@@ -1041,7 +1029,7 @@ def _cold_restart_game(*, runtime_input_lock, session_directory: Path) -> dict[s
             (session_directory / "before.png").write_bytes(frame)
             result.update(before_observation=before, before_frame="before.png")
             decoded = cv2.imdecode(np.frombuffer(frame, dtype=np.uint8), cv2.IMREAD_COLOR)
-            if before["foreground_package"] != PACKAGE or decoded is None or not is_clean_home_frame(decoded):
+            if before["foreground_package"] != BLUESTACKS_PACKAGE or decoded is None or not is_clean_home_frame(decoded):
                 raise OperatorError("cold restart requires positively recognized clean Home")
             checkpoint()
             activity = _resolve_installed_game_activity()
@@ -1049,7 +1037,7 @@ def _cold_restart_game(*, runtime_input_lock, session_directory: Path) -> dict[s
             (session_directory / "immediate-before.png").write_bytes(immediate_frame)
             result.update(immediate_before_observation=immediate, immediate_before_frame="immediate-before.png")
             decoded = cv2.imdecode(np.frombuffer(immediate_frame, dtype=np.uint8), cv2.IMREAD_COLOR)
-            if immediate["foreground_package"] != PACKAGE or decoded is None or not is_clean_home_frame(decoded):
+            if immediate["foreground_package"] != BLUESTACKS_PACKAGE or decoded is None or not is_clean_home_frame(decoded):
                 raise OperatorError("clean Home changed before the cold stop")
             checkpoint()
             # Persist the single attempt before transport. An uncertain stop is
@@ -1057,14 +1045,14 @@ def _cold_restart_game(*, runtime_input_lock, session_directory: Path) -> dict[s
             result["system_stop_count"] = 1
             with (session_directory / "stop-attempt.json").open("x", encoding="utf-8") as stream:
                 json.dump(result, stream, indent=2, sort_keys=True)
-            stop_result = _run_fixed_bluestacks_adb("shell", "am", "force-stop", PACKAGE)
+            stop_result = _run_fixed_bluestacks_adb("shell", "am", "force-stop", BLUESTACKS_PACKAGE)
             checkpoint()
             processes = str(_run_fixed_bluestacks_adb("shell", "ps", "-A")).splitlines()
             rows = [line.split() for line in processes[1:] if line.split()]
             if not processes or not rows or processes[0].split()[-1:] != ["NAME"]:
                 raise OperatorError("cold stop process observation is unreadable")
             remaining = [row[-1] for row in rows if (
-                row[-1] == PACKAGE or row[-1].startswith(PACKAGE + ":")
+                row[-1] == BLUESTACKS_PACKAGE or row[-1].startswith(BLUESTACKS_PACKAGE + ":")
             )]
             if remaining:
                 raise OperatorError("game process remains after the single cold stop")
@@ -3344,7 +3332,7 @@ def _produce_resource_runtime_identity(
         raise OperatorError(
             "Resource production identity requires the current session binding"
         )
-    binding = _resource_fixed_runtime_binding()
+    binding = resource_fixed_runtime_binding()
     evaluated = _resource_wall_clock(wall_clock)
     authority, reset_policy = _load_resource_daily_reset_authority()
     try:
@@ -4308,7 +4296,7 @@ def development_session_run_flow(
                     frame = post.png
                     observation = {
                         "device_state": "device",
-                        "foreground_package": PACKAGE,
+                        "foreground_package": BLUESTACKS_PACKAGE,
                         "native_width": BLUESTACKS_NATIVE_WIDTH,
                         "native_height": BLUESTACKS_NATIVE_HEIGHT,
                         "frame_sha256": post.sha256,
@@ -4731,7 +4719,7 @@ def bluestacks_reload_game() -> str:
     if state != "device":
         raise OperatorError("approved BlueStacks serial is not in device state")
     resolved_activity = _resolve_installed_game_activity()
-    _run_fixed_bluestacks_adb("shell", "am", "force-stop", PACKAGE)
+    _run_fixed_bluestacks_adb("shell", "am", "force-stop", BLUESTACKS_PACKAGE)
     _run_fixed_bluestacks_adb(
         "shell", "am", "start", "-W", "-a", "android.intent.action.MAIN",
         "-c", "android.intent.category.LAUNCHER", "-f", "0x10000000", "-n", resolved_activity,
@@ -4744,10 +4732,10 @@ def bluestacks_reload_game() -> str:
             focused_package = _focused_package(focus)
         except OperatorError:
             focused_package = None
-        if focused_package == PACKAGE:
+        if focused_package == BLUESTACKS_PACKAGE:
             break
         time.sleep(1.0)
-    if focused_package != PACKAGE:
+    if focused_package != BLUESTACKS_PACKAGE:
         raise OperatorError(
             "Puzzles & Survival did not return to foreground after reload"
         )
@@ -4774,7 +4762,7 @@ def bluestacks_dismiss_reload_overlay(
     if not re.fullmatch(r"[0-9a-f]{64}", expected_frame_sha256):
         raise OperatorError("expected frame SHA-256 is invalid")
     focus = str(_run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
-    if _focused_package(focus) != PACKAGE:
+    if _focused_package(focus) != BLUESTACKS_PACKAGE:
         raise OperatorError(
             "Puzzles & Survival is not foreground before overlay dismissal"
         )
@@ -8810,7 +8798,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if canonical_argv is not None:
         from automation_service.cli import main as automation_main
 
-        return automation_main(canonical_argv)
+        return automation_main(
+            canonical_argv, application_startup=owner_bound_application_startup
+        )
     args = parser().parse_args(argv)
     if args.command == "nova-praise-pulse":
         try:
