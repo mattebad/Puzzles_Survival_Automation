@@ -58,14 +58,15 @@ def find_host_identifiers(text: str) -> list[tuple[str, str]]:
 
 class HostIdentifierGuardTests(unittest.TestCase):
     def test_patterns_catch_each_category_and_allow_generic_values(self):
+        # Assembled from fragments so this file's own source never matches its scan.
         cases = {
-            "windows user profile path": "C:\\\\Users\\\\alice\\\\Documents",
-            "posix home path": "/home/alice/src",
-            "private LAN IPv4": "adb connect 192.168.1.20:5555",
-            "MAC address": "link/ether 52:54:00:12:34:56",
+            "windows user profile path": "C:\\" + "Users\\" + "alice\\Documents",
+            "posix home path": "/" + "home/" + "alice/src",
+            "private LAN IPv4": "adb connect " + ".".join(("192", "168", "1", "20")) + ":5555",
+            "MAC address": "link/ether " + ":".join(("52", "54", "00", "12", "34", "56")),
             "SSH host-key fingerprint": "SHA256:" + "A" * 43,
-            "NAS hostname": "ssh root@nas.local",
-            "Unraid storage path": "/mnt/user/appdata",
+            "NAS hostname": "ssh root@" + "nas" + ".local",
+            "Unraid storage path": "/" + "mnt/" + "user/appdata",
         }
         for label, sample in cases.items():
             with self.subTest(label=label):
