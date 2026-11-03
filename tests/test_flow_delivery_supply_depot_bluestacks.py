@@ -476,13 +476,10 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
 
     def test_home_zoom_builds_scrcpy_transport_in_runtime_session(self):
         runtime = SimpleNamespace(session=Path("runtime-session"))
-        adb = Path(r"C:\Program Files\BlueStacks_nxt\HD-Adb.exe")
-        pnsctl = SimpleNamespace(
-            BLUESTACKS_ADB=adb,
-            BLUESTACKS_SERIAL="emulator-5554",
-        )
+        adb = Path("adb-under-test")
         with (
-            patch.object(canary, "_pnsctl", return_value=pnsctl),
+            patch.object(canary, "BLUESTACKS_ADB", adb),
+            patch.object(canary, "BLUESTACKS_SERIAL", "emulator-5554"),
             patch.object(
                 canary,
                 "ScrcpyMotionEventZoomTransport",

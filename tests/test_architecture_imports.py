@@ -31,7 +31,6 @@ KNOWN_INDIRECT_PNSCTL_EDGES = frozenset({
     ("automation_service.enhancement", "scripts.flow_delivery_enhancement_bluestacks"),
     ("automation_service.personal_might", "scripts.flow_delivery_personal_might_bluestacks"),
     ("automation_service.supply", "scripts.flow_delivery_supply_depot_bluestacks"),
-    ("automation_service.supply", "scripts.supply_depot_free_canary"),
     ("automation_service.ultimate", "scripts.flow_delivery_ultimate_challenge_bluestacks"),
 })
 
