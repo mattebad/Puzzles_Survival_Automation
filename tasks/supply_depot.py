@@ -11,14 +11,11 @@ import re
 from typing import Optional
 
 from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
-from .profile import PROFILE_ID
+from .profile import ACTIVE_RUNTIME_PROFILE_ID, BLUESTACKS_NATIVE_TARGET_PROVENANCE
 
 
 SUPPLY_DEPOT_SCREEN = "SUPPLY_DEPOT"
 SUPPLY_DEPOT_FREE_TARGET = "supply-depot-free"
-BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
-BLUESTACKS_NATIVE_TARGET_PROVENANCE = "bluestacks-native"
-BLUESTACKS_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -46,7 +43,7 @@ class SupplyDepotObservation:
     evidence_refs: tuple[str, ...] = ()
     overlay_state: str = "none_observed"
     reset_guard_active: bool = False
-    runtime_profile_id: str = PROFILE_ID
+    runtime_profile_id: str = ACTIVE_RUNTIME_PROFILE_ID
     recognized: bool = True
     reset_identity_required: bool = True
     reward_balance: Optional[int] = None
@@ -96,11 +93,8 @@ def _target_inside_panel(observation: SupplyDepotObservation) -> bool:
 def _has_platform_native_source(observation: SupplyDepotObservation) -> bool:
     refs = tuple(str(ref) for ref in observation.evidence_refs)
     return bool(
-        (observation.target_provenance, observation.runtime_profile_id)
-        in {
-            (BLISS_NATIVE_TARGET_PROVENANCE, PROFILE_ID),
-            (BLUESTACKS_NATIVE_TARGET_PROVENANCE, BLUESTACKS_PROFILE_ID),
-        }
+        observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE
+        and observation.runtime_profile_id == ACTIVE_RUNTIME_PROFILE_ID
         and _SHA256_RE.fullmatch(observation.source_frame_sha256 or "")
         and refs
         and all(ref and "local-reference" not in ref for ref in refs)

@@ -18,12 +18,13 @@ from tasks.scheduler_task_result import SchedulerIdentity
 
 from .contracts import FlowDescriptor, NormalizedOutcome, NormalizedResult
 from .registry import RegisteredDispatchSnapshot
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 FLOW_ID = native.FLOW_ID
 PRODUCT_ID = "enhancement_family"
 PRODUCT_REVISION = "enhancement_family-v1"
-PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 MAX_INPUTS = 24
 MAX_ACTIONS = 3
 _CATEGORIES = ("gear", "chip", "module")

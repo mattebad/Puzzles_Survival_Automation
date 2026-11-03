@@ -1,6 +1,6 @@
 {
   "schema": "phase-e-free-recruitment-observations-v1",
-  "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
   "observations": {
     "free_synthetic": {
       "screen_state": "RECRUITMENT",
@@ -18,10 +18,10 @@
       "recruitment_count": 0,
       "unknown_confirmation": false,
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
       "evidence_refs": ["synthetic:free-recruitment"],
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1"
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1"
     },
     "ten_x_negative": {
       "screen_state": "RECRUITMENT",
@@ -39,10 +39,10 @@
       "recruitment_count": 0,
       "unknown_confirmation": false,
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "8888888888888888888888888888888888888888888888888888888888888888",
       "evidence_refs": ["synthetic:recruitment-10x-negative"],
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1"
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1"
     },
     "static_reference_negative": {
       "screen_state": "RECRUITMENT",
@@ -63,7 +63,7 @@
       "target_provenance": "gnbots-reference",
       "source_frame_sha256": "9999999999999999999999999999999999999999999999999999999999999999",
       "evidence_refs": ["synthetic:recruitment-static-reference"],
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1"
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1"
     }
   }
 }

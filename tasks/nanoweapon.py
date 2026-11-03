@@ -13,13 +13,12 @@ import re
 from typing import Optional
 
 from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
-from .profile import PROFILE_ID
+from .profile import ACTIVE_RUNTIME_PROFILE_ID, BLUESTACKS_NATIVE_TARGET_PROVENANCE
 
 
 NANOWEAPON_SCREEN = "NANOWEAPON"
 CRAFT_WEAPON_TAB = "CRAFT_WEAPON"
 NANOWEAPON_NORMAL_TARGET = "nanoweapon-craft-normal"
-BLUESTACKS_NATIVE_TARGET_PROVENANCE = "bluestacks-native"
 NANO_PARTS_REQUIRED = 100
 NORMAL_CRAFT_DURATION_SECONDS = 43200
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -58,7 +57,7 @@ class NanoweaponObservation:
     evidence_refs: tuple[str, ...] = ()
     overlay_state: str = "none_observed"
     reset_guard_active: bool = False
-    runtime_profile_id: str = PROFILE_ID
+    runtime_profile_id: str = ACTIVE_RUNTIME_PROFILE_ID
     recognized: bool = True
 
 
@@ -79,7 +78,7 @@ def _has_native_source(observation: NanoweaponObservation) -> bool:
         and refs
         and all(ref and "local-reference" not in ref for ref in refs)
         and any(ref.startswith(("evidence/", "synthetic:")) for ref in refs)
-        and observation.runtime_profile_id == PROFILE_ID
+        and observation.runtime_profile_id == ACTIVE_RUNTIME_PROFILE_ID
     )
 
 

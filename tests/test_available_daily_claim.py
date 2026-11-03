@@ -13,6 +13,7 @@ from tasks.available_daily_claim import (
     available_daily_claim_transaction_spec,
 )
 from tasks.contracts import TaskOutcome
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,7 +55,7 @@ class AvailableDailyClaimContractTests(unittest.TestCase):
             clipped=False,
             overlay_state="none",
             reset_guard_active=False,
-            runtime_profile_id="pns-bluestacks-5-p64-800x1280-v1",
+            runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
             recognized=True,
             points=0,
             reward_points=5,

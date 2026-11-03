@@ -37,9 +37,10 @@ from tasks.semantic_ocr_crop import (
     run_semantic_ocr,
     to_immutable_ocr_observation,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE = ACTIVE_RUNTIME_PROFILE_ID
 
 
 def make_frame(*, width: int = 800, height: int = 1280, seed: int = 0) -> np.ndarray:

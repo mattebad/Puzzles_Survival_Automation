@@ -1,6 +1,6 @@
 {
   "schema": "phase-e-world-stamina-observations-v1",
-  "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
   "observations": {
     "lair_route": {
       "screen_state": "WORLD",
@@ -15,12 +15,12 @@
       "resource_budget": 20,
       "refill_visible": false,
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "evidence_refs": ["synthetic:world-lair-route"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "resource_route": {
@@ -36,12 +36,12 @@
       "resource_budget": 15,
       "refill_visible": false,
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
       "evidence_refs": ["synthetic:world-resource-route"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "main_negative": {
@@ -57,12 +57,12 @@
       "resource_budget": 20,
       "refill_visible": false,
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
       "evidence_refs": ["synthetic:world-main-negative"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "static_reference_negative": {
@@ -83,7 +83,7 @@
       "evidence_refs": ["synthetic:world-static-reference"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     }
   }

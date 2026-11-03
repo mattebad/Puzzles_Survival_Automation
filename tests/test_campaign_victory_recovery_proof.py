@@ -18,6 +18,7 @@ from automation_service.registry import CAMPAIGN_FLOW_ID
 from tasks.campaign_auto_battle import CAMPAIGN_STAGE_COSTS, CampaignRouteObservation, CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import CampaignFrameRecognition
 from tasks.campaign_victory_recovery import load_victory_recovery_proof
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 NOW = datetime(2026, 10, 29, 6, tzinfo=timezone.utc)
@@ -65,7 +66,7 @@ class CampaignVictoryRecoveryProofTests(unittest.TestCase):
         # Fixed snapshot constructor validates the exact Campaign binding.
         snapshot = {
             "flow_id": CAMPAIGN_FLOW_ID, "product_id": "campaign_ap", "product_revision": "campaign_ap-v1",
-            "production_handler": "campaign_ap_selection_handler", "profile": "pns-bluestacks-5-p64-800x1280-v1",
+            "production_handler": "campaign_ap_selection_handler", "profile": ACTIVE_RUNTIME_PROFILE_ID,
             "mode": "phase_canary", "registration_status": "REGISTERED", "scheduler_eligible": True,
         }
         self.delivery = {

@@ -30,7 +30,7 @@
       "evidence_refs": ["synthetic:nanoweapon-normal-craft"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "material_production_negative": {
@@ -58,12 +58,12 @@
       "result_identity": "",
       "craft_timer_active": false,
       "game_day_id": "daily-test-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "evidence_refs": ["synthetic:nanoweapon-material-production"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "static_reference_negative": {
@@ -96,7 +96,7 @@
       "evidence_refs": ["docs/research/gnbots-static-reference"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     }
   }

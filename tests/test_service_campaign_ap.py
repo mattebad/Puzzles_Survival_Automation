@@ -35,6 +35,7 @@ from tasks.campaign_auto_battle_vision import CampaignFrameRecognition, recogniz
 from tasks.scheduler_task_result import SchedulerIdentity
 from tests.test_campaign_ap_native_runner import DrainFakeADB, FakeADB, PHASES, recognize, recognize_drain
 from tests.test_service_recruitment import VirtualStop
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 def _zero_input_native_stop(**changes):
@@ -160,7 +161,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.assertEqual(admission.stage_identity, "1-15-9")
         self.assertEqual(admission.ap_current, 100)
         self.assertEqual(admission.observed_at_utc, self.now)
-        self.assertEqual(admission.profile_id, "pns-bluestacks-5-p64-800x1280-v1")
+        self.assertEqual(admission.profile_id, ACTIVE_RUNTIME_PROFILE_ID)
         self.assertEqual(admission.frame_sha256, hashlib.sha256(Path(admission.frame_path).read_bytes()).hexdigest())
         self.assertEqual(self.world.inputs, [])
         self.assertEqual(self.store_opens, 0)

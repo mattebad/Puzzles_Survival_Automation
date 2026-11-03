@@ -162,8 +162,6 @@ def _reference_kind(reference_path: str) -> str:
         return "plan"
     if lower.startswith("docs/"):
         return "documentation"
-    if lower.startswith("runtime-profile/"):
-        return "runtime"
     if lower.startswith(("scripts/", "tasks/", "safe_action_core/", "calibration/")):
         return "source"
     if lower.startswith("evidence/"):
@@ -316,7 +314,7 @@ def classify_retention(*, relative: str, status: str, session: str, reference_en
         return "DECISIVE_CONSEQUENTIAL_EVIDENCE", True
     if "tests" in kinds and not _is_navigation(relative, session):
         return "PORTABLE_TEST_FIXTURE", True
-    if kinds.intersection({"source", "runtime"}):
+    if "source" in kinds:
         return "RUNTIME_TEMPLATE", True
     if reference_entries:
         return "REFERENCED_SUPPORTING_EVIDENCE", True

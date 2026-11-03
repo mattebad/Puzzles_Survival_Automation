@@ -15,12 +15,13 @@ import os
 from pathlib import Path
 import re
 from typing import Any, Iterable, Mapping
+from .profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 FLOW_ID = "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
 SCHEMA_NAME = "ruins_chest_continuation"
 SCHEMA_VERSION = 1
-RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 PACKAGE_ID = "com.global.ztmslg"
 
 # Keep this tuple literal.  It is the durable contract, rather than a value

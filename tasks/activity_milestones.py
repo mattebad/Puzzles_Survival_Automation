@@ -1,7 +1,7 @@
 """Offline activity-milestone chest contract for Phase E.
 
 No runtime detector or transport is registered here.  A ready chest remains non-authorizing until
-fresh Bliss-native target, explicit free semantics, and a positive postcondition are promoted.
+fresh BlueStacks-native target, explicit free semantics, and a positive postcondition are promoted.
 """
 
 from __future__ import annotations
@@ -11,12 +11,11 @@ import re
 from typing import Optional
 
 from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
-from .profile import PROFILE_ID
+from .profile import ACTIVE_RUNTIME_PROFILE_ID, BLUESTACKS_NATIVE_TARGET_PROVENANCE
 
 
 ACTIVITY_MILESTONES_SCREEN = "ACTIVITY_MILESTONES"
 ACTIVITY_MILESTONE_TARGET = "activity-milestone-chest"
-BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -43,7 +42,7 @@ class ActivityMilestoneObservation:
     evidence_refs: tuple[str, ...] = ()
     overlay_state: str = "none_observed"
     reset_guard_active: bool = False
-    runtime_profile_id: str = PROFILE_ID
+    runtime_profile_id: str = ACTIVE_RUNTIME_PROFILE_ID
     recognized: bool = True
 
 
@@ -56,15 +55,15 @@ def _target_inside_panel(observation: ActivityMilestoneObservation) -> bool:
     return bool(px0 <= tx0 < tx1 <= px1 and py0 <= ty0 < ty1 <= py1)
 
 
-def _has_bliss_native_source(observation: ActivityMilestoneObservation) -> bool:
+def _has_bluestacks_native_source(observation: ActivityMilestoneObservation) -> bool:
     refs = tuple(str(ref) for ref in observation.evidence_refs)
     return bool(
-        observation.target_provenance == BLISS_NATIVE_TARGET_PROVENANCE
+        observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE
         and _SHA256_RE.fullmatch(observation.source_frame_sha256 or "")
         and refs
         and all(ref and "local-reference" not in ref for ref in refs)
         and any(ref.startswith(("evidence/", "synthetic:")) for ref in refs)
-        and observation.runtime_profile_id == PROFILE_ID
+        and observation.runtime_profile_id == ACTIVE_RUNTIME_PROFILE_ID
     )
 
 
@@ -88,7 +87,7 @@ def activity_milestone_authorizeable(observation: ActivityMilestoneObservation) 
         and bool(observation.game_day_id)
         and not observation.reset_guard_active
         and observation.recognized
-        and _has_bliss_native_source(observation)
+        and _has_bluestacks_native_source(observation)
     )
 
 
@@ -108,7 +107,7 @@ def activity_milestone_transaction_spec(observation: ActivityMilestoneObservatio
             "activity_milestones_screen",
             "selected_activity_milestones",
             "exact_ready_milestone_chest",
-            "bliss_native_target_evidence",
+            "bluestacks_native_target_evidence",
             "explicit_zero_cost",
         ),
         semantic_postconditions=("same_milestone_opens_or_points_increase",),

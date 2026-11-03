@@ -11,7 +11,7 @@ are recorded in the [dated route report](docs/bluestacks-route-status-20261031.m
 
 - **Current runtime:** Local BlueStacks, using explicitly authorized supervised service sessions.
   Selected routes run serially when their persisted daily or cooldown gates permit them.
-- **Final production target:** NAS/Unraid-hosted runtime with its selected Android-focused VM/profile.
+- **Runtime:** BlueStacks is the runtime; there is no NAS/Unraid production target.
 - **Readiness:** All eight routes have retained BlueStacks effect/Home evidence, with dated source
   limits in the backlog. The October 30 source completed a two-hour serial cadence. The latest
   October 31 source passed 20 minutes with 8 reports, 22 inputs, verified Home returns and disabled cleanup. Later cold

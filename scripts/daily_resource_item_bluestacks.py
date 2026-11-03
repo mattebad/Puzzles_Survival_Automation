@@ -32,11 +32,12 @@ from tasks.home_nav_recognition import (
     _load_template as _load_home_nav_template,
     recognize_home_nav,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 FLOW_ID = "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
 EXPECTED_PACKAGE = "com.global.ztmslg"
-RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 MAX_RESOURCE_LIST_SWIPES = 6
 MAX_ROUTE_INPUTS = 10
 RESOURCE_LIST_SCROLL_PX = 180

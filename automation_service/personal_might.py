@@ -20,11 +20,12 @@ from tasks.scheduler_task_result import SchedulerIdentity
 from .contracts import FlowDescriptor, FlowSpec, NormalizedOutcome, NormalizedResult
 from .recruitment import recruitment_reset
 from .registry import RegisteredDispatchSnapshot
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 PRODUCT_ID = "personal_might_praise"
 PRODUCT_REVISION = "personal_might_praise-v1"
-PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 MAX_INPUTS = 8
 
 

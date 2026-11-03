@@ -28,6 +28,7 @@ from .nova_praise_pulse import NOVA_TASK_ID, NovaPulseController, NovaPulseView
 from .nova_praise_vision import NOVA_PRAISE_ROI
 from .runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
 from .scheduler_task_result import SchedulerIdentity, SchedulerTaskOutcome
+from .profile import ACTIVE_RUNTIME_PROFILE_ID
 
 FLOW_ID = "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
 MANIFEST_PATH = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "nova_praise_replay" / "manifest.json"
@@ -49,7 +50,7 @@ def load_replay_manifest(path: Path = MANIFEST_PATH) -> dict[str, Any]:
 
 
 def _atlas() -> HomeAtlas:
-    profile = PlatformProfile("BlueStacks 5 / Android", "pns-bluestacks-5-p64-800x1280-v1", (800, 1280), "com.global.ztmslg")
+    profile = PlatformProfile("BlueStacks 5 / Android", ACTIVE_RUNTIME_PROFILE_ID, (800, 1280), "com.global.ztmslg")
     viewport = AtlasViewport(
         "v1",
         "tile.png",
@@ -126,7 +127,7 @@ def _localization(
     return LocalizationResult(
         recognized,
         "BlueStacks 5 / Android",
-        "pns-bluestacks-5-p64-800x1280-v1",
+        ACTIVE_RUNTIME_PROFILE_ID,
         zoom,
         ((1, 0, tx), (0, 1, ty), (0, 0, 1)) if recognized else None,
         ((tx, ty), (tx + 800, ty), (tx + 800, ty + 1280), (tx, ty + 1280)),

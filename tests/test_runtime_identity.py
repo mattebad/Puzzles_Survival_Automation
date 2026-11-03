@@ -19,10 +19,11 @@ from tasks.runtime_identity import (
     evaluate_runtime_preflight,
     verify_runtime_identity,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 PACKAGE = "com.global.ztmslg"
-PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE = ACTIVE_RUNTIME_PROFILE_ID
 SERIAL = "emulator-5554"
 LOGIN_SLOT_VERSION = "primary-login-slot-v1"
 

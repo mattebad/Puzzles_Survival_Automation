@@ -26,12 +26,12 @@
       "enhancement_result_visible": false,
       "result_identity": "",
       "game_day_id": "daily-test-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "evidence_refs": ["synthetic:gear-enhancement"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "chip_variant_negative": {
@@ -60,12 +60,12 @@
       "enhancement_result_visible": false,
       "result_identity": "",
       "game_day_id": "daily-test-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "evidence_refs": ["synthetic:chip-enhancement"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "module_variant": {
@@ -94,12 +94,12 @@
       "enhancement_result_visible": false,
       "result_identity": "",
       "game_day_id": "daily-test-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "evidence_refs": ["synthetic:module-enhancement"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "main_negative": {
@@ -128,12 +128,12 @@
       "enhancement_result_visible": false,
       "result_identity": "",
       "game_day_id": "daily-test-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "evidence_refs": ["synthetic:main-negative"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     }
   }

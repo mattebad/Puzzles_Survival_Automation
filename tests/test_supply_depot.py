@@ -6,9 +6,8 @@ from pathlib import Path
 import unittest
 
 from tasks.contracts import TaskOutcome
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID, BLUESTACKS_NATIVE_TARGET_PROVENANCE
 from tasks.supply_depot import (
-    BLUESTACKS_NATIVE_TARGET_PROVENANCE,
-    BLUESTACKS_PROFILE_ID,
     SupplyDepotConfig,
     SupplyDepotHoldConfig,
     SupplyDepotObservation,
@@ -47,7 +46,7 @@ class SupplyDepotContractTests(unittest.TestCase):
             game_day_id=None,
             reset_identity_required=False,
             target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
-            runtime_profile_id=BLUESTACKS_PROFILE_ID,
+            runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
             evidence_refs=(".local-captures/supply-depot/frame.png",),
         )
         self.assertTrue(supply_depot_authorizeable(observation))
@@ -121,7 +120,7 @@ class SupplyDepotContractTests(unittest.TestCase):
             game_day_id=None,
             reset_identity_required=False,
             target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
-            runtime_profile_id=BLUESTACKS_PROFILE_ID,
+            runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
             evidence_refs=(".local-captures/supply-depot/food-before.png",),
         )
         exhausted = replace(before, collection_ready=False, control_class="", daily_free_attempts=0)

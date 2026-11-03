@@ -23,6 +23,7 @@ from tasks import personal_might_vision as vision
 from tasks.perception_bundle import PerceptionBundleError
 from tasks.runtime_identity import derive_fixed_runtime_binding, derive_resource_runtime_identity
 from safe_action_core import SafetyStore
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 FIXTURE = Path(__file__).parent / "fixtures/personal_might/native-home-more-20261029.png"
 MENU_FIXTURE = FIXTURE.with_name("native-more-menu-20261029.png")
@@ -85,7 +86,7 @@ class Runtime:
 
 
 def original_unresolved(root, store, *, successor_png=None, canonical=False):
-    binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+    binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
     identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
     runtime = Runtime(root / "original", source_png=PERSONAL_MIGHT_FIXTURE.read_bytes(), successor_png=PRAISED_FIXTURE.read_bytes() if successor_png is None else successor_png)
     with DevelopmentSession(owner="personal-original", invocation_id="original", session_directory=root / "original-session", max_inputs=8) as session:
@@ -96,7 +97,7 @@ def original_unresolved(root, store, *, successor_png=None, canonical=False):
     record = {**result, "flow_id": delivery.FLOW_ID, "session_directory": str(runtime.session), "runtime_identity": asdict(identity), "events_path": "events.jsonl"}
     if canonical:
         backend = record.pop("runtime_identity")
-        record.update(backend_identity=backend, task_id="personal_might_praise", runtime_profile_id="pns-bluestacks-5-p64-800x1280-v1", time_basis="utc", reset_id="game-day-" + identity.reset_start_utc[:10])
+        record.update(backend_identity=backend, task_id="personal_might_praise", runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID, time_basis="utc", reset_id="game-day-" + identity.reset_start_utc[:10])
     (runtime.session / ("personal-might-result.json" if canonical else "flow-delivery-result.json")).write_text(json.dumps(record), encoding="utf-8")
     return binding, identity, record, runtime.session
 
@@ -117,7 +118,7 @@ def save_delivery(runtime, result, identity, *, initial_png, topology):
 def no_work_delivery(root):
     """Synthetic retained events replay real native fixtures; never live evidence."""
     runtime = Runtime(root)
-    binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+    binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
     identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
     from tasks.personal_might_praise import personal_might_daily_key
     key = personal_might_daily_key(runtime_scope=identity.runtime_scope, account_id=identity.account_id, server_id=identity.server_id, reset_id=identity.reset_id)
@@ -224,7 +225,7 @@ class PersonalMightNativeTests(unittest.TestCase):
     def test_gold_to_disabled_post_confirms_one_praise_after_two_observations(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+            binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
             identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
             store = SafetyStore(root / "actions.sqlite3")
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
@@ -403,7 +404,7 @@ class PersonalMightNativeTests(unittest.TestCase):
     def test_one_fenced_praise_unknown_persists_and_blocks_next_invocation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+            binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
             identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
             validate = lambda: delivery._validate_identity(identity, binding, datetime.now(timezone.utc))
             store = SafetyStore(root / "actions.sqlite3")
@@ -438,7 +439,7 @@ class PersonalMightNativeTests(unittest.TestCase):
     def test_changed_immediate_thumb_never_reaches_praise_input_reservation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+            binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
             identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
             store = SafetyStore(root / "actions.sqlite3")
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
@@ -460,7 +461,7 @@ class PersonalMightNativeTests(unittest.TestCase):
         shifted[162:212, 698:748] = source[162:212, 696:746]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+            binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
             identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
             store = SafetyStore(root / "actions.sqlite3")
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
@@ -488,7 +489,7 @@ class PersonalMightNativeTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+            binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
             identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
             store = SafetyStore(root / "actions.sqlite3")
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
@@ -505,14 +506,14 @@ class PersonalMightNativeTests(unittest.TestCase):
             store.close()
 
     def test_identity_reset_and_expiry_remain_bound_to_fixed_slot(self):
-        binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+        binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
         now = datetime(2026, 10, 29, 12, tzinfo=timezone.utc)
         identity = derive_resource_runtime_identity(binding, now)
         delivery._validate_identity(identity, binding, now)
         for later in (now - timedelta(seconds=1), now + timedelta(seconds=600), now + timedelta(days=1)):
             with self.assertRaises(RuntimeError):
                 delivery._validate_identity(identity, binding, later)
-        other = derive_fixed_runtime_binding("emulator-5556", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+        other = derive_fixed_runtime_binding("emulator-5556", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
         with self.assertRaises(RuntimeError):
             delivery._validate_identity(identity, other, now)
 

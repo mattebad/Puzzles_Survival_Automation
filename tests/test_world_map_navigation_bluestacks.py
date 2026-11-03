@@ -69,11 +69,12 @@ from tasks.world_stamina import (
     world_navigation_observation_from_mapping,
     world_node_binding_authorizeable,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "world_map_navigation_observations.json"
-PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE = ACTIVE_RUNTIME_PROFILE_ID
 
 
 def observation(

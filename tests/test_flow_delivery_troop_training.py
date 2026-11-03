@@ -46,6 +46,7 @@ from tasks.troop_training import (
     TrainingScreenObservation,
     TroopTrainingConfig,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1550,7 +1551,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                 "source_localization": {
                     "recognized": True,
                     "platform": "BlueStacks 5 / Android",
-                    "profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+                    "profile_id": ACTIVE_RUNTIME_PROFILE_ID,
                     "zoom_identity": "fully_zoomed_out",
                     "screen_to_atlas": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
                     "frame_sha256": frame_hash,
@@ -1747,7 +1748,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                     "source_localization": {
                         "recognized": True,
                         "platform": "BlueStacks 5 / Android",
-                        "profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+                        "profile_id": ACTIVE_RUNTIME_PROFILE_ID,
                         "zoom_identity": "fully_zoomed_out",
                         "screen_to_atlas": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
                         "frame_sha256": frame_hash,

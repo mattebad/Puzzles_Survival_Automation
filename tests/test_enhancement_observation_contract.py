@@ -7,6 +7,8 @@ from scripts.flow_delivery_enhancement_bluestacks import _observation
 from tasks.enhancement import (
     BLUESTACKS_NATIVE_TARGET_PROVENANCE,
     BLUESTACKS_RUNTIME_PROFILE_ID,
+    enhancement_authorizeable,
+    enhancement_bluestacks_authorizeable,
 )
 
 
@@ -97,7 +99,7 @@ class EnhancementObservationContractTests(unittest.TestCase):
         self.assertIsNone(observation.item_exp_preview)
         self.assertFalse(observation.item_equipped)
 
-    def test_non_native_legacy_observation_remains_compatible(self):
+    def test_retired_bliss_observation_parses_but_is_never_authorized(self):
         payload = _native_payload(slots=False)
         payload["target_provenance"] = "bliss-native"
         payload["runtime_profile_id"] = "pns-blissos-poc-virgl-800x1280-v1"
@@ -106,6 +108,8 @@ class EnhancementObservationContractTests(unittest.TestCase):
         observation = _observation(payload, "legacy bliss")
         self.assertEqual(observation.material_slot_facts, ())
         self.assertIsNone(observation.item_exp_current)
+        self.assertFalse(enhancement_authorizeable(observation))
+        self.assertFalse(enhancement_bluestacks_authorizeable(observation))
 
 
 if __name__ == "__main__":

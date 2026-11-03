@@ -2,7 +2,7 @@
 
 This module models one explicit free research action without owning transport, runtime
 registration, or live evidence capture.  Paid, multi-use, ambiguous, and stale states fail
-closed until a future promotion supplies fresh Bliss-native evidence.
+closed until a future promotion supplies fresh BlueStacks-native evidence.
 """
 
 from __future__ import annotations
@@ -12,14 +12,11 @@ import re
 from typing import Optional
 
 from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
-from .profile import PROFILE_ID
+from .profile import ACTIVE_RUNTIME_PROFILE_ID, BLUESTACKS_NATIVE_TARGET_PROVENANCE
 
 
 BIOENHANCER_SCREEN = "BIOENHANCER"
 BIOENHANCER_FREE_TARGET = "bioenhancer-free-research"
-BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
-BLUESTACKS_NATIVE_TARGET_PROVENANCE = "bluestacks-native"
-BLUESTACKS_NATIVE_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -50,7 +47,7 @@ class BioenhancerObservation:
     evidence_refs: tuple[str, ...] = ()
     overlay_state: str = "none_observed"
     reset_guard_active: bool = False
-    runtime_profile_id: str = PROFILE_ID
+    runtime_profile_id: str = ACTIVE_RUNTIME_PROFILE_ID
     recognized: bool = True
 
 
@@ -65,24 +62,14 @@ def _target_inside_panel(observation: BioenhancerObservation) -> bool:
 
 def _has_native_source(observation: BioenhancerObservation) -> bool:
     refs = tuple(str(ref) for ref in observation.evidence_refs)
-    provenance_profile_pairs = {
-        (BLISS_NATIVE_TARGET_PROVENANCE, PROFILE_ID),
-        (BLUESTACKS_NATIVE_TARGET_PROVENANCE, BLUESTACKS_NATIVE_PROFILE_ID),
-    }
     return bool(
-        (observation.target_provenance, observation.runtime_profile_id)
-        in provenance_profile_pairs
+        observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE
+        and observation.runtime_profile_id == ACTIVE_RUNTIME_PROFILE_ID
         and _SHA256_RE.fullmatch(observation.source_frame_sha256 or "")
         and refs
         and all(ref and "local-reference" not in ref for ref in refs)
         and any(ref.startswith(("evidence/", "synthetic:")) for ref in refs)
     )
-
-
-def _has_bliss_native_source(observation: BioenhancerObservation) -> bool:
-    """Backward-compatible name for the shared native-source guard."""
-
-    return _has_native_source(observation)
 
 
 def bioenhancer_authorizeable(observation: BioenhancerObservation) -> bool:

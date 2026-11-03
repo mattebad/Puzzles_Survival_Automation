@@ -62,9 +62,10 @@ from tasks.perception_bundle import (
     classify_and_attach,
     localization_from_result,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE = ACTIVE_RUNTIME_PROFILE_ID
 PLATFORM = "BlueStacks 5 / Android"
 BUILDING = "home.building.supply_depot"
 

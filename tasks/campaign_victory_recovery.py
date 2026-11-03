@@ -15,10 +15,11 @@ import numpy as np
 from automation_service.registry import CAMPAIGN_FLOW_ID, RegisteredDispatchSnapshot
 from tasks.campaign_auto_battle import CAMPAIGN_STAGE_COSTS, CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
+from .profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 SESSIONS_ROOT = Path(__file__).resolve().parents[1] / ".local-captures" / "development-sessions"
-PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE = ACTIVE_RUNTIME_PROFILE_ID
 _STAMP = re.compile(r"^" + re.escape(CAMPAIGN_FLOW_ID) + r"-(\d{8}T\d{12}Z)$")
 
 

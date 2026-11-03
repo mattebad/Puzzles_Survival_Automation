@@ -27,6 +27,7 @@ from tasks.home_nav_recognition import recognize_home_nav
 from scripts.world_map_navigation_bluestacks import (
     _visual_popup_panel_candidates as _accepted_visual_popup_panel_candidates,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 NATIVE_WIDTH = 800
@@ -45,7 +46,7 @@ DAILY_CLAIM_STATE = "DAILY_CLAIM_READY"
 DAILY_CLAIM_ACTION_IDENTITY = "daily-claim:aggregate"
 DAILY_CLAIM_TARGET_IDENTITY = "daily-quest-claim"
 BLUESTACKS_TARGET_PROVENANCE = "bluestacks-native"
-BLUESTACKS_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+BLUESTACKS_RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 DAILY_CLAIM_CONSEQUENCE_CLASS = "ordinary_development"
 DAILY_CLAIM_ACTION_CLASS = "reward_claim"
 DAILY_CLAIM_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0

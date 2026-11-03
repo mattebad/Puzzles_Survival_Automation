@@ -22,11 +22,12 @@ from tasks.ultimate_challenge_daily import (
 from .contracts import FlowDescriptor, FlowSpec, NormalizedOutcome, NormalizedResult
 from .registry import RegisteredDispatchSnapshot
 from .recruitment import recruitment_reset
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 PRODUCT_ID = ULTIMATE_CHALLENGE_OBJECTIVE
 PRODUCT_REVISION = "ultimate_challenge_daily-v1"
-PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 MAX_INPUTS = 16
 RESET_STATE_PATH = Path(__file__).resolve().parents[1] / ".local-captures/ultimate-challenge-daily-reset-window.json"
 _DAILY_TARGETS = frozenset({"tap_challenge", "tap_lineup_challenge", "tap_upper_right_exit", "tap_flee"})

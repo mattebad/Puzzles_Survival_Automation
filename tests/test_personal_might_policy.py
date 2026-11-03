@@ -14,9 +14,10 @@ from tasks.personal_might_praise import (
     TARGET_IDENTITY,
     personal_might_daily_key,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE = ACTIVE_RUNTIME_PROFILE_ID
 OTHER_TASK = "OTHER-SUPERVISED-ZERO-COST-TASK"
 DAILY_SCOPE = dict(runtime_scope="local-bluestacks", account_id="account-1",
                    server_id="server-1", reset_id="game-day-2026-10-29")

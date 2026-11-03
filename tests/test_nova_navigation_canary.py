@@ -61,6 +61,7 @@ from scripts.pnsctl import (
     _compact_development_action_results,
     _retained_semantic_completed_count,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -122,7 +123,7 @@ def _localization(digest: str) -> LocalizationResult:
     return LocalizationResult(
         True,
         "BlueStacks 5 / Android",
-        "pns-bluestacks-5-p64-800x1280-v1",
+        ACTIVE_RUNTIME_PROFILE_ID,
         ZoomIdentity.FULLY_ZOOMED_OUT,
         ((1, 0, 0), (0, 1, 0), (0, 0, 1)),
         ((0, 0), (800, 0), (800, 1280), (0, 1280)),
@@ -1142,7 +1143,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         failed_localization = LocalizationResult(
             False,
             "BlueStacks 5 / Android",
-            "pns-bluestacks-5-p64-800x1280-v1",
+            ACTIVE_RUNTIME_PROFILE_ID,
             ZoomIdentity.ZOOMED_IN,
             None,
             (),
