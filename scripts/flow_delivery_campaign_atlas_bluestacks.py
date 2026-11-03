@@ -285,7 +285,7 @@ def production_survey_call_graph() -> dict[str, str]:
         "hud_safe_pan": "tasks.campaign_atlas_vision.hud_safe_pan_gesture",
         "registration_measurement": "tasks.campaign_atlas_vision.measure_campaign_frame_pair",
         "ultimate_landmark_bind": "tasks.ultimate_challenge_daily.recognize_ultimate_challenge_entry_from_texts",
-        "operator_interface": "scripts.pnsctl.bluestacks_run_flow",
+        "operator_interface": "scripts.pnsctl.development_session_run_flow",
     }
 
 

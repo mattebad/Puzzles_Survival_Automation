@@ -7,7 +7,7 @@ It does not register a task or enable the production scheduler.
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 import json
 from pathlib import Path
 import sys
@@ -1596,106 +1596,6 @@ class NovaSupervisedOneFreePulseRoute:
 DEFAULT_NOVA_ACTION_DATABASE = CANONICAL_ACTION_STORE_PATH
 
 
-def run_nova_navigation_canary(args, identity: VerifiedRuntimeIdentity) -> str:
-    """Checked-in pnsctl live runner; invoked only by GF-MVP-009 authorization."""
-
-    atlas_path = (
-        ROOT
-        / "tasks"
-        / "assets"
-        / "home_atlas"
-        / "bluestacks"
-        / "800x1280"
-        / "atlas.json"
-    )
-    runtime = LocalBlueStacksRuntime.connect(
-        adb=str(args.adb),
-        serial=args.serial,
-        output_directory=args.output_directory,
-        workflow="nova-navigation-canary",
-        execute=True,
-    )
-    route = NovaNavigationCanaryRoute(
-        runtime,
-        identity,
-        atlas_path=atlas_path,
-        zoom_transport=ScrcpyMotionEventZoomTransport(
-            adb=str(args.adb),
-            serial=args.serial,
-            evidence_directory=runtime.session / "scrcpy-zoom",
-        ),
-        settle_seconds=args.settle_seconds,
-        route_declaration=nova_navigation_route_declaration(),
-    )
-    route_error: BaseException | None = None
-    result = None
-    try:
-        result = route.run()
-    except BaseException as exc:
-        route_error = exc
-        finalize_navigation_evidence(
-            runtime.session,
-            status="failed",
-            reason=f"exception:{type(exc).__name__}",
-            records=tuple(route.records),
-            flow_id="NOVA-PRAISE-HOME-ATLAS-MIGRATION",
-            scenario_id="nova_navigation_round_trip_no_praise",
-            navigation_input_count=route.input_count,
-            authorized_gestures=(
-                route.runtime.authorized_gestures
-                if isinstance(route.runtime, NavigationGuardedRuntime)
-                else ()
-            ),
-            extra={
-                "praise_taps": 0,
-                "terminal_home_verified": False,
-                "production_registration": "NOT_REGISTERED",
-                "scheduler_enabled": False,
-            },
-            exception=exc,
-        )
-        raise
-    assert result is not None
-    finalize_navigation_evidence(
-        runtime.session,
-        status=result.status if result.status in {"completed", "blocked", "manual_required", "unresolved", "failed"} else "blocked",
-        reason=result.reason,
-        records=result.records,
-        flow_id="NOVA-PRAISE-HOME-ATLAS-MIGRATION",
-        scenario_id="nova_navigation_round_trip_no_praise",
-        navigation_input_count=result.navigation_input_count,
-        authorized_gestures=(
-            route.runtime.authorized_gestures
-            if isinstance(route.runtime, NavigationGuardedRuntime)
-            else ()
-        ),
-        extra={
-            "praise_taps": 0,
-            "terminal_home_verified": result.terminal_home_verified,
-            "production_registration": "NOT_REGISTERED",
-            "scheduler_enabled": False,
-            "route_declaration": {
-                "allowed_source_states": sorted(route.declaration.allowed_source_states),
-                "allowed_target_identities": sorted(route.declaration.allowed_target_identities),
-                "allowed_gesture_classes": sorted(route.declaration.allowed_gesture_classes),
-                "consequence_class": route.declaration.consequence_class,
-            },
-        },
-    )
-    return json.dumps(
-        {
-            "status": result.status,
-            "reason": result.reason,
-            "scenario_id": "nova_navigation_round_trip_no_praise",
-            "session_directory": str(runtime.session),
-            "navigation_input_count": result.navigation_input_count,
-            "praise_taps": 0,
-            "transport_calls": result.navigation_input_count,
-            "production_registration": "NOT_REGISTERED",
-            "scheduler_enabled": False,
-        },
-        sort_keys=True,
-    )
 
 
 def _nova_native_dispatch_rows(
@@ -2070,7 +1970,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.execute:
         parser.error(
             "direct live execution is blocked; use "
-            "`pnsctl nova-praise-pulse --live --yes --supervised-live-opt-in` "
+            "`pnsctl automation-service ... serve --live --flow nova` "
             "as the sole supported operational interface"
         )
     if args.execute and not args.yes:

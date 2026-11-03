@@ -123,14 +123,6 @@ class UltimateRecoveryTests(unittest.TestCase):
             verdict = delivery.verify_ultimate_challenge_daily({"result": result, "session_directory": str(final_dir)}, {}, {})
             self.assertEqual(verdict["status"], "verified")
             self.assertTrue(verdict["terminal_recovery_verified"])
-            with patch.object(pnsctl, "_retained_flow_result", return_value=(final_dir, result)), \
-                 patch.object(pnsctl, "bluestacks_verify_flow", return_value=json.dumps(verdict)) as verify:
-                summary, verification = pnsctl._conductor_live_summary(delivery.FLOW_ID, {
-                    "status": "completed", "runtime_session_directory": str(final_dir),
-                })
-            self.assertEqual(summary["status"], "completed")
-            self.assertEqual(verification["status"], "verified")
-            verify.assert_called_once()
             done = load_reset_window_state(state_path)
             self.assertIsNone(done.pending_home_session)
             self.assertEqual(done.last_success_reset_identity, RESET)
