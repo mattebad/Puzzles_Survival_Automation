@@ -23,6 +23,12 @@ from scripts.bioenhancer_free_research_canary import parse_free_research_cooldow
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.startup_recovery import ContextualPopupRecoveryResult
 from tasks.scheduler_task_result import SchedulerIdentity
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 START = 1_800_000_000.0

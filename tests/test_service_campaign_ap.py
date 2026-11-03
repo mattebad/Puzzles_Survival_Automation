@@ -36,6 +36,14 @@ from tasks.scheduler_task_result import SchedulerIdentity
 from tests.test_campaign_ap_native_runner import DrainFakeADB, FakeADB, PHASES, recognize, recognize_drain
 from tests.test_service_recruitment import VirtualStop
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Route/service tests replay identical frames; run real Tesseract once per
+    # unique (image, config) and reuse that real result. Real-OCR recognition
+    # coverage lives in the named recognition suites (see tests/ocr_memo.py).
+    install_module_memo()
 
 
 def _zero_input_native_stop(**changes):

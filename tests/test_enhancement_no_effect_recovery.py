@@ -20,6 +20,12 @@ from tasks.enhancement import (
     EnhancementObservation,
 )
 from tasks.runtime_identity import BLUESTACKS_SERIAL
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 RESET = "local-2026-10-29-enhancement-family"

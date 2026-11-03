@@ -12,6 +12,12 @@ from tasks.campaign_auto_battle import CampaignAction, CampaignAutoBattleConfig,
 from tasks.campaign_auto_battle_runtime import CampaignRuntimeController
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
 from tasks import campaign_auto_battle_vision as vision
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 FIXTURES = Path(__file__).resolve().parents[1] / "tests/fixtures/campaign_stage_dialog"

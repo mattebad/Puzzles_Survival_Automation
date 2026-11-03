@@ -8,6 +8,12 @@ import cv2
 
 from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import read_campaign_frame, recognize_campaign_frame
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures/campaign_lineup_current"

@@ -43,6 +43,12 @@ from tasks.ultimate_challenge_daily import (
     UltimateChallengeEntryObservation,
     empty_reset_window_state,
 )
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 ROOT = Path(__file__).resolve().parents[1]
