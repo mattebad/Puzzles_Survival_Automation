@@ -369,6 +369,44 @@ class AutomationServiceStateTests(unittest.TestCase):
             finally:
                 manager.close()
 
+    def test_interrupted_implicit_claim_releases_its_fresh_lease(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manager, generation = bootstrap_manager(Path(folder) / "state.sqlite3")
+            try:
+                self.assertTrue(
+                    manager.release_service_lease(
+                        owner_instance_id="owner-a",
+                        process_start_token="process-a",
+                        lease_generation=generation,
+                    )
+                )
+                with patch(
+                    "automation_service.state._normalize_occurrence_kind",
+                    side_effect=KeyboardInterrupt,
+                ):
+                    with self.assertRaises(KeyboardInterrupt):
+                        manager.claim_occurrence(
+                            FLOW_ID,
+                            RESET_ID,
+                            now_utc_epoch=102.0,
+                            max_inputs=4,
+                            max_actions=4,
+                        )
+                lease = manager.get_service_lease()
+                self.assertIsNone(lease.owner_instance_id)
+                self.assertIsNone(lease.process_start_token)
+                self.assertIsNotNone(
+                    manager.claim_occurrence(
+                        FLOW_ID,
+                        RESET_ID,
+                        now_utc_epoch=103.0,
+                        max_inputs=4,
+                        max_actions=4,
+                    )
+                )
+            finally:
+                manager.close()
+
     def test_lease_and_run_fences_reject_every_mismatching_identity(self):
         with tempfile.TemporaryDirectory() as folder:
             manager, generation = bootstrap_manager(Path(folder) / "state.sqlite3")

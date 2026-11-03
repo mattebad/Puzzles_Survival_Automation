@@ -544,7 +544,7 @@ class BotStateManager:
         try:
             with self._transaction() as db:
                 yield db
-        except Exception:
+        except BaseException:
             if acquired_lease is not None:
                 try:
                     self.release_service_lease(
