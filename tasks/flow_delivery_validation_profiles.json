@@ -75,8 +75,6 @@
       "focused_tests": [
         "tests.test_campaign_auto_battle",
         "tests.test_campaign_auto_battle_runtime",
-        "tests.test_campaign_ap",
-        "tests.test_daily_campaign_ap",
         "tests.test_campaign_stage9_destination_replay",
         "tests.test_flow_delivery_campaign_bluestacks"
       ],

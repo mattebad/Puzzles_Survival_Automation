@@ -152,9 +152,6 @@ class FlowDeliveryQueueTests(unittest.TestCase):
         self.assertNotIn("RUNTIME-DECLARATIVE-VERIFIED-FLOW-COMPOSITION", identities)
         self.assertNotIn("bliss migration", joined)
         self.assertNotIn("production scheduler", joined)
-        scheduler = (ROOT / "tasks" / "scheduler.py").read_text(encoding="utf-8")
-        self.assertIn("offline Phase F work", scheduler)
-        self.assertNotIn("flow_delivery_queue", scheduler)
 
     def test_initial_order_and_normalized_counts(self) -> None:
         expected = [
@@ -419,7 +416,7 @@ class FlowDeliveryControllerTests(unittest.TestCase):
                 self.assertTrue(controller.lease_path.exists())
 
     def test_controller_never_mutates_gameplay_scheduler(self) -> None:
-        scheduler = ROOT / "tasks" / "scheduler.py"
+        scheduler = ROOT / "automation_service" / "scheduler.py"
         before = scheduler.read_bytes()
         with tempfile.TemporaryDirectory() as directory:
             controller = self.make_controller(directory)

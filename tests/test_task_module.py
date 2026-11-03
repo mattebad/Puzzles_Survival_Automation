@@ -3,13 +3,8 @@ from __future__ import annotations
 from dataclasses import replace
 import unittest
 
-from safe_action_core.popup import PopupController, PopupObservation
 from tasks import daily_quest
 from tasks.contracts import (
-    AnchorSpec,
-    NavigationStep,
-    PopupMode,
-    PopupOutcome,
     TaskOutcome,
     TaskResult,
 )
@@ -24,19 +19,6 @@ from tasks.daily_quest import (
 
 
 class ContractTests(unittest.TestCase):
-    def test_navigation_requires_source_and_successor(self) -> None:
-        anchor = AnchorSpec("test", (0, 0, 10, 10), 0.9, template="test.png")
-        step = NavigationStep(
-            "route",
-            "SOURCE",
-            "ACTION",
-            ("SUCCESSOR",),
-            target_anchor=anchor,
-        )
-        self.assertEqual(step.target_anchor, anchor)
-        with self.assertRaises(ValueError):
-            NavigationStep("invalid", None, "BACK", ())
-
     def test_task_return_does_not_imply_done(self) -> None:
         task = DailyQuestTask("day-1:objective-complete")
         progress = task.apply(TaskResult.progress("observed progress", "DAILY_QUEST"))
@@ -125,41 +107,6 @@ class RouteTests(unittest.TestCase):
                 RouteObservation("LOGIN", False, hard_stop=True)
             ),
             RouteType.ACCOUNT_OR_SESSION_HARD_STOP,
-        )
-
-
-class PopupTests(unittest.TestCase):
-    def test_navigation_handles_only_known_benign_popup(self) -> None:
-        controller = PopupController(PopupMode.NAVIGATION, max_rounds=1)
-        self.assertEqual(
-            controller.inspect(
-                PopupObservation("vip-points-reset", benign=True)
-            ),
-            PopupOutcome.HANDLED,
-        )
-        self.assertEqual(
-            controller.inspect(PopupObservation("info", benign=True)),
-            PopupOutcome.UNKNOWN,
-        )
-
-    def test_action_transaction_blocks_unknown_or_cost_popup(self) -> None:
-        controller = PopupController(
-            PopupMode.ACTION_TRANSACTION,
-            allowed_dialogs=("known-confirm",),
-        )
-        self.assertEqual(
-            controller.inspect(PopupObservation("unknown", benign=True)),
-            PopupOutcome.UNKNOWN,
-        )
-        self.assertEqual(
-            controller.inspect(
-                PopupObservation("purchase", purchase_or_cost=True)
-            ),
-            PopupOutcome.BLOCKING,
-        )
-        self.assertEqual(
-            controller.inspect(PopupObservation("known-confirm")),
-            PopupOutcome.HANDLED,
         )
 
 

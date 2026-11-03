@@ -1,7 +1,6 @@
 """Exact Campaign Story AP entry and result contract.
 
-This module is deliberately separate from the legacy ``tasks.campaign_ap``
-Sweep/Auto Complete contract.  It describes the current native route only:
+It describes the current native route only:
 Each Stage Dialog ``Challenge`` enters Hero Lineup with its own one-shot entry.
 Verified Victory -> Chapter Map AP debits survive later route failures; normal
 whole-route completion additionally requires a fresh drained Home balance.

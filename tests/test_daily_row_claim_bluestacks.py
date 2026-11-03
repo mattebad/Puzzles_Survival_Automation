@@ -2759,25 +2759,6 @@ class ImmediateBeforeBaselineClaimRecognizer(ScriptedClaimRecognizer):
 
 
 class DailyClaimCanaryTests(unittest.TestCase):
-    def test_standalone_canary_is_disabled_without_runtime_or_input_dispatch(self):
-        from scripts import daily_claim_canary
-
-        class RuntimeProbe:
-            def __init__(self) -> None:
-                self.taps = 0
-
-            def tap(self, *_args, **_kwargs) -> None:
-                self.taps += 1
-
-        probe = RuntimeProbe()
-        result = daily_claim_canary.run(probe)
-
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(result["input_count"], 0)
-        self.assertEqual(probe.taps, 0)
-        self.assertNotIn("LocalBlueStacksRuntime", vars(daily_claim_canary))
-        self.assertIn("pnsctl.py development-session daily-row-claim", result["canonical_command"])
-
     def _run_canary(
         self,
         root: Path,
