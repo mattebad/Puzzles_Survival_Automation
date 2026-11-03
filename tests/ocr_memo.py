@@ -2,8 +2,11 @@
 
 Route/service tests replay the same startup/Home frames hundreds of times. This
 helper runs the real Tesseract process once per unique (image pixels, extension,
-language, config, output type) and replays that real result afterwards, so a
+language, config, nice, output type) and replays that real result afterwards, so a
 cached answer is always one the real recognizer produced for that exact input.
+A replay also honours the caller's ``timeout``: deadline-derived timeouts differ on
+every call, so they are not part of the key; instead a call whose timeout is
+shorter than the recorded real run goes back to real Tesseract and times out there.
 Production code is untouched: the memo wraps ``pytesseract.pytesseract.
 run_and_get_output``, the single function under both ``image_to_string`` and the
 TSV path in ``scripts.bounded_tesseract``. Exceptions (including OCR timeouts) are
@@ -13,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -37,7 +41,7 @@ class OcrMemo:
 
     def __init__(self) -> None:
         self._real = engine.run_and_get_output
-        self._results: dict[tuple, str | bytes] = {}
+        self._results: dict[tuple, tuple[str | bytes, float]] = {}
         self._lock = threading.Lock()
         self.hits = 0
         self.misses = 0
@@ -51,14 +55,17 @@ class OcrMemo:
         image_key = _image_key(image)
         if image_key is None:
             return self._real(image, extension, lang, config, nice, timeout, return_bytes)
-        key = (image_key, extension, lang, config, bool(return_bytes))
+        key = (image_key, extension, lang, config, nice, bool(return_bytes))
         with self._lock:
-            if key in self._results:
+            cached = self._results.get(key)
+            if cached is not None and (not timeout or cached[1] <= timeout):
                 self.hits += 1
-                return self._results[key]
+                return cached[0]
+        started = time.monotonic()
         result = self._real(image, extension, lang, config, nice, timeout, return_bytes)
+        elapsed = time.monotonic() - started
         with self._lock:
-            self._results.setdefault(key, result)
+            self._results.setdefault(key, (result, elapsed))
             self.misses += 1
         return result
 
