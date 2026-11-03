@@ -2421,6 +2421,633 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
             self.assertEqual(runtime.taps, [])
 
 
+_SURVEY_MODULE = "scripts.flow_delivery_campaign_atlas_bluestacks"
+
+
+class _ScriptedPixels:
+    """Stand-in for a decoded frame; recognition reads the screen scripted at capture."""
+
+    def __init__(self, label: str, screen) -> None:
+        self.label = label
+        self.screen = screen
+
+
+class _ScriptedSurveyOperator:
+    """Minimal ``_SurveyOperator`` double for driving ``_run_live_survey_when_admissible``.
+
+    ``screens`` maps a capture label to its recognized screen (a list is consumed one
+    entry per capture of that label); unlisted labels recognize as TIER_MAP. Every
+    capture and dispatch is appended to ``calls`` so tests can assert ordering. Pans
+    return the scripted registration outcomes in order.
+    """
+
+    def __init__(self, session: Path, *, screens=None, swipe_outcomes=(), calls=None) -> None:
+        from scripts.flow_delivery_campaign_atlas_bluestacks import _SurveyState
+        from tasks.campaign_atlas import InputBudgetAccounting
+
+        self.session = session
+        self.events_path = session / "events.jsonl"
+        self.events_path.write_text("", encoding="utf-8")
+        self.runtime = object()
+        self.backend = object()
+        self.state = _SurveyState(accounting=InputBudgetAccounting())
+        self.screens = {
+            label: list(value) if isinstance(value, (list, tuple)) else value
+            for label, value in (screens or {}).items()
+        }
+        self.swipe_outcomes = list(swipe_outcomes)
+        self.calls = calls if calls is not None else []
+
+    def _screen_for(self, label: str):
+        from tasks.campaign_auto_battle import CampaignScreen
+
+        scripted = self.screens.get(label, CampaignScreen.TIER_MAP)
+        return scripted.pop(0) if isinstance(scripted, list) else scripted
+
+    def capture(self, label: str):
+        from types import SimpleNamespace
+
+        self.calls.append(("capture", label))
+        frame = SimpleNamespace(
+            frame=_ScriptedPixels(label, self._screen_for(label)),
+            path=self.session / "frames" / f"{label}.png",
+            sha256=self.sha(label),
+            captured_monotonic=float(len(self.calls)),
+        )
+        return frame, SimpleNamespace(label=label)
+
+    @staticmethod
+    def sha(label: str) -> str:
+        import hashlib
+
+        return hashlib.sha256(label.encode("utf-8")).hexdigest()
+
+    def recognize(self, pixels: _ScriptedPixels):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(observation=SimpleNamespace(screen=pixels.screen, selected_tier=None))
+
+    def dispatch_swipe(self, *, action_key: str, **_kwargs):
+        from types import SimpleNamespace
+
+        self.calls.append(("swipe", action_key))
+        if not self.swipe_outcomes:
+            raise AssertionError(f"unscripted survey pan {action_key}")
+        outcome = self.swipe_outcomes.pop(0)
+        post, post_prov = self.capture(f"{action_key}-post")
+        return post, post_prov, outcome, SimpleNamespace(overlap_ratio=0.5, residual_px=0.0)
+
+    def dispatch_bound_tap(self, *, action_key: str, **_kwargs):
+        raise AssertionError(f"unexpected survey tap {action_key}")
+
+
+class CampaignAtlasLiveSurveyControlFlowTests(unittest.TestCase):
+    """Drive the live survey control flow with a scripted operator; no device input."""
+
+    def _drive(self, op: _ScriptedSurveyOperator):
+        from scripts.flow_delivery_campaign_atlas_bluestacks import (
+            _run_live_survey_when_admissible,
+        )
+
+        return _run_live_survey_when_admissible(
+            op=op,
+            session=op.session,
+            session_id="campaign-atlas-control-flow",
+            source_runtime=None,
+            serial="emulator-5554",
+            runtime_owner="test-owner",
+        )
+
+    @staticmethod
+    def _order(calls) -> list[str]:
+        return [call[1] if call[0] in {"capture", "swipe"} else call[0] for call in calls]
+
+    def test_home_start_recovers_zoom_and_recaptures_before_campaign_entry(self) -> None:
+        from unittest.mock import patch
+
+        from tasks.campaign_auto_battle import CampaignScreen
+
+        home = CampaignScreen.HOME_BASE
+
+        def _run(screens, zoom_status: str):
+            calls: list[tuple] = []
+            with tempfile.TemporaryDirectory() as directory:
+                op = _ScriptedSurveyOperator(Path(directory), screens=screens, calls=calls)
+
+                def zoom(op_arg, **kwargs):
+                    self.assertIs(op_arg, op)
+                    calls.append(("zoom", kwargs))
+                    return {"status": zoom_status, "reason": "scripted-zoom", "zoom_inputs": 1}
+
+                def entry(runtime, **kwargs):
+                    self.assertIs(runtime, op.runtime)
+                    calls.append(("entry", kwargs))
+                    return {"status": "blocked", "reason": "scripted-entry-stop"}
+
+                with patch(
+                    f"{_SURVEY_MODULE}.recover_home_zoom_before_campaign_entry", side_effect=zoom
+                ), patch(
+                    f"{_SURVEY_MODULE}.run_verified_campaign_home_atlas_entry", side_effect=entry
+                ), self.assertRaises(RuntimeError) as raised:
+                    self._drive(op)
+            return calls, str(raised.exception)
+
+        # Localized zoom: zoom first, then a fresh immediate-before, then entry.
+        calls, error = _run({"source": home, "entry-immediate-before": home}, "localized")
+        self.assertIn("Home-to-Campaign entry failed: scripted-entry-stop", error)
+        self.assertEqual(
+            self._order(calls),
+            ["source", "entry-immediate-before", "zoom", "entry-immediate-before", "entry"],
+        )
+        zoom_kwargs = next(call[1] for call in calls if call[0] == "zoom")
+        self.assertEqual(zoom_kwargs["maximum_zoom_inputs"], 4)
+
+        # A non-localized zoom status stops before any recapture or Campaign entry.
+        calls, error = _run({"source": home, "entry-immediate-before": home}, "blocked")
+        self.assertIn("Home zoom recovery failed before Campaign entry: scripted-zoom", error)
+        self.assertEqual(self._order(calls), ["source", "entry-immediate-before", "zoom"])
+
+        # The post-zoom recapture is what gates entry: leaving HOME_BASE stops it.
+        calls, error = _run(
+            {"source": home, "entry-immediate-before": [home, CampaignScreen.UNKNOWN]},
+            "localized",
+        )
+        self.assertIn("post-zoom entry immediate-before left HOME_BASE", error)
+        self.assertEqual(
+            self._order(calls),
+            ["source", "entry-immediate-before", "zoom", "entry-immediate-before"],
+        )
+
+    def test_home_zoom_recovery_defaults_to_scrcpy_transport_within_four_inputs(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        import numpy as np
+
+        from scripts.flow_delivery_campaign_atlas_bluestacks import (
+            _SurveyOperator,
+            recover_home_zoom_before_campaign_entry,
+        )
+        from scripts.home_atlas_bluestacks import HomeDriverDisposition, HomeDriverStep
+        from tasks.campaign_atlas import InputBudgetAccounting, InputBudgetCategory
+        from tasks.campaign_auto_battle import CampaignScreen
+
+        constructed: list["_RecordingZoom"] = []
+
+        class _RecordingZoom:
+            def __init__(self, **kwargs) -> None:
+                self.kwargs = kwargs
+                self.zoom_outs = 0
+                constructed.append(self)
+
+            def zoom_out_once(self) -> None:
+                self.zoom_outs += 1
+
+        with tempfile.TemporaryDirectory() as directory:
+            session = Path(directory)
+            frames = session / "runtime" / "frames"
+            frames.mkdir(parents=True)
+            captures: list[str] = []
+
+            def capture(label: str):
+                captures.append(label)
+                path = frames / f"{label}.png"
+                path.write_bytes(b"png")
+                return SimpleNamespace(
+                    label=label,
+                    path=path,
+                    frame=np.zeros((1280, 800, 3), np.uint8),
+                    sha256=f"{len(captures):064x}",
+                    captured_monotonic=float(len(captures)),
+                ), SimpleNamespace()
+
+            op = object.__new__(_SurveyOperator)
+            op.session = session
+            op.session_id = "zoom-default-transport"
+            op.lease_owner = "owner"
+            op.runtime = SimpleNamespace(session=session)
+            op.state = SimpleNamespace(
+                accounting=InputBudgetAccounting(),
+                journal=[],
+                transport_dispatched=False,
+                unresolved=False,
+                last_swipe=None,
+                last_progress_proven=False,
+                capture_ordinal=0,
+                accepted=[],
+            )
+            op.lifecycle_path = session / "survey-lifecycle.jsonl"
+            op.journal_path = session / "journal.jsonl"
+            op.events_path = session / "events.jsonl"
+            for path in (op.lifecycle_path, op.journal_path, op.events_path):
+                path.write_text("", encoding="utf-8")
+            op.capture = capture
+            op.recognize = lambda _frame: SimpleNamespace(
+                observation=SimpleNamespace(screen=CampaignScreen.HOME_BASE)
+            )
+
+            driver = MagicMock()
+            driver.observe.side_effect = [
+                HomeDriverStep(
+                    HomeDriverDisposition.RECOVER_ZOOM,
+                    "unsupported_zoom_requires_bounded_canonical_recovery",
+                    "a" * 64,
+                    MagicMock(),
+                    recovery_input_ordinal=1,
+                ),
+                HomeDriverStep(
+                    HomeDriverDisposition.PAN, "localized_after_zoom", "b" * 64, MagicMock()
+                ),
+            ]
+            guarded = MagicMock()
+            guarded.dispatch_zoom_out.side_effect = (
+                lambda before, facts, *, transport, target_identity="home-zoom-out": transport()
+            )
+
+            with patch(f"{_SURVEY_MODULE}.ScrcpyMotionEventZoomTransport", _RecordingZoom):
+                for out_of_range in (0, 5):
+                    with self.subTest(maximum_zoom_inputs=out_of_range):
+                        with self.assertRaises(RuntimeError) as raised:
+                            recover_home_zoom_before_campaign_entry(
+                                op,
+                                source_rel="source.png",
+                                maximum_zoom_inputs=out_of_range,
+                                settle_seconds=0.0,
+                                home_driver=driver,
+                                guarded_runtime=guarded,
+                            )
+                        self.assertIn("allows 1..4 inputs", str(raised.exception))
+                self.assertEqual((captures, constructed), ([], []))
+
+                result = recover_home_zoom_before_campaign_entry(
+                    op,
+                    source_rel="source.png",
+                    maximum_zoom_inputs=4,
+                    settle_seconds=0.0,
+                    home_driver=driver,
+                    guarded_runtime=guarded,
+                )
+
+        self.assertEqual(result["status"], "localized")
+        self.assertEqual(len(constructed), 1)
+        self.assertEqual(constructed[0].kwargs["evidence_directory"], session / "scrcpy-zoom")
+        self.assertEqual(constructed[0].zoom_outs, 1)
+        transport = guarded.dispatch_zoom_out.call_args.kwargs["transport"]
+        self.assertIs(transport.__self__, constructed[0])
+        self.assertEqual([entry.budget_category for entry in op.state.journal], [InputBudgetCategory.AUXILIARY])
+        self.assertEqual(op.state.accounting.auxiliary_used, 1)
+
+    def test_recognized_vip_popup_is_dismissed_before_unsupported_start(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
+        from tasks.campaign_auto_battle import CampaignScreen
+
+        unknown = CampaignScreen.UNKNOWN
+
+        def _run(*, recognized: bool, dismiss: dict | None):
+            calls: list[tuple] = []
+            # After a confirmed dismissal the survey continues on TIER_MAP; the first
+            # edge immediate-before is scripted off-map so the run stops there.
+            screens = {
+                "source": unknown,
+                "entry-immediate-before": unknown,
+                "edge-top-before-00": unknown,
+            }
+            zoom = MagicMock(side_effect=AssertionError("Home zoom on a VIP start"))
+            entry = MagicMock(side_effect=AssertionError("Home entry on a VIP start"))
+            with tempfile.TemporaryDirectory() as directory:
+                op = _ScriptedSurveyOperator(Path(directory), screens=screens, calls=calls)
+
+                def recognize_reset_popup(pixels):
+                    calls.append(("vip_recognize", pixels.label))
+                    return {"recognized": recognized}
+
+                def dismiss_popup(op_arg, *, source_rel, before):
+                    self.assertIs(op_arg, op)
+                    calls.append(("vip_dismiss", before.frame.label))
+                    return dict(dismiss or {})
+
+                with patch.object(
+                    mod.bluestacks_popup_recognition,
+                    "recognize_reset_popup",
+                    side_effect=recognize_reset_popup,
+                ), patch(
+                    f"{_SURVEY_MODULE}.dismiss_campaign_vip_reset_popup", side_effect=dismiss_popup
+                ), patch(
+                    f"{_SURVEY_MODULE}.recover_home_zoom_before_campaign_entry", zoom
+                ), patch(
+                    f"{_SURVEY_MODULE}.run_verified_campaign_home_atlas_entry", entry
+                ), self.assertRaises(RuntimeError) as raised:
+                    self._drive(op)
+            zoom.assert_not_called()
+            entry.assert_not_called()
+            return calls, str(raised.exception)
+
+        # No recognized popup: unsupported start, nothing dismissed.
+        calls, error = _run(recognized=False, dismiss=None)
+        self.assertEqual(error, "unsupported survey start screen: UNKNOWN")
+        self.assertEqual(
+            calls,
+            [
+                ("capture", "source"),
+                ("capture", "entry-immediate-before"),
+                ("vip_recognize", "entry-immediate-before"),
+            ],
+        )
+
+        # Recognized popup, zero-transport refusal: unsupported start only after dismiss.
+        calls, error = _run(
+            recognized=True,
+            dismiss={"status": "blocked", "reason": "wrong_text", "transport_dispatched": False},
+        )
+        self.assertIn("unsupported survey start screen: UNKNOWN (vip_dismiss=wrong_text)", error)
+        self.assertEqual(calls[-1], ("vip_dismiss", "entry-immediate-before"))
+        self.assertNotIn(("capture", "vip-reset-post-continue"), calls)
+
+        # Recognized popup, transport sent but unconfirmed: unresolved, not continued.
+        calls, error = _run(
+            recognized=True,
+            dismiss={"status": "unresolved", "reason": "unknown_successor", "transport_dispatched": True},
+        )
+        self.assertIn("VIP reset dismiss unresolved after transport: unknown_successor", error)
+        self.assertNotIn(("capture", "vip-reset-post-continue"), calls)
+
+        # Confirmed dismissal: the survey continues to the map in this invocation.
+        calls, error = _run(recognized=True, dismiss={"status": "dismissed"})
+        self.assertEqual(error, "left TIER_MAP during top edge survey")
+        self.assertEqual(
+            calls,
+            [
+                ("capture", "source"),
+                ("capture", "entry-immediate-before"),
+                ("vip_recognize", "entry-immediate-before"),
+                ("vip_dismiss", "entry-immediate-before"),
+                ("capture", "vip-reset-post-continue"),
+                ("capture", "edge-top-before-00"),
+            ],
+        )
+
+    def _traversal_patches(self, *, associated: bool = True, loop_closed: bool = False):
+        from contextlib import ExitStack
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        stack = ExitStack()
+        for name, value in (
+            ("_annotate_roi", "annotations/scripted.png"),
+            ("measured_content_annotation_roi", (0, 0, 1, 1)),
+            ("overlap_association_accepted", associated),
+            ("loop_closure_accepted", loop_closed),
+            ("registration_residual_report", SimpleNamespace(residual_px=0.0)),
+            (
+                "measure_campaign_frame_pair",
+                SimpleNamespace(measurement=SimpleNamespace(residual_px=0.0)),
+            ),
+        ):
+            stack.enter_context(patch(f"{_SURVEY_MODULE}.{name}", return_value=value))
+        return stack
+
+    def test_only_progress_overlap_steps_become_overlap_pairs(self) -> None:
+        # Four edge clamps, then the overlap serpentine: one progress step and three
+        # no_progress clamp steps (row end, top, loop close). Loop closure is scripted
+        # to fail so the run stops right after traversal.
+        outcomes = ["no_progress"] * 4 + ["progress", "no_progress", "no_progress", "no_progress"]
+        sha = _ScriptedSurveyOperator.sha
+        with tempfile.TemporaryDirectory() as directory:
+            op = _ScriptedSurveyOperator(Path(directory), swipe_outcomes=outcomes)
+            with self._traversal_patches(), self.assertRaises(RuntimeError) as raised:
+                self._drive(op)
+        self.assertEqual(
+            str(raised.exception), "top-right loop closure failed reviewed registration policy"
+        )
+        self.assertEqual(op.swipe_outcomes, [])
+        self.assertEqual(
+            [swipe for kind, swipe in op.calls if kind == "swipe"][4:],
+            [
+                "overlap-row-000-right",
+                "overlap-row-001-right",
+                "overlap-row-step-002",
+                "overlap-loop-close-003",
+            ],
+        )
+        self.assertEqual(
+            [
+                (item.reference_sha256, item.candidate_sha256, item.associated)
+                for item in op.state.overlaps
+            ],
+            [(sha("overlap-row-000-right-before"), sha("overlap-row-000-right-post"), True)],
+        )
+        self.assertEqual(
+            [(item.direction, item.supporting_frame_sha256) for item in op.state.edge_clamps],
+            [
+                ("top", sha("edge-top-00-post")),
+                ("right", sha("edge-right-00-post")),
+                ("bottom", sha("edge-bottom-00-post")),
+                ("left", sha("edge-left-00-post")),
+            ],
+        )
+
+    def test_overlap_step_off_tier_map_or_unassociated_is_refused(self) -> None:
+        from tasks.campaign_auto_battle import CampaignScreen
+
+        edges = ["no_progress"] * 4
+        cases = (
+            # Edge immediate-before off TIER_MAP: refused before that edge's pan.
+            (
+                {"edge-right-before-00": CampaignScreen.UNKNOWN},
+                ["no_progress"],
+                True,
+                "left TIER_MAP during right edge survey",
+                ["edge-top-00"],
+                [],
+            ),
+            # Overlap immediate-before off TIER_MAP: refused before the overlap pan.
+            (
+                {"overlap-row-000-right-before": CampaignScreen.HOME_BASE},
+                edges,
+                True,
+                "overlap immediate-before is not TIER_MAP",
+                ["edge-top-00", "edge-right-00", "edge-bottom-00", "edge-left-00"],
+                [],
+            ),
+            # Unresolved registration: no overlap pair, coverage claim refused.
+            (
+                {},
+                edges + ["unresolved"],
+                True,
+                "overlap association unresolved at overlap-row-000-right; refusing coverage claim",
+                None,
+                [],
+            ),
+            # Progress whose association fails: recorded as unassociated, then refused.
+            (
+                {},
+                edges + ["progress"],
+                False,
+                "overlap association unresolved at overlap-row-000-right; refusing coverage claim",
+                None,
+                [False],
+            ),
+        )
+        for screens, outcomes, associated, message, swipes, overlaps in cases:
+            with self.subTest(message=message, outcomes=outcomes[-1]):
+                with tempfile.TemporaryDirectory() as directory:
+                    op = _ScriptedSurveyOperator(
+                        Path(directory), screens=screens, swipe_outcomes=outcomes
+                    )
+                    with self._traversal_patches(associated=associated), self.assertRaises(
+                        RuntimeError
+                    ) as raised:
+                        self._drive(op)
+                self.assertEqual(str(raised.exception), message)
+                self.assertEqual(op.swipe_outcomes, [])
+                if swipes is not None:
+                    self.assertEqual([swipe for kind, swipe in op.calls if kind == "swipe"], swipes)
+                self.assertEqual([item.associated for item in op.state.overlaps], overlaps)
+
+    def test_survey_tap_off_tier_map_is_refused_or_unresolved(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        import time as time_module
+
+        import numpy as np
+
+        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
+        from scripts.bluestacks_native_runtime import CapturedNativeFrame
+        from safe_action_core import ActionStatus
+        from tasks.campaign_atlas import InputBudgetCategory, InputLifecycle, SurveyPhase
+        from tasks.campaign_auto_battle import CampaignScreen
+
+        class _FakeRuntime:
+            def __init__(self, session: Path) -> None:
+                self.session = session
+                self.ordinal = 0
+                self.taps: list[str] = []
+
+            def capture(self, label: str) -> CapturedNativeFrame:
+                self.ordinal += 1
+                frame = np.zeros((1280, 800, 3), np.uint8)
+                frame[0, 0] = (self.ordinal, 0, 0)
+                path = self.session / "frames" / f"{self.ordinal:04d}-{label}.png"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"png")
+                return CapturedNativeFrame(
+                    frame,
+                    f"png-{self.ordinal}".encode(),
+                    f"{self.ordinal:064x}",
+                    float(time_module.monotonic()),
+                    path,
+                )
+
+            def tap(self, captured, **_kwargs) -> None:
+                self.taps.append(captured.sha256)
+
+        executor_results: list = []
+
+        class _RecordingExecutor(mod.SafeActionExecutor):
+            def execute(self, *args, **kwargs):
+                result = super().execute(*args, **kwargs)
+                executor_results.append(result)
+                return result
+
+        def _run(screens_by_capture: dict[int, CampaignScreen]):
+            # Capture 1 = planning, 2 = fresh immediate-before, 3 = post.
+            executor_results.clear()
+            with tempfile.TemporaryDirectory() as directory:
+                session = Path(directory) / "tap-session"
+                session.mkdir()
+                runtime = _FakeRuntime(session / "runtime")
+                planning = runtime.capture("difficulty-tier-1-before")
+                op = mod._SurveyOperator(
+                    session, runtime=runtime, session_id="campaign-atlas-tap-off-map", lease_owner="test-owner"
+                )
+
+                def recognize(frame):
+                    screen = screens_by_capture.get(int(frame[0, 0, 0]), CampaignScreen.TIER_MAP)
+                    return SimpleNamespace(observation=SimpleNamespace(screen=screen, selected_tier=1))
+
+                try:
+                    with patch.object(op, "recognize", side_effect=recognize), patch(
+                        f"{_SURVEY_MODULE}.require_bound_survey_target", return_value=(120, 220, 180, 280)
+                    ), patch(f"{_SURVEY_MODULE}.time.sleep", return_value=None), patch(
+                        f"{_SURVEY_MODULE}.SafeActionExecutor", _RecordingExecutor
+                    ), self.assertRaises(RuntimeError) as raised:
+                        op.dispatch_bound_tap(
+                            phase=SurveyPhase.DIFFICULTY_GEOMETRY_PAIR,
+                            category=InputBudgetCategory.AUXILIARY,
+                            source_rel="runtime/frames/0001-source.png",
+                            before=planning,
+                            before_rel="runtime/frames/0001-difficulty-tier-1-before.png",
+                            identity="campaign-tier-1",
+                            action_key="difficulty-tier-1",
+                            expected_successor=lambda rec: rec.observation.screen == CampaignScreen.TIER_MAP,
+                        )
+                finally:
+                    op.close()
+            return op, runtime, str(raised.exception)
+
+        # Fresh immediate-before is not TIER_MAP: refused before prepare/issue/transport.
+        op, runtime, error = _run({2: CampaignScreen.HOME_BASE})
+        self.assertEqual(error, "survey tap immediate-before is not TIER_MAP")
+        self.assertEqual(runtime.taps, [])
+        self.assertEqual(op.state.journal, [])
+        self.assertEqual(executor_results, [])
+        self.assertFalse(op.state.transport_dispatched)
+
+        # Tap leaves TIER_MAP during the step: executor reports unexpected_successor
+        # and the journal entry is closed unresolved after exactly one transport.
+        op, runtime, error = _run({3: CampaignScreen.HOME_BASE})
+        self.assertEqual(error, "SafeActionExecutor unresolved for difficulty-tier-1")
+        self.assertEqual(len(runtime.taps), 1)
+        self.assertEqual(
+            [(result.status, result.reason) for result in executor_results],
+            [(ActionStatus.UNRESOLVED, "unexpected_successor")],
+        )
+        self.assertEqual([entry.lifecycle for entry in op.state.journal], [InputLifecycle.UNRESOLVED])
+        self.assertTrue(op.state.unresolved)
+        self.assertTrue(op.state.transport_dispatched)
+
+    def test_survey_transport_requires_the_sealed_token(self) -> None:
+        from scripts.flow_delivery_campaign_atlas_bluestacks import reject_direct_survey_transport
+
+        for token in (None, object(), "SafeActionExecutor"):
+            with self.subTest(token=token):
+                with self.assertRaises(RuntimeError) as raised:
+                    reject_direct_survey_transport(authorized_token=token)
+                self.assertEqual(str(raised.exception), "DIRECT_TRANSPORT_BYPASS_REJECTED")
+
+    def test_inadmissible_preflight_returns_blocked_delivery_without_runtime(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        from scripts.flow_delivery_campaign_atlas_bluestacks import run_bounded_campaign_atlas_survey
+
+        blocked = {"survey_result": {"live_preflight_inadmissible": True}}
+        forbidden = {
+            name: MagicMock(side_effect=AssertionError(f"{name} constructed while inadmissible"))
+            for name in ("ADBRunner", "LocalBlueStacksRuntime", "_SurveyOperator", "_run_live_survey_when_admissible")
+        }
+        with tempfile.TemporaryDirectory() as directory, patch(
+            f"{_SURVEY_MODULE}.live_survey_preflight_is_admissible", return_value=False
+        ), patch(
+            f"{_SURVEY_MODULE}._preflight_blocked_delivery", return_value=blocked
+        ) as preflight_blocked, patch.multiple(_SURVEY_MODULE, **forbidden):
+            session = Path(directory)
+            result = run_bounded_campaign_atlas_survey(
+                session=session, adb="adb", serial="emulator-5554", runtime_owner="test-owner"
+            )
+        self.assertIs(result, blocked)
+        preflight_blocked.assert_called_once_with(
+            session=session,
+            serial="emulator-5554",
+            runtime_owner="test-owner",
+            prior_accounting=None,
+            prior_continuation=None,
+        )
+        for mock in forbidden.values():
+            mock.assert_not_called()
+
 
 class CampaignAtlasOfflineReconciliationTests(unittest.TestCase):
     TIER_MAP_FIXTURE = (

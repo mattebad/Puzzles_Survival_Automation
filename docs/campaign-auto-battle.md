@@ -34,7 +34,7 @@ still requires fresh source/target binding and rejects ambiguous AP or outcomes.
 The current-source full native UTC-crossing test is follow-up work. Offline
 actual-service tests cover reset changes before runner entry and cross-reset AP
 continuation. Current operator state and remaining evidence are recorded in
-[`CURRENT_HANDOFF.md`](../CURRENT_HANDOFF.md) and [`BACKLOG.md`](../BACKLOG.md).
+[`CURRENT_HANDOFF.md`](agent/CURRENT_HANDOFF.md) and [`BACKLOG.md`](../BACKLOG.md).
 This document does not record a live operator or grant execution authority.
 
 The supported live entrypoint is the canonical facade:

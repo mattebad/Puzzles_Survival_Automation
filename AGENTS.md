@@ -5,8 +5,9 @@
 - This repository contains an implemented offline/runtime kernel and a smaller
   accepted live portfolio. Documentation MUST distinguish implemented code from
   live-accepted behavior.
-- `CURRENT_HANDOFF.md` records volatile current state; `BACKLOG.md` and `docs/`
-  hold durable plans and history. Git state and retained evidence are authoritative.
+- `docs/agent/CURRENT_HANDOFF.md` records volatile current state; agent prompts
+  and session note formats also live under `docs/agent/`. `BACKLOG.md` and the rest
+  of `docs/` hold durable plans and history. Git state and retained evidence are authoritative.
 - Describe readiness, blockers, and current state from present facts. Mark missing,
   stale, or contradictory proof as `evidence_required`; never infer readiness from
   an old receipt. Legacy receipts remain historical records and do not imply a

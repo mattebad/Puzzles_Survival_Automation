@@ -38,5 +38,6 @@ work.
 
 - [`retired-governance/`](retired-governance/) preserves the removed staged validator and its tests as non-executable text.
 - [`campaign-route-status-before-cleanup-20261030.md`](campaign-route-status-before-cleanup-20261030.md) preserves the former Campaign run-status chronology.
+- [`current-handoff-astra-premerge-20261102.md`](current-handoff-astra-premerge-20261102.md) is the former root `CURRENT_HANDOFF.md`, moved byte-for-byte when agent session state moved to [`../agent/`](../agent/). It describes the November 2 pre-merge session (PR #16, since merged); its relative links keep their original root context.
 
 These records do not impose current handoff fields, CI gates, route authorization, or operator state.

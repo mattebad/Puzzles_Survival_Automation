@@ -27,6 +27,6 @@ new live input requires separate explicit current authorization and all existing
 - Release ownership only through the existing safe terminal path. If that is not possible,
   stop and report the unresolved state rather than bypassing fencing or issuing more input.
 
-See [runtime input safety](runtime-input-safety-policy.md),
-[execution ownership](chat-execution-ownership-policy.md), and
-[validation boundaries](flow-delivery-validation-policy.md).
+See [runtime input safety](../runtime-input-safety-policy.md),
+[execution ownership](../chat-execution-ownership-policy.md), and
+[validation boundaries](../flow-delivery-validation-policy.md).
