@@ -46,6 +46,7 @@ from scripts.world_map_navigation_bluestacks import (
     run_world_map_navigation,
     run_world_map_search_entry_only,
 )
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -291,7 +292,7 @@ def _run_result(
         "schema_version": 1,
         "flow_id": FLOW_ID,
         "status": delivery_status,
-        "serial": _pnsctl().BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": NATIVE_WIDTH,
         "native_height": NATIVE_HEIGHT,
         "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
@@ -433,8 +434,8 @@ def run_world_map_navigation_foundation(
         lease["registration_snapshot"] = registration_snapshot
     try:
         runtime = LocalBlueStacksRuntime.connect(
-            adb=str(pnsctl.BLUESTACKS_ADB),
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=str(BLUESTACKS_ADB),
+            serial=BLUESTACKS_SERIAL,
             output_directory=root,
             workflow="world-map-navigation",
             execute=True,
@@ -1299,7 +1300,7 @@ def verify_world_map_navigation_foundation(
         raise _pnsctl().OperatorError(
             "World navigation retained result does not match verifier input"
         )
-    if result.get("serial") != _pnsctl().BLUESTACKS_SERIAL or (
+    if result.get("serial") != BLUESTACKS_SERIAL or (
         result.get("native_width"),
         result.get("native_height"),
     ) != (NATIVE_WIDTH, NATIVE_HEIGHT):

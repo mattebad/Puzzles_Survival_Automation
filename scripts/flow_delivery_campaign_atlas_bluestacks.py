@@ -53,7 +53,12 @@ from scripts.navigation_development_boundary import (
     make_source_safety_facts,
 )
 from tasks.home_context import HomeReadyObservation
-from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
+from tasks.runtime_identity import (
+    RuntimeIdentityAssurance,
+    VerifiedRuntimeIdentity,
+    BLUESTACKS_ADB,
+    BLUESTACKS_SERIAL,
+)
 from tasks.campaign_atlas import (
     ACTIVATED_AUXILIARY_INPUTS,
     ACTIVATED_EDGE_STEPS_PER_DIRECTION,
@@ -351,8 +356,8 @@ def recover_home_zoom_before_campaign_entry(
     if transport is None:
         pnsctl = _pnsctl()
         transport = ScrcpyMotionEventZoomTransport(
-            adb=str(pnsctl.BLUESTACKS_ADB),
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=str(BLUESTACKS_ADB),
+            serial=BLUESTACKS_SERIAL,
             evidence_directory=op.session / "scrcpy-zoom",
         )
     guarded = guarded_runtime
@@ -3956,8 +3961,8 @@ def run_campaign_atlas_native_survey(
     try:
         delivery = run_bounded_campaign_atlas_survey(
             session=session,
-            adb=str(pnsctl.BLUESTACKS_ADB),
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=str(BLUESTACKS_ADB),
+            serial=BLUESTACKS_SERIAL,
             runtime_owner=str(lease["owner"]),
             prior_accounting=prior_accounting,
             prior_continuation=prior_continuation,
@@ -3965,7 +3970,7 @@ def run_campaign_atlas_native_survey(
     except Exception as exc:
         failure = _failure_delivery_from_session(
             session,
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            serial=BLUESTACKS_SERIAL,
             runtime_owner=str(lease["owner"]),
             exc=exc,
         )

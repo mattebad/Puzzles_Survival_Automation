@@ -12,6 +12,7 @@ from typing import Any, Mapping
 import cv2
 import numpy as np
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -178,7 +179,7 @@ def _write_delivery_result(
         "schema_version": 1,
         "flow_id": FLOW_ID,
         "status": result.get("status"),
-        "serial": _pnsctl().BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": _pnsctl().BLUESTACKS_NATIVE_WIDTH,
         "native_height": _pnsctl().BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
@@ -383,8 +384,8 @@ def run_bioenhancer_free_research(
     try:
         pnsctl = _pnsctl()
         runtime = LocalBlueStacksRuntime.connect(
-            adb=str(pnsctl.BLUESTACKS_ADB),
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=str(BLUESTACKS_ADB),
+            serial=BLUESTACKS_SERIAL,
             output_directory=outer_directory / "runtime",
             workflow=f"bioenhancer-free-research-{_stamp()}",
             execute=True,

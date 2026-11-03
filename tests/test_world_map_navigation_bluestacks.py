@@ -70,6 +70,7 @@ from tasks.world_stamina import (
     world_node_binding_authorizeable,
 )
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tasks.runtime_identity import BLUESTACKS_SERIAL
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -559,7 +560,7 @@ class WorldMapNavigationTests(unittest.TestCase):
                 "schema_version": 1,
                 "flow_id": FLOW_ID,
                 "status": "completed",
-                "serial": pnsctl.BLUESTACKS_SERIAL,
+                "serial": BLUESTACKS_SERIAL,
                 "native_width": 800,
                 "native_height": 1280,
                 "dispatch_count": 1,
@@ -636,7 +637,7 @@ class WorldMapNavigationTests(unittest.TestCase):
                 "schema_version": 1,
                 "flow_id": FLOW_ID,
                 "status": "completed",
-                "serial": pnsctl.BLUESTACKS_SERIAL,
+                "serial": BLUESTACKS_SERIAL,
                 "native_width": 800,
                 "native_height": 1280,
                 "dispatch_count": 4,

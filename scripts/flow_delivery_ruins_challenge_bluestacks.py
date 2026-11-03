@@ -22,6 +22,7 @@ from tasks.ruins_challenge_continuation import (
     validate_claim_record,
     write_continuation,
 )
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 # Compatibility export for existing adapter callers; the continuation contract
 # itself owns the literal identity tuple.
@@ -141,8 +142,8 @@ def run_ruins_challenge_home_atlas(
     command = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "ruins_challenge_bluestacks.py"),
-        "--adb", str(pnsctl.BLUESTACKS_ADB),
-        "--serial", pnsctl.BLUESTACKS_SERIAL,
+        "--adb", str(BLUESTACKS_ADB),
+        "--serial", BLUESTACKS_SERIAL,
         "--reset-identity", reset_identity,
         "--current-day", current_day,
         "--output-directory", str(root),
@@ -223,7 +224,7 @@ def run_ruins_challenge_home_atlas(
         "schema_version": 1,
         "flow_id": FLOW_ID,
         "status": "completed" if terminal else "dry_run" if zero_transport else "failed",
-        "serial": pnsctl.BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
         "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": lease["owner"],

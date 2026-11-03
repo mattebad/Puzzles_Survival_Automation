@@ -17,7 +17,15 @@ import numpy as np
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime, captured_native_frame_from_png
 from scripts.home_atlas_bluestacks import identity_from_captured
 from scripts.navigation_development_boundary import DevelopmentInitialObservation, DevelopmentSession
-from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity, derive_resource_runtime_identity, derive_static_utc_reset
+from tasks.runtime_identity import (
+    RuntimeIdentityAssurance,
+    VerifiedRuntimeIdentity,
+    derive_resource_runtime_identity,
+    derive_static_utc_reset,
+    BLUESTACKS_ADB,
+    BLUESTACKS_SERIAL,
+    resource_fixed_runtime_binding,
+)
 from tasks import personal_might_vision as vision
 from tasks.personal_might_praise import SEMANTIC_ACTION, SOURCE_STATE, TARGET_IDENTITY, CONSEQUENCE, POSTCONDITION, personal_might_daily_key
 from scripts.startup_normalization import is_clean_home_frame
@@ -212,14 +220,14 @@ def run_personal_might(queue: Mapping[str, Any], lease: Mapping[str, Any], *, li
     if recovery_only and not lease.get("recovery_session"):
         raise pnsctl.OperatorError("Personal Might recovery requires its original session")
     runtime = LocalBlueStacksRuntime.connect(
-        adb=str(pnsctl.BLUESTACKS_ADB), serial=pnsctl.BLUESTACKS_SERIAL,
+        adb=str(BLUESTACKS_ADB), serial=BLUESTACKS_SERIAL,
         output_directory=directory / "runtime", workflow="personal-might-discovery",
         execute=True,
     )
     child = Path(runtime.session)
     from scripts import personal_might_praise_bluestacks as route
     from scripts.navigation_development_boundary import open_canonical_action_store
-    binding = pnsctl._resource_fixed_runtime_binding()
+    binding = resource_fixed_runtime_binding()
     identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc), evidence_refs=("identity-source:fixed-login-slot", "identity-source:static-UTC-reset", f"session-owner:{outer.owner}", f"session-invocation:{outer.invocation_id}"))
     validate_identity = lambda: _validate_identity(identity, binding, datetime.now(timezone.utc))
     store = open_canonical_action_store()
@@ -278,7 +286,7 @@ def run_personal_might(queue: Mapping[str, Any], lease: Mapping[str, Any], *, li
     }
     outer.set_causal_trace(trace)
     delivery = {
-        **payload, "serial": pnsctl.BLUESTACKS_SERIAL,
+        **payload, "serial": BLUESTACKS_SERIAL,
         "native_width": 800, "native_height": 1280, "runtime_owner": outer.owner,
         "terminal_runtime_state": "recognized_home" if result.get("terminal_home_verified") is True else "safe_blocked_terminal", "actions": [],
         "frames": [path.relative_to(child).as_posix() for path in (child / "frames").glob("*.png")],
@@ -346,7 +354,7 @@ def _validation_identity(record, sample):
     values["assurance"] = RuntimeIdentityAssurance(values["assurance"])
     values["evidence_refs"] = tuple(values["evidence_refs"])
     identity = VerifiedRuntimeIdentity(**values)
-    _validate_identity(identity, pnsctl._resource_fixed_runtime_binding(), _utc(sample))
+    _validate_identity(identity, resource_fixed_runtime_binding(), _utc(sample))
     key = personal_might_daily_key(runtime_scope=identity.runtime_scope, account_id=identity.account_id, server_id=identity.server_id, reset_id=identity.reset_id)
     if record.get("action_key") != key:
         raise ValueError("Personal Might daily action identity differs")

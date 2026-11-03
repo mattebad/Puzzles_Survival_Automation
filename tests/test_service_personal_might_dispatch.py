@@ -18,7 +18,7 @@ from automation_service.registry import (
 from automation_service.service import AutomationService, ServiceError
 from automation_service.state import BotStateManager, RunState
 from scripts import navigation_development_boundary as boundary
-from tasks.runtime_identity import derive_resource_runtime_identity
+from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
 from tests.test_service_recruitment import VirtualStop
 
 
@@ -37,7 +37,7 @@ class GuardedPersonalMightRunner:
         if self.on_entry:
             self.on_entry(runtime_input_lock)
         backend = derive_resource_runtime_identity(
-            adapter._fixed_binding(), datetime.fromtimestamp(self.stop.now, timezone.utc),
+            resource_fixed_runtime_binding(), datetime.fromtimestamp(self.stop.now, timezone.utc),
         )
         self.backend_identities.append(asdict(backend))
         count = praise = 0
@@ -172,7 +172,7 @@ class ServicePersonalMightDispatchTests(unittest.TestCase):
         self.assertEqual(self.runner.praise_calls, 0)
         result = reports[0]["result"]
         backend = derive_resource_runtime_identity(
-            adapter._fixed_binding(), datetime.fromtimestamp(self.stop.now, timezone.utc),
+            resource_fixed_runtime_binding(), datetime.fromtimestamp(self.stop.now, timezone.utc),
         )
         self.assertEqual(result["backend_identity"], asdict(backend))
         self.assertEqual(result["action_key"], adapter._key(backend))

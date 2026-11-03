@@ -10,6 +10,7 @@ from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
 from safe_action_core import SafetyStore
 from scripts.bluestacks_native_runtime import NATIVE_RUNTIME_PROFILE_ID
+from tasks.runtime_identity import BLUESTACKS_PACKAGE
 
 
 def _frame(tag: bytes = b"frame") -> bytes:
@@ -70,8 +71,8 @@ class DevelopmentLaunchGameTests(unittest.TestCase):
                         # are the game.
                         dumps = [
                             _focus("com.bluestacks.launcher"),
-                            _focus(pnsctl.PACKAGE),
-                            _focus(pnsctl.PACKAGE),
+                            _focus(BLUESTACKS_PACKAGE),
+                            _focus(BLUESTACKS_PACKAGE),
                         ]
                         index = sum(
                             1
@@ -89,9 +90,9 @@ class DevelopmentLaunchGameTests(unittest.TestCase):
                         "android.intent.action.MAIN",
                         "-c",
                         "android.intent.category.LAUNCHER",
-                        pnsctl.PACKAGE,
+                        BLUESTACKS_PACKAGE,
                     ):
-                        return f"priority=0\n{pnsctl.PACKAGE}/.MainActivity\n"
+                        return f"priority=0\n{BLUESTACKS_PACKAGE}/.MainActivity\n"
                     if args[:4] == ("shell", "am", "start", "-W"):
                         return "Starting: Intent {}\n"
                     raise AssertionError(args)
@@ -108,13 +109,13 @@ class DevelopmentLaunchGameTests(unittest.TestCase):
                 self.assertEqual(launches, [(
                     "shell", "am", "start", "-W", "-a", icon_intent["action"],
                     "-c", icon_intent["category"], "-f", icon_intent["flags"],
-                    "-n", pnsctl.PACKAGE + "/.MainActivity",
+                    "-n", BLUESTACKS_PACKAGE + "/.MainActivity",
                 )])
                 self.assertEqual(result["launch_intent"]["flags"], icon_intent["flags"])
                 self.assertFalse(result["dispatch"])
                 self.assertFalse(result["route_ready"])
                 self.assertTrue(
-                    all(call != ("shell", "am", "force-stop", pnsctl.PACKAGE) for call, _ in calls)
+                    all(call != ("shell", "am", "force-stop", BLUESTACKS_PACKAGE) for call, _ in calls)
                 )
                 session = Path(result["session_directory"])
                 self.assertTrue((session / "before.png").is_file())
@@ -136,7 +137,7 @@ class DevelopmentLaunchGameTests(unittest.TestCase):
                     if args == ("exec-out", "screencap", "-p"):
                         return _frame()
                     if args == ("shell", "dumpsys", "window"):
-                        return _focus(pnsctl.PACKAGE)
+                        return _focus(BLUESTACKS_PACKAGE)
                     raise AssertionError(args)
 
                 with patch.object(pnsctl, "_run_fixed_bluestacks_adb", side_effect=adb) as mocked:
@@ -162,7 +163,7 @@ class DevelopmentLaunchGameTests(unittest.TestCase):
             if args == ("get-state",):
                 return "device"
             if args == ("shell", "dumpsys", "window"):
-                return _focus(pnsctl.PACKAGE)
+                return _focus(BLUESTACKS_PACKAGE)
             return ""
 
         with patch.object(pnsctl, "_load_flow_delivery_state", return_value=(
@@ -177,7 +178,7 @@ class DevelopmentLaunchGameTests(unittest.TestCase):
             "shell", "am", "start", "-W", "-a", icon["action"], "-c", icon["category"],
             "-f", icon["flags"], "-n", icon["component"],
         )])
-        self.assertEqual(calls.count(("shell", "am", "force-stop", pnsctl.PACKAGE)), 1)
+        self.assertEqual(calls.count(("shell", "am", "force-stop", BLUESTACKS_PACKAGE)), 1)
 
     def test_measured_bluestacks_gamecenter_source_can_start_without_force_stop(self):
         self.assert_launcher_starts_without_force_stop("com.bluestacks.gamecenter")
@@ -203,8 +204,8 @@ class DevelopmentLaunchGameTests(unittest.TestCase):
                     if args == ("shell", "dumpsys", "window"):
                         dumps = [
                             _focus(launcher_package),
-                            _focus(pnsctl.PACKAGE),
-                            _focus(pnsctl.PACKAGE),
+                            _focus(BLUESTACKS_PACKAGE),
+                            _focus(BLUESTACKS_PACKAGE),
                         ]
                         index = sum(
                             1 for call in calls if call == ("shell", "dumpsys", "window")
@@ -216,7 +217,7 @@ class DevelopmentLaunchGameTests(unittest.TestCase):
                         "package",
                         "resolve-activity",
                     ):
-                        return f"priority=0\n{pnsctl.PACKAGE}/.MainActivity\n"
+                        return f"priority=0\n{BLUESTACKS_PACKAGE}/.MainActivity\n"
                     if args[:4] == ("shell", "am", "start", "-W"):
                         return "Starting: Intent {}\n"
                     raise AssertionError(args)
@@ -228,7 +229,7 @@ class DevelopmentLaunchGameTests(unittest.TestCase):
                 self.assertEqual(result["status"], "launched")
                 self.assertEqual(result["system_launch_count"], 1)
                 self.assertEqual(result["game_input_count"], 0)
-                self.assertNotIn(("shell", "am", "force-stop", pnsctl.PACKAGE), calls)
+                self.assertNotIn(("shell", "am", "force-stop", BLUESTACKS_PACKAGE), calls)
             finally:
                 for item in reversed(patches):
                     item.stop()

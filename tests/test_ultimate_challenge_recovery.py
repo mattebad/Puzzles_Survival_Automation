@@ -19,6 +19,7 @@ from tasks.ultimate_challenge_daily import (
     evaluate_already_completed, load_reset_window_state, record_pending_home,
     save_reset_window_state,
 )
+from tasks.runtime_identity import BLUESTACKS_SERIAL
 
 
 RESET = "game-day-2026-10-29"
@@ -57,7 +58,7 @@ def flee_proof(session):
         {"type": "reconcile", "action_key": "flee-one", "status": "confirmed", "post_sha256": after},
     ]
     write_result(session, result, events)
-    wrapper = {"flow_id": delivery.FLOW_ID, "serial": pnsctl.BLUESTACKS_SERIAL,
+    wrapper = {"flow_id": delivery.FLOW_ID, "serial": BLUESTACKS_SERIAL,
                "native_width": 800, "native_height": 1280, "ultimate_challenge_result": result}
     (session / "flow-delivery-result.json").write_text(json.dumps(wrapper), encoding="utf-8")
     return result

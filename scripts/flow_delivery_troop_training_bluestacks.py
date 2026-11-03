@@ -18,6 +18,7 @@ import re
 import subprocess
 import sys
 from typing import Any, Mapping
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
@@ -280,8 +281,8 @@ def run_troop_training_consolidation(
     command = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "troop_training_bluestacks.py"),
-        "--adb", str(pnsctl.BLUESTACKS_ADB),
-        "--serial", pnsctl.BLUESTACKS_SERIAL,
+        "--adb", str(BLUESTACKS_ADB),
+        "--serial", BLUESTACKS_SERIAL,
         "--reset-identity", reset_identity,
         "--output-directory", str(root),
         "--execute", "--yes",
@@ -400,7 +401,7 @@ def run_troop_training_consolidation(
         "schema_version": 1,
         "flow_id": FLOW_ID,
         "status": delivery_status,
-        "serial": pnsctl.BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
         "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": str(lease.get("owner") or outer_session.owner),

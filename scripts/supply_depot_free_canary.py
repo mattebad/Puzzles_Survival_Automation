@@ -44,6 +44,7 @@ from tasks.supply_depot_vision import (
     recognize_supply_depot_radial,
     _safe_claim_label_region,
 )
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 PAN_PRE_DISPATCH_REASON_CODE = "PRE_DISPATCH_HOME_NOT_CLEAN"
@@ -119,8 +120,8 @@ def _pnsctl():
 def _build_home_zoom_transport(runtime: LocalBlueStacksRuntime):
     pnsctl = _pnsctl()
     return ScrcpyMotionEventZoomTransport(
-        adb=str(pnsctl.BLUESTACKS_ADB),
-        serial=pnsctl.BLUESTACKS_SERIAL,
+        adb=str(BLUESTACKS_ADB),
+        serial=BLUESTACKS_SERIAL,
         evidence_directory=runtime.session / "scrcpy-zoom",
     )
 

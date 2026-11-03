@@ -20,6 +20,7 @@ from scripts.bluestacks_native_runtime import (
     LocalBlueStacksRuntime,
 )
 from scripts.startup_recovery import StartupRecoveryPlan
+from tasks.runtime_identity import BLUESTACKS_PACKAGE, BLUESTACKS_SERIAL
 
 
 def disable_non_target_registrations(payload: dict, target_flow_id: str) -> None:
@@ -152,7 +153,7 @@ class DevelopmentSessionTests(unittest.TestCase):
 
             observation = {
                 "device_state": "device",
-                "foreground_package": pnsctl.PACKAGE,
+                "foreground_package": BLUESTACKS_PACKAGE,
                 "native_width": 800,
                 "native_height": 1280,
                 "frame_sha256": "0" * 64,
@@ -283,7 +284,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             png = b"ordinary-observation"
             observation = {
                 "device_state": "device",
-                "foreground_package": pnsctl.PACKAGE,
+                "foreground_package": BLUESTACKS_PACKAGE,
                 "native_width": 800,
                 "native_height": 1280,
                 "frame_sha256": hashlib.sha256(png).hexdigest(),
@@ -334,7 +335,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             png = b"ordinary-observation"
             observation = {
                 "device_state": "device",
-                "foreground_package": pnsctl.PACKAGE,
+                "foreground_package": BLUESTACKS_PACKAGE,
                 "native_width": 800,
                 "native_height": 1280,
                 "frame_sha256": hashlib.sha256(png).hexdigest(),
@@ -399,7 +400,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             png = b"ordinary-observation"
             observation = {
                 "device_state": "device",
-                "foreground_package": pnsctl.PACKAGE,
+                "foreground_package": BLUESTACKS_PACKAGE,
                 "native_width": 800,
                 "native_height": 1280,
                 "frame_sha256": hashlib.sha256(png).hexdigest(),
@@ -741,7 +742,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                     (
                         {
                             "device_state": "device",
-                            "foreground_package": pnsctl.PACKAGE,
+                            "foreground_package": BLUESTACKS_PACKAGE,
                             "native_width": 800,
                             "native_height": 1280,
                             "frame_sha256": hashlib.sha256(source).hexdigest(),
@@ -751,7 +752,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                     (
                         {
                             "device_state": "device",
-                            "foreground_package": pnsctl.PACKAGE,
+                            "foreground_package": BLUESTACKS_PACKAGE,
                             "native_width": 800,
                             "native_height": 1280,
                             "frame_sha256": hashlib.sha256(post).hexdigest(),
@@ -835,7 +836,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                 root = Path(directory)
                 source, post = b"startup-source", b"post-recovery-source"
                 def observation(payload):
-                    return ({"device_state": "device", "foreground_package": pnsctl.PACKAGE,
+                    return ({"device_state": "device", "foreground_package": BLUESTACKS_PACKAGE,
                              "native_width": 800, "native_height": 1280,
                              "frame_sha256": hashlib.sha256(payload).hexdigest()}, payload)
                 observations = iter((observation(source), observation(post)))
@@ -886,7 +887,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                     (
                         {
                             "device_state": "device",
-                            "foreground_package": pnsctl.PACKAGE,
+                            "foreground_package": BLUESTACKS_PACKAGE,
                             "native_width": 800,
                             "native_height": 1280,
                             "frame_sha256": hashlib.sha256(source).hexdigest(),
@@ -896,7 +897,7 @@ class DevelopmentSessionTests(unittest.TestCase):
                     (
                         {
                             "device_state": "device",
-                            "foreground_package": pnsctl.PACKAGE,
+                            "foreground_package": BLUESTACKS_PACKAGE,
                             "native_width": 800,
                             "native_height": 1280,
                             "frame_sha256": hashlib.sha256(post).hexdigest(),
@@ -997,7 +998,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             post = b"commercial-successor"
             observation = lambda payload: {
                 "device_state": "device",
-                "foreground_package": pnsctl.PACKAGE,
+                "foreground_package": BLUESTACKS_PACKAGE,
                 "native_width": 800,
                 "native_height": 1280,
                 "frame_sha256": hashlib.sha256(payload).hexdigest(),
@@ -1143,7 +1144,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             png = b"png"
             observation = {
                 "device_state": "device",
-                "foreground_package": pnsctl.PACKAGE,
+                "foreground_package": BLUESTACKS_PACKAGE,
                 "native_width": 800,
                 "native_height": 1280,
                 "frame_sha256": hashlib.sha256(png).hexdigest(),
@@ -1245,7 +1246,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             png = b"nova-admission"
             observation = {
                 "device_state": "device",
-                "foreground_package": pnsctl.PACKAGE,
+                "foreground_package": BLUESTACKS_PACKAGE,
                 "native_width": 800,
                 "native_height": 1280,
                 "frame_sha256": hashlib.sha256(png).hexdigest(),
@@ -1342,7 +1343,7 @@ class DevelopmentSessionTests(unittest.TestCase):
             png = b"ultimate-typed-initial"
             observation = {
                 "device_state": "device",
-                "foreground_package": pnsctl.PACKAGE,
+                "foreground_package": BLUESTACKS_PACKAGE,
                 "native_width": 800,
                 "native_height": 1280,
                 "frame_sha256": hashlib.sha256(png).hexdigest(),
@@ -1831,7 +1832,7 @@ class GenericFlowStructureTests(unittest.TestCase):
                 "flow_id": "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION",
                 "status": "effect_reconciliation_required",
                 "effect_reconciliation_required": True,
-                "serial": pnsctl.BLUESTACKS_SERIAL,
+                "serial": BLUESTACKS_SERIAL,
                 "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
                 "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
                 "runtime_owner": "pnsctl-development-session:test",

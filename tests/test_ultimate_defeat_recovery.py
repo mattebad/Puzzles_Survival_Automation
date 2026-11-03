@@ -21,6 +21,7 @@ from scripts.startup_recovery import classify_startup_frame
 from automation_service import ultimate as service
 from tests import test_bluestacks_ultimate_challenge as helpers
 from tests import test_ultimate_challenge_recovery as recovery_helpers
+from tasks.runtime_identity import BLUESTACKS_SERIAL
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "ultimate_active_battle"
@@ -123,7 +124,7 @@ def failed_flee_receipt(session):
               "navigation_input_count": 1, "navigation_only": False, "home_normalization": None,
               "flee_action_key": "flee-once", "completed_actions": []}
     (session / "result.json").write_text(json.dumps(result), encoding="utf-8")
-    wrapper = {"flow_id": delivery.FLOW_ID, "serial": pnsctl.BLUESTACKS_SERIAL,
+    wrapper = {"flow_id": delivery.FLOW_ID, "serial": BLUESTACKS_SERIAL,
                "native_width": 800, "native_height": 1280, "ultimate_challenge_result": result}
     (session / "flow-delivery-result.json").write_text(json.dumps(wrapper), encoding="utf-8")
     for name in ("events.jsonl", "ledger.jsonl", "journal.jsonl", "capability-audit.jsonl"):

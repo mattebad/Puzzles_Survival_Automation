@@ -15,7 +15,7 @@ import sys
 import signal
 import threading
 import time
-from typing import Sequence
+from typing import Any, Callable, Mapping, Sequence
 from uuid import uuid4
 
 from .adapters import AdapterError, FakeDeviceAdapter, ReplayDeviceAdapter
@@ -24,6 +24,7 @@ from .operations import OperationsService, structured_summary
 from .registry import canonical_flow_specs
 from .service import AutomationService, ServiceError
 from .state import BotStateManager, StateBusyError, resolve_state_path
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 def _application_startup_directory(root: Path, run_id: str) -> Path:
@@ -235,7 +236,16 @@ def _structured_error(exc: BaseException) -> dict[str, object]:
     return {"status": "error", "error": str(exc)}
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    application_startup: Callable[..., Mapping[str, Any]] | None = None,
+) -> int:
+    """Run the service CLI.
+
+    Native serve needs an owner-bound application startup. The operator composition root
+    (``scripts/pnsctl.py``) supplies it so this package never imports the operator layer.
+    """
     parser = build_parser()
     try:
         args = parser.parse_args(argv)
@@ -507,14 +517,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                             adb=args.adb, serial=args.serial,
                             output_directory=args.output_directory or state_path.parent / "personal-might-sessions",
                         )
-                application_startup = None
+                service_startup = None
                 if native_serve:
-                    from scripts import pnsctl
-                    if (str(Path(args.adb).resolve()), args.serial) != (str(pnsctl.BLUESTACKS_ADB.resolve()), pnsctl.BLUESTACKS_SERIAL):
+                    if application_startup is None:
+                        raise ServiceError("native application startup is supplied by scripts/pnsctl.py automation-service")
+                    if (str(Path(args.adb).resolve()), args.serial) != (str(BLUESTACKS_ADB.resolve()), BLUESTACKS_SERIAL):
                         raise ServiceError("native application startup requires the fixed BlueStacks runtime")
                     startup_root = (args.output_directory or state_path.parent / "application-startup")
-                    def application_startup(flow_id, run_id, runtime_input_lock, checkpoint):
-                        return pnsctl.owner_bound_application_startup(
+                    def service_startup(flow_id, run_id, runtime_input_lock, checkpoint):
+                        return application_startup(
                             runtime_input_lock=runtime_input_lock, checkpoint=checkpoint,
                             session_directory=_application_startup_directory(Path(startup_root), run_id),
                             flow_id=flow_id, require_ready=True)
@@ -527,7 +538,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     ultimate_runner=ultimate_runner,
                     enhancement_runner=enhancement_runner,
                     personal_might_runner=personal_might_runner,
-                    application_startup=application_startup,
+                    application_startup=service_startup,
                 )
                 if native_serve:
                     from .registry import BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID

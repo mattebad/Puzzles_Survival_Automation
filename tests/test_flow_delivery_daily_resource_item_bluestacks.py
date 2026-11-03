@@ -37,6 +37,7 @@ from tasks.runtime_identity import (
     derive_fixed_runtime_binding,
     derive_resource_runtime_identity,
     derive_static_utc_reset,
+    resource_fixed_runtime_binding,
 )
 
 
@@ -148,7 +149,7 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                             connect.assert_not_called()
 
     def _resource_identity(self):
-        binding = pnsctl._resource_fixed_runtime_binding()
+        binding = resource_fixed_runtime_binding()
         authority, reset_policy = pnsctl._load_resource_daily_reset_authority()
         now = datetime(2026, 8, 19, 10, tzinfo=timezone.utc)
         window = derive_static_utc_reset(now)
@@ -898,7 +899,7 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
                             reason="resource_authorization_expired",
                             now=time.monotonic(),
                         )
-                    binding = pnsctl._resource_fixed_runtime_binding()
+                    binding = resource_fixed_runtime_binding()
                     next_reset = ResourceResetIdentity(
                         "reset-deadline:next",
                         binding.account_id,

@@ -13,6 +13,7 @@ from automation_service.state import BotStateManager
 from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
 from tests.test_development_launch_game import _focus, _frame
+from tasks.runtime_identity import BLUESTACKS_PACKAGE
 
 
 class DevelopmentColdRestartTests(unittest.TestCase):
@@ -41,7 +42,7 @@ class DevelopmentColdRestartTests(unittest.TestCase):
             stack.enter_context(patch("cv2.imdecode", return_value=object()))
             stack.enter_context(patch("scripts.startup_normalization.is_clean_home_frame", return_value=clean_home))
             calls = []
-            focus = pnsctl.PACKAGE
+            focus = BLUESTACKS_PACKAGE
 
             def adb(*args, binary=False):
                 nonlocal focus
@@ -53,8 +54,8 @@ class DevelopmentColdRestartTests(unittest.TestCase):
                 if args == ("shell", "dumpsys", "window"):
                     return _focus(focus)
                 if args[:4] == ("shell", "cmd", "package", "resolve-activity"):
-                    return pnsctl.PACKAGE + "/.MainActivity\n"
-                if args == ("shell", "am", "force-stop", pnsctl.PACKAGE):
+                    return BLUESTACKS_PACKAGE + "/.MainActivity\n"
+                if args == ("shell", "am", "force-stop", BLUESTACKS_PACKAGE):
                     if stop_error:
                         raise pnsctl.OperatorError("transport outcome unknown")
                     focus = "com.uncube.launcher3"
@@ -104,7 +105,7 @@ class DevelopmentColdRestartTests(unittest.TestCase):
         self.assertEqual(result["status"], "cold_restarted")
         self.assertTrue(result["cold_stop_verified"])
         self.assertEqual((result["system_stop_count"], result["system_launch_count"], result["game_input_count"]), (1, 1, 0))
-        self.assertEqual(calls.count(("shell", "am", "force-stop", pnsctl.PACKAGE)), 1)
+        self.assertEqual(calls.count(("shell", "am", "force-stop", BLUESTACKS_PACKAGE)), 1)
         self.assertEqual(launches, 1)
         self.assertEqual(retained, result)
 
@@ -143,14 +144,14 @@ class DevelopmentColdRestartTests(unittest.TestCase):
         self.assertIsNotNone(error)
         self.assertEqual(retained["system_stop_count"], 0)
         self.assertIn("before_observation", retained)
-        self.assertNotIn(("shell", "am", "force-stop", pnsctl.PACKAGE), calls)
+        self.assertNotIn(("shell", "am", "force-stop", BLUESTACKS_PACKAGE), calls)
         self.assertEqual(launches, 0)
 
     def test_remaining_process_prevents_launch_without_identical_stop_retry(self):
-        _, error, calls, launches, retained = self.run_restart(processes="USER PID NAME\nu0 45 " + pnsctl.PACKAGE + ":worker\n")
+        _, error, calls, launches, retained = self.run_restart(processes="USER PID NAME\nu0 45 " + BLUESTACKS_PACKAGE + ":worker\n")
         self.assertIsNotNone(error)
         self.assertFalse(retained["cold_stop_verified"])
-        self.assertEqual(calls.count(("shell", "am", "force-stop", pnsctl.PACKAGE)), 1)
+        self.assertEqual(calls.count(("shell", "am", "force-stop", BLUESTACKS_PACKAGE)), 1)
         self.assertEqual(launches, 0)
 
     def test_unreadable_process_observation_prevents_launch(self):
@@ -161,7 +162,7 @@ class DevelopmentColdRestartTests(unittest.TestCase):
     def test_uncertain_stop_is_not_retried_or_followed_by_launch(self):
         _, error, calls, launches, retained = self.run_restart(stop_error=True)
         self.assertIsNotNone(error)
-        self.assertEqual(calls.count(("shell", "am", "force-stop", pnsctl.PACKAGE)), 1)
+        self.assertEqual(calls.count(("shell", "am", "force-stop", BLUESTACKS_PACKAGE)), 1)
         self.assertEqual(launches, 0)
         self.assertEqual(retained["status"], "unresolved")
 
@@ -171,7 +172,7 @@ class DevelopmentColdRestartTests(unittest.TestCase):
         self.assertTrue(retained["cold_stop_verified"])
         self.assertEqual(retained["system_launch_count"], 1)
         self.assertEqual(launches, 1)
-        self.assertEqual(calls.count(("shell", "am", "force-stop", pnsctl.PACKAGE)), 1)
+        self.assertEqual(calls.count(("shell", "am", "force-stop", BLUESTACKS_PACKAGE)), 1)
 
 
 if __name__ == "__main__":

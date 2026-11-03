@@ -19,6 +19,7 @@ from tasks.enhancement import (
     BLUESTACKS_RUNTIME_PROFILE_ID,
     EnhancementObservation,
 )
+from tasks.runtime_identity import BLUESTACKS_SERIAL
 
 
 RESET = "local-2026-10-29-enhancement-family"
@@ -87,7 +88,7 @@ def _state(root: Path, payload: bytes | None = None):
     attempt = json.loads(json.dumps(attempt))
     result = {
         "flow_id": delivery.FLOW_ID, "variant": "family",
-        "serial": pnsctl.BLUESTACKS_SERIAL, "native_width": 800, "native_height": 1280,
+        "serial": BLUESTACKS_SERIAL, "native_width": 800, "native_height": 1280,
         "actions": [{"label": "use-one-star-enhancer", "action_key": KEY,
                      "before_sha256": p_hash, "immediate_post_sha256": i_hash,
                      "after_sha256": i_hash}],

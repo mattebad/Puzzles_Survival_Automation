@@ -25,6 +25,7 @@ from tasks.enhancement import (
     enhancement_bluestacks_authorizeable,
     enhancement_bluestacks_postcondition_verified,
 )
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 FLOW_ID = "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
@@ -1016,7 +1017,7 @@ def _validate_zero_selected_no_effect_receipt(
     proofs = [proof for proof in category_proofs or [] if isinstance(proof, Mapping) and proof.get("variant") == variant]
     if (
         original_delivery.get("flow_id") != FLOW_ID or len(proofs) != 1
-        or original_delivery.get("serial") != _pnsctl().BLUESTACKS_SERIAL
+        or original_delivery.get("serial") != BLUESTACKS_SERIAL
         or (original_delivery.get("native_width"), original_delivery.get("native_height")) != (800, 1280)
         or proofs[0].get("status") != "dispatch_bearing_unresolved"
         or proofs[0].get("resource_affecting_action_key") != action_key
@@ -2042,8 +2043,8 @@ def run_enhancement_family(
     try:
         os.environ["PNS_DEVELOPMENT_MAX_INPUTS"] = str(maximum)
         runtime = LocalBlueStacksRuntime.connect(
-            adb=str(pnsctl.BLUESTACKS_ADB),
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=str(BLUESTACKS_ADB),
+            serial=BLUESTACKS_SERIAL,
             output_directory=outer_directory / "runtime",
             workflow="enhancement-family",
             execute=True,
@@ -2190,7 +2191,7 @@ def run_enhancement_family(
         "flow_id": FLOW_ID,
         "status": delivery_status,
         "variant": "family",
-        "serial": pnsctl.BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
         "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
@@ -2418,7 +2419,7 @@ def _verify_native_structure(
     if retained != json.loads(json.dumps(result, sort_keys=True, default=str)):
         raise pnsctl.OperatorError("Enhancement retained result does not match verifier input")
     if (
-        result.get("serial") != pnsctl.BLUESTACKS_SERIAL
+        result.get("serial") != BLUESTACKS_SERIAL
         or (result.get("native_width"), result.get("native_height")) != (800, 1280)
         or result.get("production_registration") != "NOT_REGISTERED"
         or result.get("scheduler_enabled") is not False
