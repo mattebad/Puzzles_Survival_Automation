@@ -66,6 +66,7 @@ from .registry import (
     WORLD_FLOW_ID,
     canonical_descriptors,
     canonical_flow_specs,
+    servable_flow_names,
 )
 from .state import BotStateManager, RunState, StateBusyError, resolve_state_path
 from .scheduler import DisabledProductionAuthority, PulseReport, UtcPulseCoordinator
@@ -679,7 +680,7 @@ class AutomationService:
                     or any(item not in {ENHANCEMENT_FLOW_ID, ULTIMATE_FLOW_ID} for item in selected)):
                 raise ServiceError("one-time repeat requires a nonempty request and only Enhancement/Ultimate")
             operator_request_id = operator_request_id.strip()
-        if not selected or any(item not in {RECRUITMENT_FLOW_ID, NOVA_FLOW_ID, CAMPAIGN_FLOW_ID, BIOENHANCER_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID} for item in selected):
+        if not selected or any(item not in servable_flow_names().values() for item in selected):
             raise ServiceError("serve requires an explicitly supported native route")
         runners = {RECRUITMENT_FLOW_ID: self.recruitment_runner, NOVA_FLOW_ID: self.nova_runner,
                    CAMPAIGN_FLOW_ID: self.campaign_runner, BIOENHANCER_FLOW_ID: self.bioenhancer_runner,

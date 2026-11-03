@@ -331,6 +331,8 @@ class CanonicalFlowRegistration:
     descriptor: FlowDescriptor
     registration: RegisteredDispatchSnapshot
     handler_id: str
+    cli_name: str | None = None
+    """``--flow`` spelling accepted by ``automation-service serve``; ``None`` = not servable."""
 
     @property
     def flow_id(self) -> str:
@@ -409,6 +411,7 @@ def _canonical_registration(
     reset_scoped: bool = True,
     recurrence: RecurrenceProjection | None = None,
     observation_only_completion: bool = False,
+    cli_name: str | None = None,
 ) -> CanonicalFlowRegistration:
     binding = _FIXED_BINDINGS[flow_id]
     snapshot = RegisteredDispatchSnapshot(
@@ -446,6 +449,7 @@ def _canonical_registration(
         descriptor=descriptor,
         registration=snapshot,
         handler_id=binding["production_handler"],
+        cli_name=cli_name,
     )
 
 
@@ -460,6 +464,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         NOVA_FLOW_ID,
+        cli_name="nova",
         family="nova_praise",
         variant="supervised_one_free_pulse",
         cadence="cooldown_pulse",
@@ -467,6 +472,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         RECRUITMENT_FLOW_ID,
+        cli_name="recruitment",
         family="recruitment",
         variant="free_attempt_maintenance",
         cadence="cooldown_pulse",
@@ -474,6 +480,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         CAMPAIGN_FLOW_ID,
+        cli_name="campaign",
         family="campaign_ap",
         variant="drain_available_ap",
         cadence="after_ap_drain",
@@ -486,6 +493,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         BIOENHANCER_FLOW_ID,
+        cli_name="bioenhancer",
         family="bioenhancer_research",
         variant="one_free_pulse",
         cadence="cooldown_pulse",
@@ -493,6 +501,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         SUPPLY_FLOW_ID,
+        cli_name="supply",
         family="supply_depot",
         variant="free_until_exhausted",
         cadence="daily_once_per_reset",
@@ -500,6 +509,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         ULTIMATE_FLOW_ID,
+        cli_name="ultimate",
         family="ultimate_challenge_daily",
         variant="one_daily_flee",
         cadence="daily_once_per_reset",
@@ -507,6 +517,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         ENHANCEMENT_FLOW_ID,
+        cli_name="enhancement",
         family="enhancement_family",
         variant="gear_chip_module",
         cadence="daily_once_per_reset",
@@ -514,6 +525,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         PERSONAL_MIGHT_FLOW_ID,
+        cli_name="personal-might",
         family="personal_might_praise",
         variant="one_daily_praise",
         cadence="daily_once_per_reset",
@@ -547,8 +559,12 @@ def canonical_descriptors() -> tuple[FlowDescriptor, ...]:
     return tuple(entry.descriptor for entry in CANONICAL_FLOW_REGISTRY)
 
 
-def build_canonical_handler(flow_id: str) -> Any:
-    """Build one fixed canonical handler by flow identity."""
+def canonical_entry(flow_id: str) -> CanonicalFlowRegistration:
+    """Return the one canonical registration for ``flow_id``.
+
+    Handlers and adapters derive their descriptors from this entry instead of
+    re-spelling family, variant, cadence, and product facts.
+    """
 
     entry = next(
         (item for item in CANONICAL_FLOW_REGISTRY if item.flow_id == flow_id),
@@ -556,7 +572,23 @@ def build_canonical_handler(flow_id: str) -> Any:
     )
     if entry is None:
         raise ValueError(f"unknown canonical flow: {flow_id}")
-    return entry.build_handler()
+    return entry
+
+
+def servable_flow_names() -> dict[str, str]:
+    """Map each ``automation-service serve --flow`` name to its flow id."""
+
+    return {
+        item.cli_name: item.flow_id
+        for item in CANONICAL_FLOW_REGISTRY
+        if item.cli_name is not None
+    }
+
+
+def build_canonical_handler(flow_id: str) -> Any:
+    """Build one fixed canonical handler by flow identity."""
+
+    return canonical_entry(flow_id).build_handler()
 
 
 _REGISTRY_LOCK = threading.RLock()
@@ -889,10 +921,12 @@ __all__ = [
     "CanonicalFlowRegistration",
     "CANONICAL_FLOW_REGISTRY",
     "canonical_descriptors",
+    "canonical_entry",
     "canonical_flow_specs",
     "canonical_registry",
     "build_canonical_handler",
     "load_canonical_registry",
+    "servable_flow_names",
     "DisabledProductionEntry",
     "ENTRY_FIELDS",
     "REGISTRY_PATH",

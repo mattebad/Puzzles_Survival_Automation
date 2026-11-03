@@ -21,7 +21,7 @@ from uuid import uuid4
 from .adapters import AdapterError, FakeDeviceAdapter, ReplayDeviceAdapter
 from .contracts import SchedulerFacts, ServiceMode
 from .operations import OperationsService, structured_summary
-from .registry import canonical_flow_specs
+from .registry import canonical_flow_specs, servable_flow_names
 from .service import AutomationService, ServiceError
 from .state import BotStateManager, StateBusyError, resolve_state_path
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
@@ -61,7 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("summary")
     serve = subparsers.add_parser("serve")
     serve.add_argument("--live", action="store_true", help="explicitly permit the selected native routes")
-    serve.add_argument("--flow", action="append", choices=("recruitment", "nova", "campaign", "bioenhancer", "supply", "ultimate", "enhancement", "personal-might"),
+    serve.add_argument("--flow", action="append", choices=tuple(servable_flow_names()),
                        help="route to serve; repeat to select routes (default: recruitment)")
     serve.add_argument("--campaign-stage", default="1-15-9")
     serve.add_argument("--operator-request-id", default=None,
@@ -541,17 +541,13 @@ def main(
                     application_startup=service_startup,
                 )
                 if native_serve:
-                    from .registry import BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID
+                    flow_names = servable_flow_names()
 
                     service.serve(
                         account_id=args.account_id, server_id=args.server_id, stop=stop,
                         operator_request_id=args.operator_request_id,
                         emit=lambda result: print(json.dumps(result, sort_keys=True), flush=True),
-                        flow_ids=tuple({"recruitment": RECRUITMENT_FLOW_ID, "nova": NOVA_FLOW_ID,
-                                        "campaign": CAMPAIGN_FLOW_ID, "bioenhancer": BIOENHANCER_FLOW_ID,
-                                        "supply": SUPPLY_FLOW_ID, "ultimate": ULTIMATE_FLOW_ID,
-                                        "enhancement": ENHANCEMENT_FLOW_ID,
-                                        "personal-might": PERSONAL_MIGHT_FLOW_ID}[flow] for flow in selected),
+                        flow_ids=tuple(flow_names[flow] for flow in selected),
                     )
                 else:
                     while not stop.is_set():
