@@ -2,8 +2,9 @@
 
 Ground-truth labels below come from direct visual inspection of each retained frame,
 independent of the template/geometry the recognizer uses (no circular validation).
-Frames live under the protected, untracked .local-captures tree; when they are absent
-the affected assertions are skipped rather than fabricated.
+The portable tests run on committed native frames. The original retained-session frames
+live under the protected, untracked .local-captures tree and are covered by an explicit
+opt-in test (PNS_LOCAL_CAPTURES=1) that fails, never skips, when a frame is missing.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import glob
 import os
 import unittest
+from pathlib import Path
 
 import cv2
 
@@ -18,8 +20,21 @@ from tasks.home_nav_recognition import (
     HOME_CORRELATION_THRESHOLD,
     recognize_home_nav,
 )
+from tests.support.local_captures import LOCAL_CAPTURES, requires_local_captures
 
-_CAPTURES_ROOT = os.path.join(".local-captures", "development-sessions")
+_CAPTURES_ROOT = str(LOCAL_CAPTURES / "development-sessions")
+_FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+# Committed native 800x1280 frames: (relative path, is_home ground truth, description).
+# Labels come from direct visual inspection, independent of the recognizer's template.
+_COMMITTED_TRUTH = (
+    ("campaign_ap_hud/home-ap100-stamina120.png", True, "home"),
+    ("nova_praise_preflight/zoomed-home-a.png", True, "home (zoomed)"),
+    ("resource_effect_authority/portable/session-2-terminal-home.png", True, "home"),
+    ("runtime_trace_projection/frames/0007-commander-to-home-terminal-settled.png", True, "home"),
+    ("world_map/world-hud-1a2d8f02.png", False, "world map"),
+    ("campaign_tier_controls/retained-tier2-map.png", False, "campaign tier map"),
+)
 
 # session id -> (is_home_ground_truth, human-described screen)
 _GROUND_TRUTH = {
@@ -40,41 +55,61 @@ def _find_home_source(session_id: str) -> str | None:
     return matches[0] if matches else None
 
 
+def _assert_recognition(test: unittest.TestCase, label: str, frame, expected_home: bool) -> None:
+    result = recognize_home_nav(frame)
+    test.assertEqual(
+        result.is_home,
+        expected_home,
+        f"{label}: expected is_home={expected_home}, "
+        f"got {result.is_home} (corr={result.correlation:.4f})",
+    )
+    if expected_home:
+        test.assertGreaterEqual(result.correlation, HOME_CORRELATION_THRESHOLD)
+        test.assertEqual(result.quest_tap_point(), _EXPECTED_QUEST_TAP)
+    else:
+        test.assertLess(result.correlation, HOME_CORRELATION_THRESHOLD)
+        test.assertIsNone(result.quest_tap_point())
+
+
 class HomeNavRecognitionTest(unittest.TestCase):
-    def _load(self, session_id: str):
+    def test_recognizes_home_and_rejects_non_home_on_committed_frames(self):
+        for relative, expected_home, _screen in _COMMITTED_TRUTH:
+            with self.subTest(frame=relative):
+                path = _FIXTURES / relative
+                frame = cv2.imread(str(path))
+                self.assertIsNotNone(frame, f"could not read {path}")
+                _assert_recognition(self, relative, frame, expected_home)
+
+    def test_recognition_is_deterministic_on_committed_home_frame(self):
+        frame = cv2.imread(str(_FIXTURES / _COMMITTED_TRUTH[0][0]))
+        self.assertIsNotNone(frame)
+        results = [recognize_home_nav(frame) for _ in range(10)]
+        correlations = {round(r.correlation, 6) for r in results}
+        home_flags = {r.is_home for r in results}
+        self.assertEqual(len(correlations), 1, f"nondeterministic correlation: {correlations}")
+        self.assertEqual(home_flags, {True})
+
+    @requires_local_captures
+    def test_recognizes_home_and_rejects_non_home_on_retained_sessions(self):
+        for session_id, (expected_home, _screen) in _GROUND_TRUTH.items():
+            with self.subTest(session=session_id):
+                path = _find_home_source(session_id)
+                self.assertIsNotNone(
+                    path, f"PNS_LOCAL_CAPTURES=1 but retained frame is absent for {session_id}"
+                )
+                frame = cv2.imread(path)
+                self.assertIsNotNone(frame, f"could not read {path}")
+                _assert_recognition(self, session_id, frame, expected_home)
+
+    @requires_local_captures
+    def test_recognition_is_deterministic_on_retained_session(self):
+        session_id = "delegated-3589bf46-33a8-4396-8517-fccce900dc15"
         path = _find_home_source(session_id)
-        if path is None:
-            self.skipTest(f"retained frame absent for {session_id}")
+        self.assertIsNotNone(
+            path, f"PNS_LOCAL_CAPTURES=1 but retained frame is absent for {session_id}"
+        )
         frame = cv2.imread(path)
         self.assertIsNotNone(frame, f"could not read {path}")
-        return frame
-
-    def test_recognizes_home_and_rejects_non_home(self):
-        checked = 0
-        for session_id, (expected_home, _screen) in _GROUND_TRUTH.items():
-            path = _find_home_source(session_id)
-            if path is None:
-                continue
-            checked += 1
-            frame = cv2.imread(path)
-            result = recognize_home_nav(frame)
-            self.assertEqual(
-                result.is_home,
-                expected_home,
-                f"{session_id}: expected is_home={expected_home}, "
-                f"got {result.is_home} (corr={result.correlation:.4f})",
-            )
-            if expected_home:
-                self.assertGreaterEqual(result.correlation, HOME_CORRELATION_THRESHOLD)
-                self.assertEqual(result.quest_tap_point(), _EXPECTED_QUEST_TAP)
-            else:
-                self.assertLess(result.correlation, HOME_CORRELATION_THRESHOLD)
-                self.assertIsNone(result.quest_tap_point())
-        if checked == 0:
-            self.skipTest("no retained frames present")
-
-    def test_recognition_is_deterministic(self):
-        frame = self._load("delegated-3589bf46-33a8-4396-8517-fccce900dc15")
         results = [recognize_home_nav(frame) for _ in range(10)]
         correlations = {round(r.correlation, 6) for r in results}
         home_flags = {r.is_home for r in results}

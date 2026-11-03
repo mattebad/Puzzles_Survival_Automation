@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from scripts import pnsctl
 from scripts import navigation_development_boundary as boundary
-from tests.test_development_launch_game import _frame
+from tests.support.launch_game import _frame
 from tasks.runtime_identity import BLUESTACKS_PACKAGE
 
 
@@ -182,9 +182,9 @@ class ApplicationStartupTests(unittest.TestCase):
 
 class ClaimedServiceStartupTests(unittest.TestCase):
     def test_callback_runs_under_claim_and_marker_before_fake_route(self):
-        from tests import test_service_recruitment as recruitment_tests
+        from tests.support import recruitment_service as recruitment_support
         from automation_service.registry import RECRUITMENT_FLOW_ID
-        case = recruitment_tests.ServiceRecruitmentTests(methodName="test_native_pass_cooldown_restart_and_later_eligibility")
+        case = recruitment_support.RecruitmentServiceCase("runTest")
         case.setUp()
         self.addCleanup(case.doCleanups)
         seen = []
@@ -205,8 +205,8 @@ class ClaimedServiceStartupTests(unittest.TestCase):
         self.assertGreater(reports[0]["result"]["total_input_count"], 0)
 
     def test_startup_failure_preserves_attempt_and_never_calls_route(self):
-        from tests import test_service_recruitment as recruitment_tests
-        case = recruitment_tests.ServiceRecruitmentTests(methodName="test_native_pass_cooldown_restart_and_later_eligibility")
+        from tests.support import recruitment_service as recruitment_support
+        case = recruitment_support.RecruitmentServiceCase("runTest")
         case.setUp()
         self.addCleanup(case.doCleanups)
         def startup(*_args):

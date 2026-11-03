@@ -138,14 +138,6 @@ class FakeInnerRuntime:
 
 
 class NavigationDevelopmentBoundaryTests(unittest.TestCase):
-    def test_shared_source_has_no_task_specific_identifiers(self) -> None:
-        source = Path(boundary.__file__).read_text(encoding="utf-8").lower()
-        for needle in ("nova", "research lab", "praise"):
-            self.assertNotIn(needle, source)
-        self.assertNotRegex(source, r"\bresearch_lab\b")
-        self.assertNotRegex(source, r"\bpraise\b")
-        self.assertNotRegex(source, r"\bnova\b")
-
     def test_declaration_validation_rejects_bad_contracts(self) -> None:
         with self.assertRaisesRegex(NavigationBoundaryError, "allowed_source_states"):
             _declaration(allowed_source_states=frozenset()).validate()

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import replace
 from pathlib import Path
 import unittest
@@ -13,6 +12,7 @@ from tasks.zombie_lair import (
     zombie_lair_postcondition_verified,
     zombie_lair_transaction_spec,
 )
+from tests.support.observations import load_observation
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,11 +20,10 @@ FIXTURE = ROOT / "tests/fixtures/phase_e_zombie_lair_observations.json"
 
 
 def load_fixture(name: str) -> ZombieLairObservation:
-    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))["observations"][name]
-    payload["target_roi"] = tuple(payload["target_roi"])
-    payload["panel_bounds"] = tuple(payload["panel_bounds"])
-    payload["evidence_refs"] = tuple(payload["evidence_refs"])
-    return ZombieLairObservation(**payload)
+    return load_observation(
+        FIXTURE, name, ZombieLairObservation,
+        ("target_roi", "panel_bounds", "evidence_refs"),
+    )
 
 
 class ZombieLairContractTests(unittest.TestCase):

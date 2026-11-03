@@ -13,7 +13,9 @@ from tasks.campaign_atlas_vision import (
     native_campaign_frame_guard,
     registration_residual_report,
 )
+from tests.support.local_captures import LOCAL_CAPTURES, require_capture, requires_local_captures
 
+SURVEY_CAPTURES = LOCAL_CAPTURES / "flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
 
 def provenance(semantic_sha256: str, ordinal: int) -> NativeFrameProvenance:
     return NativeFrameProvenance(
@@ -160,40 +162,37 @@ class CampaignAtlasVisionTests(unittest.TestCase):
         )
         self.assertFalse(overlap_association_accepted(weak))
 
-    def test_tier_targets_are_measured_from_shifted_current_frame(self) -> None:
-        from pathlib import Path
-
+    @requires_local_captures
+    def test_tier_targets_are_measured_from_shifted_retained_survey_frames(self) -> None:
         from tasks.campaign_atlas_vision import measured_survey_target
-        from tasks.campaign_auto_battle_vision import ASSET_ROOT, TIER_ONE_ROI, TIER_TWO_ROI
+        from tasks.campaign_auto_battle_vision import TIER_ONE_ROI, TIER_TWO_ROI
 
-        root = Path(__file__).resolve().parents[1]
-        session = (
-            root
-            / ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
-            / "survey-20260724T012057293610Z"
-            / "runtime"
-            / "frames"
+        session = SURVEY_CAPTURES / "survey-20260724T012057293610Z" / "runtime" / "frames"
+        f258 = cv2.imread(
+            str(require_capture(session / "0258-difficulty-tier-1-immediate-before.png"))
         )
-        if session.is_dir():
-            f258 = cv2.imread(str(session / "0258-difficulty-tier-1-immediate-before.png"))
-            f261 = cv2.imread(str(session / "0261-difficulty-tier-2-immediate-before.png"))
-            self.assertIsNotNone(f258)
-            self.assertIsNotNone(f261)
-            assert f258 is not None and f261 is not None
-            # Shift the top control band by a few pixels to prove dynamic binding.
-            shifted = np.zeros_like(f261)
-            shifted[:, 3:] = f261[:, :-3]
-            tier_two, score_two = measured_survey_target(shifted, "campaign-tier-2")
-            self.assertGreater(score_two, 0.90)
-            self.assertNotEqual(tier_two, TIER_TWO_ROI)
-            self.assertEqual(tier_two[0], 525)  # 522 + 3px shift
-            tier_one, score_one = measured_survey_target(f258, "campaign-tier-1")
-            self.assertGreater(score_one, 0.90)
-            self.assertNotEqual(tier_one, TIER_ONE_ROI)
-            self.assertLess(tier_one[2], tier_two[0])
-            return
+        f261 = cv2.imread(
+            str(require_capture(session / "0261-difficulty-tier-2-immediate-before.png"))
+        )
+        self.assertIsNotNone(f258)
+        self.assertIsNotNone(f261)
+        assert f258 is not None and f261 is not None
+        # Shift the top control band by a few pixels to prove dynamic binding.
+        shifted = np.zeros_like(f261)
+        shifted[:, 3:] = f261[:, :-3]
+        tier_two, score_two = measured_survey_target(shifted, "campaign-tier-2")
+        self.assertGreater(score_two, 0.90)
+        self.assertNotEqual(tier_two, TIER_TWO_ROI)
+        self.assertEqual(tier_two[0], 525)  # 522 + 3px shift
+        tier_one, score_one = measured_survey_target(f258, "campaign-tier-1")
+        self.assertGreater(score_one, 0.90)
+        self.assertNotEqual(tier_one, TIER_ONE_ROI)
+        self.assertLess(tier_one[2], tier_two[0])
 
-        # Offline fallback when retained frames are unavailable.
+    def test_tier_targets_are_measured_from_synthetic_current_frame(self) -> None:
+        from tasks.campaign_atlas_vision import measured_survey_target
+        from tasks.campaign_auto_battle_vision import ASSET_ROOT, TIER_ONE_ROI
+
         tier1_u = cv2.imread(str(ASSET_ROOT / "tier1_unselected.png"), cv2.IMREAD_COLOR)
         tier2_s = cv2.imread(str(ASSET_ROOT / "tier2_selected.png"), cv2.IMREAD_COLOR)
         self.assertIsNotNone(tier1_u)
@@ -211,26 +210,48 @@ class CampaignAtlasVisionTests(unittest.TestCase):
         self.assertGreater(score_one, 0.90)
         self.assertNotEqual(tier_one, TIER_ONE_ROI)
 
-    def test_selected_state_disambiguation_and_mismatch_zero_bind(self) -> None:
-        from pathlib import Path
+    def test_selected_state_disambiguation_and_mismatch_zero_bind_on_committed_ground_truth(
+        self,
+    ) -> None:
+        from tasks.campaign_atlas_vision import (
+            CURRENT_TARGET_TEMPLATE_THRESHOLD,
+            measured_survey_target,
+        )
+        from tasks.campaign_auto_battle_vision import ASSET_ROOT
 
+        # Committed annotated copies of survey frames 0261 (tier 1 selected) and 0258
+        # (tier 2 selected); the overlay only outlines the controls.
+        truth = ASSET_ROOT / "ground-truth" / "tier-controls-selection"
+        f261 = cv2.imread(
+            str(truth / "annotated-tier1-selected-from-0261-difficulty-tier-2-immediate-before.png")
+        )
+        f258 = cv2.imread(
+            str(truth / "annotated-tier2-selected-from-0258-difficulty-tier-1-immediate-before.png")
+        )
+        self.assertIsNotNone(f258)
+        self.assertIsNotNone(f261)
+        assert f258 is not None and f261 is not None
+        roi, score = measured_survey_target(f261, "campaign-tier-2")
+        self.assertGreaterEqual(score, CURRENT_TARGET_TEMPLATE_THRESHOLD)
+        self.assertEqual(roi, (522, 65, 620, 133))
+        with self.assertRaises(RuntimeError) as blocked:
+            measured_survey_target(f258, "campaign-tier-2")
+        self.assertIn("tier selection state mismatch", str(blocked.exception))
+
+    @requires_local_captures
+    def test_selected_state_disambiguation_and_mismatch_zero_bind(self) -> None:
         from tasks.campaign_atlas_vision import (
             CURRENT_TARGET_TEMPLATE_THRESHOLD,
             measured_survey_target,
         )
 
-        root = Path(__file__).resolve().parents[1]
-        session = (
-            root
-            / ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
-            / "survey-20260724T012057293610Z"
-            / "runtime"
-            / "frames"
+        session = SURVEY_CAPTURES / "survey-20260724T012057293610Z" / "runtime" / "frames"
+        f258 = cv2.imread(
+            str(require_capture(session / "0258-difficulty-tier-1-immediate-before.png"))
         )
-        if not session.is_dir():
-            self.skipTest("retained survey frames unavailable")
-        f258 = cv2.imread(str(session / "0258-difficulty-tier-1-immediate-before.png"))
-        f261 = cv2.imread(str(session / "0261-difficulty-tier-2-immediate-before.png"))
+        f261 = cv2.imread(
+            str(require_capture(session / "0261-difficulty-tier-2-immediate-before.png"))
+        )
         self.assertIsNotNone(f258)
         self.assertIsNotNone(f261)
         assert f258 is not None and f261 is not None
@@ -251,26 +272,21 @@ class CampaignAtlasVisionTests(unittest.TestCase):
         self.assertLess(dual_score, CURRENT_TARGET_TEMPLATE_THRESHOLD)
         self.assertAlmostEqual(dual_score, 0.474, places=2)
 
+    @requires_local_captures
     def test_campaign_exit_unhighlighted_and_highlighted_dynamic_bind(self) -> None:
-        from pathlib import Path
-
         from tasks.campaign_atlas_vision import (
             CAMPAIGN_EXIT_TEMPLATE_THRESHOLD,
             measured_survey_target,
         )
         from tasks.campaign_auto_battle_vision import ASSET_ROOT, CAMPAIGN_EXIT_ROI
 
-        root = Path(__file__).resolve().parents[1]
-        frame_path = (
-            root
-            / ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
+        frame_path = require_capture(
+            SURVEY_CAPTURES
             / "survey-20260724T021222146973Z"
             / "runtime"
             / "frames"
             / "0006-campaign-exit-home-immediate-before.png"
         )
-        if not frame_path.is_file():
-            self.skipTest("retained exit-before frame unavailable")
         frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
         assert frame is not None
@@ -291,6 +307,48 @@ class CampaignAtlasVisionTests(unittest.TestCase):
         self.assertGreaterEqual(shifted_score, CAMPAIGN_EXIT_TEMPLATE_THRESHOLD)
         self.assertEqual(shifted_roi, (712, 970, 764, 1024))
         self.assertNotEqual(shifted_roi, CAMPAIGN_EXIT_ROI)
+
+    def test_campaign_exit_dynamic_bind_on_committed_ground_truth_frame(self) -> None:
+        from tasks.campaign_atlas_vision import (
+            CAMPAIGN_EXIT_TEMPLATE_THRESHOLD,
+            measured_survey_target,
+        )
+        from tasks.campaign_auto_battle_vision import ASSET_ROOT, CAMPAIGN_EXIT_ROI
+
+        # Committed annotated copy of survey frame 0006 (overlay outlines the exit control).
+        frame = cv2.imread(
+            str(
+                ASSET_ROOT
+                / "ground-truth"
+                / "campaign-exit-unhighlighted"
+                / "annotated-exit-unhighlighted-from-0006-campaign-exit-home-immediate-before.png"
+            ),
+            cv2.IMREAD_COLOR,
+        )
+        self.assertIsNotNone(frame)
+        assert frame is not None
+        highlighted = cv2.imread(str(ASSET_ROOT / "campaign_exit.png"), cv2.IMREAD_GRAYSCALE)
+        search = cv2.cvtColor(frame[780:1140, 560:800], cv2.COLOR_BGR2GRAY)
+        response = cv2.matchTemplate(search, highlighted, cv2.TM_CCOEFF_NORMED)
+        _, highlighted_score, _, _ = cv2.minMaxLoc(response)
+        self.assertLess(highlighted_score, CAMPAIGN_EXIT_TEMPLATE_THRESHOLD)
+        roi, score = measured_survey_target(frame, "campaign-exit-base")
+        self.assertGreaterEqual(score, CAMPAIGN_EXIT_TEMPLATE_THRESHOLD)
+        self.assertEqual(roi, (715, 970, 767, 1024))
+        shifted = np.zeros_like(frame)
+        shifted[:, :-3] = frame[:, 3:]
+        shifted_roi, shifted_score = measured_survey_target(shifted, "campaign-exit-base")
+        self.assertGreaterEqual(shifted_score, CAMPAIGN_EXIT_TEMPLATE_THRESHOLD)
+        self.assertEqual(shifted_roi, (712, 970, 764, 1024))
+        self.assertNotEqual(shifted_roi, CAMPAIGN_EXIT_ROI)
+
+    def test_campaign_exit_highlighted_template_dynamic_bind(self) -> None:
+        from tasks.campaign_atlas_vision import (
+            CAMPAIGN_EXIT_TEMPLATE_THRESHOLD,
+            measured_survey_target,
+        )
+        from tasks.campaign_auto_battle_vision import ASSET_ROOT, CAMPAIGN_EXIT_ROI
+
         # Highlighted compatibility: paste highlighted template into search band.
         highlighted_bgr = cv2.imread(str(ASSET_ROOT / "campaign_exit.png"), cv2.IMREAD_COLOR)
         self.assertIsNotNone(highlighted_bgr)

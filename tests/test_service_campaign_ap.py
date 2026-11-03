@@ -33,8 +33,8 @@ from tasks.campaign_auto_battle import (
 )
 from tasks.campaign_auto_battle_vision import CampaignFrameRecognition, recognize_campaign_frame
 from tasks.scheduler_task_result import SchedulerIdentity
-from tests.test_campaign_ap_native_runner import DrainFakeADB, FakeADB, PHASES, recognize, recognize_drain
-from tests.test_service_recruitment import VirtualStop
+from tests.support.campaign_ap_runner import DrainFakeADB, FakeADB, PHASES, recognize, recognize_drain
+from tests.support.service_stop import VirtualStop
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tests.ocr_memo import install_module_memo
 

@@ -12,7 +12,7 @@ import numpy as np
 
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from scripts.nova_praise_bluestacks import NovaNavigationCanaryRoute
-from tests.test_nova_navigation_canary import ATLAS_PATH, _identity
+from tests.support.nova_canary import ATLAS_PATH, _identity
 from tests.ocr_memo import install_module_memo
 
 

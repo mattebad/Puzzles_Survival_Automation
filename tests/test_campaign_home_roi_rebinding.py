@@ -8,7 +8,7 @@ import unittest
 from safe_action_core import (
     ActionClass, ActionStatus, CentralPolicy, SafeActionExecutor, SafetyStore, TransportResult,
 )
-from tests.test_input_capability_firewall import Clock, TEST_TASKS, nav_observation, nav_request
+from tests.support.capability_firewall import Clock, TEST_TASKS, nav_observation, nav_request
 
 
 SEMANTIC = "CAMPAIGN_HOME_ATLAS_BUILDING_OPEN"

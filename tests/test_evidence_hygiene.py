@@ -243,10 +243,28 @@ class EvidenceHygieneTests(unittest.TestCase):
         self.assertEqual(first["audit_id"], second["audit_id"])
         self.assertEqual(first["records"], second["records"])
 
-    def test_tool_does_not_contain_history_rewrite_commands(self):
-        source = Path(hygiene.__file__).read_text(encoding="utf-8")
-        for forbidden in ("filter-repo", "BFG", "reflog expire", "gc --prune", "reset --hard", "push --force"):
-            self.assertNotIn(forbidden, source)
+    def test_tool_only_invokes_read_only_git_subcommands(self):
+        self.init_git()
+        self.write("evidence/sessions/demo/source.png", b"same")
+        self.write("evidence/sessions/demo/copy.png", b"same")
+        self.git_add("evidence/sessions/demo/source.png")
+        archive = self.root.parent / ("readonly-archive-" + self.root.name)
+        real_run = subprocess.run
+        commands = []
+
+        def recording_run(command, *args, **kwargs):
+            commands.append(list(command))
+            if command[0] == "du":  # size probe only; GNU-specific flags are not under test
+                return subprocess.CompletedProcess(command, 0, stdout="1\t.", stderr="")
+            return real_run(command, *args, **kwargs)
+
+        with mock.patch.object(hygiene.subprocess, "run", side_effect=recording_run):
+            audit = hygiene.build_audit(self.root, self.evidence, include_history=True, generated_at="fixed")
+            hygiene.archive_audit(audit, self.root, archive, execute=True)
+        git_commands = [command for command in commands if command[0] == "git"]
+        self.assertTrue(git_commands)
+        subcommands = {command[3] for command in git_commands}
+        self.assertEqual(subcommands - {"ls-files", "rev-list", "cat-file"}, set())
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ import numpy as np
 
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+from tests.support.enhancement import exit_runtime
 
 
 FRAME = Path(__file__).parent / "fixtures/enhancement_item_modal/native-chip-fighter-20261029.png"
@@ -121,9 +122,8 @@ class ChipModalNativeTests(unittest.TestCase):
         self.assertFalse(self.recognize(variant="module").recognized)
 
     def test_known_chip_close_is_rebound_before_navigation_and_uses_no_resource(self):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
         commander = FRAME.with_name("native-commander-gear-20261029.png").read_bytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, self.raw, commander, commander])
+        runtime, session = exit_runtime([self.raw, self.raw, commander, commander])
         route = native.EnhancementIntegratedRoute(runtime, variant="chip", reset_identity="current-reset", session=session)
         _, terminal = route._navigate_to("commander_overview")
         self.assertEqual(terminal.detail_state, "commander_overview")
@@ -133,7 +133,7 @@ class ChipModalNativeTests(unittest.TestCase):
         missing = self.frame.copy()
         missing[345:420, 640:735] = 0
         raw = cv2.imencode(".png", missing)[1].tobytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, raw])
+        runtime, session = exit_runtime([self.raw, raw])
         route = native.EnhancementIntegratedRoute(runtime, variant="chip", reset_identity="current-reset", session=session)
         with self.assertRaises(native._FlowBlocked):
             route._navigate_to("commander_overview")

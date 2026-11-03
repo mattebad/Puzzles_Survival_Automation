@@ -21,7 +21,7 @@ from scripts import home_atlas_bluestacks as home
 from tasks.home_atlas_planner import DirectPanNavigator, PanProgress, PlanDisposition
 from tasks.home_atlas_vision import frame_digest
 from tasks.perception_bundle import PerceptionBundleError
-from tests.test_home_atlas_tap_actual_proposal import _RecordingPolicy
+from tests.support.home_atlas import _RecordingPolicy
 from tests.ocr_memo import install_module_memo
 
 

@@ -132,6 +132,13 @@ The broader `tests.test_world_map_navigation_bluestacks` fixture replay requires
 `tesseract` executable on `PATH` (CI installs it). Its checked-in World HUD and Search-menu
 PNGs are authorized byte-exact copies of retained captures, not fresh native acceptance.
 
+Tests that can only run against gitignored, machine-local captures (`.local-captures/`) are
+marked with `tests.support.local_captures.requires_local_captures`. They are reported as explicit
+opt-in skips (`opt-in: set PNS_LOCAL_CAPTURES=1 ...`) and are not part of any CI claim. On a
+machine that holds the captures, run them with `PNS_LOCAL_CAPTURES=1`; a missing capture then
+fails the test instead of skipping it. Shared test fakes and loaders live in `tests/support/`;
+test modules do not import each other.
+
 New native-runtime capture files use portable filename components; original semantic labels
 remain in structured events. `actions.jsonl` records each canonical action once, including
 failed or unresolved attempts. `transport_attempted_count` counts actual dispatch attempts;

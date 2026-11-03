@@ -17,7 +17,7 @@ from automation_service.state import BotStateManager, RunState
 from scripts import navigation_development_boundary as boundary
 from tasks.nova_praise_pulse import NOVA_TASK_ID
 from tasks.scheduler_task_result import SchedulerIdentity
-from tests.test_service_recruitment import VirtualStop
+from tests.support.service_stop import VirtualStop
 
 
 class GuardedNovaRunner:

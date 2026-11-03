@@ -56,12 +56,13 @@ from tasks.nova_praise_vision import (
     revalidate_nova_praise_frame_fast,
 )
 import tasks.nova_praise_vision as nova_praise_vision
-from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
 from scripts.pnsctl import (
     _compact_development_action_results,
     _retained_semantic_completed_count,
 )
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tests.support.nova_canary import ATLAS_PATH, _identity
+from tests.support.local_captures import LOCAL_CAPTURES, require_capture, requires_local_captures
 from tests.ocr_memo import install_module_memo
 
 
@@ -71,11 +72,10 @@ def setUpModule():
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ATLAS_PATH = ROOT / "tasks/assets/home_atlas/bluestacks/800x1280/atlas.json"
 FIXTURE_ROOT = ROOT / "tests/fixtures/nova_praise_preflight"
 ASSET_MANIFEST = ROOT / "tasks/assets/nova_praise/800x1280/manifest.json"
 NOVA_FLOW_CAPTURES = (
-    ROOT / ".local-captures" / "flow-delivery" / "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
+    LOCAL_CAPTURES / "flow-delivery" / "NOVA-PRAISE-HOME-ATLAS-MIGRATION"
 )
 SELECTED_HOME_CANARY_FRAME = (
     NOVA_FLOW_CAPTURES
@@ -96,8 +96,7 @@ EXPANDED_RADIAL_CANARY_FRAME = (
     / "0008-canary-open-nova-immediate-before.png"
 )
 SUPERVISED_OCR_MISS_NOVA_FRAME = (
-    ROOT
-    / ".local-captures"
+    LOCAL_CAPTURES
     / "flow-delivery"
     / "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"
     / "nova-praise-one-free-pulse-20260722T175237968971Z"
@@ -112,17 +111,6 @@ SUPERVISED_OCR_MISS_LAB_PROVENANCE = ResearchLabTapProvenance(
     10.0,
 )
 SUPERVISED_OCR_MISS_NOVA_ROI = (385, 552, 429, 596)
-
-
-def _identity() -> VerifiedRuntimeIdentity:
-    return VerifiedRuntimeIdentity(
-        "bluestacks-dev-primary",
-        "acct-1",
-        "server-1",
-        "reset-1",
-        RuntimeIdentityAssurance.SUPERVISED_NAVIGATION_BINDING,
-        ("operator-bound-current-frame",),
-    )
 
 
 def _localization(digest: str) -> LocalizationResult:
@@ -600,7 +588,7 @@ class NovaNavigationCanaryTests(unittest.TestCase):
             checkpoint=lambda: None,
             adb="adb",
             serial="emulator-5554",
-            output_directory=ROOT / ".local-captures" / "nova-config-boundary-test",
+            output_directory=Path(tempfile.gettempdir()) / "nova-config-boundary-test",
             settle_seconds=0.0,
         )
         with patch.object(
@@ -2090,9 +2078,9 @@ class NovaNavigationCanaryTests(unittest.TestCase):
                 self.assertFalse(evidence.recognized)
                 self.assertEqual(evidence.semantic_state, "UNKNOWN")
 
+    @requires_local_captures
     def test_supervised_ocr_miss_accepted_template_binds_nova(self) -> None:
-        if not SUPERVISED_OCR_MISS_NOVA_FRAME.is_file():
-            self.skipTest(f"retained frame absent: {SUPERVISED_OCR_MISS_NOVA_FRAME}")
+        require_capture(SUPERVISED_OCR_MISS_NOVA_FRAME)
         frame = cv2.imread(str(SUPERVISED_OCR_MISS_NOVA_FRAME), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
         with patch.object(nova_praise_vision, "_radial_ocr_terms", return_value=()):
@@ -2170,9 +2158,9 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertEqual(radial["bind_method"], "template_nova_from_research_tap")
         self.assertNotIn("research", set(radial.get("hough_only_anchors") or ()))
 
+    @requires_local_captures
     def test_selected_home_hough_only_does_not_promote_radial(self) -> None:
-        if not SELECTED_HOME_CANARY_FRAME.is_file():
-            self.skipTest(f"retained frame absent: {SELECTED_HOME_CANARY_FRAME}")
+        require_capture(SELECTED_HOME_CANARY_FRAME)
         raw = SELECTED_HOME_CANARY_FRAME.read_bytes()
         frame = cv2.imread(str(SELECTED_HOME_CANARY_FRAME), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
@@ -2210,9 +2198,9 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertIsNone(initial_radial)
         self.assertIs(home_capture, captured)
 
+    @requires_local_captures
     def test_positive_home_base_wins_over_hough_ambiguity(self) -> None:
-        if not POSITIVE_HOME_CANARY_FRAME.is_file():
-            self.skipTest(f"retained frame absent: {POSITIVE_HOME_CANARY_FRAME}")
+        require_capture(POSITIVE_HOME_CANARY_FRAME)
         raw = POSITIVE_HOME_CANARY_FRAME.read_bytes()
         frame = cv2.imread(str(POSITIVE_HOME_CANARY_FRAME), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
@@ -2247,9 +2235,9 @@ class NovaNavigationCanaryTests(unittest.TestCase):
         self.assertIsNone(initial_radial)
         self.assertIs(home_capture, captured)
 
+    @requires_local_captures
     def test_prior_expanded_radial_retained_frame_remains_bound(self) -> None:
-        if not EXPANDED_RADIAL_CANARY_FRAME.is_file():
-            self.skipTest(f"retained frame absent: {EXPANDED_RADIAL_CANARY_FRAME}")
+        require_capture(EXPANDED_RADIAL_CANARY_FRAME)
         frame = cv2.imread(str(EXPANDED_RADIAL_CANARY_FRAME), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
         recognized = recognize_nova_frame(

@@ -71,6 +71,7 @@ from tasks.world_stamina import (
 )
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tasks.runtime_identity import BLUESTACKS_SERIAL
+from tests.support.local_captures import LOCAL_CAPTURES, require_capture, requires_local_captures
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1990,13 +1991,13 @@ class WorldMapNavigationTests(unittest.TestCase):
                 self.assertEqual(result.status, "allowed")
                 self.assertEqual(result.target_roi, button)
 
+    @requires_local_captures
     def test_retained_native_close_roi_matches_independent_button_measurement(self):
         geometry = json.loads(FIXTURE.read_text(encoding="utf-8"))["observations"][
             "retained_source_popup_geometry"
         ]
         source = (
-            ROOT
-            / ".local-captures"
+            LOCAL_CAPTURES
             / "flow-delivery"
             / "WORLD-MAP-NAVIGATION-FOUNDATION"
             / "run-20260816T030538631368Z"
@@ -2004,8 +2005,7 @@ class WorldMapNavigationTests(unittest.TestCase):
             / "frames"
             / "0001-world-navigation-source.png"
         )
-        if not source.is_file():
-            self.skipTest("retained live source frame is unavailable")
+        require_capture(source)
         raw = source.read_bytes()
         self.assertEqual(
             hashlib.sha256(raw).hexdigest(),

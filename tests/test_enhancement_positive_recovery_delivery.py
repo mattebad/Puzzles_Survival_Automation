@@ -10,13 +10,13 @@ from types import SimpleNamespace
 
 from scripts import flow_delivery_enhancement_bluestacks as delivery
 from scripts import pnsctl
-from tests import test_enhancement_category_resume as resume_tests
 from tasks.runtime_identity import BLUESTACKS_SERIAL
+from tests.support.enhancement_replay import CategoryResumeCase
 
 
 class PositiveRecoveryDeliveryTests(unittest.TestCase):
     def setUp(self):
-        helper = resume_tests.EnhancementCategoryResumeTests(methodName="test_long_original_and_current_replay_renews_existing_checkpoint")
+        helper = CategoryResumeCase()
         helper.setUp()
         self.addCleanup(helper.doCleanups)
         self.case = helper.make_session(("gear",))

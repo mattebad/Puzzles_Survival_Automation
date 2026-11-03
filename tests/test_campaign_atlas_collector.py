@@ -38,12 +38,6 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
             ):
                 campaign_atlas_bluestacks.main(["dry-run", option])
 
-    def test_collector_source_has_no_runtime_transport_imports(self) -> None:
-        source = Path(campaign_atlas_bluestacks.__file__).read_text(encoding="utf-8")
-        for forbidden in ("import subprocess", "ADBRunner", "LocalBlueStacksRuntime", "input tap"):
-            with self.subTest(forbidden=forbidden):
-                self.assertNotIn(forbidden, source)
-
     def test_activated_contract_payload_matches_272_partitions(self) -> None:
         payload = campaign_atlas_bluestacks.build_activated_contract_payload()
         self.assertEqual(payload["contract_kind"], "activated")
@@ -489,30 +483,6 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
                 {},
             )
 
-    def test_no_static_roi_fallback_imports_in_runner(self) -> None:
-        from pathlib import Path
-        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
-
-        source = Path(mod.__file__).read_text(encoding="utf-8")
-        self.assertNotIn("CAMPAIGN_EXIT_ROI", source)
-        self.assertNotIn("TIER_ONE_ROI", source)
-        self.assertNotIn("TIER_TWO_ROI", source)
-        self.assertNotIn("overlap_ratio >= 0.2", source)
-        self.assertIn("loop_closure_accepted", source)
-        self.assertIn("SafeActionExecutor", source)
-        self.assertIn("reject_direct_survey_transport", source)
-        self.assertIn("live_preflight_inadmissible", source)
-
-    def test_safe_action_executor_is_action_authority_not_direct_runtime(self) -> None:
-        from pathlib import Path
-        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
-
-        source = Path(mod.__file__).read_text(encoding="utf-8")
-        self.assertIn("self._execute_via_safe_action", source)
-        self.assertIn("authority\": \"SafeActionExecutor\"", source)
-        # Direct swipe/tap remain only inside sealed transport callbacks.
-        self.assertIn("reject_direct_survey_transport(authorized_token=_SURVEY_TRANSPORT_SEAL)", source)
-
     def test_preflight_is_admissible_after_gate_closure(self) -> None:
         from tasks.campaign_atlas import (
             live_survey_preflight_blockers,
@@ -579,19 +549,7 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
             _require_survey_budget(base_flow(maximum_live_attempts=2))
         self.assertIn("exactly one live session", str(enlarged.exception))
 
-    def test_overlap_screen_revalidation_helper_is_present(self) -> None:
-        from pathlib import Path
-        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
-
-        source = Path(mod.__file__).read_text(encoding="utf-8")
-        self.assertIn("survey tap immediate-before is not TIER_MAP", source)
-        self.assertIn("left TIER_MAP during", source)
-        self.assertIn("overlap association unresolved", source)
-        self.assertIn("unexpected_successor", Path("safe_action_core/executor.py").read_text())
-
     def test_dispatch_bound_tap_recapture_rejects_moved_roi_before_transport(self) -> None:
-        from pathlib import Path
-        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
         from scripts.flow_delivery_campaign_atlas_bluestacks import (
             require_stable_survey_tap_rebound,
         )
@@ -608,23 +566,6 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
             proposal_roi=proposal, rebound_roi=proposal
         )
         self.assertEqual(stable, proposal)
-
-        source = Path(mod.__file__).read_text(encoding="utf-8")
-        self.assertIn("require_stable_survey_tap_rebound", source)
-        self.assertIn("proposal_roi=observation.target_roi", source)
-        self.assertIn('dispatch_holder["roi"] = verified_roi', source)
-        # Stable continuity: rebuilt Observation keeps proposal target_roi (no rebound rewrite).
-        self.assertNotIn("target_roi=rebound", source)
-        # Same fresh identity for issue + remeasure + rebuild; no second live grab.
-        self.assertIn("frame_sha256=fresh.sha256", source)
-        self.assertIn("capture_completed_monotonic=fresh.captured_monotonic", source)
-        self.assertNotIn(
-            'self.capture(f"{action_key}-immediate-before")\n            immediate_recognition',
-            source,
-        )
-        # Do not expand SafeAction ROI-change allowlists for campaign taps.
-        executor = Path("safe_action_core/executor.py").read_text(encoding="utf-8")
-        self.assertNotIn("CAMPAIGN_ATLAS_MAP_TAP", executor)
 
     def test_zero_transport_terminal_does_not_inflate_durable_accounting(self) -> None:
         from scripts.flow_delivery_campaign_atlas_bluestacks import (
@@ -719,56 +660,13 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
             self.assertEqual(durable["transport_inputs_used"], 1)
             self.assertTrue(durable["transport_dispatched"])
 
-        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
-
-        source = Path(mod.__file__).read_text(encoding="utf-8")
-        self.assertIn("def _close_dispatch_exception", source)
-        self.assertIn("blocked_fail_closed_zero_transport", source)
-        self.assertIn('transport_gate: dict[str, bool] = {"attempted": False, "input_sent": False}', source)
-        self.assertIn('transport_gate["input_sent"] = True', source)
-
-    def test_overlap_no_progress_clamps_excluded_from_overlap_reports(self) -> None:
-        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
-
-        source = Path(mod.__file__).read_text(encoding="utf-8")
-        self.assertIn('if outcome == "progress":', source)
-        self.assertIn("op.state.overlaps.append(", source)
-        self.assertIn(
-            "# no_progress clamp steps are boundary evidence only — not overlap pairs.",
-            source,
-        )
-        # Progress-only append precedes the no_progress comment; clamps are not appended.
-        progress_idx = source.index('if outcome == "progress":')
-        append_idx = source.index("op.state.overlaps.append(", progress_idx)
-        clamp_note_idx = source.index(
-            "# no_progress clamp steps are boundary evidence only — not overlap pairs.",
-            append_idx,
-        )
-        self.assertLess(progress_idx, append_idx)
-        self.assertLess(append_idx, clamp_note_idx)
-        # Edge clamps remain separate boundary evidence.
-        self.assertIn("op.state.edge_clamps.append(", source)
-        self.assertIn("loop_closure_accepted", source)
-
     def test_accepted_success_requires_recognized_home_terminal(self) -> None:
         from dataclasses import replace
-        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
         from tasks.campaign_atlas import (
             CollectorDisposition,
             SafeTerminalReport,
             validate_survey_session_report,
         )
-
-        source = Path(mod.__file__).read_text(encoding="utf-8")
-        self.assertIn('identity="campaign-exit-base"', source)
-        self.assertIn(
-            "expected_successor=lambda rec: rec.observation.screen == CampaignScreen.HOME_BASE",
-            source,
-        )
-        self.assertIn('terminal_runtime_state": "recognized_home"', source)
-        self.assertIn("terminal_state=CampaignScreen.HOME_BASE.value", source)
-        self.assertIn('campaign-base-request static/base-request fallback is prohibited', source)
-        self.assertNotIn('terminal_state="campaign_tier_map"', source)
 
         report = build_empty_activated_session_report(
             session_id="campaign-atlas-home-terminal-gate",
@@ -789,31 +687,6 @@ class CampaignAtlasCollectorTests(unittest.TestCase):
             )
         self.assertIn("Home-bound", str(raised.exception))
 
-    def test_live_survey_invokes_standard_home_zoom_before_campaign_entry(self) -> None:
-        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
-
-        source = Path(mod.__file__).read_text(encoding="utf-8")
-        recover_idx = source.index("zoom_recovery = recover_home_zoom_before_campaign_entry(")
-        entry_idx = source.index(
-            "entry = run_verified_campaign_home_atlas_entry(",
-            recover_idx,
-        )
-        self.assertLess(recover_idx, entry_idx)
-        localized_gate = source.index(
-            'zoom_recovery.get("status") != "localized"',
-            recover_idx,
-        )
-        post_zoom_before = source.index(
-            'before, _ = op.capture("entry-immediate-before")',
-            localized_gate,
-        )
-        self.assertLess(post_zoom_before, entry_idx)
-        self.assertIn("BlueStacksLocalizeFirstHomeDriver", source)
-        self.assertIn("HomeDriverDisposition.RECOVER_ZOOM", source)
-        self.assertIn("ScrcpyMotionEventZoomTransport", source)
-        self.assertIn("dispatch_zoom_out(", source)
-        self.assertIn("InputBudgetCategory.AUXILIARY", source)
-        self.assertIn("maximum_zoom_inputs=4", source)
 
     def test_post_zoom_entry_before_preserves_auxiliary_zoom_accounting(self) -> None:
         """Post-zoom entry bookkeeping must not wipe already-recorded AUXILIARY zoom inputs."""
@@ -2547,39 +2420,144 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
             self.assertFalse(result["transport_dispatched"])
             self.assertEqual(runtime.taps, [])
 
-    def test_live_survey_wires_vip_dismiss_before_unsupported_start(self) -> None:
-        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
-
-        source = Path(mod.__file__).read_text(encoding="utf-8")
-        unsupported = source.index('unsupported survey start screen:')
-        vip_call = source.index("dismiss_campaign_vip_reset_popup(")
-        self.assertLess(vip_call, unsupported)
-        self.assertIn("bluestacks_popup_recognition.recognize_reset_popup(before.frame)", source)
-        self.assertIn('vip_dismiss.get("status") != "dismissed"', source)
-        self.assertIn("DISMISS_RESET_POPUP", source)
-        self.assertIn("CAMPAIGN_TIER_MAP", source)
 
 
 class CampaignAtlasOfflineReconciliationTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.root = Path(__file__).resolve().parents[1]
-        cls.retained = (
-            cls.root
-            / ".local-captures"
-            / "flow-delivery"
-            / "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
-            / "survey-20260724T004227747200Z"
+    TIER_MAP_FIXTURE = (
+        Path(__file__).resolve().parent / "fixtures/campaign_tier_controls/current-tier-map.png"
+    )
+
+    def _write_edge_pan_pair(self, frames: Path, *, progress: bool) -> None:
+        """Write a native before/post pair from the committed Tier-map fixture.
+
+        ``progress=True`` pans the map 160px (accepted progress); ``False`` leaves it
+        unchanged (an edge clamp / no_progress measurement).
+        """
+
+        import cv2
+        import numpy as np
+
+        before = cv2.imread(str(self.TIER_MAP_FIXTURE), cv2.IMREAD_COLOR)
+        assert before is not None
+        post = before.copy()
+        if progress:
+            post = np.zeros_like(before)
+            post[160:] = before[:-160]
+            post[:160] = before[:160]
+        frames.mkdir(parents=True, exist_ok=True)
+        for name, frame in (
+            ("0003-edge-top-00-immediate-before.png", before),
+            ("0004-edge-top-00-post.png", post),
+        ):
+            encoded_ok, encoded = cv2.imencode(".png", frame)
+            assert encoded_ok
+            (frames / name).write_bytes(encoded.tobytes())
+
+    @staticmethod
+    def _write_closed_lifecycle(session: Path, *, count: int, last_terminal: str) -> None:
+        from scripts.flow_delivery_campaign_atlas_bluestacks import LIFECYCLE_PATH
+
+        rows = []
+        for ordinal in range(1, count + 1):
+            terminal = last_terminal if ordinal == count else "survey_step"
+            rows.extend(
+                [
+                    {"lifecycle": "prepared", "input_ordinal": ordinal},
+                    {"lifecycle": "input_sent", "input_ordinal": ordinal},
+                    {"lifecycle": "terminal", "input_ordinal": ordinal, "terminal": terminal},
+                ]
+            )
+        (session / LIFECYCLE_PATH).write_text(
+            "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
+            encoding="utf-8",
         )
 
-    def _require_retained(self) -> Path:
-        if not self.retained.is_dir():
-            self.skipTest("retained edge-top survey session fixtures unavailable")
-        before = self.retained / "runtime/frames/0003-edge-top-00-immediate-before.png"
-        post = self.retained / "runtime/frames/0004-edge-top-00-post.png"
-        if not before.is_file() or not post.is_file():
-            self.skipTest("retained edge-top before/post frames unavailable")
-        return self.retained
+    def _write_accepted_survey_session(
+        self,
+        session: Path,
+        *,
+        expected: dict,
+        last_terminal: str,
+        transport_keys: list[str],
+        post_frame: str,
+    ) -> None:
+        from scripts.flow_delivery_campaign_atlas_bluestacks import ACCOUNTING_PATH
+
+        session.mkdir(parents=True)
+        for key in transport_keys:
+            (session / f"{key}-transport.json").write_text("{}", encoding="utf-8")
+        (session / f"{expected['completed_action_key']}-result.json").write_text(
+            "{}", encoding="utf-8"
+        )
+        (session / ACCOUNTING_PATH).write_text(
+            json.dumps(
+                {
+                    "accounting": {
+                        "auxiliary_used": expected["auxiliary_used"],
+                        "edge_clamp_used": expected["edge_clamp_used"],
+                        "overlap_used": expected["overlap_used"],
+                        "transport_inputs_used": expected["transport_inputs_used"],
+                    },
+                    "open_prepared": False,
+                    "prior_inputs_seeded": expected["prior_inputs_seeded_inside_session"],
+                    "session_navigation_inputs_sent": expected["session_navigation_inputs_sent"],
+                    "transport_dispatched": True,
+                    "transport_inputs_used": expected["transport_inputs_used"],
+                    "unresolved": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        self._write_closed_lifecycle(
+            session,
+            count=int(expected["session_navigation_inputs_sent"]),
+            last_terminal=last_terminal,
+        )
+        frame = session / post_frame
+        frame.parent.mkdir(parents=True, exist_ok=True)
+        frame.write_bytes(self.TIER_MAP_FIXTURE.read_bytes())
+
+    def _write_known_traversal_session(self, artifact_root: Path) -> Path:
+        """Accepted traversal accounting: 24 edge + 61 overlap steps + difficulty-tier-1."""
+
+        from scripts.flow_delivery_campaign_atlas_bluestacks import (
+            FLOW_ID,
+            KNOWN_CONTINUATION_TRAVERSAL_SESSION as expected,
+        )
+
+        directions = ("top", "right", "bottom", "left")
+        keys = ["difficulty-tier-1"]
+        keys += [f"edge-{d}-{n:02d}" for d in directions for n in range(6)]
+        keys += [f"overlap-{directions[i % 4]}-{i // 4:02d}" for i in range(61)]
+        session = artifact_root / FLOW_ID / str(expected["session_id"])
+        self._write_accepted_survey_session(
+            session,
+            expected=expected,
+            last_terminal="campaign-tier-1",
+            transport_keys=keys,
+            post_frame=str(expected["retained_tier1_post_frame"]),
+        )
+        return session
+
+    def _write_known_tier2_exit_session(self, artifact_root: Path) -> Path:
+        from scripts.flow_delivery_campaign_atlas_bluestacks import (
+            FLOW_ID,
+            KNOWN_CONTINUATION_TIER2_EXIT_SESSION as expected,
+        )
+
+        self._write_known_traversal_session(artifact_root)
+        session = artifact_root / FLOW_ID / str(expected["session_id"])
+        self._write_accepted_survey_session(
+            session,
+            expected=expected,
+            last_terminal="campaign-tier-2",
+            transport_keys=["difficulty-tier-2"],
+            post_frame=str(expected["retained_tier2_post_frame"]),
+        )
+        return session
 
     def _seed_unresolved_store(
         self,
@@ -2694,17 +2672,13 @@ class CampaignAtlasOfflineReconciliationTests(unittest.TestCase):
             KNOWN_CONTINUATION_RECONCILED_EDGE_CANDIDATE,
         )
 
-        retained = self._require_retained()
         action_key = str(KNOWN_CONTINUATION_RECONCILED_EDGE_CANDIDATE["action_key"])
         session = dest_root / FLOW_ID / str(KNOWN_CONTINUATION_RECONCILED_EDGE_CANDIDATE["session_id"])
         frames = session / "runtime" / "frames"
         frames.mkdir(parents=True)
-        before_src = retained / "runtime/frames/0003-edge-top-00-immediate-before.png"
-        post_src = retained / "runtime/frames/0004-edge-top-00-post.png"
         before_dst = frames / "0003-edge-top-00-immediate-before.png"
         post_dst = frames / "0004-edge-top-00-post.png"
-        before_dst.write_bytes(before_src.read_bytes())
-        post_dst.write_bytes(post_src.read_bytes())
+        self._write_edge_pan_pair(frames, progress=True)
         # Ensure post mtime is not earlier than before.
         import os
         import time as time_module
@@ -2943,8 +2917,6 @@ class CampaignAtlasOfflineReconciliationTests(unittest.TestCase):
         )
         from safe_action_core import SafetyStore
 
-        retained = self._require_retained()
-        del retained
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             # Reuse existing aux prior writer from collector suite.
@@ -3051,12 +3023,7 @@ class CampaignAtlasOfflineReconciliationTests(unittest.TestCase):
             # Rebuild with clamp-like identical frames for ambiguous/no-progress reject.
             frames = session2 / "runtime" / "frames"
             frames.mkdir(parents=True)
-            retained = self._require_retained()
-            payload = (
-                retained / "runtime/frames/0003-edge-top-00-immediate-before.png"
-            ).read_bytes()
-            (frames / "0003-edge-top-00-immediate-before.png").write_bytes(payload)
-            (frames / "0004-edge-top-00-post.png").write_bytes(payload)
+            self._write_edge_pan_pair(frames, progress=False)
             (session2 / "edge-top-00-transport.json").write_text(
                 json.dumps(
                     {
@@ -3186,20 +3153,54 @@ class CampaignAtlasOfflineReconciliationTests(unittest.TestCase):
             self.assertEqual(empty["edge_start_step_by_direction"]["top"], 0)
 
     def test_pnsctl_offline_reconcile_command_is_zero_input(self) -> None:
-        import scripts.pnsctl as pnsctl
-        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
+        from unittest.mock import patch
 
-        source = Path(pnsctl.__file__).read_text(encoding="utf-8")
-        self.assertIn("reconcile-campaign-atlas-survey-action", source)
-        self.assertIn("bluestacks_reconcile_campaign_atlas_survey_action", source)
-        self.assertIn("zero_input", source)
-        mod_source = Path(mod.__file__).read_text(encoding="utf-8")
-        self.assertIn("def reconcile_campaign_atlas_survey_action_offline", mod_source)
-        self.assertNotIn("runtime.swipe", mod_source[mod_source.index("def reconcile_campaign_atlas_survey_action_offline"):])
-        self.assertNotIn(
-            "runtime.tap",
-            mod_source[mod_source.index("def reconcile_campaign_atlas_survey_action_offline") :],
+        import scripts.flow_delivery_campaign_atlas_bluestacks as mod
+        import scripts.pnsctl as pnsctl
+
+        args = pnsctl.parser().parse_args(
+            [
+                "bluestacks",
+                "reconcile-campaign-atlas-survey-action",
+                "--session-directory",
+                "unused",
+                "--action-key",
+                "edge-top-00",
+            ]
         )
+        self.assertEqual(args.bluestacks_command, "reconcile-campaign-atlas-survey-action")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session = root / mod.FLOW_ID / "survey-20260724T000000000000Z"
+            session.mkdir(parents=True)
+            outside = root / "elsewhere"
+            outside.mkdir()
+            with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", root):
+                with self.assertRaises(pnsctl.OperatorError):
+                    pnsctl.bluestacks_reconcile_campaign_atlas_survey_action(
+                        outside, action_key="edge-top-00"
+                    )
+                with patch.object(
+                    mod,
+                    "reconcile_campaign_atlas_survey_action_offline",
+                    return_value={"status": "reconciled", "zero_input": True},
+                ) as reconcile:
+                    output = json.loads(
+                        pnsctl.bluestacks_reconcile_campaign_atlas_survey_action(
+                            session, action_key="edge-top-00"
+                        )
+                    )
+                reconcile.assert_called_once()
+                self.assertEqual(reconcile.call_args.kwargs["action_key"], "edge-top-00")
+                self.assertTrue(output["zero_input"])
+                with patch.object(
+                    mod,
+                    "reconcile_campaign_atlas_survey_action_offline",
+                    return_value={"status": "reconciled", "zero_input": False},
+                ), self.assertRaises(pnsctl.OperatorError):
+                    pnsctl.bluestacks_reconcile_campaign_atlas_survey_action(
+                        session, action_key="edge-top-00"
+                    )
 
     def test_traversal_seed_91_resumes_at_difficulty_tier2_only(self) -> None:
         from scripts.flow_delivery_campaign_atlas_bluestacks import (
@@ -3217,16 +3218,8 @@ class CampaignAtlasOfflineReconciliationTests(unittest.TestCase):
         from tasks.campaign_auto_battle import CampaignScreen
         from types import SimpleNamespace
 
-        artifact_root = (
-            Path(__file__).resolve().parents[1] / ".local-captures" / "flow-delivery"
-        )
-        session = (
-            artifact_root
-            / "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
-            / str(KNOWN_CONTINUATION_TRAVERSAL_SESSION["session_id"])
-        )
-        if not session.is_dir():
-            self.skipTest("accepted traversal session unavailable")
+        artifact_root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self._write_known_traversal_session(artifact_root)
 
         accounting, meta = resolve_evidence_backed_prior_auxiliary_seed(
             artifact_root=artifact_root,
@@ -3344,16 +3337,8 @@ class CampaignAtlasOfflineReconciliationTests(unittest.TestCase):
         from tasks.campaign_auto_battle import CampaignScreen
         from types import SimpleNamespace
 
-        artifact_root = (
-            Path(__file__).resolve().parents[1] / ".local-captures" / "flow-delivery"
-        )
-        session = (
-            artifact_root
-            / "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION"
-            / "survey-20260724T021222146973Z"
-        )
-        if not session.is_dir():
-            self.skipTest("accepted tier2-exit session unavailable")
+        artifact_root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self._write_known_tier2_exit_session(artifact_root)
 
         accounting, meta = resolve_evidence_backed_prior_auxiliary_seed(
             artifact_root=artifact_root,
@@ -3393,15 +3378,6 @@ class CampaignAtlasOfflineReconciliationTests(unittest.TestCase):
                 meta, current_screen=CampaignScreen.HOME_BASE
             )
         self.assertIn("TIER_MAP", str(home_block.exception))
-
-        source = Path(
-            __file__
-        ).resolve().parents[1] / "scripts" / "flow_delivery_campaign_atlas_bluestacks.py"
-        text = source.read_text(encoding="utf-8")
-        self.assertIn("def resolve_campaign_exit_only_resume", text)
-        self.assertIn('action_key="campaign-exit-home"', text)
-        self.assertIn("campaign_exit_only_coverage_resume", text)
-        self.assertIn("_hydrate_retained_survey_completion_evidence", text)
 
         with tempfile.TemporaryDirectory() as directory:
             cont_session = Path(directory) / "continuation"

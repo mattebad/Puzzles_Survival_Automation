@@ -7,9 +7,6 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import cv2
-import numpy as np
-
 from scripts import flow_delivery_ultimate_challenge_bluestacks as delivery
 from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
@@ -19,49 +16,11 @@ from tasks.ultimate_challenge_daily import (
     evaluate_already_completed, load_reset_window_state, record_pending_home,
     save_reset_window_state,
 )
-from tasks.runtime_identity import BLUESTACKS_SERIAL
+from tests.support.ultimate import RESET, flee_proof, write_result
 
 
-RESET = "game-day-2026-10-29"
 ROOT = Path(__file__).resolve().parents[1]
 HOME = ROOT / "tests/fixtures/nova_praise_preflight/zoomed-home-a.png"
-
-
-def write_result(session, result, events):
-    session.mkdir(parents=True, exist_ok=True)
-    (session / "frames").mkdir(exist_ok=True)
-    (session / "runtime").mkdir(exist_ok=True)
-    (session / "result.json").write_text(json.dumps(result), encoding="utf-8")
-    (session / "events.jsonl").write_text('{"type":"route"}\n', encoding="utf-8")
-    (session / "runtime/events.jsonl").write_text("".join(json.dumps(row) + "\n" for row in events), encoding="utf-8")
-    for name in ("ledger.jsonl", "journal.jsonl", "capability-audit.jsonl"):
-        (session / name).write_text('{"status":"retained"}\n', encoding="utf-8")
-
-
-def flee_proof(session):
-    session.mkdir(parents=True, exist_ok=True)
-    frames = session / "frames"
-    frames.mkdir(exist_ok=True)
-    captures = []
-    for name, shade in (("before", 50), ("after", 80)):
-        path = frames / f"{name}.png"
-        cv2.imwrite(str(path), np.full((1280, 800, 3), shade, dtype=np.uint8))
-        captures.append({"type": "capture", "path": str(path.resolve()), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
-    before, after = [row["sha256"] for row in captures]
-    result = {
-        "flow_id": delivery.FLOW_ID, "reset_identity": RESET,
-        "terminal": "blocked_fail_closed", "input_count": 1,
-        "completed_actions": [{"action": "tap_flee", "before_sha256": before, "post_sha256": after}],
-    }
-    events = captures + [
-        {"type": "dispatch", "target_identity": "tap_flee", "execute": True, "source_sha256": before, "action_key": "flee-one"},
-        {"type": "reconcile", "action_key": "flee-one", "status": "confirmed", "post_sha256": after},
-    ]
-    write_result(session, result, events)
-    wrapper = {"flow_id": delivery.FLOW_ID, "serial": BLUESTACKS_SERIAL,
-               "native_width": 800, "native_height": 1280, "ultimate_challenge_result": result}
-    (session / "flow-delivery-result.json").write_text(json.dumps(wrapper), encoding="utf-8")
-    return result
 
 
 class UltimateRecoveryTests(unittest.TestCase):

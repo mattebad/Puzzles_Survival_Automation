@@ -13,6 +13,7 @@ from tasks.training_disabled import (
     training_queue_authorizeable,
     training_queue_postcondition_verified,
 )
+from tests.support.observations import load_observation
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,11 +22,10 @@ MATRIX = ROOT / "tasks/daily_quest_execution_matrix.json"
 
 
 def load_fixture(name: str) -> TrainingObservation:
-    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))["observations"][name]
-    payload["target_roi"] = tuple(payload["target_roi"])
-    payload["panel_bounds"] = tuple(payload["panel_bounds"])
-    payload["evidence_refs"] = tuple(payload["evidence_refs"])
-    return TrainingObservation(**payload)
+    return load_observation(
+        FIXTURE, name, TrainingObservation,
+        ("target_roi", "panel_bounds", "evidence_refs"),
+    )
 
 
 class DisabledTrainingContractTests(unittest.TestCase):

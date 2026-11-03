@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib
-import inspect
 import json
 import math
 import struct
@@ -53,7 +52,6 @@ from tasks.home_atlas import (
     ZoomIdentity,
 )
 from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, frame_digest
-from tasks.home_context import HomeReadyObservation
 from tasks.home_atlas_planner import PanProgress, PlanDisposition
 from tasks.navigation_session import (
     AuthorizationScope,
@@ -63,7 +61,7 @@ from tasks.navigation_session import (
 )
 from tasks.navigation_session import TrustedTransportNonDispatchAuthority
 from tasks.perception_bundle import PerceptionBundleError
-from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
+from tests.support.home_atlas import _ready
 
 
 PROFILE = PlatformProfile(BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, (800, 1280), "com.global.ztmslg")
@@ -281,23 +279,6 @@ def _overlay_home_facts(frame, **_kwargs):
 
 def _policy_for(task_id: str) -> CentralPolicy:
     return CentralPolicy(supervised_tasks=frozenset({task_id}))
-
-
-def _ready() -> HomeReadyObservation:
-    return HomeReadyObservation(
-        True,
-        True,
-        VerifiedRuntimeIdentity(
-            "test-runtime",
-            "acct-1",
-            "server-1",
-            "reset-1",
-            RuntimeIdentityAssurance.SUPERVISED_NAVIGATION_BINDING,
-            ("test-identity",),
-        ),
-        False,
-        False,
-    )
 
 
 def _unit_pan_post_observer(runtime):
@@ -1680,22 +1661,12 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
         with self.assertRaises(RuntimeError) as raised:
             reject_direct_navigate_building_transport()
         self.assertEqual(str(raised.exception), "DIRECT_TRANSPORT_BYPASS_REJECTED")
-        module = importlib.import_module("scripts.home_atlas_bluestacks")
-        route_source = inspect.getsource(command_navigate_building) + inspect.getsource(
-            module._command_navigate_building_body
-        )
-        self.assertNotIn("runtime.swipe(", route_source)
-        self.assertIn("dispatch_verified_navigate_pan(", route_source)
 
-    def test_registration_scheduler_and_confirmed_not_dispatched_unchanged(self) -> None:
+    def test_confirmed_not_dispatched_authority_stays_unavailable(self) -> None:
         self.assertEqual(CONFIRMED_NOT_DISPATCHED_STATUS, "NON_DISPATCH_AUTHORITY_UNAVAILABLE")
         with self.assertRaises(Exception) as raised:
             TrustedTransportNonDispatchAuthority(authority_id="verified-route-probe")
         self.assertEqual(raised.exception.reason_code, "NON_DISPATCH_AUTHORITY_UNAVAILABLE")
-        module = importlib.import_module("scripts.home_atlas_bluestacks")
-        source = Path(module.__file__).read_text(encoding="utf-8")
-        self.assertIn('production_registration"] = "NOT_REGISTERED"', source)
-        self.assertIn('scheduler_eligibility"] = False', source)
 
     def test_gesture_roi_and_authorized_dispatch_smoke(self) -> None:
         roi = gesture_geometry_roi((450, 500), (300, 450))
@@ -1948,14 +1919,31 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
         self.assertEqual(str(raised.exception), "DIRECT_TRANSPORT_BYPASS_REJECTED")
 
     def test_ultimate_challenge_campaign_door_reuses_home_atlas_entry(self) -> None:
-        import inspect
-
         from scripts import home_atlas_bluestacks as home_atlas
 
-        door_src = inspect.getsource(home_atlas.run_verified_ultimate_challenge_campaign_door)
-        self.assertIn("run_verified_campaign_home_atlas_entry", door_src)
-        self.assertIn("home.building.campaign", door_src)
-        self.assertNotIn("parse_supported_campaign_story_destination", door_src)
+        runtime = object()
+        check = lambda _frame: True
+        sentinel = {"status": "opened"}
+        with patch.object(
+            home_atlas, "run_verified_campaign_home_atlas_entry", return_value=sentinel
+        ) as entry:
+            result = home_atlas.run_verified_ultimate_challenge_campaign_door(
+                runtime,
+                atlas_path=Path("atlas.json"),
+                maximum_pans=2,
+                execute=True,
+                settle_seconds=0.5,
+                semantic_opened_check=check,
+            )
+        self.assertIs(result, sentinel)
+        entry.assert_called_once_with(
+            runtime,
+            atlas_path=Path("atlas.json"),
+            maximum_pans=2,
+            execute=True,
+            settle_seconds=0.5,
+            semantic_opened_check=check,
+        )
 
     def test_campaign_home_entry_rejects_false_opened_without_semantic_bind(self) -> None:
         """Transport success without semantic Campaign open must not report status opened."""

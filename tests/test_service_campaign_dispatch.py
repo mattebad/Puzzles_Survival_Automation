@@ -22,7 +22,7 @@ from automation_service.state import BotStateManager, RunState
 from scripts import navigation_development_boundary as boundary
 from tasks.campaign_auto_battle import CAMPAIGN_DRAIN_MAX_RUNS, CAMPAIGN_MAX_INPUTS
 from tasks.noahs_tavern_recruit_maintenance import NoahMaintenanceState
-from tests.test_service_recruitment import VirtualStop
+from tests.support.service_stop import VirtualStop
 
 
 class GuardedCampaignRunner:

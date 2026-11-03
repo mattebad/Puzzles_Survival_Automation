@@ -44,6 +44,7 @@ from tasks.ruins_challenge import (
     RuinsScreenObservation,
 )
 from tasks.ruins_challenge_vision import RuinsDetailRecognition, RuinsFrameRecognition, RuinsResultRecognition, RuinsRewardRecognition
+from tests.support.local_captures import LOCAL_CAPTURES
 from tests.ocr_memo import install_module_memo
 
 
@@ -987,7 +988,7 @@ class IntegratedRouteTests(unittest.TestCase):
             RuinsDetailObservation("Gear Challenge", True, 68, 190, RuinsControlState.VISIBLE_ENABLED, reset_identity=RESET),
             "e" * 64, (), {},
         )
-        evidence_root = Path(".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION")
+        evidence_root = LOCAL_CAPTURES / "flow-delivery" / "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
         evidence_root.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(dir=evidence_root) as directory:
             evidence = Path(directory)
@@ -1031,7 +1032,7 @@ class IntegratedRouteTests(unittest.TestCase):
 
     def test_ruins_recovery_rejects_path_escape_wrong_hash_and_wrong_key(self):
         route = RuinsIntegratedRoute(FakeRuntime(), reset_identity=RESET, current_day="Wed", post_input_delay=0)
-        artifact_root = Path(".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION")
+        artifact_root = LOCAL_CAPTURES / "flow-delivery" / "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
         artifact_root.mkdir(parents=True, exist_ok=True)
         for tamper, expected in (("path", "recovery_evidence_path_escape"), ("hash", "recovery_evidence_successor_hash_mismatch"), ("key", "recovery_evidence_reconcile_link_invalid")):
             with self.subTest(tamper=tamper), TemporaryDirectory(dir=artifact_root) as directory:

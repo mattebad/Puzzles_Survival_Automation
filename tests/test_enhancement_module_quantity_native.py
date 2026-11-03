@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 
 from scripts import enhancement_bluestacks as native
+from tests.support.enhancement import exit_runtime
 from tests.ocr_memo import install_module_memo
 
 
@@ -129,11 +130,10 @@ class ModuleQuantityNativeTests(unittest.TestCase):
         self.assert_denied(self.recognize(engine=self.override(USE_ROI, duplicate_use)))
 
     def test_quantity_close_panel_back_and_commander_back_reach_home_with_zero_resource(self):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
         panel = FRAME.with_name("native-module-zero-selected-20261029.png").read_bytes()
         commander = FRAME.with_name("native-commander-gear-20261029.png").read_bytes()
         home = (Path(__file__).parent / "fixtures/home_base/native-home-bio-zoomed-20261029.png").read_bytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, self.raw, panel, panel, commander, commander, home])
+        runtime, session = exit_runtime([self.raw, self.raw, panel, panel, commander, commander, home])
         route = native.EnhancementIntegratedRoute(runtime, variant="module", reset_identity="current-reset", session=session)
         _, terminal = route._navigate_to("home")
         self.assertEqual(terminal.detail_state, "home")
@@ -146,7 +146,7 @@ class ModuleQuantityNativeTests(unittest.TestCase):
         changed = self.frame.copy()
         changed[365:435, 640:735] = 0
         missing = cv2.imencode(".png", changed)[1].tobytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, missing])
+        runtime, session = exit_runtime([self.raw, missing])
         route = native.EnhancementIntegratedRoute(runtime, variant="module", reset_identity="current-reset", session=session)
         with self.assertRaises(native._FlowBlocked):
             route._navigate_to("home")

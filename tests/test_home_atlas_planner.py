@@ -41,6 +41,7 @@ from tasks.home_atlas_vision import (
     bind_visible_building,
     frame_digest,
 )
+from tests.support.home_atlas import building, localization
 
 
 PROFILE = PlatformProfile(BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, (800, 1280), "com.global.ztmslg")
@@ -48,29 +49,11 @@ SAFE = SafeInteractionRegion("home-default", (145, 180, 650, 1010), (400, 600))
 CALIBRATION = GestureCalibration(BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, (450, 500), (250, 250, 650, 950), 2.1, 2.1, 35, 150, 180)
 
 
-def building(*, semantic_id: str = "home.building.bank", polygon=((900, 700), (1040, 700), (1040, 840), (900, 840)), eligible: bool = True) -> SemanticBuilding:
-    return SemanticBuilding(
-        semantic_id,
-        "Bank",
-        polygon,
-        0.98,
-        ("v1",),
-        recognition={"bluestacks": {"label": "Bank"}},
-        semantic_proof=("visible Bank label",),
-        interaction_eligible=eligible,
-        platform_binding_policy={"bluestacks": {"label": "Bank"}},
-    )
-
-
 def atlas(target: SemanticBuilding | None = None, *, coverage=True, bounds=(0.0, 0.0, 700.0, 1500.0)) -> HomeAtlas:
     target = target or building()
     viewport = AtlasViewport("v1", "unused.png", "a" * 64, "now", ((1, 0, 0), (0, 1, 0), (0, 0, 1)), ((0, 0), (800, 0), (800, 1280), (0, 1280)), 1, 0, "translation")
     polygons = (((0, 0), (1500, 0), (1500, 2800), (0, 2800)),) if coverage else (((0, 0), (500, 0), (500, 500), (0, 500)),)
     return HomeAtlas(3, "test", "1", PROFILE, "fully_zoomed_out", "atlas pixels", (0, 0), 1500, 2800, "atlas.png", "test", "test", polygons, (), (viewport,), (target,), polygons, bounds)
-
-
-def localization(x: float = 0, y: float = 0, digest: str = "a" * 64) -> LocalizationResult:
-    return LocalizationResult(True, BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, ZoomIdentity.FULLY_ZOOMED_OUT, ((1, 0, x), (0, 1, y), (0, 0, 1)), ((x, y), (x + 800, y), (x + 800, y + 1280), (x, y + 1280)), 0.95, ("v1",), 0.4, AmbiguityState.NONE, "interior", digest, "now")
 
 
 class MinimalPanPlannerTests(unittest.TestCase):

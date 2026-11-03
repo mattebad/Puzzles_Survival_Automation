@@ -11,6 +11,7 @@ import numpy as np
 
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+from tests.support.enhancement import exit_runtime
 from tests.ocr_memo import install_module_memo
 
 
@@ -99,9 +100,8 @@ class ModuleModalNativeTests(unittest.TestCase):
             self.assertFalse(self.recognize(engine=ocr).recognized)
 
     def test_measured_module_x_rebinds_and_unknown_successor_never_repeats_navigation(self):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
         commander = FRAME.with_name("native-commander-gear-20261029.png").read_bytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, self.raw, commander])
+        runtime, session = exit_runtime([self.raw, self.raw, commander])
         route = native.EnhancementIntegratedRoute(runtime, variant="module", reset_identity="current-reset", session=session)
         with patch.object(native.time, "sleep"):
             _, result = route._navigate_to("commander_overview")
@@ -110,13 +110,13 @@ class ModuleModalNativeTests(unittest.TestCase):
         changed = self.frame.copy()
         changed[345:420, 640:735] = 0
         missing = cv2.imencode(".png", changed)[1].tobytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, missing])
+        runtime, session = exit_runtime([self.raw, missing])
         route = native.EnhancementIntegratedRoute(runtime, variant="module", reset_identity="current-reset", session=session)
         with self.assertRaises(native._FlowBlocked):
             route._navigate_to("commander_overview")
         self.assertFalse(runtime.inputs)
         unknown = cv2.imencode(".png", np.zeros((1280, 800, 3), np.uint8))[1].tobytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, self.raw] + [unknown] * 4)
+        runtime, session = exit_runtime([self.raw, self.raw] + [unknown] * 4)
         route = native.EnhancementIntegratedRoute(runtime, variant="module", reset_identity="current-reset", session=session)
         with patch.object(native.time, "sleep"), self.assertRaises(native._FlowBlocked):
             route._navigate_to("commander_overview")

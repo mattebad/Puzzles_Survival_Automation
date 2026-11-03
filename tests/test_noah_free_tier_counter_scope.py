@@ -97,9 +97,7 @@ class NoahFreeTierCounterScopeTests(unittest.TestCase):
         original = Path(__file__).parents[1] / provenance["source"]
         if original.exists():
             self.assertEqual(original.read_bytes(), path.read_bytes())
-        tesseract = Path("C:/Program Files/Tesseract-OCR/tesseract.exe")
-        with patch.object(pytesseract.pytesseract, "tesseract_cmd",
-                          str(tesseract) if tesseract.exists() else "tesseract"):
+        with patch.object(pytesseract.pytesseract, "tesseract_cmd", "tesseract"):
             try:
                 pytesseract.get_tesseract_version()
             except (OSError, RuntimeError, pytesseract.TesseractNotFoundError):

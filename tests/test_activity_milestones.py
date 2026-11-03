@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import replace
 from pathlib import Path
 import unittest
@@ -13,6 +12,7 @@ from tasks.activity_milestones import (
     activity_milestone_transaction_spec,
 )
 from tasks.contracts import TaskOutcome
+from tests.support.observations import load_observation
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,11 +20,10 @@ FIXTURE = ROOT / "tests/fixtures/phase_e_activity_milestone_observations.json"
 
 
 def load_fixture(name: str) -> ActivityMilestoneObservation:
-    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))["observations"][name]
-    payload["panel_bounds"] = tuple(payload["panel_bounds"])
-    payload["target_roi"] = tuple(payload["target_roi"])
-    payload["evidence_refs"] = tuple(payload["evidence_refs"])
-    return ActivityMilestoneObservation(**payload)
+    return load_observation(
+        FIXTURE, name, ActivityMilestoneObservation,
+        ("panel_bounds", "target_roi", "evidence_refs"),
+    )
 
 
 class ActivityMilestoneContractTests(unittest.TestCase):

@@ -42,15 +42,9 @@ from tasks.runtime_identity import (
 
 
 REPO = Path(__file__).resolve().parents[1]
-LIVE_FRAMES = (
-    REPO
-    / ".local-captures"
-    / "development-sessions"
-    / "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z"
-    / "runtime"
-    / "daily-resource-item-20260819T042658970087Z-20260819T042659055847Z"
-    / "frames"
-)
+# Committed copies of the retained live session
+# DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION-20260819T042658331966Z (same sha256).
+PORTABLE_FRAMES = REPO / "tests" / "fixtures" / "resource_effect_authority" / "portable"
 
 
 def _digest(path: Path) -> str:
@@ -984,11 +978,9 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
             self.assertIsNone(delivery._bound_retained_frame(session, absolute))
 
     def test_verifier_accepts_retained_live_frames_with_real_digests(self):
-        before_src = LIVE_FRAMES / "0007-daily-resource-item:use-1k-food-immediate-before.png"
-        after_src = LIVE_FRAMES / "0009-daily-resource-item-use-settled.png"
-        home_src = LIVE_FRAMES / "0013-daily-resource-item-return-home-settled-final.png"
-        if not (before_src.is_file() and after_src.is_file() and home_src.is_file()):
-            self.skipTest("retained live Daily Resource Item frames are unavailable")
+        before_src = PORTABLE_FRAMES / "session-2-transport-source.png"
+        after_src = PORTABLE_FRAMES / "session-2-settled-post.png"
+        home_src = PORTABLE_FRAMES / "session-2-terminal-home.png"
 
         with tempfile.TemporaryDirectory() as tmp:
             session = Path(tmp)
@@ -1087,11 +1079,9 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
         self.assertEqual(result["status"], "evidence_required")
 
     def test_verifier_rejects_boolean_only_and_bad_event_counts(self):
-        before_src = LIVE_FRAMES / "0007-daily-resource-item:use-1k-food-immediate-before.png"
-        after_src = LIVE_FRAMES / "0009-daily-resource-item-use-settled.png"
-        home_src = LIVE_FRAMES / "0013-daily-resource-item-return-home-settled-final.png"
-        if not (before_src.is_file() and after_src.is_file() and home_src.is_file()):
-            self.skipTest("retained live Daily Resource Item frames are unavailable")
+        before_src = PORTABLE_FRAMES / "session-2-transport-source.png"
+        after_src = PORTABLE_FRAMES / "session-2-settled-post.png"
+        home_src = PORTABLE_FRAMES / "session-2-terminal-home.png"
 
         with tempfile.TemporaryDirectory() as tmp:
             session = Path(tmp)
