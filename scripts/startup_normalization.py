@@ -25,7 +25,7 @@ import numpy as np
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.bounded_tesseract import call_ocr, OcrDeadline
+from scripts.bounded_tesseract import call_ocr, OcrDeadline, tesseract_string
 
 
 FRAME_WIDTH = 800
@@ -139,8 +139,6 @@ def _recognize_home_control_labels(frame: np.ndarray) -> Tuple[list[str], str]:
     backend fail-closed at the caller.
     """
 
-    import pytesseract
-
     hits: list[str] = []
     raw_text: list[str] = []
     for layout in (_HOME_CONTROL_LABEL_ROIS, _HOME_SPACED_CONTROL_LABEL_ROIS):
@@ -152,7 +150,7 @@ def _recognize_home_control_labels(frame: np.ndarray) -> Tuple[list[str], str]:
             for candidate_roi in rois:
                 crop = cv2.cvtColor(_crop(frame, candidate_roi), cv2.COLOR_BGR2GRAY)
                 enlarged = cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-                text = call_ocr(pytesseract.image_to_string,
+                text = call_ocr(tesseract_string,
                     enlarged,
                     config="--psm 7",
                 ).casefold()
@@ -519,8 +517,6 @@ def classify_home_base_live(
     scene_score = activity_score(scene_roi)
     navigation_score = activity_score(navigation_roi)
     try:
-        import pytesseract
-
         # Navigation labels are scattered among icons, not a uniform text block.
         # Keep icon artwork, notification badges and chat outside label OCR.
         # The opaque label row is fixed on this native profile even when those
@@ -528,7 +524,7 @@ def classify_home_base_live(
         label_row = cv2.resize(
             frame[1238:1278, :], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC
         )
-        navigation_text = call_ocr(pytesseract.image_to_string, label_row, config="--psm 6").lower()
+        navigation_text = call_ocr(tesseract_string, label_row, config="--psm 6").lower()
         scene_hits, scene_text = _recognize_home_control_labels(frame)
     except OcrDeadline:
         raise

@@ -62,6 +62,7 @@ from navigation_development_boundary import (
     make_source_safety_facts,
 )
 from scripts.bluestacks_popup_recognition import recognize_reset_popup
+from scripts.bounded_tesseract import call_ocr, tesseract_data, tesseract_string
 from scripts.flow_delivery_evidence import require_operator_evidence
 from scripts.startup_normalization import is_clean_home_frame
 from world_map_navigation_bluestacks import _visual_popup_panel_candidates
@@ -113,9 +114,6 @@ _DEFEAT_LOSE_ASSET = REPO_ROOT / "tasks/assets/ultimate_challenge/800x1280/defea
 _DEFEAT_CONTINUE_ROI = (270, 1212, 530, 1270)
 # Keep contour boxes touching the native horizontal edge margins classified as scenery.
 _CENTRAL_POPUP_HORIZONTAL_MARGIN = int(NATIVE_WIDTH * 0.05)
-
-import pytesseract
-from pytesseract import Output
 
 DEFAULT_HOME_ATLAS = (
     REPO_ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
@@ -186,7 +184,7 @@ def _ocr_region_hits(
     crop = frame[y0:y1, x0:x1]
     scale = 3
     enlarged = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
-    data = pytesseract.image_to_data(enlarged, config="--psm 11", output_type=Output.DICT)
+    data = call_ocr(tesseract_data, enlarged, config="--psm 11")
     hits: dict[str, tuple[int, int, int, int]] = {}
     for index, raw in enumerate(data["text"]):
         text = str(raw).strip()
@@ -226,11 +224,7 @@ def _ocr_ordered_tokens(
         interpolation=cv2.INTER_CUBIC,
     )
     try:
-        data = pytesseract.image_to_data(
-            enlarged,
-            config="--psm 7",
-            output_type=Output.DICT,
-        )
+        data = call_ocr(tesseract_data, enlarged, config="--psm 7")
         texts = data["text"]
         confidences = data["conf"]
         if not expected or len(texts) != len(confidences):
@@ -1176,7 +1170,7 @@ def _ocr_region_text(
         return ""
     enlarged = cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
     return " ".join(
-        str(pytesseract.image_to_string(enlarged, config=f"--psm {psm}")).casefold().split()
+        str(call_ocr(tesseract_string, enlarged, config=f"--psm {psm}")).casefold().split()
     )
 
 

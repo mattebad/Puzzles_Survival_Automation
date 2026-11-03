@@ -12,9 +12,8 @@ from typing import Any
 
 import cv2
 import numpy as np
-import pytesseract
 
-from scripts.bounded_tesseract import call_ocr
+from scripts.bounded_tesseract import call_ocr, tesseract_string
 
 from tasks.perception_bundle import (
     ModalSurfaceClass,
@@ -72,11 +71,11 @@ def recognize_reset_popup(frame: np.ndarray) -> dict[str, Any]:
     title_crop = cv2.resize(crop(frame, VIP_POPUP_TITLE_REGION), None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
     title_gray = cv2.cvtColor(title_crop, cv2.COLOR_BGR2GRAY)
     title_binary = cv2.threshold(title_gray, 120, 255, cv2.THRESH_BINARY)[1]
-    title_text = normalized(call_ocr(pytesseract.image_to_string, title_binary, config="--psm 7"))
+    title_text = normalized(call_ocr(tesseract_string, title_binary, config="--psm 7"))
     title_identity = re.sub(r"[^a-z]", "", title_text) in {"getpts", "getpoints"}
 
     body_crop = cv2.resize(crop(frame, VIP_POPUP_BODY_REGION), None, fx=2.5, fy=2.5, interpolation=cv2.INTER_CUBIC)
-    body_text = normalized(call_ocr(pytesseract.image_to_string, body_crop, config="--psm 6"))
+    body_text = normalized(call_ocr(tesseract_string, body_crop, config="--psm 6"))
     # Prefer exact phrase match; letter-compact fallback tolerates OCR separators
     # (e.g. "vip | nip" for "vip pt") without loosening the semantic requirements.
     body_letters = re.sub(r"[^a-z]", "", body_text)
@@ -95,7 +94,7 @@ def recognize_reset_popup(frame: np.ndarray) -> dict[str, Any]:
 
     close_crop = crop(frame, RESET_POPUP_CLOSE_REGION)
     close_enlarged = cv2.resize(close_crop, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
-    close_text = normalized(call_ocr(pytesseract.image_to_string, close_enlarged, config="--psm 7"))
+    close_text = normalized(call_ocr(tesseract_string, close_enlarged, config="--psm 7"))
     literal_close = close_text == "close"
 
     hsv = cv2.cvtColor(close_crop, cv2.COLOR_BGR2HSV)

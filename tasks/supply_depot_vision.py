@@ -19,7 +19,8 @@ from typing import Callable
 
 import cv2
 import numpy as np
-import pytesseract
+
+from scripts.bounded_tesseract import call_ocr, tesseract_data, tesseract_string
 
 from .home_atlas import BuildingBinding
 from .home_atlas_vision import BLUESTACKS_PROFILE_ID, HUD_MASK_RECTS, frame_digest, native_frame_guard
@@ -60,7 +61,7 @@ _DETAILS_ICON_PATH = Path(__file__).parent / "assets/supply_depot/800x1280/radia
 
 
 def _default_ocr(image: np.ndarray, psm: int) -> str:
-    return pytesseract.image_to_string(image, config=f"--psm {psm}")
+    return call_ocr(tesseract_string, image, config=f"--psm {psm}")
 
 
 def _validate_explicit_identity(source_frame: NativeFrameIdentity) -> None:
@@ -458,8 +459,7 @@ def bind_supply_depot_claim_supply(
         radial = _crop(frame, search_roi, source_frame=source_frame, source_png=source_png)
         radial = cv2.cvtColor(radial, cv2.COLOR_BGR2GRAY) if radial.ndim == 3 else radial
         radial = cv2.resize(radial, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-        data = pytesseract.image_to_data(
-            radial, config="--psm 11", output_type=pytesseract.Output.DICT, timeout=5)
+        data = call_ocr(tesseract_data, radial, call_timeout=5, config="--psm 11")
     except (RuntimeError, OSError, ValueError):
         return None
     claim = _claim_text_roi_from_data(data, search_roi=search_roi)
@@ -476,8 +476,7 @@ def bind_supply_depot_claim_supply(
                 caption = _crop(frame, caption_roi, source_frame=source_frame, source_png=source_png)
                 caption = cv2.cvtColor(caption, cv2.COLOR_BGR2GRAY) if caption.ndim == 3 else caption
                 caption = cv2.resize(caption, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-                caption_data = pytesseract.image_to_data(
-                    caption, config="--psm 11", output_type=pytesseract.Output.DICT, timeout=5)
+                caption_data = call_ocr(tesseract_data, caption, call_timeout=5, config="--psm 11")
                 claim = _claim_text_roi_from_data(caption_data, search_roi=caption_roi)
                 label_row = _claim_label_row_from_data(caption_data, search_roi=caption_roi)
             except (RuntimeError, OSError, ValueError):

@@ -10,8 +10,8 @@ from typing import Callable
 
 import cv2
 import numpy as np
-import pytesseract
-from pytesseract import Output
+
+from scripts.bounded_tesseract import call_ocr, tesseract_data, tesseract_string
 
 from .noahs_tavern_recruit import (
     HERO_RECRUIT_RESULT_SCREEN,
@@ -74,13 +74,13 @@ def _normalize(text: str) -> str:
 
 def _text(frame: np.ndarray, box: Box, *, psm: int = 6, ocr: Callable[[np.ndarray, int], str] | None = None) -> str:
     crop = cv2.resize(_crop(frame, box), None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    raw = ocr(crop, psm) if ocr else pytesseract.image_to_string(crop, config=f"--psm {psm}")
+    raw = ocr(crop, psm) if ocr else call_ocr(tesseract_string, crop, config=f"--psm {psm}")
     return _normalize(raw)
 
 
 def _ocr_boxes(frame: np.ndarray) -> list[tuple[str, Box]]:
     enlarged = cv2.resize(frame, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    data = pytesseract.image_to_data(enlarged, config="--psm 11", output_type=Output.DICT)
+    data = call_ocr(tesseract_data, enlarged, config="--psm 11")
     found: list[tuple[str, Box]] = []
     for index, raw in enumerate(data["text"]):
         text = _normalize(raw)

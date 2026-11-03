@@ -494,8 +494,8 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         def boom(*_args, **_kwargs):
             raise AssertionError("injected current semantics must not invoke OCR")
 
-        with patch("tasks.nova_praise_vision.pytesseract.image_to_string", boom), patch(
-            "tasks.nova_praise_vision.pytesseract.image_to_data", boom
+        with patch("pytesseract.image_to_string", boom), patch(
+            "tasks.nova_praise_vision.tesseract_data", boom
         ):
             result = boundary.execute_praise(proposal_capture, proposal)
         self.assertEqual(result.status, "confirmed")

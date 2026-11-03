@@ -638,9 +638,9 @@ class PersonalMightNativeTests(unittest.TestCase):
         identity = identity_from_captured(frame, session_id="native-more", ordinal=1)
         for text in ([], ["More", "More"], ["Mail"]):
             data = {"text": text, "left": [20] * len(text), "top": [2] * len(text), "width": [100] * len(text), "height": [40] * len(text)}
-            with self.subTest(text=text), patch.object(vision.pytesseract, "image_to_data", return_value=data):
+            with self.subTest(text=text), patch.object(vision, "tesseract_data", return_value=data):
                 self.assertIsNone(vision.bind_home_more(frame.frame, source_frame=identity, source_png=frame.png, home_is_clean=lambda _: True))
-        with patch.object(vision.pytesseract, "image_to_data", side_effect=RuntimeError("timeout")):
+        with patch.object(vision, "tesseract_data", side_effect=RuntimeError("timeout")):
             self.assertIsNone(vision.bind_home_more(frame.frame, source_frame=identity, source_png=frame.png, home_is_clean=lambda _: True))
 
     def test_discovery_dispatches_one_more_and_stops_without_praise(self):

@@ -14,8 +14,8 @@ from typing import Mapping
 
 import cv2
 import numpy as np
-import pytesseract
-from pytesseract import Output
+
+from scripts.bounded_tesseract import call_ocr, tesseract_data, tesseract_string
 
 from .ruins_challenge import (
     KNOWN_CHALLENGE_IDENTITIES,
@@ -68,12 +68,12 @@ def parse_points(text: str) -> int | None:
 def _ocr(frame: np.ndarray, box: Box | None = None, *, psm: int = 11) -> str:
     image = frame if box is None else frame[box[1]:box[3], box[0]:box[2]]
     enlarged = cv2.resize(image, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    return _normalized(pytesseract.image_to_string(enlarged, config=f"--psm {psm}"))
+    return _normalized(call_ocr(tesseract_string, enlarged, config=f"--psm {psm}"))
 
 
 def _ocr_boxes(frame: np.ndarray, *, psm: int = 11) -> list[tuple[str, Box]]:
     enlarged = cv2.resize(frame, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    data = pytesseract.image_to_data(enlarged, config=f"--psm {psm}", output_type=Output.DICT)
+    data = call_ocr(tesseract_data, enlarged, config=f"--psm {psm}")
     found: list[tuple[str, Box]] = []
     for index, raw in enumerate(data["text"]):
         text = _normalized(raw)

@@ -849,8 +849,8 @@ class UltimateVipResetContinuationTests(unittest.TestCase):
         initial_observation: dict[str, object],
     ):
         with patch.object(
-            ultimate.pytesseract,
-            "image_to_data",
+            ultimate,
+            "tesseract_data",
             return_value=self._lineup_ocr(),
         ), patch.object(ultimate.time, "sleep", return_value=None):
             return ultimate._continue_from_vip_reset_popup(
@@ -1230,8 +1230,8 @@ class UltimateVipResetContinuationTests(unittest.TestCase):
                 "_run_daily_route",
                 side_effect=fake_daily,
             ), patch.object(
-                ultimate.pytesseract,
-                "image_to_data",
+                ultimate,
+                "tesseract_data",
                 return_value=self._lineup_ocr(),
             ), patch.object(
                 ultimate.time,

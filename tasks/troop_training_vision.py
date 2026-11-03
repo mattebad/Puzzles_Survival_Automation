@@ -15,8 +15,8 @@ from typing import Mapping
 
 import cv2
 import numpy as np
-import pytesseract
-from pytesseract import Output
+
+from scripts.bounded_tesseract import call_ocr, tesseract_data, tesseract_string
 
 from .troop_training import (
     AutoUseResourcePopupObservation,
@@ -86,7 +86,7 @@ def _normalized(text: str) -> str:
 def _ocr(frame: np.ndarray, box: Box | None = None, *, psm: int = 11) -> str:
     image = frame if box is None else frame[box[1]:box[3], box[0]:box[2]]
     enlarged = cv2.resize(image, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    return _normalized(pytesseract.image_to_string(enlarged, config=f"--psm {psm}"))
+    return _normalized(call_ocr(tesseract_string, enlarged, config=f"--psm {psm}"))
 
 
 def _queue_timer_text(frame: np.ndarray) -> str | None:
@@ -96,7 +96,8 @@ def _queue_timer_text(frame: np.ndarray) -> str | None:
     thresholded = cv2.threshold(gray, 160, 255, cv2.THRESH_BINARY)[1]
     enlarged = cv2.resize(thresholded, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
     for psm in (6, 7, 11):
-        raw = pytesseract.image_to_string(
+        raw = call_ocr(
+            tesseract_string,
             enlarged,
             config=f"--psm {psm} -c tessedit_char_whitelist=0123456789:",
         )
@@ -166,7 +167,7 @@ def _tier_slot_text(frame: np.ndarray, slot: Box) -> str:
         for variant, psms in variants:
             enlarged = cv2.resize(variant, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
             for psm in psms:
-                text = _normalized(pytesseract.image_to_string(enlarged, config=f"--psm {psm}"))
+                text = _normalized(call_ocr(tesseract_string, enlarged, config=f"--psm {psm}"))
                 if text:
                     explicit = re.search(r"(?:^|[^0-9])t\s*(1[0-3]|[1-9])(?=\D|$)", text)
                     pure_numeric = re.fullmatch(r"1[0-3]|[1-9]", text.strip())
@@ -184,7 +185,7 @@ def _ocr_boxes(frame: np.ndarray, box: Box | None = None) -> list[tuple[str, Box
     origin_x, origin_y = (0, 0) if box is None else (box[0], box[1])
     image = frame if box is None else frame[box[1]:box[3], box[0]:box[2]]
     enlarged = cv2.resize(image, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    data = pytesseract.image_to_data(enlarged, config="--psm 11", output_type=Output.DICT)
+    data = call_ocr(tesseract_data, enlarged, config="--psm 11")
     found: list[tuple[str, Box]] = []
     for index, raw in enumerate(data["text"]):
         text = _normalized(raw)
@@ -211,7 +212,7 @@ def _ocr_variant_boxes(frame: np.ndarray, box: Box, *, psm: int = 6) -> list[tup
     found: list[tuple[str, Box]] = []
     for variant in variants:
         enlarged = cv2.resize(variant, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
-        data = pytesseract.image_to_data(enlarged, config=f"--psm {psm}", output_type=Output.DICT)
+        data = call_ocr(tesseract_data, enlarged, config=f"--psm {psm}")
         for index, raw in enumerate(data["text"]):
             text = _normalized(raw)
             if not text:
@@ -805,7 +806,8 @@ def recognize_training(frame: np.ndarray) -> TrainingScreenObservation:
     food_cell = frame[950:1045, 35:230]
     food_saturation = cv2.cvtColor(food_cell, cv2.COLOR_BGR2HSV)[:, :, 1]
     food_text = _normalized(
-        pytesseract.image_to_string(
+        call_ocr(
+            tesseract_string,
             cv2.resize(food_saturation, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC),
             config="--psm 7",
         )

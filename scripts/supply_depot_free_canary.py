@@ -13,9 +13,9 @@ from typing import Any
 
 import cv2
 import numpy as np
-import pytesseract
 
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+from scripts.bounded_tesseract import call_ocr, tesseract_string
 from scripts.atlas_startup_normalizer import (
     AtlasStartupDisposition,
     BlueStacksAtlasStartupNormalizer,
@@ -256,7 +256,7 @@ def _arena_exit_target(frame):
         crop = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
         crop = cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
         try:
-            text = pytesseract.image_to_string(crop, config="--psm 7", timeout=2)
+            text = call_ocr(tesseract_string, crop, call_timeout=2, config="--psm 7")
         except (RuntimeError, OSError, ValueError):
             return None
         if " ".join(re.findall(r"[a-z]+", text.lower())) != expected:

@@ -33,6 +33,7 @@ from safe_action_core import (
 )
 from scripts.bluestacks_flow_collector import ADBRunner
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+from scripts.bounded_tesseract import call_ocr, tesseract_data
 from scripts.campaign_atlas_bluestacks import report_from_dict
 from scripts import bluestacks_popup_recognition
 from scripts.home_atlas_bluestacks import (
@@ -1873,10 +1874,9 @@ def _ocr_hits(frame: np.ndarray) -> dict[str, tuple[int, int, int, int]]:
     left, top, right, bottom = MAP_SEARCH_ROI
     crop = frame[top:bottom, left:right]
     try:
-        import pytesseract
+        payload = call_ocr(tesseract_data, crop, config="")
     except ImportError:
         return {}
-    payload = pytesseract.image_to_data(crop, output_type=pytesseract.Output.DICT)
     hits: dict[str, tuple[int, int, int, int]] = {}
     for index, text in enumerate(payload.get("text", [])):
         cleaned = str(text or "").strip()

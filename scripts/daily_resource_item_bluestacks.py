@@ -24,6 +24,7 @@ from scripts.bluestacks_native_runtime import (
     NATIVE_HEIGHT,
     NATIVE_WIDTH,
 )
+from scripts.bounded_tesseract import call_ocr, tesseract_data
 from scripts.daily_row_claim_bluestacks import (
     _generic_modal_overlay_evidence,
 )
@@ -248,13 +249,7 @@ def _roi(value: Sequence[int]) -> NativeBox | None:
 
 
 def _default_ocr(image: np.ndarray) -> Mapping[str, Sequence[object]]:
-    import pytesseract
-
-    return pytesseract.image_to_data(
-        image,
-        config="--oem 3 --psm 11",
-        output_type=pytesseract.Output.DICT,
-    )
+    return call_ocr(tesseract_data, image, config="--oem 3 --psm 11")
 
 
 def _ocr_tokens(

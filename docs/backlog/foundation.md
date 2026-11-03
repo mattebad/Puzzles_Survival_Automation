@@ -389,7 +389,8 @@ These AF identifiers name the fourteen defects above. Positive historical observ
 - Task ID: `REC-F17`
 - Type: Story
 - Priority: P1
-- Status: PARTIAL_LOCAL
+- Status: IMPLEMENTED_LOCAL
+- Reconciled 2026-11-03: Every production `pytesseract` call now goes through the bounded engine (`scripts/bounded_tesseract.py` `call_ocr` with `tesseract_string`/`tesseract_data`, or the `tasks/semantic_ocr_crop.py` worker); each migrated caller keeps its exact psm/config/ROI/preprocessing and maps `OcrDeadline`/engine errors to its existing unknown/not-recognized path. `tests/test_bounded_ocr_architecture.py` (in `scripts/check.py`) AST-scans production modules and fails on any `pytesseract` import outside the two engine modules; the reviewed exception list is empty. Offline only: the migrated live-reached recognizers still need a supervised live run, and the earlier bridge limits below (no capture-bound worker or process-tree containment for the `call_ocr` path) are unchanged.
 - Reconciled 2026-11-02: Enhancement and its shared Home/popup/Nova readers now use bounded Tesseract calls; public Enhancement recognizers share a fifteen-second budget and runtime checkpoints. The timed TSV path avoids an unbounded version probe. This implemented bridge is not full capture-bound OCR-worker migration or process-tree containment; other direct callers and hosted adoption remain open. See `scripts/bounded_tesseract.py` and the November2 report.
 - Objective: After F02, migrate every remaining direct `pytesseract`/OCR callsite to the one bounded, capture-identity-bound ROI engine without creating a second pipeline, broad full-frame fallback, or route-specific timeout authority. This addresses AF12.
 - Dependencies: `REC-F02`
