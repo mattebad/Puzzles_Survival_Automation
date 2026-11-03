@@ -2,7 +2,7 @@
 
 ## Repository authority
 
-`docs/archive/backlog-legacy.md`, `CURRENT_HANDOFF.md`, the working tree, and retained native frames are authoritative for historical task context.
+`docs/archive/backlog-legacy.md`, `docs/agent/CURRENT_HANDOFF.md`, the working tree, and retained native frames are authoritative for historical task context.
 
 ## Scope
 

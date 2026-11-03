@@ -13,6 +13,6 @@ journals.
   development interactions.
 - Daily/reset-sensitive behavior still binds to a positively established game-day identity where
   the action itself depends on that identity.
-- `BACKLOG.md`, `tasks/flow_delivery_queue.json`, and `CURRENT_HANDOFF.md` are checkpoint artifacts.
+- `BACKLOG.md`, `tasks/flow_delivery_queue.json`, and `docs/agent/CURRENT_HANDOFF.md` are checkpoint artifacts.
   They change only for flow selection, completion, abandonment, a genuine external blocker, or a
   handoff—not for individual actions, tests, repairs, or routine recovery.

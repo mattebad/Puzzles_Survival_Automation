@@ -107,7 +107,7 @@ This runbook is an operational entry point, not a duplicate authority. Permanent
 - [`evidence-retention-policy.md`](evidence-retention-policy.md) for exact manifests, hashes,
   indexing exclusion, and archive-before-removal.
 
-Current task status and the next planned action are recorded in `CURRENT_HANDOFF.md` and
+Current task status and the next planned action are recorded in [`agent/CURRENT_HANDOFF.md`](agent/CURRENT_HANDOFF.md) and
 `BACKLOG.md`. These documents and offline contracts do not grant runtime authority or enable
 service/flow controls. Historical Bliss evidence and journals
 remain immutable evidence, not active operating instructions.

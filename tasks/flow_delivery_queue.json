@@ -481,7 +481,7 @@
         "tasks/campaign_atlas.py",
         "tasks/campaign_atlas_vision.py",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION.json",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "BACKLOG.md",
         "safe_action_core/policy.py",
         "scripts/bluestacks_popup_recognition.py",
@@ -598,7 +598,7 @@
         "tests/test_flow_delivery_orchestrator.py",
         "tests/test_flow_delivery_lean_workflow.py",
         "tests/test_home_atlas_verified_route.py",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "BACKLOG.md",
         "tasks/backlog_task_index.json",
         "safe_action_core/policy.py",
@@ -662,7 +662,7 @@
         "scripts/campaign_atlas_bluestacks.py",
         "tasks/campaign_auto_battle.py",
         "tasks/ultimate_challenge_daily.py",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "BACKLOG.md",
         "tasks/flow_delivery_queue.json",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
@@ -742,7 +742,7 @@
         "tests/test_flow_delivery_orchestrator.py",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
         "tasks/flow_delivery_queue.json",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "BACKLOG.md",
         "tasks/backlog_task_index.json",
         "docs/flow_delivery_coverage.md",
@@ -795,7 +795,7 @@
         "scripts/home_atlas_bluestacks.py",
         "scripts/flow_delivery_control.py",
         "scripts/flow_delivery_context.py",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "scripts/flow_delivery_campaign_bluestacks.py",
         "scripts/pnsctl.py",
         "tasks/flow_delivery_bluestacks_registry.json",
@@ -1082,7 +1082,7 @@
       "reference_docs": [
         "docs/campaign-auto-battle.md",
         "docs/flow_delivery_coverage.md",
-        "docs/prompts/daily-quest/dq-flow-campaign-ap.md"
+        "docs/agent/prompts/daily-quest/dq-flow-campaign-ap.md"
       ],
       "direct_dependencies": [
         "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
@@ -1104,7 +1104,7 @@
         "tests/test_flow_delivery_orchestrator.py",
         "tests/test_flow_delivery_lean_workflow.py",
         "BACKLOG.md",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "docs/campaign-auto-battle.md",
         "docs/flow_delivery_coverage.md",
         "tasks/backlog_task_index.json",
@@ -1180,7 +1180,7 @@
         "tasks/flow_delivery_coverage.json",
         "tasks/flow_delivery_validation_profiles.json",
         "docs/flow_delivery_coverage.md",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "BACKLOG.md",
         "tasks/backlog_task_index.json"
       ],
@@ -1402,7 +1402,7 @@
       ],
       "reference_docs": [
         "docs/flow_delivery_coverage.md",
-        "docs/prompts/daily-quest/dq-flow-challenges.md"
+        "docs/agent/prompts/daily-quest/dq-flow-challenges.md"
       ],
       "direct_dependencies": [
         "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
@@ -1603,7 +1603,7 @@
       ],
       "reference_docs": [
         "docs/nova-praise-bluestacks.md",
-        "docs/prompts/daily-quest/dq-flow-personal-might-praise.md"
+        "docs/agent/prompts/daily-quest/dq-flow-personal-might-praise.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -1739,7 +1739,7 @@
         "tasks/gameplay_flow_contracts/NOVA-PRAISE-HOME-ATLAS-MIGRATION.json",
         "tasks/backlog_task_index.json",
         "BACKLOG.md",
-        "CURRENT_HANDOFF.md"
+        "docs/agent/CURRENT_HANDOFF.md"
       ],
       "live_validation_scenarios": [
         {
@@ -1792,7 +1792,7 @@
         "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY.json",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
         "BACKLOG.md",
-        "CURRENT_HANDOFF.md"
+        "docs/agent/CURRENT_HANDOFF.md"
       ],
       "navigation_model": "accepted_home_atlas_plus_campaign_atlas_stage9_then_production_auto_battle",
       "requires_bluestacks_live": true,
@@ -2182,7 +2182,7 @@
         "tests/test_flow_delivery_validation_profiles.py",
         "tasks/flow_delivery_validation_profiles.json",
         "BACKLOG.md",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "tasks/backlog_task_index.json",
         "tasks/flow_delivery_queue.json",
         "docs/validation/campaign-ap-auto-battle-live-canary-manifest.json"
@@ -2317,7 +2317,7 @@
       ],
       "reference_docs": [
         "docs/noahs-tavern-recruit-bluestacks.md",
-        "docs/prompts/daily-quest/dq-flow-recruitment.md"
+        "docs/agent/prompts/daily-quest/dq-flow-recruitment.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -2365,7 +2365,7 @@
         "scripts/flow_delivery_control.py",
         "tasks/flow_delivery_bluestacks_registry.json",
         "tasks/gameplay_flow_contracts/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION.json",
-        "CURRENT_HANDOFF.md"
+        "docs/agent/CURRENT_HANDOFF.md"
       ],
       "navigation_model": "dedicated_route_to_canonical_home_atlas",
       "requires_bluestacks_live": true,
@@ -2710,7 +2710,7 @@
       ],
       "reference_docs": [
         "docs/ruins-challenge.md",
-        "docs/prompts/daily-quest/dq-flow-ruins-challenge-bluestacks.md"
+        "docs/agent/prompts/daily-quest/dq-flow-ruins-challenge-bluestacks.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -2730,7 +2730,7 @@
         "tests/test_home_atlas_verified_route.py",
         "tests/test_campaign_atlas_collector.py",
         "tests/test_navigation_development_boundary.py",
-        "CURRENT_HANDOFF.md"
+        "docs/agent/CURRENT_HANDOFF.md"
       ],
       "live_validation_scenarios": [
         {
@@ -2955,7 +2955,7 @@
       ],
       "reference_docs": [
         "docs/troop-training-bluestacks.md",
-        "docs/prompts/daily-quest/dq-flow-training.md"
+        "docs/agent/prompts/daily-quest/dq-flow-training.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -3084,7 +3084,7 @@
       ],
       "reference_docs": [
         "docs/troop-training-bluestacks.md",
-        "docs/prompts/daily-quest/dq-flow-training.md"
+        "docs/agent/prompts/daily-quest/dq-flow-training.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -3224,7 +3224,7 @@
       ],
       "reference_docs": [
         "docs/navigation_verified_flow_readiness.md",
-        "docs/prompts/daily-quest/dq-flow-supply-depot.md"
+        "docs/agent/prompts/daily-quest/dq-flow-supply-depot.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -3404,9 +3404,9 @@
         "no arbitrary BlueStacks input outside authorized live validation"
       ],
       "reference_docs": [
-        "docs/prompts/daily-quest/dq-flow-enhance-gear.md",
-        "docs/prompts/daily-quest/dq-flow-enhance-chip.md",
-        "docs/prompts/daily-quest/dq-flow-enhance-module.md"
+        "docs/agent/prompts/daily-quest/dq-flow-enhance-gear.md",
+        "docs/agent/prompts/daily-quest/dq-flow-enhance-chip.md",
+        "docs/agent/prompts/daily-quest/dq-flow-enhance-module.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -3971,7 +3971,7 @@
         "no arbitrary BlueStacks input outside authorized live validation"
       ],
       "reference_docs": [
-        "docs/prompts/daily-quest/dq-flow-world-stamina-engine.md",
+        "docs/agent/prompts/daily-quest/dq-flow-world-stamina-engine.md",
         "docs/navigation_verified_flow_readiness.md"
       ],
       "direct_dependencies": [],
