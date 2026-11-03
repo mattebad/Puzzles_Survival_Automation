@@ -111,14 +111,7 @@ def exhausted_free_state(recognition) -> bool:
     )
 
 
-def _pnsctl():
-    from scripts import pnsctl
-
-    return pnsctl
-
-
 def _build_home_zoom_transport(runtime: LocalBlueStacksRuntime):
-    pnsctl = _pnsctl()
     return ScrcpyMotionEventZoomTransport(
         adb=str(BLUESTACKS_ADB),
         serial=BLUESTACKS_SERIAL,
