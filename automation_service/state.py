@@ -509,7 +509,9 @@ class BotStateManager:
                 raise
             try:
                 yield self._db
-            except Exception as exc:
+            except BaseException as exc:
+                # BaseException (KeyboardInterrupt, SystemExit, GeneratorExit)
+                # must not leave BEGIN IMMEDIATE open on the shared connection.
                 try:
                     self._db.rollback()
                 except sqlite3.Error:

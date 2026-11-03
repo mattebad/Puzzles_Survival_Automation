@@ -178,6 +178,32 @@ class AutomationServiceStateTests(unittest.TestCase):
                 self.assertEqual(states[0].next_occurrence_key, 0)
             finally:
                 manager.close()
+    def test_interrupted_write_rolls_back_and_leaves_manager_writable(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            manager = BotStateManager(path, owner_instance_id="owner-a")
+            try:
+                manager.set_service_enabled(True, now_utc_epoch=10.0)
+                before = manager.get_service()
+                for interruption in (KeyboardInterrupt, SystemExit):
+                    with self.subTest(interruption=interruption.__name__):
+                        with patch.object(
+                            BotStateManager, "_service", side_effect=interruption
+                        ):
+                            with self.assertRaises(interruption):
+                                manager.set_service_enabled(False, now_utc_epoch=11.0)
+                        with closing(sqlite3.connect(path)) as observer:
+                            enabled, generation = observer.execute(
+                                "SELECT enabled, generation FROM service_control WHERE singleton_id = 1"
+                            ).fetchone()
+                        self.assertEqual((enabled, generation), (1, before.generation))
+                        self.assertEqual(manager.get_service(), before)
+                after = manager.set_service_enabled(False, now_utc_epoch=12.0)
+                self.assertFalse(after.enabled)
+                self.assertEqual(after.generation, before.generation + 1)
+            finally:
+                manager.close()
+
     def test_read_only_decodes_prior_schema_without_migration(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "prior.sqlite3"
