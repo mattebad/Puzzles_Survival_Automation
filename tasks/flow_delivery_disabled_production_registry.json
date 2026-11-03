@@ -20,7 +20,7 @@
       "scheduler_eligible": false,
       "supported_profiles": []
     },
-    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": {
+    "CAMPAIGN-AP-AUTO-BATTLE": {
       "mode": "disabled",
       "product_id": null,
       "product_revision": null,

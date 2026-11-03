@@ -2196,7 +2196,7 @@ class DailyClaimCanaryTests(unittest.TestCase):
                 session_directory=root / "session",
                 max_inputs=2,
             ) as session:
-                result = daily.run_daily_row_claim_canary(
+                result = daily.run_daily_row_claim_once(
                     runtime,
                     session,
                     game_day_id="game-day-a",

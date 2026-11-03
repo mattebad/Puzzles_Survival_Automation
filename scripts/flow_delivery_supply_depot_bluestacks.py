@@ -275,9 +275,9 @@ def run_supply_depot(
             execute=True,
         )
         runtime_directory = runtime.session
-        from scripts import supply_depot_free_canary
+        from scripts import supply_depot_free_route
 
-        result = supply_depot_free_canary.run(
+        result = supply_depot_free_route.run(
             session=outer,
             runtime=runtime,
             session_directory=runtime_directory,

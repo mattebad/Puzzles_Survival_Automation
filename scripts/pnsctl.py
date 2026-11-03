@@ -60,7 +60,7 @@ DEVELOPMENT_CHECKPOINT_PATHS = (
     REPO_ROOT / "docs" / "agent" / "CURRENT_HANDOFF.md",
 )
 RECRUITMENT_MAINTENANCE_FLOW_ID = "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
-CAMPAIGN_AP_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
+CAMPAIGN_AP_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE"
 # Default development-session input ceiling per registered flow (12 when unlisted).
 _DEFAULT_MAX_INPUTS = {
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": 16,
@@ -71,7 +71,7 @@ _DEFAULT_MAX_INPUTS = {
     "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": 10,
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": 24,
     RECRUITMENT_MAINTENANCE_FLOW_ID: 12,
-    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": 16,
+    "CAMPAIGN-AP-AUTO-BATTLE": 16,
     "TROOP-TRAINING-END-TO-END-CONSOLIDATION": 32,
 }
 FLOW_DELIVERY_QUEUE = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
@@ -2604,7 +2604,7 @@ def development_session_daily_row_claim(
     from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
     from scripts.daily_row_claim_bluestacks import (
         run_daily_row_claim_vip_popup_dismissal,
-        run_daily_row_claim_canary,
+        run_daily_row_claim_once,
         run_daily_row_claim_prepare,
         run_daily_row_claim_return_home,
     )
@@ -2729,7 +2729,7 @@ def development_session_daily_row_claim(
                         game_day_id=game_day_id,
                     )
                     if mode == "prepare"
-                    else run_daily_row_claim_canary(
+                    else run_daily_row_claim_once(
                         runtime,
                         active_session,
                         game_day_id=game_day_id,
@@ -4348,7 +4348,7 @@ def development_session_run_flow(
                 route_retained_count = _retained_transport_count(event_rows)
             else:
                 route_retained_count = int(session.input_count)
-            if flow_id == "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY":
+            if flow_id == "CAMPAIGN-AP-AUTO-BATTLE":
                 campaign_retained = result.get("campaign_transport_count")
                 if type(campaign_retained) is not int or campaign_retained < 0:
                     raise OperatorError(

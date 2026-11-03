@@ -12,7 +12,7 @@ from unittest.mock import patch
 import cv2
 
 from scripts import navigation_development_boundary as boundary
-from scripts import supply_depot_free_canary as canary
+from scripts import supply_depot_free_route as supply_route
 from scripts.atlas_startup_normalizer import AtlasStartupDisposition
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.navigation_development_boundary import DevelopmentSession, DevelopmentSessionError
@@ -34,10 +34,10 @@ class SupplyCameraReframeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"), \
-                    patch.object(canary, "is_clean_home_frame", return_value=False):
+                    patch.object(supply_route, "is_clean_home_frame", return_value=False):
                 with DevelopmentSession(owner="offline-drawer", invocation_id="drawer", session_directory=root / "session", max_inputs=2) as session:
-                    with self.assertRaises(canary.PerceptionBundleError):
-                        canary._collapse_home_event_drawer(session, SimpleNamespace(tap=forbidden),
+                    with self.assertRaises(supply_route.PerceptionBundleError):
+                        supply_route._collapse_home_event_drawer(session, SimpleNamespace(tap=forbidden),
                             lambda label: captured, settle_seconds=0)
                     self.assertEqual(session.input_count, 0)
 
@@ -54,9 +54,9 @@ class SupplyCameraReframeTests(unittest.TestCase):
                     float(ordinal), root / f"{ordinal}-{label}.png")
             runtime = SimpleNamespace(tap=lambda source, **kwargs: taps.append(kwargs))
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"), \
-                    patch.object(canary, "is_clean_home_frame", return_value=True):
+                    patch.object(supply_route, "is_clean_home_frame", return_value=True):
                 with DevelopmentSession(owner="offline-drawer", invocation_id="drawer", session_directory=root / "session", max_inputs=2) as session:
-                    result = canary._collapse_home_event_drawer(session, runtime, capture, settle_seconds=0)
+                    result = supply_route._collapse_home_event_drawer(session, runtime, capture, settle_seconds=0)
                     self.assertEqual(result.status, "unknown")
                     self.assertEqual(session.input_count, 1)
             self.assertEqual([tap["target_identity"] for tap in taps], ["home-event-drawer-collapse"])
@@ -66,13 +66,13 @@ class SupplyCameraReframeTests(unittest.TestCase):
     def setUpClass(cls):
         cls.png = FIXTURE.read_bytes()
         cls.frame = cv2.imread(str(FIXTURE))
-        cls.atlas = load_home_atlas(canary.ATLAS_PATH)
-        cls.localization = BlueStacksHomeLocalizer(cls.atlas, canary.ATLAS_PATH).localize(cls.frame)
+        cls.atlas = load_home_atlas(supply_route.ATLAS_PATH)
+        cls.localization = BlueStacksHomeLocalizer(cls.atlas, supply_route.ATLAS_PATH).localize(cls.frame)
 
     def navigator(self):
-        safe, calibration = canary._supply_pan_contract()
-        return DirectPanNavigator(self.atlas, canary.SUPPLY_DEPOT_BUILDING_ID,
-                                  safe, calibration, maximum_pans=canary.MAX_PANS)
+        safe, calibration = supply_route._supply_pan_contract()
+        return DirectPanNavigator(self.atlas, supply_route.SUPPLY_DEPOT_BUILDING_ID,
+                                  safe, calibration, maximum_pans=supply_route.MAX_PANS)
 
     def test_actual_dead_zone_gets_one_bounded_camera_only_reframe(self):
         navigator = self.navigator()
@@ -81,8 +81,8 @@ class SupplyCameraReframeTests(unittest.TestCase):
                                  navigator.safe_region, navigator.calibration)
         self.assertEqual(normal.disposition, PlanDisposition.REJECTED)
         self.assertGreater(dict(normal.viewport.rejection_counts)["gesture_below_effective_minimum"], 0)
-        self.assertFalse(canary._supply_entry_viewport_safe(self.atlas, self.localization))
-        plan, active, reframe = canary._plan_supply_entry(navigator, self.localization, reframe_used=False)
+        self.assertFalse(supply_route._supply_entry_viewport_safe(self.atlas, self.localization))
+        plan, active, reframe = supply_route._plan_supply_entry(navigator, self.localization, reframe_used=False)
         self.assertTrue(reframe)
         self.assertEqual(plan.disposition, PlanDisposition.PAN)
         self.assertIsNot(active, navigator)
@@ -100,14 +100,14 @@ class SupplyCameraReframeTests(unittest.TestCase):
             navigator = self.navigator()
             if cap_reached:
                 navigator.pan_count = navigator.maximum_pans
-            plan, active, reframe = canary._plan_supply_entry(navigator, self.localization, reframe_used=used)
+            plan, active, reframe = supply_route._plan_supply_entry(navigator, self.localization, reframe_used=used)
             self.assertFalse(reframe)
             self.assertIs(active, navigator)
             self.assertEqual(plan.disposition, PlanDisposition.REJECTED)
 
     def test_no_progress_and_wrong_direction_do_not_authorize_continuation(self):
         navigator = self.navigator()
-        plan, active, _ = canary._plan_supply_entry(navigator, self.localization, reframe_used=False)
+        plan, active, _ = supply_route._plan_supply_entry(navigator, self.localization, reframe_used=False)
         same = replace(self.localization, frame_sha256="1" * 64)
         self.assertFalse(active.record_progress(self.localization, same).accepted)
         matrix = [list(row) for row in self.localization.screen_to_atlas]
@@ -150,24 +150,24 @@ class SupplyCameraReframeTests(unittest.TestCase):
                     recovery_input_ordinal=None)
                 with (
                     patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
-                    patch.object(canary, "BlueStacksAtlasStartupNormalizer", return_value=SimpleNamespace(observe=lambda frame: startup)),
-                    patch.object(canary, "BlueStacksHomeLocalizer", return_value=SimpleNamespace(localize=lambda frame: self.localization)),
-                    patch.object(canary, "_bind_home_building", return_value=(self.localization, None)),
-                    patch.object(canary, "_recognize", return_value=SimpleNamespace(recognized=False)),
-                    patch.object(canary, "bind_supply_depot_claim_supply", return_value=None),
-                    patch.object(canary, "recognize_supply_depot_radial", return_value=False),
-                    patch.object(canary, "is_clean_home_frame", return_value=True),
-                    patch.object(canary, "_arena_exit_target", return_value=None),
+                    patch.object(supply_route, "BlueStacksAtlasStartupNormalizer", return_value=SimpleNamespace(observe=lambda frame: startup)),
+                    patch.object(supply_route, "BlueStacksHomeLocalizer", return_value=SimpleNamespace(localize=lambda frame: self.localization)),
+                    patch.object(supply_route, "_bind_home_building", return_value=(self.localization, None)),
+                    patch.object(supply_route, "_recognize", return_value=SimpleNamespace(recognized=False)),
+                    patch.object(supply_route, "bind_supply_depot_claim_supply", return_value=None),
+                    patch.object(supply_route, "recognize_supply_depot_radial", return_value=False),
+                    patch.object(supply_route, "is_clean_home_frame", return_value=True),
+                    patch.object(supply_route, "_arena_exit_target", return_value=None),
                 ):
                     with DevelopmentSession(owner="offline-supply-reframe", invocation_id="offline-supply-reframe",
                                             session_directory=root / "session", max_inputs=max(1, max_inputs)) as session:
                         if max_inputs == 0:
                             session.input_count = session.max_inputs
                             with self.assertRaises(DevelopmentSessionError):
-                                canary.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
+                                supply_route.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
                             self.assertEqual(session.input_count, session.max_inputs)
                         else:
-                            result = canary.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
+                            result = supply_route.run(session=session, runtime=runtime, session_directory=root / "session", settle_seconds=0)
                             self.assertEqual(result["reason"], "pan_no_progress:0")
                             self.assertEqual(session.input_count, 1)
                 self.assertEqual(len(runtime.swipes), int(max_inputs != 0))

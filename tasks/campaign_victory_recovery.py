@@ -20,7 +20,15 @@ from .profile import ACTIVE_RUNTIME_PROFILE_ID
 
 SESSIONS_ROOT = Path(__file__).resolve().parents[1] / ".local-captures" / "development-sessions"
 PROFILE = ACTIVE_RUNTIME_PROFILE_ID
-_STAMP = re.compile(r"^" + re.escape(CAMPAIGN_FLOW_ID) + r"-(\d{8}T\d{12}Z)$")
+# Sessions retained from before the #36 rename carry the old flow id in their
+# directory name and in every record.  Such a session is validated against the
+# old id (never a mix of both) and its registration snapshot is read as the
+# current Campaign binding, so recovery never sees two Campaign identities.
+RETAINED_CAMPAIGN_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
+_STAMP = re.compile(
+    r"^(" + re.escape(CAMPAIGN_FLOW_ID) + "|" + re.escape(RETAINED_CAMPAIGN_FLOW_ID)
+    + r")-(\d{8}T\d{12}Z)$"
+)
 
 
 def _path(path: Path, root: Path) -> Path:
@@ -90,7 +98,8 @@ def load_victory_recovery_proof(
     match = _STAMP.fullmatch(session.name)
     if match is None:
         raise ValueError("recovery session invocation is invalid")
-    started = datetime.strptime(match[1], "%Y%m%dT%H%M%S%fZ").replace(tzinfo=timezone.utc)
+    recorded_flow_id = match[1]
+    started = datetime.strptime(match[2], "%Y%m%dT%H%M%S%fZ").replace(tzinfo=timezone.utc)
     current = datetime.now(timezone.utc) if now is None else now
     if current.tzinfo is None or current.utcoffset() is None:
         raise ValueError("recovery time must be timezone aware")
@@ -104,16 +113,23 @@ def load_victory_recovery_proof(
         raise ValueError("recovery session lacks typed route result")
     delivery, delivery_hash = _json(session / "runtime" / "flow-delivery-result.json", root)
     for record in (outer, result, delivery):
-        if record.get("flow_id") != CAMPAIGN_FLOW_ID:
+        if record.get("flow_id") != recorded_flow_id:
             raise ValueError("recovery flow identity mismatch")
     if delivery.get("serial") != "emulator-5554" or (
         delivery.get("native_width"), delivery.get("native_height")
     ) != (800, 1280):
         raise ValueError("recovery runtime profile or device mismatch")
-    snapshot = RegisteredDispatchSnapshot.from_mapping(result.get("registration_snapshot"))
+
+    def current_snapshot(value):
+        if (recorded_flow_id == RETAINED_CAMPAIGN_FLOW_ID and isinstance(value, dict)
+                and value.get("flow_id") == RETAINED_CAMPAIGN_FLOW_ID):
+            return {**value, "flow_id": CAMPAIGN_FLOW_ID}
+        return value
+
+    snapshot = RegisteredDispatchSnapshot.from_mapping(current_snapshot(result.get("registration_snapshot")))
     if snapshot.flow_id != CAMPAIGN_FLOW_ID or snapshot.profile != PROFILE:
         raise ValueError("recovery registration is not Campaign AP")
-    if delivery.get("registration_snapshot") != snapshot.to_mapping():
+    if current_snapshot(delivery.get("registration_snapshot")) != snapshot.to_mapping():
         raise ValueError("recovery registration aliases disagree")
     destination = result.get("destination")
     if not isinstance(destination, str) or destination not in CAMPAIGN_STAGE_COSTS:

@@ -243,7 +243,7 @@ class AutomationServiceCliTests(unittest.TestCase):
             payload["flow_enabled"]["RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"]
         )
         self.assertFalse(
-            payload["flow_enabled"]["CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"]
+            payload["flow_enabled"]["CAMPAIGN-AP-AUTO-BATTLE"]
         )
 
     def test_automatic_mode_is_rejected(self) -> None:

@@ -731,10 +731,10 @@ class NoahTavernIntegratedRoute:
             time.sleep(min(0.5, self.post_input_delay))
         return None, None
 
-    def _navigation_route(self) -> "NoahTavernNavigationCanaryRoute":
+    def _navigation_route(self) -> "NoahTavernNavigationRoute":
         """Compose the canonical Atlas/safe-exit route semantics for recruitment navigation."""
 
-        return NoahTavernNavigationCanaryRoute(
+        return NoahTavernNavigationRoute(
             self.runtime,
             recognizer=self.recognizer,
             settle_seconds=self.post_input_delay,
@@ -1118,7 +1118,7 @@ class NoahTavernNavigationResult:
         }
 
 
-class NoahTavernNavigationCanaryRoute:
+class NoahTavernNavigationRoute:
     """Bounded no-recruit Home -> Noah's Tavern -> Home route over the shared boundary.
 
     This is the Phase 3 reusability proof for the flow-agnostic navigation-development boundary.
@@ -1487,7 +1487,7 @@ class NoahTavernNavigationCanaryRoute:
         )
 
     def run(self) -> NoahTavernNavigationResult:
-        source, observation = self._observe("tavern-canary-source")
+        source, observation = self._observe("tavern-navigation-source")
         for step in range(1, self.maximum_steps + 1):
             state, ok = self._positive_source_state(observation)
             if not ok and self._canonical_home_proven(source, observation):
@@ -1958,7 +1958,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
             raise
     atlas_route = None
     try:
-        atlas_route = NoahTavernNavigationCanaryRoute(runtime, settle_seconds=0.0)
+        atlas_route = NoahTavernNavigationRoute(runtime, settle_seconds=0.0)
         captured_atlas_probe = runtime.capture("home-atlas-entry-immediate-before-annotated")
         recovery = _contextual_recovery(
             runtime,

@@ -185,7 +185,7 @@ class DailyRowClaimFlowDeliveryTests(unittest.TestCase):
                             return_value={"status": "observed", "game_day_id": "day"},
                         ),
                         patch(
-                            "scripts.daily_row_claim_bluestacks.run_daily_row_claim_canary",
+                            "scripts.daily_row_claim_bluestacks.run_daily_row_claim_once",
                             return_value={
                                 "status": "completed",
                                 "game_day_id": "day",

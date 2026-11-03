@@ -76,7 +76,7 @@ RESOURCE_VARIANT = "1k_food"
 # Campaign AP is a route-owned effect, not a reopening of the generic spend
 # class and not a ResourceEffectAuthority item.  Keep this contract narrow and
 # task-keyed until a canonical native runner supplies the same exact fields.
-CAMPAIGN_AP_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
+CAMPAIGN_AP_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE"
 CAMPAIGN_AP_PRODUCT_ID = "campaign_ap"
 CAMPAIGN_AP_PRODUCT_REVISION = "campaign_ap-v1"
 CAMPAIGN_AP_SEMANTIC_ACTION = "dispatch_campaign_ap_auto_battle"

@@ -2965,13 +2965,13 @@ def validate_contract_product_authority_binding(
         )
     if record_id == "campaign_ap" and contract.get(
         "flow_id"
-    ) != "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY":
+    ) != "CAMPAIGN-AP-AUTO-BATTLE":
         raise ProductAuthorityError(
             "Campaign AP record is reserved for the Campaign AP Auto Battle flow"
         )
     if record_id != "campaign_ap" and contract.get(
         "flow_id"
-    ) == "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY":
+    ) == "CAMPAIGN-AP-AUTO-BATTLE":
         raise ProductAuthorityError(
             "Campaign AP Auto Battle flow must bind the Campaign AP record"
         )

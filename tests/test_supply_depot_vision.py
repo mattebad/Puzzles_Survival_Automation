@@ -143,7 +143,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
     def test_native_exhausted_capture_keeps_identity_across_scene_animation(self):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         from scripts.home_atlas_bluestacks import identity_from_captured
-        from scripts.supply_depot_free_canary import exhausted_free_state
+        from scripts.supply_depot_free_route import exhausted_free_state
 
         root = Path(__file__).parent / "fixtures/supply_depot"
         path = root / "native-exhausted-20261029.png"

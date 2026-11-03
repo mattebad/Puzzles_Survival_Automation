@@ -273,7 +273,7 @@ class SupplyRunner:
 
     def __call__(self, identity, previous_reset_id, checkpoint, *, runtime_input_lock):
         from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
-        from scripts import supply_depot_free_canary as route
+        from scripts import supply_depot_free_route as route
         from scripts.startup_normalization import is_clean_home_frame
         from scripts.startup_recovery import recover_contextual_startup_overlay
 

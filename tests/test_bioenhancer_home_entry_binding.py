@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import cv2
 
-from scripts import bioenhancer_free_research_canary as bio
+from scripts import bioenhancer_free_research_route as bio
 from scripts.home_atlas_bluestacks import bluestacks_direct_pan_contract
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition, plan_direct_pan
 from tests.ocr_memo import install_module_memo

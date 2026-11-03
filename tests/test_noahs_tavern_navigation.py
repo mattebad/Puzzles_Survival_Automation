@@ -20,7 +20,7 @@ from scripts.navigation_development_boundary import (
 from scripts.noahs_tavern_recruit_bluestacks import (
     NOAHS_TAVERN_HOME_ATLAS_BUILDING_ID,
     NOAHS_TAVERN_SAFE_EXIT_TARGET,
-    NoahTavernNavigationCanaryRoute,
+    NoahTavernNavigationRoute,
     noahs_tavern_navigation_route_declaration,
 )
 from tasks.noahs_tavern_recruit import (
@@ -73,7 +73,7 @@ class NoahTavernNavigationRouteTests(unittest.TestCase):
 
         runtime = ScriptedTavernRuntime(["UNKNOWN"])
         localizer = SimpleNamespace(localize=lambda _frame: None)
-        route = NoahTavernNavigationCanaryRoute(
+        route = NoahTavernNavigationRoute(
             runtime, recognizer=runtime.recognizer, home_localizer=localizer,
             settle_seconds=0.0,
         )
@@ -86,7 +86,7 @@ class NoahTavernNavigationRouteTests(unittest.TestCase):
 
     def test_navigation_round_trip_home_to_tavern_to_home(self) -> None:
         stub = ScriptedTavernRuntime(["HOME_BASE", "NOAHS_TAVERN", "HOME_BASE"])
-        route = NoahTavernNavigationCanaryRoute(
+        route = NoahTavernNavigationRoute(
             stub,
             recognizer=stub.recognizer,
             settle_seconds=0.0,
@@ -116,7 +116,7 @@ class NoahTavernNavigationRouteTests(unittest.TestCase):
 
     def test_missing_home_tavern_target_is_blocked(self) -> None:
         stub = ScriptedTavernRuntime(["HOME_NO_ROI"])
-        route = NoahTavernNavigationCanaryRoute(stub, recognizer=stub.recognizer, settle_seconds=0.0)
+        route = NoahTavernNavigationRoute(stub, recognizer=stub.recognizer, settle_seconds=0.0)
         result = route.run()
         self.assertEqual(result.status, "blocked")
         self.assertEqual(result.reason, "home_tavern_target_not_current_frame_bound")
@@ -124,7 +124,7 @@ class NoahTavernNavigationRouteTests(unittest.TestCase):
 
     def test_unrecognized_source_is_blocked_without_transport(self) -> None:
         stub = ScriptedTavernRuntime(["UNKNOWN"])
-        route = NoahTavernNavigationCanaryRoute(stub, recognizer=stub.recognizer, settle_seconds=0.0)
+        route = NoahTavernNavigationRoute(stub, recognizer=stub.recognizer, settle_seconds=0.0)
         result = route.run()
         self.assertEqual(result.status, "blocked")
         self.assertEqual(result.reason, "source_state_not_recognized")
@@ -132,7 +132,7 @@ class NoahTavernNavigationRouteTests(unittest.TestCase):
 
     def test_safe_exit_rejects_unrecognized_successor_after_one_input(self) -> None:
         stub = ScriptedTavernRuntime(["HOME_BASE", "NOAHS_TAVERN", "UNKNOWN"])
-        route = NoahTavernNavigationCanaryRoute(stub, recognizer=stub.recognizer, settle_seconds=0.0)
+        route = NoahTavernNavigationRoute(stub, recognizer=stub.recognizer, settle_seconds=0.0)
         result = route.run()
         self.assertEqual(result.status, "blocked")
         self.assertEqual(result.reason, "safe_exit_canonical_home_not_proven")
@@ -143,7 +143,7 @@ class NoahTavernNavigationRouteTests(unittest.TestCase):
 
     def test_safe_exit_rejects_unrecognized_tavern_source_without_input(self) -> None:
         stub = ScriptedTavernRuntime(["UNKNOWN"])
-        route = NoahTavernNavigationCanaryRoute(stub, recognizer=stub.recognizer, settle_seconds=0.0)
+        route = NoahTavernNavigationRoute(stub, recognizer=stub.recognizer, settle_seconds=0.0)
         captured = stub.capture("source")
         result = route._return_home(captured, _observation("UNKNOWN", captured.captured_monotonic))
         self.assertEqual(result.status, "blocked")
@@ -152,7 +152,7 @@ class NoahTavernNavigationRouteTests(unittest.TestCase):
 
     def test_canonical_home_rejects_recognized_tavern_even_if_localizer_is_positive(self) -> None:
         runtime = ScriptedTavernRuntime(["NOAHS_TAVERN"])
-        route = NoahTavernNavigationCanaryRoute(
+        route = NoahTavernNavigationRoute(
             runtime,
             recognizer=runtime.recognizer,
             home_localizer=SimpleNamespace(localize=lambda _frame: SimpleNamespace(recognized=True, zoom_identity="fully_zoomed_out", frame_sha256="a" * 64)),

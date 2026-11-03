@@ -15,7 +15,7 @@
       "recovery_handler": "automation_service_campaign_navigation_proving_recovery",
       "consequence_class": "navigation_only"
     },
-    "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY": {
+    "CAMPAIGN-AP-AUTO-BATTLE": {
       "runner": "campaign_auto_battle_live_runner",
       "evidence_validator": "campaign_auto_battle_live_evidence",
       "recovery_handler": "campaign_auto_battle_live_recovery",
