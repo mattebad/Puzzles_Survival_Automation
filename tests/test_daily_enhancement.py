@@ -14,6 +14,7 @@ from tasks.daily_enhancement import (
     daily_enhancement_transaction_spec,
 )
 from tasks.enhancement import EnhancementObservation
+from tests.support.observations import load_observation
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,11 +23,10 @@ MATRIX = ROOT / "tasks/daily_quest_execution_matrix.json"
 
 
 def load_enhancement(name: str) -> EnhancementObservation:
-    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))["observations"][name]
-    payload["target_roi"] = tuple(payload["target_roi"])
-    payload["panel_bounds"] = tuple(payload["panel_bounds"])
-    payload["evidence_refs"] = tuple(payload["evidence_refs"])
-    return EnhancementObservation(**payload)
+    return load_observation(
+        FIXTURE, name, EnhancementObservation,
+        ("target_roi", "panel_bounds", "evidence_refs"),
+    )
 
 
 def load_pair() -> tuple[DailyEnhancementObservation, DailyEnhancementObservation]:

@@ -28,7 +28,7 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                 for flow in ("nova", "campaign", "ultimate", "supply", "recruitment", "enhancement", "bioenhancer", "personal-might"):
                     argv.extend(["--flow", flow])
                 argv.extend(["--campaign-stage", "1-15-9", "--campaign-cadence-seconds", "300",
-                             "--adb", "C:/Program Files/BlueStacks_nxt/HD-Adb.exe", "--serial", "emulator-5554",
+                             "--adb", "adb-under-test", "--serial", "emulator-5554",
                              "--account-id", "account", "--server-id", "server", "--output-directory", "captures with spaces"])
                 parsed = cli.build_parser().parse_args(argv[1:])
                 self.assertEqual(parsed.mode, "supervised")

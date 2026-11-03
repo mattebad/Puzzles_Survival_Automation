@@ -27,6 +27,7 @@ from tasks.campaign_atlas import (
 )
 from tasks.campaign_auto_battle import plan_campaign_ap_atlas_navigation
 from tasks.ultimate_challenge_daily import plan_ultimate_challenge_atlas_navigation
+from tests.support.local_captures import require_capture, requires_local_captures
 
 ATLAS_MANIFEST = Path(
     ".local-captures/flow-delivery/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY/"
@@ -276,10 +277,9 @@ class CampaignAtlasNavigationTests(unittest.TestCase):
         )
         self.assertEqual(decision.terminal, NAVIGATION_BLOCKED_FAIL_CLOSED)
 
+    @requires_local_captures
     def test_accepted_atlas_artifact_has_landmarks_and_no_chapter_nine(self) -> None:
-        if not ATLAS_MANIFEST.is_file():
-            self.skipTest("accepted Campaign atlas artifact not built in this workspace")
-        atlas = load_campaign_atlas(ATLAS_MANIFEST)
+        atlas = load_campaign_atlas(require_capture(ATLAS_MANIFEST))
         self.assertEqual(atlas.atlas_id, "campaign-atlas-native-800x1280-v4")
         self.assertFalse(atlas.difficulty_used_as_recenter)
         labels = {item.label for item in atlas.landmarks}

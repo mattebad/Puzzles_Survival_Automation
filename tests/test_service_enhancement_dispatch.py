@@ -18,7 +18,7 @@ from automation_service.registry import (
 from automation_service.service import AutomationService, ServiceError
 from automation_service.state import BotStateManager, RunState
 from scripts import navigation_development_boundary as boundary
-from tests.test_service_recruitment import VirtualStop
+from tests.support.service_stop import VirtualStop
 
 
 class GuardedEnhancementRunner:

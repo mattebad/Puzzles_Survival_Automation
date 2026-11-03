@@ -38,7 +38,7 @@ class AtlasStartupNormalizerTests(unittest.TestCase):
         from dataclasses import replace
         from scripts.startup_normalization import is_clean_home_frame
         from tasks.home_atlas_vision import bind_visible_building
-        from tests.test_home_atlas_planner import building, localization
+        from tests.support.home_atlas import building, localization
 
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         canonical = replace(localization(), frame_sha256=frame_digest(frame))

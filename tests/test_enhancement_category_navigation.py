@@ -1,6 +1,5 @@
 """Commander tabs select categories; only a fresh item frame grants an item target."""
 from pathlib import Path
-from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -9,6 +8,7 @@ import numpy as np
 
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+from tests.support.enhancement import CategorySession
 
 
 HOME, WRONG_TAB, CORRECT_TAB, CATEGORY_ITEM, ITEM_BEFORE = range(1, 6)
@@ -69,28 +69,6 @@ class CategoryRuntime:
 
     def reconcile(self, key, status, post, reason):
         self.journal.append((key, status, post.sha256))
-
-
-class CategorySession:
-    def __init__(self):
-        self.input_count = 0
-        self.actions = []
-
-    def observe(self, capture, *, label):
-        return capture(label)
-
-    def run_action(self, *, label, capture, authorize, dispatch, recognize, settled_successor, **kwargs):
-        before = capture(f"{label}-immediate-before")
-        authorize(before)
-        self.input_count += 1
-        dispatch(before)
-        after = capture(f"{label}-immediate-post")
-        state = recognize(after)
-        if state == "unknown" and settled_successor is not None:
-            after = settled_successor()
-            state = recognize(after)
-        self.actions.append({"label": label, "status": "completed" if state != "unknown" else "unknown"})
-        return SimpleNamespace(status=self.actions[-1]["status"])
 
 
 class EnhancementCategoryNavigationTests(unittest.TestCase):

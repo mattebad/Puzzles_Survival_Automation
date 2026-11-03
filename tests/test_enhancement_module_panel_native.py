@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 
 from scripts import enhancement_bluestacks as native
+from tests.support.enhancement import exit_runtime
 from tests.ocr_memo import install_module_memo
 
 
@@ -108,10 +109,9 @@ class ModulePanelNativeTests(unittest.TestCase):
         self.assert_no_material_authority(self.recognize(changed))
 
     def test_measured_back_reaches_home_without_resource_and_missing_fresh_back_blocks(self):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
         commander = FRAME.with_name("native-commander-gear-20261029.png").read_bytes()
         home = (Path(__file__).parent / "fixtures/home_base/native-home-bio-zoomed-20261029.png").read_bytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, self.raw, commander, commander, home])
+        runtime, session = exit_runtime([self.raw, self.raw, commander, commander, home])
         route = native.EnhancementIntegratedRoute(runtime, variant="module", reset_identity="current-reset", session=session)
         _, terminal = route._navigate_to("home")
         self.assertEqual(terminal.detail_state, "home")
@@ -123,7 +123,7 @@ class ModulePanelNativeTests(unittest.TestCase):
         changed = self.frame.copy()
         changed[:90, :180] = 0
         missing = cv2.imencode(".png", changed)[1].tobytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, missing])
+        runtime, session = exit_runtime([self.raw, missing])
         route = native.EnhancementIntegratedRoute(runtime, variant="module", reset_identity="current-reset", session=session)
         with self.assertRaises(native._FlowBlocked):
             route._navigate_to("home")

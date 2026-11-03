@@ -253,7 +253,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
         self.assertTrue(caught.exception.partial_result["accounting_verified"])
 
     def test_shared_helper_vip_and_scarlett_use_no_second_store_or_runtime(self):
-        from tests.test_startup_recovery import StartupRecoveryTests, popup
+        from tests.support.startup_recovery import popup, scarlett_detail
 
         self.owner.acquire()
         for kind in ("vip", "scarlett", "stack"):
@@ -266,7 +266,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
                     if not ((kind == "scarlett" and runtime.input_count == 0)
                             or (kind == "stack" and runtime.input_count == 1)):
                         return {"recognized": False, "commercial_looking": False}
-                    return {**StartupRecoveryTests._scarlett_detail(),
+                    return {**scarlett_detail(),
                             "frame_sha256": hashlib.sha256(raw).hexdigest()}
                 with (
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect) as connect,

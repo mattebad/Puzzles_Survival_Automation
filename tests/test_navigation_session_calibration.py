@@ -51,7 +51,7 @@ from tasks.navigation_session_calibration import (
     report_session_calibration,
     serialize_session_calibration_report,
 )
-from tests.test_navigation_session import scope
+from tests.support.navigation import scope
 
 
 def _original_calibration() -> GestureCalibration:

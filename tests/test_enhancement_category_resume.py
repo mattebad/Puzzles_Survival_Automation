@@ -10,93 +10,12 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-import cv2
-import numpy as np
-
 from scripts import flow_delivery_enhancement_bluestacks as delivery
 from scripts import pnsctl
-from tests import test_enhancement_semantic_stage_mapping as context_tests
-from tasks.runtime_identity import BLUESTACKS_SERIAL
+from tests.support.enhancement_replay import CATEGORIES, CategoryResumeSessions
 
 
-CATEGORIES = ("gear", "chip", "module")
-TRANSITION = ["HOME_CANONICAL", "COMMANDER_INFO_RECOGNIZED", "GEAR_SUCCESSOR_RECONCILED",
-              "CHIP_SUCCESSOR_RECONCILED", "MODULE_SUCCESSOR_RECONCILED", "SAFE_TERMINAL_RECOGNIZED"]
-
-
-class EnhancementCategoryResumeTests(unittest.TestCase):
-    def setUp(self):
-        self.cases = []
-
-    def make_session(self, current=CATEGORIES, retained=None):
-        case = context_tests.EnhancementCausalReplayTests(
-            methodName="test_exact_same_session_chain_replays_selected_before_and_committed_post")
-        case.setUp()
-        self.addCleanup(case.doCleanups)
-        self.cases.append(case)
-        retained = retained or {}
-        original_proofs = {proof["variant"]: proof for proof in case.result["enhancement_result"]["category_results"]}
-        for proof in original_proofs.values():
-            proof["resource_affecting_dispatch_count"] = 1
-        rows = []
-        for row in case.rows:
-            if row["type"] == "capture":
-                role = case.roles.get(row["sha256"])
-                if role is None or role[0] in current:
-                    rows.append(row)
-            elif any(str(row.get("action_key", "")).startswith(f"enhancement:{variant}:") for variant in current):
-                rows.append(row)
-                if row.get("target_identity") == "enhancement-use":
-                    rows.append({"type": "dispatch_classification", "action_key": row["action_key"],
-                        "resource_affecting": True, "consequential": False})
-        image = np.full((1280, 800, 3), 52, dtype=np.uint8)
-        png = cv2.imencode(".png", image)[1].tobytes()
-        source = case.session / "frames" / "initial-home.png"
-        source.write_bytes(png)
-        (case.session / "source.png").write_bytes(png)
-        initial_hash = hashlib.sha256(png).hexdigest()
-        rows.insert(0, {"type": "capture", "path": str(source), "sha256": initial_hash,
-            "captured_monotonic": 0, "timestamp": case.timestamp(0)})
-        case.rows = rows
-        proofs = [copy.deepcopy(retained[variant] if variant in retained else original_proofs[variant])
-                  for variant in CATEGORIES if variant in retained or variant in current]
-        complete = len(proofs) == 3
-        stages = [stage for stage in case.result["enhancement_result"]["stages"]
-                  if stage["variant"] in current or stage["stage"] == "commander-to-home-terminal-settled"]
-        stages.insert(0, {"kind": "recognition", "stage": "family-startup-home", "recognized": True,
-            "variant": next(iter(current), "module"), "frame_sha256": initial_hash})
-        route = case.result["enhancement_result"]
-        route.update(category_results=proofs, stages=stages, reset_identity=case.reset,
-            status="completed" if complete else "blocked", reason="CHIP_MODAL_UNPROVEN",
-            source_frame_sha256=initial_hash, resource_affecting_dispatch_count=len(proofs),
-            postcondition_verified=complete, terminal_recognized=complete, state_transition=TRANSITION)
-        case.result.update(
-            flow_id=delivery.FLOW_ID, variant="family", status="completed" if complete else "effect_reconciliation_required",
-            serial=BLUESTACKS_SERIAL, native_width=800, native_height=1280,
-            production_registration="NOT_REGISTERED", scheduler_enabled=False,
-            proof_topology="composite" if retained else "continuous",
-            frames=[str(Path(row["path"]).relative_to(case.session)) for row in rows if row["type"] == "capture"],
-            events_path="events.jsonl", dispatch_count=len(delivery._dispatch_rows(rows)),
-            input_count=len(delivery._dispatch_rows(rows)), resource_affecting_dispatch_count=len(current),
-            actions=[copy.deepcopy(action) for action, variant in zip(case.actions, CATEGORIES) if variant in current],
-            effect_reconciliation_required=not complete, causal_trace_count=1,
-            initial_observation={"frame_sha256": initial_hash, "frame_path": "source.png", "invocation_id": "offline-resume"},
-            initial_frame_sha256=initial_hash,
-        )
-        case.result["causal_trace"] = {
-            "trace_count": 1, "read_only": True, "input_authority": False, "flow_id": delivery.FLOW_ID,
-            "proof_topology": case.result["proof_topology"], "initial_frame_sha256": initial_hash,
-            "transport_count": case.result["dispatch_count"], "resource_affecting_dispatch_count": len(current),
-        }
-        case.result = json.loads(json.dumps(case.result))
-        self.persist(case)
-        return case
-
-    @staticmethod
-    def persist(case):
-        (case.session / "events.jsonl").write_text("".join(json.dumps(row) + "\n" for row in case.rows), encoding="utf-8")
-        (case.session / "flow-delivery-result.json").write_text(json.dumps(case.result), encoding="utf-8")
-
+class EnhancementCategoryResumeTests(CategoryResumeSessions, unittest.TestCase):
     def case_for(self, reference):
         parent = Path(reference).parent.parent.resolve()
         return next(case for case in self.cases if case.session.resolve() == parent)

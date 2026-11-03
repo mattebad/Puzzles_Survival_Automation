@@ -107,8 +107,7 @@ class BasicRolloverObservationTests(unittest.TestCase):
         original = Path(__file__).parents[1] / provenance["source"]
         if original.exists():
             self.assertEqual(original.read_bytes(), path.read_bytes())
-        tesseract = Path("C:/Program Files/Tesseract-OCR/tesseract.exe")
-        with patch.object(pytesseract.pytesseract, "tesseract_cmd", str(tesseract) if tesseract.exists() else "tesseract"):
+        with patch.object(pytesseract.pytesseract, "tesseract_cmd", "tesseract"):
             try:
                 pytesseract.get_tesseract_version()
             except (OSError, RuntimeError, pytesseract.TesseractNotFoundError):
@@ -125,8 +124,7 @@ class BasicRolloverObservationTests(unittest.TestCase):
         path = FIXTURES / "basic-free-zero-20261102.png"
         provenance = json.loads(path.with_suffix(".provenance.json").read_text())
         self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), provenance["transport_sha256"])
-        tesseract = Path("C:/Program Files/Tesseract-OCR/tesseract.exe")
-        with patch.object(pytesseract.pytesseract, "tesseract_cmd", str(tesseract) if tesseract.exists() else "tesseract"):
+        with patch.object(pytesseract.pytesseract, "tesseract_cmd", "tesseract"):
             observed = recognize_noahs_tavern_frame(cv2.imread(str(path)), captured_monotonic=100.0)
         self.assertEqual(observed.frame_sha256, provenance["decoded_frame_sha256"])
         self.assertEqual(observed.tier(RecruitTier.BASIC).attempts_remaining, 0)

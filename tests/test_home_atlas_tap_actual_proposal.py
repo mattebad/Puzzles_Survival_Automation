@@ -16,12 +16,13 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
-from safe_action_core import ActionStatus, CentralPolicy, SafetyStore
+from safe_action_core import ActionStatus, SafetyStore
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts import home_atlas_bluestacks as home
 from tasks.home_atlas import AmbiguityState, BuildingBinding, LocalizationResult, ZoomIdentity
 from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, frame_digest
 from tasks.perception_bundle import PerceptionBundleError
+from tests.support.home_atlas import _RecordingPolicy
 
 
 _KINDS = ("supply_building", "supply_radial", "supply_exit", "campaign_building")
@@ -66,18 +67,6 @@ class _Runtime:
 
     def clock(self) -> float:
         return self.now + 0.01
-
-
-class _RecordingPolicy(CentralPolicy):
-    """Record evaluated evidence while retaining the real policy and capability checks."""
-
-    def __init__(self) -> None:
-        super().__init__(supervised_tasks={home.SUPPLY_DEPOT_ROUTE_TASK_ID})
-        self.requests = []
-
-    def evaluate(self, request):
-        self.requests.append(request)
-        return super().evaluate(request)
 
 
 def _binding(frame: np.ndarray, kind: str) -> BuildingBinding:

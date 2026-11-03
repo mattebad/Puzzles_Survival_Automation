@@ -23,6 +23,7 @@ OFFLINE_TEST_MODULES: tuple[str, ...] = (
     "tests.test_bounded_ocr_architecture",
     "tests.test_automation_service_boundaries",
     "tests.test_architecture_imports",
+    "tests.test_architecture_source_boundaries",
     "tests.test_automation_service_canonical_authority",
     "tests.test_automation_service_scheduler_canonical",
     "tests.test_automation_service_state",

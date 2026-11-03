@@ -10,7 +10,7 @@ from automation_service.handlers import CampaignApSelectionHandler
 from automation_service.campaign import CampaignExecutionHandler
 from automation_service.registry import CAMPAIGN_FLOW_ID, CANONICAL_FLOW_REGISTRY
 from automation_service.scheduler import UtcPulseCoordinator
-from tests.test_automation_service_scheduler_canonical import initialize, make_descriptor, make_facts
+from tests.support.scheduler import initialize, make_descriptor, make_facts
 
 
 def pending(**changes):

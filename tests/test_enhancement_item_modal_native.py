@@ -12,6 +12,7 @@ import numpy as np
 
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+from tests.support.enhancement import exit_runtime
 from tests.ocr_memo import install_module_memo
 
 
@@ -248,38 +249,9 @@ class NativeEnhancementExitTests(unittest.TestCase):
         self.stack.enter_context(patch.object(native, "_default_ocr", side_effect=ocr))
         self.stack.enter_context(patch.object(native.time, "sleep"))
 
-    def runtime(self, payloads):
-        class Runtime:
-            def __init__(self):
-                self.session, self.ordinal = Path("offline-native-exit"), 0
-                self.inputs, self.journal = [], []
-            def capture(self, label):
-                raw = payloads[self.ordinal]
-                self.ordinal += 1
-                return captured_native_frame_from_png(raw, path=Path(f"exit-{self.ordinal}.png"),
-                    captured_monotonic=float(self.ordinal))
-            def tap(self, before, **kwargs):
-                self.inputs.append(kwargs)
-            def reconcile(self, key, status, post, reason):
-                self.journal.append((key, status, post.sha256))
-        runtime = Runtime()
-        class Session:
-            def observe(self, capture, *, label):
-                return capture(label)
-            def run_action(self, *, label, capture, authorize, dispatch, recognize, settled_successor, **kwargs):
-                before = capture(f"{label}-immediate-before")
-                authorize(before)
-                dispatch(before)
-                after = capture(f"{label}-immediate-post")
-                state = recognize(after)
-                if state == "unknown" and settled_successor:
-                    state = recognize(settled_successor())
-                return SimpleNamespace(status="completed" if state != "unknown" else "unknown")
-        return runtime, Session()
-
     def test_native_modal_x_and_commander_arrow_recover_home_with_zero_use(self):
         self.assertEqual(hashlib.sha256(self.commander).hexdigest(), "4e98c17ff9a07c535d663fb4f7fca6eb3dc60d019c9908cb60a1758067eaeaba")
-        runtime, session = self.runtime([self.modal, self.modal, self.commander, self.commander, self.home])
+        runtime, session = exit_runtime([self.modal, self.modal, self.commander, self.commander, self.home])
         result = native.run_recovery(runtime, variant="gear", reset_identity="current-reset", session=session, navigation_only=True)
         self.assertEqual(result["status"], "recovered_safe", result)
         self.assertTrue(result["terminal_home_verified"])
@@ -300,7 +272,7 @@ class NativeEnhancementExitTests(unittest.TestCase):
                     frame[:90, :180] = 0
                 raw = cv2.imencode(".png", frame)[1].tobytes()
                 payloads = [self.modal, raw] if defect == "close" else [self.modal, self.modal] + [raw] * 4
-                runtime, session = self.runtime(payloads)
+                runtime, session = exit_runtime(payloads)
                 result = native.run_recovery(runtime, variant="gear", reset_identity="current-reset", session=session, navigation_only=True)
                 self.assertEqual(result["status"], "evidence_required", result)
                 self.assertEqual(len(runtime.inputs), 0 if defect == "close" else 1)
@@ -310,7 +282,7 @@ class NativeEnhancementExitTests(unittest.TestCase):
     def test_unknown_or_unchanged_exit_successor_blocks_without_repeating_x(self):
         for successor in (self.modal, cv2.imencode(".png", np.zeros((1280, 800, 3), np.uint8))[1].tobytes()):
             with self.subTest(successor_sha=hashlib.sha256(successor).hexdigest()):
-                runtime, session = self.runtime([self.modal, self.modal] + [successor] * 4)
+                runtime, session = exit_runtime([self.modal, self.modal] + [successor] * 4)
                 result = native.run_recovery(runtime, variant="gear", reset_identity="current-reset", session=session, navigation_only=True)
                 self.assertEqual(result["status"], "evidence_required", result)
                 self.assertEqual(len(runtime.inputs), 1)
@@ -318,17 +290,17 @@ class NativeEnhancementExitTests(unittest.TestCase):
                 self.assertEqual(runtime.journal[0][1], "unresolved")
 
     def test_known_home_needs_zero_input_and_post_recovery_default_stays_observe_only(self):
-        runtime, session = self.runtime([self.home])
+        runtime, session = exit_runtime([self.home])
         result = native.run_recovery(runtime, variant="gear", reset_identity="current-reset", session=session, navigation_only=True)
         self.assertEqual((result["status"], result["dispatch_count"]), ("recovered_safe", 0))
         self.assertFalse(runtime.inputs)
-        runtime, session = self.runtime([self.modal])
+        runtime, session = exit_runtime([self.modal])
         pending = native.run_recovery(runtime, variant="gear", reset_identity="current-reset", session=session)
         self.assertEqual(pending["status"], "evidence_required")
         self.assertFalse(runtime.inputs)
 
     def test_confirmed_post_without_a_visible_back_stops_for_inspection(self):
-        runtime, session = self.runtime([self.commander])
+        runtime, session = exit_runtime([self.commander])
         route = native.EnhancementIntegratedRoute(runtime, variant="gear", reset_identity="current-reset", session=session)
         unknown = native.StageRecognition("post", True, "CONFIRMED_EXP_SUCCESSOR", "1" * 64)
         with patch.object(route, "_navigation_state", return_value=replace(unknown, detail_state="enhancement_post")):
@@ -338,14 +310,14 @@ class NativeEnhancementExitTests(unittest.TestCase):
 
     def test_known_enhancement_page_exits_without_material_or_effect_authority(self):
         panel = NO_SELECTION_FIXTURE.read_bytes()
-        runtime, session = self.runtime([panel, panel, self.modal, self.modal, self.commander, self.commander, self.home])
+        runtime, session = exit_runtime([panel, panel, self.modal, self.modal, self.commander, self.commander, self.home])
         result = native.run_recovery(runtime, variant="gear", reset_identity="current-reset", session=session, navigation_only=True)
         self.assertEqual((result["status"], result["dispatch_count"], result["resource_affecting_dispatch_count"]), ("recovered_safe", 3, 0))
         self.assertTrue(result["terminal_home_verified"])
         self.assertIsNone(result["successor_observation"])
         self.assertEqual([row["target_identity"] for row in runtime.inputs], ["enhancement-visible-back", "item-detail-close", "commander-visible-back"])
         self.assertEqual(runtime.inputs[0]["target_roi"], (47, 2, 128, 61))
-        runtime, session = self.runtime([panel])
+        runtime, session = exit_runtime([panel])
         pending = native.run_recovery(runtime, variant="gear", reset_identity="current-reset", session=session)
         self.assertEqual(pending["status"], "evidence_required")
         self.assertEqual(pending["successor_observation"]["material_quantity"], 0)
@@ -354,7 +326,7 @@ class NativeEnhancementExitTests(unittest.TestCase):
 
     def test_current_panel_consumer_stops_before_any_resource_input(self):
         raw = NO_SELECTION_FIXTURE.read_bytes()
-        runtime, session = self.runtime([raw])
+        runtime, session = exit_runtime([raw])
         capture = captured_native_frame_from_png(raw, path=NO_SELECTION_FIXTURE, captured_monotonic=0.)
         observed = native.recognize_commander_stage(capture.frame, variant="gear", stage="material",
             source_frame_sha256=capture.sha256, evidence_ref=capture.path)

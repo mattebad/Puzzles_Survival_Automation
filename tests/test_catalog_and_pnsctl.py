@@ -340,20 +340,6 @@ class OperatorCliTests(unittest.TestCase):
                 self.assertIn("invalid choice", stderr.getvalue())
                 adb.assert_not_called()
 
-    def test_pnsctl_has_no_legacy_remote_transport_or_task_literals(self):
-        source = Path(pnsctl.__file__).read_text(encoding="utf-8")
-        for forbidden in (
-            "PnS-BlissOS-PoC",
-            "UNRAID_TEMP_",
-            "plink",
-            "pscp",
-            "docker",
-            "mvp_quest_to_claim",
-            "MVP-QUEST-TO-CLAIM",
-        ):
-            with self.subTest(forbidden=forbidden):
-                self.assertNotIn(forbidden, source)
-
     def test_removed_remote_implementation_symbols_are_absent(self):
         for symbol in (
             "OperatorConfig",

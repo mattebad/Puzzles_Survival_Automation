@@ -7,16 +7,10 @@ transport firewall, current-frame verifier, evidence finalizer, or any delivery/
 
 from __future__ import annotations
 
-import hashlib
-from pathlib import Path
 from types import SimpleNamespace
-import time
 import unittest
 from unittest.mock import patch
 
-import numpy as np
-
-from scripts.bluestacks_flow_collector import EXPECTED_PACKAGE
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.navigation_development_boundary import (
     NavigationBoundaryError,
@@ -34,123 +28,9 @@ from tasks.noahs_tavern_recruit import (
     NOAHS_TAVERN_FREE_TARGET,
     NOAHS_TAVERN_SCREEN,
     NOAHS_TAVERN_TIER_TARGET_PREFIX,
-    NoahTavernObservation,
-    NoahTierObservation,
     RecruitTier,
-    TIER_ATTEMPT_MAXIMUMS,
 )
-
-
-def _tiers() -> tuple[NoahTierObservation, ...]:
-    return tuple(
-        NoahTierObservation(
-            tier=tier,
-            daily_attempt_maximum=TIER_ATTEMPT_MAXIMUMS[tier],
-            attempts_remaining=None,
-        )
-        for tier in RecruitTier
-    )
-
-
-def _observation(screen: str, captured_monotonic: float | None) -> NoahTavernObservation:
-    if screen == "HOME_BASE":
-        return NoahTavernObservation(
-            screen_state=HOME_BASE_SCREEN,
-            selected_tier=None,
-            tiers=_tiers(),
-            frame_sha256="a" * 64,
-            captured_monotonic=captured_monotonic,
-            recognized=True,
-            home_tavern_target_roi=(100, 300, 260, 470),
-        )
-    if screen == "HOME_NO_ROI":
-        return NoahTavernObservation(
-            screen_state=HOME_BASE_SCREEN,
-            selected_tier=None,
-            tiers=_tiers(),
-            frame_sha256="a" * 64,
-            captured_monotonic=captured_monotonic,
-            recognized=True,
-            home_tavern_target_roi=None,
-        )
-    if screen == "NOAHS_TAVERN":
-        return NoahTavernObservation(
-            screen_state=NOAHS_TAVERN_SCREEN,
-            selected_tier=RecruitTier.BASIC,
-            tiers=_tiers(),
-            frame_sha256="b" * 64,
-            captured_monotonic=captured_monotonic,
-            recognized=True,
-            overlay_state="none",
-        )
-    return NoahTavernObservation(
-        screen_state="UNKNOWN",
-        selected_tier=None,
-        tiers=_tiers(),
-        frame_sha256="c" * 64,
-        captured_monotonic=captured_monotonic,
-        recognized=False,
-    )
-
-
-class ScriptedTavernRuntime:
-    """Minimal NativeRuntimePort fake that advances a scripted screen list on each nav input."""
-
-    execute = True
-    in_flight_action = None
-    session = Path("synthetic-tavern-session")
-
-    def __init__(self, screens: list[str]) -> None:
-        self.screens = list(screens)
-        self.pos = 0
-        self.calls: list[tuple[str, dict]] = []
-        self.reconciles: list[tuple[object, ...]] = []
-        self._device_state = "device"
-        self._foreground_package = EXPECTED_PACKAGE
-        self._n = 0
-
-    def measure_device_state(self) -> str:
-        return self._device_state
-
-    def measure_foreground_package(self) -> str:
-        return self._foreground_package
-
-    def _screen(self) -> str:
-        return self.screens[min(self.pos, len(self.screens) - 1)]
-
-    def capture(self, label: str) -> CapturedNativeFrame:
-        self._n += 1
-        frame = np.zeros((1280, 800, 3), np.uint8)
-        frame[0, 0, 0] = self._n % 256
-        frame[0, 0, 1] = (self._n // 256) % 256
-        payload = f"{self._screen()}:{self._n}".encode()
-        return CapturedNativeFrame(
-            frame,
-            payload,
-            hashlib.sha256(frame.tobytes()).hexdigest(),
-            time.monotonic(),
-            Path(f"{label}.png"),
-        )
-
-    def recognizer(self, frame, *, captured_monotonic=None, stale=False):
-        return _observation(self._screen(), captured_monotonic)
-
-    def _advance(self) -> None:
-        self.pos = min(self.pos + 1, len(self.screens) - 1)
-
-    def tap(self, source, **kwargs) -> None:
-        self.calls.append(("tap", dict(kwargs)))
-        self._advance()
-
-    def back(self, source, **kwargs) -> None:
-        self.calls.append(("back", dict(kwargs)))
-        self._advance()
-
-    def reconcile(self, *args, **kwargs) -> None:
-        self.reconciles.append(tuple(args))
-
-    def record_recovery(self, **kwargs) -> None:
-        return None
+from tests.support.tavern import ScriptedTavernRuntime, _observation
 
 
 class NoahTavernNavigationDeclarationTests(unittest.TestCase):
@@ -326,22 +206,6 @@ class NoahTavernFirewallExclusionTests(unittest.TestCase):
                 action_key="building-consequential",
                 consequential=True,
             )
-
-
-class NoahTavernNavigationIsolationTests(unittest.TestCase):
-    def test_adapter_reads_no_delivery_or_governance_state(self) -> None:
-        import scripts.noahs_tavern_recruit_bluestacks as module
-
-        source = Path(module.__file__).read_text(encoding="utf-8").lower()
-        for needle in (
-            "flow_delivery_queue",
-            "flow-delivery-lease",
-            "validate_governance",
-            "validation-receipt",
-            "gameplay_flow_contracts",
-            "current_handoff",
-        ):
-            self.assertNotIn(needle, source)
 
 
 if __name__ == "__main__":
