@@ -59,7 +59,7 @@ Failed native reports remain unchanged. In particular, the original Personal Mig
 
 The broader Daily claims, milestone chests, Alliance, training, gathering, shops, World work and hosted operation remain the separate [74-ticket backlog](../BACKLOG.md).
 
-At the live shutdown the service and all nine persisted flow controls were OFF, with no active/orphan run, service owner or Core/resource action block. The last verified view was Home. No permanent deployment was performed. Changes were subsequently committed and published on [draft PR #16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16); publishing did not enable runtime controls.
+At the live shutdown the service and all nine persisted flow controls were OFF, with no active/orphan run, service owner or Core/resource action block. The last verified view was Home. No permanent deployment was performed. Changes were subsequently committed and published on [PR #16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16), then a draft and merged to `main` on 2026-11-02; publishing did not enable runtime controls.
 
 ## Review evidence
 

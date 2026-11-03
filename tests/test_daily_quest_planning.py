@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "tasks" / "daily_quest_catalog.json"
 MATRIX_PATH = ROOT / "tasks" / "daily_quest_execution_matrix.json"
 AUDIT_PATH = ROOT / "tasks" / "daily_quest_provenance_audit.json"
-PROMPT_INDEX_PATH = ROOT / "docs" / "prompts" / "daily-quest" / "index.json"
+PROMPT_INDEX_PATH = ROOT / "docs" / "agent" / "prompts" / "daily-quest" / "index.json"
 
 
 def load_json(path: Path):

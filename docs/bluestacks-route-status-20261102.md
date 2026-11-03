@@ -1,6 +1,6 @@
 # BlueStacks acceptance, November 2 UTC
 
-The Astra pre-merge correction pass is live-accepted at `cfe449c`. MR [#16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16) stays draft/unmerged; all nine flow/service controls are OFF.
+The Astra pre-merge correction pass is live-accepted at `cfe449c`. MR [#16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16) was draft/unmerged at this report and merged to `main` later on 2026-11-02 (`f6b201f`); all nine flow/service controls are OFF.
 
 ## Astra corrections and fresh acceptance
 
@@ -187,6 +187,6 @@ Astra corrections above do. CI duration optimization is deferred to
 [issue17](https://github.com/mattebad/Puzzles_Survival_Automation/issues/17),outside this goal.
 
 All nine flow/service controls are OFF,no active/orphan/input/effect owner and leases
-released. Four unrelated user files and the retained stash are preserved. PR16 remains
-draft/unmerged;broader backlog records are not closed by this portfolio. The
+released. Four unrelated user files and the retained stash are preserved. PR16 was
+draft/unmerged at this report (merged later the same day);broader backlog records are not closed by this portfolio. The
 [November1 report](bluestacks-route-status-20261101.md) retains its historical scopes.
