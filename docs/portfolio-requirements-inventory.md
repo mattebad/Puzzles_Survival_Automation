@@ -157,7 +157,7 @@ from those screenshots.
 
 No item from this list is executed during reconciliation. Native evidence remains required wherever
 the preserved state says `EVIDENCE_REQUIRED` or `IMPLEMENTATION_AND_EVIDENCE_REQUIRED`; those labels
-are not promoted by static policy. Zombie Lair and Stamina retain their explicit REC-R19 deferral,
+are not promoted by static policy. Zombie Lair is approved (REC-R19, issue #33) but stays undispatched until its route and REC-O10-R20 native acceptance land; Stamina retains its REC-R19 deferral,
 Speedup retains REC-P09 deferral, and every other state remains exactly as shown in the table.
 Later route work must use existing authority bindings and safety gates; this decision adds no queue,
 registry, scheduler, evidence, or runtime state authority.
