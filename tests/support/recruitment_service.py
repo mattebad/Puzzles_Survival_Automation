@@ -136,7 +136,7 @@ class RecruitmentServiceCase(unittest.TestCase):
                                localization=SimpleNamespace(recognized=False, zoom_identity=SimpleNamespace(value="fully_zoomed_out")))
         self.stack.enter_context(patch("scripts.home_atlas_bluestacks.BlueStacksLocalizeFirstHomeDriver",
                                       return_value=SimpleNamespace(observe=lambda frame: step)))
-        self.stack.enter_context(patch.object(native.NoahTavernNavigationCanaryRoute, "_atlas_binding",
+        self.stack.enter_context(patch.object(native.NoahTavernNavigationRoute, "_atlas_binding",
                                               return_value=(100, 300, 260, 470)))
         route_type = native.NoahTavernIntegratedRoute
 

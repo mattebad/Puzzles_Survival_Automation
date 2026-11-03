@@ -186,7 +186,7 @@
       },
       {
         "task_id": "campaign-natural-ap-auto-battle",
-        "execution_flow_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+        "execution_flow_id": "CAMPAIGN-AP-AUTO-BATTLE",
         "queue_record_state": "blocked_evidence_required",
         "depends_on": ["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"],
         "blocker": "Terminal Campaign AP r2 closed blocked_evidence_required after LOCALIZATION_NOT_RECOGNIZED on canonical Home/Atlas localization with zero input; identical r2 retry is prohibited until a separately activated HOME-ATLAS-LOCALIZATION-RESTORATION task restores canonical localization"
@@ -1676,7 +1676,7 @@
         "tests/test_nova_praise.py",
         "tests/test_nova_praise_pulse.py",
         "tests/test_nova_praise_centralized_boundary.py",
-        "tests/test_nova_navigation_canary.py",
+        "tests/test_nova_navigation.py",
         "tests/test_flow_scenario_attempts.py",
         "tests/test_pnsctl_nova_praise.py",
         "tests/test_flow_delivery_orchestrator.py"
@@ -1731,7 +1731,7 @@
         "tests/test_nova_praise.py",
         "tests/test_nova_praise_pulse.py",
         "tests/test_nova_praise_centralized_boundary.py",
-        "tests/test_nova_navigation_canary.py",
+        "tests/test_nova_navigation.py",
         "tests/test_flow_scenario_attempts.py",
         "tests/test_pnsctl_nova_praise.py",
         "tests/test_flow_delivery_orchestrator.py",
@@ -1758,7 +1758,7 @@
         "tests/test_nova_praise.py",
         "tests/test_nova_praise_pulse.py",
         "tests/test_nova_praise_centralized_boundary.py",
-        "tests/test_nova_navigation_canary.py",
+        "tests/test_nova_navigation.py",
         "tests/test_flow_scenario_attempts.py",
         "tests/test_pnsctl_nova_praise.py",
         "tests/test_flow_delivery_orchestrator.py"
@@ -1770,7 +1770,7 @@
       }
     },
     {
-      "flow_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+      "flow_id": "CAMPAIGN-AP-AUTO-BATTLE",
       "title": "Spend Campaign AP through the production Auto Battle controller",
       "kind": "consequential_auto_battle_canary",
       "priority": 25,
@@ -1789,7 +1789,7 @@
         "scripts/flow_delivery_campaign_bluestacks.py",
         "scripts/pnsctl.py",
         "tasks/gameplay_flow_contracts/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION.json",
-        "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY.json",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE.json",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
         "BACKLOG.md",
         "CURRENT_HANDOFF.md"
@@ -2166,7 +2166,7 @@
         "scripts/run_flow_delivery_validation.py",
         "tasks/flow_delivery_bluestacks_registry.json",
         "tasks/gameplay_flow_contracts/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION.json",
-        "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY.json",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE.json",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
         "tests/test_campaign_auto_battle.py",
         "tests/test_campaign_auto_battle_runtime.py",
@@ -4429,7 +4429,7 @@
       "dependencies": [],
       "implementation_entrypoints": [
         "scripts/flow_delivery_bioenhancer_bluestacks.py",
-        "scripts/bioenhancer_free_research_canary.py",
+        "scripts/bioenhancer_free_research_route.py",
         "tasks/bioenhancer.py",
         "tasks/flow_delivery_bluestacks_registry.json",
         "tasks/gameplay_flow_contracts/BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION.json"

@@ -302,7 +302,7 @@ class GameplayFlowContractTests(unittest.TestCase):
 
 
     def test_campaign_ap_contract_binds_typed_record_and_preserves_disabled_state(self):
-        contract = load_flow_contract("CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY")
+        contract = load_flow_contract("CAMPAIGN-AP-AUTO-BATTLE")
         binding = contract["product_authority_binding"]
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "campaign_ap")

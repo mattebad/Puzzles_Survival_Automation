@@ -251,6 +251,66 @@ class TerminalProjectionError(StateTransitionError):
         super().__init__(reason)
 
 
+class FlowIdMigrationConflict(StateError):
+    """A renamed flow id has persisted rows under both its old and new id."""
+
+
+# One-time renames of persisted flow ids (#36).  Each pair is rewritten once,
+# inside the schema transaction, when a writable manager opens the database.
+# The old id is never accepted as a live alias: two live ids would let one
+# route claim the same reset twice.
+RENAMED_FLOW_IDS: tuple[tuple[str, str], ...] = (
+    ("CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY", "CAMPAIGN-AP-AUTO-BATTLE"),
+)
+
+
+def _flow_id_row_count(db: sqlite3.Connection, flow_id: str) -> int:
+    return int(db.execute(
+        """SELECT (SELECT COUNT(*) FROM flow_state WHERE flow_id = ?)
+                + (SELECT COUNT(*) FROM runs WHERE flow_id = ?)""",
+        (flow_id, flow_id),
+    ).fetchone()[0])
+
+
+def _renamed_flow_ids_pending(db: sqlite3.Connection) -> bool:
+    return any(_flow_id_row_count(db, old) for old, _new in RENAMED_FLOW_IDS)
+
+
+def _migrate_renamed_flow_ids(db: sqlite3.Connection) -> None:
+    """Rewrite each renamed flow id in place; fail closed if both ids exist.
+
+    Only identity columns change: ``flow_state.flow_id``, ``runs.flow_id``
+    and the derived ``flow_id:...`` occurrence keys and bases.  Row versions
+    and every gate fact (reset, ordinal, due time, retry, batch) are kept, so
+    a completed or cooling-down occurrence stays completed under the new id.
+    """
+
+    for old, new in RENAMED_FLOW_IDS:
+        if _flow_id_row_count(db, old) == 0:
+            continue
+        if _flow_id_row_count(db, new) != 0:
+            raise FlowIdMigrationConflict(
+                f"persisted flow id {old!r} cannot be renamed to {new!r}: rows exist "
+                "under both ids; resolve the state database manually before starting"
+            )
+        # runs.flow_id references flow_state.flow_id; check it at commit.
+        db.execute("PRAGMA defer_foreign_keys = ON")
+        db.execute(
+            """UPDATE flow_state SET flow_id = ?,
+                   next_occurrence_basis = REPLACE(next_occurrence_basis, ?, ?),
+                   last_accepted_projection_key = REPLACE(last_accepted_projection_key, ?, ?)
+               WHERE flow_id = ?""",
+            (new, old, new, old, new, old),
+        )
+        db.execute(
+            """UPDATE runs SET flow_id = ?,
+                   occurrence_key = REPLACE(occurrence_key, ?, ?),
+                   occurrence_basis = REPLACE(occurrence_basis, ?, ?)
+               WHERE flow_id = ?""",
+            (new, old, new, old, new, old),
+        )
+
+
 _ACTIVE_RUN_STATES = ("CLAIMED", "RUNNING", "STOP_REQUESTED", "RECOVERING")
 _TERMINAL_RUN_STATES = {
     RunState.SUCCEEDED,
@@ -770,6 +830,13 @@ class BotStateManager:
                    ON actions(run_id, binding_fingerprint, COALESCE(hypothesis_digest, ''))
                    WHERE binding_fingerprint IS NOT NULL"""
             )
+        # executescript() above commits the schema transaction, so the
+        # rename runs in its own transaction: all of it or none of it.  Once
+        # applied, the read-only check keeps later opens write-free.
+        if _renamed_flow_ids_pending(self._db):
+            with self._transaction() as db:
+                _migrate_renamed_flow_ids(db)
+
     @staticmethod
     def occurrence_key(
         flow_id: str,
@@ -3466,7 +3533,9 @@ __all__ = [
     "BotStateManager",
     "ClockObservation",
     "DispatchValidation",
+    "FlowIdMigrationConflict",
     "FlowState",
+    "RENAMED_FLOW_IDS",
     "RunRecord",
     "RunState",
     "ServiceControl",

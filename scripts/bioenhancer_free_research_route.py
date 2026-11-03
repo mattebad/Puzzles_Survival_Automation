@@ -1,4 +1,4 @@
-"""Thin BlueStacks canary: Home atlas -> pan Lab into view -> Research radial -> Free Research 1x.
+"""Thin BlueStacks route: Home atlas -> pan Lab into view -> Research radial -> Free Research 1x.
 
 Ordinary development-session path. Reuses the current mapped Research Lab hit region,
 panning when the Lab or its Research radial would be unsafe. The route verifies the
@@ -600,7 +600,7 @@ def run(
     runtime: LocalBlueStacksRuntime | None = None,
     session_directory: Path | None = None,
 ) -> dict[str, Any]:
-    """Run the canary standalone or inside an already-owned DevelopmentSession."""
+    """Run the route standalone or inside an already-owned DevelopmentSession."""
 
     if session is None:
         session_directory = session_directory or _session_root()

@@ -64,7 +64,7 @@ class AutomationServiceCampaignTests(unittest.TestCase):
                 ROOT
                 / "tasks"
                 / "gameplay_flow_contracts"
-                / "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY.json"
+                / "CAMPAIGN-AP-AUTO-BATTLE.json"
             ).read_text(encoding="utf-8")
         )
         scenario = next(

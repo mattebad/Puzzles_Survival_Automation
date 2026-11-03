@@ -231,7 +231,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 runtime = self._runtime(HOME_FIXTURE.read_bytes())
                 with (
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-                    patch("scripts.supply_depot_free_canary.run", side_effect=self._native_route(consume=consume)),
+                    patch("scripts.supply_depot_free_route.run", side_effect=self._native_route(consume=consume)),
                 ):
                     result = self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
                 self.assertEqual(result["total_input_count"], 1 + int(consume))
@@ -249,7 +249,7 @@ class ServiceSupplyTests(unittest.TestCase):
         runtime = self._runtime(HOME_FIXTURE.read_bytes())
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-            patch("scripts.supply_depot_free_canary.run", side_effect=self._native_route(consume=True, fail_after_hold=True)),
+            patch("scripts.supply_depot_free_route.run", side_effect=self._native_route(consume=True, fail_after_hold=True)),
         ):
             with self.assertRaises(SupplyNativePartialResultError) as caught:
                 self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -280,7 +280,7 @@ class ServiceSupplyTests(unittest.TestCase):
 
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-            patch("scripts.supply_depot_free_canary.run", side_effect=route),
+            patch("scripts.supply_depot_free_route.run", side_effect=route),
         ):
             with self.assertRaises(SupplyNativePartialResultError) as caught:
                 self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -307,7 +307,7 @@ class ServiceSupplyTests(unittest.TestCase):
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
             patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=self._startup(ready=True, consume=True)),
-            patch("scripts.supply_depot_free_canary.run", side_effect=run),
+            patch("scripts.supply_depot_free_route.run", side_effect=run),
             patch.object(DevelopmentSession, "adopt_retained_transport_count", autospec=True, side_effect=original_adopt) as adopt,
             patch.object(boundary.RuntimeInputLock, "acquire", side_effect=AssertionError("no nested owner")),
             patch.object(boundary.RuntimeInputLock, "release", side_effect=AssertionError("borrowed owner retained")),
@@ -333,7 +333,7 @@ class ServiceSupplyTests(unittest.TestCase):
         original = DevelopmentSession.adopt_retained_transport_count
         with patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect), \
                 patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=self._startup(consume=2)), \
-                patch("scripts.supply_depot_free_canary.run", side_effect=run), \
+                patch("scripts.supply_depot_free_route.run", side_effect=run), \
                 patch.object(DevelopmentSession, "adopt_retained_transport_count", autospec=True, side_effect=original) as adopt:
             result = self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
         self.assertEqual(adopt.call_count, 1)
@@ -351,7 +351,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 with (
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
                     patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=self._startup(ready=False, consume=consume, interrupt=interrupt)),
-                    patch("scripts.supply_depot_free_canary.run", side_effect=AssertionError("route must not start")) as run,
+                    patch("scripts.supply_depot_free_route.run", side_effect=AssertionError("route must not start")) as run,
                     patch.object(DevelopmentSession, "adopt_retained_transport_count", autospec=True, side_effect=original_adopt) as adopt,
                 ):
                     with self.assertRaises(SupplyNativePartialResultError) as caught:
@@ -375,7 +375,7 @@ class ServiceSupplyTests(unittest.TestCase):
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
             patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=self._startup(ready=True, consume=True)),
-            patch("scripts.supply_depot_free_canary.run", side_effect=AssertionError("dirty Home cannot start route")) as run,
+            patch("scripts.supply_depot_free_route.run", side_effect=AssertionError("dirty Home cannot start route")) as run,
         ):
             with self.assertRaises(SupplyNativePartialResultError) as caught:
                 self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -393,7 +393,7 @@ class ServiceSupplyTests(unittest.TestCase):
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
             patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=recover),
-            patch("scripts.supply_depot_free_canary.run", side_effect=AssertionError("route cannot start")) as run,
+            patch("scripts.supply_depot_free_route.run", side_effect=AssertionError("route cannot start")) as run,
         ):
             with self.assertRaises(SupplyNativePartialResultError) as caught:
                 self._runner(runtime)(IDENTITY, None, lambda: None, runtime_input_lock=self.owner)
@@ -413,7 +413,7 @@ class ServiceSupplyTests(unittest.TestCase):
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
             patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=missing_dispatch),
-            patch("scripts.supply_depot_free_canary.run", side_effect=AssertionError("unmatched ledger cannot start route")) as run,
+            patch("scripts.supply_depot_free_route.run", side_effect=AssertionError("unmatched ledger cannot start route")) as run,
         ):
             with self.assertRaises(SupplyNativePartialResultError) as caught:
                 self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -432,7 +432,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 runtime.initial_payload = (fixtures / name).read_bytes()
                 with (
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-                    patch("scripts.supply_depot_free_canary.run", side_effect=RuntimeError("offline stop at proven route entry")) as run,
+                    patch("scripts.supply_depot_free_route.run", side_effect=RuntimeError("offline stop at proven route entry")) as run,
                 ):
                     with self.assertRaises(SupplyNativePartialResultError) as caught:
                         self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -453,7 +453,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 runtime = self._runtime(payload)
                 with (
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-                    patch("scripts.supply_depot_free_canary.run", side_effect=self._native_route(tamper_terminal=tamper)),
+                    patch("scripts.supply_depot_free_route.run", side_effect=self._native_route(tamper_terminal=tamper)),
                 ):
                     with self.assertRaises(SupplyNativePartialResultError) as caught:
                         self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)

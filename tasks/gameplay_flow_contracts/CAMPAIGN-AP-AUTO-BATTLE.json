@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "flow_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
-  "product_purpose": "User-authorized Campaign AP Auto Battle canary, separate from navigation-only completion and Ultimate Challenge.",
+  "flow_id": "CAMPAIGN-AP-AUTO-BATTLE",
+  "product_purpose": "User-authorized Campaign AP Auto Battle route, separate from navigation-only completion and Ultimate Challenge.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "single_bounded_live_canary_with_game_day_accounting",
   "required_starting_context": [

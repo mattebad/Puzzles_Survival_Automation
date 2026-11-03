@@ -1,4 +1,4 @@
-"""Shared Nova navigation canary fixtures for offline tests."""
+"""Shared Nova navigation route fixtures for offline tests."""
 
 from __future__ import annotations
 

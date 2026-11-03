@@ -7,7 +7,7 @@ import unittest
 
 import cv2
 
-from scripts import bioenhancer_free_research_canary as bio
+from scripts import bioenhancer_free_research_route as bio
 from tasks.home_atlas_vision import frame_digest
 
 

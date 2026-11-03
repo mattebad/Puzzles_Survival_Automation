@@ -102,7 +102,7 @@ def _consumption(runtime):
 
 
 def _current_cooldown(runtime, result):
-    from scripts.bioenhancer_free_research_canary import recognize_free_research_cooldown
+    from scripts.bioenhancer_free_research_route import recognize_free_research_cooldown
 
     if result.get("no_work") is True:
         return dict(result.get("cooldown") or {})
@@ -128,7 +128,7 @@ def _current_cooldown(runtime, result):
 
 
 def _startup_context(session, runtime, initial, result):
-    from scripts.bioenhancer_free_research_canary import bind_bioenhancer_back
+    from scripts.bioenhancer_free_research_route import bind_bioenhancer_back
     from scripts.startup_normalization import is_clean_home_frame
     from scripts.startup_recovery import recover_contextual_startup_overlay
 
@@ -187,7 +187,7 @@ class BioenhancerRunner:
 
     def __call__(self, identity, previous_reset_id, checkpoint, *, runtime_input_lock):
         from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
-        from scripts.bioenhancer_free_research_canary import run
+        from scripts.bioenhancer_free_research_route import run
         from scripts.flow_delivery_bioenhancer_bluestacks import _verify_no_work_frames
 
         del previous_reset_id

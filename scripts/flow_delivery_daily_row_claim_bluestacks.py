@@ -384,7 +384,7 @@ def run_daily_row_claim(
                 maximum=maximum,
             )
         else:
-            canary = route_module.run_daily_row_claim_canary(
+            canary = route_module.run_daily_row_claim_once(
                 runtime,
                 outer_session,
                 game_day_id=_game_day_id(reconnaissance),
