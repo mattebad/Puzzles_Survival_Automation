@@ -272,3 +272,26 @@ This comparison does not amend the earlier `5d4ca3e` failures or the original
 13-file runtime owner inventory and all existing owner gates above are
 unchanged. No live acceptance or owner approval is claimed; **NEEDS SUPERVISED
 LIVE RUN: Nova radial initial bind** remains.
+
+## First required PR CI: retain the failed hygiene observation
+
+Draft PR #45's initial required run
+[41840024620](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41840024620)
+tests head `0bf2757b4e615ac15b31e35c79245a6a6aa0c7dc`. Both full suites pass:
+Linux 3,171 cases / 41 skips in 1,675.014 seconds; Windows 3,171 cases /
+36 skips in 1,865.028 seconds; no failures or errors. Each job also completes
+all eight repetitions of the five native Supply checks, discovery coverage,
+compilation and tracked line-ending checks.
+
+Both jobs then fail the unchanged committed-diff whitespace gate. Its diagnostics
+identify the 59,110 CRLF lines of the immutable comparison snapshot, twelve
+whitespace-only source lines, and one source terminal blank line. Preserve the
+snapshot bytes and its recorded SHA-256: the existing Git-attribute convention
+`-text whitespace=cr-at-eol` now also applies to this task's immutable audit JSON.
+Remove only the genuine source blanks; no assertion or runtime behavior changes.
+
+The actual-Git smoke in `git-whitespace-proof.json` retains CRLF snapshot bytes,
+accepts legitimate CRLF, and still rejects space/tab-before-EOL, extra terminal
+blank lines, and ordinary Python trailing whitespace. The initial failed CI is
+not amended or described as green. The corrected-head CI result and before/after
+job timings are reported separately on #24 and PR #45.

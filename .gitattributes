@@ -11,6 +11,9 @@ tests/fixtures/runtime_trace_projection/*.jsonl -text
 # This retained Windows record uses CRLF; it must not be reserialized.
 tests/fixtures/runtime_trace_projection/enhancement-source.json -text whitespace=cr-at-eol
 
+# Offline audit snapshots retain their exact recorded bytes, including CRLF.
+evidence/offline-validation/ticket-24/*.json -text whitespace=cr-at-eol
+
 # These existing manifests are also verified by their recorded raw-byte hashes.
 tests/fixtures/native_frame_replay_manifest.json -text
 tests/fixtures/world_map_navigation_observations.json -text

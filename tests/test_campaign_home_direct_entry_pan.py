@@ -132,7 +132,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         origin = camera_origin(localization)
         self.assertGreater(origin[0] + original.predicted_camera_displacement[0],
                            self.atlas.camera_origin_bounds[2])
-    
+
         step = driver.observe(self.after_noah, localization=localization)
         self.assertEqual(step.disposition, home.HomeDriverDisposition.PAN)
         self.assertIsNone(step.binding)
@@ -228,13 +228,13 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertEqual(repeated.disposition, home.HomeDriverDisposition.BLOCKED)
         self.assertEqual(repeated.reason, "repeated_viewport")
         self.assertEqual(driver.navigator.pan_count, 1)
-    
+
         limited = self.driver()
         limited.navigator.pan_count = limited.navigator.maximum_pans
         blocked = limited.observe(self.after_noah, localization=localization)
         self.assertEqual(blocked.disposition, home.HomeDriverDisposition.BLOCKED)
         self.assertEqual(blocked.reason, "maximum_pan_count")
-    
+
         visited = self.driver()
         proposal = home.plan_direct_pan(self.atlas, localization, self.building.semantic_id,
                                         visited.safe_region, visited.calibration)
@@ -254,7 +254,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertEqual(step.disposition, home.HomeDriverDisposition.COMPLETE)
         self.assertIsNotNone(step.binding)
         self.assertEqual(driver.navigator.pan_count, 0)
-    
+
         last_plan = driver.navigator.last_plan
         rounded = home.inward_rounded_camera_pan(driver.navigator, self.after_noah_localization, original)
         self.assertEqual(rounded.drag_end, (310, 520))
@@ -270,13 +270,13 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
     def test_full_campaign_entry_consumer_calculates_native_pan_in_zero_input_dry_run(self):
         fixture_png = FRAME.read_bytes()
         owner = self
-    
+
         class NativeReplayRuntime:
             def __init__(self, directory):
                 self.session = directory
                 self.ordinal = self.swipe_count = self.tap_count = 0
                 self.captures = []
-    
+
             def capture(self, label):
                 self.ordinal += 1
                 path = self.session / f"{self.ordinal:04d}-{label}.png"
@@ -285,22 +285,22 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
                                                hashlib.sha256(fixture_png).hexdigest(), time.monotonic(), path)
                 self.captures.append(captured)
                 return captured
-    
+
             def swipe(self, *_args, **_kwargs):
                 self.swipe_count += 1
                 raise AssertionError("dry-run must not swipe")
-    
+
             def tap(self, *_args, **_kwargs):
                 self.tap_count += 1
                 raise AssertionError("an unbound dry-run must not tap")
-    
+
         bindings = []
-    
+
         def bind_current(*args, **kwargs):
             binding = vision.bind_visible_building(*args, **kwargs)
             bindings.append(binding)
             return binding
-    
+
         with tempfile.TemporaryDirectory() as directory:
             runtime = NativeReplayRuntime(Path(directory))
             with patch("scripts.atlas_runtime_startup.normalize_runtime_home_atlas_startup",
@@ -344,7 +344,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertIs(forecast["input_authority"], False)
         first_predicted = forecast["predicted_camera_origin"]
         self.assertGreater(self.building.interaction_anchor[0] - first_predicted[0], 800)
-    
+
         # SIMULATED second-step geometry only: this does not create a future
         # CurrentFrame, LocalizationResult, Observation, identity or binding.
         desired = first_plan.viewport.desired_camera_origin

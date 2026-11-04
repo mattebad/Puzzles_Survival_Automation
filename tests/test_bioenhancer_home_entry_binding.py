@@ -140,4 +140,3 @@ class BioenhancerHomeEntryBindingTests(unittest.TestCase):
             _actual, binding, plan = bio.plan_research_lab_pan(frame, self.navigator(atlas))
         self.assertIsNone(binding)
         self.assertIs(plan.disposition, PlanDisposition.REJECTED)
-

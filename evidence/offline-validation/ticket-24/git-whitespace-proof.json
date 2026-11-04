@@ -1,0 +1,37 @@
+{
+  "scope": "Actual Git whitespace interpretation and exact retained-byte preservation; no live access",
+  "cases": [
+    {
+      "case": "evidence/offline-validation/ticket-24/valid-crlf.json",
+      "exit": 0,
+      "staged_bytes_unchanged": true,
+      "diagnostic": ""
+    },
+    {
+      "case": "evidence/offline-validation/ticket-24/space-crlf.json",
+      "exit": 2,
+      "staged_bytes_unchanged": true,
+      "diagnostic": "evidence/offline-validation/ticket-24/space-crlf.json:1: trailing whitespace.\n+{\"ok\": true} \r\n"
+    },
+    {
+      "case": "evidence/offline-validation/ticket-24/tab-crlf.json",
+      "exit": 2,
+      "staged_bytes_unchanged": true,
+      "diagnostic": "evidence/offline-validation/ticket-24/tab-crlf.json:1: trailing whitespace.\n+{\"ok\": true}\t\r\n"
+    },
+    {
+      "case": "evidence/offline-validation/ticket-24/blank-eof.json",
+      "exit": 2,
+      "staged_bytes_unchanged": true,
+      "diagnostic": "evidence/offline-validation/ticket-24/blank-eof.json:2: new blank line at EOF.\n"
+    },
+    {
+      "case": "ordinary-source.py",
+      "exit": 2,
+      "staged_bytes_unchanged": true,
+      "diagnostic": "ordinary-source.py:1: trailing whitespace.\n+x = 1 \n"
+    }
+  ],
+  "snapshot_sha256": "352c4ff61da9117bbb32902e27526aa0ebf0bfd756eb883681585f199ef16d68",
+  "snapshot_crlf_lines": 59110
+}
