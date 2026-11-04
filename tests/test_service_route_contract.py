@@ -202,6 +202,42 @@ class BorrowedOwnerTests(unittest.TestCase):
                         pass
 
 
+class PartialResultTests(unittest.TestCase):
+    def test_partial_result_keeps_consumption_blocks_restart_and_is_never_retried(self):
+        for flow_id, spec in ROUTES.items():
+            with self.subTest(route=flow_id):
+                if (flow_id, "partial_result") in EXCEPTIONS:
+                    continue
+                with RouteRig(self, spec) as rig:
+                    spec.partial(rig.runner)
+                    reports = rig.once()
+                    self.assertEqual(reports[0]["status"], "blocked", reports)
+                    run, = rig.runs()
+                    self.assertEqual(run.state, RunState.BLOCKED)
+                    self.assertEqual(
+                        (run.consumed_inputs, run.consumed_actions), spec.partial_counts,
+                    )
+                    self.assertTrue(rig.state.get_flow(flow_id).blocked)
+                    self.assertIsNone(rig.state.get_flow(flow_id).next_due_at_utc)
+                    self.assertEqual(len(rig.runner.inputs), spec.partial_counts[0])
+                    inputs = list(rig.runner.inputs)
+                    with BotStateManager(rig.path) as restarted:
+                        self.assertEqual(rig.once(state=restarted)[0]["status"], "paused")
+                    self.assertEqual(len(rig.runner.calls), 1)
+                    self.assertEqual(rig.runner.inputs, inputs)
+                    if flow_id in {ULTIMATE_FLOW_ID, PERSONAL_MIGHT_FLOW_ID}:
+                        self.assertEqual(reports[0]["result"]["committed_action_count"], 0)
+                    if flow_id == ULTIMATE_FLOW_ID:
+                        self.assertEqual(rig.runner.flee_calls, 1)
+                    if flow_id == ENHANCEMENT_FLOW_ID:
+                        self.assertEqual(rig.runner.use_calls, 1)
+                    if flow_id == PERSONAL_MIGHT_FLOW_ID:
+                        self.assertEqual(rig.runner.praise_calls, 1)
+                    if flow_id == CAMPAIGN_FLOW_ID:
+                        self.assertEqual(reports[0]["result"]["committed_ap_effect_count"], 0)
+                        self.assertEqual(len(rig.runner.observations), 1)
+
+
 class GenerationChangeTests(unittest.TestCase):
     def test_generation_change_after_first_input_stops_further_input(self):
         for flow_id, spec in ROUTES.items():
@@ -220,6 +256,7 @@ class GenerationChangeTests(unittest.TestCase):
                     self.assertEqual((run.consumed_inputs, run.consumed_actions), spec.generation_counts)
                     self.assertEqual(len(rig.runner.inputs), 1)
                     self.assertEqual(rig.runner.effects, 0)
+                    self.assertTrue(rig.state.get_flow(flow_id).blocked)
                     if flow_id == ULTIMATE_FLOW_ID:
                         self.assertEqual(rig.runner.flee_calls, 0)
 
