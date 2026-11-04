@@ -16,13 +16,18 @@ from scripts.navigation_development_boundary import (
     DevelopmentInitialObservation, DevelopmentSession,
 )
 
-from .contracts import FlowDescriptor, NormalizedOutcome, NormalizedResult
-from .registry import RegisteredDispatchSnapshot
+from .contracts import NormalizedOutcome, NormalizedResult
+from .registry import (
+    BIOENHANCER_PRODUCT_ID,
+    BIOENHANCER_PRODUCT_REVISION,
+    RegisteredDispatchSnapshot,
+    canonical_entry,
+)
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-PRODUCT_ID = "bioenhancer_research"
-PRODUCT_REVISION = "bioenhancer_research-v1"
+PRODUCT_ID = BIOENHANCER_PRODUCT_ID
+PRODUCT_REVISION = BIOENHANCER_PRODUCT_REVISION
 PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 
 
@@ -49,12 +54,7 @@ class BioenhancerExecutionHandler:
         self.snapshot, self._execute = snapshot, execute
 
     def describe(self):
-        return FlowDescriptor(
-            flow_id=FLOW_ID, owner="automation_service", family=PRODUCT_ID,
-            variant="one_free_pulse", cadence="cooldown_pulse", reset_scoped=False,
-            priority=1, scheduler_eligible=True, accepted_product=PRODUCT_ID,
-            product_revision=PRODUCT_REVISION, registration_status="REGISTERED",
-        )
+        return canonical_entry(FLOW_ID).descriptor
 
     def eligibility(self, facts, perception=None):
         return bool(

@@ -65,6 +65,7 @@ from .registry import (
     ULTIMATE_FLOW_ID,
     WORLD_FLOW_ID,
     canonical_descriptors,
+    canonical_entry,
     canonical_flow_specs,
     servable_flow_names,
 )
@@ -191,52 +192,31 @@ def registry_descriptor(
 
     if isinstance(entry, CanonicalFlowRegistration):
         return entry.descriptor
-    from .contracts import FlowDescriptor, RecurrenceClass, RecurrenceProjection
+    from .contracts import FlowDescriptor
 
     registered = entry.registered
-    if entry.flow_id == WORLD_FLOW_ID:
-        family = "world_map_navigation"
-        variant = "navigation_only"
-    elif entry.flow_id == NOVA_FLOW_ID:
-        family = "nova_praise"
-        variant = "supervised_one_free_pulse"
-    elif entry.flow_id == RECRUITMENT_FLOW_ID:
-        family = "recruitment"
-        variant = "free_attempt_maintenance"
-    elif entry.flow_id == CAMPAIGN_FLOW_ID:
-        family = "campaign_ap"
-        variant = "drain_available_ap"
-    else:
-        family = "disabled"
-        variant = "disabled"
-    if entry.flow_id == RECRUITMENT_FLOW_ID and registered:
-        cadence = "cooldown_pulse"
-    elif entry.flow_id == CAMPAIGN_FLOW_ID and registered:
-        cadence = "after_ap_drain"
-    else:
-        cadence = "daily_once_per_reset"
-    recurrence = (
-        RecurrenceProjection(
-            RecurrenceClass.AP_REGENERATION,
-            observed_at_utc=0.0,
-            observed_balance=0.0,
+    if not registered:
+        return FlowDescriptor(
+            flow_id=entry.flow_id,
+            owner="automation_service",
+            family="disabled",
+            variant="disabled",
+            cadence="daily_once_per_reset",
+            priority=100,
+            scheduler_eligible=False,
+            accepted_product=False,
+            product_revision=None,
+            registration_status=entry.registration_status,
         )
-        if entry.flow_id == CAMPAIGN_FLOW_ID and registered
-        else None
-    )
-    return FlowDescriptor(
-        flow_id=entry.flow_id,
-        owner="automation_service",
-        family=family if registered else "disabled",
-        variant=variant if registered else "disabled",
-        cadence=cadence,
-        reset_scoped=entry.flow_id not in {RECRUITMENT_FLOW_ID, CAMPAIGN_FLOW_ID},
-        priority=1 if registered else 100,
-        scheduler_eligible=registered and entry.scheduler_eligible,
-        accepted_product=entry.product_id if registered else False,
-        product_revision=entry.product_revision if registered else None,
+    # A registered legacy row is only valid for a flow the canonical registry
+    # also composes; every other fact comes from that single registration.
+    canonical = canonical_entry(entry.flow_id).descriptor
+    return replace(
+        canonical,
+        scheduler_eligible=entry.scheduler_eligible,
+        accepted_product=entry.product_id,
+        product_revision=entry.product_revision,
         registration_status=entry.registration_status,
-        recurrence=recurrence,
     )
 
 

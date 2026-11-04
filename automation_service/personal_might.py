@@ -17,14 +17,19 @@ from tasks.personal_might_praise import (
 from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
 from tasks.scheduler_task_result import SchedulerIdentity
 
-from .contracts import FlowDescriptor, FlowSpec, NormalizedOutcome, NormalizedResult
+from .contracts import FlowSpec, NormalizedOutcome, NormalizedResult
 from .recruitment import recruitment_reset
-from .registry import RegisteredDispatchSnapshot
+from .registry import (
+    PERSONAL_MIGHT_PRODUCT_ID,
+    PERSONAL_MIGHT_PRODUCT_REVISION,
+    RegisteredDispatchSnapshot,
+    canonical_entry,
+)
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-PRODUCT_ID = "personal_might_praise"
-PRODUCT_REVISION = "personal_might_praise-v1"
+PRODUCT_ID = PERSONAL_MIGHT_PRODUCT_ID
+PRODUCT_REVISION = PERSONAL_MIGHT_PRODUCT_REVISION
 PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 MAX_INPUTS = 8
 
@@ -49,10 +54,7 @@ class PersonalMightExecutionHandler:
         self.snapshot, self._execute = snapshot, execute
 
     def describe(self):
-        return FlowDescriptor(flow_id=FLOW_ID, owner="automation_service", family=PRODUCT_ID,
-            variant="one_daily_praise", cadence="daily_once_per_reset", reset_scoped=True,
-            priority=1, scheduler_eligible=True, accepted_product=PRODUCT_ID,
-            product_revision=PRODUCT_REVISION, registration_status="REGISTERED")
+        return canonical_entry(FLOW_ID).descriptor
 
     def eligibility(self, facts, perception=None):
         return bool(not facts.gate_failures(self.describe())

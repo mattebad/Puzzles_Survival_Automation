@@ -10,7 +10,6 @@ from .contracts import (
     NormalizedResult,
     SelectionPlan,
     RecurrenceClass,
-    RecurrenceProjection,
     PerceptionEnvelope,
     SchedulerFacts,
     SemanticActionIntent,
@@ -41,6 +40,7 @@ from .registry import (
     WORLD_PRODUCT_ID,
     WORLD_PRODUCT_REVISION,
     WORLD_PROFILE_ID,
+    canonical_entry,
 )
 
 
@@ -151,18 +151,7 @@ class WorldNavigationSelectionHandler:
         return self._snapshot
 
     def describe(self) -> FlowDescriptor:
-        return FlowDescriptor(
-            flow_id=WORLD_FLOW_ID,
-            owner="automation_service",
-            family="world_map_navigation",
-            variant="navigation_only",
-            cadence="daily_once_per_reset",
-            priority=1,
-            scheduler_eligible=True,
-            accepted_product=WORLD_PRODUCT_ID,
-            product_revision=WORLD_PRODUCT_REVISION,
-            registration_status="REGISTERED",
-        )
+        return canonical_entry(WORLD_FLOW_ID).descriptor
 
     def eligibility(
         self,
@@ -279,18 +268,7 @@ class NovaPraiseSelectionHandler:
         return self._snapshot
 
     def describe(self) -> FlowDescriptor:
-        return FlowDescriptor(
-            flow_id=NOVA_FLOW_ID,
-            owner="automation_service",
-            family="nova_praise",
-            variant="supervised_one_free_pulse",
-            cadence="daily_once_per_reset",
-            priority=1,
-            scheduler_eligible=True,
-            accepted_product=NOVA_PRODUCT_ID,
-            product_revision=NOVA_PRODUCT_REVISION,
-            registration_status="REGISTERED",
-        )
+        return canonical_entry(NOVA_FLOW_ID).descriptor
 
     def eligibility(
         self,
@@ -413,19 +391,7 @@ class RecruitmentMaintenanceSelectionHandler:
         return self._snapshot
 
     def describe(self) -> FlowDescriptor:
-        return FlowDescriptor(
-            flow_id=RECRUITMENT_FLOW_ID,
-            owner="automation_service",
-            family="recruitment",
-            variant="free_attempt_maintenance",
-            cadence="cooldown_pulse",
-            priority=1,
-            reset_scoped=False,
-            scheduler_eligible=True,
-            accepted_product=RECRUITMENT_PRODUCT_ID,
-            product_revision=RECRUITMENT_PRODUCT_REVISION,
-            registration_status="REGISTERED",
-        )
+        return canonical_entry(RECRUITMENT_FLOW_ID).descriptor
 
     def eligibility(
         self,
@@ -559,24 +525,7 @@ class CampaignApSelectionHandler:
         return self._snapshot
 
     def describe(self) -> FlowDescriptor:
-        return FlowDescriptor(
-            flow_id=CAMPAIGN_FLOW_ID,
-            owner="automation_service",
-            family="campaign_ap",
-            variant="drain_available_ap",
-            cadence="after_ap_drain",
-            priority=1,
-            reset_scoped=False,
-            scheduler_eligible=True,
-            accepted_product=CAMPAIGN_PRODUCT_ID,
-            product_revision=CAMPAIGN_PRODUCT_REVISION,
-            registration_status="REGISTERED",
-            recurrence=RecurrenceProjection(
-                RecurrenceClass.AP_REGENERATION,
-                observed_at_utc=0.0,
-                observed_balance=0.0,
-            ),
-        )
+        return canonical_entry(CAMPAIGN_FLOW_ID).descriptor
 
     def eligibility(
         self,

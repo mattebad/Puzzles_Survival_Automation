@@ -1,7 +1,6 @@
 """Executor-bound Nova pulses using the existing native action boundary."""
 from __future__ import annotations
 
-from dataclasses import replace
 import json
 import math
 from pathlib import Path
@@ -26,9 +25,6 @@ class NovaExecutionHandler(NovaPraiseSelectionHandler):
     def __init__(self, snapshot, execute):
         super().__init__(snapshot)
         self._execute = execute
-
-    def describe(self):
-        return replace(super().describe(), cadence="cooldown_pulse", reset_scoped=False)
 
     def execute_run(self, run, facts, perception=None):
         return self._execute(run, facts)
