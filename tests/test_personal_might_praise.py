@@ -82,7 +82,8 @@ class PersonalMightCompletionAttributionTests(unittest.TestCase):
             if item["objective_key"] == "personal_might_praise"
         )
         ownership = row["ownership_disposition"]
-        self.assertEqual(ownership["catalog_owner"], "DQ-FLOW-PERSONAL-MIGHT-PRAISE")
+        self.assertEqual(ownership["catalog_owner"], "REC-D09")
+        self.assertEqual(ownership["historical_catalog_owner"], "DQ-FLOW-PERSONAL-MIGHT-PRAISE")
         self.assertEqual(
             ownership["completion_attribution_owner"],
             "tasks.daily_quest.PersonalMightPraiseHandler",
