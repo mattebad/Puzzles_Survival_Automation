@@ -2,9 +2,18 @@
 from __future__ import annotations
 
 import importlib
+import json
 import unittest
 
-from automation_service.registry import CANONICAL_FLOW_REGISTRY, ULTIMATE_FLOW_ID
+from automation_service.cli import build_parser
+from automation_service.contracts import RecurrenceClass
+from automation_service.registry import (
+    BIOENHANCER_FLOW_ID, CANONICAL_FLOW_REGISTRY, ENHANCEMENT_FLOW_ID,
+    PERSONAL_MIGHT_FLOW_ID, REGISTRY_PATH, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
+    RegisteredDispatchSnapshot, canonical_entry, canonical_flow_specs,
+)
+from automation_service.service import ServiceError
+from automation_service.state import BotStateManager, RunState
 from tests.support.service_route_contract import EXCEPTIONS, NOT_SERVABLE, ROUTES, RouteRig
 
 
@@ -28,6 +37,124 @@ class RouteTableTests(unittest.TestCase):
                 self.assertTrue(issubclass(test_class, unittest.TestCase))
                 self.assertTrue(method_name.startswith("test_"))
                 self.assertTrue(callable(getattr(test_class, method_name)))
+
+
+class DisabledByDefaultTests(unittest.TestCase):
+    def test_route_is_disabled_by_default_and_needs_explicit_cli_selection(self):
+        specs = canonical_flow_specs()
+        self.assertTrue(all(not spec.default_enabled for spec in specs))
+        # The rig's database is explicitly enabled; this second store is untouched.
+        with RouteRig(self, ROUTES[SUPPLY_FLOW_ID]) as rig:
+            with BotStateManager(rig.root / "fresh.sqlite3") as fresh:
+                rows = fresh.initialize_flows(specs)
+                self.assertFalse(fresh.get_service_enabled())
+                self.assertTrue(all(not row.enabled for row in rows))
+        legacy = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+        self.assertTrue(all(
+            row["registration_status"] == "NOT_REGISTERED" and not row["scheduler_eligible"]
+            for row in legacy["flows"].values()
+        ))
+        parser = build_parser()
+        self.assertIsNone(parser.parse_args(["serve"]).flow)
+        for flow_id, spec in ROUTES.items():
+            with self.subTest(route=flow_id):
+                if (flow_id, "disabled_by_default") in EXCEPTIONS:
+                    continue
+                with RouteRig(self, spec) as rig:
+                    entry = canonical_entry(flow_id)
+                    self.assertFalse(entry.spec.default_enabled)
+                    self.assertTrue(entry.build_handler().selection_only)
+                    self.assertEqual(
+                        RegisteredDispatchSnapshot.from_mapping(entry.registration.to_mapping()),
+                        entry.registration,
+                    )
+                    self.assertEqual(
+                        parser.parse_args(["serve", "--flow", entry.cli_name]).flow,
+                        [entry.cli_name],
+                    )
+                    if flow_id in {
+                        SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID,
+                        PERSONAL_MIGHT_FLOW_ID, BIOENHANCER_FLOW_ID,
+                    }:
+                        adapter = importlib.import_module(
+                            "automation_service." + entry.cli_name.replace("-", "_"),
+                        )
+                        self.assertEqual(
+                            (entry.product_id, entry.product_revision),
+                            (adapter.PRODUCT_ID, adapter.PRODUCT_REVISION),
+                        )
+                        if flow_id == BIOENHANCER_FLOW_ID:
+                            self.assertEqual(entry.product_revision, "bioenhancer_research-v1")
+                            self.assertFalse(entry.descriptor.reset_scoped)
+                            self.assertEqual(entry.descriptor.cadence, "cooldown_pulse")
+                        else:
+                            self.assertTrue(entry.descriptor.reset_scoped)
+                            self.assertEqual(
+                                entry.descriptor.recurrence_class,
+                                RecurrenceClass.DAILY_ONCE_PER_RESET,
+                            )
+                            self.assertTrue(entry.spec.observation_only_completion)
+                    if (flow_id, "explicit_service_selection") not in EXCEPTIONS:
+                        with self.assertRaises(ServiceError):
+                            rig.service.serve(
+                                account_id="account", server_id="server", stop=rig.stop,
+                                emit=lambda _report: None,
+                            )
+                    self.assertEqual(rig.runner.calls, [])
+
+
+class RestartBeforeDueTests(unittest.TestCase):
+    def test_restart_before_due_skips_runner_and_next_reset_runs_once(self):
+        work_counts = {
+            SUPPLY_FLOW_ID: (4, 1), ULTIMATE_FLOW_ID: (4, 1),
+            ENHANCEMENT_FLOW_ID: (6, 3), PERSONAL_MIGHT_FLOW_ID: (6, 1),
+        }
+        for flow_id, spec in ROUTES.items():
+            if (flow_id, "restart_before_due") in EXCEPTIONS:
+                continue
+            # Preserve Supply's no-work -> work and Ultimate's already-complete
+            # -> Flee transitions, in addition to restarting after real work.
+            modes = (False, True) if flow_id in {SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID} else (True,)
+            for first_work in modes:
+                with self.subTest(route=flow_id, first_work=first_work):
+                    with RouteRig(self, spec) as rig:
+                        if first_work:
+                            spec.work(rig.runner)
+                        self.assertEqual(rig.once()[0]["status"], "completed")
+                        first, = rig.runs()
+                        self.assertEqual(first.state, RunState.SUCCEEDED)
+                        first_inputs = 0 if flow_id == ULTIMATE_FLOW_ID and not first_work else spec.first_inputs
+                        self.assertEqual(len(rig.runner.inputs), first_inputs)
+                        due = rig.state.get_flow(flow_id).next_due_at_utc
+                        with BotStateManager(rig.path) as restarted:
+                            self.assertEqual(rig.once(state=restarted), [])
+                        self.assertEqual(len(rig.runner.calls), 1)
+                        self.assertEqual(len(rig.runner.inputs), first_inputs)
+                        if flow_id == ULTIMATE_FLOW_ID:
+                            self.assertEqual(len(rig.runner.connections), 1)
+                        spec.work(rig.runner)
+                        rig.stop.now = due
+                        self.assertEqual(rig.once()[0]["status"], "completed")
+                        first, second = rig.runs()
+                        self.assertNotEqual(first.reset_id, second.reset_id)
+                        self.assertNotEqual(first.occurrence_key, second.occurrence_key)
+                        self.assertEqual(second.state, RunState.SUCCEEDED)
+                        self.assertEqual(second.terminal_outcome, "complete_for_reset")
+                        self.assertEqual(
+                            (second.consumed_inputs, second.consumed_actions), work_counts[flow_id],
+                        )
+                        self.assertEqual(rig.runner.calls[1][1], first.reset_id)
+                        self.assertEqual(rig.state.get_flow(flow_id).next_due_at_utc, due + 86400)
+                        self.assertEqual(rig.once(), [])
+                        self.assertEqual(len(rig.runner.calls), 2)
+                        self.assertEqual(len(rig.runner.inputs), first_inputs + spec.first_inputs)
+                        if flow_id == ULTIMATE_FLOW_ID:
+                            self.assertEqual(len(rig.runner.connections), 2)
+                            self.assertEqual(rig.runner.flee_calls, 2 if first_work else 1)
+                        if flow_id == ENHANCEMENT_FLOW_ID:
+                            self.assertEqual(rig.runner.use_calls, 6)
+                        if flow_id == PERSONAL_MIGHT_FLOW_ID:
+                            self.assertEqual(rig.runner.praise_calls, 2)
 
 
 class GenerationChangeTests(unittest.TestCase):
