@@ -5,13 +5,13 @@ import importlib
 import unittest
 
 from automation_service.registry import CANONICAL_FLOW_REGISTRY, ULTIMATE_FLOW_ID
-from tests.support.service_route_contract import EXCEPTIONS, NOT_SERVABLE, PENDING, ROUTES, RouteRig
+from tests.support.service_route_contract import EXCEPTIONS, NOT_SERVABLE, ROUTES, RouteRig
 
 
 class RouteTableTests(unittest.TestCase):
     def test_every_registered_route_is_in_the_contract_or_explicitly_excluded(self):
         self.assertEqual(
-            set(ROUTES) | set(NOT_SERVABLE) | PENDING,
+            set(ROUTES) | set(NOT_SERVABLE),
             {entry.flow_id for entry in CANONICAL_FLOW_REGISTRY},
         )
         self.assertTrue(set(ROUTES).isdisjoint(NOT_SERVABLE))

@@ -16,7 +16,11 @@ from automation_service.registry import (
 from automation_service.service import AutomationService
 from automation_service.state import BotStateManager
 from scripts import navigation_development_boundary as boundary
-from tests.support.service_route_fakes import GuardedSupplyRunner
+from tests.support.service_route_fakes import (
+    GuardedBioenhancerRunner, GuardedCampaignRunner, GuardedEnhancementRunner,
+    GuardedNovaRunner, GuardedPersonalMightRunner, GuardedRecruitmentRunner,
+    GuardedSupplyRunner, GuardedUltimateRunner,
+)
 from tests.support.service_stop import VirtualStop
 
 
@@ -35,19 +39,62 @@ def _supply_partial(runner):
     runner.consume = runner.partial = True
 
 
+def _ultimate_partial(runner):
+    runner.completed_reset = None
+    runner.fail_after_flee = True
+
+
+def _bioenhancer_partial(runner):
+    runner.consume = True
+    runner.fault = "partial"
+
+
+def _work_by_default(runner):
+    """The fake's initial state already exercises a resource-affecting run."""
+
+
 ROUTES = {
     SUPPLY_FLOW_ID: RouteSpec(
         SUPPLY_FLOW_ID, lambda stop, root: GuardedSupplyRunner(stop),
         lambda runner: setattr(runner, "consume", True), _supply_partial,
         (3, 1), (1, 0), 4,
     ),
+    ULTIMATE_FLOW_ID: RouteSpec(
+        ULTIMATE_FLOW_ID, lambda stop, root: GuardedUltimateRunner(stop),
+        lambda runner: setattr(runner, "completed_reset", None), _ultimate_partial,
+        (4, 1), (1, 1), 4,
+    ),
+    ENHANCEMENT_FLOW_ID: RouteSpec(
+        ENHANCEMENT_FLOW_ID, GuardedEnhancementRunner, _work_by_default,
+        lambda runner: setattr(runner, "partial", True), (2, 1), (1, 0), 6,
+    ),
+    PERSONAL_MIGHT_FLOW_ID: RouteSpec(
+        PERSONAL_MIGHT_FLOW_ID, lambda stop, root: GuardedPersonalMightRunner(stop),
+        _work_by_default, lambda runner: setattr(runner, "partial", True),
+        (4, 1), (1, 0), 6,
+    ),
+    BIOENHANCER_FLOW_ID: RouteSpec(
+        BIOENHANCER_FLOW_ID, GuardedBioenhancerRunner,
+        lambda runner: setattr(runner, "consume", True), _bioenhancer_partial,
+        (3, 1), (1, 0), 5,
+    ),
+    CAMPAIGN_FLOW_ID: RouteSpec(
+        CAMPAIGN_FLOW_ID, lambda stop, root: GuardedCampaignRunner(stop),
+        _work_by_default, lambda runner: setattr(runner, "fault", "partial"),
+        (2, 1), (1, 1), 6,
+    ),
+    NOVA_FLOW_ID: RouteSpec(
+        NOVA_FLOW_ID, lambda stop, root: GuardedNovaRunner(stop),
+        _work_by_default, lambda runner: setattr(runner, "uncertain", True),
+        (4, 1), (1, 0), 4,
+    ),
+    RECRUITMENT_FLOW_ID: RouteSpec(
+        RECRUITMENT_FLOW_ID, lambda stop, root: GuardedRecruitmentRunner(stop),
+        _work_by_default, lambda runner: setattr(runner, "uncertain", True),
+        (4, 1), (1, 0), 4,
+    ),
 }
 
-# Removed as each route joins the contract during the staged cutover.
-PENDING = {
-    ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID,
-    BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, NOVA_FLOW_ID, RECRUITMENT_FLOW_ID,
-}
 NOT_SERVABLE = {
     WORLD_FLOW_ID: "navigation-only registration; no executor (covered_by tests.test_route_metadata_consistency)",
 }
