@@ -108,9 +108,10 @@ class FakeRuntime:
         return "com.global.ztmslg"
 
     def reconcile(self, action_key, status, post, reason):
-        self.assert_in_flight(action_key)
+        # Reconciliation accepts ordinary transitions without an in-flight marker;
+        # tap/back still enforce the exact key for explicit continuation_of inputs.
         self.reconciliations.append((action_key, status, post.sha256, reason))
-        if status != "unresolved":
+        if status != "unresolved" and self.in_flight_action == action_key:
             self.in_flight_action = None
 
 
@@ -682,7 +683,15 @@ class IntegratedRouteTests(unittest.TestCase):
         self.assertEqual(outcome.actions_completed, 1)
         self.assertIsInstance(outcome.contextual_popup_recoveries, tuple)
         self.assertTrue(all("source_context" in row for row in outcome.contextual_popup_recoveries))
-        self.assertEqual(runtime.reconciliations, [])
+        self.assertEqual(
+            [(key, status, post) for key, status, post, _reason in runtime.reconciliations],
+            [
+                (runtime.taps[0][1]["action_key"], "confirmed", runtime.frames[1].sha256),
+                (runtime.taps[1][1]["action_key"], "confirmed", runtime.frames[4].sha256),
+                (runtime.taps[2][1]["action_key"], "confirmed", runtime.frames[4].sha256),
+                (runtime.backs[0][1]["action_key"], "confirmed", runtime.frames[runtime.index - 1].sha256),
+            ],
+        )
         self.assertEqual(len([item for item in runtime.taps if item[1].get("consequential")]), 0)
         self.assertEqual(runtime.taps[0][1]["target_roi"], (10, 10, 20, 20))
         self.assertEqual(bound_rois, [runtime.frames[0].sha256])
