@@ -851,7 +851,7 @@ class DirectCommanderRouteTests(unittest.TestCase):
                     "scripts.enhancement_bluestacks.is_clean_home_frame",
                     return_value=True,
                 ),
-                patch("scripts.enhancement_bluestacks.time.sleep"),
+                patch("scripts.enhancement_bluestacks.time.sleep") as sleep,
             ):
                 result = EnhancementIntegratedRoute(
                     runtime,
@@ -861,6 +861,22 @@ class DirectCommanderRouteTests(unittest.TestCase):
                     ocr_engine=_ocr,
                 ).run()
         self.assertEqual(result["status"], "blocked", result)
+        self.assertEqual(result["reason"], "ENHANCEMENT_VISIBLE_EXIT_NOT_BOUND")
+        sleep.assert_called_once_with(1.0)
+        immediate = [
+            stage for stage in result["stages"]
+            if stage.get("stage") == "home-to-commander-immediate-post"
+        ]
+        settled = [
+            stage for stage in result["stages"]
+            if stage.get("stage") == "home-to-commander-settled-1"
+        ]
+        self.assertEqual(len(immediate), 1)
+        self.assertFalse(immediate[0]["recognized"])
+        self.assertEqual(len(settled), 1)
+        self.assertTrue(settled[0]["recognized"])
+        self.assertNotEqual(immediate[0]["frame_sha256"], settled[0]["frame_sha256"])
+        self.assertEqual(session.actions[0]["after_sha256"], settled[0]["frame_sha256"])
         self.assertEqual(result["resource_affecting_dispatch_count"], 1)
         self.assertEqual(session.actions[0]["status"], "completed")
         # Entry commits the fresh settled capture, not its immediate Home result.
@@ -960,6 +976,12 @@ class DirectCommanderRouteTests(unittest.TestCase):
                     ocr_engine=_ocr,
                 ).run()
         self.assertEqual(result["status"], "blocked", result)
+        self.assertEqual(result["reason"], "ENHANCEMENT_VISIBLE_EXIT_NOT_BOUND")
+        self.assertEqual(result["terminal_state"], "evidence_required")
+        self.assertFalse(result.get("postcondition_verified", False))
+        self.assertEqual(result["dispatch_count"], len(session.actions))
+        self.assertEqual(len(result["category_results"]), 1)
+        self.assertEqual(result["category_results"][0]["variant"], "gear")
         self.assertEqual(result["resource_affecting_dispatch_count"], 1)
         self.assertEqual(result["category_results"][0]["status"], "completed")
         self.assertFalse(result["terminal_recognized"])
@@ -973,7 +995,7 @@ class DirectCommanderRouteTests(unittest.TestCase):
             for row in runtime.events
             if row.get("type") == "dispatch"
         ]
-        self.assertIn("enhancement-use", dispatch_targets)
+        self.assertEqual(dispatch_targets[-1], "enhancement-use")
 
     def test_retained_family_fresh_home_completes_without_new_input(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -1408,6 +1430,7 @@ class ContractAndReservationTests(unittest.TestCase):
                 verified = verify_enhancement_family(structure, {}, {})
         self.assertEqual(verified["status"], "verified")
         self.assertEqual(verified["variant"], "family")
+        self.assertEqual(verified["current_resource_affecting_dispatch_count"], 3)
         self.assertTrue(verified["postcondition_verified"])
         self.assertEqual(verified["categories_verified"], list(ORDERED_VARIANTS))
         self.assertTrue(verified["causal_trace_verified"])
@@ -1445,6 +1468,7 @@ class ContractAndReservationTests(unittest.TestCase):
             with _family_replay_patches(structure):
                 verified = verify_enhancement_family(structure, {}, {})
         self.assertEqual(verified["status"], "evidence_required")
+        self.assertEqual(verified["reason"], "independent semantic re-recognition unavailable")
         self.assertFalse(verified.get("postcondition_verified", False))
 
     def test_completed_composite_or_missing_trace_remains_evidence_required(self):
@@ -1602,7 +1626,7 @@ class ContractAndReservationTests(unittest.TestCase):
                 return original_readlink(path, *args, **kwargs)
 
             with patch("os.lstat", side_effect=lstat), patch("os.readlink", side_effect=readlink):
-                with self.assertRaises(pnsctl.OperatorError):
+                with self.assertRaisesRegex(pnsctl.OperatorError, "Enhancement frame reference contains a symlink"):
                     _retained_path(root, "link.png", "frame")
 
     def test_dispatch_bearing_use_is_persisted_and_blocks_continuation(self):
@@ -1787,7 +1811,7 @@ class EnhancementResetOccurrenceTests(unittest.TestCase):
             current = root / "occurrences" / self.CURRENT
             _write_reset_fixture(current, self.OLD)
             original = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
-            with self.assertRaises(pnsctl.OperatorError):
+            with self.assertRaisesRegex(pnsctl.OperatorError, "belongs to another reset"):
                 delivery._select_family_state(root, self.CURRENT)
             self.assertTrue(current.exists())
             for path, raw in original.items():
@@ -1812,7 +1836,9 @@ class EnhancementResetOccurrenceTests(unittest.TestCase):
                 prior = root if legacy else root / "occurrences" / self.OLD
                 _write_reset_fixture(prior, self.OLD, pending=True)
                 original = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
-                with self.assertRaises(pnsctl.OperatorError):
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "recovery requires the requested current-reset pending category"
+                ):
                     delivery._select_family_state(root, self.CURRENT, recovery_variant="gear")
                 self.assertFalse((root / "occurrences" / self.CURRENT).exists())
                 self.assertEqual(set(root.rglob("reservation-*.json")), set())
@@ -1835,15 +1861,54 @@ class EnhancementResetOccurrenceTests(unittest.TestCase):
     def test_missing_or_noncurrent_pending_recovery_fails_without_new_state(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / FLOW_ID
-            with self.assertRaises(pnsctl.OperatorError):
+            with self.assertRaisesRegex(
+                pnsctl.OperatorError, "recovery requires the requested current-reset pending category"
+            ):
                 delivery._select_family_state(root, self.CURRENT, recovery_variant="gear")
             self.assertFalse(root.exists())
             _write_reset_fixture(root, self.OLD, pending=True)
             _write_reset_fixture(root / "occurrences" / self.OLD, self.OLD, pending=True)
             original = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
-            with self.assertRaises(pnsctl.OperatorError):
+            with self.assertRaisesRegex(
+                pnsctl.OperatorError, "recovery requires the requested current-reset pending category"
+            ):
                 delivery._select_family_state(root, self.CURRENT, recovery_variant="gear")
             self.assertFalse((root / "occurrences" / self.CURRENT).exists())
+            for path, raw in original.items():
+                self.assertEqual(path.read_bytes(), raw)
+
+    def test_two_current_reset_pending_entries_fail_without_new_state(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / FLOW_ID
+            current = root / "occurrences" / self.CURRENT
+            for state_root in (root, current):
+                categories = _write_reset_fixture(state_root, self.CURRENT, pending=True)
+                self.assertEqual(categories["gear"]["status"], "dispatch_bearing_unresolved")
+                self.assertEqual(categories["gear"]["before_observation"]["game_day_id"], self.CURRENT)
+            original_entries = set(root.rglob("*"))
+            original = {path: path.read_bytes() for path in original_entries if path.is_file()}
+            with self.assertRaisesRegex(
+                pnsctl.OperatorError, "requires one retained pending current-reset category"
+            ):
+                delivery._select_family_state(root, self.CURRENT, recovery_variant="gear")
+            self.assertEqual(set(root.rglob("*")), original_entries)
+            for path, raw in original.items():
+                self.assertEqual(path.read_bytes(), raw)
+            self.assertEqual(set(root.rglob("reservation-*.json")), set())
+
+    def test_current_pending_recovery_is_not_ambiguous_with_another_reset(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / FLOW_ID
+            current = root / "occurrences" / self.CURRENT
+            _write_reset_fixture(root, self.OLD, pending=True)
+            _write_reset_fixture(current, self.CURRENT, pending=True)
+            original_entries = set(root.rglob("*"))
+            original = {path: path.read_bytes() for path in original_entries if path.is_file()}
+            selected, reset, completed = delivery._select_family_state(
+                root, self.CURRENT, recovery_variant="gear"
+            )
+            self.assertEqual((selected, reset, completed), (current, self.CURRENT, {}))
+            self.assertEqual(set(root.rglob("*")), original_entries)
             for path, raw in original.items():
                 self.assertEqual(path.read_bytes(), raw)
 

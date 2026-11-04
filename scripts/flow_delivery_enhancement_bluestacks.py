@@ -1572,6 +1572,19 @@ def _select_family_state(
             raise _pnsctl().OperatorError("Enhancement recovery category is unsupported")
         _retained_path(base_root, f"occurrences/{reset_identity}/family-progress.json", "current recovery progress")
         _pending_recovery_record(current, recovery_variant, reset_identity)
+        for root in _family_state_roots(base_root):
+            if root == current:
+                continue
+            _path, categories = _read_family_progress_categories(root)
+            pending = categories.get(recovery_variant)
+            if (
+                isinstance(pending, Mapping)
+                and pending.get("status") == "dispatch_bearing_unresolved"
+                and _pending_reset_identity(pending, recovery_variant) == reset_identity
+            ):
+                raise _pnsctl().OperatorError(
+                    "Enhancement recovery requires one retained pending current-reset category"
+                )
         # This does not accept, skip, or reconcile any category. Native may only
         # observe the requested pending action; its separate proof remains strict.
         return current, reset_identity, {}
