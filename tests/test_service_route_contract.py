@@ -261,5 +261,60 @@ class GenerationChangeTests(unittest.TestCase):
                         self.assertEqual(rig.runner.flee_calls, 0)
 
 
+class StopSignalsTests(unittest.TestCase):
+    def test_stop_after_first_input_prevents_next_input(self):
+        for flow_id, spec in ROUTES.items():
+            with self.subTest(route=flow_id):
+                if (flow_id, "stop_after_input") in EXCEPTIONS:
+                    continue
+                with RouteRig(self, spec) as rig:
+                    spec.work(rig.runner)
+                    rig.runner.on_input = lambda _index: rig.stop.set()
+                    self.assertEqual(rig.once()[0]["status"], "blocked")
+                    self.assertEqual(len(rig.runner.inputs), 1)
+                    self.assertTrue(rig.state.get_flow(flow_id).blocked)
+
+    def test_flow_disable_after_first_input_prevents_next_input(self):
+        for flow_id, spec in ROUTES.items():
+            with self.subTest(route=flow_id):
+                if (flow_id, "disable_after_input") in EXCEPTIONS:
+                    continue
+                with RouteRig(self, spec) as rig:
+                    spec.work(rig.runner)
+                    rig.runner.on_input = lambda _index: rig.state.set_flow_enabled(flow_id, False)
+                    self.assertEqual(rig.once()[0]["status"], "blocked")
+                    self.assertEqual(len(rig.runner.inputs), 1)
+                    self.assertTrue(rig.state.get_flow(flow_id).blocked)
+
+    def test_clock_rollback_after_first_input_prevents_next_input(self):
+        for flow_id, spec in ROUTES.items():
+            with self.subTest(route=flow_id):
+                if (flow_id, "clock_rollback") in EXCEPTIONS:
+                    continue
+                with RouteRig(self, spec) as rig:
+                    spec.work(rig.runner)
+                    def rollback(_index):
+                        rig.stop.now -= 10
+                    rig.runner.on_input = rollback
+                    self.assertEqual(rig.once()[0]["status"], "blocked")
+                    self.assertEqual(len(rig.runner.inputs), 1)
+                    self.assertTrue(rig.state.get_flow(flow_id).blocked)
+
+    def test_service_lease_loss_prevents_runner_and_releases_owner(self):
+        for flow_id, spec in ROUTES.items():
+            with self.subTest(route=flow_id):
+                if (flow_id, "service_lease_loss") in EXCEPTIONS:
+                    continue
+                with RouteRig(self, spec) as rig:
+                    spec.work(rig.runner)
+                    with patch.object(rig.state, "renew_service_lease", return_value=None):
+                        reports = rig.once()
+                    self.assertEqual(rig.runner.calls, [])
+                    self.assertEqual(reports[0]["status"], "blocked")
+                    self.assertIn("SERVICE_LEASE_LOST", rig.state.get_flow(flow_id).blocked_reason)
+                    with boundary.RuntimeInputLock(owner="after-failure", invocation_id="released"):
+                        pass
+
+
 if __name__ == "__main__":
     unittest.main()
