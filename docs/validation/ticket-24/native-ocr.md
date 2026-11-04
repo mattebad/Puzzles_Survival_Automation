@@ -1,10 +1,12 @@
 # Ticket #24: native OCR portability
 
-Status: implemented on the candidate branch; native Linux module proof is now
-present, but this is not whole-suite or live acceptance. The d4db4c8 inner-crop-
-only subset is historical and was invalidated by the Rank 10/11 safety
-regression. The full-medal-band highlight-containment guard has native Linux
-proof; macOS hosted proof is not established here.
+Status: implemented at candidate source `0986aa8a5333848e649472d8caa9faad8b065818`;
+the final hosted run has native OCR module receipts across Ubuntu, Windows and
+macOS, recorded below. The broader full-suite evidence is owned by the
+validation ledger; offline results are not owner approval or live acceptance.
+The d4db4c8 inner-crop-only subset is historical and was invalidated by the
+Rank 10/11 safety regression. The full-medal-band highlight-containment guard
+has native Linux proof; macOS module and worker-skip scope is detailed below.
 
 ## Observed cause
 
@@ -85,6 +87,53 @@ process attempts. The passing Linux Personal Might module provides native proof
 that Rank 1 is accepted and ranks 2, 3, 7, 9, 10, 11, 12 and 21 are rejected;
 the other native controls remain intact. This is two-runner native-module
 evidence only, not a whole-suite or live green claim.
+
+## Final hosted candidate evidence
+
+[Run 41821066333](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41821066333)
+at candidate source `0986aa8a5333848e649472d8caa9faad8b065818` produced the
+offline native receipts. The campaign and Personal Might module records
+attribute both test source and proof driver to that commit. The per-runner
+Python, platform and Tesseract versions, all six original native records and
+their exact-byte SHA-256 hashes are preserved in
+[`native-ocr-linux-0986.json`](../../../evidence/offline-validation/ticket-24/native-ocr-linux-0986.json).
+
+| Linux runner / Tesseract | Campaign victory | Personal Might |
+| --- | --- | --- |
+| Ubuntu 24.04 / 5.3.4 | 6 tests; 14.174 s | 30 tests; 58.145 s |
+| Ubuntu latest / 5.5.0 | 6 tests; 13.204 s | 30 tests; 53.323 s |
+
+Both native modules pass on both engines. All four module receipts report zero
+failures, errors, skips and forbidden process attempts. Both separate probe records
+also record zero forbidden process attempts; they are API observations, not
+test-suite counters.
+
+The same run's Windows and macOS per-module records cover these two native test
+modules; this is module evidence, not a duplicate full-suite summary:
+
+| Hosted runner | Campaign victory | Personal Might | Numeric-rank control |
+| --- | --- | --- | --- |
+| Windows | 6 tests; 13.766 s | 30 tests; 70.610 s | Executed and passed; not skipped |
+| macOS | 6 tests; 9.731 s | 30 tests; 37.954 s | Executed and passed; not skipped |
+
+The corresponding per-module receipts have zero failures, errors, skips and
+forbidden process attempts. The Personal Might module logs explicitly show
+`test_numeric_rank_field_does_not_authorize_a_different_rank ... ok` on both
+hosts, so the numeric-rank control was exercised rather than skipped.
+
+Separately, the hosted macOS full-suite record lists 27 OCR-worker-dependent
+test cases among its 68 skips. The recorded skip reason is: “OCR worker tests
+require Linux `/proc/self/stat` or Windows Job Objects; unsupported environment
+`os.name='posix'`, `sys.platform='darwin'`.” These are guard-driven skips and do
+not establish a Darwin OCR-worker backend. The skipped methods are:
+
+- `tests.test_automation_service_boundaries`: `test_ocr_recognizer_callback_exception_is_unknown`, `test_blocking_ocr_times_out_unknown_and_releases_ownership`, `test_screen_ocr_positive_result_is_normalized`, `test_successful_ocr_drains_descendant_before_return`.
+- `tests.test_native_frame_replay`: `test_complete_same_capture_perception_ocr_composition`.
+- `tests.test_semantic_ocr_crop`: `test_constrained_ocr_modes_and_unknown_mode_fail_closed`, `test_debug_artifacts_opt_in_deterministic_and_default_off`, `test_immutability_and_no_numpy_retention`, `test_ocr_empty_and_ambiguous_negative_controls`, `test_ocr_engine_exception_returns_invalid_without_swallowing_baseexception`, `test_same_capture_identity_binds_observation`, `test_worker_limits_ocr_threads_without_changing_parent_or_explicit_configuration`.
+- `tests.test_service_supply`: `test_known_route_surfaces_preserve_no_popup_entry_without_new_input`.
+- `tests.test_supply_claim_button`: `test_actual_before_binds_button_but_label_dismissal_and_changed_png_do_not`, `test_actual_reset_hud_caption_binds_only_with_complete_word_and_safe_button`, `test_real_daylight_circle_survives_proposal_variation_with_same_final_gates`.
+- `tests.test_supply_depot_vision`: `test_actual_hud_occluded_radial_stays_recognized_but_not_actionable`, `test_capture_bound_screen_recognizes_free_controls`, `test_explicit_attempts_ocr_engine_failure_fails_closed`, `test_explicit_control_ocr_engine_failure_discards_partial_controls`, `test_explicit_panel_ocr_engine_failure_fails_closed`, `test_native_collapsed_drawer_keeps_safe_button_despite_covered_lower_caption`, `test_native_edge_radial_identity_does_not_authorize_footer_covered_label`, `test_native_exhausted_capture_keeps_identity_across_scene_animation`, `test_native_raised_radial_uses_tight_label_and_book_occlusion_stays_blocked`, `test_native_scene_cannot_replace_missing_or_wrong_header`, `test_original_native_capture_recognizes_free_controls_with_explicit_identity`.
+
 
 ## Local verification
 

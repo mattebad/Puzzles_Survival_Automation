@@ -137,3 +137,138 @@ tracked-file hygiene scan. Six earlier receipt annotations hashed LF-normalized
 text rather than retained Windows file bytes; the index now supplies exact-byte
 digests and preserves those earlier values as `legacy_normalized_lf_sha256`.
 All original receipt files remain unchanged.
+
+## Final corrected-source hosted comparison: `0986aa8`
+
+Run [41821066333](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41821066333)
+compares candidate source `0986aa8a5333848e649472d8caa9faad8b065818` with
+baseline source `d4dd8db448096ce2268b67bc0a301ce7c540594a`. The complete
+source-labelled record is
+[`full-comparison-0986.json`](../../../evidence/offline-validation/ticket-24/full-comparison-0986.json)
+(SHA-256 of its retained file bytes:
+`352c4ff61da9117bbb32902e27526aa0ebf0bfd756eb883681585f199ef16d68`).
+Every source receipt, module result/process receipt, and captured CLI log is
+identified there by artifact path and SHA-256 of its exact bytes; no decoded or
+newline-normalized text was hashed. The downloaded evidence root is
+`../ticket30-proof/t24-hosted-0986/`; the six settled GitHub job logs and run
+metadata are also retained under `../ticket30-proof/` with exact-byte hashes.
+The original source receipts remain unchanged.
+
+The baseline per-module comparison is deliberately distinct from full discovery.
+The baseline source has no importable `tests` package in its untouched tree; for
+per-module enumeration only, the candidate proof driver supplied an in-memory
+`tests` namespace. No bridge was used for either full CLI run. Candidate source
+and driver are both `0986aa8`; baseline test source is `d4dd8db`, but its
+per-module supervisor/driver is candidate code `0986aa8`. Both environments
+record a 900-second per-module timeout and one worker. In both invocations the
+temporary-directory validator is `driver:safe_action_core.path_safety`; that
+is candidate driver code, not baseline source and not evidence that the baseline
+accepted aliases. The full candidate runs are separate sequential complete
+discovery runs.
+
+| Hosted OS | Baseline isolated modules (tests; F/E/S; receipt seconds) | Candidate isolated modules (tests; F/E/S; receipt seconds) | Candidate full with Tesseract (tests; F/E/S; receipt seconds) | Candidate full without Tesseract (tests; F/E/S; receipt seconds) |
+| --- | --- | --- | --- | --- |
+| Ubuntu | 235 modules; 3,135; 15/31/38; 1,631.135 s | 238 modules; 3,171; 0/0/41; 1,297.020 s | 3,171; 0/0/41; 1,201.630 s | 3,171; 0/0/490; 402.910 s |
+| Windows | 235 modules; 3,135; 13/30/34; 2,191.953 s | 238 modules; 3,171; 0/0/36; 2,383.609 s | 3,171; 0/0/36; 2,222.531 s | 3,171; 0/0/486; 992.594 s |
+| macOS | 235 modules; 3,135; 42/374/37; 1,350.529 s | 238 modules; 3,171; 0/0/68; 1,333.906 s | 3,171; 0/0/68; 1,347.042 s | 3,171; 0/0/506; 471.864 s |
+
+F/E/S means failures/errors/skips. Baseline failure and error IDs are preserved
+exactly, separated by outcome and OS, in the JSON comparison; candidate failure
+and error ID arrays are empty on all three OSes, with zero new failures/errors.
+The per-module test-count deltas are identical on all platforms and reconcile to
+[`case-accounting.json`](case-accounting.json): 235 modules / 3,135 IDs to 238 /
+3,171; 4 explicit renames, 36 new IDs, 0 unmapped removals. The 36 added cases
+are in these modules: `test_automation_service_boundaries` (+1),
+`test_bluestacks_ultimate_challenge` (+1), `test_campaign_claimed_startup`
+(+1), `test_enhancement_positive_recovery_delivery` (+1),
+`test_navigation_development_boundary` (+2), `test_nova_navigation` (+1),
+`test_path_safety` (+13), `test_personal_might_bluestacks` (+2),
+`test_pnsctl_canonical_serve` (+1), `test_test_discovery` (+3),
+`test_test_environment` (+9), and `test_ultimate_challenge_recovery` (+1).
+No other module's test count changed. The per-module receipt times in the table
+are the elapsed values recorded in `per-module.json`; full-suite and source CI
+wall durations are diagnostic evidence only, not the required `offline.yml`
+before/after CI measurement. Required CI wall times come from the separate
+`offline.yml` PR run, not these diagnostic jobs.
+
+All three baseline full CLI commands collected **0 tests** and exited 1 before
+test discovery because `baseline/tests` was not importable. The actual
+`unittest` `ImportError` is retained in each captured `full.log`, whose byte
+hash is recorded in the comparison. The driver’s `errors: [{"id":"full",
+"traceback":"exit 1 without a receipt"}]` is a process-error placeholder, not a
+test error or successful collection. The fallback empty
+`forbidden_process_attempts` value in those baseline full receipts is
+**unobserved**, not a zero counter. By contrast, all actual candidate module
+receipts and candidate full/full-without-Tesseract receipts report zero
+forbidden process attempts; actual baseline per-module receipts also report
+zero.
+
+The exact `tesseract --version` output in the candidate and baseline job logs
+reports the same build per OS: Ubuntu `tesseract 5.5.0` / Leptonica `1.86.0`;
+Windows `tesseract v5.5.3.20260724` / Leptonica `1.87.0`; macOS
+`tesseract 5.5.3` / Leptonica `1.87.0`. These versions are taken from the
+settled logs for candidate jobs 126544037445, 126544037747, 126544038083 and
+baseline jobs 126544037796, 126544037923, 126544037770, not inferred from
+package labels.
+
+The candidate jobs completed successfully; the workflow’s overall conclusion
+is failure because the retained historical-baseline diagnostic jobs fail, and
+the baseline full commands have the process-level collection error above. This
+is offline comparative evidence, not an overall-green CI or acceptance claim.
+The older `5d4ca3e` four-worker Linux Supply binding failure remains historical;
+its cause is unconfirmed. The current candidate per-module collector is serial
+and clean on all three OSes; no production Supply change is claimed. The
+corrected native no-effect alias integration
+`test_actual_native_recovery_reaches_independent_wrapper_transition` is in the
+actual 14-case candidate module receipt, passes without skips on Ubuntu,
+Windows, and macOS, and has no forbidden process attempts.
+
+The following are newly skipped in the candidate per-module runs relative to
+the baseline per-module skip IDs. Every row gives the actual candidate reason;
+the same complete machine-readable list is in the comparison JSON.
+
+| OS | Newly skipped test ID | Actual reason |
+| --- | --- | --- |
+| ubuntu | `tests.test_enhancement_positive_recovery_delivery.PositiveRecoveryDeliveryTests.test_validated_short_path_alias_binds_recovery_receipt` | `Windows filesystem aliases require GetShortPathNameW` |
+| ubuntu | `tests.test_nova_praise_centralized_boundary.CentralizedNovaBoundaryTests.test_retained_cooldown_replay_does_not_persist_scheduler_state` | `opt-in: set PNS_LOCAL_CAPTURES=1 to run tests that read gitignored .local-captures` |
+| ubuntu | `tests.test_nova_praise_centralized_boundary.CentralizedNovaBoundaryTests.test_retained_six_to_five_uses_production_path_with_zero_transport` | `opt-in: set PNS_LOCAL_CAPTURES=1 to run tests that read gitignored .local-captures` |
+| windows | `tests.test_nova_praise_centralized_boundary.CentralizedNovaBoundaryTests.test_retained_cooldown_replay_does_not_persist_scheduler_state` | `opt-in: set PNS_LOCAL_CAPTURES=1 to run tests that read gitignored .local-captures` |
+| windows | `tests.test_nova_praise_centralized_boundary.CentralizedNovaBoundaryTests.test_retained_six_to_five_uses_production_path_with_zero_transport` | `opt-in: set PNS_LOCAL_CAPTURES=1 to run tests that read gitignored .local-captures` |
+| macos | `tests.test_automation_service_boundaries.OverlayBoundaryTests.test_ocr_recognizer_callback_exception_is_unknown` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_automation_service_boundaries.RuntimeBoundaryTests.test_blocking_ocr_times_out_unknown_and_releases_ownership` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_automation_service_boundaries.RuntimeBoundaryTests.test_screen_ocr_positive_result_is_normalized` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_automation_service_boundaries.RuntimeBoundaryTests.test_successful_ocr_drains_descendant_before_return` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_enhancement_positive_recovery_delivery.PositiveRecoveryDeliveryTests.test_validated_short_path_alias_binds_recovery_receipt` | `Windows filesystem aliases require GetShortPathNameW` |
+| macos | `tests.test_native_frame_replay.NativeFrameReplayTests.test_complete_same_capture_perception_ocr_composition` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_nova_praise_centralized_boundary.CentralizedNovaBoundaryTests.test_retained_cooldown_replay_does_not_persist_scheduler_state` | `opt-in: set PNS_LOCAL_CAPTURES=1 to run tests that read gitignored .local-captures` |
+| macos | `tests.test_nova_praise_centralized_boundary.CentralizedNovaBoundaryTests.test_retained_six_to_five_uses_production_path_with_zero_transport` | `opt-in: set PNS_LOCAL_CAPTURES=1 to run tests that read gitignored .local-captures` |
+| macos | `tests.test_semantic_ocr_crop.SemanticOcrCropTests.test_constrained_ocr_modes_and_unknown_mode_fail_closed` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_semantic_ocr_crop.SemanticOcrCropTests.test_debug_artifacts_opt_in_deterministic_and_default_off` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_semantic_ocr_crop.SemanticOcrCropTests.test_immutability_and_no_numpy_retention` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_semantic_ocr_crop.SemanticOcrCropTests.test_ocr_empty_and_ambiguous_negative_controls` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_semantic_ocr_crop.SemanticOcrCropTests.test_ocr_engine_exception_returns_invalid_without_swallowing_baseexception` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_semantic_ocr_crop.SemanticOcrCropTests.test_same_capture_identity_binds_observation` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_semantic_ocr_crop.SemanticOcrCropTests.test_worker_limits_ocr_threads_without_changing_parent_or_explicit_configuration` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_service_enhancement.ServiceEnhancementTests.test_startup_replay_accepts_windows_session_alias_without_accepting_foreign_evidence` | `Windows filesystem aliases require GetShortPathNameW` |
+| macos | `tests.test_service_supply.ServiceSupplyTests.test_known_route_surfaces_preserve_no_popup_entry_without_new_input` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_actual_before_binds_button_but_label_dismissal_and_changed_png_do_not` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_actual_reset_hud_caption_binds_only_with_complete_word_and_safe_button` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_real_daylight_circle_survives_proposal_variation_with_same_final_gates` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_depot_vision.SupplyDepotVisionTests.test_actual_hud_occluded_radial_stays_recognized_but_not_actionable` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_depot_vision.SupplyDepotVisionTests.test_capture_bound_screen_recognizes_free_controls` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_depot_vision.SupplyDepotVisionTests.test_explicit_attempts_ocr_engine_failure_fails_closed` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_depot_vision.SupplyDepotVisionTests.test_explicit_control_ocr_engine_failure_discards_partial_controls` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_depot_vision.SupplyDepotVisionTests.test_explicit_panel_ocr_engine_failure_fails_closed` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_collapsed_drawer_keeps_safe_button_despite_covered_lower_caption` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_edge_radial_identity_does_not_authorize_footer_covered_label` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_exhausted_capture_keeps_identity_across_scene_animation` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_raised_radial_uses_tight_label_and_book_occlusion_stays_blocked` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_scene_cannot_replace_missing_or_wrong_header` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+| macos | `tests.test_supply_depot_vision.SupplyDepotVisionTests.test_original_native_capture_recognizes_free_controls_with_explicit_identity` | `OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.` |
+
+This comparison does not amend the earlier `5d4ca3e` failures or the original
+`f6b201f` audit. The seven unpublished original audit module names remain
+`evidence_required`; no later baseline name is used to infer them. The prior
+13-file runtime owner inventory and all existing owner gates above are
+unchanged. No live acceptance or owner approval is claimed; **NEEDS SUPERVISED
+LIVE RUN: Nova radial initial bind** remains.
