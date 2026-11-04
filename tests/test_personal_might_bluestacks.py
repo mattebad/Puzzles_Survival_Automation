@@ -407,7 +407,7 @@ class PersonalMightNativeTests(unittest.TestCase):
     @requires_tesseract
     def test_numeric_rank_field_does_not_authorize_a_different_rank(self):
         original = captured(PERSONAL_MIGHT_FIXTURE.read_bytes(), path=PERSONAL_MIGHT_FIXTURE)
-        for rank in ("1", "2", "3", "9"):
+        for rank in ("1", "2", "3", "7", "9"):
             with self.subTest(rank=rank):
                 pixels = original.frame.copy()
                 # Replace only the numeral; retain the independently required

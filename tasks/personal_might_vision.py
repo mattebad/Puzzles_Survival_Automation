@@ -147,7 +147,9 @@ def _rank_1_context(frame, *, source_frame, source_png):
     if len(medals) != 1:
         return None
     x, y, width, height = medals[0]
-    digit = (math.floor(x + width * .29), math.floor(y + height * .1), math.ceil(x + width * .77), math.ceil(y + height * .9))
+    # The numeral is inside the shield, not its bright border. Including the
+    # emblem outline makes a complete badge look like an alphabetic character.
+    digit = (math.floor(x + width * .35), math.floor(y + height * .2), math.ceil(x + width * .68), math.ceil(y + height * .85))
     # Read the medal's numeric field, not an unconstrained alphabetic glyph.
     # Keep all digits available: another rank must not be coerced into Rank 1.
     if _label_box(frame, digit, "1", **source, psm=10, scale=3, whitelist="0123456789") is None:
