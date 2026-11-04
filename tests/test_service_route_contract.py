@@ -10,12 +10,15 @@ from automation_service.cli import build_parser
 from automation_service.contracts import RecurrenceClass
 from automation_service.registry import (
     BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, CANONICAL_FLOW_REGISTRY, ENHANCEMENT_FLOW_ID,
-    PERSONAL_MIGHT_FLOW_ID, REGISTRY_PATH, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
+    NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, REGISTRY_PATH,
+    SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
     RegisteredDispatchSnapshot, canonical_entry, canonical_flow_specs,
 )
 from automation_service.service import ServiceError
 from automation_service.state import BotStateManager, RunState
 from scripts import navigation_development_boundary as boundary
+from tasks.noahs_tavern_recruit_maintenance import NoahMaintenanceState
+from tasks.nova_praise_pulse import NOVA_TASK_ID
 from tests.support.service_route_contract import (
     EXCEPTIONS, NOT_SERVABLE, ROUTES, RouteRig, _runner_kwarg,
 )
@@ -340,6 +343,115 @@ class ResetGuardTests(unittest.TestCase):
                     self.assertEqual(reports[0]["status"], "blocked")
                     self.assertIn("RESET_CHANGED_DURING_", reports[0]["reason"])
                     self.assertTrue(rig.state.get_flow(flow_id).blocked)
+
+
+class MultiRouteTests(unittest.TestCase):
+    def test_selected_routes_share_one_serial_runtime_owner(self):
+        with RouteRig(self, ROUTES[NOVA_FLOW_ID]) as rig:
+            order = []
+            active = False
+            nova = rig.runner
+
+            def runner(identity, previous, checkpoint):
+                nonlocal active
+                self.assertFalse(active)
+                active = True
+                order.append(identity.task_id)
+                checkpoint()
+                with self.assertRaises(boundary.NavigationBoundaryError):
+                    with boundary.RuntimeInputLock(owner="second", invocation_id="contender"):
+                        self.fail("parallel runtime owner acquired")
+                if identity.task_id == NOVA_TASK_ID:
+                    result = nova(identity, previous, checkpoint)
+                else:
+                    maintenance = NoahMaintenanceState.for_identity(identity)
+                    result = {
+                        "status": "completed", "terminal_home_verified": True,
+                        "time_basis": "utc", "completed_at_utc": rig.stop.now,
+                        "maintenance_state": json.loads(maintenance.to_json()),
+                        "total_input_count": 3, "recruitment_dispatch_count": 1,
+                        "actions_completed": 1,
+                    }
+                active = False
+                return result
+
+            rig.service.recruitment_runner = runner
+            rig.service.nova_runner = runner
+            rig.service.set_flow_enabled(RECRUITMENT_FLOW_ID, True)
+            reports = []
+
+            def emit(report):
+                reports.append(report)
+                if len(reports) == 2:
+                    rig.stop.set()
+
+            rig.service.serve(account_id="account", server_id="server", stop=rig.stop,
+                              emit=emit, clock=lambda: rig.stop.now,
+                              flow_ids=(RECRUITMENT_FLOW_ID, NOVA_FLOW_ID))
+            self.assertEqual(len(order), 2)
+            self.assertEqual({item["flow_id"] for item in reports}, {RECRUITMENT_FLOW_ID, NOVA_FLOW_ID})
+            self.assertTrue(all(item["status"] == "completed" for item in reports), reports)
+
+    def test_default_remains_recruitment_and_unknown_selection_is_rejected(self):
+        with RouteRig(self, ROUTES[NOVA_FLOW_ID]) as rig:
+            for flow_ids in (None, ("UNKNOWN",)):
+                with self.subTest(flow_ids=flow_ids), self.assertRaises(ServiceError):
+                    rig.service.serve(account_id="account", server_id="server", stop=rig.stop,
+                                      emit=lambda _report: None, flow_ids=flow_ids)
+            self.assertEqual(rig.runner.inputs, [])
+            self.assertEqual(build_parser().parse_args(["serve"]).flow, None)
+            args = build_parser().parse_args(["serve", "--flow", "nova", "--flow", "recruitment"])
+            self.assertEqual(args.flow, ["nova", "recruitment"])
+
+    def test_selected_nova_and_recruitment_do_not_observe_or_dispatch_campaign(self):
+        with RouteRig(self, ROUTES[CAMPAIGN_FLOW_ID]) as rig:
+            calls = []
+
+            def nova(identity, previous, checkpoint):
+                checkpoint()
+                calls.append(identity)
+                return {
+                    "status": "completed", "terminal_home_verified": True,
+                    "time_basis": "utc", "completed_at_utc": rig.stop.now,
+                    "account_id": identity.account_id, "server_id": identity.server_id,
+                    "reset_id": identity.reset_id, "attempts_before": 2, "attempts_after": 1,
+                    "praise_transport_calls": 1, "total_input_count": 1,
+                    "journal_status": "confirmed", "cooldown_seconds": 300,
+                    "next_eligible_at": rig.stop.now + 300,
+                }
+
+            def recruitment(identity, previous, checkpoint):
+                checkpoint()
+                calls.append(identity)
+                return {
+                    "status": "completed", "terminal_home_verified": True,
+                    "time_basis": "utc", "completed_at_utc": rig.stop.now,
+                    "maintenance_state": json.loads(NoahMaintenanceState.for_identity(identity).to_json()),
+                    "total_input_count": 1, "recruitment_dispatch_count": 1, "actions_completed": 1,
+                }
+
+            rig.service.nova_runner = nova
+            rig.service.recruitment_runner = recruitment
+            for flow_id in (NOVA_FLOW_ID, RECRUITMENT_FLOW_ID):
+                rig.service.set_flow_enabled(flow_id, True)
+            reports = []
+
+            def emit(report):
+                reports.append(report)
+                if len(reports) == 2:
+                    rig.stop.set()
+
+            rig.service.serve(
+                account_id="account", server_id="server", stop=rig.stop, emit=emit,
+                clock=lambda: rig.stop.now, flow_ids=(NOVA_FLOW_ID, RECRUITMENT_FLOW_ID),
+            )
+            self.assertEqual(len(calls), 2)
+            self.assertEqual({report["flow_id"] for report in reports}, {NOVA_FLOW_ID, RECRUITMENT_FLOW_ID})
+            self.assertTrue(all(report["status"] == "completed" for report in reports), reports)
+            self.assertEqual(rig.runner.observations, [])
+            self.assertEqual(rig.runner.calls, [])
+            self.assertEqual(rig.runner.inputs, [])
+            self.assertEqual({run.flow_id for run in rig.runs()}, {NOVA_FLOW_ID, RECRUITMENT_FLOW_ID})
 
 
 if __name__ == "__main__":
