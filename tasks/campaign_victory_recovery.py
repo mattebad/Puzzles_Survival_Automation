@@ -16,6 +16,7 @@ from automation_service.registry import CAMPAIGN_FLOW_ID, RegisteredDispatchSnap
 from tasks.campaign_auto_battle import CAMPAIGN_STAGE_COSTS, CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
 from .profile import ACTIVE_RUNTIME_PROFILE_ID
+from safe_action_core.path_safety import UnsafePathError, require_no_untrusted_symlinks
 
 
 SESSIONS_ROOT = Path(__file__).resolve().parents[1] / ".local-captures" / "development-sessions"
@@ -34,14 +35,16 @@ _STAMP = re.compile(
 def _path(path: Path, root: Path) -> Path:
     if ".." in path.parts:
         raise ValueError("recovery evidence path contains traversal")
-    absolute = path.absolute()
-    for part in (absolute, *absolute.parents):
-        if part.is_symlink() or getattr(part, "is_junction", lambda: False)():
-            raise ValueError("recovery evidence path contains a link")
-    resolved = absolute.resolve()
-    if not resolved.is_relative_to(root.resolve()):
-        raise ValueError("recovery evidence path escaped development sessions")
-    return resolved
+    try:
+        absolute = require_no_untrusted_symlinks(path.absolute(), reject_junctions=True).resolve()
+        safe_root = require_no_untrusted_symlinks(root, reject_junctions=True).resolve()
+    except UnsafePathError as exc:
+        raise ValueError("recovery evidence path contains a link") from exc
+    try:
+        absolute.relative_to(safe_root)
+    except ValueError as exc:
+        raise ValueError("recovery evidence path escaped development sessions") from exc
+    return absolute
 
 
 def _read(path: Path, root: Path) -> bytes:

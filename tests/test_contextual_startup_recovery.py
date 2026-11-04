@@ -4,7 +4,9 @@ from __future__ import annotations
 from contextlib import ExitStack
 from dataclasses import replace
 import json
+import os
 from pathlib import Path
+import stat
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -269,22 +271,31 @@ class ContextualStartupRecoveryTests(unittest.TestCase):
     def test_step_mapping_does_not_erase_a_symlink_reference_when_resolving_paths(self):
         captured = self.source(VIP, VIP, HOME)
         step, = self.recover(captured).steps
-        original = Path.is_symlink
+        original = os.lstat
         for linked in (step.source_frame.path, step.source_frame.path.parent, self.runtime.session):
-            with self.subTest(linked=linked), patch.object(Path, "is_symlink", autospec=True,
-                    side_effect=lambda path: path == linked or original(path)):
+            linked_paths = {linked, linked.resolve()}
+            with self.subTest(linked=linked), patch("os.lstat",
+                    side_effect=lambda path, *args, **kwargs: (
+                        os.stat_result((stat.S_IFLNK | 0o777, *original(path, *args, **kwargs)[1:]))
+                        if Path(path) in linked_paths else original(path, *args, **kwargs)
+                    )):
                 with self.assertRaises(ValueError):
                     step.to_mapping(self.runtime.session)
 
-    def test_step_mapping_preserves_the_trusted_parent_boundary(self):
+    def test_step_mapping_rejects_a_link_above_the_session_root(self):
         captured = self.source(VIP, VIP, HOME)
         step, = self.recover(captured).steps
         expected = step.to_mapping(self.runtime.session)
-        original = Path.is_symlink
+        original = os.lstat
         trusted_parent = self.runtime.session.parent
-        with patch.object(Path, "is_symlink", autospec=True,
-                side_effect=lambda path: path == trusted_parent or original(path)):
-            self.assertEqual(step.to_mapping(self.runtime.session), expected)
+        trusted_parent_paths = {trusted_parent, trusted_parent.resolve()}
+        with patch("os.lstat", side_effect=lambda path, *args, **kwargs: (
+                os.stat_result((stat.S_IFLNK | 0o777, *original(path, *args, **kwargs)[1:]))
+                if Path(path) in trusted_parent_paths else original(path, *args, **kwargs)
+        )):
+            with self.assertRaises(ValueError):
+                step.to_mapping(self.runtime.session)
+        self.assertEqual(step.to_mapping(self.runtime.session), expected)
 
     def test_a_windows_alias_of_the_same_file_is_not_a_fresh_capture(self):
         captured = self.source(HOME)

@@ -14,6 +14,7 @@ import numpy as np
 from automation_service.registry import BIOENHANCER_FLOW_ID, BIOENHANCER_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
+from safe_action_core.path_safety import UnsafePathError, require_no_untrusted_symlinks
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -325,15 +326,16 @@ def _verify_no_work_frames(session: Path, result: Mapping[str, Any]) -> bool:
         return False
     images = {}
     try:
+        safe_session = require_no_untrusted_symlinks(session).resolve()
         for label, record in (("cooldown", cooldown), ("home", result.get("terminal_home_frame"))):
             if not isinstance(record, Mapping):
                 return False
             reference = record.get("frame_path")
             if not isinstance(reference, str) or Path(reference).is_absolute() or ".." in Path(reference).parts:
                 return False
-            path = session / reference
-            path.resolve().relative_to(session.resolve())
-            if not path.is_file() or any(part.is_symlink() for part in (path, *path.parents)):
+            path = require_no_untrusted_symlinks(safe_session / reference).resolve()
+            path.relative_to(safe_session)
+            if not path.is_file():
                 return False
             raw = path.read_bytes()
             if not raw.startswith(b"\x89PNG\r\n\x1a\n") or hashlib.sha256(raw).hexdigest() != record.get("frame_sha256"):
@@ -471,16 +473,20 @@ def verify_bioenhancer_free_research(
     if not isinstance(result, Mapping):
         raise _pnsctl().OperatorError("Bioenhancer delivery result is missing")
     session = Path(str(structure.get("session_directory") or ""))
+    try:
+        session = require_no_untrusted_symlinks(session).resolve()
+    except UnsafePathError as exc:
+        raise _pnsctl().OperatorError("Bioenhancer session path contains a link") from exc
     initial = result.get("initial_observation")
     trace = result.get("causal_trace")
     initial_ok = False
     if isinstance(initial, Mapping):
         frame_path = session / str(initial.get("frame_path") or "")
         try:
-            frame_path.resolve().relative_to(session.resolve())
+            frame_path = require_no_untrusted_symlinks(frame_path).resolve()
+            frame_path.relative_to(session)
             initial_ok = (
                 frame_path.is_file()
-                and not frame_path.is_symlink()
                 and hashlib.sha256(frame_path.read_bytes()).hexdigest()
                 == initial.get("frame_sha256")
                 == result.get("initial_frame_sha256")
@@ -494,10 +500,10 @@ def verify_bioenhancer_free_research(
     trace_file_ok = False
     trace_path = session / str(result.get("causal_trace_path") or "")
     try:
-        trace_path.resolve().relative_to(session.resolve())
+        trace_path = require_no_untrusted_symlinks(trace_path).resolve()
+        trace_path.relative_to(session)
         trace_file_ok = (
             trace_path.is_file()
-            and not trace_path.is_symlink()
             and json.loads(trace_path.read_text(encoding="utf-8")) == trace
         )
     except (OSError, ValueError, json.JSONDecodeError):
