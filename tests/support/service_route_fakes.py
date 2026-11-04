@@ -376,6 +376,14 @@ class GuardedBioenhancerRunner:
 
 
 class GuardedCampaignRunner:
+    """Checkpoint every iteration and retain partial counts on checkpoint failure.
+
+    Unlike the original local fake, wrap checkpoint failures as
+    CampaignApRunnerError with a partial result, matching
+    automation_service/campaign.py's claimed-run partial-result boundary.
+    This is the deliberate third difference, alongside uniform hooks and counters.
+    """
+
     stage = "1-15-9"
 
     def __init__(self, stop):

@@ -59,13 +59,25 @@ class CanonicalServeFacadeTests(unittest.TestCase):
     def test_missing_native_authorization_is_rejected_before_state_or_device(self):
         base = ["automation-service", "--mode", "supervised", "--adapter", "bluestacks", "serve",
                 "--serial", "emulator-5554", "--account-id", "account", "--server-id", "server"]
-        for argv in (base, [*base, "--live", "--flow", "unknown"]):
+        for argv in ([*base, "--flow", "recruitment"], [*base, "--live", "--flow", "unknown"]):
             with self.subTest(argv=argv), patch.object(cli, "BotStateManager") as state, patch.object(
                 LocalBlueStacksRuntime, "connect"
             ) as connect, redirect_stderr(io.StringIO()):
                 self.assertEqual(pnsctl.main(argv), 2)
                 state.assert_not_called()
                 connect.assert_not_called()
+
+    def test_missing_selection_is_an_argument_error_before_state_or_device(self):
+        with patch.object(cli, "BotStateManager") as state, patch.object(
+            LocalBlueStacksRuntime, "connect"
+        ) as connect, redirect_stderr(io.StringIO()):
+            self.assertEqual(pnsctl.main([
+                "automation-service", "--mode", "supervised", "--adapter", "bluestacks",
+                "serve", "--live", "--serial", "emulator-5554",
+                "--account-id", "account", "--server-id", "server",
+            ]), 2)
+        state.assert_not_called()
+        connect.assert_not_called()
 
     def test_a_valid_native_command_respects_disabled_controls(self):
         with tempfile.TemporaryDirectory() as directory:

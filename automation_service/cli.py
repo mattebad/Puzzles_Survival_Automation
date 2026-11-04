@@ -61,8 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("summary")
     serve = subparsers.add_parser("serve")
     serve.add_argument("--live", action="store_true", help="explicitly permit the selected native routes")
-    serve.add_argument("--flow", action="append", choices=tuple(servable_flow_names()),
-                       help="route to serve; repeat to select routes (default: recruitment)")
+    serve.add_argument("--flow", action="append", choices=tuple(servable_flow_names()), required=True,
+                       help="required route to serve; repeat to select routes")
     serve.add_argument("--campaign-stage", default="1-15-9")
     serve.add_argument("--operator-request-id", default=None,
                        help="one explicit extra Enhancement/Ultimate run; preserves daily completion")
@@ -464,7 +464,7 @@ def main(
                 ultimate_runner = None
                 enhancement_runner = None
                 personal_might_runner = None
-                selected = args.flow or ["recruitment"]
+                selected = args.flow
                 if native_serve:
                     from .recruitment import RecruitmentRunner
                     from .nova import NovaRunner

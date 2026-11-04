@@ -119,11 +119,6 @@ EXCEPTIONS = {
         "Recruitment eligibility follows a cooldown, not the next reset",
         "tests.test_service_recruitment.ServiceRecruitmentTests.test_native_pass_cooldown_restart_and_later_eligibility",
     ),
-    (RECRUITMENT_FLOW_ID, "explicit_service_selection"): (
-        "PRODUCTION GAP: AutomationService.serve defaults omitted flow_ids to Recruitment "
-        "(automation_service/service.py:668); CLI selection remains explicit",
-        "tests.test_service_recruitment.ServiceRecruitmentTests.test_native_pass_cooldown_restart_and_later_eligibility",
-    ),
 }
 
 

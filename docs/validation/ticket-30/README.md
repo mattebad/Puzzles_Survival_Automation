@@ -1,10 +1,11 @@
 # #30: shared service-route contract — offline proof
 
-Scope: test-only consolidation based on integration commit `d4dd8db`, implemented
-on `wt/ticket-30`. The shared fake seed was `8c44a81`. No production path under
-`automation_service/`, `scripts/`, `tasks/`, or `safe_action_core/` differs from
-`origin/cleanup/offline-hygiene-pass` (the requested diff-stat command was empty).
-The separately requested local-agent cleanup is a separate commit, `212e238`.
+The original test-only consolidation was based on integration commit `d4dd8db`,
+implemented on `wt/ticket-30`, with shared fake seed `8c44a81`. The review follow-up
+includes an explicitly owner-approved **production change**: service and CLI
+callers must select routes; neither defaults to Recruitment. Only
+`automation_service/service.py` and `automation_service/cli.py` change production
+behavior. The separately requested local-agent cleanup remains commit `212e238`.
 
 This is **offline-proven test behavior, not live acceptance**. No device, ADB,
 BlueStacks, VM, registration, scheduling, deployment, or live-state operation was
@@ -14,20 +15,25 @@ performed. Services and controls below belong only to disposable test databases.
 
 `tests/support/service_route_contract.py` defines the registry-keyed `RouteSpec`
 table and `RouteRig`; runner keywords derive from each canonical CLI name.
-`tests/test_service_route_contract.py` contains the fifteen named invariant
-methods covering all eight servable routes. World is explicitly navigation-only.
+`tests/test_service_route_contract.py` now contains seventeen invariant methods
+covering all eight servable routes. World is explicitly navigation-only.
 
 The original guarded runners now have one implementation in
 `tests/support/service_route_fakes.py`; all seven migrated dispatch modules import
-them. Recruitment's existing native-service tests remain unchanged. The offline
-workflow now includes both Recruitment and the shared contract. `scripts/check.py`
+them. Recruitment's native-service helper now passes its flow ID explicitly. The
+offline workflow includes both Recruitment and the shared contract. `scripts/check.py`
 is unchanged.
 
-[case-map.json](case-map.json) records every one of the 31 removed methods and its
-replacement contract method(s). [cases-before.txt](cases-before.txt) contains 218
-service test IDs; [cases-after.txt](cases-after.txt) contains 202. An AST inventory
-verified that the removed set equals the mapping's keys exactly, that all fifteen
-added IDs belong to the contract, and that every replacement method exists.
+The retained initial-consolidation receipts are historical: [case-map.json](case-map.json)
+maps the 31 removed methods; [cases-before.txt](cases-before.txt) contains 218
+service test IDs and [cases-after.txt](cases-after.txt) contains 202 at `1c2b9dc`.
+Their AST inventory verified the removed set and all fifteen original replacements.
+The follow-up retains those assertions, adds two generation methods, and renames
+`MultiRouteTests.test_default_remains_recruitment_and_unknown_selection_is_rejected`
+to `test_omitted_and_unknown_selection_are_rejected` for the approved no-default
+behavior. The old disable/re-enable scenario remains as
+`GenerationChangeTests.test_disable_then_reenable_after_first_input_stops_further_input`;
+the fixed-name F method now isolates a pure flow-generation change.
 
 | Module | Before | After |
 | --- | ---: | ---: |
@@ -38,7 +44,7 @@ added IDs belong to the contract, and that every replacement method exists.
 | test_service_bioenhancer_dispatch | 5 | 1 |
 | test_service_campaign_dispatch | 15 | 12 |
 | test_service_nova | 19 | 12 |
-| test_service_route_contract | 0 | 15 |
+| test_service_route_contract | 0 | 17 |
 
 All other service-module counts are unchanged. The four cooldown/AP restart tests
 remain in their original modules. Bounded-count, no-work, retained-state,
@@ -53,26 +59,38 @@ scenarios, Ultimate connection/Flee counts, Enhancement Use counts, Personal Mig
 Praise counts, and uncertain-result committed-action/AP counters. The contract
 additionally exercises work-first restart scenarios and cross-route stop signals.
 
-## Production gap recorded, not repaired
+## Explicit selection: approved production change
 
-`AutomationService.serve` at `automation_service/service.py:668` defaults omitted
-`flow_ids` to Recruitment. With a Recruitment runner installed and enabled, a
-transport-patched standalone probe observed one completed Recruitment call with
-no explicit selection. Therefore the proposed omitted-selection assertion cannot
-hold for Recruitment.
+The owner chose removal of the implicit Recruitment default after the review.
+`AutomationService.serve` rejects omitted, empty, and unknown selection with
+`ServiceError`, even when an enabled Recruitment runner is installed.
+The CLI requires `serve --flow ROUTE`; omission is an argument error before
+state or device setup. Repeated explicit selections remain supported.
+The native Recruitment test helper now selects Recruitment explicitly, and the
+`explicit_service_selection` exception has been removed.
 
-`EXCEPTIONS[(RECRUITMENT_FLOW_ID, "explicit_service_selection")]` records
-`PRODUCTION GAP:` with this source location and the existing
-`tests.test_service_recruitment.ServiceRecruitmentTests.test_native_pass_cooldown_restart_and_later_eligibility`
-coverage. Only that assertion is excepted: Recruitment's disabled defaults,
-selection-only registration, snapshot round-trip, and explicit CLI parsing remain
-covered. This is not a skip, a production fix, or a claim that the gap is accepted.
+The five planned AP/cooldown/reset exceptions remain and resolve to retained tests.
+Invariant A2 imports each exception's module, class, and method.
 
-The five planned AP/cooldown/reset exceptions also resolve to retained tests.
-Invariant A2 imports each exception's module, class, and method to reject stale
-coverage references.
+The standard `tests/__init__.py` package marker enables the documented full
+discovery command and defines no tests. The before-review comparison checkout
+uses the identical marker so collection is comparable.
 
-## Executed proof
+## Generation-only review coverage
+
+Invariant F enables an already-enabled flow after its first input. A separate
+method does the same for the service. Both record the enabled-to-enabled
+generation increment and prove the run remains `RUNNING`, not `STOP_REQUESTED`.
+They require a `GENERATION_MISMATCH` report, exactly one input, the route's
+pinned consumption counts, no completed effects, and the matching read-only
+dispatch-validation reason. Original disable/re-enable coverage is separate.
+Assertions run outside the fake's exception-to-partial-result boundary.
+
+`GuardedCampaignRunner` documents its deliberate iteration checkpoint and
+`CampaignApRunnerError` partial-result wrapping, matching the native claimed-run
+boundary rather than silently reproducing the old local fake's omission.
+
+## Initial-consolidation proof (historical)
 
 Environment: Windows x64, Python 3.12.10, Tesseract 5.5.0.20241111,
 `OMP_THREAD_LIMIT=1`, `PYTHONDONTWRITEBYTECODE=1`, and a non-symlinked temporary

@@ -1,7 +1,9 @@
 """Cross-route service safety invariants; no transport or device access."""
 from __future__ import annotations
 
+from contextlib import redirect_stderr
 import importlib
+import io
 import json
 import unittest
 from unittest.mock import patch
@@ -62,7 +64,9 @@ class DisabledByDefaultTests(unittest.TestCase):
             for row in legacy["flows"].values()
         ))
         parser = build_parser()
-        self.assertIsNone(parser.parse_args(["serve"]).flow)
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+            parser.parse_args(["serve"])
+        self.assertEqual(error.exception.code, 2)
         for flow_id, spec in ROUTES.items():
             with self.subTest(route=flow_id):
                 if (flow_id, "disabled_by_default") in EXCEPTIONS:
@@ -101,12 +105,11 @@ class DisabledByDefaultTests(unittest.TestCase):
                                 RecurrenceClass.DAILY_ONCE_PER_RESET,
                             )
                             self.assertTrue(entry.spec.observation_only_completion)
-                    if (flow_id, "explicit_service_selection") not in EXCEPTIONS:
-                        with self.assertRaises(ServiceError):
-                            rig.service.serve(
-                                account_id="account", server_id="server", stop=rig.stop,
-                                emit=lambda _report: None,
-                            )
+                    with self.assertRaises(ServiceError):
+                        rig.service.serve(
+                            account_id="account", server_id="server", stop=rig.stop,
+                            emit=lambda _report: rig.stop.set(),
+                        )
                     self.assertEqual(rig.runner.calls, [])
 
 
@@ -246,9 +249,66 @@ class PartialResultTests(unittest.TestCase):
 
 class GenerationChangeTests(unittest.TestCase):
     def test_generation_change_after_first_input_stops_further_input(self):
+        self._assert_generation_change(service_generation=False)
+
+    def test_service_generation_change_after_first_input_stops_further_input(self):
+        self._assert_generation_change(service_generation=True)
+
+    def _assert_generation_change(self, *, service_generation):
+        invariant = "service_generation_change" if service_generation else "generation_change"
         for flow_id, spec in ROUTES.items():
             with self.subTest(route=flow_id):
-                if (flow_id, "generation_change") in EXCEPTIONS:
+                if (flow_id, invariant) in EXCEPTIONS:
+                    continue
+                with RouteRig(self, spec) as rig:
+                    spec.work(rig.runner)
+                    transitions = []
+
+                    def bump(index):
+                        if index != 0:
+                            return
+                        before = rig.state.get_service() if service_generation else rig.state.get_flow(flow_id)
+                        running_before, = rig.runs()
+                        if service_generation:
+                            rig.state.set_service_enabled(True)
+                        else:
+                            rig.state.set_flow_enabled(flow_id, True)
+                        after = rig.state.get_service() if service_generation else rig.state.get_flow(flow_id)
+                        running_after, = rig.runs()
+                        validation = rig.state.validate_dispatch(
+                            running_after.run_id, now_utc_epoch=rig.stop.now,
+                            allow_executor_marker=True,
+                        )
+                        transitions.append((before, after, running_before.state, running_after.state, validation))
+
+                    rig.runner.on_input = bump
+                    reports = rig.once()
+                    self.assertEqual(len(transitions), 1)
+                    before, after, state_before, state_after, validation = transitions[0]
+                    self.assertTrue(before.enabled)
+                    self.assertTrue(after.enabled)
+                    self.assertEqual(after.generation, before.generation + 1)
+                    self.assertEqual(state_before, RunState.RUNNING)
+                    self.assertEqual(state_after, RunState.RUNNING)
+                    self.assertEqual(reports[0]["status"], "blocked", reports)
+                    self.assertEqual(reports[0]["reason"], "GENERATION_MISMATCH")
+                    run, = rig.runs()
+                    self.assertEqual((run.consumed_inputs, run.consumed_actions), spec.generation_counts)
+                    self.assertEqual(len(rig.runner.inputs), 1)
+                    self.assertEqual(rig.runner.effects, 0)
+                    self.assertTrue(rig.state.get_flow(flow_id).blocked)
+                    self.assertFalse(validation.valid)
+                    self.assertEqual(
+                        validation.reason,
+                        "SERVICE_GENERATION_MISMATCH" if service_generation else "FLOW_GENERATION_MISMATCH",
+                    )
+                    if flow_id == ULTIMATE_FLOW_ID:
+                        self.assertEqual(rig.runner.flee_calls, 0)
+
+    def test_disable_then_reenable_after_first_input_stops_further_input(self):
+        for flow_id, spec in ROUTES.items():
+            with self.subTest(route=flow_id):
+                if (flow_id, "disable_then_reenable") in EXCEPTIONS:
                     continue
                 with RouteRig(self, spec) as rig:
                     spec.work(rig.runner)
@@ -393,14 +453,17 @@ class MultiRouteTests(unittest.TestCase):
             self.assertEqual({item["flow_id"] for item in reports}, {RECRUITMENT_FLOW_ID, NOVA_FLOW_ID})
             self.assertTrue(all(item["status"] == "completed" for item in reports), reports)
 
-    def test_default_remains_recruitment_and_unknown_selection_is_rejected(self):
-        with RouteRig(self, ROUTES[NOVA_FLOW_ID]) as rig:
-            for flow_ids in (None, ("UNKNOWN",)):
+    def test_omitted_and_unknown_selection_are_rejected(self):
+        with RouteRig(self, ROUTES[RECRUITMENT_FLOW_ID]) as rig:
+            for flow_ids in (None, (), ("UNKNOWN",)):
                 with self.subTest(flow_ids=flow_ids), self.assertRaises(ServiceError):
                     rig.service.serve(account_id="account", server_id="server", stop=rig.stop,
-                                      emit=lambda _report: None, flow_ids=flow_ids)
+                                      emit=lambda _report: rig.stop.set(), flow_ids=flow_ids)
+            self.assertEqual(rig.runner.calls, [])
             self.assertEqual(rig.runner.inputs, [])
-            self.assertEqual(build_parser().parse_args(["serve"]).flow, None)
+            with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                build_parser().parse_args(["serve"])
+            self.assertEqual(error.exception.code, 2)
             args = build_parser().parse_args(["serve", "--flow", "nova", "--flow", "recruitment"])
             self.assertEqual(args.flow, ["nova", "recruitment"])
 
