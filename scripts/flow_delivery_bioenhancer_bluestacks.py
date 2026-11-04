@@ -11,6 +11,7 @@ from typing import Any, Mapping
 
 import cv2
 import numpy as np
+from automation_service.registry import BIOENHANCER_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
@@ -20,7 +21,7 @@ FLOW_ID = "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"
 RUNNER_ID = "bioenhancer_free_research_bluestacks_runner"
 VALIDATOR_ID = "bioenhancer_free_research_bluestacks_evidence"
 RECOVERY_ID = "bioenhancer_free_research_bluestacks_recovery"
-MAX_INPUTS = 8
+MAX_INPUTS = BIOENHANCER_MAX_INPUTS
 MAX_FREE_RESEARCH_TRANSPORT_CALLS = 1
 
 

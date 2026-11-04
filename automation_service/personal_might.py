@@ -20,6 +20,7 @@ from tasks.scheduler_task_result import SchedulerIdentity
 from .contracts import FlowSpec, NormalizedOutcome, NormalizedResult
 from .recruitment import recruitment_reset
 from .registry import (
+    PERSONAL_MIGHT_MAX_INPUTS,
     PERSONAL_MIGHT_PRODUCT_ID,
     PERSONAL_MIGHT_PRODUCT_REVISION,
     RegisteredDispatchSnapshot,
@@ -31,7 +32,7 @@ from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 PRODUCT_ID = PERSONAL_MIGHT_PRODUCT_ID
 PRODUCT_REVISION = PERSONAL_MIGHT_PRODUCT_REVISION
 PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
-MAX_INPUTS = 8
+MAX_INPUTS = PERSONAL_MIGHT_MAX_INPUTS
 
 
 class PersonalMightExecutionHandler:

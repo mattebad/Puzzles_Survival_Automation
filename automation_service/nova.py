@@ -14,12 +14,13 @@ from tasks.runtime_identity import (
 )
 
 from .handlers import NovaPraiseSelectionHandler
+from .registry import NOVA_MAX_INPUTS
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 class NovaExecutionHandler(NovaPraiseSelectionHandler):
     selection_only = False
-    max_inputs = 8
+    max_inputs = NOVA_MAX_INPUTS
     max_actions = 1
 
     def __init__(self, snapshot, execute):
@@ -64,7 +65,7 @@ class NovaRunner:
         )
         args = SimpleNamespace(
             adb=self.adb, serial=self.serial, output_directory=self.output_directory,
-            owner="automation-service:nova", max_inputs=8, settle_seconds=1.0,
+            owner="automation-service:nova", max_inputs=NOVA_MAX_INPUTS, settle_seconds=1.0,
             checkpoint=checkpoint, utc_clock=self.utc_clock,
             monotonic_clock=self.monotonic_clock,
         )

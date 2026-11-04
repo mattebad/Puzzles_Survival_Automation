@@ -18,6 +18,7 @@ from tasks.scheduler_task_result import SchedulerIdentity
 
 from .contracts import NormalizedOutcome, NormalizedResult
 from .registry import (
+    ENHANCEMENT_MAX_INPUTS,
     ENHANCEMENT_PRODUCT_ID,
     ENHANCEMENT_PRODUCT_REVISION,
     RegisteredDispatchSnapshot,
@@ -31,7 +32,7 @@ FLOW_ID = native.FLOW_ID
 PRODUCT_ID = ENHANCEMENT_PRODUCT_ID
 PRODUCT_REVISION = ENHANCEMENT_PRODUCT_REVISION
 PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
-MAX_INPUTS = 24
+MAX_INPUTS = ENHANCEMENT_MAX_INPUTS
 MAX_ACTIONS = 3
 _CATEGORIES = ("gear", "chip", "module")
 

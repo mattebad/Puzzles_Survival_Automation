@@ -9,6 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping
 
+from automation_service.registry import RECRUITMENT_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
@@ -17,7 +18,7 @@ FLOW_ID = "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
 RUNNER_ID = "recruitment_bluestacks_runner"
 VALIDATOR_ID = "recruitment_bluestacks_evidence"
 RECOVERY_ID = "recruitment_bluestacks_recovery"
-MAX_INPUTS = 12
+MAX_INPUTS = RECRUITMENT_MAX_INPUTS
 MAX_CONTINUATION_INPUTS = 4
 MAX_RECRUITMENT_ACTIONS = 3
 RECRUIT_TARGET_IDENTITY = "noahs-tavern-daily-free"

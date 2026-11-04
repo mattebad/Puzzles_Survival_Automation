@@ -61,6 +61,7 @@ from navigation_development_boundary import (
     NavigationRouteDeclaration,
     make_source_safety_facts,
 )
+from automation_service.registry import ULTIMATE_MAX_INPUTS
 from scripts.bluestacks_popup_recognition import recognize_reset_popup
 from scripts.bounded_tesseract import call_ocr, tesseract_data, tesseract_string
 from scripts.flow_delivery_evidence import require_operator_evidence
@@ -88,7 +89,7 @@ from tasks.ultimate_challenge_daily import (
     ultimate_challenge_already_completed_from_ocr_hits,
 )
 
-MAX_TOTAL_INPUTS = 16
+MAX_TOTAL_INPUTS = ULTIMATE_MAX_INPUTS
 MAX_HOME_ZOOM_INPUTS = 2
 _ULTIMATE_HOME_ZOOM_SOURCE_STATE = "ULTIMATE_HOME_TEMPLATE"
 _ULTIMATE_HOME_ZOOM_TARGET_IDENTITY = "home-zoom-out"

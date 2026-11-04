@@ -21,6 +21,7 @@ from tasks.ultimate_challenge_daily import (
 )
 from .contracts import FlowSpec, NormalizedOutcome, NormalizedResult
 from .registry import (
+    ULTIMATE_MAX_INPUTS,
     ULTIMATE_PRODUCT_ID,
     ULTIMATE_PRODUCT_REVISION,
     RegisteredDispatchSnapshot,
@@ -33,7 +34,7 @@ from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 PRODUCT_ID = ULTIMATE_PRODUCT_ID
 PRODUCT_REVISION = ULTIMATE_PRODUCT_REVISION
 PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
-MAX_INPUTS = 16
+MAX_INPUTS = ULTIMATE_MAX_INPUTS
 RESET_STATE_PATH = Path(__file__).resolve().parents[1] / ".local-captures/ultimate-challenge-daily-reset-window.json"
 _DAILY_TARGETS = frozenset({"tap_challenge", "tap_lineup_challenge", "tap_upper_right_exit", "tap_flee"})
 
