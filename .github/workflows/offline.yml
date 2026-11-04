@@ -99,6 +99,8 @@ jobs:
           tests.test_service_campaign_ap
           tests.test_service_campaign_dispatch
           tests.test_service_nova
+          tests.test_service_recruitment
+          tests.test_service_route_contract
           tests.test_service_bioenhancer
           tests.test_service_bioenhancer_dispatch
           tests.test_service_supply

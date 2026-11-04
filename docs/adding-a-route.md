@@ -71,8 +71,12 @@ Product *revision* has two vocabularies that are intentionally not compared: the
 8. **Docs**: one README route-table row, the `--flow` in the README example, the counts in
    `docs/automation-service.md`.
 9. **Tests**: add the route to `EXECUTION_HANDLERS` (and `MAX_INPUT_COPIES` for native copies) in
-   `tests/test_route_metadata_consistency.py`, then the route's behavioural tests.
-10. Run `python scripts/check.py`.
+   `tests/test_route_metadata_consistency.py`, and add its `RouteSpec` to `ROUTES` in
+   `tests/support/service_route_contract.py`. The shared service contract must cover every registered
+   flow or explicitly name its navigation-only exclusion. Route modules retain native/route-specific
+   behavior. Non-applicable invariants need an `EXCEPTIONS` reason and a resolvable covering test;
+   production gaps must be labelled `PRODUCTION GAP`, not silently treated as satisfied.
+10. Run `python -m unittest tests.test_service_route_contract` and `python scripts/check.py`.
 
 Renaming a flow id is a migration, not a find-and-replace: keep the old id in a migration constant
 (`RENAMED_FLOW_IDS`, `RENAMED_TASK_IDS`), retained evidence and historical queue records, and list each
@@ -102,3 +106,9 @@ budgets, `--flow` names, pnsctl flow ids, the missing Personal Might queue recor
 and `tests/test_route_metadata_consistency.py` was broken one copy at a time to prove each fact class fails
 with a readable message (see the #34 ticket). The checklist has not yet been exercised by building a
 brand-new route; the next route is its real test.
+
+The shared service contract is implemented and offline-proven with transport patched out. It exercises
+default controls, restart gating, ownership, partial accounting, generation changes, interruption
+signals, execution reset guards and cross-route selection. It is not live acceptance and grants no
+runtime authority. Recruitment's existing API default when `flow_ids` is omitted remains an explicit
+production-gap exception; the contract still checks explicit `serve --flow` parsing for every route.

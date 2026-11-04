@@ -200,6 +200,7 @@ class BorrowedOwnerTests(unittest.TestCase):
                         boundary.RuntimeInputLock, "acquire", autospec=True, side_effect=acquire,
                     ) as acquired:
                         self.assertEqual(rig.once()[0]["status"], "completed")
+                        self.assertEqual(len(rig.runner.inputs), spec.first_inputs)
                         self.assertEqual(checked, [True])
                         if flow_id in borrowed:
                             self.assertEqual(acquired.call_count, 1)
