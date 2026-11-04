@@ -665,7 +665,7 @@ class AutomationService:
             raise ServiceError("serve requires an explicitly configured native runner")
         if not account_id.strip() or not server_id.strip():
             raise ServiceError("serve requires account and server identity")
-        selected = tuple(dict.fromkeys(flow_ids if flow_ids is not None else (RECRUITMENT_FLOW_ID,)))
+        selected = tuple(dict.fromkeys(flow_ids)) if flow_ids is not None else ()
         if operator_request_id is not None:
             if (not isinstance(operator_request_id, str) or not operator_request_id.strip()
                     or len(operator_request_id) > 256

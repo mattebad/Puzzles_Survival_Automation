@@ -149,4 +149,4 @@ class RecruitmentServiceCase(unittest.TestCase):
 
     def serve(self, emit):
         self.service.serve(account_id="account", server_id="server", stop=self.stop,
-                           emit=emit, clock=lambda: self.stop.now)
+                           emit=emit, clock=lambda: self.stop.now, flow_ids=(RECRUITMENT_FLOW_ID,))
