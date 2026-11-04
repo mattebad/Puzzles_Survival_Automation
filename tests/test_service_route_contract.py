@@ -4,16 +4,18 @@ from __future__ import annotations
 import importlib
 import json
 import unittest
+from unittest.mock import patch
 
 from automation_service.cli import build_parser
 from automation_service.contracts import RecurrenceClass
 from automation_service.registry import (
-    BIOENHANCER_FLOW_ID, CANONICAL_FLOW_REGISTRY, ENHANCEMENT_FLOW_ID,
+    BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, CANONICAL_FLOW_REGISTRY, ENHANCEMENT_FLOW_ID,
     PERSONAL_MIGHT_FLOW_ID, REGISTRY_PATH, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
     RegisteredDispatchSnapshot, canonical_entry, canonical_flow_specs,
 )
 from automation_service.service import ServiceError
 from automation_service.state import BotStateManager, RunState
+from scripts import navigation_development_boundary as boundary
 from tests.support.service_route_contract import EXCEPTIONS, NOT_SERVABLE, ROUTES, RouteRig
 
 
@@ -155,6 +157,49 @@ class RestartBeforeDueTests(unittest.TestCase):
                             self.assertEqual(rig.runner.use_calls, 6)
                         if flow_id == PERSONAL_MIGHT_FLOW_ID:
                             self.assertEqual(rig.runner.praise_calls, 2)
+
+
+class BorrowedOwnerTests(unittest.TestCase):
+    def test_runtime_owner_is_held_during_the_run_and_released_after(self):
+        borrowed = {
+            SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, BIOENHANCER_FLOW_ID,
+        }
+        for flow_id, spec in ROUTES.items():
+            with self.subTest(route=flow_id):
+                if (flow_id, "borrowed_owner") in EXCEPTIONS:
+                    continue
+                with RouteRig(self, spec) as rig:
+                    spec.work(rig.runner)
+                    checked = []
+                    acquire = boundary.RuntimeInputLock.acquire
+                    def check_owner():
+                        checked.append(True)
+                        run, = rig.runs()
+                        self.assertEqual(run.state, RunState.RUNNING)
+                        flow = rig.state.get_flow(flow_id)
+                        self.assertTrue(flow.blocked)
+                        self.assertTrue(flow.blocked_reason.startswith(
+                            "EXECUTOR_INTERRUPTED_REQUIRES_INSPECTION:",
+                        ))
+                        # Count only service/session acquisition, not this
+                        # intentional failed acquisition by a parallel owner.
+                        with patch.object(boundary.RuntimeInputLock, "acquire", acquire):
+                            with self.assertRaises(boundary.NavigationBoundaryError):
+                                with boundary.RuntimeInputLock(owner="contender", invocation_id="parallel"):
+                                    self.fail("a parallel runtime owner acquired the lock")
+                    if flow_id == CAMPAIGN_FLOW_ID:
+                        rig.runner.check_runtime_owner = check_owner
+                    else:
+                        rig.runner.on_entry = check_owner
+                    with patch.object(
+                        boundary.RuntimeInputLock, "acquire", autospec=True, side_effect=acquire,
+                    ) as acquired:
+                        self.assertEqual(rig.once()[0]["status"], "completed")
+                        self.assertEqual(checked, [True])
+                        if flow_id in borrowed:
+                            self.assertEqual(acquired.call_count, 1)
+                    with boundary.RuntimeInputLock(owner="next-owner", invocation_id="after-serve"):
+                        pass
 
 
 class GenerationChangeTests(unittest.TestCase):
