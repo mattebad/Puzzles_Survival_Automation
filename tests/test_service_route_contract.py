@@ -16,7 +16,9 @@ from automation_service.registry import (
 from automation_service.service import ServiceError
 from automation_service.state import BotStateManager, RunState
 from scripts import navigation_development_boundary as boundary
-from tests.support.service_route_contract import EXCEPTIONS, NOT_SERVABLE, ROUTES, RouteRig
+from tests.support.service_route_contract import (
+    EXCEPTIONS, NOT_SERVABLE, ROUTES, RouteRig, _runner_kwarg,
+)
 
 
 class RouteTableTests(unittest.TestCase):
@@ -314,6 +316,30 @@ class StopSignalsTests(unittest.TestCase):
                     self.assertIn("SERVICE_LEASE_LOST", rig.state.get_flow(flow_id).blocked_reason)
                     with boundary.RuntimeInputLock(owner="after-failure", invocation_id="released"):
                         pass
+
+
+class ResetGuardTests(unittest.TestCase):
+    def test_reset_change_during_execution_blocks_the_route(self):
+        for flow_id, spec in ROUTES.items():
+            with self.subTest(route=flow_id):
+                if (flow_id, "reset_guard") in EXCEPTIONS:
+                    continue
+                with RouteRig(self, spec) as rig:
+                    midnight = (int(rig.stop.now) // 86400 + 1) * 86400
+                    rig.stop.now = midnight - 1
+                    calls = []
+                    def cross_midnight(identity, previous, checkpoint, **options):
+                        calls.append(identity)
+                        rig.stop.now = midnight + 1
+                        checkpoint()
+                        self.fail("reset-scoped execution continued after the day changed")
+                    setattr(rig.service, _runner_kwarg(flow_id), cross_midnight)
+                    reports = rig.once()
+                    self.assertEqual(len(calls), 1)
+                    self.assertEqual(len(reports), 1)
+                    self.assertEqual(reports[0]["status"], "blocked")
+                    self.assertIn("RESET_CHANGED_DURING_", reports[0]["reason"])
+                    self.assertTrue(rig.state.get_flow(flow_id).blocked)
 
 
 if __name__ == "__main__":
