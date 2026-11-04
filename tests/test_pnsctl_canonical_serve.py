@@ -15,6 +15,7 @@ from automation_service.state import BotStateManager
 from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+from tasks.runtime_identity import BLUESTACKS_ADB
 
 
 class CanonicalServeFacadeTests(unittest.TestCase):
@@ -80,6 +81,7 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                 code = pnsctl.main([
                     "automation-service", "--mode", "supervised", "--adapter", "bluestacks",
                     "--state-path", str(database), "serve", "--live", "--flow", "campaign",
+                    "--adb", str(BLUESTACKS_ADB),
                     "--serial", "emulator-5554", "--account-id", "account", "--server-id", "server",
                 ])
             self.assertEqual(code, 0)
@@ -88,6 +90,29 @@ class CanonicalServeFacadeTests(unittest.TestCase):
             with BotStateManager(database, read_only=True) as state:
                 self.assertFalse(state.get_service_enabled())
                 self.assertFalse(any(row[0] for row in state._db.execute("SELECT enabled FROM flow_state")))
+                self.assertEqual(state._db.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 0)
+
+    def test_a_native_command_off_the_fixed_bluestacks_adb_is_rejected_before_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "isolated-state.sqlite3"
+            with BotStateManager(database) as state:
+                state.initialize_flows(canonical_flow_specs())
+            for adb in ((), ("--adb", "adb")):
+                with self.subTest(adb=adb):
+                    output = io.StringIO()
+                    with patch.object(boundary, "RuntimeInputLock", return_value=nullcontext()), patch.object(
+                        LocalBlueStacksRuntime, "connect"
+                    ) as connect, redirect_stdout(output):
+                        code = pnsctl.main([
+                            "automation-service", "--mode", "supervised", "--adapter", "bluestacks",
+                            "--state-path", str(database), "serve", "--live", "--flow", "campaign", *adb,
+                            "--serial", "emulator-5554", "--account-id", "account", "--server-id", "server",
+                        ])
+                    self.assertEqual(code, 2)
+                    self.assertEqual(json.loads(output.getvalue())["error"],
+                                     "native application startup requires the fixed BlueStacks runtime")
+                    connect.assert_not_called()
+            with BotStateManager(database, read_only=True) as state:
                 self.assertEqual(state._db.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 0)
 
     def test_direct_service_cli_cannot_serve_native_without_the_pnsctl_startup(self):
