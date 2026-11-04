@@ -42,6 +42,25 @@ The unchanged `scripts/check.py` passes 397 tests with zero failures/errors/skip
 on each OS. An actual offline recovery-selector smoke rejects duplicate sources
 without changing state bytes or creating reservations.
 
+## Combined #24/#30 integration
+
+Candidate `9cffb17` combines both reviewed branches without rewriting history.
+Discovery covers 239 modules / 3,160 cases. Windows full discovery passes with
+43 environment skips; the controlled check passes 397 cases without skips on
+both Windows and Linux.
+
+Docker Linux full discovery has one failure in the unchanged
+`test_supply_claim_button` before-frame binding case, with 41 skips. A targeted
+diagnostic observes `OCR_DEADLINE` in its broad-crop recognition at the existing
+1.75-second execution limit. No assertion, recognition gate or timeout was changed.
+The owner authorized publishing to draft PR #40 for hosted Ubuntu/Windows proof;
+that combined CI evidence remains `evidence_required` until both jobs pass.
+
+All 66 affected contract/route/CLI checks pass with process launching forbidden.
+An actual offline service smoke rejects omitted selection without claims or
+runner calls, then completes all eight explicitly selected routes with their
+pinned consumption and releases the runtime owner. No live runtime was used.
+
 ## Module classification
 
 Classes: **a** stale contract/fake, **b** production defect, **c** environment,
@@ -119,5 +138,7 @@ The earlier [owner-authorized navigation observation](https://github.com/matteba
 used the original shared runtime with candidate perception, not a whole-candidate
 deployment or separate no-history radial-start round trip. Its private local
 captures are not portable acceptance evidence. This review pass is entirely
-offline. PR #45 remains draft/unmerged pending owner acceptance. The original
-23-module inventory is now accounted for using its published source.
+offline. PR #45 remained draft/unmerged through the review-fixup proof. The owner
+later authorized integrating #24 and #30 into draft PR #40; this does not authorize
+merging to main or changing deployment. The original 23-module inventory is
+accounted for using its published source.
