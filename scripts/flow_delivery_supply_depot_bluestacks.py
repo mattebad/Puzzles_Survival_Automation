@@ -9,12 +9,12 @@ from pathlib import Path
 import shutil
 from typing import Any, Mapping
 
-from automation_service.registry import SUPPLY_MAX_INPUTS
+from automation_service.registry import SUPPLY_FLOW_ID, SUPPLY_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
-FLOW_ID = "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION"
+FLOW_ID = SUPPLY_FLOW_ID
 RUNNER_ID = "supply_depot_bluestacks_runner"
 VALIDATOR_ID = "supply_depot_bluestacks_evidence"
 RECOVERY_ID = "supply_depot_bluestacks_recovery"

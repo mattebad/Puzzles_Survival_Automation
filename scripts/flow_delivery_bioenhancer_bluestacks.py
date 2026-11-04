@@ -11,13 +11,13 @@ from typing import Any, Mapping
 
 import cv2
 import numpy as np
-from automation_service.registry import BIOENHANCER_MAX_INPUTS
+from automation_service.registry import BIOENHANCER_FLOW_ID, BIOENHANCER_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FLOW_ID = "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"
+FLOW_ID = BIOENHANCER_FLOW_ID
 RUNNER_ID = "bioenhancer_free_research_bluestacks_runner"
 VALIDATOR_ID = "bioenhancer_free_research_bluestacks_evidence"
 RECOVERY_ID = "bioenhancer_free_research_bluestacks_recovery"

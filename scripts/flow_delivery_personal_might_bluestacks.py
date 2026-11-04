@@ -14,7 +14,7 @@ from typing import Any, Mapping
 import cv2
 import numpy as np
 
-from automation_service.registry import PERSONAL_MIGHT_MAX_INPUTS
+from automation_service.registry import PERSONAL_MIGHT_FLOW_ID, PERSONAL_MIGHT_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime, captured_native_frame_from_png
 from scripts.home_atlas_bluestacks import identity_from_captured
 from scripts.navigation_development_boundary import DevelopmentInitialObservation, DevelopmentSession
@@ -32,7 +32,7 @@ from tasks.personal_might_praise import SEMANTIC_ACTION, SOURCE_STATE, TARGET_ID
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
-FLOW_ID = "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION"
+FLOW_ID = PERSONAL_MIGHT_FLOW_ID
 RUNNER_ID = "personal_might_bluestacks_runner"
 VALIDATOR_ID = "personal_might_bluestacks_evidence"
 RECOVERY_ID = "personal_might_bluestacks_recovery"

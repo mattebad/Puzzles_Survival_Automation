@@ -16,6 +16,7 @@ from typing import Any, Callable, Mapping
 import cv2
 import numpy as np
 
+from automation_service.registry import ENHANCEMENT_FLOW_ID
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from tasks.enhancement import (
     BLUESTACKS_NATIVE_TARGET_PROVENANCE,
@@ -28,7 +29,7 @@ from tasks.enhancement import (
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
-FLOW_ID = "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+FLOW_ID = ENHANCEMENT_FLOW_ID
 RUNNER_ID = "enhancement_family_bluestacks_runner"
 VALIDATOR_ID = "enhancement_family_bluestacks_evidence"
 RECOVERY_ID = "enhancement_family_bluestacks_recovery"

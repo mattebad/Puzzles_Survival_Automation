@@ -9,12 +9,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping
 
-from automation_service.registry import RECRUITMENT_MAX_INPUTS
+from automation_service.registry import RECRUITMENT_FLOW_ID, RECRUITMENT_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
-FLOW_ID = "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
+FLOW_ID = RECRUITMENT_FLOW_ID
 RUNNER_ID = "recruitment_bluestacks_runner"
 VALIDATOR_ID = "recruitment_bluestacks_evidence"
 RECOVERY_ID = "recruitment_bluestacks_recovery"

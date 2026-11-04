@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from automation_service.registry import NOVA_MAX_INPUTS
+from automation_service.registry import NOVA_FLOW_ID, NOVA_MAX_INPUTS
 from tasks.nova_praise_runtime import NovaPraiseRuntimeController
 from tasks.nova_praise import NOVA_PRAISE_TARGET, NOVA_SCREEN
 from tasks.nova_praise_vision import (
@@ -1053,7 +1053,7 @@ class NovaNavigationRoute:
         )
 
         source = self._capture("navigation-source")
-        plan = classify_startup_frame("NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE", source.png)
+        plan = classify_startup_frame(NOVA_FLOW_ID, source.png)
         if plan.status == "recovery_required" and plan.recovery_owner in {
             "shared_home_startup_recovery", "shared_startup_surface_recovery",
         }:
@@ -1803,7 +1803,7 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
             status="failed",
             reason=f"exception:{type(exc).__name__}",
             records=tuple(route.navigation.records) if route is not None else (),
-            flow_id="NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+            flow_id=NOVA_FLOW_ID,
             scenario_id="nova_praise_one_free_pulse",
             navigation_input_count=route.navigation.input_count if route is not None else 0,
             authorized_gestures=(
@@ -1843,7 +1843,7 @@ def run_nova_praise_one_free_pulse(args, identity: VerifiedRuntimeIdentity) -> s
             else "blocked",
             reason=result.reason,
             records=result.records,
-            flow_id="NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+            flow_id=NOVA_FLOW_ID,
             scenario_id="nova_praise_one_free_pulse",
             navigation_input_count=result.navigation_input_count,
             authorized_gestures=(

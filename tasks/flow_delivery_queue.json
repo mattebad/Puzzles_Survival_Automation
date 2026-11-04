@@ -82,8 +82,8 @@
         "execution_flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
         "queue_record_state": "accepted_existing",
         "depends_on": [],
-        "maximum_inputs": 11,
-        "maximum_resource_list_swipes": 8,
+        "maximum_inputs": 10,
+        "maximum_resource_list_swipes": 6,
         "blocker": null
       },
       {

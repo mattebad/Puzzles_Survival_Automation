@@ -181,6 +181,18 @@ class ServiceStatus:
     scheduler_eligible: bool
     service_enabled: bool = False
     flow_enabled: dict[str, bool] | None = None
+def _runner_attribute(cli_name: str) -> str:
+    """Name of the ``AutomationService`` runner for a ``serve --flow`` name."""
+
+    return cli_name.replace("-", "_") + "_runner"
+
+
+def _reason_prefix(cli_name: str) -> str:
+    """Reason-code prefix of a served route, e.g. ``personal-might`` -> ``PERSONAL_MIGHT``."""
+
+    return cli_name.replace("-", "_").upper()
+
+
 def registry_descriptor(
     entry: DisabledProductionEntry | CanonicalFlowRegistration,
 ):
@@ -662,10 +674,9 @@ class AutomationService:
             operator_request_id = operator_request_id.strip()
         if not selected or any(item not in servable_flow_names().values() for item in selected):
             raise ServiceError("serve requires an explicitly supported native route")
-        runners = {RECRUITMENT_FLOW_ID: self.recruitment_runner, NOVA_FLOW_ID: self.nova_runner,
-                   CAMPAIGN_FLOW_ID: self.campaign_runner, BIOENHANCER_FLOW_ID: self.bioenhancer_runner,
-                   SUPPLY_FLOW_ID: self.supply_runner, ULTIMATE_FLOW_ID: self.ultimate_runner,
-                   ENHANCEMENT_FLOW_ID: self.enhancement_runner, PERSONAL_MIGHT_FLOW_ID: self.personal_might_runner}
+        # Every servable route has exactly one ``<cli_name>_runner`` constructor argument.
+        runners = {flow_id: getattr(self, _runner_attribute(cli_name))
+                   for cli_name, flow_id in servable_flow_names().items()}
         if any(not callable(runners[item]) for item in selected):
             raise ServiceError("serve requires an explicitly configured runner for every selected flow")
         state = self.state
@@ -674,6 +685,7 @@ class AutomationService:
             replace(entry.descriptor, allows_pending_resource_observation=True)
             if entry.flow_id == CAMPAIGN_FLOW_ID else entry.descriptor
         ) for entry in entries}
+        entry_by_flow = {entry.flow_id: entry for entry in entries}
         previous_resets = {}
         executor_results = {}
         with RuntimeInputLock(owner="automation-service", invocation_id=state.owner_instance_id) as owner:
@@ -682,10 +694,7 @@ class AutomationService:
                 descriptor = effective_descriptors[flow_id]
                 executor_results[flow_id] = {}
                 recruitment = flow_id == RECRUITMENT_FLOW_ID
-                prefix = {RECRUITMENT_FLOW_ID: "RECRUITMENT", NOVA_FLOW_ID: "NOVA",
-                          CAMPAIGN_FLOW_ID: "CAMPAIGN", BIOENHANCER_FLOW_ID: "BIOENHANCER",
-                          SUPPLY_FLOW_ID: "SUPPLY", ULTIMATE_FLOW_ID: "ULTIMATE",
-                          ENHANCEMENT_FLOW_ID: "ENHANCEMENT", PERSONAL_MIGHT_FLOW_ID: "PERSONAL_MIGHT"}[flow_id]
+                prefix = _reason_prefix(entry_by_flow[flow_id].cli_name)
                 interrupted = f"EXECUTOR_INTERRUPTED_REQUIRES_INSPECTION:{run.run_id}"
                 task_id = {RECRUITMENT_FLOW_ID: MAINTENANCE_TASK_ID, NOVA_FLOW_ID: NOVA_TASK_ID,
                            CAMPAIGN_FLOW_ID: CAMPAIGN_FLOW_ID, BIOENHANCER_FLOW_ID: BIOENHANCER_TASK_ID,
@@ -988,10 +997,7 @@ class AutomationService:
                         return
                     if report.result is not None:
                         result = report.result
-                        prefix = {RECRUITMENT_FLOW_ID: "RECRUITMENT", NOVA_FLOW_ID: "NOVA",
-                                  CAMPAIGN_FLOW_ID: "CAMPAIGN", BIOENHANCER_FLOW_ID: "BIOENHANCER",
-                                  SUPPLY_FLOW_ID: "SUPPLY", ULTIMATE_FLOW_ID: "ULTIMATE",
-                                  ENHANCEMENT_FLOW_ID: "ENHANCEMENT", PERSONAL_MIGHT_FLOW_ID: "PERSONAL_MIGHT"}[entry.flow_id]
+                        prefix = _reason_prefix(entry.cli_name)
                         completed = result.verified and result.reason_code == f"{prefix}_PASS_VERIFIED"
                         rollover_deferred = (
                             result.reason_code == f"{prefix}_RESET_ROLLOVER_DEFERRED"
