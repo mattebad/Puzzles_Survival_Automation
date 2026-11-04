@@ -23,6 +23,8 @@ from unittest.mock import patch
 import numpy as np
 import pytesseract.pytesseract as engine
 
+from tests.support.environment import require_tesseract
+
 
 def _image_key(image):
     if isinstance(image, np.ndarray):
@@ -37,10 +39,11 @@ def _image_key(image):
 
 
 class OcrMemo:
-    """Memoizes ``run_and_get_output``; ``misses`` counts real Tesseract runs."""
+    """Memoizes OCR; installed instances gate executable availability on real misses."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, require_tesseract_on_miss: bool = False) -> None:
         self._real = engine.run_and_get_output
+        self._require_tesseract_on_miss = require_tesseract_on_miss
         self._results: dict[tuple, tuple[str | bytes, float]] = {}
         self._lock = threading.Lock()
         self.hits = 0
@@ -54,6 +57,8 @@ class OcrMemo:
     def __call__(self, image, extension="", lang=None, config="", nice=0, timeout=0, return_bytes=False):
         image_key = _image_key(image)
         if image_key is None:
+            if self._require_tesseract_on_miss:
+                require_tesseract()
             return self._real(image, extension, lang, config, nice, timeout, return_bytes)
         key = (image_key, extension, lang, config, nice, bool(return_bytes))
         with self._lock:
@@ -61,6 +66,8 @@ class OcrMemo:
             if cached is not None and (not timeout or cached[1] <= timeout):
                 self.hits += 1
                 return cached[0]
+        if self._require_tesseract_on_miss:
+            require_tesseract()
         started = time.monotonic()
         result = self._real(image, extension, lang, config, nice, timeout, return_bytes)
         elapsed = time.monotonic() - started
@@ -81,7 +88,8 @@ class OcrMemo:
 
 
 def install_module_memo() -> OcrMemo:
-    """Call from ``setUpModule``; the memo is removed again by the module cleanup."""
-    memo = OcrMemo().start()
+    """Install a Tesseract-gated memo from ``setUpModule`` and clean it up afterward."""
+
+    memo = OcrMemo(require_tesseract_on_miss=True).start()
     unittest.addModuleCleanup(memo.stop)
     return memo

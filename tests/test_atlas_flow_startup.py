@@ -15,6 +15,7 @@ from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.atlas_startup_normalizer import AtlasStartupDisposition
 from tasks.home_atlas import AmbiguityState, ZoomIdentity
 from tasks.home_atlas_vision import frame_digest
+from tests.support.environment import requires_tesseract
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -210,6 +211,7 @@ class AtlasFlowStartupTests(unittest.TestCase):
                 ),
             ),
             patch.object(startup, "ScrcpyMotionEventZoomTransport", _Transport),
+            patch.object(startup, "is_clean_home_frame", return_value=True),
         ):
             with self.assertRaises(startup.AtlasStartupNormalizationError):
                 startup.normalize_home_atlas_startup(
@@ -253,6 +255,7 @@ class AtlasFlowStartupTests(unittest.TestCase):
             records[-1]["disposition"], AtlasStartupDisposition.READY.value
         )
 
+    @requires_tesseract
     def test_native_zoomed_home_uses_canonical_clean_home_for_one_bounded_zoom(self):
         source = _captured_png(HOME_BIO_FIXTURE, "native-bio-source")
         immediate = _captured_png(HOME_BIO_FIXTURE, "native-bio-immediate")
@@ -285,6 +288,7 @@ class AtlasFlowStartupTests(unittest.TestCase):
         self.assertEqual(records[0]["disposition"], AtlasStartupDisposition.RECOVER_ZOOM.value)
         self.assertEqual(records[-1]["disposition"], AtlasStartupDisposition.READY.value)
 
+    @requires_tesseract
     def test_popup_and_radial_home_sources_block_before_zoom_transport(self):
         for fixture in (POPUP_FIXTURE, RADIAL_FIXTURE):
             with self.subTest(fixture=fixture.name):

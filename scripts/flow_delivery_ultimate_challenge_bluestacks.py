@@ -19,8 +19,10 @@ import numpy as np
 from automation_service.registry import ULTIMATE_FLOW_ID, ULTIMATE_MAX_INPUTS
 from scripts.flow_delivery_evidence import (
     FlowEvidenceIntegrityError,
+    REQUIRED_OPERATOR_ARTIFACTS,
     require_operator_evidence,
 )
+from safe_action_core.path_safety import UnsafePathError, require_no_untrusted_symlinks
 from tasks.ultimate_challenge_daily import (
     BLUESTACKS_RUNTIME_PROFILE_ID,
     TERMINAL_COMPLETE_FOR_RESET,
@@ -42,6 +44,46 @@ UC_DAILY_RUNNER_ID = "ultimate_challenge_daily_runner"
 UC_DAILY_EVIDENCE_VALIDATOR_ID = "ultimate_challenge_daily_evidence"
 UC_DAILY_RECOVERY_HANDLER_ID = "ultimate_challenge_daily_recovery"
 DAILY_PROOF_TOPOLOGY = "continuous"
+
+
+
+def _physical_path(path: Path) -> Path:
+    """Validate raw path components before resolving aliases to physical paths."""
+
+    return require_no_untrusted_symlinks(Path(path)).resolve()
+
+
+def _session_reference(session: Path, reference: str | Path) -> tuple[Path, Path]:
+    """Return a physical session root and a contained, validated evidence path."""
+
+    safe_session = require_no_untrusted_symlinks(Path(session))
+    root = safe_session.resolve()
+    raw_reference = Path(reference)
+    candidate = (
+        raw_reference
+        if raw_reference.is_absolute()
+        else safe_session / raw_reference
+    )
+    path = require_no_untrusted_symlinks(candidate).resolve()
+    if root not in path.parents:
+        raise ValueError("evidence reference escaped its session")
+    return root, path
+
+
+def _operator_evidence_session(session: Path) -> Path:
+    """Validate every path the shared operator-evidence reader may open."""
+
+    root = _physical_path(session)
+    for name in ("result.json", *REQUIRED_OPERATOR_ARTIFACTS):
+        _session_reference(root, name)
+    frames = _session_reference(root, "frames")[1]
+    frame_paths = sorted(frames.glob("*.png")) if frames.is_dir() else []
+    if not frame_paths:
+        frames = _session_reference(root, "runtime/frames")[1]
+        frame_paths = sorted(frames.glob("*.png")) if frames.is_dir() else []
+    for frame in frame_paths:
+        _session_reference(root, frame.relative_to(root))
+    return root
 
 
 def _utc_stamp() -> str:
@@ -69,9 +111,11 @@ def _verified_home_evidence(
     relative = result.get("home_frame")
     if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
         return False, None
-    session = session_directory.resolve()
-    candidate = (session / relative).resolve()
-    if session not in candidate.parents or not candidate.is_file():
+    try:
+        _session, candidate = _session_reference(session_directory, relative)
+    except (OSError, ValueError):
+        return False, None
+    if not candidate.is_file():
         return False, None
     payload = candidate.read_bytes()
     expected_hash = str(result.get("home_frame_sha256") or result.get("home_sha256") or "")
@@ -95,7 +139,12 @@ def run_ultimate_challenge_navigation_only(
     pnsctl = _pnsctl()
     _legacy_flow, maximum = _ultimate_runtime_context(queue, lease)
     stamp = _utc_stamp()
-    session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"nav-ultimate-challenge-{stamp}"
+    try:
+        session = _physical_path(
+            pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"nav-ultimate-challenge-{stamp}"
+        )
+    except UnsafePathError as exc:
+        raise pnsctl.OperatorError("Ultimate Challenge session path contains a link") from exc
     session.mkdir(parents=True, exist_ok=False)
     command = [
         sys.executable,
@@ -119,12 +168,17 @@ def run_ultimate_challenge_navigation_only(
         text=True,
         check=False,
     )
-    (session / "operator-stdout.log").write_text(completed.stdout or "", encoding="utf-8")
-    (session / "operator-stderr.log").write_text(completed.stderr or "", encoding="utf-8")
+    _root, stdout_path = _session_reference(session, "operator-stdout.log")
+    _root, stderr_path = _session_reference(session, "operator-stderr.log")
+    stdout_path.write_text(completed.stdout or "", encoding="utf-8")
+    stderr_path.write_text(completed.stderr or "", encoding="utf-8")
     child_sessions = sorted(path for path in session.iterdir() if path.is_dir())
     uc_session = child_sessions[-1] if child_sessions else session
     try:
+        uc_session = _operator_evidence_session(uc_session)
         uc_result, frame_names = require_operator_evidence(uc_session)
+    except UnsafePathError as exc:
+        raise pnsctl.OperatorError("Ultimate Challenge evidence session contains a link") from exc
     except FlowEvidenceIntegrityError as exc:
         raise pnsctl.OperatorError(
             f"Ultimate Challenge executable/evidence-integrity failure: {exc}"
@@ -175,7 +229,8 @@ def run_ultimate_challenge_navigation_only(
         "frames": frame_names,
         "operator_returncode": completed.returncode,
     }
-    (uc_session / "flow-delivery-result.json").write_text(
+    _root, delivery_path = _session_reference(uc_session, "flow-delivery-result.json")
+    delivery_path.write_text(
         json.dumps(delivery, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
@@ -325,7 +380,8 @@ def _terminal_development_session(lease: Mapping[str, Any]) -> tuple[Any, dict[s
 
 def _read_events(session: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for path in (session / "events.jsonl", session / "runtime" / "events.jsonl"):
+    for reference in ("events.jsonl", "runtime/events.jsonl"):
+        _root, path = _session_reference(session, reference)
         if not path.is_file():
             continue
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -379,7 +435,9 @@ def _defeat_flee_recovery_evidence(session: Path, result: Mapping[str, Any]) -> 
     if (result.get("terminal") != "blocked_fail_closed"
             or result.get("completed_actions") != [] or result.get("input_count") != 1):
         raise ValueError("defeat recovery requires an isolated failed Flee attempt")
-    rows = [json.loads(line) for line in (session / "runtime/events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    session = _physical_path(session)
+    _root, event_path = _session_reference(session, "runtime/events.jsonl")
+    rows = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if any(not isinstance(row, dict) or row.get("type") not in {"capture", "dispatch"} for row in rows):
         raise ValueError("defeat recovery journal contains an invalid row")
     dispatches = [(index, row) for index, row in enumerate(rows) if row.get("type") == "dispatch"]
@@ -400,9 +458,10 @@ def _defeat_flee_recovery_evidence(session: Path, result: Mapping[str, Any]) -> 
 
     def capture(row):
         raw = Path(row["path"])
-        path = (raw if raw.is_absolute() else session / raw).resolve()
-        if raw.is_symlink() or not path.is_relative_to(session):
-            raise ValueError("defeat recovery capture escaped its session")
+        try:
+            _root, path = _session_reference(session, raw)
+        except (OSError, ValueError) as exc:
+            raise ValueError("defeat recovery capture escaped its session") from exc
         payload = path.read_bytes()
         if hashlib.sha256(payload).hexdigest() != row["sha256"]:
             raise ValueError("defeat recovery capture hash changed")
@@ -442,11 +501,14 @@ def _validated_flee_recovery(
     session: Path, reset_identity: str, expected_result_sha256: str | None = None,
 ) -> dict[str, str]:
     """Validate one exact retained Flee effect; this grants no input authority."""
-    session = session.resolve()
     try:
+        session = _physical_path(session)
+        session = _operator_evidence_session(session)
         result, _ = require_operator_evidence(session)
-        result_hash = hashlib.sha256((session / "result.json").read_bytes()).hexdigest()
-        delivery = json.loads((session / "flow-delivery-result.json").read_text(encoding="utf-8"))
+        _root, result_path = _session_reference(session, "result.json")
+        result_hash = hashlib.sha256(result_path.read_bytes()).hexdigest()
+        _root, delivery_path = _session_reference(session, "flow-delivery-result.json")
+        delivery = json.loads(delivery_path.read_text(encoding="utf-8"))
         if (
             result.get("flow_id") != FLOW_ID
             or result.get("reset_identity") != reset_identity
@@ -485,9 +547,12 @@ def _validated_flee_recovery(
             captures = [row for row in events if row.get("type") == "capture" and row.get("sha256") == digest]
             valid = False
             for capture in captures:
-                path = Path(str(capture.get("path") or ""))
-                path = (path if path.is_absolute() else session / path).resolve()
-                if session not in path.parents or not path.is_file():
+                raw_path = Path(str(capture.get("path") or ""))
+                try:
+                    _root, path = _session_reference(session, raw_path)
+                except (OSError, ValueError):
+                    continue
+                if not path.is_file():
                     continue
                 data = path.read_bytes()
                 frame = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
@@ -540,7 +605,8 @@ def _write_daily_causal_trace(
         "terminal": terminal,
         "canonical_home_verified": home_verified,
     }
-    (session / "causal-trace.json").write_text(
+    _root, trace_path = _session_reference(session, "causal-trace.json")
+    trace_path.write_text(
         json.dumps(trace, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     return trace
@@ -559,7 +625,12 @@ def run_ultimate_challenge_daily(
     if migrated_session:
         outer_session, initial_observation = _terminal_development_session(lease)
     stamp = _utc_stamp()
-    session = pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"daily-{stamp}"
+    try:
+        session = _physical_path(
+            pnsctl.BLUESTACKS_ARTIFACT_ROOT / FLOW_ID / f"daily-{stamp}"
+        )
+    except UnsafePathError as exc:
+        raise pnsctl.OperatorError("Ultimate Challenge session path contains a link") from exc
     session.mkdir(parents=True, exist_ok=False)
     reset_identity = _current_reset_identity()
     reset_state_path = _reset_window_state_path()
@@ -571,8 +642,14 @@ def run_ultimate_challenge_daily(
         raise pnsctl.OperatorError("Ultimate recovery requires a retained session")
     recovery_evidence = None
     if recovery_path:
-        if state.pending_home_session and Path(recovery_path).resolve() != Path(state.pending_home_session).resolve():
-            raise pnsctl.OperatorError("Ultimate recovery does not match the pending Flee session")
+        if state.pending_home_session:
+            try:
+                recovery_root = _physical_path(Path(recovery_path))
+                pending_root = _physical_path(Path(state.pending_home_session))
+            except UnsafePathError as exc:
+                raise pnsctl.OperatorError("Ultimate recovery session path contains a link") from exc
+            if recovery_root != pending_root:
+                raise pnsctl.OperatorError("Ultimate recovery does not match the pending Flee session")
         recovery_evidence = _validated_flee_recovery(
             Path(recovery_path), reset_identity, state.pending_home_result_sha256,
         )
@@ -598,12 +675,17 @@ def run_ultimate_challenge_daily(
     if recovery_evidence is None:
         command.extend(["--reset-state-path", str(reset_state_path)])
     completed = subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
-    (session / "operator-stdout.log").write_text(completed.stdout or "", encoding="utf-8")
-    (session / "operator-stderr.log").write_text(completed.stderr or "", encoding="utf-8")
+    _root, stdout_path = _session_reference(session, "operator-stdout.log")
+    _root, stderr_path = _session_reference(session, "operator-stderr.log")
+    stdout_path.write_text(completed.stdout or "", encoding="utf-8")
+    stderr_path.write_text(completed.stderr or "", encoding="utf-8")
     child_sessions = sorted(path for path in session.iterdir() if path.is_dir())
     uc_session = child_sessions[-1] if child_sessions else session
     try:
+        uc_session = _operator_evidence_session(uc_session)
         uc_result, frame_names = require_operator_evidence(uc_session)
+    except UnsafePathError as exc:
+        raise pnsctl.OperatorError("Ultimate Challenge evidence session contains a link") from exc
     except FlowEvidenceIntegrityError as exc:
         raise pnsctl.OperatorError(f"Ultimate Challenge executable/evidence-integrity failure: {exc}") from exc
     terminal = uc_result.get("terminal")
@@ -646,8 +728,12 @@ def run_ultimate_challenge_daily(
             ) from exc
     trace = None
     if migrated_session and initial_observation is not None and outer_session is not None:
-        source = Path(outer_session.session_directory) / "source.png"
-        retained_initial = uc_session / "frames" / "0000-initial-observation.png"
+        _root, source = _session_reference(
+            Path(outer_session.session_directory), "source.png"
+        )
+        _root, retained_initial = _session_reference(
+            uc_session, "frames/0000-initial-observation.png"
+        )
         if not source.is_file():
             raise pnsctl.OperatorError(
                 "Ultimate terminal session initial frame is not retained"
@@ -731,7 +817,8 @@ def run_ultimate_challenge_daily(
     }
     if reconciliation_required:
         delivery["status"] = "effect_reconciliation_required"
-    (uc_session / "flow-delivery-result.json").write_text(json.dumps(delivery, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _root, delivery_path = _session_reference(uc_session, "flow-delivery-result.json")
+    delivery_path.write_text(json.dumps(delivery, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if not ok and recovery_evidence is None and semantic_effect_state == "flee_confirmed":
         pending = _validated_flee_recovery(uc_session, reset_identity)
         save_reset_window_state(
@@ -840,7 +927,10 @@ def verify_ultimate_challenge_daily(
     uc = result.get("ultimate_challenge_result") or {}
     if uc.get("terminal") not in {"complete_for_reset", "already_completed"}:
         raise pnsctl.OperatorError("Ultimate Challenge Daily did not prove the reset terminal")
-    session_directory = Path(str(structure["session_directory"]))
+    try:
+        session_directory = _physical_path(Path(str(structure["session_directory"])))
+    except UnsafePathError as exc:
+        raise pnsctl.OperatorError("Ultimate Challenge evidence session contains a link") from exc
     home_verified, home_path = _verified_home_evidence(session_directory, uc)
     if not home_verified:
         raise pnsctl.OperatorError("Ultimate Challenge terminal lacks independently verified Home evidence")
@@ -854,9 +944,11 @@ def verify_ultimate_challenge_daily(
     if isinstance(initial, Mapping):
         digest = str(initial.get("frame_sha256") or "")
         try:
+            frame_reference = str(initial.get("frame_path") or "")
+            _session_reference(session_directory, frame_reference)
             retained = pnsctl._session_relative_path(
                 session_directory,
-                str(initial.get("frame_path") or ""),
+                frame_reference,
                 "initial_observation.frame_path",
             )
             initial_ok = bool(
@@ -929,7 +1021,7 @@ def verify_ultimate_challenge_daily(
         "session_directory": structure["session_directory"],
         "actions": result.get("actions", []),
         "terminal_runtime_state": result["terminal_runtime_state"],
-        "verified_home_path": str(home_path.relative_to(session_directory.resolve())).replace("\\", "/"),
+        "verified_home_path": str(home_path.relative_to(session_directory)).replace("\\", "/"),
         "initial_observation_verified": initial_ok,
         "transport_accounting_verified": transport_ok,
         "new_flee_transport_count": retained_flee,

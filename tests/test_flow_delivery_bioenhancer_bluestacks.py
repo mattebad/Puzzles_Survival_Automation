@@ -37,8 +37,10 @@ from scripts.navigation_development_boundary import (
     DevelopmentSession,
 )
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
-from tasks.home_atlas_planner import PlanDisposition
+from tasks.home_atlas_planner import PlanDisposition, SafeInteractionRegion
 from tasks.perception_bundle import PerceptionBundleError
+from tests.support.environment import requires_tesseract
+
 
 
 class _PanRuntime:
@@ -78,6 +80,11 @@ class _PanRuntime:
 
 
 class _PanNavigator:
+    # plan_research_lab_pan reads the navigator's safe region and calibration
+    # to preview the right-HUD waypoint before it asks the navigator to plan.
+    safe_region = SafeInteractionRegion("home-default", (145, 180, 650, 1010), (400, 600))
+    calibration = object()
+
     def __init__(self, plans) -> None:
         self._plans = iter(plans)
         self.plan_calls = 0
@@ -123,6 +130,18 @@ def _run_bio_pan_case(
             patch.object(bio_route, "DirectPanNavigator", return_value=navigator),
             patch.object(bio_route, "BlueStacksHomeLocalizer", return_value=localizer),
             patch.object(bio_route, "_atlas_stack", return_value=(atlas, localization)),
+            # Binding is None here, so the waypoint is never admitted; the
+            # preview of the normal plan must not need a real atlas.
+            patch.object(
+                bio_route,
+                "plan_direct_pan",
+                return_value=SimpleNamespace(
+                    disposition=PlanDisposition.PAN,
+                    reason="calculated_direct_pan",
+                    viewport=SimpleNamespace(rejection_counts=()),
+                ),
+            ),
+            patch.object(bio_route, "bind_bioenhancer_back", return_value=None),
             patch.object(bio_route, "bind_visible_building", return_value=None),
             patch.object(bio_route, "bind_research_radial_option", return_value=None),
             patch.object(bio_route, "bind_research_lab", return_value=None),
@@ -715,6 +734,7 @@ class BioenhancerCooldownTests(unittest.TestCase):
 
 
 class BioenhancerVisibleExitTests(unittest.TestCase):
+    @requires_tesseract
     def test_back_binding_requires_exact_title_arrow_and_no_modal(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         frame[15:50, 20:75] = 220

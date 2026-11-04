@@ -5,11 +5,10 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
 
 import cv2
 import numpy as np
-import pytesseract
+from tests.support.environment import requires_tesseract
 
 from tasks.noahs_tavern_recruit import (
     NOAHS_TAVERN_FREE_TARGET,
@@ -90,6 +89,7 @@ class NoahFreeTierCounterScopeTests(unittest.TestCase):
         self.assertEqual(state.basic_daily_count, 5)
         self.assertEqual(state.revision, 7)
 
+    @requires_tesseract
     def test_retained_native_intermediate_source_with_basic_zero_is_eligible(self):
         path = FIXTURES / "intermediate-free-basic-zero-20261030.png"
         provenance = json.loads(path.with_suffix(".provenance.json").read_text(encoding="utf-8"))
@@ -97,14 +97,9 @@ class NoahFreeTierCounterScopeTests(unittest.TestCase):
         original = Path(__file__).parents[1] / provenance["source"]
         if original.exists():
             self.assertEqual(original.read_bytes(), path.read_bytes())
-        with patch.object(pytesseract.pytesseract, "tesseract_cmd", "tesseract"):
-            try:
-                pytesseract.get_tesseract_version()
-            except (OSError, RuntimeError, pytesseract.TesseractNotFoundError):
-                self.skipTest("Tesseract unavailable for retained native OCR")
-            frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
-            self.assertIsNotNone(frame)
-            observed = recognize_noahs_tavern_frame(frame, captured_monotonic=100.0)
+        frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(frame)
+        observed = recognize_noahs_tavern_frame(frame, captured_monotonic=100.0)
         self.assertEqual(observed.frame_sha256, provenance["decoded_frame_sha256"])
         self.assertEqual(observed.screen_state, NOAHS_TAVERN_SCREEN)
         self.assertEqual(observed.selected_tier, RecruitTier.INT)

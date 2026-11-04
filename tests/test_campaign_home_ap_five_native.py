@@ -10,6 +10,7 @@ from tasks.campaign_auto_battle_runtime import CampaignRuntimeController
 from tasks.campaign_auto_battle_vision import (
     HOME_AP_CURRENT_ROI, HOME_AP_ROI, _hud_ap_fraction, recognize_campaign_frame,
 )
+from tests.support.environment import requires_tesseract
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +31,7 @@ class CampaignHomeAPFiveNativeTests(unittest.TestCase):
             target_stage=STAGE, ap_cost=14, ap_budget=28, max_runs=2,
         ))
 
+    @requires_tesseract
     def test_native_five_is_ap_five_and_cannot_admit_a_battle(self):
         frame = self.frame()
         self.assertEqual(_hud_ap_fraction(frame, HOME_ROWS), (5, 120))
@@ -44,6 +46,7 @@ class CampaignHomeAPFiveNativeTests(unittest.TestCase):
         self.assertEqual(controller.progress.ap_spent, 0)
         self.assertEqual(controller.progress.completed_runs, 0)
 
+    @requires_tesseract
     def test_unreadable_five_row_cannot_fall_back_to_stamina(self):
         frame = self.frame()
         frame[205:234, 27:122] = 0
@@ -55,6 +58,7 @@ class CampaignHomeAPFiveNativeTests(unittest.TestCase):
         self.assertTrue(command.terminal)
         self.assertEqual(command.action, CampaignAction.BLOCKED)
 
+    @requires_tesseract
     def test_five_and_retained_hundred_rows_remain_ambiguous(self):
         frame = cv2.imread(str(ROOT / "tests/fixtures/campaign_ap_hud/home-ap100-stamina120.png"))
         self.assertIsNotNone(frame)

@@ -19,6 +19,7 @@ from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition, _bound
 from tasks import home_atlas_vision as vision
 from tests.support.home_atlas import _ready
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
 
 
 def setUpModule():
@@ -52,6 +53,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
             maximum_pans=maximum_pans,
         )
 
+    @requires_tesseract
     def test_native_current_campaign_is_unbound_and_generic_radial_planning_rejects(self):
         self.assertTrue(home.is_clean_home_frame(self.frame))
         self.assertTrue(self.localization.recognized)
@@ -72,6 +74,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertEqual(sum(rejections.values()), 48)
         self.assertGreater(rejections.get("insufficient_action_body_visibility", 0), 0)
 
+    @requires_tesseract
     def test_native_campaign_driver_plans_bounded_pan_without_fabricating_building_binding(self):
         driver = self.driver()
         step = driver.observe(self.frame)
@@ -106,6 +109,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertEqual(forecast["predicted_camera_origin"], predicted)
         self.assertIs(forecast["input_authority"], False)
 
+    @requires_tesseract
     def test_existing_current_native_campaign_binding_still_completes_without_pan(self):
         step = self.driver().observe(self.canonical)
         self.assertEqual(step.disposition, home.HomeDriverDisposition.COMPLETE)
@@ -114,6 +118,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertEqual(step.binding.frame_sha256, vision.frame_digest(self.canonical))
         self.assertIsNone(step.plan.drag_start)
 
+    @requires_tesseract
     def test_actual_after_noah_pan_rounds_inside_verified_camera_bounds(self):
         driver = self.driver()
         localization = self.after_noah_localization
@@ -164,6 +169,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertEqual(driver.navigator.pan_count, 0)
         self.assertFalse(driver.navigator.seen_viewports)
 
+    @requires_tesseract
     def test_actual_short_final_approach_uses_one_measured_camera_waypoint(self):
         driver = self.driver()
         current = self.short_pan_localization
@@ -194,6 +200,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
             self.assertLessEqual(self.atlas.camera_origin_bounds[axis], coordinate)
             self.assertLessEqual(coordinate, self.atlas.camera_origin_bounds[axis + 2])
 
+    @requires_tesseract
     def test_short_approach_cannot_repeat_waypoint_or_exceed_existing_pan_budget(self):
         for used, count in ((True, 0), (False, 4)):
             with self.subTest(used=used, count=count):
@@ -211,6 +218,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertEqual(record["transport_sha256"], hashlib.sha256(fixture.read_bytes()).hexdigest())
         self.assertEqual(record["source"], ".local-captures/automation-service-authorized/soak-20261029T171434658731Z-7900d159/campaign/campaign-ap-1-15-9-20261029T171444996777Z/frames/0010-campaign-entry-02-immediate-before.png")
 
+    @requires_tesseract
     def test_rounded_plan_preserves_repeat_destination_and_maximum_pan_guards(self):
         localization = self.after_noah_localization
         driver = self.driver()
@@ -236,6 +244,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertEqual(blocked.reason, "destination_already_visited")
         self.assertEqual(visited.navigator.pan_count, 0)
 
+    @requires_tesseract
     def test_rounding_does_not_change_other_facility_plans_or_calibration(self):
         driver = self.driver(building_id="home.building.research_lab")
         original = home.plan_direct_pan(self.atlas, self.after_noah_localization, self.building.semantic_id,
@@ -257,6 +266,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         campaign.navigator.calibration = calibration
         self.assertIs(home.inward_rounded_camera_pan(campaign.navigator, self.after_noah_localization, original), original)
 
+    @requires_tesseract
     def test_full_campaign_entry_consumer_calculates_native_pan_in_zero_input_dry_run(self):
         fixture_png = FRAME.read_bytes()
         owner = self
@@ -307,6 +317,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertEqual((runtime.swipe_count, runtime.tap_count), (0, 0))
         self.assertEqual(runtime.captures[0].png, fixture_png)
 
+    @requires_tesseract
     def test_actual_left_edge_forecast_allows_intermediate_offscreen_target_without_tap_authority(self):
         native = cv2.imread(str(ATLAS.parent / "tiles/viewport-015.png"))
         localization = self.localizer.localize(native)
@@ -315,12 +326,14 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         origin = camera_origin(localization)
         self.assertAlmostEqual(origin[0], 0.967773, delta=0.01)
         driver = self.driver()
-        # This historical night UI supplies actual Atlas geometry. Its current
-        # Home classification still fails, so it grants no live source authority.
+        # The spaced sidebar layout is intentionally recognized as Home. That
+        # authorizes a bounded pan, but the offscreen building remains untappable.
         current = driver.observe(native, localization=localization)
-        self.assertEqual(current.disposition, home.HomeDriverDisposition.BLOCKED)
+        self.assertEqual(current.disposition, home.HomeDriverDisposition.PAN)
+        self.assertIsNotNone(current.plan)
+        self.assertEqual(current.plan.disposition, PlanDisposition.PAN)
         self.assertIsNone(current.binding)
-        self.assertEqual(driver.navigator.pan_count, 0)
+        self.assertEqual(driver.navigator.pan_count, 1)
         navigator = DirectPanNavigator(self.atlas, self.building.semantic_id,
                                        driver.safe_region, driver.calibration)
         first_plan = home._plan_mapped_home_entry(navigator, localization, None)
@@ -374,6 +387,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertEqual(driver.navigator.pan_count, 0)
         self.assertFalse(driver.navigator.seen_viewports)
 
+    @requires_tesseract
     def test_invalid_current_localization_never_becomes_campaign_pan_or_entry(self):
         for invalid in (
             {"stale": True}, {"overlay": True}, {"profile_id": "wrong-profile"},
@@ -386,6 +400,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
                                                      home.HomeDriverDisposition.COMPLETE,
                                                      home.HomeDriverDisposition.BIND))
 
+    @requires_tesseract
     def test_unsafe_mapped_geometry_or_missing_coverage_cannot_use_direct_pan(self):
         invalid_buildings = (
             replace(self.building, interaction_anchor_override=(1020.0, 470.0)),  # outside polygon
@@ -413,6 +428,7 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertEqual(research.safe_region, default)
         self.assertIsNotNone(research.safe_region.planning_policy)
 
+    @requires_tesseract
     def test_unsafe_forecast_rejects_before_consuming_navigator_pan_budget_or_history(self):
         building = replace(self.building, interaction_anchor_override=(1215.0, 470.0))
         atlas = replace(self.atlas, buildings=tuple(

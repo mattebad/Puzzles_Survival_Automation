@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 from typing import Any, Iterable, Mapping
 from .profile import ACTIVE_RUNTIME_PROFILE_ID
+from safe_action_core.path_safety import UnsafePathError, require_no_untrusted_symlinks
 
 
 FLOW_ID = "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
@@ -95,7 +96,11 @@ def _evidence_root(path: Path) -> Path:
     rejecting paths outside that flow.
     """
 
-    current = path.resolve().parent
+    try:
+        checkpoint = require_no_untrusted_symlinks(path).resolve()
+    except UnsafePathError as exc:
+        raise RuinsContinuationError("artifact_path_escape", "checkpoint contains a link") from exc
+    current = checkpoint.parent
     for ancestor in (current, *current.parents):
         if ancestor.name == FLOW_ID:
             return ancestor
@@ -108,15 +113,17 @@ def _contained_path(raw: Any, root: Path, field: str) -> tuple[str, Path]:
     text = _require_text(raw, field)
     candidate = Path(text)
     try:
-        resolved = candidate.resolve() if candidate.is_absolute() else (root / candidate).resolve()
-        resolved.relative_to(root)
+        safe_root = require_no_untrusted_symlinks(root).resolve()
+        lexical_candidate = candidate if candidate.is_absolute() else safe_root / candidate
+        resolved = require_no_untrusted_symlinks(lexical_candidate).resolve()
+        resolved.relative_to(safe_root)
     except (OSError, ValueError) as exc:
         raise RuinsContinuationError("evidence_path_escape", field) from exc
     if not resolved.is_file():
         raise RuinsContinuationError("evidence_missing", field)
     # Persist stable flow-root-relative POSIX paths; never carry an absolute path
     # or a path containing a parent traversal into a continuation artifact.
-    return resolved.relative_to(root).as_posix(), resolved
+    return resolved.relative_to(safe_root).as_posix(), resolved
 
 
 def _frame_fields(record: Mapping[str, Any], prefix: str) -> tuple[Any, Any]:
@@ -215,7 +222,10 @@ def validate_continuation(
 
     if not isinstance(value, Mapping):
         raise RuinsContinuationError("malformed", "checkpoint must be an object")
-    root = (evidence_root or Path.cwd()).resolve()
+    try:
+        root = require_no_untrusted_symlinks(evidence_root or Path.cwd()).resolve()
+    except UnsafePathError as exc:
+        raise RuinsContinuationError("evidence_path_escape", "evidence root contains a link") from exc
     required_keys = {
         "schema_name", "schema_version", "flow_id", "reset_identity", "current_day",
         "runtime_profile_id", "package_id", "canonical_identities", "claims", "schema_digest",
@@ -293,9 +303,13 @@ def validate_claim_record(
 ) -> dict[str, Any]:
     """Validate one confirmed claim using the checkpoint evidence contract."""
 
+    try:
+        safe_root = require_no_untrusted_symlinks(evidence_root).resolve()
+    except UnsafePathError as exc:
+        raise RuinsContinuationError("evidence_path_escape", "evidence root contains a link") from exc
     return _validate_claim(
         value,
-        root=evidence_root.resolve(),
+        root=safe_root,
         expected_reset_identity=expected_reset_identity,
     )
 
@@ -316,7 +330,10 @@ def build_continuation(
         raise RuinsContinuationError("identity_mismatch", "runtime_profile_id")
     if package_id != PACKAGE_ID:
         raise RuinsContinuationError("identity_mismatch", "package_id")
-    root = evidence_root.resolve()
+    try:
+        root = require_no_untrusted_symlinks(evidence_root).resolve()
+    except UnsafePathError as exc:
+        raise RuinsContinuationError("evidence_path_escape", "evidence root contains a link") from exc
     normalized_claims = [_normalize_claim_for_build(item, root, reset_identity) for item in claims]
     value: dict[str, Any] = {
         "schema_name": SCHEMA_NAME,
@@ -353,8 +370,11 @@ def write_continuation(
 ) -> Path:
     """Atomically write a validated checkpoint inside the caller's capture area."""
 
-    destination = path.resolve()
-    root = evidence_root.resolve()
+    try:
+        destination = require_no_untrusted_symlinks(path).resolve()
+        root = require_no_untrusted_symlinks(evidence_root).resolve()
+    except UnsafePathError as exc:
+        raise RuinsContinuationError("artifact_path_escape", str(path)) from exc
     try:
         destination.relative_to(root)
     except ValueError as exc:
@@ -370,6 +390,10 @@ def write_continuation(
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name(f".{destination.name}.tmp")
+    try:
+        temporary = require_no_untrusted_symlinks(temporary).resolve()
+    except UnsafePathError as exc:
+        raise RuinsContinuationError("artifact_path_escape", str(temporary)) from exc
     temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     os.replace(temporary, destination)
     return destination
@@ -385,8 +409,17 @@ def load_continuation(
     expected_runtime_profile_id: str = RUNTIME_PROFILE_ID,
     expected_package_id: str = PACKAGE_ID,
 ) -> dict[str, Any]:
-    checkpoint = path.resolve()
-    root = (evidence_root or _evidence_root(checkpoint)).resolve()
+    try:
+        checkpoint = require_no_untrusted_symlinks(path).resolve()
+    except UnsafePathError as exc:
+        raise RuinsContinuationError("artifact_path_escape", str(path)) from exc
+    try:
+        root = (
+            require_no_untrusted_symlinks(evidence_root).resolve()
+            if evidence_root is not None else _evidence_root(checkpoint)
+        )
+    except UnsafePathError as exc:
+        raise RuinsContinuationError("artifact_path_escape", "evidence root contains a link") from exc
     try:
         checkpoint.relative_to(root)
     except ValueError as exc:

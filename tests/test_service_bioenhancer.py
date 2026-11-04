@@ -24,6 +24,8 @@ from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.startup_recovery import ContextualPopupRecoveryResult
 from tasks.scheduler_task_result import SchedulerIdentity
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+
 
 
 def setUpModule():
@@ -300,6 +302,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
                 self.assertEqual(summary["initial_frame_sha256"], recovery["home_frame"]["frame_sha256"])
                 self.assertTrue(self.owner.held)
 
+    @requires_tesseract
     def test_real_native_already_open_bio_passes_shared_startup_without_popup_input(self):
         self.owner.acquire()
         runtime = self._runtime()

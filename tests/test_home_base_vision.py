@@ -10,12 +10,14 @@ import cv2
 import numpy as np
 
 from tasks.home_base_vision import recognize_base_surface
+from tests.support.environment import requires_tesseract
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "nova_praise_preflight"
 
 
 class HomeBaseVisionTests(unittest.TestCase):
+    @requires_tesseract
     def test_zoomed_home_fixtures_are_recognized_as_base(self) -> None:
         for name in ("zoomed-home-a.png", "zoomed-home-b.png"):
             with self.subTest(name=name):
@@ -40,6 +42,7 @@ class HomeBaseVisionTests(unittest.TestCase):
         self.assertFalse(recognize_base_surface(frame, overlay=True).recognized)
         self.assertFalse(recognize_base_surface(frame, stale=True).recognized)
 
+    @requires_tesseract
     def test_resource_or_empty_frame_is_not_base(self) -> None:
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         # Synthetic resource-looking digits alone must not admit Base.
@@ -56,6 +59,7 @@ class HomeBaseVisionTests(unittest.TestCase):
         self.assertFalse(result.recognized)
         self.assertEqual(result.reason, "insufficient_base_evidence")
 
+    @requires_tesseract
     def test_exit_dialog_tokens_are_rejected(self) -> None:
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         cv2.putText(
@@ -82,6 +86,7 @@ class HomeBaseVisionTests(unittest.TestCase):
 
 
 class CleanHomeLabelTests(unittest.TestCase):
+    @requires_tesseract
     def test_latest_native_home_control_ocr_regression_and_native_positives(self) -> None:
         from scripts.startup_normalization import classify_home_base_live
 
@@ -105,6 +110,7 @@ class CleanHomeLabelTests(unittest.TestCase):
                     result["scene_ocr_hits"], ["build", "idle", "pit", "research"]
                 )
 
+    @requires_tesseract
     def test_missing_home_control_source_is_not_home(self) -> None:
         from scripts.startup_normalization import classify_home_base_live, is_clean_home_frame
 
@@ -126,6 +132,7 @@ class CleanHomeLabelTests(unittest.TestCase):
         with patch("pytesseract.image_to_string", side_effect=RuntimeError("OCR timeout")):
             self.assertFalse(is_clean_home_frame(frame))
 
+    @requires_tesseract
     def test_native_home_with_badges_and_dynamic_artwork(self) -> None:
         from scripts.startup_normalization import is_clean_home_frame
 
@@ -153,6 +160,7 @@ class CleanHomeLabelTests(unittest.TestCase):
         self.assertFalse(np.array_equal(frame, animated))
         self.assertTrue(is_clean_home_frame(animated))
 
+    @requires_tesseract
     def test_missing_navigation_or_base_scene_is_not_home(self) -> None:
         from scripts.startup_normalization import is_clean_home_frame
 
@@ -165,6 +173,7 @@ class CleanHomeLabelTests(unittest.TestCase):
                 changed[y0:y1, x0:x1] = 0
                 self.assertFalse(is_clean_home_frame(changed))
 
+    @requires_tesseract
     def test_open_research_lab_radial_is_not_clean_home(self) -> None:
         from scripts.startup_normalization import is_clean_home_frame
 

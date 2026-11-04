@@ -77,7 +77,7 @@ def _tree_snapshot(root: Path) -> dict[str, tuple[int, int]]:
 class RuinsChallengeReplayTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name) / "retained"
+        self.root = (Path(self.temp.name) / "retained").resolve()
         self.root.mkdir()
         self.frames = self.root / "frames"
         self.frames.mkdir()

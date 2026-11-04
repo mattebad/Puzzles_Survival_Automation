@@ -29,6 +29,8 @@ from scripts.navigation_development_boundary import DevelopmentSession
 from scripts.startup_recovery import ContextualPopupRecoveryResult
 from tasks.scheduler_task_result import SchedulerIdentity
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_ocr_worker, requires_tesseract
+
 
 
 def setUpModule():
@@ -224,6 +226,7 @@ class ServiceSupplyTests(unittest.TestCase):
         self.assertEqual((descriptor.flow_id, descriptor.accepted_product, descriptor.product_revision), (FLOW_ID, PRODUCT_ID, PRODUCT_REVISION))
         self.assertEqual((descriptor.cadence, descriptor.reset_scoped), ("daily_once_per_reset", True))
 
+    @requires_tesseract
     def test_free_effect_and_zero_work_have_exact_counts_and_actual_reset(self):
         for consume in (False, True):
             with self.subTest(consume=consume):
@@ -244,6 +247,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 self.assertFalse(self.owner.held is False)
                 self.owner.release()
 
+    @requires_tesseract
     def test_failure_after_hold_keeps_reserved_count_and_denies_retry(self):
         self.owner.acquire()
         runtime = self._runtime(HOME_FIXTURE.read_bytes())
@@ -260,6 +264,7 @@ class ServiceSupplyTests(unittest.TestCase):
         self.assertTrue(partial["identical_retry_denied"])
         self.assertTrue(self.owner.held)
 
+    @requires_tesseract
     def test_navigation_failure_preserves_native_reason_and_exact_zero_effect_accounting(self):
         self.owner.acquire()
         runtime = self._runtime(HOME_FIXTURE.read_bytes())
@@ -294,6 +299,7 @@ class ServiceSupplyTests(unittest.TestCase):
         self.assertIsNone(partial["free_attempts_before"])
         self.assertIsNone(partial["free_attempts_after"])
 
+    @requires_tesseract
     def test_popup_input_is_adopted_once_and_stays_separate_from_free_hold(self):
         self.owner.acquire()
         runtime = self._runtime(HOME_FIXTURE.read_bytes())
@@ -324,6 +330,7 @@ class ServiceSupplyTests(unittest.TestCase):
         self.assertTrue(result["accounting_verified"])
         self.assertTrue(self.owner.held)
 
+    @requires_tesseract
     def test_two_startup_inputs_are_adopted_once_before_zero_hold_route(self):
         self.owner.acquire()
         runtime = self._runtime(HOME_FIXTURE.read_bytes())
@@ -368,6 +375,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 run.assert_not_called()
                 self.owner.release()
 
+    @requires_tesseract
     def test_popup_success_must_recapture_clean_home_before_route_binding(self):
         self.owner.acquire()
         runtime = self._runtime(HOME_FIXTURE.read_bytes())
@@ -422,6 +430,8 @@ class ServiceSupplyTests(unittest.TestCase):
         self.assertFalse(caught.exception.partial_result["accounting_verified"])
         run.assert_not_called()
 
+    @requires_tesseract
+    @requires_ocr_worker
     def test_known_route_surfaces_preserve_no_popup_entry_without_new_input(self):
         fixtures = Path(__file__).parent / "fixtures/supply_depot"
         for name in ("native-facility-20261029.png", "native-exhausted-20261029.png",
@@ -442,6 +452,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 run.assert_called_once()
                 self.owner.release()
 
+    @requires_tesseract
     def test_terminal_home_replay_rejects_non_home_and_changed_bytes(self):
         cases = (
             (NON_HOME_FIXTURE.read_bytes(), False),

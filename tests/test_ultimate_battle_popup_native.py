@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from scripts import bluestacks_ultimate_challenge as ultimate
+from tests.support.environment import requires_tesseract
 
 
 class UltimateBattlePopupNativeTests(unittest.TestCase):
@@ -45,6 +46,7 @@ class UltimateBattlePopupNativeTests(unittest.TestCase):
                 frame[y0:y1, x0:x1] = 0
                 self.assertIsNone(ultimate._recognize_active_battle(frame))
 
+    @requires_tesseract
     def test_native_warning_binds_flee_without_treating_canvas_edges_as_panels(self):
         for name in ("native-flee-warning-20261101.png", "native-flee-warning-over-defeat-20261101.png"):
             with self.subTest(background=name):
@@ -52,6 +54,7 @@ class UltimateBattlePopupNativeTests(unittest.TestCase):
                 self.assertEqual(ultimate._bind_flee_warning_button(frame), (436, 628, 682, 708))
                 self.assertIsNone(ultimate._recognize_active_battle(frame))
 
+    @requires_tesseract
     def test_warning_requires_both_controls_and_failure_text(self):
         for box in ((436, 628, 682, 708), (118, 628, 364, 708), (120, 450, 680, 590)):
             with self.subTest(erased=box):
@@ -66,6 +69,7 @@ class UltimateBattlePopupNativeTests(unittest.TestCase):
         cv2.rectangle(frame, (160, 400), (660, 750), (180, 180, 180), 6)
         self.assertIsNone(ultimate._bind_flee_warning_button(frame))
 
+    @requires_tesseract
     def test_gold_purchase_label_cannot_inherit_flee_authority(self):
         frame = self.frame("native-flee-warning-20261101.png")
         frame[640:700, 460:665] = (0, 165, 210)

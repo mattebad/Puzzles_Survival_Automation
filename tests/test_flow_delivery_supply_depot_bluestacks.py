@@ -27,6 +27,8 @@ from scripts.supply_depot_free_route import (
     exhausted_free_state,
     select_free_food_control,
 )
+from tests.support.environment import requires_tesseract
+
 
 
 def _control(kind: str, *, free: bool):
@@ -184,6 +186,7 @@ def _run_supply_pan_case(
 
 
 class SupplyDepotFlowDeliveryTests(unittest.TestCase):
+    @requires_tesseract
     def test_native_arena_requires_three_headers_and_measured_arrow(self):
         from scripts.daily_resource_item_bluestacks import _bag_back_arrow_visual
 

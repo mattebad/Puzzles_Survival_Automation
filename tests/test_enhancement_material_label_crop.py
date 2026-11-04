@@ -11,6 +11,7 @@ import cv2
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
 from tasks.enhancement import enhancement_bluestacks_postcondition_verified
+from tests.support.environment import requires_tesseract
 
 
 FIXTURES = Path(__file__).parent / "fixtures/enhancement_material_label_crop"
@@ -27,17 +28,24 @@ class MaterialLabelCropTests(unittest.TestCase):
             if capture.sha256 != record["sha256"]:
                 raise AssertionError("native fixture hash changed")
             cls.captures.append(capture)
-        modal, baseline, quantity, selected, successor = cls.captures
-        cls.before = native.recognize_selection_context(selected, modal=modal,
-            baseline=baseline, quantity=quantity, variant="gear", game_day_id="native-regression")
-        cls.after = native.recognize_commander_stage(successor.frame, variant="gear", stage="post",
-            source_frame_sha256=successor.sha256, evidence_ref=successor.path,
-            game_day_id="native-regression")
 
+    @classmethod
+    def _native_selection_results(cls):
+        if not hasattr(cls, "_before"):
+            modal, baseline, quantity, selected, successor = cls.captures
+            cls._before = native.recognize_selection_context(selected, modal=modal,
+                baseline=baseline, quantity=quantity, variant="gear", game_day_id="native-regression")
+            cls._after = native.recognize_commander_stage(successor.frame, variant="gear", stage="post",
+                source_frame_sha256=successor.sha256, evidence_ref=successor.path,
+                game_day_id="native-regression")
+        return cls._before, cls._after
+
+    @requires_tesseract
     def test_native_label_reads_exact_stock_and_complete_selection_witnesses_prove_effect(self):
-        self.assertTrue(self.before.recognized, self.before)
-        self.assertTrue(self.after.recognized, self.after)
-        before, after = self.before.observation, self.after.observation
+        before_result, after_result = self._native_selection_results()
+        self.assertTrue(before_result.recognized, before_result)
+        self.assertTrue(after_result.recognized, after_result)
+        before, after = before_result.observation, after_result.observation
         self.assertEqual((before.material_inventory_count, after.material_inventory_count), (9561, 9560))
         self.assertEqual((before.item_exp_current, before.item_exp_preview, after.item_exp_current), (20, 30, 30))
         self.assertEqual((before.quantity, after.quantity), (1, 0))
@@ -50,6 +58,7 @@ class MaterialLabelCropTests(unittest.TestCase):
             with self.subTest(readings=readings), patch("pytesseract.image_to_string", side_effect=readings):
                 self.assertIsNone(native._material_label(frame, box))
 
+    @requires_tesseract
     def test_current_zero_selection_keeps_complete_native_counts_without_equipped_authority(self):
         path = FIXTURES / "native-gear-baseline-antialias-20261031.png"
         record = json.loads(path.with_suffix(".json").read_text())
@@ -66,8 +75,10 @@ class MaterialLabelCropTests(unittest.TestCase):
         self.assertFalse(result.observation.item_equipped)
         self.assertIsNotNone(result.material_target)
 
+    @requires_tesseract
     def test_wrong_stock_identity_preview_and_source_still_fail_closed(self):
-        before, after = self.before.observation, self.after.observation
+        before_result, after_result = self._native_selection_results()
+        before, after = before_result.observation, after_result.observation
         wrong_slots = tuple((slot, stars, selected, owned + (1 if stars == 1 else 0))
             for slot, stars, selected, owned in after.material_slot_facts)
         for changed in (

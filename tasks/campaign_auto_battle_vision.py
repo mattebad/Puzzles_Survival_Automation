@@ -485,7 +485,12 @@ def _bind_victory_continue(frame: np.ndarray) -> tuple[Box | None, dict[str, obj
         # The word is stable while the crest and flare behind it animate. Remove
         # only low-frequency illumination before reading the complete caption.
         letters = cv2.addWeighted(gray, 1.0, cv2.GaussianBlur(gray, (0, 0), 15), -1.0, 128)
-        captions.append(_normalized(call_ocr(tesseract_string, letters, config="--psm 8")))
+        # The title is alphabetic; flare pixels must not become punctuation.
+        # The complete literal WINNER and unique-title checks remain below.
+        captions.append(_normalized(call_ocr(
+            tesseract_string, letters,
+            config="--psm 8 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        )))
     diagnostics["winner_captions"] = captions
     return (continue_roi if captions.count("winner") == 1 else None), diagnostics
 

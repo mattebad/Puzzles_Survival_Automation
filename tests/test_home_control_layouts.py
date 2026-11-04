@@ -8,6 +8,7 @@ import cv2
 
 from scripts.startup_normalization import classify_home_base_live
 
+from tests.support.environment import requires_tesseract
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "nova_praise_preflight"
 
@@ -21,6 +22,7 @@ class HomeControlLayoutTests(unittest.TestCase):
     def classify(self, frame, **kwargs):
         return classify_home_base_live(frame, cash_mall_rejected=True, **kwargs)
 
+    @requires_tesseract
     def test_spaced_native_home_frames_and_missing_labels(self):
         for name in ("zoomed-home-a.png", "zoomed-home-b.png"):
             with self.subTest(name=name):

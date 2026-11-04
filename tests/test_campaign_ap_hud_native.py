@@ -12,6 +12,7 @@ from tasks.campaign_auto_battle_vision import (
     CampaignFrameRecognition, _ap_fraction, _hud_ap_fraction, recognize_campaign_frame,
 )
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
 
 
 def setUpModule():
@@ -34,6 +35,7 @@ class CampaignNativeAPTests(unittest.TestCase):
         self.assertEqual(image.shape, (1280, 800, 3))
         return image
 
+    @requires_tesseract
     def test_retained_post_victory_map_reconciles_ap_and_leaves_chapter(self):
         stage = CampaignStage(1, 15, 9)
         frame = self.frame("tests/fixtures/campaign_ap_hud/chapter15-post-victory-ap12.png")
@@ -57,6 +59,7 @@ class CampaignNativeAPTests(unittest.TestCase):
         self.assertEqual(controller.progress.ap_spent, 14)
         self.assertEqual(controller.progress.completed_runs, 1)
 
+    @requires_tesseract
     def test_current_and_retained_home_map_read_the_lightning_row(self):
         for path, screen, balance in (
             (CURRENT_HOME, CampaignScreen.HOME_BASE, 120),
@@ -72,6 +75,7 @@ class CampaignNativeAPTests(unittest.TestCase):
         # in the current image cannot substitute for resource identity.
         self.assertEqual(_hud_ap_fraction(self.frame(OLDER_HOME), HOME_ROWS), (100, 120))
 
+    @requires_tesseract
     def test_full_ap_headquarters_home_is_not_blocked_by_tight_text_margin(self):
         frame = self.frame("tests/fixtures/campaign_ap_hud/home-ap120-ocr-margin-20261030.png")
         recognition = recognize_campaign_frame(frame, CampaignStage(1, 15, 9))
@@ -90,6 +94,7 @@ class CampaignNativeAPTests(unittest.TestCase):
         self.assertTrue(command.terminal)
         self.assertEqual(command.action, CampaignAction.BLOCKED)
 
+    @requires_tesseract
     def test_missing_lightning_or_replaced_stamina_icon_cannot_use_valid_numbers(self):
         original = self.frame(CURRENT_HOME)
         for missing in (True, False):
@@ -101,6 +106,7 @@ class CampaignNativeAPTests(unittest.TestCase):
                 self.assertIsNone(_hud_ap_fraction(changed, HOME_ROWS))
                 self.assert_ap_cannot_dispatch(changed)
 
+    @requires_tesseract
     def test_two_individually_valid_ap_rows_are_ambiguous(self):
         current = self.frame(CURRENT_HOME)
         ambiguous = self.frame(OLDER_HOME)
@@ -111,6 +117,7 @@ class CampaignNativeAPTests(unittest.TestCase):
         self.assertIsNone(_hud_ap_fraction(ambiguous, HOME_ROWS))
         self.assert_ap_cannot_dispatch(ambiguous)
 
+    @requires_tesseract
     def test_outside_hud_animation_does_not_change_resource_identity(self):
         original = self.frame(CURRENT_HOME)
         changed = original.copy()

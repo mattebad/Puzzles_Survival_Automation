@@ -15,6 +15,7 @@ from scripts.bluestacks_popup_recognition import (
     translate_crop_bounds,
     vip_popup_handled,
 )
+from tests.support.environment import requires_tesseract
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +29,7 @@ class VipPointsPopupTests(unittest.TestCase):
         if cls.frame is None:
             raise RuntimeError("retained VIP Points popup fixture is missing")
 
+    @requires_tesseract
     def test_retained_close_geometry_rejects_old_point_and_accepts_center(self):
         detail = recognize_reset_popup(self.frame)
         self.assertTrue(detail["recognized"])
@@ -37,12 +39,14 @@ class VipPointsPopupTests(unittest.TestCase):
         self.assertGreater(bounds[1], 740)
         self.assertLess(bounds[3], 880)
 
+    @requires_tesseract
     def test_literal_close_identity_is_required(self):
         changed = self.frame.copy()
         changed[790:825, 350:450] = 0
         detail = recognize_reset_popup(changed)
         self.assertFalse(detail["literal_close"])
         self.assertFalse(detail["recognized"])
+    @requires_tesseract
     def test_wrong_title_identity_is_rejected(self):
         changed = self.frame.copy()
         changed[390:440, 260:540] = 0
@@ -50,6 +54,7 @@ class VipPointsPopupTests(unittest.TestCase):
         self.assertFalse(detail["title_identity"])
         self.assertFalse(detail["recognized"])
 
+    @requires_tesseract
     def test_wrong_body_identity_is_rejected(self):
         changed = self.frame.copy()
         changed[480:720, 120:680] = 0
@@ -63,6 +68,7 @@ class VipPointsPopupTests(unittest.TestCase):
         self.assertFalse(detail["recognized"])
         self.assertEqual(detail["reason"], "profile_dimensions_mismatch")
 
+    @requires_tesseract
     def test_popup_geometry_drift_is_rejected(self):
         drifted = cv2.warpAffine(
             self.frame,
@@ -74,6 +80,7 @@ class VipPointsPopupTests(unittest.TestCase):
         self.assertFalse(detail["geometry_valid"])
         self.assertFalse(detail["recognized"])
 
+    @requires_tesseract
     def test_generic_orange_button_is_rejected(self):
         changed = self.frame.copy()
         changed[380:720, 100:700] = 0

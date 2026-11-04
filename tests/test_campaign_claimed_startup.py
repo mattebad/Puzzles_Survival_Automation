@@ -44,23 +44,35 @@ class ClaimedNormalizationLedgerTests(unittest.TestCase):
         self.assertTrue(ok)
         self.after = encoded.tobytes()
 
-    def capture(self, name, png, stamp):
+    def capture(self, name, png, stamp, label=None):
         path = self.session / name
         path.write_bytes(png)
-        return {"type": "capture", "path": str(path), "sha256": hashlib.sha256(png).hexdigest(),
-                "captured_monotonic": stamp}
+        row = {"type": "capture", "path": str(path), "sha256": hashlib.sha256(png).hexdigest(),
+               "captured_monotonic": stamp}
+        if label is not None:
+            row["label"] = label
+        return row
 
     def build(self, **changes):
-        source = self.capture("source.png", self.popup, 1.0)
-        final = self.capture("successor.png", self.after, 2.0)
+        # Mirrors the journal recover_contextual_startup_overlay writes through the native runtime:
+        # proposal capture, labelled dispatch-before capture, dispatch, labelled post capture,
+        # confirmed reconcile, then the settled frame the service hands to the ledger.
+        proposal = self.capture("proposal.png", self.popup, 0.5, "contextual-source")
+        source = self.capture("source.png", self.popup, 1.0, "contextual-vip-popup-dispatch-before")
+        post = self.capture("post.png", self.after, 2.0, "contextual-vip-popup-post")
+        final = self.capture("successor.png", self.after, 3.0, "campaign-service-initial-home")
         target = self.popup_detail["target"]
         dispatch = {"type": "dispatch", "source_sha256": source["sha256"], "action_key": self.key,
                     "target_identity": "reset-popup-close", "target_roi": target,
+                    "point": [(target[0] + target[2]) // 2, (target[1] + target[3]) // 2],
                     "action_class": "navigation", "consequential": False, "continuation_of": None,
                     "execute": True}
         dispatch.update(changes)
-        self.events.write_text("".join(json.dumps(row) + "\n" for row in (source, dispatch, final)))
-        return captured_native_frame_from_png(self.after, captured_monotonic=2.0, path=Path(final["path"]))
+        reconcile = {"type": "reconcile", "action_key": dispatch["action_key"], "status": "confirmed",
+                     "post_sha256": post["sha256"], "post_path": post["path"], "reason": "vip_popup_dismissed"}
+        self.events.write_text("".join(json.dumps(row) + "\n"
+                                       for row in (proposal, source, dispatch, post, reconcile, final)))
+        return captured_native_frame_from_png(self.after, captured_monotonic=3.0, path=Path(final["path"]))
 
     def check(self, frame):
         found = SimpleNamespace(observation=SimpleNamespace(recognized=True, screen=CampaignScreen.CHAPTER_MAP,
@@ -73,6 +85,17 @@ class ClaimedNormalizationLedgerTests(unittest.TestCase):
         self.assertEqual(ledger["input_count"], 1)
         self.assertEqual(ledger["dispatches"][0]["surface"], "VIP_POINTS_GET_PTS")
         self.assertEqual(ledger["dispatches"][0]["native_after"], 1)
+
+    def test_dismissal_without_retained_labelled_proposal_fails_closed(self):
+        frame = self.build()
+        rows = [json.loads(line) for line in self.events.read_text().splitlines()]
+        self.events.write_text("".join(json.dumps(row) + "\n" for row in rows[1:]))
+        with self.assertRaisesRegex(ValueError, "no retained proposal"):
+            self.check(frame)
+        rows[1]["label"] = "contextual-source"
+        self.events.write_text("".join(json.dumps(row) + "\n" for row in rows))
+        with self.assertRaisesRegex(ValueError, "not continuous"):
+            self.check(frame)
 
     def test_wrong_roi_target_and_unexplained_count_fail_closed(self):
         for change in ({"target_roi": [1, 2, 3, 4]}, {"target_identity": "arbitrary-navigation"}):

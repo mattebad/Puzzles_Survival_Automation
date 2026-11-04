@@ -1738,6 +1738,31 @@ class NovaNavigationTests(unittest.TestCase):
             1,
         )
 
+    def test_strong_same_scale_lookalike_blocks_even_with_winning_margin(self) -> None:
+        template = cv2.imread(str(NOVA_RADIAL_TEMPLATE_PATH), cv2.IMREAD_COLOR)
+        assert template is not None
+        noise = np.random.default_rng(31).normal(size=template.shape)
+        peer = np.clip(template.astype(float) + 32 * noise, 0, 255).astype(np.uint8)
+        peer_score = float(cv2.matchTemplate(peer, template, cv2.TM_CCOEFF_NORMED)[0, 0])
+        self.assertGreaterEqual(peer_score, NOVA_TEMPLATE_MIN_SCORE)
+        self.assertGreaterEqual(1.0 - peer_score, NOVA_TEMPLATE_MIN_MARGIN)
+        height, width = template.shape[:2]
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        frame[640 : 640 + height, 226 : 226 + width] = template
+        frame[640 : 640 + height, 420 : 420 + width] = peer
+        with patch.object(
+            nova_praise_vision, "_radial_ocr_terms", return_value=("research", "nova")
+        ):
+            recognition = recognize_nova_frame(
+                frame, captured_monotonic=11.0, home_context_visible=True
+            )
+        self.assertGreaterEqual(
+            recognition.diagnostics["nova_radial_template"]["margin"],
+            NOVA_TEMPLATE_MIN_MARGIN,
+        )
+        self.assertFalse(recognition.observation.recognized)
+        self.assertIsNone(recognition.target(NOVA_INTERACTION_TARGET))
+
     def test_route_never_plans_or_dispatches_praise(self) -> None:
         runtime = FakeRuntime()
         recognizer = RecognitionQueue(

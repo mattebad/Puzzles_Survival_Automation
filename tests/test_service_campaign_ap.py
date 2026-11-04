@@ -37,6 +37,8 @@ from tests.support.campaign_ap_runner import DrainFakeADB, FakeADB, PHASES, reco
 from tests.support.service_stop import VirtualStop
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+
 
 
 def setUpModule():
@@ -192,6 +194,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
             ap.CampaignExecutionHandler(snapshot, lambda *_args: None, stage="1-99-9")
         self.assertEqual(self.world.inputs, [])
 
+    @requires_tesseract
     def test_complete_drain_reuses_real_policy_native_controller_with_last_affordable_battle(self):
         result = self.one_battle_drain()
         self.assertEqual(result["status"], "completed")
@@ -211,6 +214,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
             row = store.execute("SELECT final_status,cost_type,cost_amount FROM actions").fetchone()
         self.assertEqual(tuple(row), ("confirmed", "AP", 14))
 
+    @requires_tesseract
     def test_terminal_two_overlay_stack_reconciles_before_fresh_home_without_another_ap_effect(self):
         popup_pngs = [(Path("tests/fixtures/startup") / name).read_bytes() for name in
                       ("nova-vip-reset-20261031.png", "scarlett-current-20261030.png")]
@@ -253,6 +257,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.assertEqual(result["total_input_count"], len(self.world.inputs))
         self.assertTrue(result["terminal_home_verified"])
 
+    @requires_tesseract
     def test_full_drain_uses_real_native_loop_and_individual_policy_entries_with_regeneration(self):
         self.world = DrainFakeADB(ap=120, regen_per_battle=(6,))
         result = self.runner(self.identity, None, self.checkpoint)
@@ -276,6 +281,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.assertTrue(all(tuple(row) == ("confirmed", "AP", 14) for row in rows))
         self.assertEqual(len(result["entry_action_keys"]), len(set(result["entry_action_keys"])))
 
+    @requires_tesseract
     def test_unknown_third_battle_keeps_two_native_reconciled_effects_and_no_next_due(self):
         self.world = DrainFakeADB(ap=88)
         self.world.on_input = lambda _count: setattr(self, "stopped", True) if self.world.battles_started == 3 else None
@@ -295,6 +301,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ap.campaign_next_due(result, self.identity, self.now - 1)
 
+    @requires_tesseract
     def test_fresh_terminal_home_regeneration_continues_same_native_invocation(self):
         self.world = DrainFakeADB(ap=27)
         connect = self.runtime
@@ -326,6 +333,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.assertEqual(result["terminal_home_sha256"], result["home_ap_observation"]["frame_sha256"])
         self.assertEqual(result["next_eligible_at"], self.now + 900)
 
+    @requires_tesseract
     def test_serve_claim_crosses_midnight_during_battle_or_late_home_and_next_due_uses_new_day(self):
         midnight = (int(self.now) // 86400 + 1) * 86400
         self.runner.cadence_seconds = 300
@@ -418,6 +426,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
                     rows = store.execute("SELECT final_status,game_day_id,cost_amount FROM actions").fetchall()
                 self.assertEqual([tuple(row) for row in rows], [("confirmed", old_reset, 14)] * 2)
 
+    @requires_tesseract
     def test_stop_after_stage_preserves_entry_count_and_cannot_launch_lineup(self):
         self.world.on_input = lambda count: setattr(self, "stopped", True) if count == 2 else None
         with self.assertRaises(ap.CampaignApRunnerError) as raised:
@@ -432,6 +441,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.assertTrue(result["identical_retry_denied"])
         self.assertEqual(len(self.world.inputs), 2)
 
+    @requires_tesseract
     def test_stop_after_lineup_preserves_one_pending_effect_without_double_count(self):
         self.world.on_input = lambda count: setattr(self, "stopped", True) if count == 3 else None
         with self.assertRaises(ap.CampaignApRunnerError) as raised:
@@ -446,6 +456,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.assertTrue(result["identical_retry_denied"])
         self.assertEqual(len(self.world.inputs), 3)
 
+    @requires_tesseract
     def test_unknown_or_non_home_initial_context_cannot_dispatch(self):
         for unknown, phase in ((True, "home"), (False, "stage")):
             with self.subTest(unknown=unknown, phase=phase):
@@ -456,6 +467,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
                 self.assertTrue(raised.exception.partial_result["effect_reconciliation_required"])
         self.assertEqual(self.world.inputs, [])
 
+    @requires_tesseract
     def test_proven_zero_input_stop_preserves_no_effect_but_cannot_schedule_or_retry(self):
         with patch.object(native, "run_campaign_ap_route", return_value=_zero_input_native_stop()):
             with self.assertRaises(ap.CampaignApRunnerError) as raised:
@@ -472,6 +484,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ap.campaign_next_due(result, self.identity, self.now - 1)
 
+    @requires_tesseract
     def test_inconsistent_zero_input_counts_or_ap_ledger_still_require_reconciliation(self):
         baseline = _zero_input_native_stop()
         variants = (
@@ -497,6 +510,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
                 self.assertTrue(result["identical_retry_denied"])
                 self.assertEqual(self.world.inputs, [])
 
+    @requires_tesseract
     def test_nonzero_navigation_or_unknown_native_failure_stays_closed(self):
         def navigation_then_stop(runtime, *_args, **_kwargs):
             source = runtime.capture("test-one-known-navigation")
@@ -518,6 +532,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.assertTrue(raised.exception.partial_result["effect_reconciliation_required"])
         self.assertEqual(self.world.inputs, [])
 
+    @requires_tesseract
     def test_cleanup_error_preserves_proven_zero_input_no_effect_and_blocked_status(self):
         def action_store():
             store = self.action_store()
@@ -542,6 +557,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.assertTrue(result["identical_retry_denied"])
         self.assertEqual(self.world.inputs, [])
 
+    @requires_tesseract
     def test_exact_camera_only_journal_requires_new_home_ap_capture_before_no_effect(self):
         with patch.object(native, "run_campaign_ap_route", side_effect=self.camera_stop):
             with self.assertRaises(ap.CampaignApRunnerError) as raised:
@@ -568,6 +584,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ap.campaign_next_due(result, self.identity, self.now - 1)
 
+    @requires_tesseract
     def test_missing_foreign_or_changed_camera_journal_cannot_establish_no_effect(self):
         for corruption in ("missing_dispatch", "unknown_input", "changed_source", "extra_key", "uncalibrated"):
             with self.subTest(corruption=corruption):
@@ -597,6 +614,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
                 self.assertEqual(result["total_input_count"], 1)
                 self.assertEqual(len(self.world.inputs), 1)
 
+    @requires_tesseract
     def test_old_home_aliases_cannot_replace_fresh_home_and_unchanged_ap(self):
         for unknown_home, ap_after in ((True, 120), (False, 119)):
             with self.subTest(unknown_home=unknown_home, ap_after=ap_after):
@@ -615,6 +633,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
                 self.assertEqual(result["total_input_count"], 1)
                 self.assertEqual(len(self.world.inputs), 1)
 
+    @requires_tesseract
     def test_input_during_camera_inspection_is_counted_and_cannot_publish_no_effect(self):
         read_home = self.runner._read_home
         def changed_during_inspection(runtime, identity, checkpoint, label, **kwargs):
@@ -636,6 +655,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.assertTrue(result["identical_retry_denied"])
         self.assertNotIn("camera_only_no_effect_proof", result)
 
+    @requires_tesseract
     def test_insufficient_home_ap_defers_without_resource_authority_or_input(self):
         self.home_ap = 13
         result = self.runner(self.identity, None, self.checkpoint)
@@ -649,6 +669,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.assertEqual(ap.campaign_next_due(result, self.identity, self.now - 1), self.now + 900)
         self.assertEqual(self.world.inputs, [])
 
+    @requires_tesseract
     def test_composed_vip_chapter_tier_home_ap12_defers_under_one_claim(self):
         # Retained popup and Home images are combined with synthetic navigation
         # successors. This scenario is an offline test, not a live receipt.
@@ -709,6 +730,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(Path(source["path"]).read_bytes()).hexdigest(), source["sha256"])
             self.assertEqual(hashlib.sha256(Path(successor["path"]).read_bytes()).hexdigest(), successor["sha256"])
 
+    @requires_tesseract
     def test_two_known_startup_overlays_defer_with_exact_native_replay_and_no_ap_action(self):
         fixtures = Path("tests/fixtures")
         sequence = [(fixtures / name).read_bytes() for name in (
@@ -766,6 +788,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
             self.assertEqual(ap.campaign_next_due(result, self.identity, self.now - 1), self.now + 900)
             route.assert_not_called()
 
+    @requires_tesseract
     def test_popup_stop_lease_loss_and_ambiguous_successor_never_reach_resource_route(self):
         popup = Path("tests/fixtures/campaign_startup_recovery/vip-chapter-source.png").read_bytes()
         class PopupFake(FakeADB):
@@ -798,6 +821,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
                 self.assertEqual(raised.exception.partial_result["stage_entry_transport_count"], 0)
                 route.assert_not_called()
 
+    @requires_tesseract
     def test_deferred_normalization_requires_only_initial_ledger_inputs(self):
         self.home_ap = 13
         result = self.runner(self.identity, None, self.checkpoint)
@@ -819,6 +843,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ap.campaign_next_due(dict(result, initial_normalization=wrong), self.identity, self.now - 1)
 
+    @requires_tesseract
     def test_serve_below_cost_records_zero_input_defer_every_300_seconds_and_restart_skips_capture(self):
         self.runner.cadence_seconds = 300
         for balance in (0, 1):
@@ -879,6 +904,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
                     self.assertEqual(observed_at, [started, started + 300])
                 self.assertEqual(self.world.inputs, [])
 
+    @requires_tesseract
     def test_utc_identity_and_effect_normalization_rejects_unverified_results(self):
         result = self.one_battle_drain()
         for changes in ({"reset_id": "wrong"}, {"time_basis": "monotonic"},
@@ -895,6 +921,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 ap.campaign_next_due(dict(result, **changes), self.identity, self.now - 1)
 
+    @requires_tesseract
     def test_contradictory_native_cost_is_rejected_without_rewriting_reported_value(self):
         bad_native = {
             "status": "completed", "destination": "1-15-9", "ap_cost": 20,
@@ -915,11 +942,13 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.assertEqual(result["committed_ap_effect_count"], 0)
         self.assertEqual(self.world.inputs, [])
 
+    @requires_tesseract
     def test_normalization_rejects_wrong_task_identity_with_valid_ap_result(self):
         result = self.one_battle_drain()
         with self.assertRaises(ValueError):
             ap.campaign_next_due(result, replace(self.identity, task_id="another-task"), self.now - 1)
 
+    @requires_tesseract
     def test_store_close_failure_preserves_stop_reason_and_partial_battle_accounting(self):
         closes = []
         def action_store():
@@ -946,6 +975,7 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.assertTrue(result["effect_reconciliation_required"])
         self.assertEqual(len(self.world.inputs), 3)
 
+    @requires_tesseract
     def test_canonical_stop_after_entry_or_lineup_blocks_restart_before_observation(self):
         for stop_after in (2, 3):
             with self.subTest(stop_after=stop_after):

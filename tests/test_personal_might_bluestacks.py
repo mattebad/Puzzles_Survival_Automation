@@ -25,6 +25,8 @@ from tasks.runtime_identity import derive_fixed_runtime_binding, derive_resource
 from safe_action_core import SafetyStore
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+
 
 
 def setUpModule():
@@ -152,6 +154,7 @@ def no_work_delivery(root):
 
 
 class PersonalMightNativeTests(unittest.TestCase):
+    @requires_tesseract
     def test_native_fragmented_rankings_caption_still_binds_current_trophy_body(self):
         original = cv2.imread(str(FRAGMENTED_RANKINGS_FIXTURE))
         for defect in (None, "caption", "trophy"):
@@ -171,6 +174,7 @@ class PersonalMightNativeTests(unittest.TestCase):
                 else:
                     self.assertIsNone(target)
 
+    @requires_tesseract
     def test_public_no_work_validator_reads_only_and_claims_zero_new_effect(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -185,6 +189,7 @@ class PersonalMightNativeTests(unittest.TestCase):
             self.assertFalse(result["input_authority"])
             self.assertEqual(before, {file.name: hashlib.sha256(file.read_bytes()).hexdigest() for file in root.iterdir() if file.is_file()})
 
+    @requires_tesseract
     def test_public_validator_rejects_false_count_gold_no_work_and_wrong_input(self):
         for defect in ("praise_count", "gold_no_work", "unresolved_nav", "wrong_point", "stale_source", "malformed_initial"):
             with self.subTest(defect=defect), tempfile.TemporaryDirectory() as directory:
@@ -228,6 +233,7 @@ class PersonalMightNativeTests(unittest.TestCase):
         gray = captured(cv2.imencode(".png", negative)[1].tobytes())
         self.assertFalse(vision.personal_might_praised(gray.frame, source_frame=identity_from_captured(gray, session_id="global-desaturation", ordinal=1), source_png=gray.png))
 
+    @requires_tesseract
     def test_gold_to_disabled_post_confirms_one_praise_after_two_observations(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -249,9 +255,11 @@ class PersonalMightNativeTests(unittest.TestCase):
                     store.release_lease(session.owner, time.time())
             store.close()
 
+    @requires_tesseract
     def test_linked_recovery_confirms_only_original_action_then_two_back_home(self):
         self._assert_linked_recovery()
 
+    @requires_tesseract
     def test_canonical_source_recovery_uses_original_gray_pair_without_reward_toasts(self):
         self._assert_linked_recovery(canonical=True, successor_png=DISABLED_FIXTURE.read_bytes())
 
@@ -306,6 +314,7 @@ class PersonalMightNativeTests(unittest.TestCase):
                     store.release_lease(session.owner, time.time())
             store.close()
 
+    @requires_tesseract
     def test_recovery_bad_source_or_canonical_epoch_leaves_fence_and_zero_inputs(self):
         for defect in ("source_sha", "duplicate_dispatch", "canonical_epoch", "current_gold", "one_gray", "duplicate_gray", "current_only_gray", "ambiguous_result"):
             with self.subTest(defect=defect), tempfile.TemporaryDirectory() as directory:
@@ -338,6 +347,7 @@ class PersonalMightNativeTests(unittest.TestCase):
                         self.assertEqual(store.get_action(record["action_id"])["final_status"], "unresolved")
                 store.close()
 
+    @requires_tesseract
     def test_native_disabled_antialias_requires_rank_identity_finger_and_cuff(self):
         pixels = cv2.imread(str(DISABLED_FIXTURE))
         for defect in (None, "cuff", "finger", "rank", "desaturation"):
@@ -364,6 +374,31 @@ class PersonalMightNativeTests(unittest.TestCase):
             with self.assertRaises(pnsctl.OperatorError):
                 pnsctl.development_session_run_flow(delivery.FLOW_ID, live=True, yes=True, max_inputs=8, recovery_only=True)
             connect.assert_not_called()
+
+    def test_linked_ancestor_is_rejected_before_retained_evidence_is_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = root / "original"
+            (parent / "source").mkdir(parents=True)
+            link = root / "linked"
+            try:
+                link.symlink_to(parent, target_is_directory=True)
+            except (OSError, NotImplementedError) as exc:
+                if getattr(exc, "winerror", None) == 1314 or isinstance(exc, NotImplementedError):
+                    self.skipTest("host cannot create symbolic links without elevated privileges")
+                if isinstance(exc, PermissionError):
+                    self.skipTest("host does not permit symbolic-link creation")
+                raise
+            for mode in ("recovery", "validation"):
+                with self.subTest(mode=mode), patch.object(
+                        delivery, "_retained_result",
+                        side_effect=AssertionError("untrusted evidence must not be read")) as retained:
+                    with self.assertRaises(ValueError):
+                        if mode == "recovery":
+                            delivery._recovery_proof(link / "source", store=None, identity=None, binding=None)
+                        else:
+                            delivery._validation_session(link / "source")
+                    retained.assert_not_called()
 
     def test_native_rank_1_thumb_requires_exact_header_medal_and_unique_body(self):
         frame = captured(PERSONAL_MIGHT_FIXTURE.read_bytes(), path=PERSONAL_MIGHT_FIXTURE)
@@ -394,6 +429,27 @@ class PersonalMightNativeTests(unittest.TestCase):
                 changed = captured(cv2.imencode(".png", pixels)[1].tobytes())
                 self.assertIsNone(vision.bind_personal_might_praise(changed.frame, source_frame=identity_from_captured(changed, session_id="native-thumb-negative", ordinal=1), source_png=changed.png))
 
+    @requires_tesseract
+    def test_numeric_rank_field_does_not_authorize_a_different_rank(self):
+        original = captured(PERSONAL_MIGHT_FIXTURE.read_bytes(), path=PERSONAL_MIGHT_FIXTURE)
+        for rank in ("1", "2", "3", "7", "9", "10", "11", "12", "21"):
+            with self.subTest(rank=rank):
+                pixels = original.frame.copy()
+                # Replace only the numeral; retain the independently required
+                # connected gold medal around it.
+                pixels[174:202, 92:114] = 0
+                cv2.putText(pixels, rank, (92, 199), cv2.FONT_HERSHEY_COMPLEX,
+                            0.8, (255, 255, 255), 2, cv2.LINE_AA)
+                changed = captured(cv2.imencode(".png", pixels)[1].tobytes())
+                source = {"source_frame": identity_from_captured(changed, session_id="numeric-rank-field", ordinal=1),
+                          "source_png": changed.png}
+                target = vision.bind_personal_might_praise(changed.frame, **source)
+                if rank == "1":
+                    self.assertIsNotNone(target)
+                    self.assertEqual(target.target_roi, (701, 167, 741, 207))
+                else:
+                    self.assertIsNone(target)
+
     def test_current_visible_back_arrow_is_bound_on_both_native_pages(self):
         for fixture, personal_page in ((PERSONAL_MIGHT_FIXTURE, True), (LEADERBOARD_FIXTURE, False)):
             frame = captured(fixture.read_bytes(), path=fixture)
@@ -407,6 +463,7 @@ class PersonalMightNativeTests(unittest.TestCase):
             erased = captured(cv2.imencode(".png", missing)[1].tobytes())
             self.assertIsNone(vision.bind_back(erased.frame, source_frame=identity_from_captured(erased, session_id="missing-back", ordinal=1), source_png=erased.png, personal_page=personal_page))
 
+    @requires_tesseract
     def test_one_fenced_praise_unknown_persists_and_blocks_next_invocation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -442,6 +499,7 @@ class PersonalMightNativeTests(unittest.TestCase):
                     self.assertEqual(second.taps, [])
             store.close()
 
+    @requires_tesseract
     def test_changed_immediate_thumb_never_reaches_praise_input_reservation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -460,6 +518,7 @@ class PersonalMightNativeTests(unittest.TestCase):
                     store.release_lease(session.owner, time.time())
             store.close()
 
+    @requires_tesseract
     def test_valid_moved_immediate_thumb_fails_canonical_p_to_i_guard(self):
         source = cv2.imread(str(PERSONAL_MIGHT_FIXTURE))
         shifted = source.copy()
@@ -483,6 +542,7 @@ class PersonalMightNativeTests(unittest.TestCase):
                     store.release_lease(session.owner, time.time())
             store.close()
 
+    @requires_tesseract
     def test_immediate_capture_with_proposal_timestamp_stops_before_policy_issue(self):
         class SameTimestampRuntime(Runtime):
             def capture(self, label):
@@ -523,6 +583,7 @@ class PersonalMightNativeTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             delivery._validate_identity(identity, other, now)
 
+    @requires_tesseract
     def test_native_more_menu_rankings_is_bound_without_more_toggle(self):
         frame = captured(MENU_FIXTURE.read_bytes(), path=MENU_FIXTURE)
         identity = identity_from_captured(frame, session_id="native-more-menu", ordinal=1)
@@ -543,6 +604,7 @@ class PersonalMightNativeTests(unittest.TestCase):
                 self.assertIsNone(vision.bind_more_rankings(erased.frame, **changed_source))
                 self.assertIsNone(vision.bind_home_more(erased.frame, **changed_source))
 
+    @requires_tesseract
     def test_native_caption_help_source_uses_trophy_and_missing_body_blocks(self):
         frame = captured(CAPTION_HELP_SOURCE.read_bytes(), path=CAPTION_HELP_SOURCE)
         identity = identity_from_captured(frame, session_id="caption-help-source", ordinal=1)
@@ -623,6 +685,7 @@ class PersonalMightNativeTests(unittest.TestCase):
             self.assertEqual(result["verified_navigation"], [])
             self.assertEqual(result["praise_transport_calls"], 0)
 
+    @requires_tesseract
     def test_native_more_binding_is_current_and_popup_free(self):
         frame = captured(FIXTURE.read_bytes())
         identity = identity_from_captured(frame, session_id="native-more", ordinal=1)

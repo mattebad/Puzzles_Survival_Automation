@@ -12,6 +12,8 @@ import numpy as np
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts import daily_resource_item_bluestacks as route
 
+from tests.support.environment import requires_tesseract
+
 PORTABLE_FIXTURES = (
     Path(__file__).resolve().parent
     / "fixtures"
@@ -482,6 +484,7 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
                     )
                 )
 
+    @requires_tesseract
     def test_retained_resources_frame_binds_measured_back_arrow(self):
         frame_path = PORTABLE_FIXTURES / "session-1-transport-source.png"
         frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
@@ -673,6 +676,8 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             route,
             "recognize_food_item_in_resources",
             side_effect=food_side_effect,
+        ), patch.object(
+            route, "resource_list_content_signature", return_value="synthetic-resource-list"
         ):
             result = route.run_daily_resource_item(runtime, session)
 
@@ -1103,7 +1108,9 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             route,
             "recognize_food_item_in_resources",
             side_effect=food_side_effect,
-        ), patch.object(route.time, "sleep"):
+        ), patch.object(route.time, "sleep"), patch.object(
+            route, "resource_list_content_signature", return_value="synthetic-resource-list"
+        ):
             result = route.run_daily_resource_item(runtime, session)
 
         self.assertEqual(result["status"], "completed")

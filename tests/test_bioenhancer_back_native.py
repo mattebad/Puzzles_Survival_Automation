@@ -9,6 +9,7 @@ import cv2
 
 from scripts import bioenhancer_free_research_route as bio
 from tasks.home_atlas_vision import frame_digest
+from tests.support.environment import requires_tesseract
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +21,7 @@ class BioenhancerBackNativeTests(unittest.TestCase):
     def frame():
         return cv2.imread(str(FIXTURES / "native-bio-research-cooldown.png"))
 
+    @requires_tesseract
     def test_native_research_title_arrow_and_animation_variance(self):
         frame = self.frame()
         control = bio.bind_bioenhancer_back(frame)
@@ -30,6 +32,7 @@ class BioenhancerBackNativeTests(unittest.TestCase):
         self.assertNotEqual(frame_digest(frame), frame_digest(variant))
         self.assertEqual(bio.bind_bioenhancer_back(variant).target_roi, control.target_roi)
 
+    @requires_tesseract
     def test_wrong_or_obscured_header_and_missing_arrow_fail_closed(self):
         for label in ("wrong_title", "obscured_header", "missing_arrow"):
             with self.subTest(case=label):
@@ -43,6 +46,7 @@ class BioenhancerBackNativeTests(unittest.TestCase):
                                     1.1, (255, 255, 255), 2, cv2.LINE_AA)
                 self.assertIsNone(bio.bind_bioenhancer_back(frame))
 
+    @requires_tesseract
     def test_real_retained_vip_and_independent_unknown_panel_fail_closed(self):
         vip = cv2.imread(str(ROOT / "tasks/assets/navigation/800x1280/reset_popup_source.png"))
         frame = self.frame()

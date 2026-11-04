@@ -13,6 +13,7 @@ import pytesseract
 
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+from tests.support.environment import requires_tesseract
 
 
 class EnhancementOcrDeadlineTests(unittest.TestCase):
@@ -50,6 +51,7 @@ class EnhancementOcrDeadlineTests(unittest.TestCase):
                     child.kill()
                 child.communicate(timeout=5)
 
+    @requires_tesseract
     def test_one_recognition_shares_its_budget_across_ocr_fields(self):
         frame = cv2.imread(str(Path(__file__).parent / "fixtures/enhancement_item_modal/native-gear-quantity-one-20261029.png"))
         now, timeouts = [100.], []

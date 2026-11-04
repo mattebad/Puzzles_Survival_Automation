@@ -11,6 +11,7 @@ import numpy as np
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
 from scripts.home_atlas_bluestacks import identity_from_captured
 from tasks import supply_depot_vision as vision
+from tests.support.environment import requires_ocr_worker, requires_tesseract
 
 
 FIXTURES = Path(__file__).parent / "fixtures/supply_depot"
@@ -88,6 +89,8 @@ class SupplyClaimButtonGeometryTests(unittest.TestCase):
 
 
 class SupplyClaimButtonNativeBindingTests(unittest.TestCase):
+    @requires_tesseract
+    @requires_ocr_worker
     def test_real_daylight_circle_survives_proposal_variation_with_same_final_gates(self):
         path = FIXTURES / "native-claim-circle-proposal-20261102.png"
         captured = captured_native_frame_from_png(path.read_bytes(), path=path, captured_monotonic=time.monotonic())
@@ -100,6 +103,8 @@ class SupplyClaimButtonNativeBindingTests(unittest.TestCase):
         with patch.object(vision, "_claim_icon_template", return_value=None):
             self.assertIsNone(vision.bind_supply_depot_claim_supply(captured.frame))
 
+    @requires_tesseract
+    @requires_ocr_worker
     def test_actual_reset_hud_caption_binds_only_with_complete_word_and_safe_button(self):
         path = FIXTURES / "native-claim-hud-ocr-20261102.png"
         captured = captured_native_frame_from_png(path.read_bytes(), path=path, captured_monotonic=time.monotonic())
@@ -117,6 +122,8 @@ class SupplyClaimButtonNativeBindingTests(unittest.TestCase):
         with patch.object(vision, "_claim_icon_template", return_value=None):
             self.assertIsNone(vision.bind_supply_depot_claim_supply(captured.frame))
 
+    @requires_tesseract
+    @requires_ocr_worker
     def test_actual_before_binds_button_but_label_dismissal_and_changed_png_do_not(self):
         before = captured_native_frame_from_png(BEFORE.read_bytes(), path=BEFORE, captured_monotonic=time.monotonic())
         identity = identity_from_captured(before, session_id="offline-claim-button", ordinal=1)

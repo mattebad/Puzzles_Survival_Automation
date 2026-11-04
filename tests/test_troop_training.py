@@ -1165,7 +1165,7 @@ class TroopTrainingContractTests(unittest.TestCase):
             def capture(self, _label):
                 return CapturedNativeFrame(np.zeros((1280, 800, 3), dtype=np.uint8), b"png", "a" * 64, 1.0, Path("frame.png"))
 
-        with patch.object(
+        with patch("scripts.troop_training_bluestacks.recognize_radial_menu", return_value=SimpleNamespace(recognized=False)), patch.object(
             TroopTrainingIntegratedRoute,
             "_navigate_selected_facility",
             return_value=(None, None, None, "dry-run-calculated-pan-not-dispatched"),

@@ -13,6 +13,8 @@ from scripts import bioenhancer_free_research_route as bio
 from scripts.home_atlas_bluestacks import bluestacks_direct_pan_contract
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition, plan_direct_pan
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+from tests.support.home_atlas import localization as synthetic_localization
 
 
 def setUpModule():
@@ -29,6 +31,7 @@ class BioenhancerHomeEntryBindingTests(unittest.TestCase):
         safe, calibration = bluestacks_direct_pan_contract()
         return DirectPanNavigator(atlas, bio.RESEARCH_LAB_ID, safe, calibration)
 
+    @requires_tesseract
     def test_native_safe_hit_region_completes_without_pan(self):
         for name in ("fully-visible-after-pan.png",):
             with self.subTest(frame=name):
@@ -43,6 +46,7 @@ class BioenhancerHomeEntryBindingTests(unittest.TestCase):
                 self.assertIsNone(plan.drag_start)
                 self.assertEqual(navigator.pan_count, 0)
 
+    @requires_tesseract
     def test_native_high_lab_needs_pan_before_its_nova_radial_can_be_recognized(self):
         frame = cv2.imread(str(FIXTURES / "initial-safe-subregion.png"))
         atlas = bio.load_home_atlas(bio.ATLAS_PATH)
@@ -54,6 +58,7 @@ class BioenhancerHomeEntryBindingTests(unittest.TestCase):
         self.assertIsNone(bio.bind_research_lab(frame))
         self.assertEqual(navigator.pan_count, 1)
 
+    @requires_tesseract
     def test_native_right_lab_needs_pan_before_research_clears_the_event_hud(self):
         frame = cv2.imread(str(ROOT / "tests/fixtures/bioenhancer_radial/home-research-under-event-hud.png"))
         atlas = bio.load_home_atlas(bio.ATLAS_PATH)
@@ -68,7 +73,10 @@ class BioenhancerHomeEntryBindingTests(unittest.TestCase):
 
     def test_unclean_home_stops_before_binding_or_planning(self):
         frame = cv2.imread(str(FIXTURES / "fully-visible-after-pan.png"))
-        atlas, localization = bio._atlas_stack(frame)
+        atlas = bio.load_home_atlas(bio.ATLAS_PATH)
+        localization = synthetic_localization(
+            digest=hashlib.sha256(frame.tobytes()).hexdigest()
+        )
         navigator = self.navigator(atlas)
         with patch.object(bio, "_atlas_stack", return_value=(atlas, localization)), patch.object(
             bio, "is_clean_home_frame", return_value=False
@@ -80,6 +88,7 @@ class BioenhancerHomeEntryBindingTests(unittest.TestCase):
         bind.assert_not_called()
         plan.assert_not_called()
 
+    @requires_tesseract
     def test_actual_minimum_pan_dead_zone_gets_calibrated_camera_move_only(self):
         path = FIXTURES / "research-right-hud-minimum-pan-20261031.png"
         self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(),
@@ -108,6 +117,7 @@ class BioenhancerHomeEntryBindingTests(unittest.TestCase):
         self.assertEqual(repeated.reason, "repeated_viewport")
         self.assertEqual(navigator.pan_count, 1)
 
+    @requires_tesseract
     def test_dead_zone_camera_move_preserves_existing_pan_cap(self):
         frame = cv2.imread(str(FIXTURES / "research-right-hud-minimum-pan-20261031.png"))
         atlas = bio.load_home_atlas(bio.ATLAS_PATH)
@@ -120,8 +130,13 @@ class BioenhancerHomeEntryBindingTests(unittest.TestCase):
 
     def test_stale_localization_cannot_supply_a_binding(self):
         frame = cv2.imread(str(FIXTURES / "fully-visible-after-pan.png"))
-        atlas, localization = bio._atlas_stack(frame)
-        with patch.object(bio, "_atlas_stack", return_value=(atlas, replace(localization, stale=True))):
+        atlas = bio.load_home_atlas(bio.ATLAS_PATH)
+        localization = replace(synthetic_localization(
+            digest=hashlib.sha256(frame.tobytes()).hexdigest()
+        ), stale=True)
+        with patch.object(bio, "_atlas_stack", return_value=(atlas, localization)), patch.object(
+            bio, "is_clean_home_frame", return_value=True
+        ):
             _actual, binding, plan = bio.plan_research_lab_pan(frame, self.navigator(atlas))
         self.assertIsNone(binding)
         self.assertIs(plan.disposition, PlanDisposition.REJECTED)

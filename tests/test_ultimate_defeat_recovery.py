@@ -21,6 +21,8 @@ from scripts.startup_recovery import classify_startup_frame
 from automation_service import ultimate as service
 from tests.support.ultimate import RESET as FLEE_PROOF_RESET, CampaignExitRuntime, flee_proof
 from tasks.runtime_identity import BLUESTACKS_SERIAL
+from tests.support.environment import requires_tesseract
+
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "ultimate_active_battle"
@@ -63,6 +65,7 @@ class RecoveryInputBudgetTests(unittest.TestCase):
 
 
 class DefeatRecognitionTests(unittest.TestCase):
+    @requires_tesseract
     def test_startup_routes_known_defeat_without_granting_input_or_allowing_other_flows(self):
         image = DEFEAT.read_bytes()
         plan = classify_startup_frame(delivery.FLOW_ID, image)
@@ -72,11 +75,13 @@ class DefeatRecognitionTests(unittest.TestCase):
         self.assertEqual(other.status, "blocked")
         self.assertFalse(other.input_authority)
 
+    @requires_tesseract
     def test_retained_defeat_binds_continue_but_warning_blocks(self):
         self.assertEqual(native._bind_ultimate_defeat_continue(read_frame(DEFEAT)),
                          (270, 1212, 530, 1270))
         self.assertIsNone(native._bind_ultimate_defeat_continue(read_frame(WARNING)))
 
+    @requires_tesseract
     def test_each_required_visible_feature_is_necessary(self):
         original = read_frame(DEFEAT)
         # Blank one visible feature at a time, retaining the rest of the frame.
@@ -145,6 +150,7 @@ class DefeatReceiptTests(unittest.TestCase):
         scope.start()
         self.addCleanup(scope.stop)
 
+    @requires_tesseract
     def test_service_retains_known_defeat_effect_but_rejects_warning_as_successor(self):
         with tempfile.TemporaryDirectory() as directory:
             session = Path(directory) / "prior"
@@ -175,6 +181,7 @@ class DefeatReceiptTests(unittest.TestCase):
             with self.assertRaises(pnsctl.OperatorError):
                 delivery._validated_flee_recovery(session, FLEE_PROOF_RESET)
 
+    @requires_tesseract
     def test_failed_one_flee_receipt_requires_two_retained_defeat_successors(self):
         with tempfile.TemporaryDirectory() as directory:
             session = Path(directory) / "prior"
@@ -183,6 +190,7 @@ class DefeatReceiptTests(unittest.TestCase):
             self.assertEqual(recovery["recovery_kind"], "defeat_after_flee")
             self.assertEqual(recovery["session_directory"], str(session.resolve()))
 
+    @requires_tesseract
     def test_corrupted_or_ambiguous_receipt_cannot_authorize_recovery(self):
         for fault in ("duplicate_flee", "missing_successor", "foreign_frame", "tampered_frame",
                       "pre_dispatch_successor", "future_capture", "unaccounted_input", "unknown_event", "wrong_action_key", "wrong_reset"):
@@ -238,6 +246,7 @@ class DefeatRouteTests(unittest.TestCase):
                 reset_identity=RESET, post_input_delay=0, runtime=runtime)
         return runtime, result
 
+    @requires_tesseract
     def test_continue_reaches_verified_home_without_new_flee_or_challenge(self):
         defeat = read_frame(DEFEAT)
         main, campaign, home = (np.full((1280, 800, 3), shade, dtype=np.uint8)
@@ -253,6 +262,7 @@ class DefeatRouteTests(unittest.TestCase):
         self.assertEqual([back["target_identity"] for back in runtime.backs], ["ultimate-challenge-back"])
         self.assertEqual(runtime.input_count, 3)
 
+    @requires_tesseract
     def test_unexpected_successor_or_stop_after_continue_never_retries(self):
         base = CampaignExitRuntime
         class StopAfterContinue(base):
@@ -270,6 +280,7 @@ class DefeatRouteTests(unittest.TestCase):
                 self.assertEqual(runtime.backs, [])
                 self.assertEqual(runtime.input_count, 1)
 
+    @requires_tesseract
     def test_unaccounted_continue_transport_cannot_advance_to_back(self):
         base = CampaignExitRuntime
         class UnaccountedContinue(base):

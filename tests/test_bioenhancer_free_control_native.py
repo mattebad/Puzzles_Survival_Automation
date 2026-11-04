@@ -7,6 +7,7 @@ import unittest
 import cv2
 
 from scripts import bioenhancer_free_research_route as bio
+from tests.support.environment import requires_tesseract
 
 
 FIXTURE = Path(__file__).parent / "fixtures/bioenhancer_free_control/native-free-research-ready-20261031.png"
@@ -21,6 +22,7 @@ class BioenhancerFreeControlTests(unittest.TestCase):
             raise AssertionError("Native free-control source changed")
         cls.frame = cv2.imread(str(FIXTURE))
 
+    @requires_tesseract
     def test_real_free_one_label_binds_only_inside_the_free_button(self):
         control = bio.bind_free_research(self.frame)
         self.assertIsNotNone(control)
@@ -30,6 +32,7 @@ class BioenhancerFreeControlTests(unittest.TestCase):
         self.assertTrue(sx0 <= x0 < x1 <= sx1 and sy0 <= y0 < y1 <= sy1)
         self.assertEqual(control.evidence, ("ocr:free", "ocr:research", "ocr:1x"))
 
+    @requires_tesseract
     def test_missing_free_or_quantity_cannot_borrow_paid_research(self):
         for box in ((180, 1143, 260, 1173), (264, 1175, 307, 1202), bio.FREE_RESEARCH_SEED_ROI):
             with self.subTest(erased=box):
@@ -38,6 +41,7 @@ class BioenhancerFreeControlTests(unittest.TestCase):
                 changed[y0:y1, x0:x1] = 0
                 self.assertIsNone(bio.bind_free_research(changed))
 
+    @requires_tesseract
     def test_native_cooldown_never_binds_as_a_free_action(self):
         frame = cv2.imread(str(FIXTURE.parents[1] / "bioenhancer_exit/native-bio-research-cooldown.png"))
         self.assertIsNone(bio.bind_free_research(frame))

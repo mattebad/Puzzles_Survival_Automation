@@ -10,6 +10,7 @@ import numpy as np
 
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+from tests.support.environment import requires_tesseract
 
 
 FRAME = Path(__file__).parent / "fixtures/enhancement_item_modal/native-home-duplicate-level-20261029.png"
@@ -29,11 +30,25 @@ class HomeDuplicateOcrTests(unittest.TestCase):
         cls.raw = FRAME.read_bytes()
         cls.frame = cv2.imdecode(np.frombuffer(cls.raw, np.uint8), cv2.IMREAD_COLOR)
 
+    @requires_tesseract
     def test_actual_default_ocr_nested_badge_is_admitted_from_native_source(self):
         self.assertEqual(hashlib.sha256(self.raw).hexdigest(), SHA)
         actual = native._default_ocr(self.frame, native.HOME_PROFILE_SEARCH_ROI)
+        # Engine builds differ on the wide reading of this badge: the capture
+        # machine read "47" at WIDE.bounds; tesseract 5.3.0 (Linux CI) and
+        # 5.5.4 (macOS) read "47S" at (2, 54, 91, 97). The premise is the same
+        # on every build: the tight badge, plus exactly one wider "47..."
+        # reading that encloses it, and no "47" reading anywhere else.
+        def encloses(hit):
+            x0, y0, x1, y1 = hit.bounds
+            tx0, ty0, tx1, ty1 = TIGHT.bounds
+            return x0 <= tx0 and y0 <= ty0 and tx1 <= x1 and ty1 <= y1
         badges = [hit for hit in actual if native._normalize(hit.text) == "47"]
-        self.assertEqual({hit.bounds for hit in badges}, {TIGHT.bounds, WIDE.bounds})
+        self.assertIn(TIGHT.bounds, {hit.bounds for hit in badges})
+        self.assertTrue(all(encloses(hit) for hit in badges), badges)
+        wider = [hit for hit in actual if native._normalize(hit.text).startswith("47")
+                 and hit.bounds != TIGHT.bounds and encloses(hit)]
+        self.assertEqual(len(wider), 1, actual)
         result = native.recognize_home_frame(self.frame, source_frame_sha256=SHA)
         self.assertTrue(result.recognized, result)
         self.assertEqual(result.frame_sha256, SHA)
@@ -43,7 +58,11 @@ class HomeDuplicateOcrTests(unittest.TestCase):
     def test_same_glyph_uses_higher_confidence_then_tighter_source_measurement(self):
         for wide_confidence in (68., 96.):
             hits = [native.OcrHit(" 47 ", WIDE.bounds, wide_confidence), TIGHT, VIP]
-            with patch.object(native, "_profile_portrait_visual_present", return_value=False):
+            # Scene recognition is independent of the synthetic profile OCR cases.
+            with (
+                patch.object(native, "is_clean_home_frame", return_value=True),
+                patch.object(native, "_profile_portrait_visual_present", return_value=False),
+            ):
                 result = native.recognize_home_frame(self.frame, ocr_engine=lambda *_: hits)
             self.assertTrue(result.recognized, result)
             self.assertEqual(result.portrait_target, (0, 41, 61, 106))
@@ -78,7 +97,8 @@ class HomeDuplicateOcrTests(unittest.TestCase):
 
     def test_nested_duplicate_consumer_sends_one_current_portrait_navigation(self):
         runtime, route, call = self.dispatch([TIGHT, WIDE, VIP])
-        call()
+        with patch.object(native, "is_clean_home_frame", return_value=True):
+            call()
         self.assertEqual([row["target_identity"] for row in runtime.inputs], ["commander-profile-portrait"])
         self.assertEqual(runtime.inputs[0]["target_roi"], native.HOME_PROFILE_PORTRAIT_ROI)
         self.assertFalse(route.resource_dispatch_keys)
@@ -93,7 +113,7 @@ class HomeDuplicateOcrTests(unittest.TestCase):
             [TIGHT, native.OcrHit("4?", TIGHT.bounds, 99.), VIP],
             [TIGHT, VIP, native.OcrHit("VIP11", VIP.bounds, 99.)])
         for hits in cases:
-            with self.subTest(hits=hits):
+            with self.subTest(hits=hits), patch.object(native, "is_clean_home_frame", return_value=True):
                 runtime, route, call = self.dispatch(hits)
                 with self.assertRaises(native._FlowBlocked):
                     call()

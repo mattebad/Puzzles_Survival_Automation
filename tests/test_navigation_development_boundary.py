@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import multiprocessing
+import os
 from pathlib import Path
+import stat
 import tempfile
 import time
 import unittest
@@ -218,6 +220,34 @@ class NavigationDevelopmentBoundaryTests(unittest.TestCase):
                 local = RuntimeInputLock(owner="local", invocation_id="local-1")
                 local.acquire()
                 local.release()
+
+    def test_fixed_path_accepts_real_test_temp_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            expected = Path(directory) / "bluestacks-runtime-input-lock.sqlite3"
+            self.assertEqual(
+                require_fixed_orchestrator_path(None, expected, "runtime input lock"),
+                expected,
+            )
+
+    def test_fixed_path_rejects_a_link_hidden_before_a_parent_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            expected = root / "bluestacks-runtime-input-lock.sqlite3"
+            component = root / "canceled"
+            component.mkdir()
+            candidate = component / ".." / expected.name
+            linked_paths = {component, component.resolve()}
+            original = os.lstat
+            with patch("os.lstat", side_effect=lambda path, *args, **kwargs: (
+                    os.stat_result((stat.S_IFLNK | 0o777, *original(path, *args, **kwargs)[1:]))
+                    if Path(path) in linked_paths else original(path, *args, **kwargs)
+            )):
+                with self.assertRaises(NavigationBoundaryError):
+                    require_fixed_orchestrator_path(candidate, expected, "runtime input lock")
+            self.assertEqual(
+                require_fixed_orchestrator_path(candidate, expected, "runtime input lock"),
+                expected.absolute(),
+            )
 
     def test_fixed_lock_and_action_store_paths_reject_escape(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

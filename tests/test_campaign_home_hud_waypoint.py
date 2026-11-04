@@ -19,6 +19,7 @@ from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from tasks import home_atlas_vision as vision
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition, camera_origin
 from tests.support.home_atlas import _ready
+from tests.support.environment import requires_tesseract
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +43,7 @@ class CampaignHomeHudWaypointTests(unittest.TestCase):
         return DirectPanNavigator(atlas or self.atlas, self.building.semantic_id,
                                   safe or self.safe, calibration or self.calibration)
 
+    @requires_tesseract
     def test_actual_home_is_localized_but_anchor_cannot_clear_hud(self):
         self.assertTrue(home.is_clean_home_frame(self.frame))
         self.assertTrue(self.localization.recognized)
@@ -84,6 +86,7 @@ class CampaignHomeHudWaypointTests(unittest.TestCase):
         self.assertEqual(repeated.reason, "repeated_viewport")
         self.assertEqual(navigator.pan_count, 1)
 
+    @requires_tesseract
     def test_driver_does_not_open_until_a_fresh_real_frame_binds(self):
         driver = home.BlueStacksLocalizeFirstHomeDriver(self.atlas, ATLAS, _ready(),
             self.building.semantic_id, localizer=self.localizer)
@@ -187,8 +190,11 @@ class CampaignHomeHudWaypointTests(unittest.TestCase):
                     kwargs["post_pan_observer"]()
                     return None, SimpleNamespace(transport_calls=1, status=home.ActionStatus.CONFIRMED, reason="confirmed"), None, {}
 
-                stack.enter_context(patch("scripts.atlas_runtime_startup.normalize_runtime_home_atlas_startup",
-                                          return_value=(self.localizer, [])))
+                stack.enter_context(patch(
+                    "scripts.atlas_runtime_startup.normalize_runtime_home_atlas_startup",
+                    return_value=(self.localizer, []),
+                ))
+                stack.enter_context(patch.object(home, "is_clean_home_frame", return_value=True))
                 stack.enter_context(patch.object(home, "dispatch_verified_navigate_pan", side_effect=dispatch))
                 stack.enter_context(patch.object(home, "_plan_mapped_home_entry", side_effect=observe_next_plan))
                 result = home.run_verified_campaign_home_atlas_entry(runtime, atlas_path=ATLAS,

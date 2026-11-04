@@ -16,6 +16,36 @@ Real-money Cash Mall confirmation is unsupported.
   journal, a global unresolved record, zero-transport replay, production preflight, manual attempt
   increments, or persistent-artifact mutation.
 
+## Fixed paths and retained evidence
+
+`safe_action_core.path_safety` inspects every existing path component with `lstat`;
+dangling links are not treated as missing files. Fixed orchestrator paths still
+must equal their configured lexical path, and evidence paths remain constrained
+to the caller's evidence root.
+
+Only Darwin's exact `/var` → `/private/var` and `/tmp` → `/private/tmp` OS aliases
+are eligible for substitution. The alias must be root-owned, its target text must
+match, and `/`, `/private`, and the target must be real root-owned directories
+protected from group/other writes. Only the exact `/private/tmp` target permits
+the normal sticky, writable temporary-directory mode. User-owned descendant
+directories are valid, but every descendant symlink is rejected, even if that
+link is root-owned. Other platforms do not inherit the Darwin exception.
+
+The orchestrator, startup-recovery references, Campaign recovery, Ruins,
+Bioenhancer, Enhancement, Ultimate Challenge and Personal Might evidence guards
+reuse this check; their containment and error boundaries remain authoritative.
+Evidence consumers canonicalize only after raw component validation, preserving
+Windows short-path aliases without hiding links. Filesystem session references
+are compared by validated physical path where required; action/run/reset identity,
+hash, lease, ownership, freshness and effect checks remain separate requirements.
+Parent steps cannot erase prior link checks, and a missing component does not
+hide later components reached after a parent step.
+
+These are path checks, not an atomic defense against filesystem changes between
+validation and use. Planted symbolic links are rejected; Windows junctions are
+not detected by the shared guard (see [#46](https://github.com/mattebad/Puzzles_Survival_Automation/issues/46)).
+Filesystem observations and offline test results never authorize live input.
+
 ## Action-specific checks
 
 - Use a fresh raw 800×1280 frame when the action requires visual binding. Bind visible targets from

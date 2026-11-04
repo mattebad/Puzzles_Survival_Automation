@@ -52,6 +52,8 @@ from tasks.navigation_session import (
 )
 from tasks.perception_bundle import PerceptionBundleError
 from tasks.radial_semantics import radial_semantics_authorize_dispatch
+from tests.support.environment import requires_tesseract
+
 
 
 _TEST_WALL = 1000.0
@@ -879,6 +881,7 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
             "NON_DISPATCH_AUTHORITY_UNAVAILABLE",
         )
 
+    @requires_tesseract
     def test_fresh_pre_dispatch_capture_before_each_stage_dispatch(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
