@@ -1,9 +1,10 @@
 # Ticket #24: native OCR portability
 
-Status: implemented on the candidate branch, not live-accepted. The inner-field
-candidate passed the existing Windows/Linux native checks but failed the expanded
-multi-digit negative control. A full-medal highlight-containment guard now rejects
-clipped numeral strokes before OCR; final cross-platform sweep proof is pending.
+Status: implemented on the candidate branch; native Linux module proof is now
+present, but this is not whole-suite or live acceptance. The d4db4c8 inner-crop-
+only subset is historical and was invalidated by the Rank 10/11 safety
+regression. The full-medal-band highlight-containment guard has native Linux
+proof; macOS hosted proof is not established here.
 
 ## Observed cause
 
@@ -41,15 +42,15 @@ numeral crop. It does not map `a` to `1`, reduce an identity check, or retry a
 resource action. The complete numeric field and the independent medal remain
 required.
 
-## Inner-field candidate and safety regression
+## Historical inner-crop subset and safety regression
 
 [Run 41801356827](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41801356827)
 at `d4db4c8` passed six Campaign and 29 Personal Might tests on both Tesseract
 5.3.4 and 5.5.0. The source-hashed documents are retained in
-[`native-ocr-linux-d4db4c8.json`](native-ocr-linux-d4db4c8.json).
-These are **subset observations, not final acceptance**: a subsequent derived-frame
-smoke and permanent regression found synthetic ranks 10 and 11 bound as Rank 1.
-The crop hid part of the second numeral.
+[`native-ocr-linux-d4db4c8.json`](native-ocr-linux-d4db4c8.json). This
+inner-crop-only subset is invalidated: a subsequent derived-frame smoke and
+permanent regression found synthetic ranks 10 and 11 bound as Rank 1 because the
+crop hid part of the second numeral.
 
 The repair inspects bright, low-saturation numeral highlights across the full
 medal band and requires their complete horizontal extent to fit inside the OCR
@@ -59,13 +60,31 @@ only digit 1, alter the source frame or retry an action. The existing native
 positive/disabled-state controls remain required, and the numeric regression now
 also rejects ranks 10, 11, 12 and 21.
 
-On Windows, the permanent regression failed before the guard for ranks 10 and 11.
-Afterwards both full native modules passed: 36 tests, zero failures/errors and one
-host symlink-privilege skip, 61.063 seconds including driver overhead. No forbidden
-device-executable attempt was observed. Linux/macOS final guard proof remains
-`evidence_required` until the hosted sweep completes.
+In the Windows local run, the permanent regression failed before the guard for
+ranks 10 and 11. Afterwards both full native modules passed: 36 tests, zero
+failures/errors and one host symlink-privilege skip, 61.063 seconds including
+driver overhead. No forbidden device-executable attempt was observed. This is
+local Windows evidence, not hosted Windows or macOS guard proof.
 
+## Native Linux full-band guard proof
 
+[Run 41811529483](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41811529483)
+at `5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6` ran the two native modules on
+Ubuntu 24.04 with Tesseract 5.3.4 and Ubuntu latest with Tesseract 5.5.0.
+The source-labelled raw receipts, per-file SHA-256 hashes and runner provenance
+are retained in
+[`native-ocr-linux-5d4ca3e.json`](native-ocr-linux-5d4ca3e.json).
+
+| Runner / Tesseract | Campaign victory | Personal Might |
+| --- | --- | --- |
+| Ubuntu 24.04 / 5.3.4 | 6 tests; 14.766 s | 30 tests; 59.511 s |
+| Ubuntu latest / 5.5.0 | 6 tests; 13.175 s | 30 tests; 53.017 s |
+
+All four module receipts report zero failures, errors, skips and forbidden
+process attempts. The passing Linux Personal Might module provides native proof
+that Rank 1 is accepted and ranks 2, 3, 7, 9, 10, 11, 12 and 21 are rejected;
+the other native controls remain intact. This is two-runner native-module
+evidence only, not a whole-suite or live green claim.
 
 ## Local verification
 

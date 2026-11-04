@@ -1,10 +1,10 @@
 {
   "base_commit": "d4dd8db",
-  "candidate_commit": "3dc3d8e3fefee5b35c4d36a1b1f04c6bc977ef0e",
+  "candidate_commit": "0986aa8a5333848e649472d8caa9faad8b065818",
   "base_modules": 235,
   "candidate_modules": 238,
   "base_cases": 3135,
-  "candidate_cases": 3165,
+  "candidate_cases": 3171,
   "new_modules": [
     "tests.test_path_safety",
     "tests.test_test_discovery",
@@ -12,7 +12,7 @@
   ],
   "case_id_digest_format": "SHA-256 of sorted UTF-8 test IDs, one per LF-terminated line",
   "base_case_ids_sha256": "52da72a1bbadf60505342a86de272979f6abfa1835f97f3c0db2981722790866",
-  "candidate_case_ids_sha256": "68ee9a4df57bc0eec4df41b21e9164217b9cf1de3ea932c43e7d9421f5a7e3a1",
+  "candidate_case_ids_sha256": "44ed0cec355e76cae195233aa0055f203d56060edb82e1eb984bbfd1969afd03",
   "collection": "Actual unittest loader IDs with process launching blocked; no test execution. Base-only in-memory tests namespace permits metadata listing without modifying its missing __init__.py; it is not proof that base discovery works.",
   "renamed_cases": [
     {
@@ -45,7 +45,10 @@
     }
   ],
   "new_cases": [
+    "tests.test_automation_service_boundaries.OverlayBoundaryTests.test_ocr_recognizer_callback_exception_is_unknown",
+    "tests.test_bluestacks_ultimate_challenge.UltimateChallengeOperatorTests.test_wrapper_home_evidence_rejects_linked_frame_before_reading",
     "tests.test_campaign_claimed_startup.ClaimedNormalizationLedgerTests.test_dismissal_without_retained_labelled_proposal_fails_closed",
+    "tests.test_enhancement_positive_recovery_delivery.PositiveRecoveryDeliveryTests.test_validated_short_path_alias_binds_recovery_receipt",
     "tests.test_navigation_development_boundary.NavigationDevelopmentBoundaryTests.test_fixed_path_accepts_real_test_temp_parent",
     "tests.test_navigation_development_boundary.NavigationDevelopmentBoundaryTests.test_fixed_path_rejects_a_link_hidden_before_a_parent_step",
     "tests.test_nova_navigation.NovaNavigationTests.test_strong_same_scale_lookalike_blocks_even_with_winning_margin",
@@ -62,6 +65,8 @@
     "tests.test_path_safety.PathSafetyTests.test_system_alias_writable_protected_ancestry_is_rejected",
     "tests.test_path_safety.PathSafetyTests.test_verified_system_aliases_accept_user_owned_temp_descendants",
     "tests.test_path_safety.PathSafetyTests.test_writable_tmp_target_without_sticky_bit_is_rejected",
+    "tests.test_personal_might_bluestacks.PersonalMightNativeTests.test_linked_ancestor_is_rejected_before_retained_evidence_is_read",
+    "tests.test_personal_might_bluestacks.PersonalMightNativeTests.test_numeric_rank_field_does_not_authorize_a_different_rank",
     "tests.test_pnsctl_canonical_serve.CanonicalServeFacadeTests.test_a_native_command_off_the_fixed_bluestacks_adb_is_rejected_before_runs",
     "tests.test_test_discovery.DiscoveryCoverageTests.test_all_discovered_modules_are_counted",
     "tests.test_test_discovery.DiscoveryCoverageTests.test_empty_module_cannot_silently_disappear",
@@ -74,7 +79,8 @@
     "tests.test_test_environment.TesseractDependencyTests.test_memo_replays_cached_result_but_skips_new_input_when_executable_disappears",
     "tests.test_test_environment.TesseractDependencyTests.test_memo_skip_prevents_real_call_and_does_not_cache_failure",
     "tests.test_test_environment.TesseractDependencyTests.test_missing_executable_is_a_clear_skip_not_an_arbitrary_error",
-    "tests.test_test_environment.TesseractDependencyTests.test_tesseract_decorator_checks_only_its_annotated_test_and_propagates_errors"
+    "tests.test_test_environment.TesseractDependencyTests.test_tesseract_decorator_checks_only_its_annotated_test_and_propagates_errors",
+    "tests.test_ultimate_challenge_recovery.UltimateRecoveryTests.test_explicit_recovery_rejects_linked_session_root"
   ],
   "removed_unmapped_cases": []
 }

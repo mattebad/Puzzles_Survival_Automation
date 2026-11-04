@@ -1,0 +1,15 @@
+{
+  "source_commit": "3b625c2857b974e78e18361967d9e1bc6cee5314",
+  "command": "py -3.12 -B scripts/check.py",
+  "python": "3.12.10",
+  "platform": "Windows",
+  "tests": 397,
+  "failures": 0,
+  "errors": 0,
+  "skips": 0,
+  "suite_seconds": 31.713,
+  "wall_seconds": 33.56,
+  "log_name": "t24-check-3b625c2.log",
+  "log_sha256": "987f2b8e5da5d575a5737a996bf4bb98c986551a30a72e019082e2ff3d35ef3a",
+  "scope": "Unmodified supported command; static curated scope, not full discovery. No process-guard counter is claimed."
+}

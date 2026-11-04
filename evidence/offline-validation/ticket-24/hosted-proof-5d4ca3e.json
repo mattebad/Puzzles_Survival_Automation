@@ -1,0 +1,308 @@
+{
+  "source_commit": "5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6",
+  "snapshot_status": "historical_failed_candidate_not_final_hosted_acceptance",
+  "workflow": {
+    "run_id": 41811529483,
+    "run_url": "https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41811529483",
+    "repository": "mattebad/Puzzles_Survival_Automation",
+    "per_module_collector": {
+      "execution": "separate isolated module invocations collected concurrently",
+      "workers": 4,
+      "per_module_timeout_seconds": 900,
+      "modules": 238,
+      "tests": 3171
+    },
+    "full_suite": "a separate sequential complete-discovery run; the collector's four workers do not describe full-suite concurrency",
+    "source_evidence_root": "../ticket30-proof/t24-hosted-5d4ca3e/"
+  },
+  "tesseract_record_build_output": {
+    "ubuntu-latest": {
+      "job_id": 126511705325,
+      "version_line": "tesseract 5.5.0",
+      "leptonica_line": "leptonica-1.86.0",
+      "record_step": "Record OCR build",
+      "raw_job_log": "../ticket30-proof/t24-audit-5d4ca3e-ubuntu.log",
+      "raw_job_log_bytes": 1475242,
+      "raw_job_log_sha256": "40d8763ce36c07a694b8e80e966803f6643bdfe25a2a37b2630a241bbe3f010d"
+    },
+    "windows-latest": {
+      "job_id": 126511705299,
+      "version_line": "tesseract v5.5.3.20260724",
+      "leptonica_line": "leptonica-1.87.0",
+      "record_step": "Record OCR build",
+      "raw_job_log": "../ticket30-proof/t24-audit-5d4ca3e-windows.log",
+      "raw_job_log_bytes": 1478701,
+      "raw_job_log_sha256": "90b2a8ed0de48fce2a231aa054102d39cb87e0bd602cfd5830c0c0ea673695aa"
+    },
+    "macos-latest": {
+      "job_id": 126511705672,
+      "version_line": "tesseract 5.5.3",
+      "leptonica_line": "leptonica-1.87.0",
+      "record_step": "Record OCR build",
+      "raw_job_log": "../ticket30-proof/t24-audit-5d4ca3e-macos.log",
+      "raw_job_log_bytes": 1479372,
+      "raw_job_log_sha256": "eb515701ca29fc215f6a5e0d6a3c365661ad5c16a83c409324ee69bc0da95445"
+    }
+  },
+  "platforms": {
+    "ubuntu-latest": {
+      "environment": {
+        "system": "Linux",
+        "release": "7.0.0-1017-azure",
+        "python": "3.11.17 (main, Oct 1 2026, 14:33:19) [GCC 15.2.0]",
+        "system_temp": "/tmp",
+        "validated_system_temp": "/tmp"
+      },
+      "per_module": {
+        "source": "ticket24-ubuntu-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/per-module.json",
+        "elapsed_seconds": 676.505,
+        "summed_module_seconds": 2644.184,
+        "modules": 238,
+        "tests": 3171,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 41,
+        "forbidden_process_attempts": 0,
+        "module_process_exit_code": 1,
+        "failed_module": {
+          "module": "tests.test_supply_claim_button",
+          "tests": 10,
+          "elapsed_seconds": 21.112,
+          "failure_id": "tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_actual_before_binds_button_but_label_dismissal_and_changed_png_do_not",
+          "traceback": "Traceback (most recent call last):\n  File \"/home/runner/work/Puzzles_Survival_Automation/Puzzles_Survival_Automation/tests/support/environment.py\", line 40, in guarded\n    return test(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/Puzzles_Survival_Automation/Puzzles_Survival_Automation/tests/support/environment.py\", line 40, in guarded\n    return test(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/Puzzles_Survival_Automation/Puzzles_Survival_Automation/tests/test_supply_claim_button.py\", line 131, in test_actual_before_binds_button_but_label_dismissal_and_changed_png_do_not\n    self.assertIsNotNone(binding)\nAssertionError: unexpectedly None\n",
+          "source_receipts": [
+            {
+              "path": "ticket24-ubuntu-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/modules/tests.test_supply_claim_button.json",
+              "sha256": "4b346b36645869538ca648799349d5f91225dc98dcccc40190427bb2dd9a18c3"
+            },
+            {
+              "path": "ticket24-ubuntu-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/modules/tests.test_supply_claim_button.process.json",
+              "sha256": "1a49d4313a9edc344331e858a970e8479df456ee4817d0d77754d94d5526dcf8"
+            },
+            {
+              "path": "ticket24-ubuntu-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/modules/tests.test_supply_claim_button.log",
+              "sha256": "f6f02a71e71d4b04839e293fed73151cc6c2a6ec08e695ac067a477f0057ff22"
+            }
+          ]
+        }
+      },
+      "full": {
+        "source": "ticket24-ubuntu-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/full.json",
+        "execution_source": "ticket24-ubuntu-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/full-execution.json",
+        "tests": 3171,
+        "elapsed_seconds": 1477.837,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 41,
+        "skip_reasons": {
+          "opt-in: set PNS_LOCAL_CAPTURES=1 to run tests that read gitignored .local-captures": 36,
+          "Windows filesystem aliases require GetShortPathNameW": 5
+        },
+        "forbidden_process_attempts": 0,
+        "process_receipt": {
+          "path": "ticket24-ubuntu-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/full.process.json",
+          "exit_code": 0,
+          "timeout_seconds": 7200
+        }
+      },
+      "full_without_tesseract": {
+        "source": "ticket24-ubuntu-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/full-no-tesseract.json",
+        "tests": 3171,
+        "elapsed_seconds": 496.807,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 490,
+        "skip_reasons": {
+          "Tesseract executable 'tesseract' is unavailable; install Tesseract or configure pytesseract.pytesseract.tesseract_cmd.": 450,
+          "opt-in: set PNS_LOCAL_CAPTURES=1 to run tests that read gitignored .local-captures": 36,
+          "Windows filesystem aliases require GetShortPathNameW": 4
+        },
+        "forbidden_process_attempts": 0
+      },
+      "receipt_sha256": {
+        "environment.json": "1114c8f3d410d4eb618c3804c479a9c7784f8a2cd2ffa02387b259e72553ff70",
+        "per-module.json": "87d7841ded624272d1e2d2e66b770026ee255f57998b8b5716b88c2d1d616aac",
+        "full.json": "1140b1d65f6b7ad4e9083b8828b0b1e2993d4ceb7a4022adcf62f9b3190ff277",
+        "full-execution.json": "1140b1d65f6b7ad4e9083b8828b0b1e2993d4ceb7a4022adcf62f9b3190ff277",
+        "full.process.json": "1a722a8fe479fb0ab10d979c9e5b20ca2bc63339ce098e0019f69a3869a83b00",
+        "full-no-tesseract.json": "5db00cd2d6fc993418b683afb8c2cc7aa6c7ec29d32deb4c6843f480f1a3740c",
+        "full.log": "28bdee3d0bd96eac866d7293c3bcce16483c2253d221f85e5de9cfdc41a98987"
+      }
+    },
+    "windows-latest": {
+      "environment": {
+        "system": "Windows",
+        "release": "10",
+        "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr 2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+        "system_temp": "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp",
+        "validated_system_temp": "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp"
+      },
+      "per_module": {
+        "source": "ticket24-windows-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/per-module.json",
+        "elapsed_seconds": 663.75,
+        "summed_module_seconds": 2587.218,
+        "modules": 238,
+        "tests": 3171,
+        "failures": 0,
+        "errors": 1,
+        "skipped": 36,
+        "forbidden_process_attempts": 0,
+        "module_process_exit_code": 1,
+        "failed_module": {
+          "module": "tests.test_enhancement_no_effect_recovery",
+          "tests": 14,
+          "elapsed_seconds": 6.562,
+          "error_id": "tests.test_enhancement_no_effect_recovery.EnhancementNoEffectRecoveryTests.test_actual_native_recovery_reaches_independent_wrapper_transition",
+          "traceback": "Traceback (most recent call last):\n  File \"D:\\a\\Puzzles_Survival_Automation\\Puzzles_Survival_Automation\\tests\\test_enhancement_no_effect_recovery.py\", line 450, in test_actual_native_recovery_reaches_independent_wrapper_transition\n    delivery._reconcile_recovery_no_effect(current, \"gear\", route, recovery_session=recovery)\n  File \"D:\\a\\Puzzles_Survival_Automation\\Puzzles_Survival_Automation\\scripts\\flow_delivery_enhancement_bluestacks.py\", line 1917, in _reconcile_recovery_no_effect\n    _validate_zero_selected_no_effect_receipt(\n  File \"D:\\a\\Puzzles_Survival_Automation\\Puzzles_Survival_Automation\\scripts\\flow_delivery_enhancement_bluestacks.py\", line 994, in _validate_zero_selected_no_effect_receipt\n    raise _pnsctl().OperatorError(\"Enhancement no-effect receipt identity or accounting is invalid\")\nscripts.pnsctl.OperatorError: Enhancement no-effect receipt identity or accounting is invalid\n",
+          "source_receipts": [
+            {
+              "path": "ticket24-windows-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/modules/tests.test_enhancement_no_effect_recovery.json",
+              "sha256": "ef2a867358f71a0f60d33036d07f173aba77cd85fe95a32a2a645c2d171a1d5d"
+            },
+            {
+              "path": "ticket24-windows-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/modules/tests.test_enhancement_no_effect_recovery.process.json",
+              "sha256": "294bc4a38f0fe3e555195f3d68deb78cd6863ee28d1940c46ccd93c6c7e5867b"
+            },
+            {
+              "path": "ticket24-windows-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/modules/tests.test_enhancement_no_effect_recovery.log",
+              "sha256": "6f8bd7e76a4c3f8f8dd0b9c5ab3e051dfb0face61225aaca610febbe8aa78a75"
+            }
+          ]
+        }
+      },
+      "full": {
+        "source": "ticket24-windows-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/full.json",
+        "execution_source": "ticket24-windows-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/full-execution.json",
+        "tests": 3171,
+        "elapsed_seconds": 1357.688,
+        "failures": 0,
+        "errors": 1,
+        "skipped": 36,
+        "skip_reasons": {
+          "opt-in: set PNS_LOCAL_CAPTURES=1 to run tests that read gitignored .local-captures": 36
+        },
+        "forbidden_process_attempts": 0,
+        "process_receipt": {
+          "path": "ticket24-windows-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/full.process.json",
+          "exit_code": 1,
+          "timeout_seconds": 7200
+        }
+      },
+      "full_without_tesseract": {
+        "source": "ticket24-windows-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/full-no-tesseract.json",
+        "tests": 3171,
+        "elapsed_seconds": 589.75,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 486,
+        "skip_reasons": {
+          "Tesseract executable 'tesseract' is unavailable; install Tesseract or configure pytesseract.pytesseract.tesseract_cmd.": 450,
+          "opt-in: set PNS_LOCAL_CAPTURES=1 to run tests that read gitignored .local-captures": 36
+        },
+        "forbidden_process_attempts": 0
+      },
+      "receipt_sha256": {
+        "environment.json": "7e0cd65f5fce62b34cb7c1ce3046a26fd0ff1ec1fc4e1c8c9af660f413bb77fa",
+        "per-module.json": "296a40e8759dd77f2d3e274378dbafc7c10cd112bdcfb7524e12a6c5f15e389d",
+        "full.json": "0a643ccfb864a9995adc26c0eab63c2074c7d308df3aca2a02cb26da913a7d48",
+        "full-execution.json": "0a643ccfb864a9995adc26c0eab63c2074c7d308df3aca2a02cb26da913a7d48",
+        "full.process.json": "fd6a670f437e00dda76bfd5e2e0edee467598bdfd158a349a40f2b8c8dd6cc56",
+        "full-no-tesseract.json": "2b643081469032e5cb084c1d24e56032fbdd40a699289c4c1a892aced62d72b6",
+        "full.log": "bc75d05b96da825e5696ad330a6aeba36bf5b8f234301d8adcdd40e15c3a6519"
+      }
+    },
+    "macos-latest": {
+      "environment": {
+        "system": "Darwin",
+        "release": "25.6.0",
+        "python": "3.11.9 (v3.11.9:de54cf5be3, Apr 2 2024, 07:12:50) [Clang 13.0.0 (clang-1300.0.29.30)]",
+        "system_temp": "/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T",
+        "validated_system_temp": "/private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T"
+      },
+      "per_module": {
+        "source": "ticket24-macos-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/per-module.json",
+        "elapsed_seconds": 618.511,
+        "summed_module_seconds": 2425.913,
+        "modules": 238,
+        "tests": 3171,
+        "failures": 0,
+        "errors": 1,
+        "skipped": 68,
+        "forbidden_process_attempts": 0,
+        "module_process_exit_code": 1,
+        "failed_module": {
+          "module": "tests.test_enhancement_no_effect_recovery",
+          "tests": 14,
+          "elapsed_seconds": 6.988,
+          "error_id": "tests.test_enhancement_no_effect_recovery.EnhancementNoEffectRecoveryTests.test_actual_native_recovery_reaches_independent_wrapper_transition",
+          "traceback": "Traceback (most recent call last):\n  File \"/Users/runner/work/Puzzles_Survival_Automation/Puzzles_Survival_Automation/tests/test_enhancement_no_effect_recovery.py\", line 450, in test_actual_native_recovery_reaches_independent_wrapper_transition\n    delivery._reconcile_recovery_no_effect(current, \"gear\", route, recovery_session=recovery)\n  File \"/Users/runner/work/Puzzles_Survival_Automation/Puzzles_Survival_Automation/scripts/flow_delivery_enhancement_bluestacks.py\", line 1917, in _reconcile_recovery_no_effect\n    _validate_zero_selected_no_effect_receipt(\n  File \"/Users/runner/work/Puzzles_Survival_Automation/Puzzles_Survival_Automation/scripts/flow_delivery_enhancement_bluestacks.py\", line 994, in _validate_zero_selected_no_effect_receipt\n    raise _pnsctl().OperatorError(\"Enhancement no-effect receipt identity or accounting is invalid\")\nscripts.pnsctl.OperatorError: Enhancement no-effect receipt identity or accounting is invalid\n",
+          "source_receipts": [
+            {
+              "path": "ticket24-macos-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/modules/tests.test_enhancement_no_effect_recovery.json",
+              "sha256": "7957a3f8a3ce592ed8f4da55a8d5b4803a42c8ac8fbe29c21a09cd811d40dd54"
+            },
+            {
+              "path": "ticket24-macos-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/modules/tests.test_enhancement_no_effect_recovery.process.json",
+              "sha256": "1a49d4313a9edc344331e858a970e8479df456ee4817d0d77754d94d5526dcf8"
+            },
+            {
+              "path": "ticket24-macos-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/modules/tests.test_enhancement_no_effect_recovery.log",
+              "sha256": "61adb73c51924e6aaee100cacdbc4948537ccf3bd0c671b3f10bb38669133373"
+            }
+          ]
+        }
+      },
+      "full": {
+        "source": "ticket24-macos-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/full.json",
+        "execution_source": "ticket24-macos-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/full-execution.json",
+        "tests": 3171,
+        "elapsed_seconds": 1204.233,
+        "failures": 0,
+        "errors": 1,
+        "skipped": 68,
+        "skip_reasons": {
+          "opt-in: set PNS_LOCAL_CAPTURES=1 to run tests that read gitignored .local-captures": 36,
+          "Windows filesystem aliases require GetShortPathNameW": 5,
+          "OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.": 27
+        },
+        "forbidden_process_attempts": 0,
+        "process_receipt": {
+          "path": "ticket24-macos-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/full.process.json",
+          "exit_code": 1,
+          "timeout_seconds": 7200
+        }
+      },
+      "full_without_tesseract": {
+        "source": "ticket24-macos-latest-5d4ca3e6a6c0bf42827fc01a08b2cea9299f1ee6/full-no-tesseract.json",
+        "tests": 3171,
+        "elapsed_seconds": 488.107,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 506,
+        "skip_reasons": {
+          "Tesseract executable 'tesseract' is unavailable; install Tesseract or configure pytesseract.pytesseract.tesseract_cmd.": 450,
+          "opt-in: set PNS_LOCAL_CAPTURES=1 to run tests that read gitignored .local-captures": 36,
+          "Windows filesystem aliases require GetShortPathNameW": 4,
+          "OCR worker tests require Linux /proc/self/stat or Windows Job Objects; unsupported environment os.name='posix', sys.platform='darwin'.": 16
+        },
+        "forbidden_process_attempts": 0
+      },
+      "receipt_sha256": {
+        "environment.json": "486ff9f59fe0d329137b75e49ca51fd7b24348495433db81470f8b0e1a4393d9",
+        "per-module.json": "4bb1ef28bc77e7df26eded5ca0dac3f23a130459ab1fe2234d54c955a072fe9c",
+        "full.json": "81cbd2f1c508a2bdd00f7b84edb2453e0eab9ecf0ea2f715186ea841649e82aa",
+        "full-execution.json": "81cbd2f1c508a2bdd00f7b84edb2453e0eab9ecf0ea2f715186ea841649e82aa",
+        "full.process.json": "88d2f07e82bb12c4808d233d4d32505c5e28a1e22d6f5d82103da54f26048a92",
+        "full-no-tesseract.json": "27832bdbffaf7549c6d885b8cde49a2cabb5aec7bdcc2fcb01f5f5222eb9a03d",
+        "full.log": "8df7bd50a01de54daba7dd41bd163b43a604c9540d58added9061db5e2bb6e7d"
+      }
+    }
+  },
+  "failure_classification": {
+    "linux_supply_claim_binding": "one isolated native Supply positive-binding assertion failed: binding unexpectedly None; the separate complete run passed 3171 cases with zero failures/errors. This is a real unresolved collector failure in the candidate receipt, not treated as green or suppressed.",
+    "windows_macos_enhancement_no_effect": "same native Enhancement no-effect recovery validation error on both platforms; individual predicate values were not logged. A portable existing-anchor/.. local regression independently reproduced that error at the raw-string original_runtime_session comparison. Commit 3b625c2857b974e78e18361967d9e1bc6cee5314 reuses the existing validated physical-path identity helper; all key/hash/reset/accounting checks remain. The actual native transition and unchanged no-effect/Supply cohort pass 24 cases locally. This failed source snapshot predates that fix and is not final hosted proof.",
+    "collector_failure_cause": "unresolved. The hosted isolated-module collector used four workers and the Supply binding failure appeared once on Linux; resource contention has not been confirmed as its cause. The corrected-source collector uses one worker, with no assertion, timeout, or threshold weakening. That collector configuration is not represented by this retained four-worker snapshot.",
+    "missing_tesseract": "all three complete missing-Tesseract runs recorded zero failures and errors; skip counts are reasoned and no forbidden process attempts were recorded. These pass observations do not replace native OCR coverage.",
+    "live_acceptance": "not claimed; NEEDS SUPERVISED LIVE RUN: Nova radial initial bind."
+  }
+}
