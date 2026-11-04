@@ -32,8 +32,21 @@ class HomeDuplicateOcrTests(unittest.TestCase):
     def test_actual_default_ocr_nested_badge_is_admitted_from_native_source(self):
         self.assertEqual(hashlib.sha256(self.raw).hexdigest(), SHA)
         actual = native._default_ocr(self.frame, native.HOME_PROFILE_SEARCH_ROI)
+        # Engine builds differ on the wide reading of this badge: the capture
+        # machine read "47" at WIDE.bounds; tesseract 5.3.0 (Linux CI) and
+        # 5.5.4 (macOS) read "47S" at (2, 54, 91, 97). The premise is the same
+        # on every build: the tight badge, plus exactly one wider "47..."
+        # reading that encloses it, and no "47" reading anywhere else.
+        def encloses(hit):
+            x0, y0, x1, y1 = hit.bounds
+            tx0, ty0, tx1, ty1 = TIGHT.bounds
+            return x0 <= tx0 and y0 <= ty0 and tx1 <= x1 and ty1 <= y1
         badges = [hit for hit in actual if native._normalize(hit.text) == "47"]
-        self.assertEqual({hit.bounds for hit in badges}, {TIGHT.bounds, WIDE.bounds})
+        self.assertIn(TIGHT.bounds, {hit.bounds for hit in badges})
+        self.assertTrue(all(encloses(hit) for hit in badges), badges)
+        wider = [hit for hit in actual if native._normalize(hit.text).startswith("47")
+                 and hit.bounds != TIGHT.bounds and encloses(hit)]
+        self.assertEqual(len(wider), 1, actual)
         result = native.recognize_home_frame(self.frame, source_frame_sha256=SHA)
         self.assertTrue(result.recognized, result)
         self.assertEqual(result.frame_sha256, SHA)
