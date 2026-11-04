@@ -74,7 +74,7 @@ python3 -m venv .venv
 .venv/bin/python scripts/check.py
 ```
 
-`scripts/check.py` is the deterministic offline check that CI also runs. It needs no device.
+`scripts/check.py` is the small offline smoke check. CI runs the full discovered suite below.
 
 ## Running
 
@@ -97,6 +97,22 @@ blocks and uses the persisted controls as they are; turn routes on first with `s
 and `enable <flow-id>`, and check `automation-service status` before and after a session.
 
 ## Tests
+
+Windows and Linux are the supported full-suite development/CI platforms, with Python
+3.11 or newer. From a fresh checkout with `requirements-dev.txt` installed:
+
+```bash
+python -B -m unittest discover -v -s tests -t .
+```
+
+CI also runs `python -B scripts/check_test_discovery.py`, which rejects any
+`tests/test_*.py` module omitted by discovery; no modules are excluded. The existing
+eight repeated Supply binding checks remain an additional stress gate.
+
+macOS is best-effort, not a full-suite supported platform: tests requiring the
+bounded OCR worker skip explicitly because it requires Linux `/proc` or Windows
+Job Objects. Pure recognition/preparation tests remain runnable. Missing optional
+OCR tooling skips only dependent tests with a reason; CI installs Tesseract.
 
 Run a single module while working on a subsystem:
 
