@@ -408,7 +408,8 @@ class EnhancementNoEffectRecoveryTests(unittest.TestCase):
         payload = fixture.read_bytes()
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            attempt, _receipt, _original, recovery = _state(root, payload)
+            (root / "alias-anchor").mkdir()
+            attempt, _receipt, _original, recovery = _state(root / "alias-anchor" / "..", payload)
             base = root / "flow"
             _historical_chip(base)
             current = base / "occurrences" / RESET

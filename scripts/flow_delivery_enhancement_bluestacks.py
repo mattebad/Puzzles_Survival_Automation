@@ -984,7 +984,9 @@ def _validate_zero_selected_no_effect_receipt(
         or not action_key.startswith(f"enhancement:{variant}:")
         or _pending_reset_identity(original_attempt, variant) != reset_identity
         or receipt.get("original_action_key") != action_key
-        or receipt.get("original_runtime_session") != str(original_attempt.get("runtime_session") or "")
+        or not _same_validated_path_identity(
+            receipt.get("original_runtime_session"), original_attempt.get("runtime_session")
+        )
         or receipt.get("original_source_frame_sha256") != original_attempt.get("source_frame_sha256")
         or receipt.get("reset_identity") != reset_identity
         or any(type(receipt.get(key)) is not int or receipt[key] != 0 for key in (
