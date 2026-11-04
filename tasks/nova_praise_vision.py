@@ -530,6 +530,7 @@ def _template_match_in_search_roi(
     if search.size == 0:
         return None
     ranked: list[tuple[float, float, float, Box]] = []
+    runner_ups: list[tuple[float, Box]] = []
     for scale in NOVA_TEMPLATE_SCALES:
         height = max(8, int(round(template.shape[0] * scale)))
         width = max(8, int(round(template.shape[1] * scale)))
@@ -548,7 +549,7 @@ def _template_match_in_search_roi(
             max(0, my - height // 2) : my + height // 2 + 1,
             max(0, mx - width // 2) : mx + width // 2 + 1,
         ] = -1.0
-        _min_val2, second_val, _min_loc2, _max_loc2 = cv2.minMaxLoc(suppressed)
+        _min_val2, second_val, _min_loc2, second_loc = cv2.minMaxLoc(suppressed)
         match_roi = (
             sx0 + mx,
             sy0 + my,
@@ -556,6 +557,15 @@ def _template_match_in_search_roi(
             sy0 + my + height,
         )
         ranked.append((float(max_val), float(max_val - second_val), float(scale), match_roi))
+        runner_ups.append((
+            float(second_val),
+            (
+                sx0 + second_loc[0],
+                sy0 + second_loc[1],
+                sx0 + second_loc[0] + width,
+                sy0 + second_loc[1] + height,
+            ),
+        ))
     if not ranked:
         return None
     ranked.sort(reverse=True, key=lambda item: (item[0], item[1]))
@@ -572,8 +582,13 @@ def _template_match_in_search_roi(
             competing_margin,
             best_score - spatially_distinct[0][0],
         )
+    # A duplicated control is usually the runner-up peak of the same scale, so count
+    # runner-ups that do not overlap the winner alongside other scales' peaks.
     strong_distinct = [
         item for item in spatially_distinct if item[0] >= NOVA_TEMPLATE_MIN_SCORE
+    ] + [
+        item for item in runner_ups
+        if item[0] >= NOVA_TEMPLATE_MIN_SCORE and not _boxes_overlap(best_roi, item[1])
     ]
     return {
         "score": best_score,
