@@ -430,6 +430,8 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         ), patch(
             "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer.localize",
             return_value=SimpleNamespace(recognized=False, zoom_identity=None),
+        ), patch(
+            "scripts.troop_training_bluestacks.recognize_training_speedup", return_value=None,
         ):
             result = TroopTrainingReturnHomeRoute(runtime, require_active_queue=True).run()
         self.assertEqual(result.status, "blocked")
@@ -480,6 +482,8 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         ), patch(
             "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer",
             return_value=localizer,
+        ), patch(
+            "scripts.troop_training_bluestacks.recognize_training_speedup", return_value=None,
         ):
             result = TroopTrainingReturnHomeRoute(runtime, require_active_queue=True).run()
         self.assertEqual(result.status, "blocked")
@@ -520,7 +524,11 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
             "scripts.troop_training_bluestacks.recognize_home", return_value=home
         ), patch("scripts.troop_training_bluestacks.recognize_training", return_value=training), patch(
             "scripts.troop_training_bluestacks.load_home_atlas", return_value=object()
-        ), patch("scripts.troop_training_bluestacks.BlueStacksHomeLocalizer", return_value=localizer):
+        ), patch("scripts.troop_training_bluestacks.BlueStacksHomeLocalizer", return_value=localizer), patch(
+            "scripts.troop_training_bluestacks.recognize_training_speedup", return_value=None,
+        ), patch(
+            "scripts.troop_training_bluestacks.forbidden_atlas_entry_surface", return_value=None,
+        ):
             result = TroopTrainingReturnHomeRoute(runtime, require_active_queue=True).run()
         self.assertEqual(result.status, "completed")
         self.assertEqual(result.actions_completed, 0)

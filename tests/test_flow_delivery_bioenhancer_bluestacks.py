@@ -39,6 +39,8 @@ from scripts.navigation_development_boundary import (
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from tasks.home_atlas_planner import PlanDisposition, SafeInteractionRegion
 from tasks.perception_bundle import PerceptionBundleError
+from tests.support.environment import requires_tesseract
+
 
 
 class _PanRuntime:
@@ -732,6 +734,7 @@ class BioenhancerCooldownTests(unittest.TestCase):
 
 
 class BioenhancerVisibleExitTests(unittest.TestCase):
+    @requires_tesseract
     def test_back_binding_requires_exact_title_arrow_and_no_modal(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         frame[15:50, 20:75] = 220

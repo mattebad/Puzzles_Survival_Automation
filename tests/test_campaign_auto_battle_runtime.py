@@ -30,6 +30,7 @@ from tasks.campaign_auto_battle_vision import BUY_NOW_FORBIDDEN_ROI, DEFEAT_CONT
 from tasks.campaign_auto_battle_vision import _fraction
 from tests.support.campaign import recognized
 from tests.support.local_captures import require_capture, requires_local_captures
+from tests.support.environment import requires_tesseract
 
 
 class CampaignRuntimeControllerTests(unittest.TestCase):
@@ -548,7 +549,17 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
         self.assertIn(CampaignScreen.TIER_MAP, _CAMPAIGN_ENTRY_OPEN_SCREENS)
         self.assertNotIn(CampaignScreen.HOME_BASE, _CAMPAIGN_ENTRY_OPEN_SCREENS)
         blank = np.zeros((1280, 800, 3), dtype=np.uint8)
-        self.assertFalse(_campaign_entry_semantically_opened(blank))
+        unknown = CampaignFrameRecognition(
+            CampaignRouteObservation(screen=CampaignScreen.UNKNOWN, recognized=False),
+            "unknown",
+            (),
+            {},
+        )
+        with patch(
+            "scripts.bluestacks_campaign_ap.recognize_campaign_frame",
+            return_value=unknown,
+        ):
+            self.assertFalse(_campaign_entry_semantically_opened(blank))
 
         home_false_positive = CampaignFrameRecognition(
             CampaignRouteObservation(screen=CampaignScreen.HOME_BASE, recognized=True),
@@ -562,12 +573,6 @@ class CampaignRuntimeControllerTests(unittest.TestCase):
         ):
             self.assertFalse(_campaign_entry_semantically_opened(blank))
 
-        unknown = CampaignFrameRecognition(
-            CampaignRouteObservation(screen=CampaignScreen.UNKNOWN, recognized=False),
-            "unknown",
-            (),
-            {},
-        )
         with patch(
             "scripts.bluestacks_campaign_ap.recognize_campaign_frame",
             return_value=unknown,
@@ -643,6 +648,7 @@ class CampaignVisionReplayTests(unittest.TestCase):
             self.assertIsNotNone(image)
             self.assertEqual(image.shape[:2], shape)
 
+    @requires_tesseract
     def test_committed_frames_recognize_tier_map_and_result(self):
         # Committed copies of consume-ap-campaign step-002-after / step-008-before
         # (provenance and sha256 in tests/fixtures/*/manifest.json).
@@ -657,6 +663,7 @@ class CampaignVisionReplayTests(unittest.TestCase):
                 self.assertEqual(read_campaign_frame(path, stage).observation.screen, screen)
 
     @requires_local_captures
+    @requires_tesseract
     def test_retained_frames_recognize_full_battle_sequence(self):
         stage = CampaignStage.parse("1-3-1")
         cases = {
@@ -685,6 +692,7 @@ class CampaignVisionReplayTests(unittest.TestCase):
             ).observation.auto_enabled
         )
 
+    @requires_tesseract
     def test_user_defeat_frame_binds_only_bottom_continue(self):
         # Committed copy of the user-supplied 2026-07-16 defeat screenshot
         # (tests/fixtures/campaign_victory/manifest.json records its sha256).

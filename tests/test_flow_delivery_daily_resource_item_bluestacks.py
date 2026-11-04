@@ -40,6 +40,8 @@ from tasks.runtime_identity import (
     resource_fixed_runtime_binding,
 )
 
+from tests.support.environment import requires_tesseract
+
 
 REPO = Path(__file__).resolve().parents[1]
 # Committed copies of the retained live session
@@ -977,6 +979,7 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
             absolute = {"path": str(outside), "sha256": _digest(outside)}
             self.assertIsNone(delivery._bound_retained_frame(session, absolute))
 
+    @requires_tesseract
     def test_verifier_accepts_retained_live_frames_with_real_digests(self):
         before_src = PORTABLE_FRAMES / "session-2-transport-source.png"
         after_src = PORTABLE_FRAMES / "session-2-settled-post.png"
@@ -1078,6 +1081,7 @@ class DailyResourceItemDeliveryTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "evidence_required")
 
+    @requires_tesseract
     def test_verifier_rejects_boolean_only_and_bad_event_counts(self):
         before_src = PORTABLE_FRAMES / "session-2-transport-source.png"
         after_src = PORTABLE_FRAMES / "session-2-settled-post.png"

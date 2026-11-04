@@ -38,6 +38,7 @@ from tasks.semantic_ocr_crop import (
     to_immutable_ocr_observation,
 )
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tests.support.environment import requires_ocr_worker
 
 
 PROFILE = ACTIVE_RUNTIME_PROFILE_ID
@@ -97,6 +98,7 @@ class SemanticOcrCropTests(unittest.TestCase):
         self.frame = make_frame(seed=11)
         self.identity = make_identity(self.frame)
 
+    @requires_ocr_worker
     def test_worker_limits_ocr_threads_without_changing_parent_or_explicit_configuration(self):
         with patch.dict(os.environ):
             os.environ.pop("OMP_THREAD_LIMIT", None)
@@ -208,6 +210,7 @@ class SemanticOcrCropTests(unittest.TestCase):
         )
         self.assertEqual(provenance.exclusion_masks, (safe.box,))
 
+    @requires_ocr_worker
     def test_constrained_ocr_modes_and_unknown_mode_fail_closed(self) -> None:
         request = CropRoiRequest(self.identity, (200, 100, 360, 140))
 
@@ -290,6 +293,7 @@ class SemanticOcrCropTests(unittest.TestCase):
                     "INVALID_NORMALIZATION_SEQUENCE",
                 )
 
+    @requires_ocr_worker
     def test_same_capture_identity_binds_observation(self) -> None:
         request = CropRoiRequest(self.identity, (200, 100, 360, 140))
         observation = run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.UNIFORM_BLOCK, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), normalization=(NormalizationOp.TO_GRAYSCALE,),
@@ -326,6 +330,7 @@ class SemanticOcrCropTests(unittest.TestCase):
         self.assertEqual(observation.status, ObservationStatus.INVALID)
         self.assertEqual(observation.reason_code, "TRANSPORT_DIGEST_MISMATCH")
 
+    @requires_ocr_worker
     def test_immutability_and_no_numpy_retention(self) -> None:
         observation = run_semantic_ocr(self.frame, CropRoiRequest(
             self.identity, (200, 100, 360, 140),
@@ -419,6 +424,7 @@ class SemanticOcrCropTests(unittest.TestCase):
             "INVALID_NORMALIZATION_SEQUENCE",
         )
 
+    @requires_ocr_worker
     def test_debug_artifacts_opt_in_deterministic_and_default_off(self) -> None:
         request = CropRoiRequest(self.identity, (200, 100, 360, 140))
         quiet = run_semantic_ocr(self.frame, replace(request, ocr_mode=OcrMode.UNIFORM_BLOCK, deadline_monotonic=time.monotonic() + DEFAULT_OCR_TIMEOUT_SECONDS), normalization=(NormalizationOp.TO_GRAYSCALE,),
@@ -447,6 +453,7 @@ class SemanticOcrCropTests(unittest.TestCase):
         self.assertEqual(disabled.status, ObservationStatus.INVALID)
         self.assertEqual(disabled.reason_code, "DEBUG_NOT_ENABLED")
 
+    @requires_ocr_worker
     def test_ocr_empty_and_ambiguous_negative_controls(self) -> None:
         empty = run_semantic_ocr(self.frame, CropRoiRequest(
             self.identity, (200, 100, 360, 140),
@@ -508,6 +515,7 @@ class SemanticOcrCropTests(unittest.TestCase):
             CropRoiRequest(self.identity, "not-a-box")  # type: ignore[arg-type]
         self.assertEqual(raised.exception.reason_code, "INVALID_BOX")
 
+    @requires_ocr_worker
     def test_ocr_engine_exception_returns_invalid_without_swallowing_baseexception(self) -> None:
         request = CropRoiRequest(self.identity, (200, 100, 360, 140))
 

@@ -12,6 +12,7 @@ import numpy as np
 from scripts import enhancement_bluestacks as native
 from tests.support.enhancement import exit_runtime
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
 
 
 def setUpModule():
@@ -50,8 +51,13 @@ class ModuleQuantityNativeTests(unittest.TestCase):
         cls.stack.enter_context(patch.object(native, "_default_ocr", side_effect=cls.ocr))
         cls.stack.enter_context(patch.object(native, "_quantity_material_ocr", side_effect=cls.material_ocr))
         cls.stack.enter_context(patch.object(native.time, "sleep"))
-        cls.quantity = native.recognize_commander_stage(cls.frame, variant="module", stage="material",
-            source_frame_sha256=SHA, evidence_ref=FRAME, game_day_id="current-reset")
+
+    @classmethod
+    def quantity_result(cls):
+        if not hasattr(cls, "_cached_quantity"):
+            cls._cached_quantity = native.recognize_commander_stage(cls.frame, variant="module", stage="material",
+                source_frame_sha256=SHA, evidence_ref=FRAME, game_day_id="current-reset")
+        return cls._cached_quantity
 
     def recognize(self, frame=None, *, engine=None, variant="module"):
         if frame is None:
@@ -76,9 +82,10 @@ class ModuleQuantityNativeTests(unittest.TestCase):
         self.assertIsNone(result.observation)
         self.assertIsNone(result.open_target)
 
+    @requires_tesseract
     def test_actual_wrapped_module_name_and_quantity_are_complete_without_resource_authority(self):
         self.assertEqual(hashlib.sha256(self.raw).hexdigest(), SHA)
-        result = self.quantity
+        result = self.quantity_result()
         self.assertTrue(result.recognized, result)
         self.assertEqual(result.diagnostics["material_text"], "1* module enhance material")
         self.assertEqual(re.sub(r"\D", "", result.diagnostics["total_text"]), "8299")
@@ -94,6 +101,7 @@ class ModuleQuantityNativeTests(unittest.TestCase):
         self.assertEqual(result.item_identity, "")
         self.assertFalse(result.diagnostics["resource_authority"])
 
+    @requires_tesseract
     def test_unordered_real_word_boxes_are_sorted_by_source_row_then_x(self):
         actual = self.material_ocr(self.frame, MATERIAL_ROI)
         self.assertEqual([hit.text.lower() for hit in actual], ["1*", "module", "enhance", "material"])
@@ -105,6 +113,7 @@ class ModuleQuantityNativeTests(unittest.TestCase):
         self.assertEqual(result.diagnostics["material_text"], "1* module enhance material")
         self.assertIsNone(result.observation)
 
+    @requires_tesseract
     def test_missing_or_clipped_second_line_cannot_be_supplied_from_context(self):
         for name, box in (("missing", (220, 467, 700, 497)), ("clipped", (295, 467, 350, 497))):
             with self.subTest(material=name):
@@ -113,12 +122,14 @@ class ModuleQuantityNativeTests(unittest.TestCase):
                 changed[y0:y1, x0:x1] = 0
                 self.assert_denied(self.recognize(changed))
 
+    @requires_tesseract
     def test_wrong_variant_unexpected_word_or_total_mismatch_cannot_grant_use(self):
         self.assert_denied(self.recognize(variant="gear"))
         extra_word = self.material_ocr(self.frame, MATERIAL_ROI) + [native.OcrHit("Premium", (550, 439, 670, 465))]
         self.assert_denied(self.recognize(engine=self.override(MATERIAL_ROI, extra_word)))
         self.assert_denied(self.recognize(engine=self.override(TOTAL_ROI, [native.OcrHit("Total: 8,298", TOTAL_ROI)])))
 
+    @requires_tesseract
     def test_quantity_star_and_unique_use_guards_remain_required(self):
         for quantity in (2, None, True):
             with self.subTest(quantity=quantity), patch.object(native, "_quantity_count", return_value=quantity):
@@ -129,6 +140,7 @@ class ModuleQuantityNativeTests(unittest.TestCase):
         duplicate_use = self.ocr(self.frame, USE_ROI) + [native.OcrHit("Use", (430, 810, 460, 830))]
         self.assert_denied(self.recognize(engine=self.override(USE_ROI, duplicate_use)))
 
+    @requires_tesseract
     def test_quantity_close_panel_back_and_commander_back_reach_home_with_zero_resource(self):
         panel = FRAME.with_name("native-module-zero-selected-20261029.png").read_bytes()
         commander = FRAME.with_name("native-commander-gear-20261029.png").read_bytes()

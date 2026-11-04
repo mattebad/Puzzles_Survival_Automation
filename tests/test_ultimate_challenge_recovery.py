@@ -17,6 +17,8 @@ from tasks.ultimate_challenge_daily import (
     save_reset_window_state,
 )
 from tests.support.ultimate import RESET, flee_proof, write_result
+from tests.support.environment import requires_tesseract
+
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -58,6 +60,7 @@ class UltimateRecoveryTests(unittest.TestCase):
         write_result(output, result, [])
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
+    @requires_tesseract
     def test_failed_home_records_pending_and_default_resumes_without_another_flee(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -88,6 +91,7 @@ class UltimateRecoveryTests(unittest.TestCase):
             self.assertIn("--daily", commands[0])
             self.assertIn("--post-flee-home-only", commands[1])
 
+    @requires_tesseract
     def test_explicit_recovery_adopts_existing_confirmed_flee(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

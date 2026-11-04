@@ -14,6 +14,7 @@ from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
 from tests.support.enhancement import exit_runtime
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
 
 
 def setUpModule():
@@ -40,12 +41,18 @@ class NativeItemModalTests(unittest.TestCase):
     def setUpClass(cls):
         cls.raw = FIXTURE.read_bytes()
         cls.frame = cv2.imdecode(np.frombuffer(cls.raw, np.uint8), cv2.IMREAD_COLOR)
-        cls.modal = native.recognize_commander_stage(cls.frame, variant="gear", stage="item",
-            source_frame_sha256=FIXTURE_SHA256, evidence_ref=FIXTURE, game_day_id="current-reset")
 
+    @classmethod
+    def modal_result(cls):
+        if not hasattr(cls, "_cached_modal"):
+            cls._cached_modal = native.recognize_commander_stage(cls.frame, variant="gear", stage="item",
+                source_frame_sha256=FIXTURE_SHA256, evidence_ref=FIXTURE, game_day_id="current-reset")
+        return cls._cached_modal
+
+    @requires_tesseract
     def test_real_native_modal_binds_actual_identity_level_and_unique_enhance(self):
         self.assertEqual(hashlib.sha256(self.raw).hexdigest(), FIXTURE_SHA256)
-        result = self.modal
+        result = self.modal_result()
         self.assertTrue(result.recognized, result)
         self.assertEqual(result.reason, "GEAR_ITEM_DETAIL_MODAL_RECOGNIZED")
         self.assertEqual(result.frame_sha256, FIXTURE_SHA256)
@@ -59,6 +66,7 @@ class NativeItemModalTests(unittest.TestCase):
         self.assertEqual(result.detail_state, "item_modal")
         self.assertEqual(result.close_target, (662, 339, 714, 391))
 
+    @requires_tesseract
     def test_missing_actual_title_level_star_stats_or_footer_control_never_binds(self):
         for missing in (native.GEAR_DETAIL_TITLE_ROI, native.GEAR_DETAIL_LEVEL_ROI,
                 (379, 501, 422, 540), (125, 690, 700, 730),
@@ -71,6 +79,7 @@ class NativeItemModalTests(unittest.TestCase):
                 self.assertFalse(result.recognized, result)
                 self.assertIsNone(result.open_target)
 
+    @requires_tesseract
     def test_current_native_star_ocr_binds_item_navigation_without_resource_authority(self):
         raw = STAR_OCR_FIXTURE.read_bytes()
         self.assertEqual(hashlib.sha256(raw).hexdigest(), STAR_OCR_SHA256)
@@ -89,6 +98,7 @@ class NativeItemModalTests(unittest.TestCase):
         self.assertFalse(denied.recognized)
         self.assertIsNone(denied.open_target)
 
+    @requires_tesseract
     def test_star_alias_preserves_exact_rarity_and_item_identity(self):
         for title in ("6q S.O.F Suit", "7x S.O.F Suit", "6x S.O.F Boots"):
             def ocr(frame, roi):
@@ -100,15 +110,17 @@ class NativeItemModalTests(unittest.TestCase):
                 self.assertFalse(result.recognized)
                 self.assertIsNone(result.open_target)
 
+    @requires_tesseract
     def test_current_stat_bullet_variation_keeps_semantic_rows_and_actual_control(self):
         raw = STAT_BULLET_FIXTURE.read_bytes()
         self.assertEqual(hashlib.sha256(raw).hexdigest(), STAT_BULLET_SHA256)
         frame = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+        modal = self.modal_result()
         result = native.recognize_commander_stage(frame, variant="gear", stage="item",
             source_frame_sha256=STAT_BULLET_SHA256, evidence_ref=STAT_BULLET_FIXTURE)
         self.assertTrue(result.recognized, result)
-        self.assertEqual((result.item_identity, result.item_level), (self.modal.item_identity, self.modal.item_level))
-        self.assertEqual((result.open_target, result.close_target), (self.modal.open_target, self.modal.close_target))
+        self.assertEqual((result.item_identity, result.item_level), (modal.item_identity, modal.item_level))
+        self.assertEqual((result.open_target, result.close_target), (modal.open_target, modal.close_target))
         self.assertEqual([row["label"] for row in result.diagnostics["stat_rows"]], ["fighter atk", "shooter def", "shooter hp"])
         self.assertEqual([row["value"] for row in result.diagnostics["stat_rows"]], ["149%"] * 3)
         for missing in ((125, 645, 300, 690), (600, 645, 705, 690)):
@@ -121,6 +133,7 @@ class NativeItemModalTests(unittest.TestCase):
                 self.assertEqual(denied.reason, "GEAR_ITEM_MODAL_STAT_ROW_NOT_RECOGNIZED")
                 self.assertIsNone(denied.open_target)
 
+    @requires_tesseract
     def test_duplicate_enhance_and_wrong_variant_or_use_stage_do_not_gain_authority(self):
         def duplicated(frame, roi):
             hits = native._default_ocr(frame, roi)
@@ -135,6 +148,7 @@ class NativeItemModalTests(unittest.TestCase):
                 self.assertFalse(result.recognized, result)
                 self.assertIsNone(result.observation)
 
+    @requires_tesseract
     def test_actual_zero_selection_panel_reports_facts_and_denies_resource(self):
         raw = NO_SELECTION_FIXTURE.read_bytes()
         self.assertEqual(hashlib.sha256(raw).hexdigest(), NO_SELECTION_SHA256)
@@ -159,6 +173,7 @@ class NativeItemModalTests(unittest.TestCase):
 
     def _route(self, frames, *, family=False):
         test = self
+        modal = self.modal_result() if "modal" in frames else None
         overview_image = np.full((1280, 800, 3), 250, np.uint8)
         overview_raw = cv2.imencode(".png", overview_image)[1].tobytes()
         overview = native.StageRecognition("item", True, "COMMANDER_INFO_ICON_OVERVIEW_RECOGNIZED",
@@ -197,7 +212,7 @@ class NativeItemModalTests(unittest.TestCase):
             digest = source_frame_sha256 or frame.sha256
             image = frame.frame if hasattr(frame, "frame") else frame
             if stage == "item":
-                return replace(overview if int(image[10, 10, 0]) == 250 else test.modal, frame_sha256=digest)
+                return replace(overview if int(image[10, 10, 0]) == 250 else modal, frame_sha256=digest)
             return native.StageRecognition(stage, False, "NO_MATERIAL_PROOF", digest)
         route = native.EnhancementIntegratedRoute(runtime, variant="gear", reset_identity="current-reset",
             session=session, variants=native.ORDERED_VARIANTS if family else None)
@@ -209,10 +224,11 @@ class NativeItemModalTests(unittest.TestCase):
                 result = route._run_single(start_at_commander=True, source_frame=source, initial_recognition=overview)
         return runtime, result
 
+    @requires_tesseract
     def test_selection_waits_for_actual_modal_without_repeating_item_tap(self):
         runtime, result = self._route(["overview", "overview", "overview", "modal", "modal"])
         self.assertEqual([row["target_identity"] for row in runtime.inputs], ["item-select:gear", "open-enhance:gear"])
-        self.assertEqual(runtime.inputs[-1]["target_roi"], self.modal.open_target)
+        self.assertEqual(runtime.inputs[-1]["target_roi"], self.modal_result().open_target)
         self.assertEqual(result["resource_affecting_dispatch_count"], 0)
         self.assertTrue(any(row.get("reason") == "SELECTED_ITEM_DETAIL_NOT_OPEN" for row in result["stages"]))
 
@@ -224,10 +240,11 @@ class NativeItemModalTests(unittest.TestCase):
         self.assertIn("SELECTED_ITEM_DETAIL_NOT_OPEN", result["reason"])
         self.assertEqual(result["resource_affecting_dispatch_count"], 0)
 
+    @requires_tesseract
     def test_family_startup_current_modal_proceeds_to_enhance_with_zero_new_selection(self):
         runtime, result = self._route(["modal", "modal"], family=True)
         self.assertEqual([row["target_identity"] for row in runtime.inputs], ["open-enhance:gear"])
-        self.assertEqual(runtime.inputs[0]["target_roi"], self.modal.open_target)
+        self.assertEqual(runtime.inputs[0]["target_roi"], self.modal_result().open_target)
         self.assertEqual(result["resource_affecting_dispatch_count"], 0)
 
 
@@ -249,6 +266,7 @@ class NativeEnhancementExitTests(unittest.TestCase):
         self.stack.enter_context(patch.object(native, "_default_ocr", side_effect=ocr))
         self.stack.enter_context(patch.object(native.time, "sleep"))
 
+    @requires_tesseract
     def test_native_modal_x_and_commander_arrow_recover_home_with_zero_use(self):
         self.assertEqual(hashlib.sha256(self.commander).hexdigest(), "4e98c17ff9a07c535d663fb4f7fca6eb3dc60d019c9908cb60a1758067eaeaba")
         runtime, session = exit_runtime([self.modal, self.modal, self.commander, self.commander, self.home])
@@ -262,6 +280,7 @@ class NativeEnhancementExitTests(unittest.TestCase):
         self.assertEqual([row["target_roi"] for row in runtime.inputs], [(662, 339, 714, 391), (48, 2, 129, 61)])
         self.assertEqual([status for _, status, _ in runtime.journal], ["confirmed", "confirmed"])
 
+    @requires_tesseract
     def test_changed_modal_x_or_missing_commander_arrow_cannot_get_a_blind_tap(self):
         for defect in ("close", "back"):
             with self.subTest(defect=defect):
@@ -279,6 +298,7 @@ class NativeEnhancementExitTests(unittest.TestCase):
                 self.assertEqual(result["resource_affecting_dispatch_count"], 0)
                 self.assertFalse(result["terminal_home_verified"])
 
+    @requires_tesseract
     def test_unknown_or_unchanged_exit_successor_blocks_without_repeating_x(self):
         for successor in (self.modal, cv2.imencode(".png", np.zeros((1280, 800, 3), np.uint8))[1].tobytes()):
             with self.subTest(successor_sha=hashlib.sha256(successor).hexdigest()):
@@ -289,6 +309,7 @@ class NativeEnhancementExitTests(unittest.TestCase):
                 self.assertEqual(runtime.inputs[0]["target_identity"], "item-detail-close")
                 self.assertEqual(runtime.journal[0][1], "unresolved")
 
+    @requires_tesseract
     def test_known_home_needs_zero_input_and_post_recovery_default_stays_observe_only(self):
         runtime, session = exit_runtime([self.home])
         result = native.run_recovery(runtime, variant="gear", reset_identity="current-reset", session=session, navigation_only=True)
@@ -308,6 +329,7 @@ class NativeEnhancementExitTests(unittest.TestCase):
                 route._navigate_to("home", allow_post=True)
         self.assertFalse(runtime.inputs)
 
+    @requires_tesseract
     def test_known_enhancement_page_exits_without_material_or_effect_authority(self):
         panel = NO_SELECTION_FIXTURE.read_bytes()
         runtime, session = exit_runtime([panel, panel, self.modal, self.modal, self.commander, self.commander, self.home])
@@ -324,6 +346,7 @@ class NativeEnhancementExitTests(unittest.TestCase):
         self.assertFalse(pending["semantic_successor_proven"])
         self.assertFalse(runtime.inputs)
 
+    @requires_tesseract
     def test_current_panel_consumer_stops_before_any_resource_input(self):
         raw = NO_SELECTION_FIXTURE.read_bytes()
         runtime, session = exit_runtime([raw])

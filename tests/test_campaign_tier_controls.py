@@ -8,6 +8,7 @@ import numpy as np
 from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import _bind_tier_controls, _selected_tier, recognize_campaign_frame
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
 
 
 def setUpModule():
@@ -26,6 +27,7 @@ class CampaignTierControlTests(unittest.TestCase):
         self.assertEqual(frame.shape, (1280, 800, 3))
         return frame
 
+    @requires_tesseract
     def test_current_and_older_native_maps_bind_both_current_controls(self):
         for name, selected, expected_centers in (
             ("current-tier-map.png", 2, ((460, 90), (560, 90))),
@@ -46,6 +48,7 @@ class CampaignTierControlTests(unittest.TestCase):
                     self.assertGreater(y1, cy)
                     self.assertLess(abs((x0 + x1) / 2 - cx), 5)
 
+    @requires_tesseract
     def test_large_map_animation_outside_tier_controls_keeps_same_binding(self):
         source = self.frame("current-tier-map.png")
         _, faces = _bind_tier_controls(source)
@@ -64,6 +67,7 @@ class CampaignTierControlTests(unittest.TestCase):
         for tier in (1, 2):
             self.assertEqual(changed.target(f"campaign-tier-{tier}"), original.target(f"campaign-tier-{tier}"))
 
+    @requires_tesseract
     def test_changed_control_or_digit_fails_closed(self):
         frame = self.frame("current-tier-map.png")
         for roi in ((413, 59, 503, 119), (513, 59, 603, 119), (540, 70, 580, 109)):
@@ -123,6 +127,7 @@ class CampaignTierControlTests(unittest.TestCase):
         source[y0:y1, x0:x1] = cv2.resize(source[b:d, a:c], (x1 - x0, y1 - y0))
         self.assertIsNone(_bind_tier_controls(source)[1])
 
+    @requires_tesseract
     def test_native_home_and_nova_are_not_tier_maps(self):
         home = cv2.imread(str(ROOT / "tests/fixtures/nova_praise_preflight/zoomed-home-a.png"))
         for frame in (home, self.frame("nova-screen.png")):

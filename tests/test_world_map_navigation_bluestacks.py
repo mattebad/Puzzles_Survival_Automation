@@ -73,6 +73,8 @@ from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tasks.runtime_identity import BLUESTACKS_SERIAL
 from tests.support.local_captures import LOCAL_CAPTURES, require_capture, requires_local_captures
 
+from tests.support.environment import requires_tesseract
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "world_map_navigation_observations.json"
@@ -2065,6 +2067,7 @@ class WorldMapNavigationTests(unittest.TestCase):
         self.assertEqual(result.status, "allowed")
         self.assertEqual(result.target_roi, measured)
 
+    @requires_tesseract
     def test_world_text_alone_cannot_authorize_supported_zoom_or_targets(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         with (
@@ -2414,6 +2417,7 @@ class WorldMapNavigationTests(unittest.TestCase):
             )
         )
 
+    @requires_tesseract
     def test_retained_world_frame_binds_hud_only_search_entry(self):
         source = ROOT / "tests" / "fixtures" / "world_map" / "world-hud-1a2d8f02.png"
         if not source.is_file():
@@ -2546,6 +2550,7 @@ class WorldMapNavigationTests(unittest.TestCase):
             _visual_search_entry_binding(frame, candidates=[first, second])
         )
 
+    @requires_tesseract
     def test_world_context_requires_coordinate_hud_and_independent_home_binding(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         search_button = (94, 1026, 190, 1093)
@@ -2658,6 +2663,7 @@ class WorldMapNavigationTests(unittest.TestCase):
             )
         self.assertEqual(gas_result.state, "UNKNOWN")
 
+    @requires_tesseract
     def test_retained_search_menu_recognizes_without_footer_binding(self):
         source = ROOT / "tests" / "fixtures" / "world_map" / "search-menu-cfa92c70.png"
         self.assertTrue(

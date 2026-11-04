@@ -12,6 +12,7 @@ import cv2
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
 from tasks.enhancement import enhancement_bluestacks_authorizeable, enhancement_bluestacks_postcondition_verified
+from tests.support.environment import requires_tesseract
 
 
 FIXTURES = Path(__file__).parent / "fixtures/enhancement_item_modal"
@@ -82,6 +83,7 @@ class ModuleSelectionNativeTests(unittest.TestCase):
                 "frame_sha256": capture.sha256, "target_roi": target, "resource_affecting": False})
         return route
 
+    @requires_tesseract
     def test_actual_four_frames_keep_committed_exp_and_read_moved_selected_card(self):
         self.assertEqual(self.captures[0].sha256, "567cccfd09bb14b9d2336e42e26fea0642d9a2c64e4b090c7583a45ebd478f42")
         self.assertEqual(self.captures[1].sha256, BASELINE_SHA)
@@ -119,6 +121,7 @@ class ModuleSelectionNativeTests(unittest.TestCase):
             with self.subTest(old=old, current=current):
                 self.assertIsNone(native._selection_card_translations(old, current))
 
+    @requires_tesseract
     def test_literal_wrong_or_missing_selected_fraction_is_never_filled_from_baseline(self):
         for fraction in ((1, 299), (1, 8298), (2, 8299), None):
             with self.subTest(fraction=fraction), patch.object(native, "_selected_material_fraction", return_value=fraction):
@@ -126,6 +129,7 @@ class ModuleSelectionNativeTests(unittest.TestCase):
                 self.assertFalse(result.recognized)
                 self.assertIsNone(result.observation)
 
+    @requires_tesseract
     def test_missing_checkmark_and_unchanged_green_exp_cannot_authorize_selection(self):
         captures = list(self.captures)
         captures[3] = self.erased(captures[3], (85, 638, 165, 682))
@@ -141,6 +145,7 @@ class ModuleSelectionNativeTests(unittest.TestCase):
         self.assertFalse(result.recognized)
         self.assertIsNone(result.observation)
 
+    @requires_tesseract
     def test_current_runtime_requires_exact_three_setup_sources_targets_and_order(self):
         route = self.route()
         current = self.captures[3]
@@ -167,6 +172,7 @@ class ModuleSelectionNativeTests(unittest.TestCase):
         route.runtime.session = Path("a-different-current-session")
         self.assertFalse(route._selected_material(current).recognized)
 
+    @requires_tesseract
     def test_fresh_changed_selection_stops_before_any_resource_transport(self):
         route = self.route()
         fresh = replace(self.captures[3], path=SESSION / "frames" / "fresh.png", captured_monotonic=5.)

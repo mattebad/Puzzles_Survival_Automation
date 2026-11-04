@@ -12,6 +12,7 @@ from tasks.campaign_atlas import (
     ACTIVATED_TRANSPORT_INPUT_CEILING,
     build_empty_activated_session_report,
 )
+from tests.support.environment import requires_tesseract
 
 
 class CampaignAtlasCollectorTests(unittest.TestCase):
@@ -2129,6 +2130,7 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
             KNOWN_CONTINUATION_RECONCILED_EDGE_CANDIDATE["session_id"],
         )
 
+    @requires_tesseract
     def test_vip_reset_dismiss_continues_after_confirmed_close(self) -> None:
         """Exact VIP modal Close: one AUX transport, TIER_MAP successor, continue-ready."""
 
@@ -2240,6 +2242,7 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
 
     def test_vip_reset_dismiss_wrong_text_zero_transport(self) -> None:
         import numpy as np
+        from unittest.mock import patch
 
         from scripts.flow_delivery_campaign_atlas_bluestacks import (
             _SurveyOperator,
@@ -2286,10 +2289,14 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
                 lease_owner="test-owner",
             )
             try:
-                result = dismiss_campaign_vip_reset_popup(
-                    op, source_rel="runtime/frames/0001-source.png",
-                    before=runtime.capture("vip-planning"),
-                )
+                with patch(
+                    "scripts.flow_delivery_campaign_atlas_bluestacks.bluestacks_popup_recognition.recognize_reset_popup",
+                    return_value={"recognized": False, "blocking_unknown_modal": False},
+                ):
+                    result = dismiss_campaign_vip_reset_popup(
+                        op, source_rel="runtime/frames/0001-source.png",
+                        before=runtime.capture("vip-planning"),
+                    )
             finally:
                 op.close()
             self.assertEqual(result["status"], "blocked")
@@ -2299,6 +2306,7 @@ class CampaignAtlasVipResetDismissTests(unittest.TestCase):
             self.assertEqual(op.vip_popup_input_count, 0)
             self.assertEqual(op.state.journal, [])
 
+    @requires_tesseract
     def test_vip_reset_dismiss_unknown_successor_unresolved_after_transport(self) -> None:
         from types import SimpleNamespace
         from unittest.mock import patch

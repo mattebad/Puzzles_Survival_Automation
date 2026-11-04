@@ -13,6 +13,7 @@ from tasks.campaign_auto_battle_runtime import CampaignRuntimeController
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
 from tasks import campaign_auto_battle_vision as vision
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
 
 
 def setUpModule():
@@ -37,6 +38,7 @@ class NativeStageDialogTests(unittest.TestCase):
     def controller(self, *, stage=STAGE, cost=14, initial_ap=120):
         return CampaignRuntimeController(CampaignAutoBattleConfig(target_stage=stage, ap_cost=cost, ap_budget=cost, max_runs=1), initial_ap=initial_ap)
 
+    @requires_tesseract
     def test_actual_ap64_after_four_wins_excludes_the_ap_icon_from_digits(self):
         path = FIXTURES / "current-stage15-ap64.png"
         provenance = json.loads(path.with_suffix(".provenance.json").read_text())
@@ -49,6 +51,7 @@ class NativeStageDialogTests(unittest.TestCase):
         self.assertEqual(self.controller(initial_ap=64).next_command(result, frame).action,
                          CampaignAction.CHALLENGE_STAGE)
 
+    @requires_tesseract
     def test_impossible_ap_fraction_never_binds_a_challenge(self):
         original = vision._threshold_ocr
         for text in ("664/120", "64/0"):
@@ -63,6 +66,7 @@ class NativeStageDialogTests(unittest.TestCase):
                 self.assertFalse(result.observation.challenge_ready)
                 self.assertIsNone(result.target("campaign-challenge-1-15-9"))
 
+    @requires_tesseract
     def test_actual_stage53_agrees_with_the_preceding_map_and_is_actionable(self):
         controller = self.controller(initial_ap=53)
         parent = self.recognize(self.frame("current-chapter15-ap53.png"))
@@ -74,6 +78,7 @@ class NativeStageDialogTests(unittest.TestCase):
         self.assertEqual(controller.next_command(result, frame).action, CampaignAction.CHALLENGE_STAGE)
         self.assertEqual(controller.progress.ap_regenerated, 0)
 
+    @requires_tesseract
     def test_implausible_stage_gain_cannot_invent_regeneration_before_entry(self):
         controller = self.controller(initial_ap=53)
         controller.next_command(self.recognize(self.frame("current-chapter15-ap53.png")))
@@ -82,6 +87,7 @@ class NativeStageDialogTests(unittest.TestCase):
         self.assertEqual(controller.next_command(corrupted).action, CampaignAction.BLOCKED)
         self.assertEqual((controller.progress.current_ap, controller.progress.ap_regenerated), (53, 0))
 
+    @requires_tesseract
     def test_disagreeing_ap_views_wait_without_input_then_stop_or_recover(self):
         frame = self.frame("current-stage15-ap53.png")
         good = self.recognize(frame)
@@ -110,6 +116,7 @@ class NativeStageDialogTests(unittest.TestCase):
         with patch.object(vision, "_threshold_ocr", side_effect=spaced_threshold):
             self.assertEqual(self.recognize(frame).observation.ap_current, 53)
 
+    @requires_tesseract
     def test_current_and_retained_dialogs_bind_all_controls_before_challenge(self):
         for name in ("current-stage15.png", "retained-stage15.png"):
             with self.subTest(name=name):
@@ -128,6 +135,7 @@ class NativeStageDialogTests(unittest.TestCase):
                 self.assertEqual(command.action, CampaignAction.CHALLENGE_STAGE)
                 self.assertEqual(command.target_roi, target)
 
+    @requires_tesseract
     def test_wrong_stage_or_cost_blocks_resource_dispatch(self):
         frame = self.frame()
         wrong_stage = CampaignStage(1, 20, 9)
@@ -136,6 +144,7 @@ class NativeStageDialogTests(unittest.TestCase):
         result = self.recognize(frame)
         self.assertEqual(self.controller(cost=16).next_command(result, frame).action, CampaignAction.BLOCKED)
 
+    @requires_tesseract
     def test_missing_x_or_ap_icons_never_emits_challenge_target(self):
         for roi in ((665, 270, 710, 315), (288, 779, 340, 830), (204, 845, 243, 883)):
             with self.subTest(roi=roi):
@@ -146,6 +155,7 @@ class NativeStageDialogTests(unittest.TestCase):
                 self.assertIsNone(result.target("campaign-challenge-1-15-9"))
                 self.assertNotEqual(self.controller().next_command(result, frame).action, CampaignAction.CHALLENGE_STAGE)
 
+    @requires_tesseract
     def test_blitz_refill_and_disabled_button_cannot_replace_challenge(self):
         for caption in ("Blitz", "Refill", "disabled"):
             with self.subTest(caption=caption):
@@ -162,6 +172,7 @@ class NativeStageDialogTests(unittest.TestCase):
                 self.assertIsNone(result.target("campaign-challenge-1-15-9"))
                 self.assertEqual(self.controller().next_command(result, frame).action, CampaignAction.BLOCKED)
 
+    @requires_tesseract
     def test_enemy_art_and_rewards_are_outside_selector_authority(self):
         original = self.frame()
         changed = original.copy()
@@ -172,6 +183,7 @@ class NativeStageDialogTests(unittest.TestCase):
         self.assertEqual(after.observation, before.observation)
         self.assertEqual(after.targets, before.targets)
 
+    @requires_tesseract
     def test_current_chapter_back_is_measured_and_missing_arrow_blocks(self):
         frame = self.frame("current-chapter15.png")
         result = self.recognize(frame)

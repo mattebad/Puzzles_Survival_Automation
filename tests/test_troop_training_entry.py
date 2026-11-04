@@ -291,7 +291,7 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
         zero_runtime = Runtime()
         zero_loc = loc()
         zero_localizer = SimpleNamespace(localize=lambda _frame: zero_loc)
-        with patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=world()), patch(
+        with patch("scripts.troop_training_bluestacks.forbidden_atlas_entry_surface", return_value=None), patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=world()), patch(
             "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer", return_value=zero_localizer
         ), patch("scripts.troop_training_bluestacks.bind_visible_building", side_effect=lambda _frame, localization, _building, *, home_is_clean: semantic_binding(target, localization)):
             captured, binding, planner, error = self._route(zero_runtime)._navigate_selected_facility(target)
@@ -311,7 +311,7 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
             return semantic_binding(target, localization) if localization.screen_to_atlas[0][2] == 300 else None
 
         atlas = world(polygon=((650, 500), (750, 500), (750, 600), (650, 600)))
-        with patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=atlas), patch(
+        with patch("scripts.troop_training_bluestacks.forbidden_atlas_entry_surface", return_value=None), patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=atlas), patch(
             "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer", return_value=pan_localizer
         ), patch("scripts.troop_training_bluestacks.bind_visible_building", side_effect=bind):
             captured, binding, planner, error = self._route(pan_runtime)._navigate_selected_facility(target)
@@ -326,7 +326,7 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
         atlas = world(polygon=((650, 500), (750, 500), (750, 600), (650, 600)))
         no_progress_runtime = Runtime()
         locations = iter((loc(), loc(), loc(0, 0, "b" * 64)))
-        with patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=atlas), patch(
+        with patch("scripts.troop_training_bluestacks.forbidden_atlas_entry_surface", return_value=None), patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=atlas), patch(
             "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer", return_value=SimpleNamespace(localize=lambda _frame: next(locations))
         ), patch("scripts.troop_training_bluestacks.bind_visible_building", return_value=None):
             _, _, _, error = self._route(no_progress_runtime)._navigate_selected_facility(target)
@@ -334,7 +334,7 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
 
         dry_runtime = Runtime(execute=False)
         dry_locations = iter((loc(), loc()))
-        with patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=atlas), patch(
+        with patch("scripts.troop_training_bluestacks.forbidden_atlas_entry_surface", return_value=None), patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=atlas), patch(
             "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer", return_value=SimpleNamespace(localize=lambda _frame: next(dry_locations))
         ), patch("scripts.troop_training_bluestacks.bind_visible_building", return_value=None):
             _, _, _, error = self._route(dry_runtime)._navigate_selected_facility(target)
@@ -457,7 +457,7 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
         planner = SimpleNamespace(radial_is_exact=lambda item: item.recognized and item.facility_identity == target.facility_identity and item.train_target is not None)
         radial = RadialMenuObservation(True, target.facility_identity, (300, 760, 430, 890), frame_sha256="b" * 64)
         route.entry_navigation = {"train_dispatched": False}
-        with patch.object(route, "_navigate_selected_facility", return_value=(facility_capture, binding, planner, None)), patch.object(
+        with patch("scripts.troop_training_bluestacks.forbidden_atlas_entry_surface", return_value=None), patch.object(route, "_navigate_selected_facility", return_value=(facility_capture, binding, planner, None)), patch.object(
             route, "_capture_radial", side_effect=((runtime.capture("radial"), radial), (runtime.capture("fresh-radial"), radial))
         ), patch("scripts.troop_training_bluestacks.recognize_auto_use_resource_popup", return_value=SimpleNamespace(recognized=False)), patch(
             "scripts.troop_training_bluestacks.recognize_training", return_value=SimpleNamespace(recognized=False)
@@ -508,7 +508,7 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
         training_capture = runtime.capture("training")
         training = SimpleNamespace(recognized=True, troop_type="fighter")
         sentinel = route._result("completed", "downstream-sentinel")
-        with patch.object(route, "_navigate_selected_facility", return_value=(facility_capture, binding, planner, None)), patch.object(
+        with patch("scripts.troop_training_bluestacks.recognize_radial_menu", return_value=RadialMenuObservation(False, "")), patch.object(route, "_navigate_selected_facility", return_value=(facility_capture, binding, planner, None)), patch.object(
             route,
             "_capture_radial",
             side_effect=((initial_radial_capture, initial_radial), (fresh_radial_capture, fresh_radial)),
@@ -559,7 +559,7 @@ class TroopTrainingEntryIntegratedRouteTests(unittest.TestCase):
             (410, 700, 540, 830),
             frame_sha256=fresh_radial_capture.sha256,
         )
-        with patch.object(route, "_navigate_selected_facility", return_value=(facility_capture, binding, planner, None)), patch.object(
+        with patch("scripts.troop_training_bluestacks.recognize_radial_menu", return_value=RadialMenuObservation(False, "")), patch.object(route, "_navigate_selected_facility", return_value=(facility_capture, binding, planner, None)), patch.object(
             route,
             "_capture_radial",
             side_effect=((initial_radial_capture, initial_radial), (fresh_radial_capture, fresh_radial)),

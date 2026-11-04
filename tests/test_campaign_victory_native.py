@@ -8,6 +8,7 @@ from tasks.campaign_auto_battle import CampaignAction, CampaignAutoBattleConfig,
 from tasks.campaign_auto_battle_runtime import CampaignRuntimeController
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
 
 
 def setUpModule():
@@ -34,6 +35,7 @@ class NativeCampaignVictoryTests(unittest.TestCase):
         self.assertFalse(result.observation.winner_visible)
         self.assertIsNone(result.target("campaign-victory-continue"))
 
+    @requires_tesseract
     def test_three_native_glow_phases_and_retained_layout_bind_measured_caption(self):
         for name, expected in (
             ("current-winner-44.png", (300, 1133, 500, 1158)),
@@ -55,6 +57,7 @@ class NativeCampaignVictoryTests(unittest.TestCase):
                 self.assertEqual(command.action, CampaignAction.CONTINUE_VICTORY)
                 self.assertEqual(command.target_roi, expected)
 
+    @requires_tesseract
     def test_reward_art_and_particles_outside_captions_do_not_gate_victory(self):
         original = self.frame()
         changed = original.copy()
@@ -65,6 +68,7 @@ class NativeCampaignVictoryTests(unittest.TestCase):
         self.assertEqual(after.observation, before.observation)
         self.assertEqual(after.targets, before.targets)
 
+    @requires_tesseract
     def test_wrong_or_incomplete_title_cannot_authorize_continue(self):
         for caption in ("WINER", "LOSER"):
             with self.subTest(caption=caption):
@@ -74,6 +78,7 @@ class NativeCampaignVictoryTests(unittest.TestCase):
                             2.5, (120, 210, 255), 4, cv2.LINE_AA)
                 self.assert_no_victory_dispatch(frame)
 
+    @requires_tesseract
     def test_missing_loot_or_continue_and_unknown_popup_block_continue(self):
         for kind in ("loot", "continue", "popup"):
             with self.subTest(kind=kind):
@@ -90,6 +95,7 @@ class NativeCampaignVictoryTests(unittest.TestCase):
                                 0.9, (255, 255, 255), 2, cv2.LINE_AA)
                 self.assert_no_victory_dispatch(frame)
 
+    @requires_tesseract
     def test_duplicate_or_split_row_continue_caption_is_ambiguous(self):
         for kind in ("duplicate", "split"):
             with self.subTest(kind=kind):
@@ -101,6 +107,7 @@ class NativeCampaignVictoryTests(unittest.TestCase):
                     frame[1133:1158, 389:500] = 0
                 self.assert_no_victory_dispatch(frame)
 
+    @requires_tesseract
     def test_native_defeat_retains_only_its_separate_return_control(self):
         result = self.recognize(self.frame("retained-defeat.png"))
         self.assertEqual(result.observation.screen, CampaignScreen.RESULT)

@@ -12,6 +12,8 @@ import numpy as np
 from scripts import bluestacks_ultimate_challenge as ultimate
 from tasks.campaign_auto_battle import CampaignScreen
 from tests.support.ultimate import CampaignExitRuntime, captured_native_frame
+from tests.support.environment import requires_tesseract
+
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,6 +72,7 @@ class UltimateCampaignExitTests(unittest.TestCase):
                 result = ultimate._run_measured_campaign_exit_home_route(**kwargs)
         return runtime, result
 
+    @requires_tesseract
     def test_native_current_tier_map_binds_base_and_visible_city_exit(self):
         frame = cv2.imread(str(ROOT / "tests/fixtures/ultimate_campaign_exit/campaign-before-base-20261029.png"))
         recognition = ultimate._classify_campaign_ui_open(frame)

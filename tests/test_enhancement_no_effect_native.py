@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+from tests.support.environment import requires_tesseract
 
 
 FRAME = Path(__file__).parent / "fixtures/enhancement_item_modal/native-gear-no-material-selected-20261029.png"
@@ -50,6 +51,7 @@ class NativeNoEffectTests(unittest.TestCase):
                 return capture(label)
         return Runtime(), Session(), pending, post
 
+    @requires_tesseract
     def test_four_actual_zero_selected_frames_report_no_effect_without_rewriting_old_quantity(self):
         with tempfile.TemporaryDirectory() as folder:
             runtime, session, pending, _ = self.setup_attempt(Path(folder).absolute())

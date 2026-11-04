@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import cv2
 import numpy as np
-import pytesseract
+from tests.support.environment import requires_tesseract
 
 from tasks.noahs_tavern_recruit import (
     HERO_RECRUIT_RESULT_SCREEN,
@@ -308,11 +308,8 @@ class NoahContractTests(unittest.TestCase):
         self.assertEqual(len(calls), 3)
         self.assertTrue(all(height < 1000 for (height, _width), _psm in calls))
 
+    @requires_tesseract
     def test_result_close_does_not_depend_on_reward_ocr(self):
-        try:
-            pytesseract.get_tesseract_version()
-        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
-            self.skipTest("Tesseract is unavailable for native OCR fixture")
         frame = cv2.imread(str(Path(__file__).with_name("fixtures") / "noahs_tavern_nova_result.png"))
         self.assertIsNotNone(frame)
         blank_reward = frame.copy()
@@ -352,11 +349,8 @@ class NoahContractTests(unittest.TestCase):
             HERO_RECRUIT_RESULT_SCREEN,
         )
 
+    @requires_tesseract
     def test_native_advanced_fixture_preserves_complete_header_and_title_glyphs(self):
-        try:
-            pytesseract.get_tesseract_version()
-        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
-            self.skipTest("Tesseract is unavailable for native OCR fixture")
         fixture_path = Path(__file__).with_name("fixtures") / "noahs_tavern_advanced_roi.png"
         frame = cv2.imread(str(fixture_path), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
@@ -370,11 +364,8 @@ class NoahContractTests(unittest.TestCase):
         self.assertEqual(advanced.cost_amount, 0)
         self.assertEqual(advanced.quantity, 1)
 
+    @requires_tesseract
     def test_native_after_close_fixture_keeps_cooldown_and_blocks_duplicate_free(self):
-        try:
-            pytesseract.get_tesseract_version()
-        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
-            self.skipTest("Tesseract is unavailable for native OCR fixture")
         fixture_path = Path(__file__).with_name("fixtures") / "noahs_tavern_recruit_after_close.png"
         frame = cv2.imread(str(fixture_path), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)

@@ -16,6 +16,7 @@ from scripts.flow_delivery_enhancement_bluestacks import (
 )
 from tests.support.enhancement_replay import CausalReplayFixture
 
+from tests.support.environment import requires_tesseract
 
 class EnhancementSemanticStageMappingTests(unittest.TestCase):
     def test_existing_phases_use_their_route_recognizer_contract(self):
@@ -201,6 +202,7 @@ class EnhancementCausalReplayTests(CausalReplayFixture, unittest.TestCase):
         self.actions.clear()
         self.assertFalse(self.verify())
 
+    @requires_tesseract
     def test_real_selected_preview_does_not_prove_a_committed_resource_effect(self):
         from scripts import pnsctl
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png

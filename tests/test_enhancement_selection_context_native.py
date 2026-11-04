@@ -16,6 +16,7 @@ from scripts.bluestacks_native_runtime import captured_native_frame_from_png
 from tasks.enhancement import enhancement_bluestacks_authorizeable, enhancement_bluestacks_postcondition_verified
 from tests.support.enhancement import CategorySession
 from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
 
 
 def setUpModule():
@@ -82,6 +83,7 @@ class SelectionContextNativeTests(unittest.TestCase):
                 "frame_sha256": capture.sha256, "target_roi": target, "resource_affecting": False})
         return route
 
+    @requires_tesseract
     def test_actual_selected_page_preserves_committed_baseline_and_separate_green_preview(self):
         result = self.context()
         self.assertEqual(self.captures[3].sha256, PREVIEW_SHA)
@@ -99,6 +101,7 @@ class SelectionContextNativeTests(unittest.TestCase):
         self.assertTrue(enhancement_bluestacks_authorizeable(observation))
         self.assertFalse(enhancement_bluestacks_postcondition_verified(observation, observation))
 
+    @requires_tesseract
     def test_actual_chip_selected_fraction_keeps_slash_and_causal_witnesses(self):
         provenance = json.loads((FIXTURES / "native-chip-selection-20261102.json").read_text())
         captures = []
@@ -130,6 +133,7 @@ class SelectionContextNativeTests(unittest.TestCase):
                 patch.object(native, "_tesseract_data", return_value={"text": ["1/11529"], "conf": [19]}):
             self.assertIsNone(native._selected_material_fraction(selected.frame, label))
 
+    @requires_tesseract
     def test_actual_dim_chip_fraction_retains_antialiasing_and_requires_current_glyphs(self):
         provenance = json.loads((FIXTURES / "native-chip-11527-20261102.json").read_text())
         captures = []
@@ -161,6 +165,7 @@ class SelectionContextNativeTests(unittest.TestCase):
                     patch.object(native, "_tesseract_data", return_value={"text": ["1/11527"], "conf": [0]}):
                 self.assertIsNone(native._selected_material_fraction(selected.frame, label))
 
+    @requires_tesseract
     def test_panel_alone_and_green_preview_are_never_committed_effect_or_equipment_proof(self):
         current = self.captures[3]
         for stage in ("material", "post"):
@@ -174,6 +179,7 @@ class SelectionContextNativeTests(unittest.TestCase):
         bad[1] = replace(current, path=bad[1].path, captured_monotonic=2.)
         self.assertFalse(self.context(bad).recognized)
 
+    @requires_tesseract
     def test_hash_session_order_and_missing_current_unequip_quantity_witness_deny(self):
         for index, changed in ((0, self.erased(self.captures[0], native.GEAR_DETAIL_FOOTER_ROIS["unequip"])),
                 (2, self.erased(self.captures[2], (508, 670, 623, 710))),
@@ -187,6 +193,7 @@ class SelectionContextNativeTests(unittest.TestCase):
                 self.assertFalse(result.recognized, result)
                 self.assertIsNone(result.observation)
 
+    @requires_tesseract
     def test_changed_stock_quantity_other_material_or_missing_check_and_confirm_deny(self):
         for read in ((1, 562), (1, 9561), (2, 9562), None):
             with self.subTest(read=read), patch.object(native, "_selected_material_fraction", return_value=read):
@@ -196,6 +203,7 @@ class SelectionContextNativeTests(unittest.TestCase):
             captures[3] = self.erased(captures[3], box)
             self.assertFalse(self.context(captures).recognized)
 
+    @requires_tesseract
     def test_selected_border_keeps_row_major_slot_identity(self):
         old = native._material_cell_boxes(self.captures[1].frame)
         current = native._material_cell_boxes(self.captures[3].frame)
@@ -205,6 +213,7 @@ class SelectionContextNativeTests(unittest.TestCase):
         label = native._material_label(self.captures[1].frame, old[1])[1]
         self.assertEqual(native._selected_material_fraction(self.captures[3].frame, label), (1, 9562))
 
+    @requires_tesseract
     def test_actual_chip_selection_reads_complete_fraction_and_requires_current_check(self):
         directory = FIXTURES.parent / "enhancement_chip_selection"
         names = ("0035-open-enhance-panel-immediate-before.png",
@@ -235,6 +244,7 @@ class SelectionContextNativeTests(unittest.TestCase):
                 self.assertFalse(denied.recognized, denied)
                 self.assertIsNone(denied.observation)
 
+    @requires_tesseract
     def test_selected_chip_restart_unwinds_and_requires_new_item_modal_without_reusing_gear(self):
         directory = FIXTURES.parent / "enhancement_chip_selection"
         preview = (directory / "0045-apply-quantity-selection-settled-3.png").read_bytes()
@@ -266,6 +276,7 @@ class SelectionContextNativeTests(unittest.TestCase):
         self.assertEqual(result["resource_affecting_dispatch_count"], 0)
         self.assertEqual([proof["variant"] for proof in result["category_results"]], ["gear"])
 
+    @requires_tesseract
     def test_native_consumer_requires_exact_current_run_navigation_sources_and_targets(self):
         route = self.route()
         current = self.captures[3]
@@ -286,6 +297,7 @@ class SelectionContextNativeTests(unittest.TestCase):
         route.runtime.session = Path("a-different-live-session")
         self.assertFalse(route._selected_material(current).recognized)
 
+    @requires_tesseract
     def test_fresh_changed_selection_prevents_resource_dispatch(self):
         route = self.route()
         current = replace(self.captures[3], path=Path("unit-context/session/frames/fresh.png"), captured_monotonic=5.)

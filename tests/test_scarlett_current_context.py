@@ -10,6 +10,7 @@ import numpy as np
 import pytesseract
 
 from scripts import startup_surface_recognition as surfaces
+from tests.support.environment import requires_tesseract
 
 
 FIXTURE = Path(__file__).parent / "fixtures/startup/scarlett-current-20261030.png"
@@ -36,6 +37,7 @@ class ScarlettCurrentContextTests(unittest.TestCase):
         self.assertTrue(ok)
         return surfaces.recognize_scarlett_three_day_pack(frame, encoded.tobytes())
 
+    @requires_tesseract
     def test_actual_current_context_binds_only_measured_safe_back(self):
         provenance = json.loads(FIXTURE.with_suffix(".provenance.json").read_text())
         self.assertEqual(hashlib.sha256(self.raw).hexdigest(), provenance["sha256"])
@@ -48,6 +50,7 @@ class ScarlettCurrentContextTests(unittest.TestCase):
         self.assertTrue(result["purchase_exclusion_verified"])
         self.assertEqual(result["max_inputs"], 1)
 
+    @requires_tesseract
     def test_each_required_context_region_remains_necessary(self):
         for name, roi in (("max", (50, 265, 300, 327)), ("build", (50, 328, 750, 395)),
                 ("free_speedup", (50, 395, 750, 465)), ("days", surfaces.SCARLETT_DAYS_ROI),
@@ -58,6 +61,7 @@ class ScarlettCurrentContextTests(unittest.TestCase):
                 frame[y0:y1, x0:x1] = 0
                 self.assertFalse(self.recognize(frame)["recognized"])
 
+    @requires_tesseract
     def test_title_and_visible_back_remain_required(self):
         for roi in (surfaces.SCARLETT_TITLE_ROI, (0, 0, 180, 90)):
             frame = self.frame.copy()
@@ -65,6 +69,7 @@ class ScarlettCurrentContextTests(unittest.TestCase):
             frame[y0:y1, x0:x1] = 0
             self.assertFalse(self.recognize(frame)["recognized"])
 
+    @requires_tesseract
     def test_confirmation_overlay_blocks_even_with_all_offer_text_present(self):
         frame = self.frame.copy()
         cv2.rectangle(frame, (180, 710), (640, 900), (30, 30, 30), -1)
@@ -72,6 +77,7 @@ class ScarlettCurrentContextTests(unittest.TestCase):
         cv2.putText(frame, "Cancel", (260, 855), cv2.FONT_HERSHEY_SIMPLEX, 1.4, (255, 255, 255), 3)
         self.assertFalse(self.recognize(frame)["recognized"])
 
+    @requires_tesseract
     def test_cross_frame_bytes_and_ambiguous_exit_still_fail_closed(self):
         result = surfaces.recognize_scarlett_three_day_pack(self.frame, b"different frame")
         self.assertFalse(result["recognized"])
