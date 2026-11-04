@@ -28,13 +28,16 @@ def _normalized(value):
     return " ".join(re.findall(r"[a-z0-9]+", str(value).lower()))
 
 
-def _tokens(frame, roi, *, source_frame, source_png, psm=7, scale=2):
+def _tokens(frame, roi, *, source_frame, source_png, psm=7, scale=2, whitelist: str | None = None):
     if not native_frame_guard(frame) or source_frame.runtime_profile_id != BLUESTACKS_PROFILE_ID:
         return ()
     try:
         upscale = NormalizationOp.UPSCALE_3X if scale == 3 else NormalizationOp.UPSCALE_2X
         _provenance, pixels = prepare_ocr_crop(frame, CropRoiRequest(source_frame, roi, source_png=source_png), normalization=(NormalizationOp.TO_GRAYSCALE, upscale))
-        data = call_ocr(tesseract_data, pixels, call_timeout=2, config=f"--psm {psm}")
+        config = f"--psm {psm}"
+        if whitelist is not None:
+            config += f" -c tessedit_char_whitelist={whitelist}"
+        data = call_ocr(tesseract_data, pixels, call_timeout=2, config=config)
     except (SemanticOcrCropError, RuntimeError, OSError, ValueError):
         return ()
     result = []
@@ -145,7 +148,9 @@ def _rank_1_context(frame, *, source_frame, source_png):
         return None
     x, y, width, height = medals[0]
     digit = (math.floor(x + width * .29), math.floor(y + height * .1), math.ceil(x + width * .77), math.ceil(y + height * .9))
-    if _label_box(frame, digit, "1", **source, psm=10, scale=3) is None:
+    # Read the medal's numeric field, not an unconstrained alphabetic glyph.
+    # Keep all digits available: another rank must not be coerced into Rank 1.
+    if _label_box(frame, digit, "1", **source, psm=10, scale=3, whitelist="0123456789") is None:
         return None
     return y + height / 2
 

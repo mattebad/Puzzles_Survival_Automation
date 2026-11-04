@@ -1,0 +1,790 @@
+{
+  "commit": "4e9bdefb8f67267fca79b35f611ec63e8ca4e060",
+  "python": "3.11.17",
+  "platform": "Linux-7.0.0-1017-azure-x86_64-with-glibc2.43",
+  "campaign": [
+    {
+      "fixture": "current-winner-44.png",
+      "png_sha256": "2e4b77cf1a1f32b2086113b2ff894cbbce295184c0e3edeab18cce8caaac3c4f",
+      "observation": {
+        "screen": "CAMPAIGN_RESULT",
+        "recognized": true,
+        "overlay_state": "none_observed",
+        "selected_tier": null,
+        "chapter_number": null,
+        "visible_chapter_numbers": [],
+        "visible_stage_numbers": [],
+        "stage_dialog": null,
+        "chapter_navigation_available": false,
+        "stage_navigation_available": false,
+        "ap_current": null,
+        "ap_cost": null,
+        "refill_visible": false,
+        "challenge_ready": false,
+        "lineup_challenge_ready": false,
+        "auto_enabled": false,
+        "winner_visible": true,
+        "loot_visible": true,
+        "tap_to_continue_visible": true,
+        "defeat_visible": false,
+        "return_control_visible": false,
+        "battle_elapsed_seconds": 0.0
+      },
+      "targets": [
+        [
+          "campaign-victory-continue",
+          [
+            300,
+            1133,
+            500,
+            1158
+          ]
+        ]
+      ],
+      "diagnostics": {
+        "victory_continue_roi": [
+          300,
+          1133,
+          500,
+          1158
+        ],
+        "loot_caption_roi": [
+          373,
+          469,
+          427,
+          488
+        ],
+        "winner_captions": [
+          "winner",
+          "se a ae"
+        ]
+      },
+      "ocr_boxes": [
+        {
+          "roi": [
+            200,
+            1090,
+            610,
+            1190
+          ],
+          "tokens": [
+            [
+              "Tap",
+              [
+                300,
+                1134,
+                347,
+                1158
+              ],
+              95.0
+            ],
+            [
+              "to",
+              [
+                355,
+                1135,
+                379,
+                1153
+              ],
+              95.0
+            ],
+            [
+              "continue",
+              [
+                389,
+                1133,
+                500,
+                1154
+              ],
+              96.0
+            ]
+          ]
+        },
+        {
+          "roi": [
+            300,
+            425,
+            500,
+            515
+          ],
+          "tokens": [
+            [
+              "Loot",
+              [
+                373,
+                469,
+                427,
+                488
+              ],
+              96.0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "fixture": "current-winner-45.png",
+      "png_sha256": "5ffe84571c2ee2915d62ffee95eb6cdfbefcbc6da9522eb8360d55c2a5dec00f",
+      "observation": {
+        "screen": "CAMPAIGN_RESULT",
+        "recognized": true,
+        "overlay_state": "none_observed",
+        "selected_tier": null,
+        "chapter_number": null,
+        "visible_chapter_numbers": [],
+        "visible_stage_numbers": [],
+        "stage_dialog": null,
+        "chapter_navigation_available": false,
+        "stage_navigation_available": false,
+        "ap_current": null,
+        "ap_cost": null,
+        "refill_visible": false,
+        "challenge_ready": false,
+        "lineup_challenge_ready": false,
+        "auto_enabled": false,
+        "winner_visible": true,
+        "loot_visible": true,
+        "tap_to_continue_visible": true,
+        "defeat_visible": false,
+        "return_control_visible": false,
+        "battle_elapsed_seconds": 0.0
+      },
+      "targets": [
+        [
+          "campaign-victory-continue",
+          [
+            300,
+            1133,
+            500,
+            1158
+          ]
+        ]
+      ],
+      "diagnostics": {
+        "victory_continue_roi": [
+          300,
+          1133,
+          500,
+          1158
+        ],
+        "loot_caption_roi": [
+          373,
+          469,
+          427,
+          488
+        ],
+        "winner_captions": [
+          "winner",
+          "se a see"
+        ]
+      },
+      "ocr_boxes": [
+        {
+          "roi": [
+            200,
+            1090,
+            610,
+            1190
+          ],
+          "tokens": [
+            [
+              "Tap",
+              [
+                300,
+                1134,
+                347,
+                1158
+              ],
+              96.0
+            ],
+            [
+              "to",
+              [
+                355,
+                1135,
+                379,
+                1153
+              ],
+              96.0
+            ],
+            [
+              "continue",
+              [
+                389,
+                1133,
+                500,
+                1154
+              ],
+              96.0
+            ]
+          ]
+        },
+        {
+          "roi": [
+            300,
+            425,
+            500,
+            515
+          ],
+          "tokens": [
+            [
+              "Loot",
+              [
+                373,
+                469,
+                427,
+                488
+              ],
+              96.0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "fixture": "current-winner-46.png",
+      "png_sha256": "a75bef67907fe2abcfe06dc3af02d94f781fd65510a23a2bae7d1e6a1f2ebb78",
+      "observation": {
+        "screen": "UNKNOWN",
+        "recognized": false,
+        "overlay_state": "none_observed",
+        "selected_tier": null,
+        "chapter_number": null,
+        "visible_chapter_numbers": [],
+        "visible_stage_numbers": [],
+        "stage_dialog": null,
+        "chapter_navigation_available": false,
+        "stage_navigation_available": false,
+        "ap_current": null,
+        "ap_cost": null,
+        "refill_visible": false,
+        "challenge_ready": false,
+        "lineup_challenge_ready": false,
+        "auto_enabled": false,
+        "winner_visible": false,
+        "loot_visible": false,
+        "tap_to_continue_visible": false,
+        "defeat_visible": false,
+        "return_control_visible": false,
+        "battle_elapsed_seconds": 0.0
+      },
+      "targets": [],
+      "diagnostics": {
+        "victory_continue_roi": [
+          300,
+          1133,
+          500,
+          1158
+        ],
+        "loot_caption_roi": [
+          373,
+          469,
+          427,
+          488
+        ],
+        "winner_captions": [
+          "winner.",
+          "a en an ny"
+        ],
+        "lose_score": -0.2712303400039673,
+        "defeat_hint_score": -0.08235643059015274,
+        "defeat_continue_score": 0.007893898524343967,
+        "defeat_hint_text": "",
+        "defeat_continue_text": "7\u2019 -",
+        "lineup_header": "\u2014",
+        "lineup_text": "",
+        "lineup_score": 0.0,
+        "lineup_gold": 0.0003506311360448808,
+        "lineup_caption_roi": null,
+        "wave_text": "",
+        "auto_enabled_score": 0.1160447895526886,
+        "auto_disabled_score": 0.13103815913200378,
+        "auto_green_ratio": 0.0,
+        "tier_controls_score": 0.0,
+        "tier_text": "enn",
+        "visible_chapter_numbers": []
+      },
+      "ocr_boxes": [
+        {
+          "roi": [
+            200,
+            1090,
+            610,
+            1190
+          ],
+          "tokens": [
+            [
+              "~",
+              [
+                438,
+                1093,
+                452,
+                1102
+              ],
+              67.0
+            ],
+            [
+              "Tap",
+              [
+                300,
+                1134,
+                347,
+                1158
+              ],
+              96.0
+            ],
+            [
+              "to",
+              [
+                355,
+                1135,
+                379,
+                1153
+              ],
+              96.0
+            ],
+            [
+              "continue",
+              [
+                389,
+                1133,
+                500,
+                1154
+              ],
+              96.0
+            ]
+          ]
+        },
+        {
+          "roi": [
+            300,
+            425,
+            500,
+            515
+          ],
+          "tokens": [
+            [
+              "Loot",
+              [
+                373,
+                469,
+                427,
+                488
+              ],
+              96.0
+            ]
+          ]
+        },
+        {
+          "roi": [
+            40,
+            145,
+            690,
+            1010
+          ],
+          "tokens": [
+            [
+              "Loot",
+              [
+                373,
+                468,
+                428,
+                487
+              ],
+              96.0
+            ]
+          ]
+        },
+        {
+          "roi": [
+            250,
+            250,
+            680,
+            760
+          ],
+          "tokens": [
+            [
+              "NNN",
+              [
+                250,
+                469,
+                302,
+                488
+              ],
+              75.0
+            ],
+            [
+              "Loot",
+              [
+                373,
+                468,
+                428,
+                487
+              ],
+              96.0
+            ],
+            [
+              "al",
+              [
+                631,
+                549,
+                659,
+                600
+              ],
+              45.0
+            ],
+            [
+              "722",
+              [
+                250,
+                531,
+                580,
+                625
+              ],
+              75.0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "fixture": "retained-winner.png",
+      "png_sha256": "6c916d6e711d17b7f19ccd28bf8a83500c46593da498da68dd40b699b17d0bee",
+      "observation": {
+        "screen": "CAMPAIGN_RESULT",
+        "recognized": true,
+        "overlay_state": "none_observed",
+        "selected_tier": null,
+        "chapter_number": null,
+        "visible_chapter_numbers": [],
+        "visible_stage_numbers": [],
+        "stage_dialog": null,
+        "chapter_navigation_available": false,
+        "stage_navigation_available": false,
+        "ap_current": null,
+        "ap_cost": null,
+        "refill_visible": false,
+        "challenge_ready": false,
+        "lineup_challenge_ready": false,
+        "auto_enabled": false,
+        "winner_visible": true,
+        "loot_visible": true,
+        "tap_to_continue_visible": true,
+        "defeat_visible": false,
+        "return_control_visible": false,
+        "battle_elapsed_seconds": 0.0
+      },
+      "targets": [
+        [
+          "campaign-victory-continue",
+          [
+            289,
+            1117,
+            505,
+            1146
+          ]
+        ]
+      ],
+      "diagnostics": {
+        "victory_continue_roi": [
+          289,
+          1117,
+          505,
+          1146
+        ],
+        "loot_caption_roi": [
+          370,
+          450,
+          430,
+          471
+        ],
+        "winner_captions": [
+          "bs nc ie eae",
+          "winner"
+        ]
+      },
+      "ocr_boxes": [
+        {
+          "roi": [
+            200,
+            1090,
+            610,
+            1190
+          ],
+          "tokens": [
+            [
+              "Tap",
+              [
+                289,
+                1119,
+                341,
+                1146
+              ],
+              96.0
+            ],
+            [
+              "to",
+              [
+                350,
+                1120,
+                377,
+                1140
+              ],
+              96.0
+            ],
+            [
+              "continue",
+              [
+                388,
+                1117,
+                505,
+                1140
+              ],
+              79.0
+            ],
+            [
+              "|",
+              [
+                519,
+                1148,
+                525,
+                1157
+              ],
+              69.0
+            ]
+          ]
+        },
+        {
+          "roi": [
+            300,
+            425,
+            500,
+            515
+          ],
+          "tokens": [
+            [
+              "Loot",
+              [
+                370,
+                450,
+                430,
+                471
+              ],
+              95.0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "fixture": "retained-defeat.png",
+      "png_sha256": "2944f4cfd022b3bde26078c63a3ae7c89f11f6a8c5f85c026fcadf1cfab9000d",
+      "observation": {
+        "screen": "CAMPAIGN_RESULT",
+        "recognized": true,
+        "overlay_state": "none_observed",
+        "selected_tier": null,
+        "chapter_number": null,
+        "visible_chapter_numbers": [],
+        "visible_stage_numbers": [],
+        "stage_dialog": null,
+        "chapter_navigation_available": false,
+        "stage_navigation_available": false,
+        "ap_current": null,
+        "ap_cost": null,
+        "refill_visible": false,
+        "challenge_ready": false,
+        "lineup_challenge_ready": false,
+        "auto_enabled": false,
+        "winner_visible": false,
+        "loot_visible": false,
+        "tap_to_continue_visible": true,
+        "defeat_visible": true,
+        "return_control_visible": true,
+        "battle_elapsed_seconds": 0.0
+      },
+      "targets": [
+        [
+          "campaign-defeat-return",
+          [
+            270,
+            1212,
+            530,
+            1270
+          ]
+        ]
+      ],
+      "diagnostics": {
+        "victory_continue_roi": null,
+        "lose_score": 0.9999611377716064,
+        "defeat_hint_score": 0.9999657273292542,
+        "defeat_continue_score": 0.9999295473098755,
+        "defeat_hint_text": "improve might",
+        "defeat_continue_text": "tap to continue"
+      },
+      "ocr_boxes": [
+        {
+          "roi": [
+            200,
+            1090,
+            610,
+            1190
+          ],
+          "tokens": []
+        }
+      ]
+    }
+  ],
+  "personal_might": {
+    "fixture": "native-personal-might-rank-20261029.png",
+    "png_sha256": "2408361f4e6fc1aa9451ea2bff67999765353c2be53d76b43bea66bc987c02e9",
+    "bound_box": null,
+    "tokens": [
+      {
+        "roi": [
+          180,
+          0,
+          650,
+          80
+        ],
+        "psm": 7,
+        "scale": 2,
+        "tokens": [
+          [
+            "personal",
+            [
+              237.0,
+              17.0,
+              376.0,
+              43.5
+            ]
+          ],
+          [
+            "might",
+            [
+              387.5,
+              17.0,
+              477.0,
+              54.5
+            ]
+          ],
+          [
+            "rank",
+            [
+              488.0,
+              17.0,
+              566.5,
+              43.5
+            ]
+          ]
+        ]
+      },
+      {
+        "roi": [
+          70,
+          80,
+          740,
+          130
+        ],
+        "psm": 7,
+        "scale": 2,
+        "tokens": [
+          [
+            "rank",
+            [
+              76.5,
+              96.0,
+              134.5,
+              115.0
+            ]
+          ],
+          [
+            "commander",
+            [
+              242.5,
+              94.0,
+              388.0,
+              122.0
+            ]
+          ],
+          [
+            "might",
+            [
+              652.0,
+              96.0,
+              718.0,
+              120.0
+            ]
+          ]
+        ]
+      },
+      {
+        "roi": [
+          88,
+          168,
+          119,
+          206
+        ],
+        "psm": 10,
+        "scale": 3,
+        "tokens": [
+          [
+            "a",
+            [
+              88.0,
+              168.0,
+              116.66666666666667,
+              206.0
+            ]
+          ]
+        ]
+      }
+    ],
+    "labels": [
+      {
+        "roi": [
+          180,
+          0,
+          650,
+          80
+        ],
+        "expected": "personal might rank",
+        "box": [
+          237,
+          17,
+          567,
+          55
+        ]
+      },
+      {
+        "roi": [
+          70,
+          80,
+          740,
+          130
+        ],
+        "expected": "rank commander might",
+        "box": [
+          76,
+          94,
+          718,
+          122
+        ]
+      },
+      {
+        "roi": [
+          88,
+          168,
+          119,
+          206
+        ],
+        "expected": "1",
+        "box": null
+      }
+    ],
+    "thumbs": [],
+    "targets": []
+  },
+  "forbidden_process_attempts": [],
+  "tesseract": "5.5.0"
+}

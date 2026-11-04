@@ -81,8 +81,12 @@ jobs:
 
   native-probe:
     if: contains(github.event.head_commit.message, '[ticket24-probe]')
-    name: Read-only Linux OCR diagnostics
-    runs-on: ubuntu-latest
+    name: Read-only Linux OCR diagnostics (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-latest]
     env:
       OMP_THREAD_LIMIT: "1"
       PYTHONDONTWRITEBYTECODE: "1"
@@ -97,10 +101,14 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
       - name: Trace native recognizers without runtime or device access
         run: python -B .github/scripts/ticket24_native_probe.py "${{ runner.temp }}/ticket24-native-probe.json"
+      - name: Exercise native recognition and safety controls
+        run: |
+          python -B .github/scripts/ticket24_offline_proof.py "${{ runner.temp }}/ticket24-native-victory.json" --child tests.test_campaign_victory_native
+          python -B .github/scripts/ticket24_offline_proof.py "${{ runner.temp }}/ticket24-native-might.json" --child tests.test_personal_might_bluestacks
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ticket24-native-${{ github.sha }}
-          path: ${{ runner.temp }}/ticket24-native-probe.json
+          name: ticket24-native-${{ matrix.os }}-${{ github.sha }}
+          path: ${{ runner.temp }}/ticket24-native-*.json
           if-no-files-found: error
           retention-days: 90

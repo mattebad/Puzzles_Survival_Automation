@@ -404,6 +404,27 @@ class PersonalMightNativeTests(unittest.TestCase):
                 changed = captured(cv2.imencode(".png", pixels)[1].tobytes())
                 self.assertIsNone(vision.bind_personal_might_praise(changed.frame, source_frame=identity_from_captured(changed, session_id="native-thumb-negative", ordinal=1), source_png=changed.png))
 
+    @requires_tesseract
+    def test_numeric_rank_field_does_not_authorize_a_different_rank(self):
+        original = captured(PERSONAL_MIGHT_FIXTURE.read_bytes(), path=PERSONAL_MIGHT_FIXTURE)
+        for rank in ("1", "2", "3", "9"):
+            with self.subTest(rank=rank):
+                pixels = original.frame.copy()
+                # Replace only the numeral; retain the independently required
+                # connected gold medal around it.
+                pixels[174:202, 92:114] = 0
+                cv2.putText(pixels, rank, (92, 199), cv2.FONT_HERSHEY_COMPLEX,
+                            0.8, (255, 255, 255), 2, cv2.LINE_AA)
+                changed = captured(cv2.imencode(".png", pixels)[1].tobytes())
+                source = {"source_frame": identity_from_captured(changed, session_id="numeric-rank-field", ordinal=1),
+                          "source_png": changed.png}
+                target = vision.bind_personal_might_praise(changed.frame, **source)
+                if rank == "1":
+                    self.assertIsNotNone(target)
+                    self.assertEqual(target.target_roi, (701, 167, 741, 207))
+                else:
+                    self.assertIsNone(target)
+
     def test_current_visible_back_arrow_is_bound_on_both_native_pages(self):
         for fixture, personal_page in ((PERSONAL_MIGHT_FIXTURE, True), (LEADERBOARD_FIXTURE, False)):
             frame = captured(fixture.read_bytes(), path=fixture)
