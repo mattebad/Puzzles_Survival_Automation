@@ -68,8 +68,12 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                 connect.assert_not_called()
 
     def test_missing_selection_is_an_argument_error_before_state_or_device(self):
-        with patch.object(cli, "BotStateManager") as state, patch.object(
-            LocalBlueStacksRuntime, "connect"
+        with patch.object(
+            cli, "BotStateManager", side_effect=AssertionError("state initialization forbidden without selection")
+        ) as state, patch(
+            "scripts.bluestacks_native_runtime.ADBRunner", side_effect=AssertionError("device access forbidden")
+        ) as adb, patch.object(
+            LocalBlueStacksRuntime, "connect", side_effect=AssertionError("device access forbidden")
         ) as connect, redirect_stderr(io.StringIO()):
             self.assertEqual(pnsctl.main([
                 "automation-service", "--mode", "supervised", "--adapter", "bluestacks",
@@ -77,6 +81,7 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                 "--account-id", "account", "--server-id", "server",
             ]), 2)
         state.assert_not_called()
+        adb.assert_not_called()
         connect.assert_not_called()
 
     def test_a_valid_native_command_respects_disabled_controls(self):

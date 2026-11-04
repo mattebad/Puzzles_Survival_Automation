@@ -90,6 +90,63 @@ Assertions run outside the fake's exception-to-partial-result boundary.
 `CampaignApRunnerError` partial-result wrapping, matching the native claimed-run
 boundary rather than silently reproducing the old local fake's omission.
 
+## Review-fixup proof
+
+At production-change commit `ccacd32`, the contract and eight route modules pass
+**56 tests**. Including the omitted-selection and preserved missing-authorization
+CLI checks gives **58 passing tests, zero skips**. `subprocess.Popen` and available
+`os` spawn/fork/exec/system/startfile launchers are blocked throughout imports and
+execution; transport tripwires also reject `ADBRunner` construction and native
+connection. `python scripts/check.py` passes **396 tests, zero skips**.
+
+The direct offline service smoke rejects omitted selection with an enabled
+Recruitment runner installed: no runner calls and no runs. The real CLI returns
+argument-error status 2. No generation-fence production change was necessary.
+
+The scratch mutation removes only the two generation predicates from
+`checkpoint_fences` and the two generation-mismatch checks from state dispatch
+validation. Stop, run-state, ownership, lease, clock and terminal-projection
+fences remain. Pure flow-generation F fails on all eight routes; the separate
+service-generation case fails on the same eight routes. Each produces the
+following assertion message:
+
+| Route | Failure in both generation-only methods |
+| --- | --- |
+| Supply | `AssertionError: Tuples differ: (4, 1) != (1, 0)` |
+| Ultimate | `AssertionError: Tuples differ: (4, 1) != (1, 1)` |
+| Enhancement | `AssertionError: Tuples differ: (6, 3) != (1, 0)` |
+| Personal Might | `AssertionError: Tuples differ: (6, 1) != (1, 0)` |
+| Bioenhancer | `AssertionError: Tuples differ: (5, 1) != (1, 0)` |
+| Campaign | `AssertionError: Tuples differ: (6, 1) != (1, 1)` |
+| Nova | `AssertionError: Tuples differ: (4, 1) != (1, 0)` |
+| Recruitment | `AssertionError: Tuples differ: (4, 1) != (1, 0)` |
+
+The disable/re-enable method still passes under that mutant. The three-method
+run exits 1 with sixteen failed route subtests; after restoring only the scratch
+edits, all three methods pass. The historical whole-checkpoint-bypass result
+below did not satisfy the generation-only acceptance criterion; this exact
+mutation result supersedes it without rewriting the historical receipts.
+
+### Full-discovery comparison
+
+Both trees run the exact `python -B -m unittest discover -s tests -t .` command
+on Windows with Python 3.12, Tesseract 5.5.0 and `OMP_THREAD_LIMIT=1`. The
+before-review `e73dbd4` checkout receives only the identical test-package marker
+to permit collection; it does not receive the generation or default-removal fix.
+
+| Tree | Tests | FAIL | ERROR | Skipped | Test seconds |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Before review, e73dbd4 | 3,119 | 9 | 16 | 37 | 1,781.574 |
+| Explicit-selection change, ccacd32 | 3,122 | 9 | 16 | 37 | 1,791.773 |
+
+Exact FAIL/ERROR header arrays, including subtest identities, are equal:
+**zero new or resolved failure/error IDs**. The three added cases are the two
+generation methods and omitted-CLI-selection case. The authorized no-default
+method rename is documented above. No unrelated baseline assertion is changed.
+These are not full-suite passes; existing failures remain outside this follow-up.
+The Troop Training failure appears in both full invocations, unlike the earlier
+isolated-module sweep. Elapsed times overlap other proof and are not benchmarks.
+
 ## Initial-consolidation proof (historical)
 
 Environment: Windows x64, Python 3.12.10, Tesseract 5.5.0.20241111,
