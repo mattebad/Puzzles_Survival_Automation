@@ -14,6 +14,7 @@ from typing import Any, Mapping
 import cv2
 import numpy as np
 
+from safe_action_core.path_safety import require_no_untrusted_symlinks
 from automation_service.registry import PERSONAL_MIGHT_FLOW_ID, PERSONAL_MIGHT_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime, captured_native_frame_from_png
 from scripts.home_atlas_bluestacks import identity_from_captured
@@ -89,20 +90,23 @@ def _retained_result(root, retained):
 
 def _recovery_proof(source_session, *, store, identity, binding):
     """Read-only validation of one original, transported gold -> gray action."""
-    root = Path(source_session).resolve(strict=True)
-    if not root.is_dir() or Path(source_session).is_symlink():
+    root = require_no_untrusted_symlinks(Path(source_session)).resolve(strict=True)
+    if not root.is_dir():
         raise ValueError("Personal Might recovery source is not a retained session")
 
     def retained(value):
         path = Path(value)
         path = path if path.is_absolute() else root / path
-        if path.is_symlink() or not path.resolve(strict=True).is_relative_to(root) or not path.is_file():
+        path = require_no_untrusted_symlinks(path).resolve(strict=True)
+        if not path.is_relative_to(root) or not path.is_file():
             raise ValueError("Personal Might recovery artifact escapes its source session")
-        return path.resolve(strict=True)
+        return path
 
     result_path, record = _retained_result(root, retained)
     key = personal_might_daily_key(runtime_scope=identity.runtime_scope, account_id=identity.account_id, server_id=identity.server_id, reset_id=identity.reset_id)
-    if record.get("flow_id") != FLOW_ID or Path(record.get("session_directory", "")).resolve() != root or record.get("praise_transport_calls") != 1 or record.get("action_key") != key:
+    if (record.get("flow_id") != FLOW_ID
+            or require_no_untrusted_symlinks(Path(record.get("session_directory", ""))).resolve() != root
+            or record.get("praise_transport_calls") != 1 or record.get("action_key") != key):
         raise ValueError("Personal Might recovery receipt/action identity is not exact")
     old_payload = dict(record["runtime_identity"])
     old_payload["assurance"] = RuntimeIdentityAssurance(old_payload["assurance"])
@@ -118,7 +122,11 @@ def _recovery_proof(source_session, *, store, identity, binding):
     if not isinstance(transport, dict) or transport.get("dispatched") is not True:
         raise ValueError("Personal Might recovery lacks a canonical dispatched receipt")
     request = json.loads(action["policy_request_json"])
-    if request.get("free_only") is not True or request.get("maximum_cost") != 0 or request.get("action_class") != "zero_cost_consequential" or request.get("runtime_session_id") != str(root):
+    request_session = request.get("runtime_session_id")
+    if (request.get("free_only") is not True or request.get("maximum_cost") != 0
+            or request.get("action_class") != "zero_cost_consequential"
+            or not isinstance(request_session, str) or not request_session
+            or require_no_untrusted_symlinks(Path(request_session)).resolve(strict=True) != root):
         raise ValueError("Personal Might recovery lacks its canonical zero-cost request")
     events_path = retained(record.get("events_path", "events.jsonl"))
     events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -299,19 +307,21 @@ def run_personal_might(queue: Mapping[str, Any], lease: Mapping[str, Any], *, li
 
 
 def _validation_session(value):
-    root = Path(value).resolve(strict=True)
-    if not root.is_dir() or Path(value).is_symlink():
+    root = require_no_untrusted_symlinks(Path(value)).resolve(strict=True)
+    if not root.is_dir():
         raise ValueError("Personal Might retained session is invalid")
 
     def path(value):
         found = Path(value)
         found = found if found.is_absolute() else root / found
-        if found.is_symlink() or not found.is_file() or not found.resolve(strict=True).is_relative_to(root):
+        found = require_no_untrusted_symlinks(found).resolve(strict=True)
+        if not found.is_file() or not found.is_relative_to(root):
             raise ValueError("Personal Might retained artifact escapes its session")
-        return found.resolve(strict=True)
+        return found
 
     result_path, record = _retained_result(root, path)
-    if not isinstance(record, dict) or record.get("flow_id") != FLOW_ID or Path(record.get("session_directory", "")).resolve() != root:
+    if (not isinstance(record, dict) or record.get("flow_id") != FLOW_ID
+            or require_no_untrusted_symlinks(Path(record.get("session_directory", ""))).resolve() != root):
         raise ValueError("Personal Might retained result identity differs")
     events_path = path(record.get("events_path", "events.jsonl"))
     events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -485,7 +495,7 @@ def verify_personal_might(structure, queue, lease):
             proof = result["source_proof"]
             if praise_count or targets != ["personal-might-back", "leaderboard-back"] or result.get("source_praise_transport_calls") != 1 or proof.get("confirmed") is not True or proof.get("zero_praise_input") is not True or proof.get("action_id") != result.get("action_id") or proof.get("action_key") != result.get("action_key"):
                 raise ValueError("Personal Might composite source link is not exact")
-            if trace.get("source_proof") != proof or trace.get("source_session") != result["source_session"] or proof.get("source_session") != result["source_session"] or Path(trace.get("recovery_session", "")).resolve() != root or trace.get("source_praise_transport_calls") != 1:
+            if trace.get("source_proof") != proof or trace.get("source_session") != result["source_session"] or proof.get("source_session") != result["source_session"] or require_no_untrusted_symlinks(Path(trace.get("recovery_session", ""))).resolve() != root or trace.get("source_praise_transport_calls") != 1:
                 raise ValueError("Personal Might composite trace link differs")
             prior = _validation_session(result["source_session"])
             if hashlib.sha256(prior[6].read_bytes()).hexdigest() != proof.get("source_result_sha256") or hashlib.sha256(prior[7].read_bytes()).hexdigest() != proof.get("source_events_sha256"):

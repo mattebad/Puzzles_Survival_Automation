@@ -399,6 +399,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
             with self.subTest(roi=roi):
                 self.assertIsNone(choose(roi))
 
+    @requires_ocr_worker
     def test_capture_bound_screen_recognizes_free_controls(self):
         result = recognize_supply_depot_screen(
             self.frame,
@@ -448,6 +449,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
         self.assertEqual(result.controls, ())
         self.assertFalse(result.premium_or_purchase_visible)
 
+    @requires_ocr_worker
     def test_explicit_attempts_ocr_engine_failure_fails_closed(self):
         result = recognize_supply_depot_screen(
             self.frame,
@@ -457,6 +459,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
         self.assert_fail_closed_ocr_result(result, "ocr_invalid_attempts")
         self.assertIsNone(result.daily_free_attempts)
 
+    @requires_ocr_worker
     def test_explicit_panel_ocr_engine_failure_fails_closed(self):
         result = recognize_supply_depot_screen(
             self.frame,
@@ -469,6 +472,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
         self.assert_fail_closed_ocr_result(result, "ocr_invalid_panel")
         self.assertEqual(result.daily_free_attempts, 9)
 
+    @requires_ocr_worker
     def test_explicit_control_ocr_engine_failure_discards_partial_controls(self):
         result = recognize_supply_depot_screen(
             self.frame,

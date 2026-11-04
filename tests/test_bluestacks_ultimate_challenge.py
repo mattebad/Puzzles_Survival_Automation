@@ -3656,6 +3656,9 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
         queue = {"active_flow_id": FLOW_ID, "development_session": True}
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            physical_artifact_root = root / "canonical-artifacts"
+            physical_artifact_root.mkdir()
+            artifact_root_alias = physical_artifact_root / ".." / "canonical-artifacts"
             initial_bytes = b"typed-ultimate-terminal-initial"
             digest = hashlib.sha256(initial_bytes).hexdigest()
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
@@ -3682,7 +3685,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                         "initial_frame_sha256": digest,
                     }
                     command, _load_state, _record_home, _save_state = self._run_wrapper(
-                        root,
+                        artifact_root_alias,
                         terminal="complete_for_reset",
                         home_nav_recognized=True,
                         input_count=2,
@@ -3690,17 +3693,27 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                         lease_context=lease,
                     )
             result_paths = list(
-                (root / "artifacts" / FLOW_ID).glob(
+                (physical_artifact_root / "artifacts" / FLOW_ID).glob(
                     "daily-*/nav-child/flow-delivery-result.json"
                 )
             )
             self.assertEqual(len(result_paths), 1)
             delivery_result = json.loads(result_paths[0].read_text(encoding="utf-8"))
+            self.assertEqual(
+                delivery_result["verified_home_path"],
+                "frames/canonical-home-terminal.png",
+            )
             with patch.object(delivery, "_pnsctl", return_value=pnsctl):
                 verified = delivery.verify_ultimate_challenge_daily(
                     {
                         "result": delivery_result,
-                        "session_directory": str(result_paths[0].parent),
+                        "session_directory": str(
+                            artifact_root_alias
+                            / "artifacts"
+                            / FLOW_ID
+                            / result_paths[0].parent.parent.name
+                            / "nav-child"
+                        ),
                     },
                     {},
                     {},
@@ -3727,6 +3740,11 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
         self.assertTrue(verified["initial_observation_verified"])
         self.assertTrue(verified["transport_accounting_verified"])
         self.assertEqual(verified["new_flee_transport_count"], 1)
+        self.assertEqual(
+            verified["verified_home_path"],
+            "frames/canonical-home-terminal.png",
+        )
+
 
     def test_terminal_session_rejects_equal_but_nonidentical_initial_observation(
         self,
@@ -4372,6 +4390,32 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             self.assertTrue(delivery._verified_home_evidence(root, result)[0])
             path.write_bytes(b"tampered")
             self.assertFalse(delivery._verified_home_evidence(root, result)[0])
+
+    def test_wrapper_home_evidence_rejects_linked_frame_before_reading(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            frames = root / "frames"
+            frames.mkdir()
+            original = root / "original.png"
+            payload = b"linked evidence must not be opened"
+            original.write_bytes(payload)
+            linked = frames / "home.png"
+            try:
+                linked.symlink_to(original)
+            except (OSError, NotImplementedError) as exc:
+                if (isinstance(exc, (PermissionError, NotImplementedError))
+                        or getattr(exc, "winerror", None) == 1314):
+                    self.skipTest("host does not permit symbolic-link creation")
+                raise
+            result = {
+                "home_nav_recognized": True,
+                "home_frame": "frames/home.png",
+                "home_frame_sha256": hashlib.sha256(payload).hexdigest(),
+            }
+            with patch.object(Path, "read_bytes", side_effect=AssertionError(
+                    "linked evidence must not be read")) as read:
+                self.assertFalse(delivery._verified_home_evidence(root, result)[0])
+                read.assert_not_called()
 
     def test_verifier_rejects_tampered_home_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

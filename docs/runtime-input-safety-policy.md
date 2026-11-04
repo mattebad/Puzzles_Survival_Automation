@@ -31,16 +31,23 @@ the normal sticky, writable temporary-directory mode. User-owned descendant
 directories are valid, but every descendant symlink is rejected, even if that
 link is root-owned. Other platforms do not inherit the Darwin exception.
 
-The orchestrator, startup-recovery references, Campaign recovery, and Ruins and
-Bioenhancer evidence guards reuse this check; their containment and error
-boundaries remain authoritative. Evidence consumers canonicalize only after raw
-component validation, preserving Windows short-path aliases without hiding links.
+The orchestrator, startup-recovery references, Campaign recovery, Ruins,
+Bioenhancer, Enhancement, Ultimate Challenge and Personal Might evidence guards
+reuse this check; their containment and error boundaries remain authoritative.
+Evidence consumers canonicalize only after raw component validation, preserving
+Windows short-path aliases without hiding links. Filesystem session references
+are compared by validated physical path where required; action/run/reset identity,
+hash, lease, ownership, freshness and effect checks remain separate requirements.
 Parent steps cannot erase prior link checks, and a missing component does not
 hide later components reached after a parent step.
-These are path checks, not an atomic defense
-against filesystem changes between validation and use. Darwin alias policy has
-deterministic offline boundary coverage; native macOS runtime proof remains
-`evidence_required`. No filesystem receipt authorizes live input.
+
+These are path checks, not an atomic defense against filesystem changes between
+validation and use. Native macOS offline admission of its protected `/var` alias
+was observed in [run 41791057290](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41791057290).
+That run's full suite failed and is not acceptance evidence for the subsequent
+recovery fixes. The three recovery consumers also have an actual Windows
+short-path admission smoke with process launches blocked. Neither filesystem
+observation authorizes live input; native runtime proof remains `evidence_required`.
 
 ## Action-specific checks
 

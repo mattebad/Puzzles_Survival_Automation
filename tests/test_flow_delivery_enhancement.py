@@ -5,6 +5,8 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 import hashlib
 import json
+import os
+import stat
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
@@ -1585,8 +1587,22 @@ class ContractAndReservationTests(unittest.TestCase):
             target = root / "target.png"
             target.write_bytes(b"native")
             link = root / "link.png"
-            with patch("pathlib.Path.is_symlink", new=lambda path: path == link):
-                with self.assertRaisesRegex(pnsctl.OperatorError, "symlink"):
+            links = {link, link.resolve()}
+            destination = str(target.resolve())
+            original_lstat, original_readlink = os.lstat, os.readlink
+
+            def lstat(path, *args, **kwargs):
+                if Path(path) in links:
+                    return SimpleNamespace(st_mode=stat.S_IFLNK | 0o777, st_uid=501)
+                return original_lstat(path, *args, **kwargs)
+
+            def readlink(path, *args, **kwargs):
+                if Path(path) in links:
+                    return destination
+                return original_readlink(path, *args, **kwargs)
+
+            with patch("os.lstat", side_effect=lstat), patch("os.readlink", side_effect=readlink):
+                with self.assertRaises(pnsctl.OperatorError):
                     _retained_path(root, "link.png", "frame")
 
     def test_dispatch_bearing_use_is_persisted_and_blocks_continuation(self):

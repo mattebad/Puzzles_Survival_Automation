@@ -29,7 +29,7 @@ from scripts.navigation_development_boundary import DevelopmentSession
 from scripts.startup_recovery import ContextualPopupRecoveryResult
 from tasks.scheduler_task_result import SchedulerIdentity
 from tests.ocr_memo import install_module_memo
-from tests.support.environment import requires_tesseract
+from tests.support.environment import requires_ocr_worker, requires_tesseract
 
 
 
@@ -431,6 +431,7 @@ class ServiceSupplyTests(unittest.TestCase):
         run.assert_not_called()
 
     @requires_tesseract
+    @requires_ocr_worker
     def test_known_route_surfaces_preserve_no_popup_entry_without_new_input(self):
         fixtures = Path(__file__).parent / "fixtures/supply_depot"
         for name in ("native-facility-20261029.png", "native-exhausted-20261029.png",

@@ -27,6 +27,7 @@ from tasks.enhancement import (
     enhancement_bluestacks_postcondition_verified,
 )
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
+from safe_action_core.path_safety import UnsafePathError, require_no_untrusted_symlinks
 
 
 FLOW_ID = ENHANCEMENT_FLOW_ID
@@ -77,6 +78,23 @@ def _pnsctl():
     from scripts import pnsctl
 
     return pnsctl
+
+
+def _same_validated_path_identity(first: Any, second: Any) -> bool:
+    """Compare physical path identities only after validating each raw spelling."""
+    if not isinstance(first, (str, Path)) or not isinstance(second, (str, Path)):
+        return False
+    try:
+        first_path = Path(first)
+        second_path = Path(second)
+        if not first_path.is_absolute() or not second_path.is_absolute():
+            return False
+        return (
+            require_no_untrusted_symlinks(first_path).resolve()
+            == require_no_untrusted_symlinks(second_path).resolve()
+        )
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return False
 
 
 class _VerificationInterrupted(RuntimeError):
@@ -247,15 +265,15 @@ def _retained_path(session: Path, reference: str, field: str) -> Path:
     if not raw.is_absolute():
         raw = session / raw
     try:
-        cursor = raw
-        while True:
-            if cursor.is_symlink():
-                raise _pnsctl().OperatorError(f"Enhancement {field} reference contains a symlink")
-            if cursor == cursor.parent:
-                break
-            cursor = cursor.parent
-        resolved = raw.resolve()
-        resolved.relative_to(session.resolve())
+        safe_session = require_no_untrusted_symlinks(session)
+        safe_raw = require_no_untrusted_symlinks(raw)
+    except UnsafePathError as exc:
+        raise _pnsctl().OperatorError(
+            f"Enhancement {field} reference contains a symlink"
+        ) from exc
+    try:
+        resolved = safe_raw.resolve()
+        resolved.relative_to(safe_session.resolve())
     except ValueError as exc:
         raise _pnsctl().OperatorError(f"Enhancement {field} reference escaped session") from exc
     if resolved.is_symlink():
@@ -497,16 +515,14 @@ def _validate_navigation_only_recovery_source(
 ) -> dict[str, Any]:
     """Validate the immutable, two-navigation, zero-Use Enhancement child."""
     raw_session = Path(str(recovery_session or ""))
-    if raw_session.is_symlink() or not raw_session.is_dir():
+    try:
+        session = require_no_untrusted_symlinks(raw_session).resolve()
+    except UnsafePathError as exc:
+        raise _pnsctl().OperatorError(
+            "Enhancement navigation recovery source contains a symlink"
+        ) from exc
+    if not session.is_dir() or session.is_symlink():
         raise _pnsctl().OperatorError("Enhancement navigation recovery source is unavailable")
-    cursor = raw_session
-    while True:
-        if cursor.is_symlink():
-            raise _pnsctl().OperatorError("Enhancement navigation recovery source contains a symlink")
-        if cursor == cursor.parent:
-            break
-        cursor = cursor.parent
-    session = raw_session.resolve()
     delivery_path = session / "flow-delivery-result.json"
     if delivery_path.is_symlink() or not delivery_path.is_file():
         raise _pnsctl().OperatorError("Enhancement navigation recovery result is missing")
@@ -997,12 +1013,18 @@ def _validate_zero_selected_no_effect_receipt(
         or retained_before.get("material_star") != 1
     ):
         raise _pnsctl().OperatorError("Enhancement no-effect replay does not match the legacy Confirm hypothesis")
-    original_session = Path(str(receipt["original_runtime_session"]))
-    recovery_session = Path(str(receipt["recovery_session_directory"]))
-    for session in (original_session, recovery_session):
-        if session.is_symlink() or not session.is_dir():
-            raise _pnsctl().OperatorError("Enhancement no-effect session is unavailable")
-    if original_session.resolve() == recovery_session.resolve():
+    try:
+        original_session = require_no_untrusted_symlinks(
+            Path(str(receipt["original_runtime_session"]))
+        ).resolve()
+        recovery_session = require_no_untrusted_symlinks(
+            Path(str(receipt["recovery_session_directory"]))
+        ).resolve()
+    except UnsafePathError as exc:
+        raise _pnsctl().OperatorError("Enhancement no-effect session is unavailable") from exc
+    if any(session.is_symlink() or not session.is_dir() for session in (original_session, recovery_session)):
+        raise _pnsctl().OperatorError("Enhancement no-effect session is unavailable")
+    if original_session == recovery_session:
         raise _pnsctl().OperatorError("Enhancement no-effect recovery must use a fresh session")
     original_delivery_path = _retained_path(original_session, "flow-delivery-result.json", "original result")
     if original_delivery_path.is_symlink() or not original_delivery_path.is_file():
@@ -1708,7 +1730,9 @@ def _validate_positive_receipt(
             or receipt.get("read_only") is not True or receipt.get("input_authority") is not False
             or receipt.get("reset_identity") != reset
             or receipt.get("original_action_key") != retained.get("resource_affecting_action_key")
-            or receipt.get("original_runtime_session") != retained.get("runtime_session")
+            or not _same_validated_path_identity(
+                receipt.get("original_runtime_session"), retained.get("runtime_session")
+            )
             or receipt.get("original_source_frame_sha256") != retained.get("source_frame_sha256")
             or any(type(receipt.get(name)) is not int or receipt[name] != 0 for name in
                    ("input_count", "dispatch_count", "resource_affecting_dispatch_count"))):
@@ -1733,7 +1757,7 @@ def _validate_positive_receipt(
             or len(matches) != 1 or matches[0].get("status") != "dispatch_bearing_unresolved"
             or matches[0].get("before_observation") != retained.get("before_observation")
             or matches[0].get("resource_affecting_dispatch_count") != 1
-            or matches[0].get("runtime_session") != str(original)
+            or not _same_validated_path_identity(matches[0].get("runtime_session"), original)
             or matches[0].get("successor_observation") is not None
             or matches[0].get("resource_affecting_action_key") != key
             or matches[0].get("source_frame_sha256") != retained.get("source_frame_sha256")
@@ -1753,17 +1777,19 @@ def _validate_positive_receipt(
     if not isinstance(recovery_raw, str) or not Path(recovery_raw).is_absolute():
         raise _pnsctl().OperatorError("Enhancement recovery session is missing")
     recovery = Path(recovery_raw)
-    if recovery.resolve() == original.resolve():
-        raise _pnsctl().OperatorError("Enhancement recovery must have its own session")
     recovery_path = _retained_path(recovery, "flow-delivery-result.json", "recovery delivery")
+    recovery = recovery_path.parent
+    if recovery == original:
+        raise _pnsctl().OperatorError("Enhancement recovery must have its own session")
     recovery_bytes = recovery_path.read_bytes()
     recovery_delivery = json.loads(recovery_bytes)
     recovery_delivery, recovery, recovery_rows, recovery_hashes = _verify_native_structure({
         "result": recovery_delivery, "session_directory": str(recovery),
         "frames": recovery_delivery.get("frames"),
     }, checkpoint=checkpoint)
-    recovery_events = _retained_path(recovery, str(recovery_delivery.get("events_path") or "events.jsonl"),
-                                     "recovery events")
+    recovery_events = _retained_path(
+        recovery, str(recovery_delivery.get("events_path") or "events.jsonl"), "recovery events"
+    )
     recovery_journal = recovery_events.read_bytes()
     recovered = recovery_delivery.get("enhancement_result")
     if (recovery_delivery.get("status") != "recovered_successor"
@@ -1817,7 +1843,7 @@ def _read_positive_receipt(value: Mapping[str, Any], variant: str, reset: str,
     if hashlib.sha256(raw).hexdigest() != value.get("successor_receipt_sha256"):
         raise _pnsctl().OperatorError("Enhancement settled receipt hash differs")
     receipt = json.loads(raw)
-    if (receipt.get("recovery_session_directory") != str(path.parent)
+    if (not _same_validated_path_identity(receipt.get("recovery_session_directory"), path.parent)
             or receipt.get("successor_observation") != value.get("successor_observation")
             or receipt.get("successor_evidence_ref") != value.get("successor_evidence_ref")):
         raise _pnsctl().OperatorError("Enhancement settled receipt differs from family progress")
@@ -1884,7 +1910,7 @@ def _reconcile_recovery_no_effect(
     if not isinstance(receipt, Mapping):
         raise _pnsctl().OperatorError("Enhancement no-effect recovery receipt is missing")
     receipt = dict(receipt)
-    if receipt.get("recovery_session_directory") != str(recovery_session):
+    if not _same_validated_path_identity(receipt.get("recovery_session_directory"), recovery_session):
         raise _pnsctl().OperatorError(
             "Enhancement no-effect recovery session is not source-bound"
         )
@@ -2403,14 +2429,10 @@ def _verify_native_structure(
     if variant != "family":
         raise pnsctl.OperatorError("Enhancement evidence must be an R4 family result")
     raw_session = Path(str(structure.get("session_directory") or ""))
-    cursor = raw_session
-    while True:
-        if cursor.is_symlink():
-            raise pnsctl.OperatorError("Enhancement evidence session path contains a symlink")
-        if cursor == cursor.parent:
-            break
-        cursor = cursor.parent
-    session = raw_session.resolve()
+    try:
+        session = require_no_untrusted_symlinks(raw_session).resolve()
+    except UnsafePathError as exc:
+        raise pnsctl.OperatorError("Enhancement evidence session path contains a symlink") from exc
     if not session.is_dir() or session.is_symlink():
         raise pnsctl.OperatorError("Enhancement evidence session directory is unavailable")
     delivery_path = session / "flow-delivery-result.json"
@@ -2633,8 +2655,7 @@ def _replay_category_observations(
     before = _observation(proof.get("before_observation"), f"{variant} before")
     after = _observation(proof.get("successor_observation"), f"{variant} successor")
     if (
-        not isinstance(proof.get("runtime_session"), str)
-        or Path(proof["runtime_session"]).resolve() != session.resolve()
+        not _same_validated_path_identity(proof.get("runtime_session"), session)
         or proof.get("source_frame_sha256") != before.source_frame_sha256
     ):
         raise _pnsctl().OperatorError("Enhancement category is not bound to its native runtime")
@@ -3447,7 +3468,9 @@ def verify_enhancement_family(
         return {"status": "evidence_required", "flow_id": FLOW_ID, "reason": "route semantics missing"}
     if result.get("status") == "recovered_successor":
         receipt = route.get("successor_receipt")
-        if not isinstance(receipt, Mapping) or receipt.get("recovery_session_directory") != str(session):
+        if not isinstance(receipt, Mapping) or not _same_validated_path_identity(
+            receipt.get("recovery_session_directory"), session
+        ):
             raise _pnsctl().OperatorError("Enhancement settled recovery receipt is not bound")
         original = _original_no_effect_attempt(receipt)
         receipt_path = _retained_path(session, _POSITIVE_RECEIPT_NAME, "settled successor receipt")
@@ -3471,7 +3494,9 @@ def verify_enhancement_family(
         ):
             raise _pnsctl().OperatorError("Enhancement no-effect recovery accounting is invalid")
         receipt = route.get("no_effect_receipt")
-        if not isinstance(receipt, Mapping) or receipt.get("recovery_session_directory") != str(session):
+        if not isinstance(receipt, Mapping) or not _same_validated_path_identity(
+            receipt.get("recovery_session_directory"), session
+        ):
             raise _pnsctl().OperatorError("Enhancement no-effect receipt is not bound to recovery")
         original = _original_no_effect_attempt(receipt)
         _validate_zero_selected_no_effect_receipt(

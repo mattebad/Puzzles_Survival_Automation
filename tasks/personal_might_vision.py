@@ -150,6 +150,18 @@ def _rank_1_context(frame, *, source_frame, source_png):
     # The numeral is inside the shield, not its bright border. Including the
     # emblem outline makes a complete badge look like an alphabetic character.
     digit = (math.floor(x + width * .35), math.floor(y + height * .2), math.ceil(x + width * .68), math.ceil(y + height * .85))
+    # Inspect the full medal band before cropping: clipping a second numeral
+    # can make a multi-digit rank look like 1. Native numeral highlights are
+    # bright and low-saturation, unlike the surrounding golden shield.
+    highlights = cv2.inRange(
+        hsv[digit[1]:digit[3], x:x + width],
+        np.array((0, 0, 180), dtype=np.uint8),
+        np.array((179, 60, 255), dtype=np.uint8),
+    )
+    ink_x, _ink_y, ink_width, _ink_height = cv2.boundingRect(highlights)
+    if (not ink_width or x + ink_x < digit[0]
+            or x + ink_x + ink_width > digit[2]):
+        return None
     # Read the medal's numeric field, not an unconstrained alphabetic glyph.
     # Keep all digits available: another rank must not be coerced into Rank 1.
     if _label_box(frame, digit, "1", **source, psm=10, scale=3, whitelist="0123456789") is None:

@@ -41,6 +41,7 @@ from tasks.native_frame_replay import (
     serialize_replay_result,
     source_paths_are_writable,
 )
+from tests.support.environment import requires_ocr_worker
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -182,6 +183,7 @@ class NativeFrameReplayTests(unittest.TestCase):
         self.assertEqual(payload["observations"][0]["ordinal"], 1)
         self.assertEqual(payload["observations"][1]["ordinal"], 2)
 
+    @requires_ocr_worker
     def test_complete_same_capture_perception_ocr_composition(self) -> None:
         result = replay_native_frames(
             root=ROOT,

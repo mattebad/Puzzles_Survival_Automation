@@ -97,12 +97,39 @@ class UltimateRecoveryTests(unittest.TestCase):
             root = Path(directory)
             prior = root / "prior"
             flee_proof(prior)
+            alias_parent = root / "alias-parent"
+            alias_parent.mkdir()
+            prior_reference = alias_parent / ".." / "prior"
             with self.runtime(root / "recovery", root / "reset.json") as lease, patch.object(delivery.subprocess, "run", side_effect=self.child) as child:
-                lease.update(recovery_only=True, recovery_session=str(prior))
+                lease.update(recovery_only=True, recovery_session=str(prior_reference))
                 result = json.loads(delivery.run_ultimate_challenge_daily({"development_session": True, "active_flow_id": delivery.FLOW_ID}, lease))
             self.assertEqual(result["status"], "completed")
             child.assert_called_once()
             self.assertIn("--post-flee-home-only", child.call_args.args[0])
+
+    def test_explicit_recovery_rejects_linked_session_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prior = root / "prior"
+            flee_proof(prior)
+            linked_prior = root / "linked-prior"
+            try:
+                linked_prior.symlink_to(prior, target_is_directory=True)
+            except (OSError, NotImplementedError) as exc:
+                if (isinstance(exc, (PermissionError, NotImplementedError))
+                        or getattr(exc, "winerror", None) == 1314):
+                    self.skipTest("host does not permit symbolic-link creation")
+                raise
+            with self.runtime(root / "recovery", root / "reset.json") as lease, patch.object(
+                delivery.subprocess, "run", side_effect=self.child
+            ) as child:
+                lease.update(recovery_only=True, recovery_session=str(linked_prior))
+                with self.assertRaisesRegex(pnsctl.OperatorError, "recovery evidence rejected"):
+                    delivery.run_ultimate_challenge_daily(
+                        {"development_session": True, "active_flow_id": delivery.FLOW_ID},
+                        lease,
+                    )
+            child.assert_not_called()
 
     def test_bad_prior_or_pending_proof_blocks_before_any_child(self):
         for mutation in ("reset", "profile", "unknown", "corrupt", "digest", "state_reset"):

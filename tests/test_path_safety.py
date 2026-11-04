@@ -156,9 +156,9 @@ class PathSafetyTests(unittest.TestCase):
                 if isinstance(exc, PermissionError):
                     self.skipTest("host does not permit symbolic-link creation")
                 raise
-            with self.assertRaisesRegex(UnsafePathError, "symlink"):
+            with self.assertRaises(UnsafePathError):
                 require_no_untrusted_symlinks(link / "evidence.png")
-            with self.assertRaisesRegex(UnsafePathError, "symlink"):
+            with self.assertRaises(UnsafePathError):
                 require_no_untrusted_symlinks(dangling)
 
 

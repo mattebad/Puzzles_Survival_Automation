@@ -1,9 +1,9 @@
 # Ticket #24: native OCR portability
 
-Status: implemented on the candidate branch and offline-proven on local Windows.
-Campaign's native controls also pass on Linux with Tesseract 5.3.4 and 5.5.0.
-The revised Personal Might numeral crop remains `evidence_required` on Linux.
-None of this is live acceptance.
+Status: implemented on the candidate branch, not live-accepted. The inner-field
+candidate passed the existing Windows/Linux native checks but failed the expanded
+multi-digit negative control. A full-medal highlight-containment guard now rejects
+clipped numeral strokes before OCR; final cross-platform sweep proof is pending.
 
 ## Observed cause
 
@@ -40,6 +40,31 @@ The next candidate excludes the decorative shield border from the medal-relative
 numeral crop. It does not map `a` to `1`, reduce an identity check, or retry a
 resource action. The complete numeric field and the independent medal remain
 required.
+
+## Inner-field candidate and safety regression
+
+[Run 41801356827](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41801356827)
+at `d4db4c8` passed six Campaign and 29 Personal Might tests on both Tesseract
+5.3.4 and 5.5.0. The source-hashed documents are retained in
+[`native-ocr-linux-d4db4c8.json`](native-ocr-linux-d4db4c8.json).
+These are **subset observations, not final acceptance**: a subsequent derived-frame
+smoke and permanent regression found synthetic ranks 10 and 11 bound as Rank 1.
+The crop hid part of the second numeral.
+
+The repair inspects bright, low-saturation numeral highlights across the full
+medal band and requires their complete horizontal extent to fit inside the OCR
+field. Missing or out-of-field highlights fail closed before OCR. This adds a
+strict gate; it does not change a confidence threshold, map characters, permit
+only digit 1, alter the source frame or retry an action. The existing native
+positive/disabled-state controls remain required, and the numeric regression now
+also rejects ranks 10, 11, 12 and 21.
+
+On Windows, the permanent regression failed before the guard for ranks 10 and 11.
+Afterwards both full native modules passed: 36 tests, zero failures/errors and one
+host symlink-privilege skip, 61.063 seconds including driver overhead. No forbidden
+device-executable attempt was observed. Linux/macOS final guard proof remains
+`evidence_required` until the hosted sweep completes.
+
 
 
 ## Local verification

@@ -1,0 +1,80 @@
+{
+  "base_commit": "d4dd8db",
+  "candidate_commit": "3dc3d8e3fefee5b35c4d36a1b1f04c6bc977ef0e",
+  "base_modules": 235,
+  "candidate_modules": 238,
+  "base_cases": 3135,
+  "candidate_cases": 3165,
+  "new_modules": [
+    "tests.test_path_safety",
+    "tests.test_test_discovery",
+    "tests.test_test_environment"
+  ],
+  "case_id_digest_format": "SHA-256 of sorted UTF-8 test IDs, one per LF-terminated line",
+  "base_case_ids_sha256": "52da72a1bbadf60505342a86de272979f6abfa1835f97f3c0db2981722790866",
+  "candidate_case_ids_sha256": "68ee9a4df57bc0eec4df41b21e9164217b9cf1de3ea932c43e7d9421f5a7e3a1",
+  "collection": "Actual unittest loader IDs with process launching blocked; no test execution. Base-only in-memory tests namespace permits metadata listing without modifying its missing __init__.py; it is not proof that base discovery works.",
+  "renamed_cases": [
+    {
+      "before": "tests.test_contextual_startup_recovery.ContextualStartupRecoveryTests.test_step_mapping_preserves_the_trusted_parent_boundary",
+      "after": "tests.test_contextual_startup_recovery.ContextualStartupRecoveryTests.test_step_mapping_rejects_a_link_above_the_session_root",
+      "class": "b",
+      "commit": "2467dbf",
+      "reason": "Requested strict link rejection now covers user-writable ancestry above the session; valid unlinked mapping remains asserted."
+    },
+    {
+      "before": "tests.test_flow_delivery_enhancement.DirectCommanderRouteTests.test_direct_route_retains_successor_when_visible_exit_is_unbound",
+      "after": "tests.test_flow_delivery_enhancement.DirectCommanderRouteTests.test_verified_enhancement_keeps_unbound_visible_exit_blocked",
+      "class": "a",
+      "commit": "d2d63d8",
+      "reason": "Causal result evidence is retained while an unbound exit stays blocked; fixture follows 46346f1 contracts."
+    },
+    {
+      "before": "tests.test_flow_delivery_enhancement.EnhancementResetOccurrenceTests.test_missing_or_ambiguous_pending_recovery_fails_without_new_state",
+      "after": "tests.test_flow_delivery_enhancement.EnhancementResetOccurrenceTests.test_missing_or_noncurrent_pending_recovery_fails_without_new_state",
+      "class": "a",
+      "commit": "d2d63d8",
+      "reason": "Recovery must identify the requested current-reset pending category, as introduced by 46346f1."
+    },
+    {
+      "before": "tests.test_flow_delivery_enhancement.EnhancementResetOccurrenceTests.test_pending_recovery_uses_original_reset_without_creating_reservations",
+      "after": "tests.test_flow_delivery_enhancement.EnhancementResetOccurrenceTests.test_pending_recovery_requires_requested_current_reset_category",
+      "class": "a",
+      "commit": "d2d63d8",
+      "reason": "Prior/legacy reset proof is not adopted into the requested current occurrence; no new reservation is created."
+    }
+  ],
+  "new_cases": [
+    "tests.test_campaign_claimed_startup.ClaimedNormalizationLedgerTests.test_dismissal_without_retained_labelled_proposal_fails_closed",
+    "tests.test_navigation_development_boundary.NavigationDevelopmentBoundaryTests.test_fixed_path_accepts_real_test_temp_parent",
+    "tests.test_navigation_development_boundary.NavigationDevelopmentBoundaryTests.test_fixed_path_rejects_a_link_hidden_before_a_parent_step",
+    "tests.test_nova_navigation.NovaNavigationTests.test_strong_same_scale_lookalike_blocks_even_with_winning_margin",
+    "tests.test_path_safety.PathSafetyTests.test_darwin_aliases_are_not_trusted_on_other_platforms",
+    "tests.test_path_safety.PathSafetyTests.test_group_writable_root_and_var_target_are_rejected",
+    "tests.test_path_safety.PathSafetyTests.test_missing_prefix_does_not_hide_a_later_link_after_a_parent_step",
+    "tests.test_path_safety.PathSafetyTests.test_non_root_owned_protected_ancestry_and_targets_are_rejected",
+    "tests.test_path_safety.PathSafetyTests.test_parent_step_does_not_erase_a_planted_or_dangling_link",
+    "tests.test_path_safety.PathSafetyTests.test_planted_and_dangling_symlinks_fail_closed",
+    "tests.test_path_safety.PathSafetyTests.test_real_test_temp_path_and_missing_suffix_are_valid",
+    "tests.test_path_safety.PathSafetyTests.test_root_owned_planted_link_below_system_alias_is_rejected",
+    "tests.test_path_safety.PathSafetyTests.test_system_alias_not_owned_by_root_is_rejected",
+    "tests.test_path_safety.PathSafetyTests.test_system_alias_with_changed_target_is_rejected",
+    "tests.test_path_safety.PathSafetyTests.test_system_alias_writable_protected_ancestry_is_rejected",
+    "tests.test_path_safety.PathSafetyTests.test_verified_system_aliases_accept_user_owned_temp_descendants",
+    "tests.test_path_safety.PathSafetyTests.test_writable_tmp_target_without_sticky_bit_is_rejected",
+    "tests.test_pnsctl_canonical_serve.CanonicalServeFacadeTests.test_a_native_command_off_the_fixed_bluestacks_adb_is_rejected_before_runs",
+    "tests.test_test_discovery.DiscoveryCoverageTests.test_all_discovered_modules_are_counted",
+    "tests.test_test_discovery.DiscoveryCoverageTests.test_empty_module_cannot_silently_disappear",
+    "tests.test_test_discovery.DiscoveryCoverageTests.test_load_tests_cannot_hide_a_modules_cases",
+    "tests.test_test_environment.OcrWorkerPlatformTests.test_linux_requires_proc_stat_but_windows_uses_job_objects",
+    "tests.test_test_environment.OcrWorkerPlatformTests.test_only_supported_os_families_pass_and_unsupported_reason_names_requirement",
+    "tests.test_test_environment.OcrWorkerPlatformTests.test_worker_decorator_skips_only_its_annotated_test",
+    "tests.test_test_environment.TesseractDependencyTests.test_configured_executable_resolves_without_launch_and_only_missing_tool_skips",
+    "tests.test_test_environment.TesseractDependencyTests.test_memo_gates_unkeyable_real_calls_before_execution",
+    "tests.test_test_environment.TesseractDependencyTests.test_memo_replays_cached_result_but_skips_new_input_when_executable_disappears",
+    "tests.test_test_environment.TesseractDependencyTests.test_memo_skip_prevents_real_call_and_does_not_cache_failure",
+    "tests.test_test_environment.TesseractDependencyTests.test_missing_executable_is_a_clear_skip_not_an_arbitrary_error",
+    "tests.test_test_environment.TesseractDependencyTests.test_tesseract_decorator_checks_only_its_annotated_test_and_propagates_errors"
+  ],
+  "removed_unmapped_cases": []
+}

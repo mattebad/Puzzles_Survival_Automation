@@ -375,6 +375,31 @@ class PersonalMightNativeTests(unittest.TestCase):
                 pnsctl.development_session_run_flow(delivery.FLOW_ID, live=True, yes=True, max_inputs=8, recovery_only=True)
             connect.assert_not_called()
 
+    def test_linked_ancestor_is_rejected_before_retained_evidence_is_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = root / "original"
+            (parent / "source").mkdir(parents=True)
+            link = root / "linked"
+            try:
+                link.symlink_to(parent, target_is_directory=True)
+            except (OSError, NotImplementedError) as exc:
+                if getattr(exc, "winerror", None) == 1314 or isinstance(exc, NotImplementedError):
+                    self.skipTest("host cannot create symbolic links without elevated privileges")
+                if isinstance(exc, PermissionError):
+                    self.skipTest("host does not permit symbolic-link creation")
+                raise
+            for mode in ("recovery", "validation"):
+                with self.subTest(mode=mode), patch.object(
+                        delivery, "_retained_result",
+                        side_effect=AssertionError("untrusted evidence must not be read")) as retained:
+                    with self.assertRaises(ValueError):
+                        if mode == "recovery":
+                            delivery._recovery_proof(link / "source", store=None, identity=None, binding=None)
+                        else:
+                            delivery._validation_session(link / "source")
+                    retained.assert_not_called()
+
     def test_native_rank_1_thumb_requires_exact_header_medal_and_unique_body(self):
         frame = captured(PERSONAL_MIGHT_FIXTURE.read_bytes(), path=PERSONAL_MIGHT_FIXTURE)
         identity = identity_from_captured(frame, session_id="native-rank-1-thumb", ordinal=1)
@@ -407,7 +432,7 @@ class PersonalMightNativeTests(unittest.TestCase):
     @requires_tesseract
     def test_numeric_rank_field_does_not_authorize_a_different_rank(self):
         original = captured(PERSONAL_MIGHT_FIXTURE.read_bytes(), path=PERSONAL_MIGHT_FIXTURE)
-        for rank in ("1", "2", "3", "7", "9"):
+        for rank in ("1", "2", "3", "7", "9", "10", "11", "12", "21"):
             with self.subTest(rank=rank):
                 pixels = original.frame.copy()
                 # Replace only the numeral; retain the independently required
