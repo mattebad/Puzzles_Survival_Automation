@@ -32,10 +32,13 @@ selection-only stub with no runtime, target or transport capability: it can be s
 scheduler but always reports zero transport, and `serve` has no `--flow` for it. It still has a
 persisted flow control, so `status` lists one more flow than there are routes.
 
+To add or change a route, follow [docs/adding-a-route.md](docs/adding-a-route.md): it names the
+owner of every route fact.
+
 Each registration has a flow id, used by `enable <flow-id>` and `disable <flow-id>`. Run
-`automation-service status` to list them. `tests/test_readme_consistency.py` fails if this table
-disagrees with the registry or the `serve --flow` choices, or if the status link above is not the
-newest `docs/bluestacks-route-status-*.md` report.
+`automation-service status` to list them. `tests/test_route_metadata_consistency.py` fails if this table
+disagrees with the registry or the `serve --flow` choices, and `tests/test_readme_consistency.py`
+fails if the status link above is not the newest `docs/bluestacks-route-status-*.md` report.
 
 ## Safety model
 

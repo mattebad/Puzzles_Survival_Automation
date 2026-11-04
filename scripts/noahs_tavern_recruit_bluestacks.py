@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from automation_service.registry import RECRUITMENT_MAX_INPUTS
 from tasks.noahs_tavern_recruit_runtime import NoahAction, NoahTavernRecruitRuntimeController
 from tasks.noahs_tavern_recruit_maintenance import (
     NoahMaintenancePassResult,
@@ -1605,7 +1606,7 @@ def run_noahs_tavern_unified_recruitment(args, identity: SchedulerIdentity | Non
     if runtime.checkpoint is not None:
         runtime.checkpoint()
     configured_input_cap = runtime.max_inputs
-    route_input_cap = int(getattr(args, "max_inputs", 12))
+    route_input_cap = int(getattr(args, "max_inputs", RECRUITMENT_MAX_INPUTS))
     runtime.max_inputs = min(configured_input_cap, route_input_cap)
     startup_recovery = dict(
         getattr(args, "startup_recovery", None)

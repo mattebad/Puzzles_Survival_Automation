@@ -14,6 +14,7 @@ from typing import Callable
 import cv2
 import numpy as np
 
+from automation_service.registry import ULTIMATE_FLOW_ID
 from safe_action_core import (
     ActionClass, ActionStatus, CentralPolicy, Observation, PolicyRequest,
     SafeActionExecutor, SafetyStore, TransportResult,
@@ -166,7 +167,7 @@ def classify_startup_frame(
             frame_sha256=frame_sha256,
             recognition=dict(startup_detail),
         )
-    if flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION":
+    if flow_id == ULTIMATE_FLOW_ID:
         from scripts.bluestacks_ultimate_challenge import _bind_ultimate_defeat_continue
 
         target = _bind_ultimate_defeat_continue(frame)

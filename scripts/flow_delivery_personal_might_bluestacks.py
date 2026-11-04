@@ -14,6 +14,7 @@ from typing import Any, Mapping
 import cv2
 import numpy as np
 
+from automation_service.registry import PERSONAL_MIGHT_FLOW_ID, PERSONAL_MIGHT_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime, captured_native_frame_from_png
 from scripts.home_atlas_bluestacks import identity_from_captured
 from scripts.navigation_development_boundary import DevelopmentInitialObservation, DevelopmentSession
@@ -31,11 +32,11 @@ from tasks.personal_might_praise import SEMANTIC_ACTION, SOURCE_STATE, TARGET_ID
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
-FLOW_ID = "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION"
+FLOW_ID = PERSONAL_MIGHT_FLOW_ID
 RUNNER_ID = "personal_might_bluestacks_runner"
 VALIDATOR_ID = "personal_might_bluestacks_evidence"
 RECOVERY_ID = "personal_might_bluestacks_recovery"
-MAX_INPUTS = 8
+MAX_INPUTS = PERSONAL_MIGHT_MAX_INPUTS
 MAX_PRAISE_INPUTS = 1
 
 
@@ -203,7 +204,7 @@ def run_personal_might(queue: Mapping[str, Any], lease: Mapping[str, Any], *, li
 
     maximum = lease.get("max_inputs", MAX_INPUTS)
     if type(maximum) is not int or not 1 <= maximum <= MAX_INPUTS:
-        raise pnsctl.OperatorError("Personal Might max_inputs must be between 1 and 8")
+        raise pnsctl.OperatorError(f"Personal Might max_inputs must be between 1 and {MAX_INPUTS}")
     if not live:
         return json.dumps({"status": "dry_run", "flow_id": FLOW_ID, "dispatch": False, "input_count": 0, "praise_transport_calls": 0})
     outer = lease.get("development_session")

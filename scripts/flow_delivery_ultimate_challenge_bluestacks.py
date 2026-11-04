@@ -16,6 +16,7 @@ from typing import Any, Mapping
 import cv2
 import numpy as np
 
+from automation_service.registry import ULTIMATE_FLOW_ID, ULTIMATE_MAX_INPUTS
 from scripts.flow_delivery_evidence import (
     FlowEvidenceIntegrityError,
     require_operator_evidence,
@@ -32,8 +33,8 @@ from scripts.startup_normalization import is_clean_home_frame
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_PACKAGE, BLUESTACKS_SERIAL
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FLOW_ID = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
-MAX_TOTAL_INPUTS = 16
+FLOW_ID = ULTIMATE_FLOW_ID
+MAX_TOTAL_INPUTS = ULTIMATE_MAX_INPUTS
 UC_RUNNER_ID = "ultimate_challenge_navigation_only_runner"
 UC_EVIDENCE_VALIDATOR_ID = "ultimate_challenge_navigation_only_evidence"
 UC_RECOVERY_HANDLER_ID = "ultimate_challenge_navigation_only_recovery"
