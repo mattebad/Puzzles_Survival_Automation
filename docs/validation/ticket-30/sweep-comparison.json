@@ -1,0 +1,91 @@
+{
+  "base": "d4dd8db",
+  "tested_branch_code": "1c2b9dc",
+  "environment": "Windows x64, Python 3.12.10, Tesseract 5.5.0.20241111",
+  "before": {
+    "modules": 235,
+    "tests": 3135,
+    "failures": 8,
+    "errors": 16,
+    "skips": 37
+  },
+  "after": {
+    "modules": 236,
+    "tests": 3119,
+    "failures": 8,
+    "errors": 16,
+    "skips": 37
+  },
+  "new_outcomes": {
+    "failures": [],
+    "errors": []
+  },
+  "resolved_outcomes": {
+    "failures": [],
+    "errors": []
+  },
+  "module_count_changes": {
+    "test_service_bioenhancer_dispatch": {
+      "before": 5,
+      "after": 1
+    },
+    "test_service_campaign_dispatch": {
+      "before": 15,
+      "after": 12
+    },
+    "test_service_enhancement_dispatch": {
+      "before": 7,
+      "after": 3
+    },
+    "test_service_nova": {
+      "before": 19,
+      "after": 12
+    },
+    "test_service_personal_might_dispatch": {
+      "before": 6,
+      "after": 2
+    },
+    "test_service_route_contract": {
+      "before": 0,
+      "after": 15
+    },
+    "test_service_supply_dispatch": {
+      "before": 6,
+      "after": 1
+    },
+    "test_service_ultimate_dispatch": {
+      "before": 7,
+      "after": 3
+    }
+  },
+  "remaining_baseline_outcomes": {
+    "failures": [
+      "tests.test_campaign_home_direct_entry_pan.CampaignHomeDirectEntryPanTests.test_actual_left_edge_forecast_allows_intermediate_offscreen_target_without_tap_authority",
+      "tests.test_flow_delivery_enhancement.DirectCommanderRouteTests.test_delayed_commander_entry_settles_after_home_immediate_post",
+      "tests.test_flow_delivery_enhancement.DirectCommanderRouteTests.test_direct_route_retains_successor_when_visible_exit_is_unbound",
+      "tests.test_flow_delivery_enhancement.DirectCommanderRouteTests.test_unknown_use_successor_stays_evidence_required_and_reconciles",
+      "tests.test_flow_delivery_enhancement.EnhancementResetOccurrenceTests.test_missing_or_ambiguous_pending_recovery_fails_without_new_state",
+      "tests.test_flow_delivery_enhancement.EnhancementResetOccurrenceTests.test_old_proof_cannot_be_adopted_inside_current_occurrence",
+      "tests.test_personal_might_praise.PersonalMightCompletionAttributionTests.test_matrix_retires_legacy_dispatch_and_keeps_completion_owner",
+      "tests.test_pnsctl_canonical_serve.CanonicalServeFacadeTests.test_a_valid_native_command_respects_disabled_controls"
+    ],
+    "errors": [
+      "tests.test_bluestacks_integrated_routes.IntegratedRouteTests.test_noah_route_uses_controller_transport_result_and_home_postcondition",
+      "tests.test_bluestacks_integrated_routes.IntegratedRouteTests.test_safe_return_popup_dismissal_reobserves_before_back",
+      "tests.test_campaign_claimed_startup.ClaimedNormalizationLedgerTests.test_exact_popup_dispatch_and_fresh_successor_are_bound",
+      "tests.test_flow_delivery_bioenhancer_bluestacks.BioenhancerFlowDeliveryTests.test_clean_pan_remains_allowed_and_uses_fresh_frame",
+      "tests.test_flow_delivery_bioenhancer_bluestacks.BioenhancerFlowDeliveryTests.test_pan_rejects_unclean_fresh_home_before_transport",
+      "tests.test_flow_delivery_bioenhancer_bluestacks.BioenhancerFlowDeliveryTests.test_pan_transport_runtime_error_still_propagates",
+      "tests.test_flow_delivery_bioenhancer_bluestacks.BioenhancerFlowDeliveryTests.test_typed_pan_transport_error_after_input_is_not_reclassified",
+      "tests.test_flow_delivery_enhancement.ContractAndReservationTests.test_completed_family_passes_operational_generic_verification",
+      "tests.test_flow_delivery_enhancement.ContractAndReservationTests.test_completed_ordered_family_verifies_three_uses",
+      "tests.test_flow_delivery_enhancement.ContractAndReservationTests.test_empty_stages_cannot_verify_completed_family",
+      "tests.test_flow_delivery_enhancement.EnhancementResetOccurrenceTests.test_new_day_has_fresh_occurrence_and_preserves_legacy_and_previous_proof",
+      "tests.test_flow_delivery_enhancement.EnhancementResetOccurrenceTests.test_pending_recovery_uses_original_reset_without_creating_reservations (legacy=False)",
+      "tests.test_flow_delivery_enhancement.EnhancementResetOccurrenceTests.test_pending_recovery_uses_original_reset_without_creating_reservations (legacy=True)",
+      "tests.test_flow_delivery_enhancement.EnhancementResetOccurrenceTests.test_same_day_returns_only_current_reset_completed_categories",
+      "tests.test_nova_praise_centralized_boundary.CentralizedNovaBoundaryTests.test_retained_cooldown_replay_does_not_persist_scheduler_state",
+      "tests.test_nova_praise_centralized_boundary.CentralizedNovaBoundaryTests.test_retained_six_to_five_uses_production_path_with_zero_transport"
+    ]
+  }
+}

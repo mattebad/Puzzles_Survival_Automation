@@ -1,0 +1,97 @@
+{
+  "restored_after_each": true,
+  "process_launches_blocked": true,
+  "initial_narrow_generation_mutation": "Survived: removing only the generation predicates still leaves the independent run STOP_REQUESTED fence. The recorded full checkpoint-bypass mutation was then detected on all eight routes.",
+  "mutations": [
+    {
+      "scratch_change": "Return from the per-input checkpoint when generation differs, bypassing both generation mismatch and its STOP_REQUESTED enforcement.",
+      "contract": "GenerationChangeTests.test_generation_change_after_first_input_stops_further_input",
+      "result": "8 failed route subtests; exit 1",
+      "failures": [
+        {
+          "route": "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+          "message": "AssertionError: Tuples differ: (4, 1) != (1, 0)"
+        },
+        {
+          "route": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+          "message": "AssertionError: Tuples differ: (4, 1) != (1, 1)"
+        },
+        {
+          "route": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+          "message": "AssertionError: Tuples differ: (6, 3) != (1, 0)"
+        },
+        {
+          "route": "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION",
+          "message": "AssertionError: Tuples differ: (6, 1) != (1, 0)"
+        },
+        {
+          "route": "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+          "message": "AssertionError: Tuples differ: (5, 1) != (1, 0)"
+        },
+        {
+          "route": "CAMPAIGN-AP-AUTO-BATTLE",
+          "message": "AssertionError: Tuples differ: (6, 1) != (1, 1)"
+        },
+        {
+          "route": "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+          "message": "AssertionError: Tuples differ: (4, 1) != (1, 0)"
+        },
+        {
+          "route": "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+          "message": "AssertionError: Tuples differ: (4, 1) != (1, 0)"
+        }
+      ]
+    },
+    {
+      "scratch_change": "Unblock the flow after projecting an incomplete result and before emitting its blocked report.",
+      "contract": "PartialResultTests.test_partial_result_keeps_consumption_blocks_restart_and_is_never_retried",
+      "result": "8 failed route subtests; exit 1",
+      "failures": [
+        {
+          "route": "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
+          "message": "AssertionError: False is not true"
+        },
+        {
+          "route": "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
+          "message": "AssertionError: False is not true"
+        },
+        {
+          "route": "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
+          "message": "AssertionError: False is not true"
+        },
+        {
+          "route": "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION",
+          "message": "AssertionError: False is not true"
+        },
+        {
+          "route": "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
+          "message": "AssertionError: False is not true"
+        },
+        {
+          "route": "CAMPAIGN-AP-AUTO-BATTLE",
+          "message": "AssertionError: False is not true"
+        },
+        {
+          "route": "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE",
+          "message": "AssertionError: False is not true"
+        },
+        {
+          "route": "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+          "message": "AssertionError: False is not true"
+        }
+      ]
+    },
+    {
+      "scratch_change": "Remove Supply from ROUTES.",
+      "contract": "RouteTableTests.test_every_registered_route_is_in_the_contract_or_explicitly_excluded",
+      "result": "1 failure; exit 1",
+      "message": "AssertionError: Items in the second set but not the first: 'SUPPLY-DEPOT-BLUESTACKS-INTEGRATION'"
+    },
+    {
+      "scratch_change": "Point the Campaign reset_guard exception at test_missing_exception_target.",
+      "contract": "RouteTableTests.test_every_exception_names_a_reason_and_an_existing_test",
+      "result": "1 error; exit 1",
+      "message": "AttributeError: type object 'ServiceCampaignDispatchTests' has no attribute 'test_missing_exception_target'"
+    }
+  ]
+}
