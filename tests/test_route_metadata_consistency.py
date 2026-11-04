@@ -1,0 +1,530 @@
+"""Route facts have one owner; every other copy is derived from it or checked here (issue #34).
+
+Owners (see ``docs/adding-a-route.md`` for the full table and why the authorities stay separate):
+
+* ``automation_service/registry.py`` ``CANONICAL_FLOW_REGISTRY``: flow id, family, variant, cadence,
+  product id/revision, ``--flow`` name, total input budget (``max_inputs``) of every service route.
+* ``tasks/flow_delivery_bluestacks_registry.json``: which routes have an operator runner.
+* ``tasks/flow_delivery_disabled_production_registry.json``: legacy disabled-production policy.
+* ``tasks/flow_delivery_queue.json``: development queue, one record per flow.
+* ``tasks/gameplay_flow_contracts/*.json`` + ``tasks/flow_delivery_product_policy.json``: product contracts.
+
+The authorities stay separate: each may hold facts the others must not (a flow can be in the queue and
+contracts without being a service route). This module only asserts the *relations* between them.
+
+The registry's product revision is deliberately NOT compared with the product-policy record revision:
+they are different vocabularies (the scheduler compares the registry value with itself; the policy
+record revision versions a policy record and is only checked against contract bindings below).
+"""
+
+from __future__ import annotations
+
+import argparse
+from importlib import import_module
+import json
+import os
+from pathlib import Path
+import re
+import unittest
+
+from automation_service import state as state_module
+from automation_service.cli import build_parser
+from automation_service.registry import (
+    CAMPAIGN_FLOW_ID,
+    CAMPAIGN_PRODUCT_REVISION,
+    CANONICAL_FLOW_REGISTRY,
+    load_disabled_registry,
+    canonical_entry,
+    servable_flow_names,
+)
+from automation_service.service import AutomationService, _runner_attribute
+from safe_action_core import policy as safe_policy
+from safe_action_core import store as store_module
+from scripts import pnsctl
+from tasks.gameplay_flow_contracts import list_flow_contract_ids, load_all_flow_contracts
+from tasks.product_authority import (
+    load_product_authority,
+    validate_contract_product_authority_bindings,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
+TASKS = ROOT / "tasks"
+README = ROOT / "README.md"
+AUTOMATION_DOC = ROOT / "docs" / "automation-service.md"
+NAVIGATION_ONLY = "navigation_only"
+
+OLD_CAMPAIGN_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
+
+# --- explicit, reasoned exceptions -------------------------------------------------------------
+
+# Service routes that have no operator-registry runner. Nova's flow_delivery module was retired in #35;
+# the canonical ``serve`` path is its only runner.
+NO_OPERATOR_RUNNER = {
+    "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": "operator runner retired in #35; canonical serve is the only runner",
+}
+
+# Operator-registry flows with no development-session input default in ``pnsctl._DEFAULT_MAX_INPUTS``
+# (they use the 12 fallback or their own cap): world, ruins and the Campaign navigation/atlas slices.
+NO_DEFAULT_MAX_INPUTS = {
+    "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE": "own route cap in its flow_delivery module",
+    "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": "own route cap in its flow_delivery module",
+    "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION": "survey budget is queue/contract owned (272 navigation inputs)",
+    "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION": "own route cap in its flow_delivery module",
+    "WORLD-MAP-NAVIGATION-FOUNDATION": "MAX_ROUTE_INPUTS in world_map_navigation_bluestacks",
+}
+
+# Campaign's development-session ceiling (pnsctl) is a different fact from the service route budget:
+# the service drains AP over many battles (CAMPAIGN_MAX_INPUTS), a development session is one battle.
+DEFAULT_MAX_INPUTS_DIFFERS_FROM_REGISTRY = {
+    CAMPAIGN_FLOW_ID: "development session ceiling (16) vs whole AP-drain service budget",
+}
+
+# Flow ids in the contracts directory that are historical and appear in no registry or queue.
+CONTRACT_ONLY_FLOWS = {
+    "PERSONAL-MIGHT-PRAISE-BLISS-PILOT": "retained Bliss pilot contract; superseded by the BlueStacks integration",
+}
+
+# Queue keys that name files the repository must still contain. Historical records
+# (live_attempts, receipts, retirement_result.deleted_paths, artifact_root) are never checked here.
+QUEUE_PATH_KEYS = (
+    "implementation_entrypoints",
+    "implementation_allowlist_seed",
+    "focused_tests",
+    "completion_tests",
+    "reference_docs",
+)
+
+# Where the pre-#36 Campaign flow id may still appear, and why. Anything else is a missed rename.
+OLD_CAMPAIGN_ID_FILES = {
+    "automation_service/state.py": "RENAMED_FLOW_IDS migration constant",
+    "safe_action_core/store.py": "RENAMED_TASK_IDS migration constant",
+    "tasks/campaign_victory_recovery.py": "accepts retained old-prefix victory sessions",
+    "tasks/flow_delivery_queue.json": "historical live_attempts and the retained artifact_root",
+    "tasks/daily_quest_execution_matrix.json": "historical matrix record",
+    "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE.json": "retained evidence references",
+    "tasks/gameplay_flow_contracts/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION.json": "retained evidence references",
+    "docs/backlog/operations.md": "historical backlog record",
+    "docs/backlog/resources.md": "historical backlog record",
+    "docs/validation/bluestacks-20261031/summary.json": "retained validation summary",
+    "docs/validation/campaign-ap-auto-battle-live-canary-manifest.json": "retained validation manifest",
+    "tests/test_campaign_atlas_chapter_nav.py": "retained evidence path",
+    "tests/test_flow_id_rename_migration.py": "proves the migration of the old id",
+}
+OLD_CAMPAIGN_ID_PREFIXES = {
+    "docs/archive/": "archived history",
+    "tests/fixtures/": "fixture manifests over retained captures",
+}
+_SCAN_SUFFIXES = {".py", ".json", ".md", ".ps1", ".yml", ".yaml", ".txt", ".toml"}
+_SCAN_SKIP_DIRS = {".git", "evidence", ".local-captures", ".local-orchestrator", ".venv", "__pycache__", "node_modules"}
+
+# Service routes whose execution handler is built with (snapshot, execute); module -> class.
+EXECUTION_HANDLERS = {
+    "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": ("automation_service.nova", "NovaExecutionHandler"),
+    "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE": ("automation_service.recruitment", "RecruitmentExecutionHandler"),
+    "CAMPAIGN-AP-AUTO-BATTLE": ("automation_service.campaign", "CampaignExecutionHandler"),
+    "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION": ("automation_service.bioenhancer", "BioenhancerExecutionHandler"),
+    "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": ("automation_service.supply", "SupplyExecutionHandler"),
+    "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": ("automation_service.ultimate", "UltimateExecutionHandler"),
+    "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": ("automation_service.enhancement", "EnhancementExecutionHandler"),
+    "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION": ("automation_service.personal_might", "PersonalMightExecutionHandler"),
+}
+
+# Every non-registry copy of a service route's input budget: (module, attribute).
+MAX_INPUT_COPIES = {
+    "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE": [("scripts.flow_delivery_recruitment_bluestacks", "MAX_INPUTS")],
+    "CAMPAIGN-AP-AUTO-BATTLE": [
+        ("scripts.flow_delivery_campaign_bluestacks", "MAX_INPUTS"),
+        ("tasks.campaign_auto_battle", "CAMPAIGN_MAX_INPUTS"),
+    ],
+    "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION": [("scripts.flow_delivery_bioenhancer_bluestacks", "MAX_INPUTS")],
+    "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": [("scripts.flow_delivery_supply_depot_bluestacks", "MAX_INPUTS")],
+    "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": [
+        ("scripts.flow_delivery_ultimate_challenge_bluestacks", "MAX_TOTAL_INPUTS"),
+        ("scripts.bluestacks_ultimate_challenge", "MAX_TOTAL_INPUTS"),
+    ],
+    "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION": [("scripts.flow_delivery_personal_might_bluestacks", "MAX_INPUTS")],
+}
+
+_NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+    "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
+}
+
+
+def _read_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _code_ids() -> set[str]:
+    return {entry.flow_id for entry in CANONICAL_FLOW_REGISTRY}
+
+
+def _operator_ids() -> set[str]:
+    return set(_read_json(TASKS / "flow_delivery_bluestacks_registry.json")["flows"])
+
+
+def _disabled_ids() -> set[str]:
+    return {entry.flow_id for entry in load_disabled_registry()}
+
+
+def _queue() -> dict:
+    return _read_json(TASKS / "flow_delivery_queue.json")
+
+
+def _queue_ids() -> set[str]:
+    return {flow["flow_id"] for flow in _queue()["flows"]}
+
+
+def _contract_ids() -> set[str]:
+    return set(list_flow_contract_ids())
+
+
+class RouteTestCase(unittest.TestCase):
+    def assertSubsetIds(self, small: set[str], big: set[str], small_name: str, big_name: str, allowed=()) -> None:
+        missing = sorted(small - big - set(allowed))
+        self.assertFalse(
+            missing,
+            f"flow ids in the {small_name} but absent from the {big_name}: {missing}\n"
+            f"  {small_name}={sorted(small)}\n  {big_name}={sorted(big)}",
+        )
+
+
+class FlowIdSetRelationTests(RouteTestCase):
+    def test_code_registry_routes_exist_in_every_other_authority(self) -> None:
+        code = _code_ids()
+        self.assertSubsetIds(code, _disabled_ids(), "code registry", "disabled-production registry")
+        self.assertSubsetIds(code, _queue_ids(), "code registry", "development queue")
+        self.assertSubsetIds(code, _contract_ids(), "code registry", "gameplay contracts")
+        self.assertSubsetIds(code, _operator_ids(), "code registry", "operator registry", allowed=NO_OPERATOR_RUNNER)
+
+    def test_operator_registry_routes_exist_in_queue_contracts_and_disabled_registry(self) -> None:
+        operator = _operator_ids()
+        self.assertSubsetIds(operator, _queue_ids(), "operator registry", "development queue")
+        self.assertSubsetIds(operator, _contract_ids(), "operator registry", "gameplay contracts")
+        self.assertSubsetIds(operator, _disabled_ids(), "operator registry", "disabled-production registry")
+
+    def test_queue_and_disabled_registry_flows_all_have_contracts(self) -> None:
+        self.assertSubsetIds(_queue_ids(), _contract_ids(), "development queue", "gameplay contracts")
+        self.assertSubsetIds(_disabled_ids(), _contract_ids(), "disabled-production registry", "gameplay contracts")
+        self.assertSubsetIds(_disabled_ids(), _queue_ids(), "disabled-production registry", "development queue")
+
+    def test_every_contract_is_queued_or_explicitly_historical(self) -> None:
+        self.assertSubsetIds(_contract_ids(), _queue_ids(), "gameplay contracts", "development queue", allowed=CONTRACT_ONLY_FLOWS)
+        for flow_id in CONTRACT_ONLY_FLOWS:
+            with self.subTest(flow_id=flow_id):
+                self.assertIn(flow_id, _contract_ids(), "stale CONTRACT_ONLY_FLOWS entry")
+                self.assertNotIn(flow_id, _queue_ids() | _code_ids(), "listed as contract-only but now routed")
+
+    def test_exception_tables_have_no_stale_entries(self) -> None:
+        self.assertEqual(set(NO_OPERATOR_RUNNER) & _operator_ids(), set(), "NO_OPERATOR_RUNNER lists a flow that has a runner")
+        self.assertSubsetIds(set(NO_OPERATOR_RUNNER), _code_ids(), "NO_OPERATOR_RUNNER", "code registry")
+        stale = set(NO_DEFAULT_MAX_INPUTS) & set(pnsctl._DEFAULT_MAX_INPUTS)
+        self.assertEqual(stale, set(), f"NO_DEFAULT_MAX_INPUTS lists flows that now have a default: {sorted(stale)}")
+
+    def test_pnsctl_selectable_flows_are_exactly_the_operator_registry(self) -> None:
+        self.assertEqual(
+            set(pnsctl.BLUESTACKS_FLOW_IDS),
+            _operator_ids(),
+            "a flow in tasks/flow_delivery_bluestacks_registry.json has no runner/validator/recovery bound in code (or the reverse)",
+        )
+
+    def test_development_session_defaults_cover_exactly_the_operator_flows_with_a_budget(self) -> None:
+        operator = _operator_ids()
+        defaults = set(pnsctl._DEFAULT_MAX_INPUTS)
+        self.assertSubsetIds(defaults, operator, "pnsctl._DEFAULT_MAX_INPUTS", "operator registry")
+        self.assertSubsetIds(operator, defaults, "operator registry", "pnsctl._DEFAULT_MAX_INPUTS", allowed=NO_DEFAULT_MAX_INPUTS)
+
+    def test_registry_has_unique_ids_cli_names_and_family_variants(self) -> None:
+        entries = CANONICAL_FLOW_REGISTRY
+        for label, values in (
+            ("flow id", [e.flow_id for e in entries]),
+            ("family", [e.descriptor.family for e in entries]),
+            ("product id", [e.product_id for e in entries]),
+            ("handler id", [e.handler_id for e in entries]),
+            ("cli name", [e.cli_name for e in entries if e.cli_name is not None]),
+        ):
+            self.assertEqual(len(values), len(set(values)), f"duplicate {label} in CANONICAL_FLOW_REGISTRY: {values}")
+
+    def test_migration_targets_are_the_registered_campaign_id(self) -> None:
+        self.assertEqual(
+            {new for _old, new in state_module.RENAMED_FLOW_IDS} | {new for _old, new in store_module.RENAMED_TASK_IDS},
+            {CAMPAIGN_FLOW_ID},
+        )
+        self.assertEqual(safe_policy.CAMPAIGN_AP_FLOW_ID, CAMPAIGN_FLOW_ID)
+        self.assertEqual(pnsctl.CAMPAIGN_AP_FLOW_ID, CAMPAIGN_FLOW_ID)
+
+
+def _scan_old_campaign_id() -> set[str]:
+    hits: set[str] = set()
+    for directory, subdirs, names in os.walk(ROOT):
+        subdirs[:] = [name for name in subdirs if name not in _SCAN_SKIP_DIRS]
+        for name in names:
+            path = Path(directory) / name
+            if path.suffix not in _SCAN_SUFFIXES or path == Path(__file__).resolve():
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            if OLD_CAMPAIGN_ID in text:
+                hits.add(path.relative_to(ROOT).as_posix())
+    return hits
+
+
+class RetainedCampaignIdTests(RouteTestCase):
+    def test_old_campaign_id_survives_only_in_the_allowlisted_places(self) -> None:
+        unexpected = sorted(
+            path
+            for path in _scan_old_campaign_id()
+            if path not in OLD_CAMPAIGN_ID_FILES and not path.startswith(tuple(OLD_CAMPAIGN_ID_PREFIXES))
+        )
+        self.assertFalse(
+            unexpected,
+            f"{OLD_CAMPAIGN_ID} (renamed to {CAMPAIGN_FLOW_ID} in #36) appears outside the allowlist: {unexpected}. "
+            "Rename it, or add the file to OLD_CAMPAIGN_ID_FILES with a reason if it is retained history.",
+        )
+
+    def test_allowlisted_files_still_need_their_entry(self) -> None:
+        for relative in OLD_CAMPAIGN_ID_FILES:
+            with self.subTest(path=relative):
+                path = ROOT / relative
+                self.assertTrue(path.is_file(), f"stale allowlist entry, file is gone: {relative}")
+                self.assertIn(OLD_CAMPAIGN_ID, path.read_text(encoding="utf-8"), f"stale allowlist entry: {relative}")
+
+
+class ProductBindingTests(RouteTestCase):
+    def test_contract_bindings_match_the_product_policy_records(self) -> None:
+        # Same vocabulary on both sides: a contract binding names a policy record and its revision/digest.
+        validate_contract_product_authority_bindings(load_product_authority(), load_all_flow_contracts())
+
+    def test_registry_snapshot_descriptor_and_adapter_agree_per_route(self) -> None:
+        for flow_id, (module_name, class_name) in EXECUTION_HANDLERS.items():
+            with self.subTest(flow_id=flow_id):
+                entry = canonical_entry(flow_id)
+                self.assertEqual(entry.registration.flow_id, flow_id)
+                self.assertEqual(entry.descriptor.accepted_product, entry.product_id)
+                self.assertEqual(entry.descriptor.product_revision, entry.product_revision)
+                module = import_module(module_name)
+                handler = getattr(module, class_name)(entry.registration, lambda *args, **kwargs: None)
+                described = handler.describe()
+                expected = entry.descriptor
+                if described.allows_pending_resource_observation:
+                    # Campaign opts in to pending-resource observation; every other fact is the registry's.
+                    from dataclasses import replace
+
+                    expected = replace(expected, allows_pending_resource_observation=True)
+                self.assertEqual(
+                    described,
+                    expected,
+                    f"{module_name}.{class_name}.describe() re-spells registry facts for {flow_id}",
+                )
+                for constant, value in (("PRODUCT_ID", entry.product_id), ("PRODUCT_REVISION", entry.product_revision)):
+                    if hasattr(module, constant):
+                        self.assertEqual(getattr(module, constant), value, f"{module_name}.{constant} drifted from the registry")
+
+    def test_selection_handlers_describe_the_registry_cadence(self) -> None:
+        for entry in CANONICAL_FLOW_REGISTRY:
+            if entry.registration_status != "REGISTERED":
+                continue
+            with self.subTest(flow_id=entry.flow_id):
+                handler = entry.build_handler()
+                described = handler.describe()
+                self.assertEqual(
+                    (described.family, described.variant, described.cadence, described.reset_scoped),
+                    (entry.descriptor.family, entry.descriptor.variant, entry.descriptor.cadence, entry.descriptor.reset_scoped),
+                )
+
+    def test_campaign_safety_policy_names_the_registry_campaign_revision(self) -> None:
+        # safe_action_core may not import automation_service (layering), so it keeps its own copy of the
+        # value it compares against ``PolicyRequest.action_kind``; the two must stay identical.
+        self.assertEqual(safe_policy.CAMPAIGN_AP_PRODUCT_REVISION, CAMPAIGN_PRODUCT_REVISION)
+
+
+class MaxInputTests(RouteTestCase):
+    def test_every_executable_route_has_a_registry_budget_and_its_handler_uses_it(self) -> None:
+        for flow_id, (module_name, class_name) in EXECUTION_HANDLERS.items():
+            with self.subTest(flow_id=flow_id):
+                budget = canonical_entry(flow_id).max_inputs
+                self.assertIsInstance(budget, int, f"{flow_id} has no registry max_inputs")
+                self.assertEqual(getattr(import_module(module_name), class_name).max_inputs, budget)
+        non_executable = [e.flow_id for e in CANONICAL_FLOW_REGISTRY if e.flow_id not in EXECUTION_HANDLERS]
+        for flow_id in non_executable:
+            self.assertIsNone(canonical_entry(flow_id).max_inputs, f"{flow_id} has a budget but no execution handler")
+
+    def test_native_and_adapter_copies_equal_the_registry_budget(self) -> None:
+        for flow_id, copies in MAX_INPUT_COPIES.items():
+            budget = canonical_entry(flow_id).max_inputs
+            for module_name, attribute in copies:
+                with self.subTest(flow_id=flow_id, copy=f"{module_name}.{attribute}"):
+                    self.assertEqual(getattr(import_module(module_name), attribute), budget)
+        for flow_id, (module_name, _class_name) in EXECUTION_HANDLERS.items():
+            module = import_module(module_name)
+            if hasattr(module, "MAX_INPUTS"):
+                with self.subTest(adapter=module_name):
+                    self.assertEqual(module.MAX_INPUTS, canonical_entry(flow_id).max_inputs)
+
+    def test_pnsctl_development_defaults_equal_the_budget_owner(self) -> None:
+        defaults = pnsctl._DEFAULT_MAX_INPUTS
+        for entry in CANONICAL_FLOW_REGISTRY:
+            if entry.flow_id not in defaults or entry.flow_id in DEFAULT_MAX_INPUTS_DIFFERS_FROM_REGISTRY:
+                continue
+            with self.subTest(flow_id=entry.flow_id):
+                self.assertEqual(defaults[entry.flow_id], entry.max_inputs, "pnsctl._DEFAULT_MAX_INPUTS drifted from the registry")
+        self.assertEqual(
+            set(DEFAULT_MAX_INPUTS_DIFFERS_FROM_REGISTRY) - set(defaults), set(), "stale DEFAULT_MAX_INPUTS_DIFFERS_FROM_REGISTRY"
+        )
+        for flow_id in DEFAULT_MAX_INPUTS_DIFFERS_FROM_REGISTRY:
+            self.assertNotEqual(defaults[flow_id], canonical_entry(flow_id).max_inputs, f"{flow_id} exception no longer needed")
+
+    def test_development_only_routes_agree_across_module_contract_queue_and_pnsctl(self) -> None:
+        from scripts import daily_resource_item_bluestacks as resource_route
+        from scripts import flow_delivery_daily_resource_item_bluestacks as resource_delivery
+        from scripts import flow_delivery_daily_row_claim_bluestacks as row_delivery
+        from scripts import flow_delivery_troop_training_bluestacks as troop_delivery
+
+        queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
+        staging = {
+            entry["execution_flow_id"]: entry
+            for entry in _queue()["portfolio_staging"]["entries"]
+            if entry.get("execution_flow_id")
+        }
+        contracts = load_all_flow_contracts()
+        defaults = pnsctl._DEFAULT_MAX_INPUTS
+        resource = resource_delivery.FLOW_ID
+        resource_budget = resource_delivery.MAX_INPUTS
+        copies = {
+            "route MAX_ROUTE_INPUTS": resource_route.MAX_ROUTE_INPUTS,
+            "pnsctl default": defaults[resource],
+            "contract navigation_input_authorization": contracts[resource]["navigation_input_authorization"]["maximum_inputs"],
+            "queue maximum_inputs": queue[resource]["maximum_inputs"],
+            "queue maximum_live_inputs": queue[resource]["maximum_live_inputs"],
+            "queue staging maximum_inputs": staging[resource]["maximum_inputs"],
+        }
+        for name, value in copies.items():
+            with self.subTest(flow_id=resource, copy=name):
+                self.assertEqual(value, resource_budget, f"Daily Resource Item {name} drifted from MAX_INPUTS")
+        self.assertEqual(
+            queue[resource]["maximum_resource_list_swipes"],
+            resource_delivery.MAX_RESOURCE_LIST_SWIPES,
+        )
+        self.assertEqual(
+            staging[resource]["maximum_resource_list_swipes"], resource_delivery.MAX_RESOURCE_LIST_SWIPES
+        )
+        self.assertEqual(defaults[row_delivery.FLOW_ID], row_delivery.MAX_INPUTS)
+        self.assertEqual(defaults[troop_delivery.FLOW_ID], troop_delivery.MAX_INPUTS)
+        self.assertEqual(queue[troop_delivery.FLOW_ID]["development_session_max_inputs"], troop_delivery.MAX_INPUTS)
+
+
+class ServeWiringTests(RouteTestCase):
+    def test_cli_flow_choices_are_exactly_the_registry_names(self) -> None:
+        subparsers = next(a for a in build_parser()._actions if isinstance(a, argparse._SubParsersAction))
+        flow = next(a for a in subparsers.choices["serve"]._actions if "--flow" in a.option_strings)
+        self.assertEqual(set(flow.choices), set(servable_flow_names()))
+
+    def test_every_servable_route_has_a_handler_row_and_a_service_runner(self) -> None:
+        self.assertEqual(set(servable_flow_names().values()), set(EXECUTION_HANDLERS), "add the new route to EXECUTION_HANDLERS")
+        constructor = AutomationService.__init__.__code__.co_varnames
+        for cli_name in servable_flow_names():
+            with self.subTest(cli_name=cli_name):
+                self.assertIn(_runner_attribute(cli_name), constructor)
+
+    def test_navigation_only_registrations_are_exactly_the_unservable_ones(self) -> None:
+        unservable = {e.flow_id for e in CANONICAL_FLOW_REGISTRY if e.cli_name is None}
+        navigation_only = {e.flow_id for e in CANONICAL_FLOW_REGISTRY if e.descriptor.variant == NAVIGATION_ONLY}
+        self.assertEqual(unservable, navigation_only)
+
+
+def _section(text: str, heading: str) -> str:
+    match = re.search(rf"^## {re.escape(heading)}\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+    if match is None:
+        raise AssertionError(f"README has no '## {heading}' section")
+    return match.group(1)
+
+
+def _route_rows(text: str) -> list[tuple[str | None, str]]:
+    """Return (serve flow or None, registry family) for each README route-table row."""
+
+    rows = []
+    for line in _section(text, "Routes").splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if not line.startswith("|") or len(cells) < 2 or set(cells[0]) <= {"-", " "}:
+            continue
+        if cells[0] == "`serve --flow`":
+            continue
+        family = re.fullmatch(r"`([a-z0-9_]+)`", cells[1])
+        if family is None:
+            raise AssertionError(f"route row has no backticked registry family: {line}")
+        flow = re.fullmatch(r"`([a-z0-9-]+)`", cells[0])
+        if flow is None and "navigation-only" not in cells[0]:
+            raise AssertionError(f"route row has neither a --flow name nor navigation-only: {line}")
+        rows.append((flow.group(1) if flow else None, family.group(1)))
+    return rows
+
+
+def _counts(text: str, pattern: str) -> list[int]:
+    found = []
+    for word in re.findall(pattern, text, re.I):
+        lowered = word.lower()
+        found.append(int(lowered) if lowered.isdigit() else _NUMBER_WORDS[lowered])
+    return found
+
+
+class DocumentedRouteTests(RouteTestCase):
+    def setUp(self) -> None:
+        self.readme = README.read_text(encoding="utf-8")
+        self.rows = _route_rows(self.readme)
+
+    def test_readme_route_table_has_one_row_per_registry_family(self) -> None:
+        families = [family for _, family in self.rows]
+        self.assertEqual(len(families), len(set(families)), "duplicate route rows in README")
+        self.assertEqual(set(families), {e.descriptor.family for e in CANONICAL_FLOW_REGISTRY})
+
+    def test_readme_serve_names_match_the_registry(self) -> None:
+        self.assertEqual({flow for flow, _ in self.rows if flow is not None}, set(servable_flow_names()))
+        navigation_only = {e.descriptor.family for e in CANONICAL_FLOW_REGISTRY if e.cli_name is None}
+        self.assertEqual({family for flow, family in self.rows if flow is None}, navigation_only)
+        example = set(re.findall(r"--flow ([a-z0-9-]+)", _section(self.readme, "Running")))
+        self.assertEqual(example, set(servable_flow_names()), "README's all-routes serve example is out of date")
+
+    def test_documented_route_counts_match_the_registry(self) -> None:
+        servable = len(servable_flow_names())
+        registered = len(CANONICAL_FLOW_REGISTRY)
+        automation = AUTOMATION_DOC.read_text(encoding="utf-8")
+        for name, text, pattern, expected in (
+            ("docs/automation-service.md 'N fixed flow specs'", automation, r"\b(\w+) fixed flow specs", registered),
+            ("docs/automation-service.md 'N-route command'", automation, r"\b(\w+)-route command", servable),
+        ):
+            with self.subTest(doc=name):
+                counts = _counts(text, pattern)
+                self.assertTrue(counts, f"{name}: the sentence the test checks is gone; update the test with the doc")
+                self.assertEqual(counts, [expected] * len(counts), f"{name} disagrees with the registry ({expected})")
+        self.assertEqual(
+            len(self.rows), registered, f"README route table has {len(self.rows)} rows, registry has {registered}"
+        )
+
+
+class QueuePathTests(RouteTestCase):
+    def test_every_current_queue_file_reference_exists(self) -> None:
+        missing = []
+        for flow in _queue()["flows"]:
+            for key in QUEUE_PATH_KEYS:
+                for reference in flow.get(key, []):
+                    if not (ROOT / reference).exists():
+                        missing.append(f"{flow['flow_id']}.{key}: {reference}")
+        self.assertFalse(
+            missing,
+            "tasks/flow_delivery_queue.json names files that do not exist (historical records belong in "
+            "live_attempts/retirement_result, not in the current lists):\n  " + "\n  ".join(missing),
+        )
+
+    def test_registered_queue_records_never_claim_a_registered_route(self) -> None:
+        # The queue never authorises a route. Only the code registry may say REGISTERED.
+        for flow in _queue()["flows"]:
+            for key in ("registration_state", "registration_status", "production_registration"):
+                if key in flow:
+                    with self.subTest(flow_id=flow["flow_id"], key=key):
+                        self.assertEqual(flow[key], "NOT_REGISTERED")
+
+
+if __name__ == "__main__":
+    unittest.main()

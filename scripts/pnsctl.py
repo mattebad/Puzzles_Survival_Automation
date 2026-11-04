@@ -27,6 +27,29 @@ from typing import Any, Callable, Mapping, Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+from automation_service.registry import (  # noqa: E402
+    BIOENHANCER_FLOW_ID,
+    CAMPAIGN_FLOW_ID,
+    ENHANCEMENT_FLOW_ID,
+    ENHANCEMENT_MAX_INPUTS,
+    PERSONAL_MIGHT_FLOW_ID,
+    RECRUITMENT_FLOW_ID,
+    SUPPLY_FLOW_ID,
+    ULTIMATE_FLOW_ID,
+    WORLD_FLOW_ID,
+)
+from scripts import (  # noqa: E402
+    flow_delivery_bioenhancer_bluestacks,
+    flow_delivery_campaign_bluestacks,
+    flow_delivery_daily_resource_item_bluestacks,
+    flow_delivery_daily_row_claim_bluestacks,
+    flow_delivery_personal_might_bluestacks,
+    flow_delivery_recruitment_bluestacks,
+    flow_delivery_ruins_challenge_bluestacks,
+    flow_delivery_supply_depot_bluestacks,
+    flow_delivery_troop_training_bluestacks,
+    flow_delivery_ultimate_challenge_bluestacks,
+)
 from scripts.bluestacks_adb_readiness import (  # noqa: E402
     ADBReadinessError,
     ensure_adb_ready,
@@ -59,20 +82,29 @@ DEVELOPMENT_CHECKPOINT_PATHS = (
     REPO_ROOT / "tasks" / "flow_delivery_queue.json",
     REPO_ROOT / "docs" / "agent" / "CURRENT_HANDOFF.md",
 )
-RECRUITMENT_MAINTENANCE_FLOW_ID = "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
-CAMPAIGN_AP_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE"
+# Flow ids and input budgets are owned by the canonical registry (service routes) or by the
+# route's flow_delivery module (development-only routes); pnsctl only aliases them.
+RECRUITMENT_MAINTENANCE_FLOW_ID = RECRUITMENT_FLOW_ID
+CAMPAIGN_AP_FLOW_ID = CAMPAIGN_FLOW_ID
+DAILY_ROW_FLOW_ID = flow_delivery_daily_row_claim_bluestacks.FLOW_ID
+DAILY_RESOURCE_ITEM_FLOW_ID = flow_delivery_daily_resource_item_bluestacks.FLOW_ID
+RUINS_FLOW_ID = flow_delivery_ruins_challenge_bluestacks.FLOW_ID
+TROOP_TRAINING_FLOW_ID = flow_delivery_troop_training_bluestacks.FLOW_ID
+CAMPAIGN_PROVING_FLOW_ID = flow_delivery_campaign_bluestacks.PROVING_FLOW_ID
+# The Campaign development session budget is its own fact: it is not the service route cap.
+CAMPAIGN_DEVELOPMENT_SESSION_MAX_INPUTS = 16
 # Default development-session input ceiling per registered flow (12 when unlisted).
 _DEFAULT_MAX_INPUTS = {
-    "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": 16,
-    "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION": 8,
-    "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION": 8,
-    "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION": 4,
-    "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": 10,
-    "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": 10,
-    "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": 24,
-    RECRUITMENT_MAINTENANCE_FLOW_ID: 12,
-    "CAMPAIGN-AP-AUTO-BATTLE": 16,
-    "TROOP-TRAINING-END-TO-END-CONSOLIDATION": 32,
+    ULTIMATE_FLOW_ID: flow_delivery_ultimate_challenge_bluestacks.MAX_TOTAL_INPUTS,
+    BIOENHANCER_FLOW_ID: flow_delivery_bioenhancer_bluestacks.MAX_INPUTS,
+    PERSONAL_MIGHT_FLOW_ID: flow_delivery_personal_might_bluestacks.MAX_INPUTS,
+    DAILY_ROW_FLOW_ID: flow_delivery_daily_row_claim_bluestacks.MAX_INPUTS,
+    SUPPLY_FLOW_ID: flow_delivery_supply_depot_bluestacks.MAX_INPUTS,
+    DAILY_RESOURCE_ITEM_FLOW_ID: flow_delivery_daily_resource_item_bluestacks.MAX_INPUTS,
+    ENHANCEMENT_FLOW_ID: ENHANCEMENT_MAX_INPUTS,
+    RECRUITMENT_MAINTENANCE_FLOW_ID: flow_delivery_recruitment_bluestacks.MAX_INPUTS,
+    CAMPAIGN_AP_FLOW_ID: CAMPAIGN_DEVELOPMENT_SESSION_MAX_INPUTS,
+    TROOP_TRAINING_FLOW_ID: flow_delivery_troop_training_bluestacks.MAX_INPUTS,
 }
 FLOW_DELIVERY_QUEUE = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 FLOW_DELIVERY_LEASE = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
@@ -377,7 +409,7 @@ def _retained_troop_training_state(
         raise OperatorError("retained Troop Training result is unavailable") from exc
     if (
         not isinstance(result, dict)
-        or result.get("flow_id") != "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
+        or result.get("flow_id") != TROOP_TRAINING_FLOW_ID
     ):
         raise OperatorError("retained session is not Troop Training evidence")
     return (
@@ -417,7 +449,7 @@ def _retained_enhancement_state(
         raise OperatorError("retained Enhancement result is unavailable") from exc
     if (
         not isinstance(result, dict)
-        or result.get("flow_id") != "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+        or result.get("flow_id") != ENHANCEMENT_FLOW_ID
     ):
         raise OperatorError("retained session is not Enhancement evidence")
     return (
@@ -441,7 +473,7 @@ def _latest_troop_training_recovery_candidate() -> Path | None:
     """Find a retained unresolved dispatch that permits safe Home recovery."""
 
     root = (
-        BLUESTACKS_ARTIFACT_ROOT / "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
+        BLUESTACKS_ARTIFACT_ROOT / TROOP_TRAINING_FLOW_ID
     ).resolve()
     if not root.is_dir() or root.is_symlink():
         return None
@@ -1574,7 +1606,7 @@ def development_session_delegated_dry_run(
 
 
 DAILY_ROW_RECON_TASK_ID = "daily-row-claim"
-DAILY_ROW_RECON_FLOW_ID = "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
+DAILY_ROW_RECON_FLOW_ID = DAILY_ROW_FLOW_ID
 DAILY_ROW_RECON_SCENARIO = "selected-daily-row-evidence"
 DAILY_ROW_RECON_VARIANT = "home-quest-daily"
 DAILY_ROW_RECON_CONTINUATION_VARIANT = "quest-daily-continuation"
@@ -2067,7 +2099,7 @@ def development_session_daily_row_reconnaissance(
 
 
 DAILY_ROW_CLAIM_TASK_ID = "daily-row-claim"
-DAILY_ROW_CLAIM_FLOW_ID = "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
+DAILY_ROW_CLAIM_FLOW_ID = DAILY_ROW_FLOW_ID
 DAILY_ROW_CLAIM_SCENARIO = "selected-daily-aggregate-claim"
 DAILY_ROW_CLAIM_PREPARE_VARIANT = "aggregate-claim-prepare"
 DAILY_ROW_CLAIM_CANARY_VARIANT = "aggregate-claim-canary"
@@ -3846,7 +3878,7 @@ def development_session_run_flow(
             raise OperatorError(
                 "--search-entry-only and --recovery-only are mutually exclusive"
             )
-        if flow_id != "WORLD-MAP-NAVIGATION-FOUNDATION":
+        if flow_id != WORLD_FLOW_ID:
             raise OperatorError(
                 "--search-entry-only is supported only for World navigation"
             )
@@ -3905,33 +3937,33 @@ def development_session_run_flow(
             except (ValueError, OSError) as exc:
                 raise OperatorError(f"Campaign victory recovery proof rejected: {exc}") from exc
         if (
-            flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
+            flow_id == ULTIMATE_FLOW_ID
             and recovery_session is None
         ):
             raise OperatorError("Ultimate recovery requires --recovery-session")
         if (
-            flow_id == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
+            flow_id == RUINS_FLOW_ID
             and recovery_session is None
         ):
             raise OperatorError("Ruins recovery requires --recovery-session")
         if (
-            flow_id == "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION"
+            flow_id == PERSONAL_MIGHT_FLOW_ID
             and recovery_session is None
         ):
             raise OperatorError("Personal Might recovery requires --recovery-session")
         if flow_id not in {
             CAMPAIGN_AP_FLOW_ID,
-            "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION",
-            "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
-            "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
-            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
-            "WORLD-MAP-NAVIGATION-FOUNDATION",
-            "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION",
+            ULTIMATE_FLOW_ID,
+            RUINS_FLOW_ID,
+            TROOP_TRAINING_FLOW_ID,
+            ENHANCEMENT_FLOW_ID,
+            WORLD_FLOW_ID,
+            PERSONAL_MIGHT_FLOW_ID,
         }:
             raise OperatorError(
                 "recovery-only is unsupported for this development flow"
             )
-    if chests_only and flow_id != "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
+    if chests_only and flow_id != RUINS_FLOW_ID:
         raise OperatorError(
             "chests-only is supported only for the Ruins Challenge flow"
         )
@@ -3941,7 +3973,7 @@ def development_session_run_flow(
         )
     if (
         chest_continuation is not None
-        and flow_id != "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
+        and flow_id != RUINS_FLOW_ID
     ):
         raise OperatorError(
             "--chest-continuation is supported only for the Ruins Challenge flow"
@@ -3950,7 +3982,7 @@ def development_session_run_flow(
         raise OperatorError("--chest-continuation requires --chests-only")
     if chest_continuation is not None and not chest_continuation.is_file():
         raise OperatorError("Ruins chest continuation file is unavailable")
-    if flow_id == "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION":
+    if flow_id == RUINS_FLOW_ID:
         # Bind the child route's reset/day identity once, before singleton
         # ownership or runtime observation, so a midnight boundary cannot make
         # a previously validated continuation mismatch during execution.
@@ -3966,7 +3998,7 @@ def development_session_run_flow(
         ruins_current_day = identity_now.astimezone().strftime("%a")
         ruins_package_id = CONTINUATION_PACKAGE_ID
         ruins_runtime_profile_id = CONTINUATION_RUNTIME_PROFILE_ID
-    elif flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION":
+    elif flow_id == TROOP_TRAINING_FLOW_ID:
         # Reset-scoped training state is bound once for this development session.
         # The child route receives this exact value; it must not derive a second
         # identity after runtime ownership or observation begins.
@@ -3974,7 +4006,7 @@ def development_session_run_flow(
         troop_training_reset_identity = (
             f"local-{identity_now.date().isoformat()}-troop-training-consolidation"
         )
-    elif flow_id == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION":
+    elif flow_id == ENHANCEMENT_FLOW_ID:
         enhancement_variant = str(enhancement_variant).strip().lower()
         if enhancement_variant not in {"gear", "chip", "module"}:
             raise OperatorError(
@@ -4007,7 +4039,7 @@ def development_session_run_flow(
     registration_snapshot = None
     if (
         flow_id in {
-            "WORLD-MAP-NAVIGATION-FOUNDATION",
+            WORLD_FLOW_ID,
             RECRUITMENT_MAINTENANCE_FLOW_ID,
             CAMPAIGN_AP_FLOW_ID,
         }
@@ -4195,7 +4227,7 @@ def development_session_run_flow(
                     session.next_action = (
                         "retain startup recovery successor evidence; route dispatch is denied"
                     )
-            if flow_id == "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION" and live:
+            if flow_id == DAILY_RESOURCE_ITEM_FLOW_ID and live:
                 produced = _produce_resource_runtime_identity(
                     session=session,
                     wall_clock=_resource_wall_clock,
@@ -4235,13 +4267,13 @@ def development_session_run_flow(
                 "troop_training_reset_identity": troop_training_reset_identity,
                 "troop_training_recovery_only": (
                     recovery_only
-                    and flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
+                    and flow_id == TROOP_TRAINING_FLOW_ID
                 ),
                 "enhancement_variant": enhancement_variant,
                 "enhancement_reset_identity": enhancement_reset_identity,
                 "enhancement_recovery_only": (
                     recovery_only
-                    and flow_id == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+                    and flow_id == ENHANCEMENT_FLOW_ID
                 ),
                 "max_inputs": max_inputs,
                 "route_max_inputs": max_inputs - startup_recovery_input_count,
@@ -4348,21 +4380,21 @@ def development_session_run_flow(
                 route_retained_count = _retained_transport_count(event_rows)
             else:
                 route_retained_count = int(session.input_count)
-            if flow_id == "CAMPAIGN-AP-AUTO-BATTLE":
+            if flow_id == CAMPAIGN_AP_FLOW_ID:
                 campaign_retained = result.get("campaign_transport_count")
                 if type(campaign_retained) is not int or campaign_retained < 0:
                     raise OperatorError(
                         "Campaign AP route did not report retained transport accounting"
                     )
                 route_retained_count = campaign_retained
-            if flow_id == "TROOP-TRAINING-END-TO-END-CONSOLIDATION" and live:
+            if flow_id == TROOP_TRAINING_FLOW_ID and live:
                 troop_retained = result.get("troop_training_transport_count")
                 if type(troop_retained) is not int or troop_retained < 0:
                     raise OperatorError(
                         "Troop Training route did not report retained transport accounting"
                     )
                 route_retained_count = troop_retained
-            if flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION":
+            if flow_id == ULTIMATE_FLOW_ID:
                 ultimate_retained = result.get("retained_transport_count")
                 if type(ultimate_retained) is not int or ultimate_retained < 0:
                     raise OperatorError(
@@ -4448,13 +4480,13 @@ def development_session_run_flow(
                         "continuous"
                         if flow_id
                         in {
-                            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
-                            "WORLD-MAP-NAVIGATION-FOUNDATION",
-                            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                            "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION",
-                            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
-                            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
-                            "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+                            DAILY_RESOURCE_ITEM_FLOW_ID,
+                            WORLD_FLOW_ID,
+                            DAILY_ROW_FLOW_ID,
+                            ENHANCEMENT_FLOW_ID,
+                            BIOENHANCER_FLOW_ID,
+                            SUPPLY_FLOW_ID,
+                            TROOP_TRAINING_FLOW_ID,
                         }
                         else "composite",
                     )
@@ -4597,9 +4629,9 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
     ):
         raise OperatorError("flow result does not identify the runtime owner")
     allowed_terminal_states = {"recognized_home", "safe_blocked_terminal"}
-    if result.get("flow_id") == "TROOP-TRAINING-END-TO-END-CONSOLIDATION":
+    if result.get("flow_id") == TROOP_TRAINING_FLOW_ID:
         allowed_terminal_states |= {"blocked", "unresolved", "manual_required"}
-    elif result.get("flow_id") == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION":
+    elif result.get("flow_id") == ENHANCEMENT_FLOW_ID:
         allowed_terminal_states |= {"recognized_safe_terminal"}
     if result.get("terminal_runtime_state") not in allowed_terminal_states:
         raise OperatorError("terminal runtime state is missing or unsafe")
@@ -4696,16 +4728,16 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
         if queue.get("active_flow_id") != retained_flow_id:
             raise OperatorError("active flow does not match retained evidence")
     except OperatorError:
-        if retained_flow_id == "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE":
+        if retained_flow_id == CAMPAIGN_PROVING_FLOW_ID:
             queue = {"active_flow_id": retained_flow_id}
             lease = {
                 "active_stage": "evidence_review",
                 "runtime_ownership_state": "released",
                 "unresolved_action_state": "clear",
             }
-        elif retained_flow_id == "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION":
+        elif retained_flow_id == ENHANCEMENT_FLOW_ID:
             queue, lease = _retained_enhancement_state(session_directory)
-        elif retained_flow_id == "WORLD-MAP-NAVIGATION-FOUNDATION":
+        elif retained_flow_id == WORLD_FLOW_ID:
             queue = {"active_flow_id": retained_flow_id}
             lease = {
                 "active_stage": "evidence_review",
@@ -4715,11 +4747,11 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
         elif retained_flow_id in {
             CAMPAIGN_AP_FLOW_ID,
             RECRUITMENT_MAINTENANCE_FLOW_ID,
-            "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
-            "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION",
-            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-            "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION",
-            "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
+            BIOENHANCER_FLOW_ID,
+            PERSONAL_MIGHT_FLOW_ID,
+            DAILY_ROW_FLOW_ID,
+            SUPPLY_FLOW_ID,
+            DAILY_RESOURCE_ITEM_FLOW_ID,
         }:
             queue = {"active_flow_id": retained_flow_id}
             lease = {
@@ -4766,10 +4798,10 @@ def bluestacks_recover_home() -> str:
         # session path, and let the existing route perform only safe Back/Home
         # recovery from a positively recognized active queue.
         return development_session_run_flow(
-            "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+            TROOP_TRAINING_FLOW_ID,
             live=True,
             yes=True,
-            max_inputs=32,
+            max_inputs=_DEFAULT_MAX_INPUTS[TROOP_TRAINING_FLOW_ID],
             recovery_only=True,
         )
     if lease.get("active_stage") not in {

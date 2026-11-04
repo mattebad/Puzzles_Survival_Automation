@@ -16,13 +16,14 @@ from tasks.noahs_tavern_recruit_maintenance import (
 )
 
 from .handlers import RecruitmentMaintenanceSelectionHandler
+from .registry import RECRUITMENT_MAX_INPUTS
 
 
 class RecruitmentExecutionHandler(RecruitmentMaintenanceSelectionHandler):
     """Use existing eligibility, then execute only after the canonical run fence."""
 
     selection_only = False
-    max_inputs = 12
+    max_inputs = RECRUITMENT_MAX_INPUTS
     max_actions = 3
 
     def __init__(self, snapshot, execute):
@@ -118,7 +119,7 @@ class RecruitmentRunner:
         args = SimpleNamespace(
             adb=self.adb, serial=self.serial, output_directory=self.output_directory,
             maintenance_path=self.maintenance_path, previous_reset_id=previous_reset_id,
-            utc_clock=self.utc_clock, checkpoint=checkpoint, max_inputs=12,
+            utc_clock=self.utc_clock, checkpoint=checkpoint, max_inputs=RECRUITMENT_MAX_INPUTS,
             settle_seconds=1.0,
         )
         return json.loads(run_noahs_tavern_unified_recruitment(args, identity))

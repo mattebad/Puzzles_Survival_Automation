@@ -29,14 +29,19 @@ from scripts.navigation_development_boundary import (
     DevelopmentSession,
 )
 
-from .contracts import FlowDescriptor, NormalizedOutcome, NormalizedResult
-from .registry import RegisteredDispatchSnapshot
+from .contracts import NormalizedOutcome, NormalizedResult
+from .registry import (
+    SUPPLY_PRODUCT_ID,
+    SUPPLY_PRODUCT_REVISION,
+    RegisteredDispatchSnapshot,
+    canonical_entry,
+)
 from tasks.scheduler_task_result import SchedulerIdentity
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-PRODUCT_ID = "supply_depot"
-PRODUCT_REVISION = "supply_depot-v2"
+PRODUCT_ID = SUPPLY_PRODUCT_ID
+PRODUCT_REVISION = SUPPLY_PRODUCT_REVISION
 PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 
 
@@ -70,19 +75,7 @@ class SupplyExecutionHandler:
         self.snapshot, self._execute = snapshot, execute
 
     def describe(self):
-        return FlowDescriptor(
-            flow_id=FLOW_ID,
-            owner="automation_service",
-            family=PRODUCT_ID,
-            variant="free_until_exhausted",
-            cadence="daily_once_per_reset",
-            reset_scoped=True,
-            priority=1,
-            scheduler_eligible=True,
-            accepted_product=PRODUCT_ID,
-            product_revision=PRODUCT_REVISION,
-            registration_status="REGISTERED",
-        )
+        return canonical_entry(FLOW_ID).descriptor
 
     def eligibility(self, facts, perception=None):
         return bool(

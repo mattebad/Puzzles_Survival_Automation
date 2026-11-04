@@ -23,6 +23,7 @@ from typing import Any, Callable, Mapping, Sequence
 import cv2
 import numpy as np
 
+from automation_service.registry import ENHANCEMENT_FLOW_ID
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime, NativeBox, captured_native_frame_from_png
 from tasks.enhancement import (
     BLUESTACKS_NATIVE_TARGET_PROVENANCE,
@@ -41,7 +42,7 @@ from scripts.bounded_tesseract import (
 )
 
 
-FLOW_ID = "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+FLOW_ID = ENHANCEMENT_FLOW_ID
 ORDERED_VARIANTS = ("gear", "chip", "module")
 NATIVE_WIDTH = 800
 NATIVE_HEIGHT = 1280

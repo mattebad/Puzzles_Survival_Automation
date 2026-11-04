@@ -16,17 +16,23 @@ from scripts.navigation_development_boundary import (
 )
 from tasks.scheduler_task_result import SchedulerIdentity
 
-from .contracts import FlowDescriptor, NormalizedOutcome, NormalizedResult
-from .registry import RegisteredDispatchSnapshot
+from .contracts import NormalizedOutcome, NormalizedResult
+from .registry import (
+    ENHANCEMENT_MAX_INPUTS,
+    ENHANCEMENT_PRODUCT_ID,
+    ENHANCEMENT_PRODUCT_REVISION,
+    RegisteredDispatchSnapshot,
+    canonical_entry,
+)
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 FLOW_ID = native.FLOW_ID
-PRODUCT_ID = "enhancement_family"
-PRODUCT_REVISION = "enhancement_family-v1"
+PRODUCT_ID = ENHANCEMENT_PRODUCT_ID
+PRODUCT_REVISION = ENHANCEMENT_PRODUCT_REVISION
 PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
-MAX_INPUTS = 24
+MAX_INPUTS = ENHANCEMENT_MAX_INPUTS
 MAX_ACTIONS = 3
 _CATEGORIES = ("gear", "chip", "module")
 
@@ -54,12 +60,7 @@ class EnhancementExecutionHandler:
         self.snapshot, self._execute = snapshot, execute
 
     def describe(self):
-        return FlowDescriptor(
-            flow_id=FLOW_ID, owner="automation_service", family=PRODUCT_ID,
-            variant="gear_chip_module", cadence="daily_once_per_reset", reset_scoped=True,
-            priority=1, scheduler_eligible=True, accepted_product=PRODUCT_ID,
-            product_revision=PRODUCT_REVISION, registration_status="REGISTERED",
-        )
+        return canonical_entry(FLOW_ID).descriptor
 
     def eligibility(self, facts, perception=None):
         return bool(
