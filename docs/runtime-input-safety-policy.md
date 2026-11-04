@@ -42,12 +42,9 @@ Parent steps cannot erase prior link checks, and a missing component does not
 hide later components reached after a parent step.
 
 These are path checks, not an atomic defense against filesystem changes between
-validation and use. Native macOS offline admission of its protected `/var` alias
-was observed in [run 41791057290](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41791057290).
-That run's full suite failed and is not acceptance evidence for the subsequent
-recovery fixes. The three recovery consumers also have an actual Windows
-short-path admission smoke with process launches blocked. Neither filesystem
-observation authorizes live input; native runtime proof remains `evidence_required`.
+validation and use. Planted symbolic links are rejected; Windows junctions are
+not detected by the shared guard (see [#46](https://github.com/mattebad/Puzzles_Survival_Automation/issues/46)).
+Filesystem observations and offline test results never authorize live input.
 
 ## Action-specific checks
 
