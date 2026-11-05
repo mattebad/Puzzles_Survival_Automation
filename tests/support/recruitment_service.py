@@ -24,6 +24,7 @@ from tasks.noahs_tavern_recruit_maintenance import MAINTENANCE_TASK_ID, NoahMain
 from tasks.noahs_tavern_recruit_runtime import NoahTavernRecruitRuntimeController
 from tasks.scheduler_task_result import SchedulerIdentity
 from tests.support.service_stop import VirtualStop
+from tests.support.home_atlas import _UnusedAtlasLocalizer
 from tests.support.tavern import NoahFixtures, ScriptedTavernRuntime, _observation
 
 
@@ -134,6 +135,11 @@ class RecruitmentServiceCase(unittest.TestCase):
             side_effect=lambda *a, **k: self.runtimes[-1].recognizer(*a, **k)))
         step = SimpleNamespace(disposition=SimpleNamespace(value="bind"), reason="offline-home",
                                localization=SimpleNamespace(recognized=False, zoom_identity=SimpleNamespace(value="fully_zoomed_out")))
+        # Home driver/binding decisions below are scripted; native localization is forbidden.
+        localizer = _UnusedAtlasLocalizer()
+        self.unused_atlas_localizer = localizer
+        self.stack.callback(localizer.assert_unused)
+        self.stack.enter_context(patch.object(native, "BlueStacksHomeLocalizer", return_value=localizer))
         self.stack.enter_context(patch("scripts.home_atlas_bluestacks.BlueStacksLocalizeFirstHomeDriver",
                                       return_value=SimpleNamespace(observe=lambda frame: step)))
         self.stack.enter_context(patch.object(native.NoahTavernNavigationRoute, "_atlas_binding",
@@ -148,5 +154,9 @@ class RecruitmentServiceCase(unittest.TestCase):
         self.stack.enter_context(patch.object(native, "NoahTavernIntegratedRoute", side_effect=route))
 
     def serve(self, emit):
-        self.service.serve(account_id="account", server_id="server", stop=self.stop,
-                           emit=emit, clock=lambda: self.stop.now, flow_ids=(RECRUITMENT_FLOW_ID,))
+        try:
+            self.service.serve(account_id="account", server_id="server", stop=self.stop,
+                               emit=emit, clock=lambda: self.stop.now, flow_ids=(RECRUITMENT_FLOW_ID,))
+        finally:
+            # Some callers own this fixture directly and do not run its TestCase.
+            self.unused_atlas_localizer.assert_unused()

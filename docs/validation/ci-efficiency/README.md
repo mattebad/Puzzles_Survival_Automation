@@ -130,10 +130,10 @@ compilation, Git hygiene and both OS gates remain. Native Enhancement proof is
 not memoized for its three repeated inputs. Recruitment's expensive cooldown
 case has zero measured OCR and completed sleeps. A subsequent single-case
 profile attributes 27.8 of 30.0 seconds to nine eager Atlas-localizer constructors:
-270 feature extractions, but no `localize` calls. Avoiding unused construction in
-that already-faked fixture is a concrete next candidate, not an implemented or
-verified optimization in this pass. Existing pip caching is retained; there is
-no speculative installed-environment/Tesseract cache or extra runner.
+270 feature extractions, but no `localize` calls. This was a candidate rather
+than an implemented optimization in the original pass; its implemented follow-up
+is recorded below. Existing pip caching is retained; there is no speculative
+installed-environment/Tesseract cache or extra runner.
 
 ## Follow-up: Windows critical-path work
 
@@ -166,3 +166,51 @@ A direct real-route mutation that swallows an accidental localization attempt
 still fails at cleanup. Afterward, both constructor aliases are restored and a
 fresh real localizer recognizes canonical Home with all 30 reference images on
 both OSes. Raw measurements and the negative smoke remain outside the repository.
+
+## Follow-up: Recruitment service fixture
+
+Implemented and locally offline-proven; combined hosted acceptance is reported
+in PR #50. The complete five-case module used 13 default Noah localizer
+constructions and 390 reference feature extractions despite never localizing a
+frame. Its Home driver and binding decisions were already explicitly scripted.
+That unused factory now uses the same tripwire, without injecting a localizer
+argument or changing the production flag that distinguishes injected localizers.
+Native route objects, policy, ownership, accounting and captures still run.
+
+| `test_service_recruitment` | Windows before | Windows after | Linux before | Linux after |
+| --- | ---: | ---: | ---: | ---: |
+| Instrumented elapsed median | 41.750 s | 3.422 s | 40.826 s | 6.102 s |
+
+These are three sequential fresh-process complete-module samples per source and
+OS. All original cases and outcomes remain; constructions, feature extractions
+and reference image reads are now zero. Native localization and OCR remain
+unused, not replaced by successful canned recognition.
+
+A direct fixture-consumer smoke completes the real service's original action and
+four inputs, but deliberately swallows an unexpected native-dependency error.
+Both `serve` and cleanup still reject it. This covers consumers that use the
+fixture directly without running its TestCase. The native constructor alias is
+restored afterward. Both OSes also pass the 21 shared-fixture startup/rollover
+cases, 58 true-timeout/freshness safety cases, 397 controlled checks and unchanged
+static ratchets. Actual discovery remains 3,171 cases, with no added, removed or
+renamed ID. Original integrated test bodies and per-case native OCR pixel/options
+key multisets are unchanged.
+
+## Remaining opportunities and rejected work
+
+- Reuse immutable Atlas reference preparation in native proposal fixtures only
+  where fresh current-frame localization and binding still run. For example,
+  Campaign's proposal class already owns a real localizer, but dispatch builds
+  more reference data. This requires a separate coverage and mutation review;
+  no native reference cache is introduced here.
+- Recalibrate the existing four-shard cost weights after these measured work
+  reductions. Keep whole modules, both OSes and the current runner count; balance
+  is a latency optimization, not a reduction in test work. Weights remain fixed
+  for this follow-up's causal comparison.
+- Investigate dependency/Tesseract setup only with observed cold/miss behavior
+  and pinned compatibility. Existing pip caching is already enabled.
+- Do not add the previous per-test OCR memo pattern to Campaign service tests:
+  retained profiles show 239 actual calls and 239 per-test distinct input/options
+  keys on each OS, leaving no same-test repeated work for that cache to remove.
+- No redundant test has an equally strong replacement map. No test is retired,
+  native timeout shortened, stress repetition removed or extra runner added.
