@@ -1,0 +1,51 @@
+"""Temporary causal experiment; original test deadlines and assertions stay unchanged."""
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+
+def main() -> int:
+    root, proof = map(Path, sys.argv[1:3])
+    experiments = [("solo-start", "solo"), ("baseline-order", "baseline"),
+                   ("candidate-order", "candidate"), ("solo-end", "solo")]
+    if len(sys.argv) > 3:
+        experiments = [("entrypoint-worker-smoke", "worker")]
+    results = []
+    failed = False
+    for name, mode in experiments:
+        started = datetime.now(timezone.utc).isoformat()
+        clock = time.perf_counter()
+        print(f"Starting {name} at {started}", flush=True)
+        timed_out = False
+        with (proof / f"{name}.stdout.log").open("wb") as stdout, (proof / f"{name}.stderr.log").open("wb") as stderr:
+            try:
+                completed = subprocess.run(
+                    [sys.executable, "-B", str(proof / "ordered_runner.py"),
+                     str(root), str(proof), str(proof / name), mode],
+                    cwd=root, env=os.environ.copy(), stdout=stdout, stderr=stderr,
+                    timeout=600, check=False,
+                )
+                code = completed.returncode
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                code = None
+        results.append({"name": name, "mode": mode, "exit_code": code,
+                        "timed_out": timed_out, "started": started,
+                        "ended": datetime.now(timezone.utc).isoformat(),
+                        "seconds": time.perf_counter() - clock})
+        (proof / "experiment-exits.json").write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
+        print(f"Completed {name}: exit={code}, diagnostic_timeout={timed_out}", flush=True)
+        if timed_out:
+            # An incomplete experiment is not a passing test or a measured slowdown.
+            # Stop rather than overlapping a subsequent experiment with worker cleanup.
+            return 1
+        failed |= code != 0
+    return int(failed)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

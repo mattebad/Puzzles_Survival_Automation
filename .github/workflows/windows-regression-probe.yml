@@ -43,6 +43,7 @@ jobs:
           $tools = Join-Path $proof 'profile-tools'
           New-Item -ItemType Directory -Path $tools -Force | Out-Null
           Copy-Item '.github/windows-regression-probe/ordered-runner.txt' (Join-Path $proof 'ordered_runner.py')
+          Copy-Item '.github/windows-regression-probe/experiment-driver.txt' (Join-Path $proof 'experiment_driver.py')
           Copy-Item '.github/windows-regression-probe/observer.txt' (Join-Path $tools 'ticket47_profile.py')
           Copy-Item '.github/windows-regression-probe/shard-orders.json' (Join-Path $proof 'shard-orders.json')
           "PNS_PROFILE_TOOLS=$tools" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -61,28 +62,9 @@ jobs:
         shell: pwsh
         run: |
           $proof = Join-Path $env:RUNNER_TEMP 'windows-regression-probe'
-          $runner = Join-Path $proof 'ordered_runner.py'
-          $experiments = @(
-            @{ Name = 'solo-start'; Mode = 'solo' },
-            @{ Name = 'baseline-order'; Mode = 'baseline' },
-            @{ Name = 'candidate-order'; Mode = 'candidate' },
-            @{ Name = 'solo-end'; Mode = 'solo' }
-          )
-          $results = @()
-          $failed = $false
-          foreach ($experiment in $experiments) {
-            $name = $experiment.Name
-            $output = Join-Path $proof $name
-            $started = (Get-Date).ToUniversalTime().ToString('o')
-            Write-Output "Starting $name at $started"
-            & python -B $runner "$PWD" $proof $output $experiment.Mode 1> (Join-Path $proof "$name.stdout.log") 2> (Join-Path $proof "$name.stderr.log")
-            $code = $LASTEXITCODE
-            $results += @{ name = $name; mode = $experiment.Mode; exit_code = $code; started = $started; ended = (Get-Date).ToUniversalTime().ToString('o') }
-            if ($code -ne 0) { $failed = $true }
-            $results | ConvertTo-Json -Depth 5 | Set-Content -Path (Join-Path $proof 'experiment-exits.json') -Encoding utf8
-            Write-Output "Completed $name with exit code $code"
-          }
-          if ($failed) { exit 1 }
+          $driver = Join-Path $proof 'experiment_driver.py'
+          & python -B $driver "$PWD" $proof
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Retain all measurements including failures
         if: always()
         uses: actions/upload-artifact@v7

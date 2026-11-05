@@ -10,166 +10,168 @@ import platform
 import sys
 import time
 import unittest
+import faulthandler
 
-root, proof, output = map(Path, sys.argv[1:4])
-mode = sys.argv[4]
-output.mkdir(parents=True, exist_ok=False)
-raw = output / "raw"
-raw.mkdir()
-temporary = proof / "tmp"
-temporary.mkdir(exist_ok=True)
-os.environ.update(OMP_THREAD_LIMIT="1", PYTHONDONTWRITEBYTECODE="1",
-                  TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary))
-for name in ("ADB_SERVER_SOCKET", "ANDROID_HOME", "ANDROID_SERIAL",
-             "ANDROID_SDK_ROOT", "AUTOMATION_SERVICE_STATE_PATH", "BLUESTACKS_SERIAL"):
-    os.environ.pop(name, None)
-tools = Path(os.environ.get("PNS_PROFILE_TOOLS", proof.parent / "ticket30-proof"))
-sys.path[:0] = [str(root), str(tools)]
-os.environ["PNS_OFFLINE_PROFILE_DIR"] = str(raw)
-os.environ["PNS_OFFLINE_PROFILE_TEST"] = "fixture:investigation"
-os.environ["PYTHONPATH"] = str(root)
-import ticket47_profile as observer
-
-from scripts.offline_suite import _cases, select_suite, validate_discovery
-loader = unittest.TestLoader()
-suite = loader.discover(str(root / "tests"), pattern="test_*.py", top_level_dir=str(root))
-assert not loader.errors, loader.errors
-validate_discovery(root / "tests", suite)
-orders = json.loads((proof / "shard-orders.json").read_text(encoding="utf-8"))
-target = "tests.test_service_campaign_ap"
-if mode == "solo":
-    modules = [target]
-elif mode in ("baseline", "candidate"):
-    modules = orders[mode]["before_campaign"] + [target]
-elif mode == "near":
-    modules = orders["candidate"]["before_campaign"][-2:] + [target]
-else:
-    raise ValueError(mode)
-selected = select_suite(suite, modules)
-expected = [case.id() for case in _cases(selected)]
-del suite
-profile_enabled = os.environ.get("PNS_DIAG_CPROFILE") == "1"
-profile = cProfile.Profile()
-started_profile = False
-executed = []
-
-# Passive diagnostics delegate the original implementations, including errors.
-from contextlib import contextmanager
-from unittest.mock import patch
-import hashlib
-import pytesseract.pytesseract as engine
-from tests.ocr_memo import OcrMemo, _image_key
-
-original_memo = OcrMemo.__call__
-original_engine = engine.run_tesseract
-original_subtest = unittest.TestCase.subTest
-pending_engine = []
-
-def observed_memo(self, image, extension="", lang=None, config="", nice=0, timeout=0, return_bytes=False):
-    if not os.environ.get("PNS_OFFLINE_PROFILE_TEST", "").startswith(target + "."):
-        return original_memo(self, image, extension, lang, config, nice, timeout, return_bytes)
-    key = (_image_key(image), extension, lang, config, nice, bool(return_bytes))
-    cached = self._results.get(key)
-    decision = "miss" if cached is None else "hit" if not timeout or cached[1] <= timeout else "timeout_incompatible"
-    started = time.perf_counter()
-    outcome = "success"
-    engine_offset = len(pending_engine)
-    try:
-        return original_memo(self, image, extension, lang, config, nice, timeout, return_bytes)
-    except BaseException as error:
-        outcome = type(error).__name__
-        raise
-    finally:
-        observer._emit("memo_decision", key=hashlib.sha256(repr(key).encode()).hexdigest(),
-                       decision=decision, timeout=timeout,
-                       stored_seconds=None if cached is None else cached[1],
-                       seconds=time.perf_counter() - started, outcome=outcome)
-        for event in pending_engine[engine_offset:]:
-            observer._emit("ocr_elapsed", memo_key=hashlib.sha256(repr(key).encode()).hexdigest(), **event)
-        del pending_engine[engine_offset:]
-
-def observed_engine(*args, **kwargs):
-    if not os.environ.get("PNS_OFFLINE_PROFILE_TEST", "").startswith(target + "."):
-        return original_engine(*args, **kwargs)
-    started = time.perf_counter()
-    outcome = "success"
-    try:
-        return original_engine(*args, **kwargs)
-    except BaseException as error:
-        outcome = type(error).__name__
-        raise
-    finally:
-        pending_engine.append({"timeout": kwargs.get("timeout", args[6] if len(args) > 6 else 0),
-                               "seconds": time.perf_counter() - started, "outcome": outcome})
-
-@contextmanager
-def observed_subtest(self, *args, **kwargs):
-    started = time.perf_counter()
-    with original_subtest(self, *args, **kwargs):
-        yield
-    if self.__class__.__module__ == target:
-        observer._emit("subtest", parameters=kwargs, seconds=time.perf_counter() - started)
-
-hooks = [patch.object(OcrMemo, "__call__", observed_memo),
-         patch.object(engine, "run_tesseract", observed_engine),
-         patch.object(unittest.TestCase, "subTest", observed_subtest)]
-for hook in hooks:
-    hook.start()
-
-class Memory(ctypes.Structure):
-    _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD), ("PeakWorkingSetSize", ctypes.c_size_t), ("WorkingSetSize", ctypes.c_size_t), ("QuotaPeakPagedPoolUsage", ctypes.c_size_t), ("QuotaPagedPoolUsage", ctypes.c_size_t), ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t), ("QuotaNonPagedPoolUsage", ctypes.c_size_t), ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t)]
-
-def state():
-    import cv2
+def main():
+    (root, proof, output) = map(Path, sys.argv[1:4])
+    mode = sys.argv[4]
+    output.mkdir(parents=True, exist_ok=False)
+    stack_stream = (output / 'stacks.log').open('a', encoding='utf-8')
+    faulthandler.dump_traceback_later(60, repeat=True, file=stack_stream)
+    raw = output / 'raw'
+    raw.mkdir()
+    temporary = proof / 'tmp'
+    temporary.mkdir(exist_ok=True)
+    os.environ.update(OMP_THREAD_LIMIT='1', PYTHONDONTWRITEBYTECODE='1', TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary))
+    for name in ('ADB_SERVER_SOCKET', 'ANDROID_HOME', 'ANDROID_SERIAL', 'ANDROID_SDK_ROOT', 'AUTOMATION_SERVICE_STATE_PATH', 'BLUESTACKS_SERIAL'):
+        os.environ.pop(name, None)
+    tools = Path(os.environ.get('PNS_PROFILE_TOOLS', proof.parent / 'ticket30-proof'))
+    sys.path[:0] = [str(root), str(tools)]
+    os.environ['PNS_OFFLINE_PROFILE_DIR'] = str(raw)
+    os.environ['PNS_OFFLINE_PROFILE_TEST'] = 'fixture:investigation'
+    os.environ['PYTHONPATH'] = str(root)
+    import ticket47_profile as observer
+    from scripts.offline_suite import _cases, select_suite, validate_discovery
+    loader = unittest.TestLoader()
+    suite = loader.discover(str(root / 'tests'), pattern='test_*.py', top_level_dir=str(root))
+    assert not loader.errors, loader.errors
+    validate_discovery(root / 'tests', suite)
+    orders = json.loads((proof / 'shard-orders.json').read_text(encoding='utf-8'))
+    target = 'tests.test_service_campaign_ap'
+    if mode == 'solo':
+        modules = [target]
+    elif mode in ('baseline', 'candidate'):
+        modules = orders[mode]['before_campaign'] + [target]
+    elif mode == 'near':
+        modules = orders['candidate']['before_campaign'][-2:] + [target]
+    elif mode == 'worker':
+        modules = ['tests.test_semantic_ocr_crop']
+    else:
+        raise ValueError(mode)
+    selected = select_suite(suite, modules)
+    if mode == 'worker':
+        selected = unittest.TestSuite((case for case in _cases(selected) if case.id().endswith('.test_worker_limits_ocr_threads_without_changing_parent_or_explicit_configuration')))
+    expected = [case.id() for case in _cases(selected)]
+    del suite
+    profile_enabled = os.environ.get('PNS_DIAG_CPROFILE') == '1'
+    profile = cProfile.Profile()
+    started_profile = False
+    executed = []
+    from contextlib import contextmanager
+    from unittest.mock import patch
+    import hashlib
     import pytesseract.pytesseract as engine
-    from tests.ocr_memo import OcrMemo
-    memory = Memory()
-    memory.cb = ctypes.sizeof(memory)
-    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel.GetCurrentProcess.restype = wintypes.HANDLE
-    api = ctypes.WinDLL("psapi", use_last_error=True)
-    api.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(Memory), wintypes.DWORD]
-    assert api.GetProcessMemoryInfo(kernel.GetCurrentProcess(), ctypes.byref(memory), memory.cb)
-    chain = []
-    current = engine.run_and_get_output
-    for _ in range(8):
-        entry = {"type": type(current).__module__ + "." + type(current).__qualname__}
-        if isinstance(current, OcrMemo):
-            entry.update(hits=current.hits, misses=current.misses, unique=current.unique_inputs, cached_seconds=[value[1] for value in current._results.values()])
-            chain.append(entry)
-            current = current._real
-        else:
-            entry["callable"] = getattr(current, "__module__", "") + "." + getattr(current, "__qualname__", type(current).__qualname__)
-            chain.append(entry)
-            break
-    return {"working_set": memory.WorkingSetSize, "private_commit": memory.PagefileUsage, "peak_working_set": memory.PeakWorkingSetSize, "opencv_threads": cv2.getNumThreads(), "ocr_chain": chain, "monotonic": repr(time.monotonic), "sleep": repr(time.sleep), "tesseract_cmd": str(engine.tesseract_cmd)}
+    from tests.ocr_memo import OcrMemo, _image_key
+    original_memo = OcrMemo.__call__
+    original_engine = engine.run_tesseract
+    original_subtest = unittest.TestCase.subTest
+    pending_engine = []
 
-class Result(observer.ProfileResult):
-    def startTest(self, case):
-        global started_profile
-        super().startTest(case)
-        executed.append(case.id())
-        if case.__class__.__module__ == target:
-            if profile_enabled and not started_profile:
-                profile.enable()
-                started_profile = True
-            with (output / "target-state.jsonl").open("a", encoding="utf-8") as stream:
-                stream.write(json.dumps({"test": case.id(), "stage": "before", **state()}) + "\n")
-    def stopTest(self, case):
-        if case.__class__.__module__ == target:
-            with (output / "target-state.jsonl").open("a", encoding="utf-8") as stream:
-                stream.write(json.dumps({"test": case.id(), "stage": "after", **state()}) + "\n")
-        super().stopTest(case)
+    def observed_memo(self, image, extension='', lang=None, config='', nice=0, timeout=0, return_bytes=False):
+        if not os.environ.get('PNS_OFFLINE_PROFILE_TEST', '').startswith(target + '.'):
+            return original_memo(self, image, extension, lang, config, nice, timeout, return_bytes)
+        key = (_image_key(image), extension, lang, config, nice, bool(return_bytes))
+        cached = self._results.get(key)
+        decision = 'miss' if cached is None else 'hit' if not timeout or cached[1] <= timeout else 'timeout_incompatible'
+        started = time.perf_counter()
+        outcome = 'success'
+        engine_offset = len(pending_engine)
+        try:
+            return original_memo(self, image, extension, lang, config, nice, timeout, return_bytes)
+        except BaseException as error:
+            outcome = type(error).__name__
+            raise
+        finally:
+            observer._emit('memo_decision', key=hashlib.sha256(repr(key).encode()).hexdigest(), decision=decision, timeout=timeout, stored_seconds=None if cached is None else cached[1], seconds=time.perf_counter() - started, outcome=outcome)
+            for event in pending_engine[engine_offset:]:
+                observer._emit('ocr_elapsed', memo_key=hashlib.sha256(repr(key).encode()).hexdigest(), **event)
+            del pending_engine[engine_offset:]
 
-started = time.perf_counter()
-result = unittest.TextTestRunner(verbosity=2, resultclass=Result).run(selected)
-if profile_enabled:
-    profile.disable()
-    profile.dump_stats(str(output / "target.prof"))
-for hook in reversed(hooks):
-    hook.stop()
-assert Counter(executed) == Counter(expected)
-summary = {"mode": mode, "python": sys.version, "os": platform.platform(), "modules": modules, "selected_ids": expected, "executed_ids": executed, "tests": result.testsRun, "seconds": time.perf_counter() - started, "failures": [case.id() for case, _ in result.failures], "errors": [case.id() for case, _ in result.errors], "skips": [case.id() for case, _ in result.skipped]}
-summary["cprofile_enabled"] = profile_enabled
-(output / "result.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-raise SystemExit(not result.wasSuccessful())
+    def observed_engine(*args, **kwargs):
+        if not os.environ.get('PNS_OFFLINE_PROFILE_TEST', '').startswith(target + '.'):
+            return original_engine(*args, **kwargs)
+        started = time.perf_counter()
+        outcome = 'success'
+        try:
+            return original_engine(*args, **kwargs)
+        except BaseException as error:
+            outcome = type(error).__name__
+            raise
+        finally:
+            pending_engine.append({'timeout': kwargs.get('timeout', args[6] if len(args) > 6 else 0), 'seconds': time.perf_counter() - started, 'outcome': outcome})
+
+    @contextmanager
+    def observed_subtest(self, *args, **kwargs):
+        started = time.perf_counter()
+        with original_subtest(self, *args, **kwargs):
+            yield
+        if self.__class__.__module__ == target:
+            observer._emit('subtest', parameters=kwargs, seconds=time.perf_counter() - started)
+    hooks = [patch.object(OcrMemo, '__call__', observed_memo), patch.object(engine, 'run_tesseract', observed_engine), patch.object(unittest.TestCase, 'subTest', observed_subtest)]
+    for hook in hooks:
+        hook.start()
+
+    class Memory(ctypes.Structure):
+        _fields_ = [('cb', wintypes.DWORD), ('PageFaultCount', wintypes.DWORD), ('PeakWorkingSetSize', ctypes.c_size_t), ('WorkingSetSize', ctypes.c_size_t), ('QuotaPeakPagedPoolUsage', ctypes.c_size_t), ('QuotaPagedPoolUsage', ctypes.c_size_t), ('QuotaPeakNonPagedPoolUsage', ctypes.c_size_t), ('QuotaNonPagedPoolUsage', ctypes.c_size_t), ('PagefileUsage', ctypes.c_size_t), ('PeakPagefileUsage', ctypes.c_size_t)]
+
+    def state():
+        import cv2
+        import pytesseract.pytesseract as engine
+        from tests.ocr_memo import OcrMemo
+        memory = Memory()
+        memory.cb = ctypes.sizeof(memory)
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.GetCurrentProcess.restype = wintypes.HANDLE
+        api = ctypes.WinDLL('psapi', use_last_error=True)
+        api.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(Memory), wintypes.DWORD]
+        assert api.GetProcessMemoryInfo(kernel.GetCurrentProcess(), ctypes.byref(memory), memory.cb)
+        chain = []
+        current = engine.run_and_get_output
+        for _ in range(8):
+            entry = {'type': type(current).__module__ + '.' + type(current).__qualname__}
+            if isinstance(current, OcrMemo):
+                entry.update(hits=current.hits, misses=current.misses, unique=current.unique_inputs, cached_seconds=[value[1] for value in current._results.values()])
+                chain.append(entry)
+                current = current._real
+            else:
+                entry['callable'] = getattr(current, '__module__', '') + '.' + getattr(current, '__qualname__', type(current).__qualname__)
+                chain.append(entry)
+                break
+        return {'working_set': memory.WorkingSetSize, 'private_commit': memory.PagefileUsage, 'peak_working_set': memory.PeakWorkingSetSize, 'opencv_threads': cv2.getNumThreads(), 'ocr_chain': chain, 'monotonic': repr(time.monotonic), 'sleep': repr(time.sleep), 'tesseract_cmd': str(engine.tesseract_cmd)}
+
+    class Result(observer.ProfileResult):
+
+        def startTest(self, case):
+            nonlocal started_profile
+            observer._emit('case_begin', case_id=case.id(), phase='before_output')
+            super().startTest(case)
+            observer._emit('case_begin', case_id=case.id(), phase='after_output')
+            executed.append(case.id())
+            if case.__class__.__module__ == target:
+                if profile_enabled and (not started_profile):
+                    profile.enable()
+                    started_profile = True
+                with (output / 'target-state.jsonl').open('a', encoding='utf-8') as stream:
+                    stream.write(json.dumps({'test': case.id(), 'stage': 'before', **state()}) + '\n')
+
+        def stopTest(self, case):
+            if case.__class__.__module__ == target:
+                with (output / 'target-state.jsonl').open('a', encoding='utf-8') as stream:
+                    stream.write(json.dumps({'test': case.id(), 'stage': 'after', **state()}) + '\n')
+            super().stopTest(case)
+    started = time.perf_counter()
+    result = unittest.TextTestRunner(verbosity=2, resultclass=Result).run(selected)
+    if profile_enabled:
+        profile.disable()
+        profile.dump_stats(str(output / 'target.prof'))
+    for hook in reversed(hooks):
+        hook.stop()
+    assert Counter(executed) == Counter(expected)
+    summary = {'mode': mode, 'python': sys.version, 'os': platform.platform(), 'modules': modules, 'selected_ids': expected, 'executed_ids': executed, 'tests': result.testsRun, 'seconds': time.perf_counter() - started, 'failures': [case.id() for (case, _) in result.failures], 'errors': [case.id() for (case, _) in result.errors], 'skips': [case.id() for (case, _) in result.skipped]}
+    summary['cprofile_enabled'] = profile_enabled
+    (output / 'result.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
+    faulthandler.cancel_dump_traceback_later()
+    stack_stream.close()
+    raise SystemExit(not result.wasSuccessful())
+if __name__ == '__main__':
+    main()
