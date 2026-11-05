@@ -200,10 +200,9 @@ key multisets are unchanged.
 
 - Native Campaign reference preparation was subsequently implemented with fresh
   frame proof retained; its measurements and mutation checks are recorded below.
-- Recalibrate the existing four-shard cost weights after these measured work
-  reductions. Keep whole modules, both OSes and the current runner count; balance
-  is a latency optimization, not a reduction in test work. Weights remain fixed
-  for this follow-up's causal comparison.
+- The existing four-shard costs were subsequently recalibrated from current
+  measurements, as recorded below. This balances latency without reducing work,
+  changing the scheduler or adding runners.
 - Investigate dependency/Tesseract setup only with observed cold/miss behavior
   and pinned compatibility. Existing pip caching is already enabled.
 - Do not add the previous per-test OCR memo pattern to Campaign service tests:
@@ -255,3 +254,59 @@ both exit paths, and a subsequent normal native dispatch still succeeds.
 Independent source review found no actionable defect. Raw profiles, observer
 records and mutation outputs are retained outside Git; no live acceptance is
 claimed.
+
+## Follow-up: measured four-shard recalibration
+
+Implemented with actual discovery/partition/selection proof on both local OSes.
+Exact-head hosted results and job timings are reported in PR #50. The scheduler,
+four-shard count, whole-module ordering, workflow checks and skip allowlists are
+unchanged; only the existing cost manifest is recalibrated.
+
+The baseline is successful hosted run
+[41984856343](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41984856343)
+at `5bd722f`. The parser reconciles every selected/executed ID and completion,
+including docstring headers whose completion appears on a later line. Whole-module
+intervals include fixture work and reconcile to each authoritative unittest
+elapsed total; discovery and other workflow steps are excluded. These are
+scheduling estimates, not exact individual-test profiles.
+
+Each shared module weight is the rounded mean of its Windows and Linux estimate.
+Only native Campaign is adjusted by its measured local before/after module ratio.
+The manifest's source revision is native-only commit `3aaa0e6`; all other module
+work is unchanged from the hosted baseline. All 240 modules now have explicit
+estimates, including `tests.test_static_checks`, which previously used the
+one-second unknown-module fallback. Future modules still use the existing
+fallback and remain automatically discovered.
+
+The primary-shard reservation uses the mean per-OS excess of job time outside the
+discovery-suite step over the median corresponding nonzero-shard residual:
+
+| Primary-shard reservation measurement | Seconds |
+| --- | ---: |
+| Linux observed excess | 318 |
+| Windows observed excess | 348 |
+| New shared reservation | 333 |
+
+Old and new assignments evaluated against the same candidate module estimates
+and reservation give these projected peaks. Common job overhead is excluded;
+these are not measured post-change CI durations.
+
+| Model peak, seconds | Old assignment | Recalibrated assignment |
+| --- | ---: | ---: |
+| Linux | 458.733 | 387.706 |
+| Windows | 603.182 | 494.187 |
+
+Both OSes' actual runner discovery/partition/selection paths conserve all 3,171
+IDs and 240 whole modules exactly once. Case counts per shard are 620/834/727/990;
+174 modules move without splitting class/module fixtures. The existing 11
+discovery/receipt tests, 58 freshness/timeout cases, 397 controlled cases and
+unchanged static ratchets pass on both OSes. Independent review found no
+actionable defect in the manifest or native-reference change.
+
+One hosted baseline cannot establish statistical timing guarantees. Predecessor
+teardown can be attributed to the next module, the native adjustment transfers
+local ratios to hosted estimates, and setup/image variance affects the measured
+reserve. Final hosted execution must prove the new co-location preserves actual
+coverage and outcomes. Full timing derivation, module migrations, simulations and
+raw logs remain outside Git; no assertion, timeout, skip, test ID or safety gate
+is weakened.
