@@ -9,9 +9,10 @@ from pathlib import Path
 import platform
 import subprocess
 import sys
+import tempfile
 import time
 
-SOURCE = "ae6ce49efff7030ebb637f320f66a2d7ae42f261"
+SOURCE = "5018a92b533de283d638c062a9f646f5a16a9e21"
 OLD_WEIGHTS = "3aaa0e674c0f1b0e8c832d32b2de61f7108d24ee"
 STATIC_BASE = "51ac935e1d781376990a43f7ee1a8cf1795cd97a"
 COST_PATH = ".github/offline-test-costs.json"
@@ -69,7 +70,13 @@ def observe(args) -> int:
             "--count", "4", "--output", str(args.receipt),
         ])
     finally:
-        save(args.events, [item for result in results for item in result.case_timings])
+        if args.receipt.exists():
+            expected = Counter(json.loads(args.receipt.read_text(encoding="utf-8"))["executed_ids"])
+            outer = [result for result in results if Counter(result.executed_ids) == expected]
+            assert len(outer) == 1, "No unique outer execution result"
+            save(args.events, outer[0].case_timings)
+        else:
+            save(args.events, {"incomplete_results": [result.case_timings for result in results]})
 
 
 def pair(args) -> int:
@@ -93,6 +100,7 @@ def pair(args) -> int:
         "cpu_count": os.cpu_count(),
         "tesseract": subprocess.check_output(["tesseract", "--version"], text=True),
         "dependencies": subprocess.check_output([sys.executable, "-m", "pip", "freeze"], text=True),
+        "canonical_temp": tempfile.gettempdir(),
     })
     order = ("baseline", "candidate") if args.index % 2 == 0 else ("candidate", "baseline")
     phases = []
@@ -100,8 +108,8 @@ def pair(args) -> int:
     for mode in order:
         checkout = output.parent / f"assignment-source-{args.index}-{mode}"
         subprocess.run(["git", "worktree", "add", "--detach", str(checkout), SOURCE], cwd=root, check=True)
-        temp = output.parent / f"assignment-tmp-{args.index}-{mode}"
-        temp.mkdir()
+        # Keep canonical TEMP volume semantics, including Windows short aliases.
+        temp = Path(tempfile.mkdtemp(prefix=f"assignment-{args.index}-{mode}-"))
         env = dict(os.environ, GITHUB_SHA=SOURCE, TMPDIR=str(temp), TMP=str(temp), TEMP=str(temp))
         costs = output / f"{mode}-costs.json"
         receipt = output / f"{mode}-report-{args.index}.json"
