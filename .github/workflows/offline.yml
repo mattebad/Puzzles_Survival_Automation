@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  offline:
-    name: Offline checks (${{ matrix.os }})
+  offline-shard:
+    name: Offline execution (${{ matrix.os }}, shard ${{ matrix.shard }})
     runs-on: ${{ matrix.os }}
     env:
       # Match the live validation process before OCR worker/library startup.
@@ -20,6 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        shard: [0, 1, 2, 3]
     steps:
       - name: Enable long retained-evidence paths on Windows
         if: runner.os == 'Windows'
@@ -59,6 +60,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "C:\Program Files\Tesseract-OCR" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Repeat native Supply Depot binding checks
+        if: matrix.shard == 0
         shell: bash
         run: |
           for attempt in {1..8}; do
@@ -70,14 +72,18 @@ jobs:
               tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_actual_reset_hud_caption_binds_only_with_complete_word_and_safe_button
           done
       - name: Verify every test module is discovered
+        if: matrix.shard == 0
         run: python -B scripts/check_test_discovery.py
-      - name: Run the complete offline test suite
-        run: python -B -m unittest discover -v -s tests -t .
+      - name: Run assigned whole-module slice of complete discovery
+        run: python -B scripts/offline_suite.py run --index ${{ matrix.shard }} --count 4 --output "${{ runner.temp }}/offline-receipt/report-${{ matrix.shard }}.json"
       - name: Run the supported controlled offline check
+        if: matrix.shard == 0
         run: python scripts/check.py
       - name: Compile Python sources
+        if: matrix.shard == 0
         run: python -m compileall -q automation_service safe_action_core scripts tasks
       - name: Check tracked text files match declared line endings
+        if: matrix.shard == 0
         shell: bash
         run: |
           # Paths declared `eol=lf` in .gitattributes must be stored with LF in
@@ -89,6 +95,7 @@ jobs:
             exit 1
           fi
       - name: Check committed diff whitespace
+        if: matrix.shard == 0
         shell: bash
         env:
           DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -102,3 +109,37 @@ jobs:
             fi
             git diff --check "$DIFF_BASE" "$DIFF_HEAD"
           fi
+      - name: Retain successful execution receipt
+        uses: actions/upload-artifact@v7
+        with:
+          name: offline-${{ matrix.os }}-${{ github.run_attempt }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/offline-receipt/report-${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 14
+
+  offline:
+    # Keep the existing per-OS required-check names; receipts, not selected lists,
+    # prove every discovered case actually ran exactly once on that OS.
+    name: Offline checks (${{ matrix.os }})
+    needs: offline-shard
+    if: always()
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Check out coverage verifier and measured baseline
+        uses: actions/checkout@v7
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - name: Download this attempt's OS receipts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: offline-${{ matrix.os }}-${{ github.run_attempt }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/offline-receipts
+      - name: Require complete actual execution with no new skips
+        run: python -B scripts/offline_suite.py verify --reports "${{ runner.temp }}/offline-receipts" --count 4 --platform "${{ runner.os }}"

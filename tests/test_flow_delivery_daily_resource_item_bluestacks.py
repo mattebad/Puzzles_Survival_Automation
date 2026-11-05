@@ -40,7 +40,13 @@ from tasks.runtime_identity import (
     resource_fixed_runtime_binding,
 )
 
+from tests.ocr_memo import install_module_memo
 from tests.support.environment import requires_tesseract
+
+
+def setUpModule():
+    # Delivery/accounting replays still run real OCR for each distinct input.
+    install_module_memo()
 
 
 REPO = Path(__file__).resolve().parents[1]

@@ -18,6 +18,21 @@ manifest, or a manual flow ledger.
   runtime input, expand the task, or grant permission to alter protected state.
 - Full-suite discovery is manual opt-in, not a routine development gate.
 
+## Continuous-integration coverage
+
+Every PR runs complete discovery on both Windows and Linux, partitioned into four
+whole-module slices per OS. Scheduling costs are not a module allowlist: new test
+modules are discovered and assigned automatically. The per-OS aggregate requires
+all successful current-attempt receipts, actual execution of every discovered
+case exactly once, matching revisions, and no new skip IDs. Rerun all jobs when
+retrying an attempt; receipts from earlier attempts cannot fill gaps.
+
+`python scripts/check.py` and the existing hygiene checks still run on both OSes.
+Local full discovery remains opt-in; focused checks remain the normal development
+gate. Measurements, retained recognition coverage and the Supply repeat decision
+are in [the issue #47 validation record](validation/ticket-47/README.md).
+
+
 ## Separate live authorization and existing controls
 
 No test result, review, document, receipt, or retained capture grants live authorization.
