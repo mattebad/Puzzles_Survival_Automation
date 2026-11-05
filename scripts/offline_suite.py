@@ -82,6 +82,9 @@ def validate_receipts(
         if revision is not None and receipt["revision"] != revision:
             raise ValueError("Shard receipt belongs to another revision")
         discovered = Counter(receipt["discovered_ids"])
+        duplicate_ids = [name for name, copies in discovered.items() if copies > 1]
+        if duplicate_ids:
+            raise ValueError("Duplicate discovered test IDs: " + ", ".join(sorted(duplicate_ids)))
         if expected is None:
             expected = discovered
         elif discovered != expected:

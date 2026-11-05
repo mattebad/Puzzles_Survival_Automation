@@ -135,6 +135,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
+      - name: Require successful execution jobs
+        shell: bash
+        env:
+          EXECUTION_RESULT: ${{ needs.offline-shard.result }}
+        run: test "$EXECUTION_RESULT" = success
       - name: Check out coverage verifier and measured baseline
         uses: actions/checkout@v7
       - name: Set up Python 3.11

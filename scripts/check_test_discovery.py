@@ -1,6 +1,7 @@
 """Fail CI if unittest discovery omits any top-level test module."""
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 import sys
 import unittest
@@ -23,6 +24,9 @@ def validate_discovery(directory: Path, suite: unittest.TestSuite) -> tuple[int,
     """
     expected = {f"{directory.name}.{path.stem}" for path in directory.glob("test_*.py")}
     cases = list(_cases(suite))
+    duplicate_ids = [name for name, count in Counter(case.id() for case in cases).items() if count > 1]
+    if duplicate_ids:
+        raise RuntimeError("Duplicate discovered test IDs: " + ", ".join(sorted(duplicate_ids)))
     observed = {".".join(case.id().split(".", 2)[:2]) for case in cases}
     missing = expected - observed
     if missing:
