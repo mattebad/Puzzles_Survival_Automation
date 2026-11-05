@@ -88,6 +88,27 @@ comparisons are reported in PR #50, separately from instrumented local timings;
 runner image, package-install and cache variability prevent attributing every
 elapsed difference to this change.
 
+## Hosted chronology-fixture follow-up
+
+[Run 41971247527](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41971247527)
+exposed a Personal Might recovery chronology error on Windows in a module
+identical to the baseline. Both Windows clocks report 15.625 ms resolution;
+zero-delay synthetic successors can tie. Equal successor UTC timestamps
+deterministically reproduce the production rejection. The failed attempt is
+retained, not retried to obtain green.
+
+Only the synthetic original-action fixture now injects one shared advancing
+event timeline into captures, UTC events, identity, leases and both policy clocks.
+The production ordering checks and every original assertion remain unchanged.
+Two additional negative subcases require the exact rejection for tied UTC and
+tied monotonic successor timestamps, with zero recovery input and the unresolved
+action retained. No test ID is added by these subcases.
+
+The full 30-case module passes on both local OSes. A direct source-action and
+recovery-proof smoke under completely flat underlying clocks also succeeds on
+both: five strictly ordered native fixture captures, one original dispatch and
+zero recovery input. Static ratchets remain unchanged.
+
 ## Coverage and scope decisions
 
 Actual discovery remains 240 modules: 3,169 old cases plus two new duplicate-ID
@@ -107,6 +128,9 @@ No test deletion had an equally strong assertion replacement map, so no tests
 were retired. The eight fresh-process Supply probes, sanitized controlled suite,
 compilation, Git hygiene and both OS gates remain. Native Enhancement proof is
 not memoized for its three repeated inputs. Recruitment's expensive cooldown
-case has zero measured OCR and completed sleeps; virtual cooldown values do not
-explain its wall cost, so it is unchanged. Existing pip caching is retained;
-there is no speculative installed-environment/Tesseract cache or extra runner.
+case has zero measured OCR and completed sleeps. A subsequent single-case
+profile attributes 27.8 of 30.0 seconds to nine eager Atlas-localizer constructors:
+270 feature extractions, but no `localize` calls. Avoiding unused construction in
+that already-faked fixture is a concrete next candidate, not an implemented or
+verified optimization in this pass. Existing pip caching is retained; there is
+no speculative installed-environment/Tesseract cache or extra runner.
