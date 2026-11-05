@@ -430,3 +430,23 @@ Removing the unused timer-test mock binding also shrinks its Ruff `F841`
 allowance from two to one. Actual Ruff findings fall from 257 to 256; Vulture
 remains 457 and mypy 376 over the same 440 active Python files. No allowance is
 raised or transferred to another file or code.
+
+## Follow-up: wall-clock freshness proof
+
+Implemented and locally offline-proven; exact-head Windows/Linux hosted results
+are recorded in PR #50. No production behavior or test ID changes.
+
+The old wall-clock test compared two identical policy denials. Its OCR capture
+timestamp did not match its frame timestamp, so both evaluations returned
+`INVALID_PERCEPTION_BINDING` rather than exercising an authorized fresh frame.
+The retained method now binds both timestamps to the same capture and varies
+wall time forward and backward by a day. At each wall time it checks authorization
+for a fresh frame and the exact two-second dispatch-age boundary, plus
+`STALE_FRAME` rejection immediately beyond the boundary and for a future capture.
+
+The complete 17-case module passes locally. A throwaway policy mutation that
+uses wall time instead of the supplied monotonic time survives the old assertion
+but fails all six fresh-frame subcases in the strengthened test. Production code
+and shared clock functions are restored after the smoke; no mutation is retained.
+The separate Windows performance hold remains until its hosted comparison is
+resolved.
