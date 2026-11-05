@@ -1,0 +1,58 @@
+name: Windows assignment comparison (temporary)
+
+on:
+  push:
+    branches: [wt/ci-windows-performance-pair]
+
+permissions:
+  contents: read
+
+jobs:
+  paired:
+    name: Matched assignments (Windows, shard ${{ matrix.shard }})
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      OMP_THREAD_LIMIT: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Enable retained-evidence paths
+        run: git config --global core.longpaths true
+      - name: Check out frozen diagnostic and source history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Set up canonical Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install canonical dependencies
+        run: python -m pip install --requirement requirements-dev.txt
+      - name: Install canonical native OCR
+        shell: pwsh
+        run: |
+          choco install tesseract --version=5.5.3.20260724 --no-progress -y
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "C:\Program Files\Tesseract-OCR" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Retain runner CPU and image identity
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP "assignment-pair-${{ matrix.shard }}"
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          @{ processor = @(Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors); image_version = $env:ImageVersion; image_os = $env:ImageOS } | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 (Join-Path $root "hardware.json")
+      - name: Run both complete assignments on the same VM
+        run: python -B .github/windows-performance-pair/runner.txt pair --index ${{ matrix.shard }} --output "${{ runner.temp }}/assignment-pair-${{ matrix.shard }}"
+      - name: Preserve complete comparison and partial failure evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-assignment-pair-${{ github.run_attempt }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/assignment-pair-${{ matrix.shard }}
+          if-no-files-found: error
+          retention-days: 14

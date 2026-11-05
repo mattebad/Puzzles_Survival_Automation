@@ -1,0 +1,162 @@
+"""Temporary diagnostic; no production inputs, test edits or outcome replacements."""
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+import json
+import os
+from pathlib import Path
+import platform
+import subprocess
+import sys
+import time
+
+SOURCE = "ae6ce49efff7030ebb637f320f66a2d7ae42f261"
+OLD_WEIGHTS = "3aaa0e674c0f1b0e8c832d32b2de61f7108d24ee"
+STATIC_BASE = "51ac935e1d781376990a43f7ee1a8cf1795cd97a"
+COST_PATH = ".github/offline-test-costs.json"
+SUPPLY = (
+    "tests.test_supply_depot_vision.SupplyDepotVisionTests.test_actual_hud_occluded_radial_stays_recognized_but_not_actionable",
+    "tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_raised_radial_uses_tight_label_and_book_occlusion_stays_blocked",
+    "tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_collapsed_drawer_keeps_safe_button_despite_covered_lower_caption",
+    "tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_real_daylight_circle_survives_proposal_variation_with_same_final_gates",
+    "tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_actual_reset_hud_caption_binds_only_with_complete_word_and_safe_button",
+)
+
+
+def save(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+
+
+def observed_result(base):
+    class Observed(base):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.case_timings = []
+            self.started = {}
+
+        def startTest(self, test):
+            super().startTest(test)
+            self.started[test.id()] = (time.perf_counter(), time.process_time())
+
+        def stopTest(self, test):
+            started_wall, started_cpu = self.started.pop(test.id())
+            self.case_timings.append({
+                "id": test.id(),
+                "seconds": time.perf_counter() - started_wall,
+                "parent_cpu_seconds": time.process_time() - started_cpu,
+            })
+            super().stopTest(test)
+    return Observed
+
+
+def observe(args) -> int:
+    sys.path.insert(0, str(args.root))
+    from scripts import offline_suite
+    measured = observed_result(offline_suite.ExecutionResult)
+    results = []
+
+    class Captured(measured):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            results.append(self)
+
+    offline_suite.ExecutionResult = Captured
+    try:
+        return offline_suite.main([
+            "--costs", str(args.costs), "run", "--index", str(args.index),
+            "--count", "4", "--output", str(args.receipt),
+        ])
+    finally:
+        save(args.events, [item for result in results for item in result.case_timings])
+
+
+def pair(args) -> int:
+    root = Path(__file__).resolve().parents[2]
+    output = args.output.resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    helper = Path(__file__).resolve()
+    old = json.loads(subprocess.check_output(
+        ["git", "show", f"{OLD_WEIGHTS}:{COST_PATH}"], cwd=root, text=True,
+    ))
+    candidate = json.loads(subprocess.check_output(
+        ["git", "show", f"{SOURCE}:{COST_PATH}"], cwd=root, text=True,
+    ))
+    assert old["allowed_skips"] == candidate["allowed_skips"]
+    save(output / "baseline-costs.json", old)
+    save(output / "candidate-costs.json", candidate)
+    save(output / "environment.json", {
+        "source": SOURCE, "old_weights_source": OLD_WEIGHTS,
+        "diagnostic_revision": os.environ.get("GITHUB_SHA"),
+        "python": sys.version, "platform": platform.platform(),
+        "cpu_count": os.cpu_count(),
+        "tesseract": subprocess.check_output(["tesseract", "--version"], text=True),
+        "dependencies": subprocess.check_output([sys.executable, "-m", "pip", "freeze"], text=True),
+    })
+    order = ("baseline", "candidate") if args.index % 2 == 0 else ("candidate", "baseline")
+    phases = []
+    save(output / "plan.json", {"source": SOURCE, "index": args.index, "order": order})
+    for mode in order:
+        checkout = output.parent / f"assignment-source-{args.index}-{mode}"
+        subprocess.run(["git", "worktree", "add", "--detach", str(checkout), SOURCE], cwd=root, check=True)
+        temp = output.parent / f"assignment-tmp-{args.index}-{mode}"
+        temp.mkdir()
+        env = dict(os.environ, GITHUB_SHA=SOURCE, TMPDIR=str(temp), TMP=str(temp), TEMP=str(temp))
+        costs = output / f"{mode}-costs.json"
+        receipt = output / f"{mode}-report-{args.index}.json"
+        phase = {"mode": mode, "index": args.index, "commands": []}
+        phases.append(phase)
+        started = time.perf_counter()
+
+        def run(label, command):
+            print(f"::group::{mode} shard {args.index}: {label}", flush=True)
+            begin = time.perf_counter()
+            result = subprocess.run(command, cwd=checkout, env=env)
+            phase["commands"].append({"name": label, "seconds": time.perf_counter() - begin, "exit": result.returncode})
+            save(output / "phases.json", phases)
+            print("::endgroup::", flush=True)
+            result.check_returncode()
+
+        if args.index == 0:
+            run("static", [sys.executable, "-B", "scripts/check_static.py", "--base-ref", STATIC_BASE])
+            for attempt in range(8):
+                run(f"native-supply-{attempt + 1}", [sys.executable, "-B", "-m", "unittest", *SUPPLY])
+        run("suite", [
+            sys.executable, "-B", str(helper), "observe", "--root", str(checkout),
+            "--costs", str(costs), "--index", str(args.index),
+            "--receipt", str(receipt), "--events", str(output / f"{mode}-case-times.json"),
+        ])
+        if args.index == 0:
+            run("controlled", [sys.executable, "-B", "scripts/check.py"])
+            run("compile", [sys.executable, "-m", "compileall", "-q", "automation_service", "safe_action_core", "scripts", "tasks"])
+            run("whitespace", ["git", "diff", "--check", f"{STATIC_BASE}...{SOURCE}"])
+        phase["seconds"] = time.perf_counter() - started
+        data = json.loads(receipt.read_text(encoding="utf-8"))
+        events = json.loads((output / f"{mode}-case-times.json").read_text(encoding="utf-8"))
+        assert Counter(item["id"] for item in events) == Counter(data["executed_ids"])
+        assert data["success"] and not data["failures"] and not data["errors"]
+        assert not set(data["skipped_ids"]) - set(candidate["allowed_skips"]["Windows"])
+        phase["tests_run"] = data["tests_run"]
+        save(output / "phases.json", phases)
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subs = parser.add_subparsers(dest="mode", required=True)
+    paired = subs.add_parser("pair")
+    paired.add_argument("--index", type=int, choices=range(4), required=True)
+    paired.add_argument("--output", type=Path, required=True)
+    observed = subs.add_parser("observe")
+    observed.add_argument("--root", type=Path, required=True)
+    observed.add_argument("--costs", type=Path, required=True)
+    observed.add_argument("--index", type=int, choices=range(4), required=True)
+    observed.add_argument("--receipt", type=Path, required=True)
+    observed.add_argument("--events", type=Path, required=True)
+    args = parser.parse_args()
+    return pair(args) if args.mode == "pair" else observe(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
