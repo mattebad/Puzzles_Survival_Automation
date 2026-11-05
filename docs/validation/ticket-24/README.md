@@ -45,16 +45,27 @@ without changing state bytes or creating reservations.
 ## Combined #24/#30 integration
 
 Candidate `9cffb17` combines both reviewed branches without rewriting history.
-Discovery covers 239 modules / 3,160 cases. Windows full discovery passes with
-43 environment skips; the controlled check passes 397 cases without skips on
-both Windows and Linux.
+Discovery covers 239 modules. Local Windows full discovery passes with 43
+environment skips.
 
 Docker Linux full discovery has one failure in the unchanged
 `test_supply_claim_button` before-frame binding case, with 41 skips. A targeted
 diagnostic observes `OCR_DEADLINE` in its broad-crop recognition at the existing
 1.75-second execution limit. No assertion, recognition gate or timeout was changed.
-The owner authorized publishing to draft PR #40 for hosted Ubuntu/Windows proof;
-that combined CI evidence remains `evidence_required` until both jobs pass.
+The owner authorized publishing to draft PR #40 for hosted Ubuntu/Windows proof.
+
+[Hosted run 41937776289](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41937776289)
+on `93cab54` passes both complete suites and controlled checks:
+
+| Hosted OS | Full cases | Full skips | Controlled cases | Controlled skips |
+| --- | ---: | ---: | ---: | ---: |
+| Ubuntu | 3,160 | 41 | 397 | 0 |
+| Windows | 3,160 | 36 | 397 | 0 |
+
+Both jobs fail only the final whitespace gate: five retained #30 receipts contain
+CRLF. A path-specific `cr-at-eol` attribute preserves those historical bytes and
+the remaining whitespace checks. Overall CI remains `evidence_required` until the
+corrected head passes both jobs; no test, timeout or production behavior changed.
 
 All 66 affected contract/route/CLI checks pass with process launching forbidden.
 An actual offline service smoke rejects omitted selection without claims or

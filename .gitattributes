@@ -40,3 +40,11 @@ evidence/sessions/20260713-gnbots-reference-manifest/record.md -text
 evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/record.md -text
 evidence/sessions/20260713-personal-might-praise/live-praise-resume-017-no-input/record.md -text
 evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/record.md -text
+
+# Retained #30 proof receipts were recorded with CRLF; preserve their bytes while
+# keeping ordinary trailing-space and terminal-blank-line checks enabled.
+docs/validation/ticket-30/case-map.json -text whitespace=cr-at-eol
+docs/validation/ticket-30/cases-after.txt -text whitespace=cr-at-eol
+docs/validation/ticket-30/cases-before.txt -text whitespace=cr-at-eol
+docs/validation/ticket-30/mutation-proofs.json -text whitespace=cr-at-eol
+docs/validation/ticket-30/sweep-comparison.json -text whitespace=cr-at-eol
