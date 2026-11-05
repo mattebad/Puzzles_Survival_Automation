@@ -6,9 +6,10 @@ This records local measurements; exact-head hosted proof and current-attempt
 receipts are linked from [PR #50](https://github.com/mattebad/Puzzles_Survival_Automation/pull/50).
 Local timing improvements do not substitute for its complete hosted checks.
 
-PR #50 remains draft/on hold for the unresolved hosted Windows performance
-attribution. The approved assertion-redundancy cleanup below does not establish
-a performance win or authorize adopting the recalibrated weights.
+PR #50 remains draft and review-required. Its Windows code-regression hold is
+resolved by the matched hosted comparison below; the recalibrated weights pass
+the predeclared retention rule. This is not a guaranteed end-to-end speedup or
+an explanation of the historical host's unretained CPU/resource traces.
 
 ## Comparable local measurements
 
@@ -448,8 +449,8 @@ The complete 17-case module passes locally. A throwaway policy mutation that
 uses wall time instead of the supplied monotonic time survives the old assertion
 but fails all six fresh-frame subcases in the strengthened test. Production code
 and shared clock functions are restored after the smoke; no mutation is retained.
-The separate Windows performance hold remains until its hosted comparison is
-resolved.
+The separate Windows code-regression hold was subsequently resolved by the
+matched full-assignment comparison recorded below.
 
 ## Follow-up: Windows survey fixture chronology
 
@@ -474,3 +475,55 @@ canonical TEMP-volume behavior and selects the outer execution result by its
 actual receipt IDs; nested fixture bodies still run but cannot inflate timing
 coverage. The frozen-source comparison and final hosted proof remain recorded
 separately in PR #50.
+
+## Follow-up: matched hosted Windows performance disposition
+
+The corrected [comparison run 42119774106](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/42119774106)
+passed all four jobs using frozen source `5018a92`. Every VM ran both the
+pre-recalibration weights from `3aaa0e6` and the current weights, with order
+counterbalanced across the four VMs. Each assignment used separate fresh source
+worktrees, processes and canonical-volume TEMP directories. Package installation
+and initial checkout were shared, not attributed to scheduling.
+
+Both assignments passed the canonical receipt verifier: exactly 3,159 IDs once,
+the same 36 Windows skips, no failures/errors/new skips. Actual per-case timings
+match only the outer receipt IDs; nested fixture bodies remain real. Shard zero
+keeps all eight native Supply repetitions, static ratchets, the supported
+395-case command, compilation and whitespace checks for each assignment.
+
+| Matched check/test phase, seconds | Old weights | Recalibrated weights |
+| --- | ---: | ---: |
+| Longest phase across four shards | 603.174 | 577.768 |
+| Sum of four phases | 2,159.034 | 2,070.435 |
+| Sum of suite subprocess times | 1,813.725 | 1,726.991 |
+
+The measured phases exclude shared setup and per-mode source checkout. These
+are one counterbalanced pair, not two complete independent workflow-duration
+samples or a statistical guarantee. Both the longest phase and aggregate measured
+time improve, satisfying the rule frozen before the run. Retain the recalibrated
+weights; no further tuning, runner addition, timeout reduction or test retirement
+is part of this follow-up. The code-regression hold is cleared, not the draft or
+required-review gates.
+
+The same Campaign AP module runs on the same VM in both assignments: its 31
+case durations, including per-case fixtures, sum to 82.601 and 82.893 seconds. The ordering change does
+not reproduce the historical approximately 181.6-second log-derived estimate.
+This corroborates the earlier isolated ordering probe without treating log
+timestamps as precise per-case clocks.
+
+Actual hosted hardware varies even within this one matrix: AMD EPYC 7763,
+Intel Xeon Platinum 8370C and AMD EPYC 9V74, with Windows images
+`20261030.294.1` and `20261103.298.1`. Matching each before/after pair to the same
+VM controls that variation for this comparison; it does not recover old resource
+traces. Historically the longest Windows job increased by 41 seconds while its
+suite phase fell by 32, leaving 73 seconds of increase outside the suite. That
+is arithmetic across different longest jobs, not proof of a specific host cause.
+The original host-level CPU/resource attribution remains `evidence_required`;
+no historical receipt or failed experiment is relabeled as successful.
+
+Full canonical Windows/Linux correctness for the frozen source passed
+[run 42119600618](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/42119600618),
+with all ten jobs green, all 3,159 IDs once per OS, and the unchanged 41 Linux /
+36 Windows skip identities. Final-head canonical proof is linked from PR #50.
+The temporary diagnostic is retired after preserving its source, logs, hardware,
+case timings and receipts outside the working tree and in immutable Git history.
