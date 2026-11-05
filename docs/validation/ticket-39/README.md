@@ -50,6 +50,23 @@ methods cover new dimensions, removed debt files, and unchanged totals that
 attempt to transfer debt to another file or analyzer. Complete discovery assigns
 the new test module automatically; no test allowlist or skip is added.
 
+## Hosted timing correction
+
+[The first hosted attempt](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41953493819)
+passed both static gates and complete Linux discovery. Windows failed the existing
+`test_expensive_planner_runs_once_and_transport_uses_actual_new_capture`: no
+swipe reached its fake backend. The original inner rejection reason was not
+retained. A controlled 101ms post-capture overrun reproduces that exact assertion
+via the unchanged 100ms freshness guard, demonstrating a wall-clock dependency.
+
+The planner-delay and validation-expiry scenarios now reuse the existing test
+`Clock`, with the same 150ms logical delays and 100ms frame limit. Every original
+assertion stays; exact maximum-step/stale-source reasons and an explicit expiry
+assertion make the cases stricter. All 20 affected cases pass with process
+launches blocked. A throwaway mutation that disables only the age guard fails
+the expiry test and produces one forbidden swipe in the fake backend. No
+production timeout or runtime behavior changes, and no test ID is removed.
+
 ## Explicit shrinking type-debt list
 
 All 35 Python files in `safe_action_core/` and `automation_service/` are analyzed.
