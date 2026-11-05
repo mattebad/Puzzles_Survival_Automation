@@ -114,13 +114,23 @@ class CampaignNativeActualProposalTests(unittest.TestCase):
 
     @contextmanager
     def case(self, *, native_pair=False) -> Iterator[_CampaignCase]:
+        from unittest.mock import patch
+
+        def prepared_localizer(atlas, manifest):
+            self.assertEqual(atlas, self.atlas)
+            self.assertEqual(Path(manifest).resolve(), ATLAS.resolve())
+            return self.localizer
+
         with tempfile.TemporaryDirectory() as directory:
             binding = self.pair_binding if native_pair else self.binding
             self.assertIsNotNone(binding)
             self.assertEqual(binding.target_roi, (402, 183, 560, 342) if native_pair else (411, 356, 560, 506))
             case = _CampaignCase(Path(directory), binding, native_pair=native_pair)
             try:
-                yield case
+                # Only immutable reference preparation is shared; localization
+                # and binding still run independently on the immediate frame.
+                with patch.object(home, "BlueStacksHomeLocalizer", side_effect=prepared_localizer):
+                    yield case
             finally:
                 case.store.close()
                 self.assertEqual(HOME_FRAME.read_bytes(), self.original_png)

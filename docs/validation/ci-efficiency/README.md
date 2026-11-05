@@ -198,11 +198,8 @@ key multisets are unchanged.
 
 ## Remaining opportunities and rejected work
 
-- Reuse immutable Atlas reference preparation in native proposal fixtures only
-  where fresh current-frame localization and binding still run. For example,
-  Campaign's proposal class already owns a real localizer, but dispatch builds
-  more reference data. This requires a separate coverage and mutation review;
-  no native reference cache is introduced here.
+- Native Campaign reference preparation was subsequently implemented with fresh
+  frame proof retained; its measurements and mutation checks are recorded below.
 - Recalibrate the existing four-shard cost weights after these measured work
   reductions. Keep whole modules, both OSes and the current runner count; balance
   is a latency optimization, not a reduction in test work. Weights remain fixed
@@ -214,3 +211,47 @@ key multisets are unchanged.
   keys on each OS, leaving no same-test repeated work for that cache to remove.
 - No redundant test has an equally strong replacement map. No test is retired,
   native timeout shortened, stress repetition removed or extra runner added.
+
+## Follow-up: native Campaign reference preparation
+
+Implemented and offline-proven on Windows and Linux from baseline `5bd722f`.
+Exact-head combined hosted acceptance is reported in PR #50. The actual-proposal
+class already prepares a real Atlas localizer for its planning frames. Its case
+context now reuses that real model only after checking full Atlas equality and
+resolved manifest-path equality. The production dispatcher still independently
+localizes and binds each immediate frame. No frame result, OCR result, policy
+decision or transport result is cached or substituted.
+
+Three sequential fresh-process complete-module samples per source and OS, using
+the unchanged OCR/sleep observer and the same call profiler:
+
+| Instrumented elapsed median | Before | After |
+| --- | ---: | ---: |
+| Windows | 25.453 s | 17.765 s |
+| Linux | 28.989 s | 22.549 s |
+
+| Actual work per complete module, identical on both OSes | Before | After |
+| --- | ---: | ---: |
+| Native localizer constructions | 3 | 1 |
+| Feature extractions | 94 | 34 |
+| Image reads | 126 | 66 |
+| Fresh native localizations | 4 | 4 |
+| Real OCR attempts | 72 | 72 |
+
+All three original test bodies and assertions remain unchanged. Per-case exact
+OCR pixel/options multisets match across all six samples on each OS. Constructor
+validation still runs when the class prepares its real model; the dispatch-time
+factory guard rejects a changed Atlas or manifest rather than reusing mismatched
+reference data. The localizer's reference state is read-only on this call path,
+not a new production cache or shared mutable route state.
+
+Actual native-route smokes on both OSes reject stale planning localization and
+binding before capability issuance/input, and reject a valid native-sized
+featureless immediate frame through real localization. The unchanged native-pair
+test fails when a mutation copies the planning ROI but retains the fresh digest.
+Reference images, keypoints, descriptors, transforms and nested Atlas data remain
+unchanged across normal and failing cases. Constructor aliases restore after
+both exit paths, and a subsequent normal native dispatch still succeeds.
+Independent source review found no actionable defect. Raw profiles, observer
+records and mutation outputs are retained outside Git; no live acceptance is
+claimed.
