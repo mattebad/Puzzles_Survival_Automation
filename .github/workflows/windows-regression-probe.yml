@@ -1,0 +1,93 @@
+name: Windows regression causal probe (temporary)
+
+on:
+  push:
+    branches: [wt/ci-windows-regression-probe]
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: Same-Windows old and new shard order
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      OMP_THREAD_LIMIT: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Enable long retained-evidence paths
+        run: git config --global core.longpaths true
+      - name: Check out diagnostic source and ancestry
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Match the Python version in both historical runs
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11.9"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install unchanged developer dependencies
+        run: python -m pip install --requirement requirements-dev.txt
+      - name: Match the historical Windows OCR package
+        shell: pwsh
+        run: |
+          choco install tesseract --version=5.5.3.20260724 --no-progress -y
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "C:\Program Files\Tesseract-OCR" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Stage passive diagnostics outside the source inventory
+        shell: pwsh
+        run: |
+          $proof = Join-Path $env:RUNNER_TEMP 'windows-regression-probe'
+          $tools = Join-Path $proof 'profile-tools'
+          New-Item -ItemType Directory -Path $tools -Force | Out-Null
+          Copy-Item '.github/windows-regression-probe/ordered-runner.txt' (Join-Path $proof 'ordered_runner.py')
+          Copy-Item '.github/windows-regression-probe/observer.txt' (Join-Path $tools 'ticket47_profile.py')
+          Copy-Item '.github/windows-regression-probe/shard-orders.json' (Join-Path $proof 'shard-orders.json')
+          "PNS_PROFILE_TOOLS=$tools" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          @{
+            image_os = $env:ImageOS
+            image_version = $env:ImageVersion
+            processor = @(Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors)
+            operating_system = @(Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber, TotalVisibleMemorySize)
+            python = (& python --version 2>&1 | Out-String)
+            tesseract = (& tesseract --version 2>&1 | Out-String)
+            dependencies = (& python -m pip freeze | Out-String)
+            source_sha = '${{ github.sha }}'
+            held_pr50_source = 'a3e7c845c1350b7067e3f1cfa0d8459f122a22de'
+          } | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $proof 'environment.json') -Encoding utf8
+      - name: Compare fresh processes on this one Windows runner
+        shell: pwsh
+        run: |
+          $proof = Join-Path $env:RUNNER_TEMP 'windows-regression-probe'
+          $runner = Join-Path $proof 'ordered_runner.py'
+          $experiments = @(
+            @{ Name = 'solo-start'; Mode = 'solo' },
+            @{ Name = 'baseline-order'; Mode = 'baseline' },
+            @{ Name = 'candidate-order'; Mode = 'candidate' },
+            @{ Name = 'solo-end'; Mode = 'solo' }
+          )
+          $results = @()
+          $failed = $false
+          foreach ($experiment in $experiments) {
+            $name = $experiment.Name
+            $output = Join-Path $proof $name
+            $started = (Get-Date).ToUniversalTime().ToString('o')
+            Write-Output "Starting $name at $started"
+            & python -B $runner "$PWD" $proof $output $experiment.Mode 1> (Join-Path $proof "$name.stdout.log") 2> (Join-Path $proof "$name.stderr.log")
+            $code = $LASTEXITCODE
+            $results += @{ name = $name; mode = $experiment.Mode; exit_code = $code; started = $started; ended = (Get-Date).ToUniversalTime().ToString('o') }
+            if ($code -ne 0) { $failed = $true }
+            $results | ConvertTo-Json -Depth 5 | Set-Content -Path (Join-Path $proof 'experiment-exits.json') -Encoding utf8
+            Write-Output "Completed $name with exit code $code"
+          }
+          if ($failed) { exit 1 }
+      - name: Retain all measurements including failures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-regression-causal-probe-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/windows-regression-probe
+          if-no-files-found: error
+          retention-days: 14
