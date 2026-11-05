@@ -47,10 +47,6 @@ class NovaPraiseContractTests(unittest.TestCase):
             captured_monotonic=captured_monotonic,
         )
 
-    def test_attempt_counting(self):
-        self.assertEqual(self.obs().attempts_remaining, 7)
-        self.assertEqual(replace(self.obs(), attempts_remaining=0).attempts_remaining, 0)
-
     def test_one_attempt_decrement_and_cooldown_postcondition(self):
         before = self.obs()
         after = self.after_decrement(cooldown_seconds=299, captured_monotonic=101.0)

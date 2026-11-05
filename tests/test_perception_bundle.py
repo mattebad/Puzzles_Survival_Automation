@@ -293,6 +293,7 @@ class PerceptionBundleTests(unittest.TestCase):
         self.assertEqual(generated["schema_version"], SCHEMA_VERSION)
         encoded = json.dumps(generated, sort_keys=True)
         self.assertNotIn("numpy", encoded.lower())
+        self.assertNotIn("dtype", encoded.lower())
         self.assertNotIn("ndarray", encoded.lower())
 
     def test_transport_digest_differs_from_semantic_digest(self):
@@ -335,12 +336,6 @@ class PerceptionBundleTests(unittest.TestCase):
         bundle = bundle_from_identity(identity).with_localization(observation)
         with self.assertRaises(Exception):
             bundle.localization = None  # type: ignore[misc]
-
-    def test_serialized_bundle_retains_no_numpy_frame(self):
-        payload = bundle_evidence_snapshot(home_bundle())
-        blob = json.dumps(payload, sort_keys=True)
-        self.assertNotIn("dtype", blob)
-        self.assertNotIn("ndarray", blob)
 
     def test_neutral_module_exposes_no_capture_entrypoint(self):
         self.assertFalse(hasattr(perception_bundle_module, "capture"))
@@ -461,18 +456,6 @@ class PerceptionBundleTests(unittest.TestCase):
         with self.assertRaises(PerceptionBundleError) as raised:
             bundle.checked_navigation_inputs()
         self.assertIn(raised.exception.reason_code, {"FORBIDDEN_SURFACE", "CONTEXT_NOT_CANONICAL_HOME"})
-
-    def test_checked_navigation_rejects_noncanonical_zoom(self):
-        identity = fixture_identity()
-        zoomed = localization_result(identity, zoom_identity=ZoomIdentity.ZOOMED_IN)
-        bundle = classify_and_attach(
-            bundle_from_identity(identity)
-            .with_frame_validation(frame_validation(identity))
-            .with_localization(localization_from_result(identity, zoomed))
-        )
-        with self.assertRaises(PerceptionBundleError) as raised:
-            bundle.checked_navigation_inputs()
-        self.assertIn(raised.exception.reason_code, {"NONCANONICAL_ZOOM", "CONTEXT_NOT_CANONICAL_HOME"})
 
     def test_checked_navigation_allows_missing_attached_context_when_derived_is_canonical(self):
         identity = fixture_identity()

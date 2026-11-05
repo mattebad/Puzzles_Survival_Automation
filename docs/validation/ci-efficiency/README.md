@@ -6,6 +6,10 @@ This records local measurements; exact-head hosted proof and current-attempt
 receipts are linked from [PR #50](https://github.com/mattebad/Puzzles_Survival_Automation/pull/50).
 Local timing improvements do not substitute for its complete hosted checks.
 
+PR #50 remains draft/on hold for the unresolved hosted Windows performance
+attribution. The approved assertion-redundancy cleanup below does not establish
+a performance win or authorize adopting the recalibrated weights.
+
 ## Comparable local measurements
 
 The before source is `51ac935`; the measured candidate code is `175be73`.
@@ -111,11 +115,11 @@ zero recovery input. Static ratchets remain unchanged.
 
 ## Coverage and scope decisions
 
-Actual discovery remains 240 modules: 3,169 old cases plus two new duplicate-ID
-rejection regressions, for 3,171. No old ID is removed or renamed. The local
-Windows symlink skip is unchanged in all targeted samples. Hosted acceptance
-must preserve the existing 41 Linux / 36 Windows skip identities, not merely
-match skip totals.
+Before the subsequent assertion-redundancy cleanup below, actual discovery was
+240 modules: 3,169 original cases plus two new duplicate-ID rejection regressions,
+for 3,171. That original pass removed or renamed no old ID. Its local Windows
+symlink skip was unchanged. Hosted acceptance compares the existing 41 Linux /
+36 Windows skip identities, not merely skip totals.
 
 All 397 supported controlled checks and 58 native freshness/process-timeout
 safety cases pass independently on both local OSes. The 11 discovery/receipt
@@ -124,9 +128,11 @@ Python files, 257 Ruff / 457 Vulture / 376 mypy findings. These are bounded debt
 not claims of a clean static analysis. Two independent read-only reviews found
 no actionable defect in the gate/workflow and timing/OCR deltas.
 
-No test deletion had an equally strong assertion replacement map, so no tests
-were retired. The eight fresh-process Supply probes, sanitized controlled suite,
-compilation, Git hygiene and both OS gates remain. Native Enhancement proof is
+During the original pass, no test deletion had an equally strong assertion
+replacement map, so no tests were retired. The later owner-approved cleanup
+below records its explicit maps and inventory delta. The eight fresh-process
+Supply probes, sanitized controlled command, compilation, Git hygiene and both
+OS gates remain. Native Enhancement proof is
 not memoized for its three repeated inputs. Recruitment's expensive cooldown
 case has zero measured OCR and completed sleeps. A subsequent single-case
 profile attributes 27.8 of 30.0 seconds to nine eager Atlas-localizer constructors:
@@ -208,8 +214,8 @@ key multisets are unchanged.
 - Do not add the previous per-test OCR memo pattern to Campaign service tests:
   retained profiles show 239 actual calls and 239 per-test distinct input/options
   keys on each OS, leaving no same-test repeated work for that cache to remove.
-- No redundant test has an equally strong replacement map. No test is retired,
-  native timeout shortened, stress repetition removed or extra runner added.
+- The later assertion audit established the explicit replacement maps below.
+  No native timeout, stress repetition or runner count is reduced.
 
 ## Follow-up: native Campaign reference preparation
 
@@ -310,3 +316,117 @@ reserve. Final hosted execution must prove the new co-location preserves actual
 coverage and outcomes. Full timing derivation, module migrations, simulations and
 raw logs remain outside Git; no assertion, timeout, skip, test ID or safety gate
 is weakened.
+
+## Follow-up: approved assertion-redundancy cleanup
+
+Implemented, test-only and locally offline-proven; complete exact-head hosted
+Windows/Linux results are reported in PR #50. This is a later owner-approved
+change to the original pass's no-retirement scope, not an unexplained inventory
+loss. Production code, weights, skip allowlists and workflow gates are unchanged.
+
+| Actual discovered scope | Before cleanup | After cleanup |
+| --- | ---: | ---: |
+| Test modules | 240 | 240 |
+| Complete discovery cases | 3,171 | 3,159 |
+| Supported controlled-command cases | 397 | 395 |
+| Added or renamed IDs | 0 | 0 |
+
+The only removed IDs are the twelve mapped below. The controlled command keeps
+the same 22-module selection; its two retired cases have retained replacements
+inside that same selection. The two duplicate-discovery regressions remain.
+All native recognition, variant/mutation rows, recovery-count rows and eight
+fresh-process Supply repetitions remain.
+
+### Exact retirement map
+
+1. `tests.test_perception_bundle.PerceptionBundleTests.test_checked_navigation_rejects_noncanonical_zoom`
+   → `tests.test_perception_bundle.PerceptionBundleTests.test_checked_navigation_rejects_unknown_context`.
+   Identical zoomed-in localization, frame validation, navigation consumer and
+   accepted denial reasons; the retained case also asserts `UNKNOWN` context.
+2. `tests.test_perception_bundle.PerceptionBundleTests.test_serialized_bundle_retains_no_numpy_frame`
+   → `tests.test_perception_bundle.PerceptionBundleTests.test_versioned_deterministic_evidence_snapshot_matches_fixture`.
+   Same bundle and serializer. The retained case compares the complete fixture,
+   pins schema name/version and now explicitly rejects `dtype` as well as
+   `numpy`/`ndarray`.
+3. `tests.test_flow_delivery_troop_training.TroopTrainingFlowDeliveryTests.test_live_canary_admission_allows_four_total_with_zero_prior_dispatch_evidence`
+   → `tests.test_flow_delivery_troop_training.TroopTrainingFlowDeliveryTests.test_live_canary_admission_uses_full_count_boundary`.
+   The retained zero-prior row has the same lease, clean artifact root,
+   capture-only child result and `dispatch_count == 0` assertion. The configured
+   cap remains explicitly one; the old name did not assert four.
+4. `tests.test_flow_delivery_troop_training.TroopTrainingFlowDeliveryTests.test_live_canary_admission_rejects_one_prior_dispatch_evidence`
+   → `tests.test_flow_delivery_troop_training.TroopTrainingFlowDeliveryTests.test_live_canary_admission_uses_full_count_boundary`.
+   The retained one-prior row requires the same `maximum-live-canary` rejection
+   before child execution. Dispatch-event counting ignores the differing
+   incidental prior-directory and action-key spellings. Both boundary rows stay.
+5. `tests.test_nova_praise_centralized_boundary.CentralizedNovaBoundaryTests.test_at_most_one_praise_transport`
+   → `tests.test_nova_praise_centralized_boundary.CentralizedNovaBoundaryTests.test_live_boundary_prepares_dispatches_and_confirms_exact_decrement`.
+   Same setup and invocation; all confirmed/one-transport/one-tap/one-capture
+   assertions remain, plus exact decrement, lifecycle and persisted due state.
+6. `tests.test_nova_praise.NovaPraiseContractTests.test_attempt_counting`
+   → existing consumer cases, not another fixture echo:
+   `tests.test_nova_praise.NovaPraiseContractTests.test_one_attempt_decrement_and_cooldown_postcondition`,
+   `tests.test_nova_praise.NovaPraiseContractTests.test_repeat_until_zero`,
+   `tests.test_nova_praise.NovaPraiseContractTests.test_next_eligible_scheduling_yields`,
+   and the unchanged native counter cases.
+   The retired body only constructed/read dataclass values seven and zero; it
+   never invoked counting, parsing, persistence or a transition.
+7. `tests.test_gameplay_flow_contracts.GameplayFlowContractTests.test_schema_file_exists`
+   → `tests.test_gameplay_flow_contracts.GameplayFlowContractTests.test_published_schema_accepts_all_representative_contracts`.
+   The retained case reads/parses the same schema and validates all ten
+   representative contracts. The module's required dependency is unconditional;
+   there is no optional-dependency skip that bypasses this replacement.
+8. `tests.test_automation_service_scheduler_canonical.CanonicalSchedulerTests.test_only_reset_scoped_descriptors_roll_reset_state`
+   → `tests.test_automation_service_scheduler_canonical.CanonicalSchedulerTests.test_mf1_recurrence_bindings_use_canonical_occurrence_identity`.
+   Its timer row already retains the same descriptor, facts, candidate and claim
+   kind, with exact occurrence key/basis and a result. It now also changes reset
+   identity and requires no second result, no second handler execution and no
+   new or altered persisted run. The removed mock wrapper asserted no reset
+   behavior; the stronger check exercises the actual coordinator and database.
+9. `tests.test_resource_effect_authority_store.ResourceAuthorityStoreTests.test_future_schema_remains_fail_closed`
+   → `tests.test_safe_action_core.StoreCase.test_future_schema_rejected`.
+   Both create the same separate version-99 SQLite database and require
+   `SchemaVersionError` from `SafetyStore`. The retired resource authority setup
+   used an unrelated database. Core-store tests own this constructor invariant;
+   both modules remain selected by the controlled command.
+10. `tests.test_supply_depot_verified_route.SupplyDepotVerifiedRouteTests.test_normal_claim_remains_denied_by_navigation_capability_firewall`
+    → `tests.test_supply_depot_verified_route.SupplyDepotVerifiedRouteTests.test_zero_claim_consequential_controls_remain_denied`.
+    The same pure guard, radial observation, navigation class, claim semantic and
+    exact consequential-denial reason remain in the first loop row. The other
+    semantic labels and claim-consequence rejection remain too.
+11. `tests.test_home_context.HomeContextTests.test_primitives_digest_is_stable_hex`
+    → `tests.test_gameplay_flow_contracts.GameplayFlowContractTests.test_nova_contract_separates_live_proof_from_production_eligibility`.
+    The same imported digest retains its exact length-64 assertion alongside its
+    dependency declaration. Canonical contract validation now owns this check:
+    a HomeContext-only invocation no longer includes it; full discovery does.
+    The required developer dependencies include the receiving module's
+    `jsonschema` dependency. Neither module is in the controlled selection.
+12. `tests.test_home_atlas_verified_route.HomeAtlasVerifiedRouteTests.test_regression_module_imports`
+    → the same module's unconditional imports and full discovery's import-error
+    gate. All six imports already occur while this test module and
+    `scripts.home_atlas_bluestacks` load, even in a focused module invocation.
+    The retired body only repeated cached imports and had no assertions.
+    `importlib` remains needed by a separate issuance-observation case.
+
+### Stronger proof and remaining limits
+
+All 318 cases in the touched modules plus core-store ownership module pass on
+local Windows, with the five existing skips. A separate process-launch-blocked
+smoke executes all 13 selected retained cases and conserves the exact full
+discovery ID delta, with no skipped smoke case or process-launch attempt.
+
+An in-memory fault that incorrectly rebases a timer slot when reset identity
+changes is rejected by the strengthened timer row: it detects the resulting
+second execution. No production source is mutated. Full OS execution, exact
+skip-ID conservation, static budgets and current-attempt receipts remain
+required hosted gates; their exact-head results are recorded in PR #50.
+
+No high-cost native OCR case was established as redundant, and no hosted runtime
+saving is claimed for these retirements. The six parameterization-only groups
+from the audit are not changed. The separate wall-clock freshness-test weakness
+also remains outside this twelve-case cleanup. The existing Windows performance
+hold is unchanged.
+
+Removing the unused timer-test mock binding also shrinks its Ruff `F841`
+allowance from two to one. Actual Ruff findings fall from 257 to 256; Vulture
+remains 457 and mypy 376 over the same 440 active Python files. No allowance is
+raised or transferred to another file or code.
