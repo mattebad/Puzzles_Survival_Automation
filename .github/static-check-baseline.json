@@ -1,0 +1,888 @@
+{
+  "counts": {
+    "mypy": {
+      "automation_service/actions.py": {
+        "assignment": 3,
+        "no-any-return": 6,
+        "no-redef": 1,
+        "union-attr": 3
+      },
+      "automation_service/bioenhancer.py": {
+        "arg-type": 2,
+        "assignment": 1,
+        "no-any-return": 1,
+        "no-untyped-def": 18,
+        "var-annotated": 1
+      },
+      "automation_service/campaign.py": {
+        "arg-type": 7,
+        "index": 4,
+        "no-any-return": 1,
+        "no-untyped-def": 24,
+        "operator": 1,
+        "union-attr": 1,
+        "var-annotated": 2
+      },
+      "automation_service/cli.py": {
+        "arg-type": 2,
+        "dict-item": 2,
+        "no-any-return": 1,
+        "no-untyped-def": 1,
+        "union-attr": 3
+      },
+      "automation_service/enhancement.py": {
+        "arg-type": 2,
+        "no-untyped-def": 20
+      },
+      "automation_service/nova.py": {
+        "arg-type": 1,
+        "no-any-return": 2,
+        "no-untyped-def": 5,
+        "operator": 1
+      },
+      "automation_service/overlays.py": {
+        "arg-type": 1,
+        "index": 1,
+        "return-value": 1,
+        "union-attr": 2
+      },
+      "automation_service/personal_might.py": {
+        "assignment": 2,
+        "attr-defined": 1,
+        "call-overload": 4,
+        "index": 1,
+        "no-untyped-def": 20,
+        "operator": 1,
+        "union-attr": 1
+      },
+      "automation_service/recruitment.py": {
+        "arg-type": 1,
+        "no-any-return": 1,
+        "no-untyped-def": 7
+      },
+      "automation_service/registry.py": {
+        "arg-type": 8
+      },
+      "automation_service/scheduler.py": {
+        "arg-type": 22,
+        "assignment": 9,
+        "call-arg": 6,
+        "no-any-return": 2,
+        "union-attr": 11
+      },
+      "automation_service/screens.py": {
+        "assignment": 5,
+        "operator": 1,
+        "type-var": 1
+      },
+      "automation_service/service.py": {
+        "arg-type": 4,
+        "assignment": 2,
+        "attr-defined": 1,
+        "no-untyped-def": 20,
+        "union-attr": 10,
+        "var-annotated": 3
+      },
+      "automation_service/session.py": {
+        "call-arg": 1
+      },
+      "automation_service/state.py": {
+        "arg-type": 9,
+        "assignment": 1,
+        "call-overload": 1,
+        "operator": 1
+      },
+      "automation_service/supply.py": {
+        "arg-type": 3,
+        "assignment": 1,
+        "no-untyped-def": 16,
+        "return-value": 2,
+        "union-attr": 3
+      },
+      "automation_service/temporal.py": {
+        "assignment": 1
+      },
+      "automation_service/ultimate.py": {
+        "arg-type": 4,
+        "assignment": 1,
+        "call-overload": 1,
+        "index": 1,
+        "no-untyped-def": 29
+      },
+      "safe_action_core/executor.py": {
+        "arg-type": 1,
+        "assignment": 1
+      },
+      "safe_action_core/models.py": {
+        "arg-type": 1,
+        "attr-defined": 1,
+        "no-any-return": 1
+      },
+      "safe_action_core/path_safety.py": {
+        "no-untyped-def": 2
+      },
+      "safe_action_core/policy.py": {
+        "arg-type": 2,
+        "no-untyped-def": 1,
+        "var-annotated": 1
+      },
+      "safe_action_core/resource_effect_authority.py": {
+        "arg-type": 19
+      },
+      "safe_action_core/scheduler_invocation_state.py": {
+        "no-any-return": 1,
+        "union-attr": 1
+      },
+      "safe_action_core/store.py": {
+        "arg-type": 1,
+        "assignment": 1,
+        "return-value": 2
+      }
+    },
+    "ruff": {
+      "automation_service/actions.py": {
+        "F401": 1
+      },
+      "automation_service/campaign.py": {
+        "F401": 1
+      },
+      "automation_service/context.py": {
+        "F401": 1
+      },
+      "automation_service/registry.py": {
+        "F401": 1
+      },
+      "automation_service/screens.py": {
+        "E731": 2
+      },
+      "automation_service/service.py": {
+        "E402": 7
+      },
+      "safe_action_core/models.py": {
+        "F401": 1
+      },
+      "safe_action_core/resource_effect_authority.py": {
+        "F401": 1,
+        "F841": 2
+      },
+      "safe_action_core/scheduler_invocation_state.py": {
+        "F401": 1
+      },
+      "scripts/bioenhancer_free_research_route.py": {
+        "E402": 14
+      },
+      "scripts/bluestacks_campaign_ap.py": {
+        "E402": 9
+      },
+      "scripts/bluestacks_flow_collector.py": {
+        "E731": 2
+      },
+      "scripts/bluestacks_ultimate_challenge.py": {
+        "E402": 18
+      },
+      "scripts/campaign_atlas_bluestacks.py": {
+        "E402": 1
+      },
+      "scripts/enhancement_bluestacks.py": {
+        "F401": 1
+      },
+      "scripts/flow_delivery_campaign_atlas_bluestacks.py": {
+        "F841": 1
+      },
+      "scripts/flow_delivery_daily_resource_item_bluestacks.py": {
+        "E714": 1,
+        "F401": 1
+      },
+      "scripts/flow_delivery_enhancement_bluestacks.py": {
+        "F841": 1
+      },
+      "scripts/flow_delivery_personal_might_bluestacks.py": {
+        "E731": 2,
+        "F401": 1
+      },
+      "scripts/home_atlas_bluestacks.py": {
+        "E402": 16,
+        "F841": 1
+      },
+      "scripts/noahs_tavern_recruit_bluestacks.py": {
+        "E402": 14,
+        "E731": 1,
+        "F401": 1
+      },
+      "scripts/nova_praise_bluestacks.py": {
+        "E402": 13
+      },
+      "scripts/pnsctl.py": {
+        "F601": 1
+      },
+      "scripts/ruins_challenge_bluestacks.py": {
+        "E402": 13
+      },
+      "scripts/ruins_challenge_replay.py": {
+        "E402": 1
+      },
+      "scripts/startup_normalization.py": {
+        "F401": 1
+      },
+      "scripts/startup_recovery.py": {
+        "F401": 2
+      },
+      "scripts/troop_training_bluestacks.py": {
+        "E402": 13,
+        "F401": 3
+      },
+      "scripts/world_map_navigation_bluestacks.py": {
+        "F841": 1
+      },
+      "tasks/bluestacks_home_safe_exit.py": {
+        "F402": 1
+      },
+      "tasks/campaign_atlas.py": {
+        "F401": 1
+      },
+      "tasks/campaign_atlas_vision.py": {
+        "E402": 6,
+        "F811": 2,
+        "F841": 1
+      },
+      "tasks/campaign_auto_battle.py": {
+        "F401": 2,
+        "F811": 1
+      },
+      "tasks/list_search.py": {
+        "F401": 1
+      },
+      "tasks/navigation_session_calibration.py": {
+        "F841": 1
+      },
+      "tasks/noahs_tavern_recruit.py": {
+        "F401": 1
+      },
+      "tasks/noahs_tavern_recruit_maintenance.py": {
+        "F401": 2
+      },
+      "tasks/noahs_tavern_recruit_runtime.py": {
+        "F401": 1
+      },
+      "tasks/noahs_tavern_recruit_vision.py": {
+        "F401": 1
+      },
+      "tasks/ruins_challenge_vision.py": {
+        "F841": 1
+      },
+      "tasks/troop_training_vision.py": {
+        "F841": 2
+      },
+      "tests/support/service_route_fakes.py": {
+        "F401": 3
+      },
+      "tests/test_automation_service_canonical_authority.py": {
+        "F841": 1
+      },
+      "tests/test_automation_service_scheduler.py": {
+        "E702": 9
+      },
+      "tests/test_automation_service_scheduler_canonical.py": {
+        "F841": 2
+      },
+      "tests/test_automation_service_state.py": {
+        "F841": 2
+      },
+      "tests/test_bluestacks_adb_readiness.py": {
+        "E731": 1
+      },
+      "tests/test_bluestacks_home_safe_exit.py": {
+        "F401": 3
+      },
+      "tests/test_campaign_ap_challenge_policy.py": {
+        "F401": 1
+      },
+      "tests/test_campaign_atlas_collector.py": {
+        "F401": 1
+      },
+      "tests/test_campaign_home_hud_waypoint.py": {
+        "F401": 1
+      },
+      "tests/test_campaign_stage9_destination_replay.py": {
+        "F401": 1
+      },
+      "tests/test_daily_resource_item_bluestacks.py": {
+        "F841": 1
+      },
+      "tests/test_development_session.py": {
+        "E731": 1
+      },
+      "tests/test_enhancement_home_ocr_duplicates.py": {
+        "E731": 1
+      },
+      "tests/test_enhancement_no_effect_recovery.py": {
+        "E701": 4
+      },
+      "tests/test_enhancement_positive_recovery_delivery.py": {
+        "E702": 4,
+        "F401": 1
+      },
+      "tests/test_enhancement_semantic_stage_mapping.py": {
+        "F401": 1
+      },
+      "tests/test_flow_delivery_daily_resource_item_bluestacks.py": {
+        "F401": 3,
+        "F841": 1
+      },
+      "tests/test_flow_delivery_enhancement.py": {
+        "E731": 1
+      },
+      "tests/test_flow_delivery_troop_training.py": {
+        "F841": 1
+      },
+      "tests/test_home_atlas_verified_route.py": {
+        "E731": 1
+      },
+      "tests/test_native_frame_mutation.py": {
+        "F401": 1
+      },
+      "tests/test_navigation_session.py": {
+        "F401": 2
+      },
+      "tests/test_navigation_session_calibration.py": {
+        "F401": 1
+      },
+      "tests/test_noahs_tavern_recruit.py": {
+        "E731": 3
+      },
+      "tests/test_noahs_tavern_recruit_maintenance.py": {
+        "F841": 2
+      },
+      "tests/test_nova_navigation.py": {
+        "F841": 1
+      },
+      "tests/test_nova_praise_centralized_boundary.py": {
+        "F841": 1
+      },
+      "tests/test_personal_might_bluestacks.py": {
+        "E731": 1,
+        "F401": 1
+      },
+      "tests/test_resource_effect_authority_store.py": {
+        "E731": 1
+      },
+      "tests/test_ruins_challenge.py": {
+        "F401": 3
+      },
+      "tests/test_ruins_challenge_continuation.py": {
+        "F841": 1
+      },
+      "tests/test_scheduler_invocation_state.py": {
+        "F401": 1
+      },
+      "tests/test_service_application_startup.py": {
+        "E702": 1,
+        "F401": 1
+      },
+      "tests/test_service_bioenhancer.py": {
+        "F401": 1,
+        "F841": 1
+      },
+      "tests/test_service_campaign_ap.py": {
+        "E731": 1
+      },
+      "tests/test_service_campaign_dispatch.py": {
+        "F401": 2
+      },
+      "tests/test_service_personal_might.py": {
+        "E731": 1
+      },
+      "tests/test_service_supply.py": {
+        "F841": 2
+      },
+      "tests/test_startup_recovery.py": {
+        "E702": 2
+      },
+      "tests/test_supply_depot_vision.py": {
+        "E731": 1
+      },
+      "tests/test_troop_training.py": {
+        "F401": 2
+      },
+      "tests/test_troop_training_entry.py": {
+        "E731": 1,
+        "F841": 1
+      },
+      "tests/test_ultimate_defeat_recovery.py": {
+        "F401": 1
+      }
+    },
+    "vulture": {
+      "automation_service/actions.py": {
+        "property:60": 1
+      },
+      "automation_service/cli.py": {
+        "function:60": 1
+      },
+      "automation_service/context.py": {
+        "function:60": 1,
+        "variable:60": 1
+      },
+      "automation_service/contracts.py": {
+        "class:60": 1,
+        "property:60": 1,
+        "variable:60": 2
+      },
+      "automation_service/handlers.py": {
+        "variable:60": 6
+      },
+      "automation_service/operations.py": {
+        "variable:60": 2
+      },
+      "automation_service/overlays.py": {
+        "method:60": 1
+      },
+      "automation_service/recruitment.py": {
+        "attribute:60": 1
+      },
+      "automation_service/registry.py": {
+        "function:60": 2
+      },
+      "automation_service/scheduler.py": {
+        "variable:60": 1
+      },
+      "automation_service/screens.py": {
+        "class:60": 1,
+        "method:60": 1,
+        "property:60": 1,
+        "variable:60": 1
+      },
+      "automation_service/service.py": {
+        "variable:60": 2
+      },
+      "automation_service/session.py": {
+        "property:60": 1,
+        "variable:60": 1
+      },
+      "automation_service/state.py": {
+        "attribute:60": 1,
+        "method:60": 1,
+        "property:60": 3,
+        "variable:60": 14
+      },
+      "automation_service/temporal.py": {
+        "attribute:60": 2
+      },
+      "automation_service/ultimate.py": {
+        "variable:60": 2
+      },
+      "calibration/transform.py": {
+        "variable:60": 2
+      },
+      "safe_action_core/models.py": {
+        "method:60": 1,
+        "variable:60": 2
+      },
+      "safe_action_core/promotional.py": {
+        "method:60": 1
+      },
+      "safe_action_core/resource_effect_authority.py": {
+        "method:60": 1,
+        "variable:60": 1
+      },
+      "safe_action_core/scheduler_invocation_state.py": {
+        "method:60": 1,
+        "variable:60": 8
+      },
+      "safe_action_core/store.py": {
+        "attribute:60": 1,
+        "variable:60": 3
+      },
+      "scripts/bluestacks_flow_collector.py": {
+        "attribute:60": 6,
+        "method:60": 1
+      },
+      "scripts/bluestacks_popup_recognition.py": {
+        "variable:60": 1
+      },
+      "scripts/bluestacks_ultimate_challenge.py": {
+        "variable:100": 1
+      },
+      "scripts/daily_resource_item_bluestacks.py": {
+        "function:60": 1,
+        "variable:60": 3
+      },
+      "scripts/daily_row_claim_bluestacks.py": {
+        "class:60": 1,
+        "function:60": 5,
+        "method:60": 1,
+        "variable:60": 2
+      },
+      "scripts/enhancement_bluestacks.py": {
+        "function:60": 1,
+        "variable:60": 8
+      },
+      "scripts/evidence_hygiene.py": {
+        "variable:60": 2
+      },
+      "scripts/flow_delivery_campaign_atlas_bluestacks.py": {
+        "variable:60": 3
+      },
+      "scripts/flow_delivery_daily_resource_item_bluestacks.py": {
+        "method:60": 1,
+        "property:60": 2
+      },
+      "scripts/flow_delivery_enhancement_bluestacks.py": {
+        "variable:60": 4
+      },
+      "scripts/flow_delivery_world_map_bluestacks.py": {
+        "variable:60": 3
+      },
+      "scripts/generate_flow_authority_views.py": {
+        "variable:60": 3
+      },
+      "scripts/navigation_development_boundary.py": {
+        "attribute:60": 1,
+        "class:60": 1,
+        "variable:60": 6
+      },
+      "scripts/noahs_tavern_recruit_bluestacks.py": {
+        "function:60": 1,
+        "variable:60": 3
+      },
+      "scripts/nova_praise_bluestacks.py": {
+        "method:60": 1
+      },
+      "scripts/nova_praise_centralized.py": {
+        "method:60": 1
+      },
+      "scripts/pnsctl.py": {
+        "attribute:60": 1,
+        "variable:60": 1
+      },
+      "scripts/ruins_challenge_bluestacks.py": {
+        "variable:60": 1
+      },
+      "scripts/runtime_trace_projection.py": {
+        "property:60": 1,
+        "variable:60": 2
+      },
+      "scripts/startup_normalization.py": {
+        "function:60": 1,
+        "variable:60": 8
+      },
+      "scripts/startup_recovery.py": {
+        "variable:60": 6
+      },
+      "scripts/startup_surface_recognition.py": {
+        "variable:60": 10
+      },
+      "scripts/troop_training_bluestacks.py": {
+        "class:60": 2,
+        "variable:60": 3
+      },
+      "scripts/world_map_navigation_bluestacks.py": {
+        "function:60": 3,
+        "property:60": 1,
+        "variable:60": 6
+      },
+      "tasks/available_daily_claim.py": {
+        "variable:60": 2
+      },
+      "tasks/bluestacks_home_safe_exit.py": {
+        "variable:60": 1
+      },
+      "tasks/campaign_atlas.py": {
+        "function:60": 1,
+        "variable:60": 11
+      },
+      "tasks/campaign_atlas_vision.py": {
+        "function:60": 1
+      },
+      "tasks/campaign_auto_battle_runtime.py": {
+        "variable:60": 2
+      },
+      "tasks/campaign_auto_battle_vision.py": {
+        "function:60": 1,
+        "variable:60": 7
+      },
+      "tasks/campaign_stage9.py": {
+        "function:60": 1
+      },
+      "tasks/catalog.py": {
+        "variable:60": 9
+      },
+      "tasks/contracts.py": {
+        "variable:60": 1
+      },
+      "tasks/daily_enhancement.py": {
+        "function:60": 2
+      },
+      "tasks/daily_quest.py": {
+        "method:60": 4,
+        "variable:60": 1
+      },
+      "tasks/gameplay_flow_contracts.py": {
+        "function:60": 1
+      },
+      "tasks/home_atlas.py": {
+        "function:60": 1,
+        "method:60": 1,
+        "variable:60": 9
+      },
+      "tasks/home_atlas_planner.py": {
+        "function:60": 2,
+        "variable:60": 2
+      },
+      "tasks/home_atlas_vision.py": {
+        "function:60": 2,
+        "variable:60": 1
+      },
+      "tasks/home_base_vision.py": {
+        "variable:60": 2
+      },
+      "tasks/home_context.py": {
+        "function:60": 2
+      },
+      "tasks/list_search.py": {
+        "property:60": 1,
+        "variable:60": 5
+      },
+      "tasks/navigation_observability.py": {
+        "function:60": 1
+      },
+      "tasks/navigation_session.py": {
+        "function:60": 2,
+        "method:60": 1,
+        "variable:100": 1,
+        "variable:60": 3
+      },
+      "tasks/navigation_session_calibration.py": {
+        "method:60": 1,
+        "variable:60": 2
+      },
+      "tasks/noahs_tavern_recruit.py": {
+        "variable:60": 2
+      },
+      "tasks/nova_praise.py": {
+        "function:60": 1
+      },
+      "tasks/nova_praise_pulse.py": {
+        "class:60": 1,
+        "function:60": 1,
+        "variable:60": 11
+      },
+      "tasks/nova_praise_replay.py": {
+        "variable:60": 2
+      },
+      "tasks/nova_praise_runtime.py": {
+        "attribute:60": 1,
+        "variable:60": 1
+      },
+      "tasks/nova_praise_vision.py": {
+        "function:60": 1,
+        "variable:60": 2
+      },
+      "tasks/perception_bundle.py": {
+        "method:60": 1,
+        "property:60": 1,
+        "variable:60": 6
+      },
+      "tasks/product_authority.py": {
+        "variable:60": 10
+      },
+      "tasks/radial_semantics.py": {
+        "variable:60": 6
+      },
+      "tasks/ruins_challenge.py": {
+        "class:60": 1,
+        "function:60": 1,
+        "variable:60": 22
+      },
+      "tasks/ruins_challenge_continuation.py": {
+        "variable:60": 12
+      },
+      "tasks/ruins_challenge_runtime.py": {
+        "variable:60": 2
+      },
+      "tasks/ruins_challenge_vision.py": {
+        "function:60": 2,
+        "variable:60": 1
+      },
+      "tasks/runtime_identity.py": {
+        "variable:60": 6
+      },
+      "tasks/scheduler_task_result.py": {
+        "variable:60": 1
+      },
+      "tasks/semantic_ocr_crop.py": {
+        "attribute:60": 1
+      },
+      "tasks/supply_depot.py": {
+        "variable:60": 1
+      },
+      "tasks/transition_stability.py": {
+        "property:60": 4,
+        "variable:60": 2
+      },
+      "tasks/troop_training.py": {
+        "variable:60": 12
+      },
+      "tasks/troop_training_runtime.py": {
+        "method:60": 1,
+        "variable:60": 1
+      },
+      "tasks/troop_training_vision.py": {
+        "function:60": 3,
+        "variable:60": 4
+      },
+      "tasks/ultimate_challenge_daily.py": {
+        "variable:60": 4
+      },
+      "tasks/world_stamina.py": {
+        "function:60": 1,
+        "variable:60": 1
+      },
+      "tests/support/service_route_fakes.py": {
+        "attribute:60": 1,
+        "method:60": 1
+      },
+      "tests/test_architecture_imports.py": {
+        "variable:60": 1
+      },
+      "tests/test_automation_service_state.py": {
+        "variable:60": 2
+      },
+      "tests/test_bioenhancer_home_entry_binding.py": {
+        "function:60": 1
+      },
+      "tests/test_bluestacks_integrated_routes.py": {
+        "function:60": 1
+      },
+      "tests/test_bluestacks_ultimate_challenge.py": {
+        "function:60": 1
+      },
+      "tests/test_campaign_ap_hud_native.py": {
+        "function:60": 1,
+        "variable:60": 1
+      },
+      "tests/test_campaign_claimed_startup.py": {
+        "function:60": 1
+      },
+      "tests/test_campaign_home_direct_entry_pan.py": {
+        "function:60": 1
+      },
+      "tests/test_campaign_lineup.py": {
+        "function:60": 1
+      },
+      "tests/test_campaign_lineup_current.py": {
+        "function:60": 1
+      },
+      "tests/test_campaign_stage_dialog_native.py": {
+        "function:60": 1
+      },
+      "tests/test_campaign_tier_controls.py": {
+        "function:60": 1
+      },
+      "tests/test_campaign_victory_native.py": {
+        "function:60": 1
+      },
+      "tests/test_daily_row_claim_bluestacks.py": {
+        "attribute:60": 1,
+        "class:60": 2,
+        "method:60": 1,
+        "variable:60": 1
+      },
+      "tests/test_enhancement_chip_quantity_native.py": {
+        "function:60": 1
+      },
+      "tests/test_enhancement_item_modal_native.py": {
+        "function:60": 1
+      },
+      "tests/test_enhancement_module_modal_native.py": {
+        "function:60": 1
+      },
+      "tests/test_enhancement_module_panel_native.py": {
+        "function:60": 1
+      },
+      "tests/test_enhancement_module_quantity_native.py": {
+        "function:60": 1
+      },
+      "tests/test_enhancement_no_effect_recovery.py": {
+        "function:60": 1
+      },
+      "tests/test_enhancement_positive_recovery_native.py": {
+        "function:60": 1
+      },
+      "tests/test_enhancement_selection_context_native.py": {
+        "function:60": 1
+      },
+      "tests/test_enhancement_semantic_stage_mapping.py": {
+        "function:60": 1
+      },
+      "tests/test_flow_delivery_bioenhancer_bluestacks.py": {
+        "variable:60": 1
+      },
+      "tests/test_flow_delivery_daily_resource_item_bluestacks.py": {
+        "function:60": 1
+      },
+      "tests/test_home_atlas_pan_actual_proposal.py": {
+        "function:60": 1
+      },
+      "tests/test_home_atlas_planner.py": {
+        "variable:100": 1
+      },
+      "tests/test_home_atlas_verified_route.py": {
+        "variable:100": 2,
+        "variable:60": 1
+      },
+      "tests/test_nova_navigation.py": {
+        "function:60": 1,
+        "variable:60": 1
+      },
+      "tests/test_nova_startup_recovery.py": {
+        "function:60": 1
+      },
+      "tests/test_personal_might_bluestacks.py": {
+        "function:60": 1
+      },
+      "tests/test_pre_dispatch_freshness.py": {
+        "class:60": 2
+      },
+      "tests/test_product_authority.py": {
+        "variable:60": 1
+      },
+      "tests/test_ruins_challenge_continuation.py": {
+        "variable:60": 1
+      },
+      "tests/test_safe_action_core.py": {
+        "class:60": 6
+      },
+      "tests/test_service_bioenhancer.py": {
+        "function:60": 1
+      },
+      "tests/test_service_campaign_ap.py": {
+        "function:60": 1
+      },
+      "tests/test_service_campaign_dispatch.py": {
+        "method:60": 1
+      },
+      "tests/test_service_enhancement.py": {
+        "function:60": 1
+      },
+      "tests/test_service_supply.py": {
+        "function:60": 1
+      },
+      "tests/test_startup_recovery.py": {
+        "function:60": 1
+      },
+      "tests/test_test_discovery.py": {
+        "attribute:60": 2
+      },
+      "tests/test_troop_training.py": {
+        "function:60": 1
+      }
+    }
+  },
+  "schema": 1,
+  "versions": {
+    "mypy": "2.4.1",
+    "ruff": "0.17.3",
+    "vulture": "2.16"
+  }
+}

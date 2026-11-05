@@ -59,6 +59,12 @@ jobs:
           choco install tesseract --version=5.5.3.20260724 --no-progress -y
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "C:\Program Files\Tesseract-OCR" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Enforce shrinking lint, unused-code and safety-type budgets
+        if: matrix.shard == 0
+        shell: bash
+        env:
+          STATIC_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python -B scripts/check_static.py --base-ref "$STATIC_BASE_REF"
       - name: Repeat native Supply Depot binding checks
         if: matrix.shard == 0
         shell: bash
