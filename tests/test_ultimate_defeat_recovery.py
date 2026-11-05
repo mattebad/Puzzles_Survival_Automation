@@ -22,6 +22,7 @@ from automation_service import ultimate as service
 from tests.support.ultimate import RESET as FLEE_PROOF_RESET, CampaignExitRuntime, flee_proof
 from tasks.runtime_identity import BLUESTACKS_SERIAL
 from tests.support.environment import requires_tesseract
+from tests.ocr_memo import OcrMemo
 
 
 
@@ -144,6 +145,8 @@ def write_events(session, events):
 
 class DefeatReceiptTests(unittest.TestCase):
     def setUp(self):
+        memo = OcrMemo(require_tesseract_on_miss=True).start()
+        self.addCleanup(memo.stop)
         clock = SimpleNamespace(fromisoformat=datetime.fromisoformat,
             now=lambda _tz: datetime(2026, 11, 1, 4, tzinfo=timezone.utc))
         scope = patch.object(delivery, "datetime", clock)
@@ -224,6 +227,10 @@ class DefeatReceiptTests(unittest.TestCase):
 
 
 class DefeatRouteTests(unittest.TestCase):
+    def setUp(self):
+        memo = OcrMemo(require_tesseract_on_miss=True).start()
+        self.addCleanup(memo.stop)
+
     def run_route(self, root, frames, runtime_type=None):
         session = root / "session"
         (session / "frames").mkdir(parents=True)
