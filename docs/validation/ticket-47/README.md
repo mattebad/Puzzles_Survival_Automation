@@ -149,8 +149,8 @@ both OSes, on shard zero. No test selection is removed.
 Artifacts are scoped to `github.run_attempt`; **rerun all jobs**, not only failed
 shards, to produce a complete new attempt. Old receipts cannot fill missing shards.
 Sharding reduces wall-clock latency, not total billed CPU; the two exact-input
-memo additions reduce repeated OCR work. Target: under 15 minutes per execution
-job. Hosted after-change timing remains `evidence_required` until actual CI runs.
+memo additions reduce repeated OCR work. The first hosted run meets the target
+of under 15 minutes for every execution job, with complete coverage (below).
 
 ## Supply repeat decision
 
@@ -200,6 +200,27 @@ the title probe uses real offline fixture OCR. No device or live operator is use
 - Both real shard receipts have identical selected/executed ID multisets.
   Synthetic real TestCases also execute across two shards exactly once; an
   incomplete receipt set is rejected.
-- Hosted complete execution, no-new-skip comparison and after-change job timing
-  remain `evidence_required` until CI completes. Local shard proof is not a claim
-  that all 3,166 cases have already passed on the new tree.
+- [Hosted run 41946823318](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41946823318)
+  passes all eight execution jobs and both required-check aggregators on
+  implementation `aaae0f7`. Receipts prove every case actually ran exactly once,
+  with matching revisions and unchanged hosted skip IDs.
+
+| Hosted OS | Full cases | Full skips | Controlled cases | Controlled skips |
+| --- | ---: | ---: | ---: | ---: |
+| Ubuntu | 3,166 | 41 | 397 | 0 |
+| Windows | 3,166 | 36 | 397 | 0 |
+
+No failures or errors. The before run is
+[41942881230](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41942881230)
+on `7eca65b`, also green on both OSes. Compare actual job elapsed time, not
+estimated scheduling weights:
+
+| Hosted OS | Before single job | After longest execution job | After four execution jobs summed | After aggregate |
+| --- | ---: | ---: | ---: | ---: |
+| Ubuntu | 35m03s | 9m36s | 36m13s | 33s |
+| Windows | 39m07s | 11m44s | 40m08s | 38s |
+
+This establishes the latency target for this run, not a flake probability or a
+reduction in billed CPU. Total job time rises with repeated runner setup and
+separate aggregators. Six added coverage-conservation cases explain the exact
+3,160-to-3,166 count change; no old case or skip ID is lost.
