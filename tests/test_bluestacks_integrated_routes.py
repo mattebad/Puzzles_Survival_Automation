@@ -46,6 +46,7 @@ from tasks.ruins_challenge import (
 from tasks.ruins_challenge_vision import RuinsDetailRecognition, RuinsFrameRecognition, RuinsResultRecognition, RuinsRewardRecognition
 from tests.support.local_captures import LOCAL_CAPTURES
 from tests.ocr_memo import install_module_memo
+from tests.support.home_atlas import _UnusedAtlasLocalizer
 
 
 def setUpModule():
@@ -178,6 +179,19 @@ def noah_observation(state, digest, *, remaining=5, cooldown=False):
 
 
 class IntegratedRouteTests(unittest.TestCase):
+    def setUp(self):
+        # These driver/Noah localizers are unused by the scripted Home paths.
+        # Keep Ruins' separate, real current-frame localizer untouched.
+        localizer = _UnusedAtlasLocalizer()
+        self.addCleanup(localizer.assert_unused)
+        for target in (
+            "scripts.home_atlas_bluestacks.BlueStacksHomeLocalizer",
+            "scripts.noahs_tavern_recruit_bluestacks.BlueStacksHomeLocalizer",
+        ):
+            dependency = patch(target, return_value=localizer)
+            dependency.start()
+            self.addCleanup(dependency.stop)
+
     def test_ruins_chest_claim_is_ordinary_gameplay_not_consequential(self):
         runtime = FakeRuntime()
         runtime.reconcile = lambda *args: runtime.reconciliations.append(args)

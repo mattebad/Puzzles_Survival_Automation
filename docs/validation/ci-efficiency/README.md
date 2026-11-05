@@ -134,3 +134,35 @@ profile attributes 27.8 of 30.0 seconds to nine eager Atlas-localizer constructo
 that already-faked fixture is a concrete next candidate, not an implemented or
 verified optimization in this pass. Existing pip caching is retained; there is
 no speculative installed-environment/Tesseract cache or extra runner.
+
+## Follow-up: Windows critical-path work
+
+Implemented and locally offline-proven; combined exact-head hosted proof is
+reported in PR #50. The follow-up baseline is `26267ac`. The slower Windows
+critical shard contained none of the five previously optimized modules. Its
+runner image also differed from the historical comparison, so a code-caused
+regression was not established. Log-derived durations attribute most of the
+increase to unchanged integrated-route and Atlas-proposal modules.
+
+The dominant synthetic integrated-route case spent almost all its profiled time
+constructing unused native Atlas reference data. Only the unused Home-driver and
+Noah localizer factories in that test class now return a test-only tripwire.
+Any attribute use raises, and cleanup also rejects attempts swallowed by a
+blocked-result handler. Ruins' separate current-frame localizer stays real.
+Constructor arguments and the production injected-localizer flag are unchanged.
+
+Three sequential fresh-process complete-module profiles per source and OS,
+using unchanged OCR/sleep observers plus call profiling:
+
+| `test_bluestacks_integrated_routes` | Windows before | Windows after | Linux before | Linux after |
+| --- | ---: | ---: | ---: | ---: |
+| Instrumented elapsed median | 104.890 s | 9.687 s | 97.073 s | 9.475 s |
+
+Every run retains all 31 cases, two real current-frame native localizations and
+six real OCR attempts. Localizer constructions fall from 34 to two; feature
+extractions and image reads each fall from 1,022 to 62. No existing test body,
+assertion, capture, timeout, production code or scheduling weight is changed.
+A direct real-route mutation that swallows an accidental localization attempt
+still fails at cleanup. Afterward, both constructor aliases are restored and a
+fresh real localizer recognizes canonical Home with all 30 reference images on
+both OSes. Raw measurements and the negative smoke remain outside the repository.
