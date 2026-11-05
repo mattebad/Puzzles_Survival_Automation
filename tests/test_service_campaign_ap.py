@@ -34,6 +34,7 @@ from tasks.campaign_auto_battle import (
 from tasks.campaign_auto_battle_vision import CampaignFrameRecognition, recognize_campaign_frame
 from tasks.scheduler_task_result import SchedulerIdentity
 from tests.support.campaign_ap_runner import DrainFakeADB, FakeADB, PHASES, recognize, recognize_drain
+from tests.support.capability_firewall import Clock
 from tests.support.service_stop import VirtualStop
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tests.ocr_memo import install_module_memo
@@ -83,6 +84,15 @@ class CampaignServiceRunnerTests(unittest.TestCase):
         self.native_clock = lambda: time.monotonic() - 0.1 + next(native_ticks) / 1_000_000
         self.stack.enter_context(patch("scripts.bluestacks_native_runtime.time",
                                        SimpleNamespace(monotonic=self.native_clock)))
+        run_route = native.run_campaign_ap_route
+
+        def run_with_virtual_waits(runtime, config, **kwargs):
+            # Phase deadlines advance without changing capture/policy freshness.
+            clock = Clock(self.native_clock())
+            kwargs["monotonic_clock"], kwargs["sleep"] = clock, clock.advance
+            return run_route(runtime, config, **kwargs)
+
+        self.stack.enter_context(patch.object(native, "run_campaign_ap_route", side_effect=run_with_virtual_waits))
         self.connect = self.stack.enter_context(patch.object(LocalBlueStacksRuntime, "connect", side_effect=self.runtime))
         self.stack.enter_context(patch.object(LocalBlueStacksRuntime, "measure_foreground_package",
                                              return_value="com.global.ztmslg"))

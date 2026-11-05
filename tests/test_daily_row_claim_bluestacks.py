@@ -6,6 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 import tempfile
 import time
+from types import SimpleNamespace
 from typing import Callable
 import unittest
 from unittest.mock import patch
@@ -19,6 +20,7 @@ from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
 from tasks.home_nav_recognition import NAV_STRIP_BOX, _load_template
+from tests.support.capability_firewall import Clock
 
 
 def _frame(
@@ -414,9 +416,17 @@ class DailyRowReconnaissanceTests(unittest.TestCase):
         )
 
     def test_unknown_quest_successor_stops_without_second_input(self) -> None:
+        clock = Clock(time.monotonic())
+        started = clock.value
+        settle_successor = daily._settle_successor
+
+        def settle_with_virtual_time(*args, **kwargs):
+            with patch.object(daily, "time", SimpleNamespace(monotonic=clock, sleep=clock.advance)):
+                return settle_successor(*args, **kwargs)
+
         with tempfile.TemporaryDirectory() as directory, patch.object(
             boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
-        ):
+        ), patch.object(daily, "_settle_successor", side_effect=settle_with_virtual_time):
             root = Path(directory)
             runtime = FakeRuntime(root)
             recognizer = ScriptedRecognizer(selected_daily=False)
@@ -434,6 +444,8 @@ class DailyRowReconnaissanceTests(unittest.TestCase):
         self.assertNotIn("daily_terminal", result["frames"])
         self.assertEqual(result["resource_affecting_inputs"], 0)
         self.assertEqual(result["combat_confirmations"], 0)
+        self.assertEqual(clock.value - started, daily.SUCCESSOR_POLL_TIMEOUT_SECONDS)
+        self.assertLessEqual(len(result["polls"]), daily.SUCCESSOR_POLL_MAX_ATTEMPTS + 1)
 
     def test_delayed_quest_successor_polls_without_repeating_home(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch.object(
