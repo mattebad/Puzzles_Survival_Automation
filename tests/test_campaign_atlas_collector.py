@@ -2927,10 +2927,13 @@ class CampaignAtlasLiveSurveyControlFlowTests(unittest.TestCase):
         from safe_action_core import ActionStatus
         from tasks.campaign_atlas import InputBudgetCategory, InputLifecycle, SurveyPhase
         from tasks.campaign_auto_battle import CampaignScreen
+        from tests.support.capability_firewall import Clock
 
         class _FakeRuntime:
-            def __init__(self, session: Path) -> None:
+            def __init__(self, session: Path, clock: Clock, advance_captures: bool) -> None:
                 self.session = session
+                self.clock = clock
+                self.advance_captures = advance_captures
                 self.ordinal = 0
                 self.taps: list[str] = []
 
@@ -2941,11 +2944,13 @@ class CampaignAtlasLiveSurveyControlFlowTests(unittest.TestCase):
                 path = self.session / "frames" / f"{self.ordinal:04d}-{label}.png"
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b"png")
+                if self.advance_captures:
+                    self.clock.advance(0.001)
                 return CapturedNativeFrame(
                     frame,
                     f"png-{self.ordinal}".encode(),
                     f"{self.ordinal:064x}",
-                    float(time_module.monotonic()),
+                    self.clock(),
                     path,
                 )
 
@@ -2960,13 +2965,17 @@ class CampaignAtlasLiveSurveyControlFlowTests(unittest.TestCase):
                 executor_results.append(result)
                 return result
 
-        def _run(screens_by_capture: dict[int, CampaignScreen]):
+        def _run(screens_by_capture: dict[int, CampaignScreen], *, advance_captures: bool = True):
             # Capture 1 = planning, 2 = fresh immediate-before, 3 = post.
             executor_results.clear()
-            with tempfile.TemporaryDirectory() as directory:
+            clock = Clock(1000.0)
+            with tempfile.TemporaryDirectory() as directory, patch.object(
+                mod, "time",
+                SimpleNamespace(monotonic=clock, time=time_module.time, sleep=time_module.sleep),
+            ):
                 session = Path(directory) / "tap-session"
                 session.mkdir()
-                runtime = _FakeRuntime(session / "runtime")
+                runtime = _FakeRuntime(session / "runtime", clock, advance_captures)
                 planning = runtime.capture("difficulty-tier-1-before")
                 op = mod._SurveyOperator(
                     session, runtime=runtime, session_id="campaign-atlas-tap-off-map", lease_owner="test-owner"
@@ -3016,6 +3025,16 @@ class CampaignAtlasLiveSurveyControlFlowTests(unittest.TestCase):
         self.assertEqual([entry.lifecycle for entry in op.state.journal], [InputLifecycle.UNRESOLVED])
         self.assertTrue(op.state.unresolved)
         self.assertTrue(op.state.transport_dispatched)
+
+        # Equal synthetic capture times must remain refused, not silently accepted.
+        op, runtime, error = _run({3: CampaignScreen.HOME_BASE}, advance_captures=False)
+        self.assertEqual(error, "SafeActionExecutor issued zero transport for difficulty-tier-1")
+        self.assertEqual(runtime.taps, [])
+        self.assertEqual(
+            [(result.status, result.reason) for result in executor_results],
+            [(ActionStatus.CANCELLED, "IMMEDIATE_RECAPTURE_NOT_FRESH")],
+        )
+        self.assertFalse(op.state.transport_dispatched)
 
     def test_survey_transport_requires_the_sealed_token(self) -> None:
         from scripts.flow_delivery_campaign_atlas_bluestacks import reject_direct_survey_transport

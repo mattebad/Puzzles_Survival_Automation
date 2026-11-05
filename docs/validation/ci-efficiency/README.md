@@ -450,3 +450,27 @@ but fails all six fresh-frame subcases in the strengthened test. Production code
 and shared clock functions are restored after the smoke; no mutation is retained.
 The separate Windows performance hold remains until its hosted comparison is
 resolved.
+
+## Follow-up: Windows survey fixture chronology
+
+The first matched-assignment diagnostic is retained as failed and is not timing
+evidence. Its custom TEMP volume lacked the Windows short aliases available to
+the canonical run, and its timing collector included nested fixture executions.
+Both are diagnostic-harness defects, not permission to accept new skips.
+
+That attempt also exposed a timing-sensitive synthetic survey case. Under a flat
+host monotonic clock, its supposed later capture tied the planning timestamp.
+The unchanged executor correctly returned `IMMEDIATE_RECAPTURE_NOT_FRESH` with
+zero transport instead of exercising the intended unexpected-successor path.
+Only that case now shares the existing test `Clock` between synthetic captures
+and the module-local survey clock. All original assertions remain. An additional
+tied-capture subcase requires the exact cancellation reason and zero transport.
+No real sleeps, production timing checks or permanent test IDs change.
+
+The two complete touched modules pass locally: 64 cases, no skips. A flat-host-clock
+smoke now proves one unresolved transport for the distinct-capture scenario and
+zero transport for deliberately tied captures. The corrected diagnostic retains
+canonical TEMP-volume behavior and selects the outer execution result by its
+actual receipt IDs; nested fixture bodies still run but cannot inflate timing
+coverage. The frozen-source comparison and final hosted proof remain recorded
+separately in PR #50.
