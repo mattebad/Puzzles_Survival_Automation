@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: offline-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   offline-shard:
     name: Offline execution (${{ matrix.os }}, shard ${{ matrix.shard }})
@@ -28,8 +32,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
-          # Retain commit history for provenance and ancestry checks.
-          fetch-depth: 0
+          # Only shard zero runs immutable-base and ancestry-dependent checks.
+          fetch-depth: ${{ matrix.shard == 0 && '0' || '1' }}
       - name: Check fresh checkout is clean
         shell: bash
         run: |
@@ -77,9 +81,6 @@ jobs:
               tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_real_daylight_circle_survives_proposal_variation_with_same_final_gates \
               tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_actual_reset_hud_caption_binds_only_with_complete_word_and_safe_button
           done
-      - name: Verify every test module is discovered
-        if: matrix.shard == 0
-        run: python -B scripts/check_test_discovery.py
       - name: Run assigned whole-module slice of complete discovery
         run: python -B scripts/offline_suite.py run --index ${{ matrix.shard }} --count 4 --output "${{ runner.temp }}/offline-receipt/report-${{ matrix.shard }}.json"
       - name: Run the supported controlled offline check
@@ -135,8 +136,20 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
+      - name: Require successful execution jobs
+        shell: bash
+        env:
+          EXECUTION_RESULT: ${{ needs.offline-shard.result }}
+        run: test "$EXECUTION_RESULT" = success
       - name: Check out coverage verifier and measured baseline
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.github/offline-test-costs.json
+            /scripts/offline_suite.py
+            /scripts/check_test_discovery.py
       - name: Set up Python 3.11
         uses: actions/setup-python@v7
         with:

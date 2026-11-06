@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from safe_action_core import (
     ActionStatus,
@@ -102,10 +103,25 @@ class FreshnessPolicyCase(unittest.TestCase):
         self.assertEqual(result.reason_code, "STALE_FRAME")
 
     def test_wall_clock_adjustment_does_not_change_policy_freshness(self):
-        obs = observation(capture_completed_monotonic=500.0)
-        first = CentralPolicy(TEST_TASKS).evaluate(request(obs, monotonic_now=500.5))
-        second = CentralPolicy(TEST_TASKS).evaluate(request(obs, monotonic_now=500.5))
-        self.assertEqual((first.decision, first.reason_code), (second.decision, second.reason_code))
+        obs = observation(
+            capture_completed_monotonic=500.0,
+            ocr_result_capture_completed_monotonic=500.0,
+        )
+        policy = CentralPolicy(TEST_TASKS)
+        for wall_now in (1_800_000_000.0, 1_800_086_400.0, 1_799_913_600.0):
+            with patch("time.time", return_value=wall_now):
+                for monotonic_now, authorized, reason in (
+                    (499.9, False, "STALE_FRAME"),
+                    (500.5, True, "AUTHORIZED_ZERO_COST_R1"),
+                    (502.0, True, "AUTHORIZED_ZERO_COST_R1"),
+                    (502.001, False, "STALE_FRAME"),
+                ):
+                    with self.subTest(wall_now=wall_now, monotonic_now=monotonic_now):
+                        result = policy.evaluate(
+                            request(obs, monotonic_now=monotonic_now, policy_phase="pre_dispatch")
+                        )
+                        self.assertEqual(result.authorized, authorized)
+                        self.assertEqual(result.reason_code, reason)
 
     def test_frame_hash_timestamp_and_roi_binding_are_snapshot_bound(self):
         result = CentralPolicy(TEST_TASKS).evaluate(request())

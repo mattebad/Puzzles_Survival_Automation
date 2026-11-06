@@ -520,9 +520,6 @@ class GameplayFlowContractTests(unittest.TestCase):
             "current",
         )
 
-    def test_schema_file_exists(self):
-        self.assertTrue((CONTRACTS_DIR / "schema.json").is_file())
-
     def test_published_schema_accepts_all_representative_contracts(self):
         schema = json.loads(
             (CONTRACTS_DIR / "schema.json").read_text(encoding="utf-8")

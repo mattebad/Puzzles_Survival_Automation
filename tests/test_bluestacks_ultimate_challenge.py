@@ -575,6 +575,8 @@ class UltimateChallengeLineupTests(unittest.TestCase):
                 ultimate,
                 "utc_stamp",
                 return_value="r16-test",
+            ), patch.object(
+                ultimate, "time", SimpleNamespace(monotonic=time.monotonic, sleep=lambda _seconds: None)
             ):
                 terminal, detail = ultimate._run_daily_route(
                     runtime=runtime,
@@ -2597,6 +2599,8 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
                     else RuntimeError("synthetic measured bind failure")
                 )
                 with patch.object(
+                    ultimate, "time", SimpleNamespace(monotonic=time.monotonic, sleep=lambda _seconds: None)
+                ), patch.object(
                     ultimate,
                     "_campaign_context_recognized",
                     return_value=campaign_ok,

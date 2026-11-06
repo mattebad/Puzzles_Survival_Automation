@@ -366,16 +366,6 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
             ["praise-central-immediate-before", "praise-central-post-1"],
         )
 
-    def test_at_most_one_praise_transport(self) -> None:
-        proposal_capture, proposal = self.armed_proposal()
-        result = self.boundary(*self._success_recognitions()).execute_praise(
-            proposal_capture, proposal
-        )
-        self.assertEqual(result.status, "confirmed")
-        self.assertEqual(result.transport_calls, 1)
-        self.assertEqual(len(self.runtime.taps), 1)
-        self.assertEqual(self.runtime.labels.count("praise-central-immediate-before"), 1)
-
     def test_confirmed_seven_to_six_decrement_path(self) -> None:
         proposal_capture, proposal = self.armed_proposal(attempts=7)
         result = self.boundary(

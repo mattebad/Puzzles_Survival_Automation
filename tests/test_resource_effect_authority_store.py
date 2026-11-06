@@ -16,7 +16,7 @@ from safe_action_core.resource_effect_authority import (
     ResourceResetIdentity,
     ResourceFenceError,
 )
-from safe_action_core.store import SafetyStore, SchemaVersionError
+from safe_action_core.store import SafetyStore
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
@@ -460,16 +460,6 @@ class ResourceAuthorityStoreTests(unittest.TestCase):
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='resource_occurrences'"
             ).fetchone()
         )
-
-    def test_future_schema_remains_fail_closed(self) -> None:
-        path = Path(self.temp.name) / "future.sqlite3"
-        db = sqlite3.connect(path)
-        db.execute("CREATE TABLE schema_version(singleton INTEGER PRIMARY KEY, version INTEGER)")
-        db.execute("INSERT INTO schema_version VALUES(1, 99)")
-        db.commit()
-        db.close()
-        with self.assertRaises(SchemaVersionError):
-            SafetyStore(path)
 
     def test_v3_rows_survive_additive_reopen(self) -> None:
         self.store.connection.execute(

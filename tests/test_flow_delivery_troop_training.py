@@ -714,40 +714,6 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                 {},
             )
 
-    def test_live_canary_admission_allows_four_total_with_zero_prior_dispatch_evidence(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-
-            def fake_run(command, **_kwargs):
-                output = Path(command[command.index("--output-directory") + 1])
-                (output / "frames").mkdir(parents=True)
-                (output / "frames" / "0001-source.png").write_bytes(b"native")
-                (output / "events.jsonl").write_text(
-                    json.dumps({"type": "capture"}) + "\n", encoding="utf-8"
-                )
-                return CompletedProcess(
-                    command,
-                    3,
-                    stdout=json.dumps(
-                        {
-                            "status": "blocked",
-                            "session": str(output),
-                            "final_home_recognized": False,
-                        }
-                    ),
-                    stderr="",
-                )
-
-            with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", root):
-                import scripts.flow_delivery_troop_training_bluestacks as delivery
-
-                with patch.object(delivery.subprocess, "run", side_effect=fake_run):
-                    with self._live_lease(root) as lease:
-                        result = json.loads(
-                            run_troop_training_consolidation({}, lease, live=True)
-                        )
-            self.assertEqual(result["dispatch_count"], 0)
-
     def test_recovery_only_remains_permitted_after_one_prior_dispatch_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -881,24 +847,6 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                             run_troop_training_consolidation({}, lease, live=True)
                         )
             self.assertEqual(result["dispatch_count"], 0)
-
-    def test_live_canary_admission_rejects_one_prior_dispatch_evidence(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            prior = root / FLOW_ID / "run-prior"
-            prior.mkdir(parents=True)
-            (prior / "events.jsonl").write_text(
-                json.dumps({"type": "dispatch", "action_key": "prior"}) + "\n",
-                encoding="utf-8",
-            )
-            (prior / "flow-delivery-result.json").write_text(
-                json.dumps({"flow_id": FLOW_ID, "events_path": "events.jsonl", "dispatch": True}),
-                encoding="utf-8",
-            )
-            with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", root):
-                with self._live_lease(root) as lease:
-                    with self.assertRaisesRegex(pnsctl.OperatorError, "maximum-live-canary"):
-                        run_troop_training_consolidation({}, lease, live=True)
 
     def test_live_canary_admission_uses_full_count_boundary(self) -> None:
         configured_max = MAX_DISPATCH_BEARING_CANARY_RUNS

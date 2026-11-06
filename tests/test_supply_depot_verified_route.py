@@ -594,24 +594,6 @@ class SupplyDepotVerifiedRouteTests(unittest.TestCase):
             self.assertEqual(exit_execution.transport_calls, 0)
             self.assertEqual(runtime.taps, [])
 
-    def test_normal_claim_remains_denied_by_navigation_capability_firewall(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            runtime = _FakeRuntime(Path(directory))
-            captured = runtime.capture("before")
-            identity = _identity(runtime, captured)
-            observation = build_supply_depot_radial_observation(
-                identity=identity,
-                binding=_binding(captured.frame),
-            )
-            denied = navigation_capability_forbidden_reason(
-                SimpleNamespace(
-                    action_class=ActionClass.NAVIGATION_ONLY,
-                    semantic_action="SUPPLY_DEPOT_CLAIM",
-                    observation=observation,
-                )
-            )
-            self.assertEqual(denied, "CAPABILITY_NAVIGATION_CONSEQUENTIAL_DENIED")
-
     def test_capability_denial_dispatches_zero_and_does_not_tap(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

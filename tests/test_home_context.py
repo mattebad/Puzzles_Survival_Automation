@@ -17,7 +17,6 @@ from tasks.home_atlas import (
     ZoomIdentity,
 )
 from tasks.home_context import (
-    HOME_NAVIGATION_PRIMITIVES_DIGEST,
     HomeContextLevel,
     HomePrimitiveAction,
     HomeReadyObservation,
@@ -196,9 +195,6 @@ class HomeContextTests(unittest.TestCase):
         decision = ensure_home_ready(_ready(identity=None))
         self.assertIsNone(decision.level)
         self.assertEqual(decision.reason, "account_server_identity_unavailable")
-
-    def test_primitives_digest_is_stable_hex(self):
-        self.assertEqual(len(HOME_NAVIGATION_PRIMITIVES_DIGEST), 64)
 
 
 if __name__ == "__main__":

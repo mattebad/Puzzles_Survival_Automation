@@ -283,7 +283,7 @@
         "E702": 9
       },
       "tests/test_automation_service_scheduler_canonical.py": {
-        "F841": 2
+        "F841": 1
       },
       "tests/test_automation_service_state.py": {
         "F841": 2

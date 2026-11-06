@@ -168,7 +168,7 @@ class CanonicalSchedulerTests(unittest.TestCase):
             expected_key,
         ) in cases:
             with self.subTest(label=label), tempfile.TemporaryDirectory() as folder:
-                state, coordinator, _handler = initialize(
+                state, coordinator, handler = initialize(
                     Path(folder) / "state.sqlite3", descriptor
                 )
                 try:
@@ -184,6 +184,19 @@ class CanonicalSchedulerTests(unittest.TestCase):
                     self.assertEqual(
                         report.candidate.claim.occurrence_basis, expected_basis
                     )
+                    if label == "timer":
+                        runs_before_reset = mutable_tables(
+                            Path(folder) / "state.sqlite3"
+                        )["runs"]
+                        after_reset = coordinator.pulse(
+                            make_facts(now=101.0, reset_id="reset-2")
+                        )
+                        self.assertIsNone(after_reset.result)
+                        self.assertEqual(handler.plan_calls, 1)
+                        self.assertEqual(
+                            mutable_tables(Path(folder) / "state.sqlite3")["runs"],
+                            runs_before_reset,
+                        )
                 finally:
                     state.close()
 
@@ -591,31 +604,6 @@ class CanonicalSchedulerTests(unittest.TestCase):
                 self.assertIsNone(report.candidate)
                 self.assertIsNone(report.result)
                 self.assertEqual(handler.plan_calls, 0)
-            finally:
-                state.close()
-
-    def test_only_reset_scoped_descriptors_roll_reset_state(self) -> None:
-        timer = make_descriptor(
-            cadence="timer",
-            recurrence=RecurrenceProjection(
-                RecurrenceClass.TIMER,
-                next_eligible_at=100.0,
-                observed_at_utc=100.0,
-            ),
-        )
-        with tempfile.TemporaryDirectory() as folder:
-            state, coordinator, _handler = initialize(
-                Path(folder) / "state.sqlite3", timer
-            )
-            try:
-                with patch.object(
-                    state, "update_reset", wraps=state.update_reset
-                ) as update_reset:
-                    report = coordinator.pulse(make_facts(now=100.0))
-                self.assertIsNotNone(report.candidate)
-                self.assertEqual(
-                    report.candidate.claim.occurrence_kind, "timer"
-                )
             finally:
                 state.close()
 

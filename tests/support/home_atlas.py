@@ -10,6 +10,22 @@ from tasks.home_context import HomeReadyObservation
 from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
 
 
+class _UnusedAtlasLocalizer:
+    """Reject native Atlas work inside fixtures that explicitly script Home decisions."""
+
+    def __init__(self):
+        self.accesses = []
+
+    def __getattr__(self, name):
+        self.accesses.append(name)
+        raise AssertionError(f"scripted fixture unexpectedly used native Atlas localizer: {name}")
+
+    def assert_unused(self):
+        # Blocked-result handlers must not swallow an accidental native dependency.
+        if self.accesses:
+            raise AssertionError(f"scripted fixture used native Atlas localizer: {self.accesses}")
+
+
 def building(*, semantic_id: str = "home.building.bank", polygon=((900, 700), (1040, 700), (1040, 840), (900, 840)), eligible: bool = True) -> SemanticBuilding:
     return SemanticBuilding(
         semantic_id,

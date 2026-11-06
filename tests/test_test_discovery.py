@@ -54,6 +54,18 @@ class DiscoveryCoverageTests(unittest.TestCase):
             validate_discovery(directory, suite)
         self.assertIn("fixture_suite.test_hidden", str(caught.exception))
 
+    def test_duplicate_discovered_case_ids_are_rejected(self):
+        repeated = TEST_MODULE + (
+            "\ndef load_tests(loader, tests, pattern):\n"
+            "    first = loader.loadTestsFromTestCase(Example)\n"
+            "    second = loader.loadTestsFromTestCase(Example)\n"
+            "    return unittest.TestSuite([first, second])\n"
+        )
+        directory, suite = self.discover({"test_repeated.py": repeated})
+        with self.assertRaises(RuntimeError) as caught:
+            validate_discovery(directory, suite)
+        self.assertIn("fixture_suite.test_repeated.Example.test_behavior", str(caught.exception))
+
 
 class OfflineShardCoverageTests(unittest.TestCase):
     def receipts(self):
@@ -134,6 +146,34 @@ class OfflineShardCoverageTests(unittest.TestCase):
         reports[1]["revision"] = "another-revision"
         with self.assertRaises(ValueError):
             self.verify(reports, revision="same-revision")
+
+    def test_duplicate_discovery_cannot_authorize_duplicate_execution(self):
+        bodies = []
+
+        class RepeatedCase(unittest.TestCase):
+            def test_body(self):
+                bodies.append("executed")
+
+        cases = [RepeatedCase("test_body"), RepeatedCase("test_body")]
+        case_id = cases[0].id()
+        result = unittest.TextTestRunner(
+            stream=io.StringIO(), resultclass=ExecutionResult,
+        ).run(unittest.TestSuite(cases))
+        self.assertTrue(result.wasSuccessful(), result.errors + result.failures)
+        self.assertEqual(bodies, ["executed", "executed"])
+        receipt = {
+            "schema": 1, "index": 0, "count": 1, "platform": "Linux",
+            "revision": "same-revision", "discovered_ids": [case_id, case_id],
+            "selected_ids": [case_id, case_id], "executed_ids": result.executed_ids,
+            "tests_run": result.testsRun, "success": result.wasSuccessful(),
+            "failures": [], "errors": [], "skipped_ids": [],
+        }
+        with self.assertRaises(ValueError) as caught:
+            validate_receipts(
+                [receipt], count=1, platform_name="Linux", allowed_skips=(),
+                revision="same-revision",
+            )
+        self.assertIn(case_id, str(caught.exception))
 
     def test_selected_modules_keep_real_module_and_class_fixtures(self):
         events = []

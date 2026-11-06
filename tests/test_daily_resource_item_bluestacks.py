@@ -678,6 +678,8 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             side_effect=food_side_effect,
         ), patch.object(
             route, "resource_list_content_signature", return_value="synthetic-resource-list"
+        ), patch.object(
+            route, "time", SimpleNamespace(monotonic=time.monotonic, sleep=lambda _seconds: None)
         ):
             result = route.run_daily_resource_item(runtime, session)
 

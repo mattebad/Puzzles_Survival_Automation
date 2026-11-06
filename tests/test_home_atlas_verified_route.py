@@ -1882,18 +1882,6 @@ class HomeAtlasVerifiedRouteTests(unittest.TestCase):
                 self.assertEqual(calls, [])
                 self.assertNotEqual(result.status, ActionStatus.CONFIRMED)
 
-    def test_regression_module_imports(self) -> None:
-        modules = (
-            "tasks.navigation_session",
-            "tasks.navigation_observability",
-            "tasks.navigation_session_calibration",
-            "tasks.perception_bundle",
-            "safe_action_core",
-            "tasks.home_atlas_planner",
-        )
-        for name in modules:
-            importlib.import_module(name)
-
     def test_campaign_home_atlas_building_seam_exports(self) -> None:
         from scripts.home_atlas_bluestacks import (
             CAMPAIGN_HOME_ATLAS_BUILDING_ID,
