@@ -107,6 +107,11 @@ Check direct file entry with the repository `PYTHONPATH` unset, for example
 not verify that entry path. This is an offline startup check only: do not pass `--execute` or use a
 device, and do not treat successful help output as live acceptance.
 
+Zero-delay offline fixtures must give their synthetic captures, event timestamps and policy clocks
+one fixture-local clock with explicit event ordering. Keep tests that reject tied UTC or monotonic
+successors. Real OCR must retain its real bounded worker clock; do not patch global time or relax
+production ordering, freshness or OCR deadlines to make a fixture pass.
+
 The owners above were established by migrating the existing routes onto them (descriptors, input
 budgets, `--flow` names, pnsctl flow ids, the missing Personal Might queue record, 74 dead queue paths),
 and `tests/test_route_metadata_consistency.py` was broken one copy at a time to prove each fact class fails
