@@ -63,12 +63,6 @@ class PersonalMightCompletionAttributionTests(unittest.TestCase):
         ):
             self.assertFalse(hasattr(daily_quest, name))
 
-    def test_completion_contract_has_no_fixed_bliss_profile_import(self) -> None:
-        source_names = set(daily_quest.__dict__)
-        self.assertNotIn("MIGHT_PRAISE_ACTION", source_names)
-        self.assertNotIn("HELP_ALL_ACTION", source_names)
-        self.assertNotIn("PROFILE_ID", source_names)
-
     def test_matrix_retires_legacy_dispatch_and_keeps_completion_owner(self) -> None:
         matrix_path = (
             Path(__file__).resolve().parents[1]

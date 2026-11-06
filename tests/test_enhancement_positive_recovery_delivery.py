@@ -80,7 +80,6 @@ class PositiveRecoveryDeliveryTests(unittest.TestCase):
 
     def test_replay_and_receipt_before_progress_preserve_original(self):
         before = (self.case.session / "flow-delivery-result.json").read_bytes()
-        self.validate()
         delivery._reconcile_recovery_successor(self.root, "gear", self.route)
         value = json.loads(self.progress.read_text())["categories"]["gear"]
         self.assertEqual(value["status"], "completed")

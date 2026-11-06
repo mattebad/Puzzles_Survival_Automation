@@ -141,6 +141,68 @@ class OfflineShardCoverageTests(unittest.TestCase):
                 allowed_skips=(reports[0]["selected_ids"][0],),
             )
 
+    def selected_receipts(self):
+        reports = self.receipts()
+        inventory = reports[0]["discovered_ids"]
+        plan = {
+            "profile": "risk-based", "discovered_ids": inventory,
+            "planned_ids": inventory[:2], "omitted_ids": inventory[2:],
+            "changed_paths": [], "policy_sha256": "current-policy",
+        }
+        for index, report in enumerate(reports):
+            report.update(plan, schema=2, run_attempt="2")
+            selected = [inventory[index]]
+            report.update(selected_ids=selected[:], executed_ids=selected[:], tests_run=1)
+        return plan, reports
+
+    def test_declared_selection_is_verified_instead_of_claiming_full_execution(self):
+        plan, reports = self.selected_receipts()
+        self.assertEqual(validate_receipts(
+            reports, count=2, platform_name="Linux", allowed_skips=(),
+            expected_plan=plan, run_attempt="2",
+        ), (2, 0))
+        with self.assertRaises(ValueError):
+            self.verify(reports)
+
+    def test_self_consistent_receipts_cannot_shrink_the_independent_plan(self):
+        plan, reports = self.selected_receipts()
+        for report in reports:
+            report["planned_ids"] = plan["planned_ids"][:1]
+            report["omitted_ids"] = plan["discovered_ids"][1:]
+        reports[1].update(selected_ids=[], executed_ids=[], tests_run=0)
+        with self.assertRaises(ValueError):
+            validate_receipts(
+                reports, count=2, platform_name="Linux", allowed_skips=(), expected_plan=plan,
+            )
+
+    def test_foreign_selection_policy_attempt_and_invented_skip_are_rejected(self):
+        plan, complete = self.selected_receipts()
+        changes = {
+            "wrong-policy": {"policy_sha256": "old-policy"},
+            "wrong-scope": {"profile": "full"},
+            "old-attempt": {"run_attempt": "1"},
+            "unexecuted-skip": {"skipped_ids": plan["omitted_ids"]},
+        }
+        for name, fields in changes.items():
+            reports = deepcopy(complete)
+            reports[0].update(fields)
+            with self.subTest(case=name), self.assertRaises(ValueError):
+                validate_receipts(
+                    reports, count=2, platform_name="Linux",
+                    allowed_skips=plan["discovered_ids"], expected_plan=plan, run_attempt="2",
+                )
+
+    def test_partial_scope_cannot_claim_full_or_hide_its_omissions(self):
+        for changes in ({"profile": "full"}, {"omitted_ids": []}):
+            plan, reports = self.selected_receipts()
+            plan = dict(plan, **changes)
+            for report in reports:
+                report.update(changes)
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                validate_receipts(
+                    reports, count=2, platform_name="Linux", allowed_skips=(), expected_plan=plan,
+                )
+
     def test_receipts_from_another_revision_cannot_satisfy_coverage(self):
         reports = self.receipts()
         reports[1]["revision"] = "another-revision"

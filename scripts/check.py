@@ -33,7 +33,6 @@ OFFLINE_TEST_MODULES: tuple[str, ...] = (
     "tests.test_native_frame_replay",
     "tests.test_runtime_trace_projection",
     "tests.test_host_identifier_guard",
-    "tests.test_readme_consistency",
     "tests.test_route_metadata_consistency",
 )
 
@@ -69,6 +68,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {module}", flush=True)
     print(f"$ {shlex.join(command)}", flush=True)
 
+    try:
+        completed = subprocess.run(command, cwd=root, env=controlled_environment(root), check=False)
+    except OSError as exc:
+        print(f"offline check could not start unittest: {exc}", file=sys.stderr)
+        return 1
+    return completed.returncode
+
+
+def controlled_environment(root: Path) -> dict[str, str]:
+    """The developer command and CI suite share the same device-free environment."""
     environment = os.environ.copy()
     environment["PYTHONHASHSEED"] = "0"
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -76,13 +85,7 @@ def main(argv: list[str] | None = None) -> int:
     environment["PYTHONPATH"] = str(root)
     for key in _RUNTIME_ENVIRONMENT_KEYS:
         environment.pop(key, None)
-
-    try:
-        completed = subprocess.run(command, cwd=root, env=environment, check=False)
-    except OSError as exc:
-        print(f"offline check could not start unittest: {exc}", file=sys.stderr)
-        return 1
-    return completed.returncode
+    return environment
 
 
 if __name__ == "__main__":

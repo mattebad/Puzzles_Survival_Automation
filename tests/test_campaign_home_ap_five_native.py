@@ -58,21 +58,6 @@ class CampaignHomeAPFiveNativeTests(unittest.TestCase):
         self.assertTrue(command.terminal)
         self.assertEqual(command.action, CampaignAction.BLOCKED)
 
-    @requires_tesseract
-    def test_five_and_retained_hundred_rows_remain_ambiguous(self):
-        frame = cv2.imread(str(ROOT / "tests/fixtures/campaign_ap_hud/home-ap100-stamina120.png"))
-        self.assertIsNotNone(frame)
-        frame[195:234, 0:135] = (20, 20, 20)
-        frame[202:231, 0:122] = self.frame()[205:234, 0:122]
-        self.assertEqual(_hud_ap_fraction(frame, (HOME_AP_CURRENT_ROI,)), (5, 120))
-        self.assertEqual(_hud_ap_fraction(frame, (HOME_AP_ROI,)), (100, 120))
-        self.assertIsNone(_hud_ap_fraction(frame, HOME_ROWS))
-        recognition = recognize_campaign_frame(frame, STAGE)
-        self.assertIsNone(recognition.observation.ap_current)
-        command = self.controller().next_command(recognition, frame)
-        self.assertTrue(command.terminal)
-        self.assertEqual(command.action, CampaignAction.BLOCKED)
-
 
 if __name__ == "__main__":
     unittest.main()

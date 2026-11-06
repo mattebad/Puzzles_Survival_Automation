@@ -1423,19 +1423,6 @@ class DirectCommanderRouteTests(unittest.TestCase):
 
 
 class ContractAndReservationTests(unittest.TestCase):
-    def test_completed_ordered_family_verifies_three_uses(self):
-        with tempfile.TemporaryDirectory() as folder:
-            structure = _prepare_family_fixture(family_verifier_structure(Path(folder)))
-            with _family_replay_patches(structure):
-                verified = verify_enhancement_family(structure, {}, {})
-        self.assertEqual(verified["status"], "verified")
-        self.assertEqual(verified["variant"], "family")
-        self.assertEqual(verified["current_resource_affecting_dispatch_count"], 3)
-        self.assertTrue(verified["postcondition_verified"])
-        self.assertEqual(verified["categories_verified"], list(ORDERED_VARIANTS))
-        self.assertTrue(verified["causal_trace_verified"])
-        self.assertTrue(verified["transport_accounting_verified"])
-
     def test_completed_family_passes_operational_generic_verification(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -1453,6 +1440,12 @@ class ContractAndReservationTests(unittest.TestCase):
                 verdict = json.loads(pnsctl.bluestacks_verify_flow(session))
         self.assertEqual(verdict["status"], "verified")
         self.assertEqual(verdict["flow_id"], FLOW_ID)
+        self.assertEqual(verdict["variant"], "family")
+        self.assertEqual(verdict["current_resource_affecting_dispatch_count"], 3)
+        self.assertTrue(verdict["postcondition_verified"])
+        self.assertEqual(verdict["categories_verified"], list(ORDERED_VARIANTS))
+        self.assertTrue(verdict["causal_trace_verified"])
+        self.assertTrue(verdict["transport_accounting_verified"])
 
     def test_empty_stages_cannot_verify_completed_family(self):
         with tempfile.TemporaryDirectory() as folder:

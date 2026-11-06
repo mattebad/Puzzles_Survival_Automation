@@ -471,9 +471,6 @@
       "automation_service/ultimate.py": {
         "variable:60": 2
       },
-      "calibration/transform.py": {
-        "variable:60": 2
-      },
       "safe_action_core/models.py": {
         "method:60": 1,
         "variable:60": 2

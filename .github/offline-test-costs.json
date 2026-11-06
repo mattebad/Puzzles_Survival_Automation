@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "profile_revision": "3aaa0e674c0f1b0e8c832d32b2de61f7108d24ee",
-  "reserved_seconds": 333,
+  "reserved_seconds": 0,
   "module_seconds": {
     "tests.test_activity_milestones": 0.001,
     "tests.test_architecture_imports": 4.941,
@@ -70,7 +70,6 @@
     "tests.test_catalog_and_pnsctl": 0.096,
     "tests.test_challenge_disabled": 0.002,
     "tests.test_contextual_startup_recovery": 3.56,
-    "tests.test_coordinate_calibration": 0.001,
     "tests.test_daily_bioenhancer": 0.002,
     "tests.test_daily_enhancement": 0.002,
     "tests.test_daily_enhancement_chip": 0.001,
@@ -180,9 +179,7 @@
     "tests.test_product_authority": 1.59,
     "tests.test_purchases_disabled": 0.002,
     "tests.test_radial_semantics": 0.003,
-    "tests.test_readme_consistency": 0.001,
     "tests.test_recovered_executor_accounting": 0.552,
-    "tests.test_reference_manifest": 0.002,
     "tests.test_research_lab_home_entry_binding": 16.604,
     "tests.test_resource_boost_disabled": 0.002,
     "tests.test_resource_effect_authority_history": 1.621,

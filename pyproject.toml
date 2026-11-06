@@ -1,9 +1,10 @@
 [tool.ruff]
 target-version = "py311"
 include = ["*.py"]
-# Historical captures, retired source and vendored local tools are not active code.
+# Historical captures, retired research and vendored local tools are not active code.
 extend-exclude = [
     ".local-tools",
+    "calibration",
     "docs/archive",
     "evidence",
     "tasks/assets",

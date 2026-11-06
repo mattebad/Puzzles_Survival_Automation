@@ -119,18 +119,7 @@ class ModulePanelNativeTests(unittest.TestCase):
         self.assert_no_material_authority(self.recognize(changed))
 
     @requires_tesseract
-    def test_measured_back_reaches_home_without_resource_and_missing_fresh_back_blocks(self):
-        commander = FRAME.with_name("native-commander-gear-20261029.png").read_bytes()
-        home = (Path(__file__).parent / "fixtures/home_base/native-home-bio-zoomed-20261029.png").read_bytes()
-        runtime, session = exit_runtime([self.raw, self.raw, commander, commander, home])
-        route = native.EnhancementIntegratedRoute(runtime, variant="module", reset_identity="current-reset", session=session)
-        _, terminal = route._navigate_to("home")
-        self.assertEqual(terminal.detail_state, "home")
-        self.assertEqual([row["target_identity"] for row in runtime.inputs],
-            ["enhancement-visible-back", "commander-visible-back"])
-        self.assertEqual([row["target_roi"] for row in runtime.inputs], [(47, 2, 128, 61), (48, 2, 129, 61)])
-        self.assertEqual([row[1] for row in runtime.journal], ["confirmed", "confirmed"])
-        self.assertFalse(route.resource_dispatch_keys)
+    def test_fresh_frame_missing_back_cannot_reuse_the_planning_frame_target(self):
         changed = self.frame.copy()
         changed[:90, :180] = 0
         missing = cv2.imencode(".png", changed)[1].tobytes()

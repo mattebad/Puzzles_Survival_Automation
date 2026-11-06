@@ -55,9 +55,15 @@ class ContractTests(unittest.TestCase):
             required_progress=10,
         )
         self.assertEqual(AllianceHelpHandler.remaining(observation), 1)
+        self.assertEqual(AllianceHelpHandler.remaining(replace(observation, current_progress=0)), 10)
         self.assertTrue(
             AllianceHelpHandler.completion_check(
                 replace(observation, current_progress=10)
+            )
+        )
+        self.assertFalse(
+            AllianceHelpHandler.completion_check(
+                replace(observation, current_progress=11)
             )
         )
         for name in (

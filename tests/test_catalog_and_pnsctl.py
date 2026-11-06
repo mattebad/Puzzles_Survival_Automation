@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 from scripts import pnsctl
 from tasks.catalog import CATALOG_PATH, catalog_summary, load_catalog, objective_for_text
-from tasks.daily_quest import AllianceHelpHandler, AllianceHelpObservation
 from tasks.gameplay_flow_contracts import CONTRACTS_DIR
 MILESTONE_FLOW_ID = "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION"
 MATRIX_PATH = Path(__file__).resolve().parents[1] / "tasks" / "daily_quest_execution_matrix.json"
@@ -339,57 +338,6 @@ class OperatorCliTests(unittest.TestCase):
                     pnsctl.parser().parse_args(argv)
                 self.assertIn("invalid choice", stderr.getvalue())
                 adb.assert_not_called()
-
-    def test_removed_remote_implementation_symbols_are_absent(self):
-        for symbol in (
-            "OperatorConfig",
-            "load_credentials",
-            "run_remote",
-            "run_pscp",
-            "worker_start",
-            "worker_status",
-            "worker_stop",
-            "adb_start",
-            "navigate",
-            "run_task",
-            "test_command",
-            "validate",
-            "preserve_evidence",
-            "evidence_status",
-            "cleanup",
-        ):
-            with self.subTest(symbol=symbol):
-                self.assertFalse(hasattr(pnsctl, symbol))
-
-
-class HelpCompletionAttributionTests(unittest.TestCase):
-    def _observation(self, **changes):
-        values = dict(
-            screen_state="DAILY_QUEST",
-            objective_name="Help allies",
-            current_progress=0,
-            required_progress=10,
-        )
-        values.update(changes)
-        return AllianceHelpObservation(**values)
-
-    def test_help_provider_attributes_completion_only(self):
-        before = self._observation()
-        after = self._observation(current_progress=10)
-        self.assertEqual(AllianceHelpHandler.remaining(before), 10)
-        self.assertTrue(AllianceHelpHandler.completion_check(after))
-        self.assertFalse(
-            AllianceHelpHandler.completion_check(
-                self._observation(current_progress=11)
-            )
-        )
-        for name in (
-            "authorizeable",
-            "transaction_spec",
-            "perform_one_pulse",
-            "postcondition_verified",
-        ):
-            self.assertFalse(hasattr(AllianceHelpHandler, name))
 
 
 if __name__ == "__main__":

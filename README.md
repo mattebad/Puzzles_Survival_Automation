@@ -37,8 +37,8 @@ owner of every route fact.
 
 Each registration has a flow id, used by `enable <flow-id>` and `disable <flow-id>`. Run
 `automation-service status` to list them. `tests/test_route_metadata_consistency.py` fails if this table
-disagrees with the registry or the `serve --flow` choices, and `tests/test_readme_consistency.py`
-fails if the status link above is not the newest `docs/bluestacks-route-status-*.md` report.
+disagrees with the registry or the `serve --flow` choices. Status reports are dated evidence;
+a newer filename alone does not establish current acceptance.
 
 ## Safety model
 
@@ -74,7 +74,8 @@ python3 -m venv .venv
 .venv/bin/python scripts/check.py
 ```
 
-`scripts/check.py` is the small offline smoke check. CI runs the full discovered suite below.
+`scripts/check.py` is the small offline developer smoke check. CI uses the risk-based
+selection described below instead of repeating that command after another suite.
 
 ## Running
 
@@ -105,9 +106,25 @@ Windows and Linux are the supported full-suite development/CI platforms, with Py
 python -B -m unittest discover -v -s tests -t .
 ```
 
-CI also runs `python -B scripts/check_test_discovery.py`, which rejects any
-`tests/test_*.py` module omitted by discovery; no modules are excluded. The existing
-eight repeated Supply binding checks remain an additional stress gate.
+Routine CI inventories every test module, then executes a declared safety/route-boundary
+baseline plus affected coverage. Windows represents the supported bot host; Linux covers
+distinct worker, filesystem, SQLite and tooling behavior. Shared Home/OCR/navigation changes
+expand their owning tests and representative consumers; bespoke route changes expand that
+route and its import-dependent tests. Unknown impact falls back to full execution.
+
+Each job independently verifies actual starts, results, revision, policy and skip identities
+against the intended selection. Omitted cases are listed in its receipt, never disguised as
+skips or described as full execution. The existing per-OS required-check names remain.
+
+Full Windows/Linux regression runs daily at 08:23 UTC and on an explicit full-validation
+request (workflow dispatch or the `ci:full` PR label). It is not an additional default
+pre-merge requirement. The old eight-process Supply repetition is an optional diagnostic
+(`supply_stress` input or `ci:supply-stress` label); native Supply canaries still run routinely.
+Deferred failures can escape an unrelated PR until the next full run, potentially after merge.
+These checks prove offline regressions, not that today's game matches stored screenshots.
+
+See [the CI decision ledger](docs/validation/issue-51/README.md) for exact changes, retained
+protection, measured results and accepted coverage loss. Full local execution remains opt-in.
 
 macOS is best-effort, not a full-suite supported platform: tests requiring the
 bounded OCR worker skip explicitly because it requires Linux `/proc` or Windows

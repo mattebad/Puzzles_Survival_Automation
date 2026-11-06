@@ -101,6 +101,18 @@ A route is `tasks/` (semantics) → `scripts/<route>_bluestacks.py` (native runn
 
 ## Validation
 
+Reuse the shared service contract for ownership, stop/generation, unknown-effect
+and accounting rules. Add native cases for the route's distinctive semantics and
+recognition, plus a representative integration in the Windows baseline in
+`ROUTE_BOUNDARIES` in `scripts/offline_selection.py`. The registered-route check
+requires a baseline consumer for every executable service registration. Add or verify
+its affected-family/import mapping.
+Shared Home/OCR/popup variants belong in their owning suite and a representative
+consumer matrix, not copied through every route. Expanded native/recovery cases
+run on relevant changes and the periodic full validation; document any new risk
+that the common contract does not cover. A new route does not justify multiplying
+the entire shared suite on every unrelated PR.
+
 Retained executable adapters must bootstrap the repository root before importing project packages.
 Check direct file entry with the repository `PYTHONPATH` unset, for example
 `python -B scripts/bluestacks_campaign_ap.py --help`; importing the module from the test runner does

@@ -20,14 +20,6 @@ class EnhancementCategoryResumeTests(CategoryResumeSessions, unittest.TestCase):
         parent = Path(reference).parent.parent.resolve()
         return next(case for case in self.cases if case.session.resolve() == parent)
 
-    def test_equivalent_session_spelling_preserves_verified_source_and_effects(self):
-        case = self.make_session()
-        case.session = case.session / "frames" / ".."
-        verdict = self.verify(case)
-        self.assertEqual(verdict["status"], "verified")
-        self.assertEqual(verdict["current_categories"], list(CATEGORIES))
-        self.assertEqual(verdict["current_resource_affecting_dispatch_count"], 3)
-
     def parsers(self):
         def selection(current, **kwargs):
             return self.case_for(current.path).selection(current, **kwargs)
@@ -135,6 +127,7 @@ class EnhancementCategoryResumeTests(CategoryResumeSessions, unittest.TestCase):
 
     def test_continuous_family_still_requires_three_ordered_current_uses(self):
         current = self.make_session()
+        current.session = current.session / "frames" / ".."
         verdict = self.verify(current)
         self.assertEqual(verdict["status"], "verified")
         self.assertEqual(verdict["proof_topology"], "continuous")

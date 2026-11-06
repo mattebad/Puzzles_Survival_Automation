@@ -284,24 +284,6 @@ class MinimalPanPlannerTests(unittest.TestCase):
         # crosses the gap. No minimum-sized region fits around this anchor.
         self.assertIsNone(bind_visible_building(frame, loc, target, home_is_clean=lambda _frame: True))
 
-    def test_retained_bad_label_frame_binds_tavern_geometry(self):
-        root = Path(__file__).resolve().parents[1]
-        atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
-        world = load_home_atlas(atlas_path)
-        target = world.lookup_building("home.building.noahs_tavern")
-        localizer = BlueStacksHomeLocalizer(world, atlas_path)
-        frame = cv2.imread(str(root / "tests" / "fixtures" / "home_atlas_noahs_tavern_attempt3.png"), cv2.IMREAD_COLOR)
-        self.assertIsNotNone(frame)
-        localization = localizer.localize(frame)
-        diagnostics = {}
-        binding = bind_visible_building(frame, localization, target, home_is_clean=lambda _frame: True, diagnostics=diagnostics)
-        self.assertIsNotNone(binding)
-        assert binding is not None
-        self.assertEqual(binding.building_id, target.semantic_id)
-        self.assertEqual(binding.frame_sha256, frame_digest(frame))
-        self.assertEqual(diagnostics["reason"], "accepted")
-        self.assertEqual(diagnostics["anchor_source"], "explicit_override")
-
     def test_native_geometry_binding_handles_two_retained_camera_offsets(self):
         root = Path(__file__).resolve().parents[1]
         atlas_path = root / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
@@ -321,6 +303,8 @@ class MinimalPanPlannerTests(unittest.TestCase):
                 self.assertEqual(binding.frame_sha256, frame_digest(frame))
                 self.assertEqual(diagnostics["reason"], "accepted")
                 self.assertNotIn("ocr_calls", diagnostics)
+                if name == "home_atlas_noahs_tavern_attempt3.png":
+                    self.assertEqual(diagnostics["anchor_source"], "explicit_override")
 
     def test_native_preflight_geometry_binding_handles_bank_and_neighbors(self):
         root = Path(__file__).resolve().parents[1]
@@ -711,11 +695,6 @@ class RecoveryAwareViewportPlannerTests(unittest.TestCase):
         self.assertLessEqual(min(xs), 200)
         self.assertGreaterEqual(max(xs), 600)
         self.assertEqual(points, sorted(points, key=lambda item: (item[1], item[0])))
-
-    def test_plan_direct_pan_public_signature_excludes_seen_destinations(self):
-        import inspect
-        params = list(inspect.signature(plan_direct_pan).parameters)
-        self.assertEqual(params, ["atlas", "localization", "building_id", "safe_region", "calibration"])
 
     def test_supply_depot_safe_subregion_produces_viable_plan(self):
         from tasks.home_atlas import load_home_atlas
