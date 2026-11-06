@@ -6,8 +6,11 @@
   accepted live portfolio. Documentation MUST distinguish implemented code from
   live-accepted behavior.
 - `docs/agent/CURRENT_HANDOFF.md` records volatile current state; agent prompts
-  and session note formats also live under `docs/agent/`. `BACKLOG.md` and the rest
-  of `docs/` hold durable plans and history. Git state and retained evidence are authoritative.
+  and session note formats also live under `docs/agent/`. GitHub issues are the active
+  planning tracker; issue #53 maps the former REC records. `BACKLOG.md` and
+  `docs/backlog/` are historical planning references, not a second active backlog.
+  The rest of `docs/` holds durable design and history. Git state and retained
+  evidence remain authoritative for implementation and acceptance facts.
 - Describe readiness, blockers, and current state from present facts. Mark missing,
   stale, or contradictory proof as `evidence_required`; never infer readiness from
   an old receipt. Legacy receipts remain historical records and do not imply a

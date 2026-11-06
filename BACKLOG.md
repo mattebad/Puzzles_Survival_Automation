@@ -1,4 +1,6 @@
-# Canonical execution backlog
+# Historical execution backlog
+
+> **Historical planning record — migrated 2026-11-06.** Active work, current owner decisions, dependencies and completion status are tracked in [GitHub issues](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53). The body below preserves the pre-migration REC record; do not maintain it as a second backlog or use its stale policy/dependency wording as current instructions. The GitHub tracker maps every REC ID to its current issue or disposition.
 
 ## Implemented BlueStacks route portfolio
 

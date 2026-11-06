@@ -1,5 +1,7 @@
 # Backlog planning conventions
 
+> **Historical planning record — migrated 2026-11-06.** Active work, current owner decisions, dependencies and completion status are tracked in [GitHub issues](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53). The body below preserves the pre-migration REC record; do not maintain it as a second backlog or use its stale policy/dependency wording as current instructions. The GitHub tracker maps every REC ID to its current issue or disposition.
+
 This document describes the compact format for the 74 current recovery tickets. It is a planning
 convention, not an execution prompt, queue, registry, scheduler, evidence authority, or runtime
 control plane. Offline work does not require a runtime state change, delivery receipt, or queue

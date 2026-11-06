@@ -1,5 +1,7 @@
 # Foundation recovery backlog
 
+> **Historical planning record — migrated 2026-11-06.** Active work, current owner decisions, dependencies and completion status are tracked in [GitHub issues](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53). The body below preserves the pre-migration REC record; do not maintain it as a second backlog or use its stale policy/dependency wording as current instructions. The GitHub tracker maps every REC ID to its current issue or disposition.
+
 Planning-only records for the canonical `automation_service` recovery. These records do not activate a flow, authorize transport, mutate evidence, or replace the historical backlog. Dated reconciliation notes record local implementation and remaining acceptance. `READY` remains a future offline planning label.
 
 ## Cross-ticket controls
