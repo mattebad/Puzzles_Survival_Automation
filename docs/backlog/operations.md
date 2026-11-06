@@ -1,5 +1,7 @@
 # Recovery operations backlog
 
+> **Historical planning record — migrated 2026-11-06.** Active work, current owner decisions, dependencies and completion status are tracked in [GitHub issues](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53). The body below preserves the pre-migration REC record; do not maintain it as a second backlog or use its stale policy/dependency wording as current instructions. The GitHub tracker maps every REC ID to its current issue or disposition.
+
 This file is the planning record for the operations slice. Dated notes record existing local implementation alongside remaining recovery work;
 none authorizes a device, host, NAS, VM, ADB, gameplay, credential, token, LLM, MCP, or protected
 evidence operation. The direct Android-focused VM remains the selected hosted runtime. Any fallback

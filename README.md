@@ -7,7 +7,8 @@ the next one.
 
 **Current status:** [November 2 BlueStacks route report](docs/bluestacks-route-status-20261102.md).
 It records which routes are live-accepted, at which commit, and the limits of that evidence.
-Remaining work is planned in [`BACKLOG.md`](BACKLOG.md) and tracked in GitHub issues.
+Remaining work and current product decisions are tracked in [GitHub issues](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53).
+`BACKLOG.md` and `docs/backlog/` preserve historical REC records; they are no longer an active backlog.
 
 ## Routes
 
@@ -154,7 +155,7 @@ a live BlueStacks claim.
   route and maintenance tooling.
 - `tests/`: offline unit, replay, policy, route and safety tests.
 - `docs/`: user and maintainer documentation: service guide, runbook, dated status reports,
-  route designs, policies, and the planning tickets in `docs/backlog/`.
+  route designs and policies. `docs/backlog/` retains the historical REC records mapped in GitHub.
 - `docs/agent/`: volatile agent-workflow state (session handoff, implementation prompts, note
   formats). Not needed to use the bot.
 - `docs/archive/`: superseded records kept for history. Not current instructions.

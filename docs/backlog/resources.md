@@ -1,5 +1,7 @@
 # Resource recovery backlog
 
+> **Historical planning record — migrated 2026-11-06.** Active work, current owner decisions, dependencies and completion status are tracked in [GitHub issues](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53). The body below preserves the pre-migration REC record; do not maintain it as a second backlog or use its stale policy/dependency wording as current instructions. The GitHub tracker maps every REC ID to its current issue or disposition.
+
 - Planning-only records for the resource/effect and resource-policy slice. Dated reconciliation notes distinguish local implementation from remaining acceptance. These records authorize no transport, scheduler registration, production enablement, native observation, evidence mutation, or product action. `ResourceEffectAuthority` remains authoritative for every effectful route until REC-R01's parity package is accepted. An `UNKNOWN` effect is reconciled or blocked; it is never automatically retried. Shared implementation files are merged serially under the mutex named by each ticket; shared family static bindings and SQLite-disabled state are facts to preserve, not separate mutable registration gates.
 
 ### REC-R01 — Preserve ResourceEffectAuthority parity at the canonical action boundary

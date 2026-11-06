@@ -115,8 +115,9 @@ the scheduler/facade consumer checks are recorded separately; their counts are n
 The explicitly authorized native composition supports Nova, Recruitment, Campaign, Bioenhancer,
 Supply, Ultimate, Enhancement, and Personal Might runners. The ordinary registered selectors
 remain non-consuming; passing `--flow` alone does not enable them. Current individual effect/Home
-acceptance, uninterrupted Enhancement proof, independent recruit timers and cadence scope are maintained
-in [`BACKLOG.md`](../BACKLOG.md), with volatile state in the handoff.
+acceptance, uninterrupted Enhancement proof, independent recruit timers and cadence scope are recorded
+in the dated [November 2 report](bluestacks-route-status-20261102.md). Active work is tracked in
+[GitHub issues](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53), with volatile state in the handoff.
 
 Before invoking a due native runner, the owning service checks the foreground. A healthy game is
 left in its current context for route-owned recognition. An exact known BlueStacks launcher can

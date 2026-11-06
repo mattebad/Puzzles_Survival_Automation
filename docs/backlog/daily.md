@@ -1,5 +1,7 @@
 # Daily recovery tickets
 
+> **Historical planning record — migrated 2026-11-06.** Active work, current owner decisions, dependencies and completion status are tracked in [GitHub issues](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53). The body below preserves the pre-migration REC record; do not maintain it as a second backlog or use its stale policy/dependency wording as current instructions. The GitHub tracker maps every REC ID to its current issue or disposition.
+
 Reconciled recovery records. `IMPLEMENTED_LOCAL` describes existing local code; `PARTIAL_LOCAL` describes implemented overlap with remaining ticket acceptance. Neither means merged, production-enabled or fully accepted on every target. Unchanged READY/WAITING/BLOCKED records remain future work. Reconciliation notes are factual status, not runtime authority.
 
 ### REC-D01 — Reconcile current Daily catalog identity and no-premium policy

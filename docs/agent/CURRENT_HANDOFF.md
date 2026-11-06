@@ -1,18 +1,12 @@
 # Current handoff
 
-Updated 2026-11-03. This file is volatile session state.
-Route status lives in the README's current status report; open work lives in GitHub issues.
+Updated 2026-11-06. This file records volatile session state.
 
-- **Integration branch:** `main`. PR #16 (`codex/bluestacks-route-reliability`) merged into
-  `main` on 2026-11-02 (`f6b201f`). That branch is finished; do not develop on it.
-- **Work in progress:** the repository cleanup tickets (GitHub issues #19 to #44), each on
-  its own branch and worktree.
-- **Runtime posture (last recorded, not checked again here):** the November 2 report records
-  all nine flow controls and the service control OFF, no live owner, and no permanent
-  scheduling. Run `scripts/pnsctl.py automation-service status` on the runtime host to see
-  the actual state.
-- **Previous handoff:** the November 2 pre-merge session snapshot is preserved byte-for-byte in
-  [`../archive/current-handoff-astra-premerge-20261102.md`](../archive/current-handoff-astra-premerge-20261102.md).
-  Its next actions (publish to PR #16, wait for its CI) are complete or out of date.
+- **Active planning tracker:** [GitHub issue #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53) links the current deliverables and maps all 74 historical REC records. Update the linked issues rather than maintaining a parallel Markdown backlog.
+- **Integration baseline:** `main`; PR #16 and the cleanup/CI stack, including PR #52, are merged. The finished route-reliability branch is not a development base.
+- **Tracker cutover:** this documentation change marks `BACKLOG.md`, `docs/backlog/` and the former planning contract historical. Existing ticket text is retained for provenance. Current owner direction, including route-success Daily readiness, combined reward/shop/Ruins visits, base-first sequencing and the future NAS study, is in GitHub.
+- **Runtime posture:** not observed during this migration. The November 2 report records all nine flow controls and the service control OFF and no live owner at that time; this is not a current runtime attestation.
+- **Live investigation direction:** the owner authorized information gathering for the combined shops, Wali, Hero Duel and Recommended Research. A future single operator must record that authorization and the concrete bounded observation scope through the existing controller. This documentation pass performs no game/device input or runtime-state change.
+- **Historical handoff:** the November 2 pre-merge snapshot remains in [`../archive/current-handoff-astra-premerge-20261102.md`](../archive/current-handoff-astra-premerge-20261102.md).
 
-This file grants no live authority.
+Issues and historical evidence do not independently enable runtime execution.
