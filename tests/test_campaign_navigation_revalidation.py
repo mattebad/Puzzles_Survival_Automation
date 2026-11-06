@@ -5,7 +5,6 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
-import time
 import unittest
 from unittest.mock import patch
 
@@ -19,6 +18,7 @@ from tasks.campaign_atlas_vision import OrbTranslationBackend, RegistrationMeasu
 from tasks.campaign_auto_battle import CampaignAction, CampaignAutoBattleConfig, CampaignRouteObservation, CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_runtime import CampaignRuntimeCommand
 from tasks.campaign_auto_battle_vision import CampaignFrameRecognition
+from tests.support.capability_firewall import Clock
 
 
 STAGE = CampaignStage(1, 15, 9)
@@ -106,6 +106,7 @@ class CampaignNavigationRevalidationTests(unittest.TestCase):
 
     def test_expensive_planner_runs_once_and_transport_uses_actual_new_capture(self):
         runtime, device = self.runtime(max_age=0.1)
+        clock = Clock()
         captures = []
         capture = runtime.capture
         def record(label):
@@ -113,18 +114,20 @@ class CampaignNavigationRevalidationTests(unittest.TestCase):
             captures.append(found)
             return found
         def plan(*_args, **_kwargs):
-            time.sleep(0.15)
+            clock.advance(0.15)
             return AtlasChapterNavDecision("swipe", "measured atlas pan", swipe=PAN, pan_direction="left",
                                            distance_to_screen_center_px=500, localization_support=("anchor",))
         config = CampaignAutoBattleConfig(STAGE, ap_cost=14, ap_budget=14, max_runs=1)
-        with patch.object(runtime, "capture", side_effect=record), \
+        with patch("scripts.bluestacks_native_runtime.time.monotonic", side_effect=clock), \
+                patch.object(runtime, "capture", side_effect=record), \
                 patch.object(runtime, "swipe", wraps=runtime.swipe) as dispatch, \
                 patch.object(live, "recognize_campaign_frame", side_effect=lambda frame, *_args, **_kwargs: recognized(frame)), \
                 patch("tasks.campaign_atlas_chapter_nav.resolve_atlas_chapter_navigation", side_effect=plan) as planner, \
                 patch.object(OrbTranslationBackend, "measure", return_value=registration()):
-            with self.assertRaises(live.CampaignApRunError):
+            with self.assertRaisesRegex(
+                    live.CampaignApRunError, "^Campaign AP maximum controller steps exceeded$"):
                 live.run_campaign_ap_route(runtime, config, checkpoint=lambda: None, maximum_steps=1,
-                                           post_input_delay=0, sleep=lambda _seconds: None)
+                                           post_input_delay=0, monotonic_clock=clock, sleep=clock.advance)
         self.assertEqual(planner.call_count, 1)
         self.assertEqual(len(captures), 2)
         self.assertGreater(captures[1].captured_monotonic - captures[0].captured_monotonic, runtime.frame_max_age_seconds)
@@ -191,14 +194,18 @@ class CampaignNavigationRevalidationTests(unittest.TestCase):
 
     def test_immediate_capture_expiring_during_validation_cannot_dispatch_or_retry(self):
         runtime, device = self.runtime(max_age=0.1)
-        source = runtime.capture("proposal")
+        clock = Clock()
         def slow_observe(captured):
-            time.sleep(0.15)
+            clock.advance(0.15)
             return recognized(captured.frame)
-        with patch.object(OrbTranslationBackend, "measure", return_value=registration()):
-            current, _fresh, command = self.refresh(runtime, source, self.pan(), observe=slow_observe)
-        with self.assertRaises(RuntimeError):
-            self.send(runtime, current, command)
+        with patch("scripts.bluestacks_native_runtime.time.monotonic", side_effect=clock):
+            source = runtime.capture("proposal")
+            clock.advance(0.01)
+            with patch.object(OrbTranslationBackend, "measure", return_value=registration()):
+                current, _fresh, command = self.refresh(runtime, source, self.pan(), observe=slow_observe)
+            self.assertGreater(clock() - current.captured_monotonic, runtime.frame_max_age_seconds)
+            with self.assertRaisesRegex(RuntimeError, "^dispatch source frame is stale$"):
+                self.send(runtime, current, command)
         self.assertEqual(device.captures, 2)
         self.assertEqual(device.inputs, [])
         self.assertEqual(runtime.input_count, 0)

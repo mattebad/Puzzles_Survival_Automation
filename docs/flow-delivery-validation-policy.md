@@ -33,6 +33,22 @@ gate. Measurements, retained recognition coverage and the Supply repeat decision
 are in [the issue #47 validation record](validation/ticket-47/README.md).
 
 
+## Static debt ratchets
+
+`python -B scripts/check_static.py` runs the pinned Ruff/Vulture checks on active
+Python sources and mypy on all of `safe_action_core/` and `automation_service/`.
+The committed baseline is existing debt, not suppression or a clean type-check
+claim. Every file/error-code allowance must stay equal or shrink; new files and
+rules start at zero. When a finding disappears, run the command with
+`--refresh-baseline` and commit the lower allowance. Refresh refuses increases.
+
+CI enforces these gates on both OSes before retaining shard-zero execution
+receipts, and compares the committed allowances with the base revision so a
+baseline increase cannot conceal a regression. The initial counts, explicit
+shrinking type-debt list and scope are in
+[the issue #39 validation record](validation/ticket-39/README.md).
+Import-direction policy remains issue #22, not a second rule set in this checker.
+
 ## Separate live authorization and existing controls
 
 No test result, review, document, receipt, or retained capture grants live authorization.
