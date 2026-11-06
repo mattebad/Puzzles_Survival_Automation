@@ -116,8 +116,8 @@ Each job independently verifies actual starts, results, revision, policy and ski
 against the intended selection. Omitted cases are listed in its receipt, never disguised as
 skips or described as full execution. The existing per-OS required-check names remain.
 
-Full Windows/Linux regression runs daily at 08:23 UTC and on an explicit full-validation
-request (workflow dispatch or the `ci:full` PR label). It is not an additional default
+The workflow schedules full Windows/Linux regression daily at 08:23 UTC after merge and on
+an explicit full-validation request (workflow dispatch or the `ci:full` PR label). It is not an additional default
 pre-merge requirement. The old eight-process Supply repetition is an optional diagnostic
 (`supply_stress` input or `ci:supply-stress` label); native Supply canaries still run routinely.
 Deferred failures can escape an unrelated PR until the next full run, potentially after merge.

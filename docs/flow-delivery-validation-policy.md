@@ -35,8 +35,8 @@ unexecuted intended cases, failures, foreign policy/revision/attempts, undisclos
 omissions and new skip IDs. A partial selection cannot claim full execution. Timing
 weights remain scheduling estimates, never selection allowlists.
 
-Full regression is daily at 08:23 UTC and available explicitly through workflow
-dispatch or `ci:full`. It is not another default pre-merge bottleneck. Deferred
+After merge, the workflow schedules full regression daily at 08:23 UTC and makes it
+available explicitly through workflow dispatch or `ci:full`. It is not another default pre-merge bottleneck. Deferred
 portability/fixture/rare-branch failures may survive an unrelated merge until the
 next successful full run (normally within 24 hours plus queue/runtime; longer if a
 schedule fails). Extra fresh-process Supply stress is manual diagnostic coverage;

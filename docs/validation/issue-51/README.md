@@ -29,7 +29,8 @@ the operator aggregator into every route. Known shared boundaries have explicit 
 A missed dynamic dependency or an unusual consumer interaction can therefore escape a PR;
 the next full validation is the backstop, not equivalent immediate coverage.
 
-Full regression runs both OSes daily at **08:23 UTC**, or on workflow dispatch / an explicit
+The workflow schedules full regression on both OSes daily at **08:23 UTC** after merge,
+or on workflow dispatch / an explicit
 `ci:full` PR label. It is not another automatic pre-merge bottleneck. Deferred failures can
 survive a merge until that run, normally within 24 hours plus queue/runtime; failed or missed
 schedules extend the delay. Old PNG regressions do not establish compatibility with today's game.
@@ -88,40 +89,42 @@ analyzer differences may wait for full validation. Allowances may only shrink.
 ## Measurements and verification
 
 Existing main baseline f5dcd1ce:
-[successful run42178205198](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/42178205198).
-It scheduled3,159 discovered cases +395 controlled +40 extra native invocations per OS:
+[successful run 42178205198](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/42178205198).
+It scheduled 3,159 discovered cases + 395 controlled + 40 extra native invocations per OS:
 7,188 scheduled invocations including expected skips. Ten jobs occupied **4,726 runner-seconds**.
-Windows execution jobs606/730/740/533 seconds; Linux462/611/530/493; aggregates15/6.
+Windows execution jobs 606/730/740/533 seconds; Linux 462/611/530/493; aggregates 15/6.
 The first job started to final required-gate completion took **1,109s**; creation to
 completion took **1,110s**. Some Windows jobs queued for several minutes. This is an
 observed hosted run, including setup and queue effects, not a controlled benchmark.
 
-Bounded local comparisons used Python3.12, Tesseract5.5.0, OMP_THREAD_LIMIT=1, the same
+Bounded local comparisons used Python 3.12, Tesseract 5.5.0, OMP_THREAD_LIMIT=1, the same
 production source and unchanged captures, serial fresh processes on one Windows host:
 
 | Comparison | Before | After | What was actually retained |
 |---|---:|---:|---|
-| Complete seven-case Bioenhancer Home-entry module |39.921s;10 models,10 localizations |13.955s;1 model,10 localizations |All7 pass, no skips; unrelated Atlas and manifest each rejected |
+| Complete seven-case Bioenhancer Home-entry module |39.921s;10 models,10 localizations |13.955s;1 model,10 localizations |All 7 pass, no skips; unrelated Atlas and manifest each rejected |
 | Four-surface Supply service admission |22.373s |15.238s |Facility native;3 typed branch-specific consumers; both pass without skips |
 
-Supply real screen-recognizer calls fell from3 to1 and real Home calls from8 to2.
+Supply real screen-recognizer calls fell from 3 to 1 and real Home calls from 8 to 2.
 The first Supply comparison lacked the Windows spawn guard and failed; the corrected
 scratch harness produced the pair above without changing the test or production code.
 These are observed pairs, not statistical guarantees or hosted savings. Raw local logs and
 scratch comparisons remain under .local-validation/issue51; original evidence was not changed.
+An in-memory fault removing radial admission was detected specifically by the retained
+radial consumer row (resume_ready became false); the other three rows passed.
 
 Focused validation so far:
-- Accounting/consolidation batch:186 cases; two Windows8.3 alias cases failed only in the
+- Accounting/consolidation batch: 186 cases; two Windows 8.3 alias cases failed only in the
   restricted filesystem view, then both passed with normal Windows file access.
-- Native/replacement batch:117 cases; four mutation-output cases correctly rejected a temp
-  directory inside the repository. The9-case mutation module passed using an external temp
+- Native/replacement batch: 117 cases; four mutation-output cases correctly rejected a temp
+  directory inside the repository. The 9-case mutation module passed using an external temp
   directory; the remaining native/replacement cases passed without skips.
-- Selection/receipt/entrypoint plus architecture/metadata checks:84 passed at the recorded
-  stage. The final focused selection/receipt/entrypoint/task/mutation batch passed58 cases.
-- Windows no-diff routine baseline: **284 executed,0 skips;75.270s suite +2.680s
-  selection =77.950s**. Independent verification matched the exact plan and disclosed
-  2,872 omitted IDs from the3,156-case inventory. This is local Python3.12, not hosted3.11.
-- Pinned static tools:438 active Python files; no new findings and no stale allowances.
+- Selection/receipt/entrypoint plus architecture/metadata checks: 84 passed at the recorded
+  stage. The final focused selection/receipt/entrypoint/task/mutation batch passed 58 cases.
+- Windows no-diff routine baseline: **284 executed, 0 skips; 75.270s suite + 2.680s
+  selection = 77.950s**. Independent verification matched the exact plan and disclosed
+  2,872 omitted IDs from the 3,156-case inventory. This is local Python 3.12, not hosted 3.11.
+- Pinned static tools: 438 active Python files; no new findings and no stale allowances.
   The calibration exclusion shrank one old allowance; no budget increased.
 
 Retained failures include the two environmental attempts above and historical
@@ -129,9 +132,36 @@ Retained failures include the two environmental attempts above and historical
 That exhausted-Supply failure's hidden inner OCR cause remains evidence_required; an older
 or later green run does not establish its cause.
 
-Hosted current-candidate verification, final feedback time, runner occupancy and actual
-selected workload: **evidence_required until the candidate workflow completes**. This is
-implementation in review, not a release/live-acceptance claim.
+Hosted Python 3.11 no-diff baseline on a758612:
+[run 42194866117](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/42194866117),
+both jobs passed on their first attempt. This deliberately compares HEAD with itself to
+measure the baseline; the separate PR run validates the complete implementation impact.
+
+| Observed required path | Previous main | New no-diff baseline |
+|---|---:|---:|
+| First job start to both required gates complete |1,109s |227s |
+| Workflow creation to both required gates complete |1,110s |230s |
+| Summed runner occupancy, including setup/verification |4,726s / 10 jobs |340s / 2 jobs |
+| Scheduled test invocations, including skips |7,188 |386 |
+| Actual new baseline executions / skips |not a baseline-only run |284 Windows + 102 Linux / 0 skips |
+
+The new Windows suite took 125.408s and selection 2.703s; Linux 23.191s and 2.467s.
+Windows/Linux job occupancy was 227s/113s; each job queued 2s after creation.
+Checkout/Python/dependency/OCR setup occupied 75s/60s, plus Linux static 9s; independent
+execution verification occupied 2s/3s. Remaining job time includes compilation, line-ending
+checks, artifacts and runner bookkeeping. Step timestamps are rounded to seconds.
+Most of this reduction changes the required scope/frequency; it is not equivalent immediate
+coverage or a pure speedup of the same workload. Runner/queue variation makes these observed
+runs, not guarantees. Route/shared/dependency changes select broader work.
+Using the actual current inventory (selection only, not extra test executions), a Supply
+route or fixture change selects 392 Windows / 213 Linux cases; Home Atlas vision selects 720/543;
+the shared executor selects 622/575; dependency changes select all 3,156 per OS.
+
+Complete implementation-impact verification is separate from the baseline measurement.
+The final source revision, full-run verdict and measurements are recorded in
+[draft PR #52](https://github.com/mattebad/Puzzles_Survival_Automation/pull/52) and its checks.
+The preliminary full run42194844610 was superseded by this documentation/evidence commit;
+its incomplete execution is not pass proof. No release/live-acceptance claim.
 
 ## Future routes
 
