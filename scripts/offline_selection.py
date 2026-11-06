@@ -449,4 +449,3 @@ def build_selection(
     intended = tuple(name for name in ids if name in selected)
     omitted = tuple(name for name in ids if name not in selected)
     return Selection("risk-based", intended, omitted, tuple(reasons))
-

@@ -140,4 +140,3 @@ and reuse the all-route service contract. Add/verify the real affected import/fa
 Put shared visual variations in their owning layer; add another consumer only for a materially
 different integration contract. Do not copy the full shared safety/vision suite into a new
 route. Full/manual validation remains available for release-risk or uncertain changes.
-

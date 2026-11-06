@@ -71,4 +71,3 @@ class Child(unittest.TestCase):
                 os.environ, {key: "foreign-runtime" for key in check._RUNTIME_ENVIRONMENT_KEYS}
             ), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(check.main([]), 0)
-
