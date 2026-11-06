@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import unittest
 
 from tasks.home_atlas import (
@@ -191,10 +192,30 @@ class HomeContextTests(unittest.TestCase):
         self.assertEqual(decision.action, HomePrimitiveAction.RECOVER_CANONICAL)
         self.assertTrue(decision.requires_canonical_recovery)
 
-    def test_configuration_without_verified_identity_cannot_be_home_ready(self):
-        decision = ensure_home_ready(_ready(identity=None))
-        self.assertIsNone(decision.level)
-        self.assertEqual(decision.reason, "account_server_identity_unavailable")
+    def test_unsafe_ready_source_cannot_be_promoted_by_valid_atlas_localization(self):
+        unsafe = (
+            _ready(manual_only_state=True),
+            _ready(blocking_unknown_modal=True),
+            _ready(game_foregrounded=False),
+            _ready(expected_native_profile=False),
+            _ready(identity=None),
+            _ready(identity=replace(_identity(), assurance=RuntimeIdentityAssurance.CONFIGURATION_ONLY)),
+        )
+        atlas, localized = _atlas(), _loc()
+        for observation in unsafe:
+            with self.subTest(observation=observation):
+                decisions = (
+                    ensure_home_ready(observation),
+                    classify_home_context(observation, localized),
+                    localize_home(observation, localized),
+                    ensure_canonical_home(observation, localized),
+                    navigate_home_building(atlas, "home.building.research_lab", observation, localized),
+                )
+                for decision in decisions:
+                    self.assertIsNone(decision.level)
+                    self.assertEqual(decision.action, HomePrimitiveAction.STOP)
+                    self.assertIsNone(decision.navigation)
+                    self.assertFalse(decision.requires_canonical_recovery)
 
 
 if __name__ == "__main__":

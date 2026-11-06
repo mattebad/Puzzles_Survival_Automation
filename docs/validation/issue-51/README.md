@@ -1,8 +1,15 @@
 # Issue #51: implemented CI/test decisions
 
 Scope: test code, offline tooling and CI only. Production gameplay, recognition thresholds,
-runtime authority, bot scheduling and live acceptance are unchanged. No duration, test-count
-or savings target governs these decisions.
+runtime authority, bot scheduling and live acceptance are unchanged. The controlling requirement
+has no duration, test-count, savings or completion target; timings are outcomes.
+
+Decision-history correction: the first three reviewer briefs repeated an invalid approximately
+five-minute goal. They received an explicit correction before implementation, but the shared-surface
+reviewer later acknowledged that the goal still shaped its compact selection. Parts of that review
+were used. The earlier categorical claim that no target governed any decision was therefore too
+strong. The focused Home/Atlas reassessment below replaces those inadequately supported choices
+with source-checked operational contracts; it does not rewrite the original decision history.
 
 ## Required protection and change impact
 
@@ -26,6 +33,12 @@ unknown assets, unreadable impact, or unavailable history use an explicit full f
 
 The static import approximation omits lazy production function imports to avoid expanding
 the operator aggregator into every route. Known shared boundaries have explicit owner rules.
+In particular, clean-Home lazily consumes Nova recognition/constants and its native template:
+those changes select both Nova and Home/Atlas owners. Shared OCR changes select OCR, Home/Atlas,
+popup and Nova owners plus representative popup consumers. Popup changes also select Home/Atlas
+owners, including fresh-pan and caller-admission denials. These known dependencies must not wait
+for the daily backstop. Home ownership includes the distinct Bioenhancer/Campaign entry and Supply
+camera-reframe consumer suites; it does not expand every route's unrelated accounting permutations.
 A missed dynamic dependency or an unusual consumer interaction can therefore escape a PR;
 the next full validation is the backstop, not equivalent immediate coverage.
 
@@ -34,6 +47,42 @@ or on workflow dispatch / an explicit
 `ci:full` PR label. It is not another automatic pre-merge bottleneck. Deferred failures can
 survive a merge until that run, normally within 24 hours plus queue/runtime; failed or missed
 schedules extend the delay. Old PNG regressions do not establish compatibility with today's game.
+
+## Focused Home/Atlas reassessment
+
+The selected successful tap and pan checks did not replace recognition denials. The tap check
+mocks localization/binding; the pan check uses real localization and clean-Home recognition but
+only successful frames. The selected contextual recovery checks use marker recognizers: they
+protect the caller ledger, not native safe-Back classification. Two fresh high-effort source
+reviews and the parent cross-check established the following routine contracts without a timing
+budget. Exact selectors remain in offline_selection.py.
+
+| Routine selection | Operational reason and marginal protection |
+|---|---|
+| Both OSes: CleanHomeLabelTests.test_missing_home_control_source_is_not_home and test_missing_navigation_or_base_scene_is_not_home | Erased actual control pixels, footer or scene cannot establish clean Home merely because other regions still look like town. Checks the owner and real clean-Home consumer, not a mocked Home boolean. |
+| Both OSes: HomeControlLayoutTests | The compact and spaced native layouts use different crop positions. Retain spaced positive/erased-label cases, exact-word/same-layout corroboration, unsafe-OS denial and fallback failure. A compact positive cannot establish these predicates. |
+| Both OSes: StartupRecoveryTests.test_current_and_old_native_scarlett_pages_share_semantic_back_binding and test_scarlett_rejects_native_dialog_and_missing_or_unsafe_back | Real positive and dialog/missing/moved-Back/page negatives establish native safe-exit binding. Marker-based recovery sequencing is not equivalent. |
+| Both OSes: AtlasFlowStartupTests.test_native_zoomed_home_uses_canonical_clean_home_for_one_bounded_zoom and test_popup_and_radial_home_sources_block_before_zoom_transport | A legitimate source completes one bounded zoom; actual popup/radial sources send zero inputs despite favorable Atlas geometry. Neither an always-denying normalizer nor a confident localizer may hide an admission error. |
+| Windows: HomeContextTests | Compact typed readiness/localized/canonical/binding contract. The expanded unsafe-source case denies manual/modal/background/wrong-profile/missing or configuration-only identity through all readiness/navigation entrypoints, even with valid Atlas localization. |
+| Windows: AtlasStartupNormalizerTests positive-overlay binding denial, unknown/stale/ambiguous/nonfinite denial, and repeat/input-ceiling checks | Canonical binding and noncanonical recovery are distinct decisions. Typed localization and bounded recovery state must not override source denial or permit repeated navigation. |
+| Windows: fresh-overlay pan denial; stale or invalid/paid planning through tap adapters; unknown actual tap/pan successors | Driver-specific proposal/issuance wiring can erase an earlier denial or promote claimed progress. Real generic executor fences alone do not detect an adapter supplying the wrong facts. Preserve zero-input denial and one-input unresolved/no-repeat outcomes. |
+| Windows: contextual manual-source, changed/lost fresh Back, and unknown-post/new-key retry denials | Route callbacks must not override manual stops; old target recognition cannot authorize fresh input; changing a key must not rearm unresolved recovery. Native binding is checked separately above. |
+| Linux: semantic crop source-PNG/pixel/geometry binding, exclusions, forged/cross-capture identity and unknown/no-authority cases | The native OpenCV/PNG boundary and OCR-process implementation differ across CI hosts. These add source/crop denials alongside the existing Linux worker success/timeout cleanup checks. Remaining pure adapter/state matrices stay on the supported Windows host or affected/full runs. |
+
+This is not restoration of all historical Home variations. Extra badge/artwork and translated-radial
+mutations, broad geometry/calibration permutations, old route-entry fixtures and detailed caller-ledger
+variants remain affected/full checks. The ordinary successful full Home command is not a substitute
+for these admission denials; retained tap/pan/service positives already cover successful composition.
+The removed older Campaign, isolated panel-entry and three Supply pixel/service combinations remain
+explicit accepted losses below, not newly claimed replacements.
+
+Daily full validation remains a pragmatic backstop, not an empirically established safe maximum
+detection delay. Essential shared source/target denials now run routinely, and known changed owners
+expand immediately. Remaining unmapped dynamic consumers, environmental differences and deferred
+variations can still survive an unrelated merge until the next successful full run. Merge is not
+deployment or runtime enablement. Broad or uncertain release-risk changes warrant explicit full
+validation; old screenshot regression and the daily schedule do not establish live readiness.
+No schedule or runtime control changed in this reassessment.
 
 ## Removed, consolidated and narrowed
 
@@ -132,7 +181,7 @@ Retained failures include the two environmental attempts above and historical
 That exhausted-Supply failure's hidden inner OCR cause remains evidence_required; an older
 or later green run does not establish its cause.
 
-Hosted Python 3.11 no-diff baseline on a758612:
+Historical reviewed-source Python 3.11 no-diff baseline on a758612 (before the Home/Atlas correction):
 [run 42194866117](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/42194866117),
 both jobs passed on their first attempt. This deliberately compares HEAD with itself to
 measure the baseline; the separate PR run validates the complete implementation impact.
@@ -153,9 +202,13 @@ checks, artifacts and runner bookkeeping. Step timestamps are rounded to seconds
 Most of this reduction changes the required scope/frequency; it is not equivalent immediate
 coverage or a pure speedup of the same workload. Runner/queue variation makes these observed
 runs, not guarantees. Route/shared/dependency changes select broader work.
-Using the actual current inventory (selection only, not extra test executions), a Supply
+Using that source's inventory (selection only, not extra test executions), a Supply
 route or fixture change selects 392 Windows / 213 Linux cases; Home Atlas vision selects 720/543;
-the shared executor selects 622/575; dependency changes select all 3,156 per OS.
+the shared executor selects 622/575; dependency changes select all 3,156 per OS. These are
+historical counts, not the corrected selection or a duration promise for every PR. Consult PR #52
+for corrected exact-head execution/timing receipts with explicit source/base binding and omissions;
+do not use the historical measurements as proof of this correction. The retained test estate remains large; most benefit is scope
+and frequency, rather than wholesale deletion of test code.
 
 Complete implementation-impact verification is separate from the baseline measurement.
 The final source revision, full-run verdict and measurements are recorded in

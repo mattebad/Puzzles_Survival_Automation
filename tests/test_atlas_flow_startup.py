@@ -296,7 +296,10 @@ class AtlasFlowStartupTests(unittest.TestCase):
                 states = {
                     id(source.frame): (True, ZoomIdentity.ZOOMED_IN, 0.92),
                 }
-                runtime = _Runtime([source])
+                # If the clean-Home gate regresses, permit one complete fake
+                # attempt to reach no-progress rejection. The zero-input
+                # assertions must catch it, not an exhausted capture fixture.
+                runtime = _Runtime([source, source, source])
                 session = _Session()
                 records = []
                 with (

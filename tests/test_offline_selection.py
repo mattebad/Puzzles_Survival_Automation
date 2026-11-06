@@ -90,8 +90,38 @@ class OfflineSelectionTests(unittest.TestCase):
         self.assertIn(case("perception_bundle"), home.intended_ids)
         self.assertIn(case("radial_semantics"), home.intended_ids)
         self.assertEqual(home.omitted_ids, (case("campaign_victory_native"),))
-        ocr = self.select(["bounded_ocr_architecture", "semantic_ocr_crop", "ocr_memo", "test_environment", "campaign_victory_native"], ["scripts/bounded_tesseract.py"])
+        with patch.object(selection, "POPUP_REPRESENTATIVES", (case("baseline"),)):
+            ocr = self.select(["bounded_ocr_architecture", "semantic_ocr_crop", "ocr_memo", "test_environment", "campaign_victory_native"], ["scripts/bounded_tesseract.py"])
         self.assertEqual(ocr.omitted_ids, (case("campaign_victory_native"),))
+
+    def test_shared_ocr_and_popup_changes_select_home_admission_consumers(self) -> None:
+        home = ["home_base_vision", "home_atlas_verified_route", "atlas_flow_startup", "atlas_startup_normalizer",
+            "bioenhancer_home_entry_binding", "campaign_home_entry_binding", "supply_camera_reframe"]
+        ids = (case("baseline"), *(case(module) for module in home),
+            case("startup_recovery"), case("nova_praise_vision"), case("semantic_ocr_crop"),
+            *selection.POPUP_REPRESENTATIVES, case("campaign_victory_native"))
+        for path in ("scripts/bounded_tesseract.py", "tasks/semantic_ocr_crop.py", "scripts/bluestacks_popup_recognition.py"):
+            with self.subTest(path=path):
+                result = selection.build_selection(ids, [path], "windows", self.root)
+                self.assertEqual(result.profile, "risk-based")
+                for module in [*home, "startup_recovery"]:
+                    self.assertIn(case(module), result.intended_ids)
+                self.assertTrue(set(selection.POPUP_REPRESENTATIVES).issubset(result.intended_ids))
+                self.assertIn(case("campaign_victory_native"), result.omitted_ids)
+                if path != "scripts/bluestacks_popup_recognition.py":
+                    self.assertIn(case("nova_praise_vision"), result.intended_ids)
+                    self.assertIn(case("semantic_ocr_crop"), result.intended_ids)
+
+    def test_lazy_nova_home_authority_and_native_assets_select_both_owners(self) -> None:
+        self.write("scripts/startup_normalization.py", "def clean():\n    from tasks.nova_praise_vision import recognize_nova_frame\n")
+        self.write("tests/test_home_base_vision.py", "from scripts.startup_normalization import clean\n")
+        for path in ("tasks/nova_praise.py", "tasks/nova_praise_vision.py", "tasks/assets/nova_praise/800x1280/manifest.json"):
+            with self.subTest(path=path):
+                result = self.select(["home_base_vision", "home_atlas_verified_route", "atlas_flow_startup",
+                    "bioenhancer_home_entry_binding", "campaign_home_entry_binding", "supply_camera_reframe",
+                    "nova_praise_vision", "service_nova", "campaign_victory_native"], [path])
+                self.assertEqual(result.profile, "risk-based")
+                self.assertEqual(result.omitted_ids, (case("campaign_victory_native"),))
 
     def test_linux_core_change_selects_full_ocr_crop_and_deadline_owners(self) -> None:
         owners = ["semantic_ocr_crop", "enhancement_material_label_crop", "enhancement_ocr_deadline", "ocr_memo"]

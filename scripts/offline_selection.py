@@ -17,6 +17,20 @@ ROUTE_BOUNDARIES = {
     "personal-might": "tests.test_service_personal_might.ServicePersonalMightTests.test_real_boundary_one_praise_then_current_day_gray_repeat_no_praise",
 }
 
+# Native Home/Back admission uses different OCR backend builds on the two CI
+# hosts. Pair supported-layout positives with denials in the owning layer,
+# then verify that Atlas cannot override those denials with confident geometry.
+HOME_ADMISSION_BASELINE = (
+    "tests.test_home_base_vision.CleanHomeLabelTests.test_latest_native_home_control_ocr_regression_and_native_positives",
+    "tests.test_home_base_vision.CleanHomeLabelTests.test_missing_home_control_source_is_not_home",
+    "tests.test_home_base_vision.CleanHomeLabelTests.test_missing_navigation_or_base_scene_is_not_home",
+    "tests.test_home_control_layouts.HomeControlLayoutTests",
+    "tests.test_startup_recovery.StartupRecoveryTests.test_current_and_old_native_scarlett_pages_share_semantic_back_binding",
+    "tests.test_startup_recovery.StartupRecoveryTests.test_scarlett_rejects_native_dialog_and_missing_or_unsafe_back",
+    "tests.test_atlas_flow_startup.AtlasFlowStartupTests.test_native_zoomed_home_uses_canonical_clean_home_for_one_bounded_zoom",
+    "tests.test_atlas_flow_startup.AtlasFlowStartupTests.test_popup_and_radial_home_sources_block_before_zoom_transport",
+)
+
 WINDOWS_BASELINE = (
     "tests.test_safe_action_core.ExecutorCase",
     "tests.test_safe_action_core.CrashBoundaryCase",
@@ -79,11 +93,22 @@ WINDOWS_BASELINE = (
     "tests.test_automation_service_boundaries.RuntimeBoundaryTests.test_successful_ocr_drains_descendant_before_return",
     "tests.test_automation_service_boundaries.RuntimeBoundaryTests.test_blocking_ocr_times_out_unknown_and_releases_ownership",
     "tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_exhausted_capture_keeps_identity_across_scene_animation",
-    "tests.test_home_base_vision.CleanHomeLabelTests.test_latest_native_home_control_ocr_regression_and_native_positives",
     "tests.test_home_atlas_tap_actual_proposal.HomeAtlasActualTapProposalTests.test_actual_planning_and_issuance_evidence_survive_one_real_core_dispatch",
+    "tests.test_home_atlas_tap_actual_proposal.HomeAtlasActualTapProposalTests.test_stale_planning_is_not_replaced_by_fresh_issuance",
+    "tests.test_home_atlas_tap_actual_proposal.HomeAtlasActualTapProposalTests.test_invalid_planning_source_or_cost_cannot_be_erased_by_valid_issuance",
+    "tests.test_home_atlas_tap_actual_proposal.HomeAtlasActualTapProposalTests.test_unknown_actual_postcondition_never_confirms_or_repeats_transport",
     "tests.test_home_atlas_pan_actual_proposal.HomeAtlasActualPanProposalTests.test_native_pan_preserves_actual_proposal_issuance_and_measured_post_capture",
+    "tests.test_home_atlas_pan_actual_proposal.HomeAtlasActualPanProposalTests.test_unknown_actual_post_image_rejects_claimed_progress_after_one_swipe",
+    "tests.test_home_atlas_verified_route.HomeAtlasVerifiedRouteTests.test_fresh_overlay_rejected_before_pan_capability_or_transport",
+    "tests.test_atlas_startup_normalizer.AtlasStartupNormalizerTests.test_positive_overlay_blocks_canonical_startup_and_building_binding",
+    "tests.test_atlas_startup_normalizer.AtlasStartupNormalizerTests.test_unknown_overlay_stale_ambiguous_and_nonfinite_block",
+    "tests.test_atlas_startup_normalizer.AtlasStartupNormalizerTests.test_repeated_frame_and_maximum_input_exhaustion_block",
+    "tests.test_home_context.HomeContextTests",
     "tests.test_contextual_startup_recovery.ContextualStartupRecoveryTests.test_current_scarlett_artwork_variance_uses_fresh_back_and_route_successor",
     "tests.test_contextual_startup_recovery.ContextualStartupRecoveryTests.test_unknown_commercial_and_modal_cannot_be_overridden_by_route_callback",
+    "tests.test_contextual_startup_recovery.ContextualStartupRecoveryTests.test_manual_source_context_stops_known_scarlett_without_input",
+    "tests.test_contextual_startup_recovery.ContextualStartupRecoveryTests.test_changed_or_lost_back_on_fresh_capture_never_dispatches",
+    "tests.test_contextual_startup_recovery.ContextualStartupRecoveryTests.test_unknown_post_is_unresolved_and_new_key_cannot_repeat_scarlett_back",
     "tests.test_contextual_startup_recovery.ContextualStartupRecoveryTests.test_transport_uncertainty_retains_one_attempt_and_unresolved_ledger",
     "tests.test_noahs_tavern_recruit.NoahContractTests.test_native_advanced_fixture_preserves_complete_header_and_title_glyphs",
     "tests.test_bioenhancer_free_control_native",
@@ -115,7 +140,7 @@ WINDOWS_BASELINE = (
     "tests.test_tech_upgrade_disabled.DisabledTechUpgradeContractTests.test_matrix_keeps_tech_disabled_and_dormant",
 )
 
-WINDOWS_BASELINE += tuple(ROUTE_BOUNDARIES.values())
+WINDOWS_BASELINE += tuple(ROUTE_BOUNDARIES.values()) + HOME_ADMISSION_BASELINE
 
 LINUX_BASELINE = (
     "tests.test_test_discovery",
@@ -132,11 +157,16 @@ LINUX_BASELINE = (
     "tests.test_automation_service_boundaries.RuntimeBoundaryTests.test_successful_ocr_drains_descendant_before_return",
     "tests.test_automation_service_boundaries.RuntimeBoundaryTests.test_blocking_ocr_times_out_unknown_and_releases_ownership",
     "tests.test_supply_depot_vision.SupplyDepotVisionTests.test_native_exhausted_capture_keeps_identity_across_scene_animation",
-    "tests.test_home_base_vision.CleanHomeLabelTests.test_latest_native_home_control_ocr_regression_and_native_positives",
+    "tests.test_contextual_startup_recovery.ContextualStartupRecoveryTests.test_unknown_commercial_and_modal_cannot_be_overridden_by_route_callback",
+    "tests.test_semantic_ocr_crop.SemanticOcrCropTests.test_original_png_encoding_and_pixels_are_bound_without_relabeling_identity",
+    "tests.test_semantic_ocr_crop.SemanticOcrCropTests.test_original_payload_rejects_wrong_bytes_pixels_geometry_and_format",
+    "tests.test_semantic_ocr_crop.SemanticOcrCropTests.test_exclusion_masks_block_roi_and_padding_escape",
+    "tests.test_semantic_ocr_crop.SemanticOcrCropTests.test_forged_and_cross_capture_identities_rejected",
+    "tests.test_semantic_ocr_crop.SemanticOcrCropTests.test_invalid_unknown_fail_closed_and_no_dispatch_authority",
     "tests.test_automation_service_state.AutomationServiceStateTests.test_busy_write_is_bounded_and_typed",
     "tests.test_automation_service_state.AutomationServiceStateTests.test_twenty_managers_yield_one_active_claim",
     "tests.test_automation_service_state.AutomationServiceStateTests.test_interrupted_write_rolls_back_and_leaves_manager_writable",
-)
+) + HOME_ADMISSION_BASELINE
 
 
 @dataclass(frozen=True)
@@ -160,7 +190,13 @@ HOME_OWNERS = (
     "home_", "atlas_", "navigation_", "contextual_startup_recovery", "home_context",
     "perception_bundle", "radial_semantics", "list_search", "transition_stability",
     "startup_recovery", "bluestacks_home_safe_exit", "research_lab_home_entry_binding",
+    "bioenhancer_home_entry_binding", "campaign_home_", "supply_camera_reframe",
 )
+# These are lazy imports inside is_clean_home_frame(), not merely Nova route
+# dependencies. Preserve the ordinary Nova family/import selection as well.
+HOME_AUTHORITY_DEPENDENCIES = frozenset({
+    "tasks/nova_praise.py", "tasks/nova_praise_vision.py",
+})
 OCR_OWNERS = (
     "bounded_ocr_architecture", "semantic_ocr_crop", "test_environment", "ocr_memo",
     "enhancement_ocr_deadline", "enhancement_material_label_crop", "enhancement_home_ocr_duplicates",
@@ -394,11 +430,20 @@ def build_selection(
             continue
         if path.startswith("tests/fixtures/nova_praise_preflight/"):
             return full(f"{path}: mixed-route fixture has no bounded owner mapping")
+        if path in HOME_AUTHORITY_DEPENDENCIES or path.startswith("tasks/assets/nova_praise/"):
+            selected_modules.update(_owners(modules, HOME_OWNERS))
+            reasons.append(f"{path}: lazy clean-Home authority requires Home/Atlas owners")
         shared = _shared(path)
         if shared is not None:
             owners = {"core": CORE_OWNERS, "home": HOME_OWNERS, "ocr": OCR_OWNERS,
                       "popup": POPUP_OWNERS, "runtime": RUNTIME_OWNERS}[shared]
             selected_modules.update(_owners(modules, owners))
+            if shared in {"ocr", "popup"}:
+                selected_modules.update(_owners(modules, HOME_OWNERS))
+            if shared == "ocr":
+                selected_modules.update(_owners(modules, POPUP_OWNERS))
+                selected_modules.update(module for module in modules if "nova" in _family(module))
+                selected.update(_expand(POPUP_REPRESENTATIVES, ids))
             if shared == "core":
                 selected_modules.update(_owners(modules, OCR_OWNERS))
             if shared in {"core", "runtime"}:
