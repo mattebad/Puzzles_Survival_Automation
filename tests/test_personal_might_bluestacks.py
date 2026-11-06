@@ -140,9 +140,19 @@ def save_delivery(runtime, result, identity, *, initial_png, topology):
 
 def no_work_delivery(root):
     """Synthetic retained events replay real native fixtures; never live evidence."""
-    runtime = Runtime(root)
+    # These zero-delay events need strict fixture ordering, independent of host
+    # clock resolution. Real OCR keeps its own unpatched bounded worker clock.
+    started = time.monotonic()
+    clock = Clock(started)
+    observed = datetime(2026, 10, 29, 12, tzinfo=timezone.utc)
+
+    def event_clock():
+        clock.advance(0.001)
+        return observed + timedelta(seconds=clock() - started)
+
+    runtime = Runtime(root, wall_clock=event_clock, monotonic_clock=clock)
     binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
-    identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
+    identity = derive_resource_runtime_identity(binding, observed)
     from tasks.personal_might_praise import personal_might_daily_key
     key = personal_might_daily_key(runtime_scope=identity.runtime_scope, account_id=identity.account_id, server_id=identity.server_id, reset_id=identity.reset_id)
     rows = [(FIXTURE, MENU_FIXTURE, vision.MORE_TARGET, (712, 1240, 765, 1263)), (MENU_FIXTURE, LEADERBOARD_FIXTURE, vision.RANKINGS_TARGET, (624, 1098, 668, 1117)), (LEADERBOARD_FIXTURE, PRAISED_FIXTURE, vision.CHECK_TARGET, (612, 267, 687, 288)), (PRAISED_FIXTURE, LEADERBOARD_FIXTURE, "personal-might-back", (47, 2, 128, 61)), (LEADERBOARD_FIXTURE, FIXTURE, "leaderboard-back", (47, 2, 128, 61))]
@@ -154,7 +164,7 @@ def no_work_delivery(root):
             runtime.ordinal += 1
             file = root / f"{runtime.ordinal}-{label}.png"
             file.write_bytes(fixture.read_bytes())
-            native = captured(file.read_bytes(), path=file)
+            native = captured_native_frame_from_png(file.read_bytes(), path=file, captured_monotonic=clock())
             runtime.event("capture", label=label, path=str(file), sha256=native.sha256, captured_monotonic=native.captured_monotonic)
             return native
         source = frame("immediate-before", before)
@@ -206,7 +216,7 @@ class PersonalMightNativeTests(unittest.TestCase):
 
     @requires_tesseract
     def test_public_validator_rejects_false_count_gold_no_work_and_wrong_input(self):
-        for defect in ("praise_count", "gold_no_work", "unresolved_nav", "wrong_point", "stale_source", "malformed_initial"):
+        for defect in ("praise_count", "gold_no_work", "unresolved_nav", "wrong_point", "stale_source", "malformed_initial", "capture_tie", "capture_reversal"):
             with self.subTest(defect=defect), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 _runtime, record = no_work_delivery(root)
@@ -225,12 +235,17 @@ class PersonalMightNativeTests(unittest.TestCase):
                     next(row for row in events if row["type"] == "dispatch")["timestamp"] = (delivery._utc(source["timestamp"]) + timedelta(seconds=31)).isoformat()
                 elif defect == "malformed_initial":
                     (root / "0000-initial.png").write_bytes(b"")
+                elif defect in {"capture_tie", "capture_reversal"}:
+                    first, second = [row for row in events if row["type"] == "capture"][:2]
+                    second["captured_monotonic"] = first["captured_monotonic"] - 1 if defect == "capture_reversal" else first["captured_monotonic"]
                 else:
                     next(row for row in events if row["type"] == "dispatch")["point"] = [10, 10]
                 (root / "events.jsonl").write_text("".join(json.dumps(row) + "\n" for row in events), encoding="utf-8")
                 result = delivery.verify_personal_might({"session_directory": str(root)}, {}, {})
                 self.assertEqual(result["status"], "evidence_required")
                 self.assertFalse(result["input_authority"])
+                if defect in {"capture_tie", "capture_reversal"}:
+                    self.assertIn("capture sequence is not unique and increasing", result["reason"])
 
     def test_native_disabled_state_and_rewards_require_current_rank_1_identity(self):
         frame = captured(PRAISED_FIXTURE.read_bytes(), path=PRAISED_FIXTURE)

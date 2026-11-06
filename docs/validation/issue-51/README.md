@@ -163,6 +163,20 @@ The final source revision, full-run verdict and measurements are recorded in
 The preliminary full run42194844610 was superseded by this documentation/evidence commit;
 its incomplete execution is not pass proof. No release/live-acceptance claim.
 
+The explicit full-profile run
+[42199474191](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/42199474191)
+passed all Linux execution checks (3,156 cases, 41 existing skips) and both OS static checks.
+Windows completed all 3,156 cases with 36 existing skips and one failure:
+PersonalMightNativeTests.test_public_no_work_validator_reads_only_and_claims_zero_new_effect.
+Its zero-delay synthetic capture helper sampled host monotonic time separately for each
+frame; the validator rejected a non-increasing sequence. The helper now uses one advancing
+fixture clock and aligned fixed-midday UTC identity/events. Global time and real OCR deadlines,
+production ordering rules and recognition thresholds are untouched. Added tie/reversal rows
+to the existing public-validator negative test. All four focused public/recovery/ordering tests
+passed (19.414s); an offline coarse-capture probe reproduced the original rejection and verified
+the corrected fixture. Static ratchets passed unchanged. The failed receipt is retained;
+only the corrected source is submitted for the next hosted validation.
+
 ## Future routes
 
 Add distinctive semantics/recognition cases, one required consumer entry in ROUTE_BOUNDARIES,
