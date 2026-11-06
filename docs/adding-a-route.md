@@ -111,6 +111,8 @@ Zero-delay offline fixtures must give their synthetic captures, event timestamps
 one fixture-local clock with explicit event ordering. Keep tests that reject tied UTC or monotonic
 successors. Real OCR must retain its real bounded worker clock; do not patch global time or relax
 production ordering, freshness or OCR deadlines to make a fixture pass.
+Native OCR fixture failures should retain the semantic observation status and reason, not just a
+screen-level ambiguity that can collapse provenance, worker and deadline failures.
 
 The owners above were established by migrating the existing routes onto them (descriptors, input
 budgets, `--flow` names, pnsctl flow ids, the missing Personal Might queue record, 74 dead queue paths),

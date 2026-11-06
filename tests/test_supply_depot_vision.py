@@ -157,8 +157,22 @@ class SupplyDepotVisionTests(unittest.TestCase):
         earlier = cv2.imread(str(root / "native-facility-20261029.png"))
         self.assertFalse(np.array_equal(earlier[70:], captured.frame[70:]))
         identity = identity_from_captured(captured, session_id="offline-supply-exhausted", ordinal=1)
-        result = recognize_supply_depot_screen(captured.frame, source_frame=identity, source_png=captured.png)
-        self.assertTrue(result.recognized, result)
+        observations = []
+        real_ocr = supply_depot_module.run_semantic_ocr
+
+        def observe_ocr(image, request, **kwargs):
+            started = time.monotonic()
+            observation = real_ocr(image, request, **kwargs)
+            observations.append({
+                "status": observation.status.value,
+                "reason_code": observation.reason_code,
+                "elapsed_seconds": time.monotonic() - started,
+            })
+            return observation
+
+        with patch.object(supply_depot_module, "run_semantic_ocr", side_effect=observe_ocr):
+            result = recognize_supply_depot_screen(captured.frame, source_frame=identity, source_png=captured.png)
+        self.assertTrue(result.recognized, (result, observations))
         self.assertEqual(result.daily_free_attempts, 0)
         self.assertTrue(exhausted_free_state(result))
         self.assertTrue(all(not control.zero_cost for control in result.controls))
