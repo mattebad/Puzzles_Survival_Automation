@@ -101,6 +101,12 @@ A route is `tasks/` (semantics) → `scripts/<route>_bluestacks.py` (native runn
 
 ## Validation
 
+Retained executable adapters must bootstrap the repository root before importing project packages.
+Check direct file entry with the repository `PYTHONPATH` unset, for example
+`python -B scripts/bluestacks_campaign_ap.py --help`; importing the module from the test runner does
+not verify that entry path. This is an offline startup check only: do not pass `--execute` or use a
+device, and do not treat successful help output as live acceptance.
+
 The owners above were established by migrating the existing routes onto them (descriptors, input
 budgets, `--flow` names, pnsctl flow ids, the missing Personal Might queue record, 74 dead queue paths),
 and `tests/test_route_metadata_consistency.py` was broken one copy at a time to prove each fact class fails

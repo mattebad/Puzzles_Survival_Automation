@@ -24,7 +24,6 @@ import time
 from typing import Callable
 
 import numpy as np
-from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -32,6 +31,7 @@ if str(REPO_ROOT) not in sys.path:
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from scripts.bluestacks_flow_collector import is_permitted_local_bluestacks_serial
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
 from scripts.home_atlas_bluestacks import (
