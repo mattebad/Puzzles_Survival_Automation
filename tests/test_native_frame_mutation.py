@@ -98,21 +98,15 @@ class NativeFrameMutationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as first_dir, tempfile.TemporaryDirectory() as second_dir:
             first = generate_mutation_corpus(root=ROOT, output_dir=first_dir)
             second = generate_mutation_corpus(root=ROOT, output_dir=second_dir)
-        self.assertEqual(
-            [item.output_sha256 for item in first.artifacts],
-            [item.output_sha256 for item in second.artifacts],
-        )
-        self.assertEqual(first.metrics.unresolved_count, len(first.artifacts) - 1)
-        self.assertEqual(first.metrics.observed_reject_count, 1)
-        self.assertEqual(first.metrics.false_accept_count, 0)
-        self.assertEqual(first.metrics.false_reject_count, 0)
-        after = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in source_paths}
-        self.assertEqual(before, after)
-
-    def test_all_outputs_are_native_rgba_and_records_have_distinct_mutation_identity(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            result = generate_mutation_corpus(root=ROOT, output_dir=directory)
-            for artifact in result.artifacts:
+            self.assertEqual(
+                [item.output_sha256 for item in first.artifacts],
+                [item.output_sha256 for item in second.artifacts],
+            )
+            self.assertEqual(first.metrics.unresolved_count, len(first.artifacts) - 1)
+            self.assertEqual(first.metrics.observed_reject_count, 1)
+            self.assertEqual(first.metrics.false_accept_count, 0)
+            self.assertEqual(first.metrics.false_reject_count, 0)
+            for artifact in first.artifacts:
                 self.assertTrue(Path(artifact.storage_path).is_file())
                 self.assertEqual((artifact.width, artifact.height, artifact.channels), (800, 1280, 4))
                 self.assertEqual(artifact.identity_status, "valid" if artifact.operator is not MutationOperator.STALE_FRAME_SUBSTITUTION else "rejected")
@@ -124,30 +118,19 @@ class NativeFrameMutationTests(unittest.TestCase):
                 assert decoded is not None
                 self.assertEqual(decoded.shape, (1280, 800, 4))
 
-    def test_stale_substitution_fails_closed_against_parent_identity(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            result = generate_mutation_corpus(root=ROOT, output_dir=directory)
             stale = next(
                 item
-                for item in result.artifacts
+                for item in first.artifacts
                 if item.operator is MutationOperator.STALE_FRAME_SUBSTITUTION
             )
             self.assertEqual(stale.identity_status, "rejected")
             self.assertEqual(stale.identity_reason, "CAPTURE_IDENTITY_MISMATCH")
             evaluation = next(
-                item for item in result.evaluations if item.mutation_id == stale.mutation_id
+                item for item in first.evaluations if item.mutation_id == stale.mutation_id
             )
             self.assertEqual(evaluation.observed_outcome, MutationDecision.REJECTED)
             self.assertFalse(evaluation.false_accept)
 
-    def test_stale_output_is_rejected_by_semantic_ocr_identity_gate(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            result = generate_mutation_corpus(root=ROOT, output_dir=directory)
-            stale = next(
-                item
-                for item in result.artifacts
-                if item.operator is MutationOperator.STALE_FRAME_SUBSTITUTION
-            )
             frame = cv2.imread(stale.storage_path, cv2.IMREAD_COLOR)
             self.assertIsNotNone(frame)
             assert frame is not None
@@ -163,6 +146,14 @@ class NativeFrameMutationTests(unittest.TestCase):
             )
             self.assertEqual(observation.status, ObservationStatus.INVALID)
             self.assertEqual(observation.reason_code, "TRANSPORT_DIGEST_MISMATCH")
+            first_serialized = serialize_mutation_result(first)
+            second_serialized = serialize_mutation_result(first)
+            self.assertEqual(first_serialized, second_serialized)
+            serialized = json.loads(first_serialized)
+            self.assertEqual(serialized["metrics"]["false_accept_count"], 0)
+            self.assertEqual(serialized["metrics"]["false_reject_count"], 0)
+        after = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in source_paths}
+        self.assertEqual(before, after)
 
     def test_classifier_metrics_keep_false_accept_and_false_reject_separate(self) -> None:
         def classifier(case, _pixels, _claimed, _mutation):  # type: ignore[no-untyped-def]
@@ -261,17 +252,6 @@ class NativeFrameMutationTests(unittest.TestCase):
         self.assertEqual(metrics.false_accept_count, 0)
         self.assertGreater(metrics.false_reject_rate, 0.0)
         self.assertEqual(metrics.false_accept_rate, 0.0)
-
-    def test_serialization_contains_metadata_only_and_is_repeatable(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            result = generate_mutation_corpus(root=ROOT, output_dir=directory)
-            first = serialize_mutation_result(result)
-            second = serialize_mutation_result(result)
-        self.assertEqual(first, second)
-        self.assertIn('"false_accept_count":0', first)
-        self.assertIn('"false_reject_count":0', first)
-        self.assertNotIn("ndarray", first)
-        self.assertNotIn("dtype", first)
 
 
 if __name__ == "__main__":

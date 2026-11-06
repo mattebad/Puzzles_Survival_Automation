@@ -27,6 +27,24 @@ FIXTURES = ROOT / "tests/fixtures/research_lab_home_entry"
 
 
 class BioenhancerHomeEntryBindingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.atlas_manifest = bio.ATLAS_PATH.resolve()
+        cls.atlas = bio.load_home_atlas(cls.atlas_manifest)
+        cls.localizer = bio.BlueStacksHomeLocalizer(cls.atlas, cls.atlas_manifest)
+
+    def setUp(self):
+        def prepared_localizer(atlas, manifest):
+            self.assertEqual(atlas, self.atlas)
+            self.assertEqual(Path(manifest).resolve(), self.atlas_manifest)
+            return self.localizer
+
+        # Share immutable reference preparation only; every current frame still
+        # runs authentic localization, binding, OCR, and pan planning.
+        localizer_patch = patch.object(bio, "BlueStacksHomeLocalizer", side_effect=prepared_localizer)
+        localizer_patch.start()
+        self.addCleanup(localizer_patch.stop)
+
     def navigator(self, atlas):
         safe, calibration = bluestacks_direct_pan_contract()
         return DirectPanNavigator(atlas, bio.RESEARCH_LAB_ID, safe, calibration)

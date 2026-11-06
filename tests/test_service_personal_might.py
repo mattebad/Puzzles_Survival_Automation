@@ -134,14 +134,42 @@ class ServicePersonalMightTests(unittest.TestCase):
         self.connect.assert_not_called()
 
     def test_real_boundary_one_praise_then_current_day_gray_repeat_no_praise(self):
+        seen = []
+        def praised(frame, **source):
+            identity = source["source_frame"]
+            if identity.label == "personal-might-service-replay":
+                seen.append(identity)
+            return self.phase(frame) == "gray"
         with patch.object(boundary.RuntimeInputLock, "acquire", side_effect=AssertionError("no nested owner")), patch.object(boundary.RuntimeInputLock, "release", side_effect=AssertionError("borrowed owner retained")):
-            first = self.run_route()
+            with patch.object(route.vision, "personal_might_praised", side_effect=praised):
+                first = self.run_route()
             self.assertEqual((first["status"], first["total_input_count"], first["praise_transport_calls"]), ("complete_for_reset", 6, 1))
             self.assertTrue(first["terminal_home_verified"])
+            self.assertEqual(len(seen), 1)
+            native = seen[0]
+            runtime = self.runtimes[0]
+            captures = [row for row in map(json.loads, runtime.events.read_text().splitlines()) if row["type"] == "capture"]
+            matching = [(ordinal, row) for ordinal, row in enumerate(captures, 1) if row["sha256"] == native.transport_sha256]
+            self.assertEqual(len(matching), 1)
+            ordinal, row = matching[0]
+            self.assertEqual(native.capture_ordinal, ordinal)
+            self.assertEqual(native.capture_completed_monotonic, row["captured_monotonic"])
+            self.assertEqual(native.evidence_path, row["path"])
+            self.assertEqual(native.runtime_session_id, str(runtime.session))
+            self.assertLess(native.capture_ordinal, runtime.ordinal)
+            self.assertEqual(first["praise_result_frame"]["capture_ordinal"], ordinal)
+            self.assertEqual(first["terminal_home_frame"]["capture_ordinal"], runtime.ordinal)
             backend = derive_resource_runtime_identity(resource_fixed_runtime_binding(), datetime.fromtimestamp(START, timezone.utc))
             self.assertEqual(first["action_key"], service._key(backend))
             self.assertNotEqual(first["backend_identity"]["account_id"], self.identity.account_id)
             self.assertEqual(service.personal_might_next_due(first, self.identity, START), START + 14 * 3600)
+            for changes in ({"terminal_home_verified": False}, {"account_id": "other"},
+                    {"total_input_count": True}, {"praise_transport_calls": 0}, {"journal_status": "unresolved"},
+                    {"backend_identity": {}}, {"action_key": "other"}, {"praise_result_frame": {}},
+                    {"next_eligible_at": START + 30}, {"effect_reconciliation_required": True},
+                    {"completed_at_utc": START + 86400}):
+                with self.subTest(changes=changes), self.assertRaises(ValueError):
+                    service.personal_might_next_due(dict(first, **changes), self.identity, START)
             store = SafetyStore(self.db)
             old_id = store.get_action_by_key(first["action_key"])["action_id"]
             self.assertEqual(store.get_action(old_id)["final_status"], "confirmed")
@@ -218,30 +246,6 @@ class ServicePersonalMightTests(unittest.TestCase):
         self.assertTrue(partial["accounting_verified"])
         self.assertTrue(partial["effect_reconciliation_required"])
         self.assertTrue(self.owner.held)
-
-    def test_gray_replay_after_home_keeps_its_actual_native_capture_identity(self):
-        seen = []
-        def praised(frame, **source):
-            identity = source["source_frame"]
-            if identity.label == "personal-might-service-replay":
-                seen.append(identity)
-            return self.phase(frame) == "gray"
-        with patch.object(route.vision, "personal_might_praised", side_effect=praised):
-            result = self.run_route()
-        self.assertEqual(len(seen), 1)
-        native = seen[0]
-        runtime = self.runtimes[0]
-        captures = [row for row in map(json.loads, runtime.events.read_text().splitlines()) if row["type"] == "capture"]
-        matching = [(ordinal, row) for ordinal, row in enumerate(captures, 1) if row["sha256"] == native.transport_sha256]
-        self.assertEqual(len(matching), 1)
-        ordinal, row = matching[0]
-        self.assertEqual(native.capture_ordinal, ordinal)
-        self.assertEqual(native.capture_completed_monotonic, row["captured_monotonic"])
-        self.assertEqual(native.evidence_path, row["path"])
-        self.assertEqual(native.runtime_session_id, str(runtime.session))
-        self.assertLess(native.capture_ordinal, runtime.ordinal)
-        self.assertEqual(result["praise_result_frame"]["capture_ordinal"], ordinal)
-        self.assertEqual(result["terminal_home_frame"]["capture_ordinal"], runtime.ordinal)
 
     def test_completion_clock_and_cleanup_failure_preserve_consumed_praise(self):
         original_close = SafetyStore.close
@@ -338,16 +342,6 @@ class ServicePersonalMightTests(unittest.TestCase):
             self.run_route()
         self.assertEqual((caught.exception.partial_result["total_input_count"], caught.exception.partial_result["praise_transport_calls"]), (6, 1))
         self.assertTrue(caught.exception.partial_result["identical_retry_denied"])
-
-    def test_due_rejects_unknown_identity_counts_home_and_reset_crossing(self):
-        result = self.run_route()
-        for changes in ({"terminal_home_verified": False}, {"account_id": "other"},
-                {"total_input_count": True}, {"praise_transport_calls": 0}, {"journal_status": "unresolved"},
-                {"backend_identity": {}}, {"action_key": "other"}, {"praise_result_frame": {}},
-                {"next_eligible_at": START + 30}, {"effect_reconciliation_required": True},
-                {"completed_at_utc": START + 86400}):
-            with self.subTest(changes=changes), self.assertRaises(ValueError):
-                service.personal_might_next_due(dict(result, **changes), self.identity, START)
 
     def test_handler_cannot_accept_another_registration_or_a_mapping(self):
         registered = CANONICAL_FLOW_REGISTRY[0].registration

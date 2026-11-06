@@ -1,9 +1,10 @@
 # Adding (or changing) a route
 
 A *route* is one flow the service can run. This page lists every file you touch, which file owns each
-fact, and the check that fails if a copy drifts. Run
-`python scripts/check.py` (it includes `tests/test_route_metadata_consistency.py`) after each step;
-a missed step names the file and the fact in the failure message.
+fact, and the check that fails if a copy drifts. Run the focused
+`python -m unittest tests.test_route_metadata_consistency` after metadata edits;
+a missed step names the file and the fact in the failure message. Run the route's
+focused tests as its behavior changes.
 
 ## Which file owns which fact
 
@@ -76,7 +77,9 @@ Product *revision* has two vocabularies that are intentionally not compared: the
    flow or explicitly name its navigation-only exclusion. Route modules retain native/route-specific
    behavior. Non-applicable invariants need an `EXCEPTIONS` reason and a resolvable covering test;
    production gaps must be labelled `PRODUCTION GAP`, not silently treated as satisfied.
-10. Run `python -m unittest tests.test_service_route_contract` and `python scripts/check.py`.
+10. Run the route's focused tests and `python -m unittest tests.test_service_route_contract`.
+    The broader developer smoke command `python scripts/check.py` remains available;
+    it need not be repeated after every checklist step.
 
 Renaming a flow id is a migration, not a find-and-replace: keep the old id in a migration constant
 (`RENAMED_FLOW_IDS`, `RENAMED_TASK_IDS`), retained evidence and historical queue records, and list each
@@ -100,6 +103,18 @@ A route is `tasks/` (semantics) → `scripts/<route>_bluestacks.py` (native runn
   fact from the single-battle development-session ceiling in `pnsctl`; the test lists the difference.
 
 ## Validation
+
+Reuse the shared service contract for ownership, stop/generation, unknown-effect
+and accounting rules. Add native cases for the route's distinctive semantics and
+recognition, plus a representative integration in the Windows baseline in
+`ROUTE_BOUNDARIES` in `scripts/offline_selection.py`. The registered-route check
+requires a baseline consumer for every executable service registration. Add or verify
+its affected-family/import mapping.
+Shared Home/OCR/popup variants belong in their owning suite and a representative
+consumer matrix, not copied through every route. Expanded native/recovery cases
+run on relevant changes and the periodic full validation; document any new risk
+that the common contract does not cover. A new route does not justify multiplying
+the entire shared suite on every unrelated PR.
 
 Retained executable adapters must bootstrap the repository root before importing project packages.
 Check direct file entry with the repository `PYTHONPATH` unset, for example

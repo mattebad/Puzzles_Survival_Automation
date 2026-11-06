@@ -255,6 +255,15 @@ class UltimateServiceTests(unittest.TestCase):
         self.assertEqual(result["committed_action_count"], 1)
         self.assertEqual(result["total_input_count"], len(self.device.inputs))
         self.assertTrue(result["terminal_home_verified"])
+        midnight = (self.now // 86400 + 1) * 86400
+        self.assertEqual(service.ultimate_next_due(result, self.identity, self.now - 1), midnight)
+        for changes in ({"time_basis": "monotonic"}, {"terminal_home_verified": False},
+                        {"flee_transport_calls": 2}, {"committed_action_count": 0},
+                        {"next_eligible_at": self.now + 900}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                service.ultimate_next_due(dict(result, **changes), self.identity, self.now - 1)
+        with self.assertRaises(ValueError):
+            service.ultimate_next_due(result, replace(self.identity, task_id="another-task"), self.now - 1)
         state = task.load_reset_window_state(self.state_path)
         self.assertEqual(state.last_success_reset_identity, self.reset)
         self.assertEqual(state.completion_state, task.COMPLETION_COMPLETED)
@@ -340,18 +349,6 @@ class UltimateServiceTests(unittest.TestCase):
         self.assertEqual(self.daily.call_count, 1)
         self.assertEqual(len(self.device.inputs), inputs)
         self.assertEqual(self.state_path.read_bytes(), before)
-
-    def test_result_normalization_requires_current_identity_flee_home_and_next_utc_reset(self):
-        result = self.runner(self.identity, None, self.checkpoint)
-        midnight = (self.now // 86400 + 1) * 86400
-        self.assertEqual(service.ultimate_next_due(result, self.identity, self.now - 1), midnight)
-        for changes in ({"time_basis": "monotonic"}, {"terminal_home_verified": False},
-                        {"flee_transport_calls": 2}, {"committed_action_count": 0},
-                        {"next_eligible_at": self.now + 900}):
-            with self.subTest(changes=changes), self.assertRaises(ValueError):
-                service.ultimate_next_due(dict(result, **changes), self.identity, self.now - 1)
-        with self.assertRaises(ValueError):
-            service.ultimate_next_due(result, replace(self.identity, task_id="another-task"), self.now - 1)
 
     def test_known_startup_vip_or_scarlett_only_adds_one_navigation_to_already_completed(self):
         for phase, target, roi in (("vip", startup.VIP_RESET_TARGET, VIP_CLOSE),

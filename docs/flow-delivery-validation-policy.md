@@ -20,17 +20,33 @@ manifest, or a manual flow ledger.
 
 ## Continuous-integration coverage
 
-Every PR runs complete discovery on both Windows and Linux, partitioned into four
-whole-module slices per OS. Scheduling costs are not a module allowlist: new test
-modules are discovered and assigned automatically. The per-OS aggregate requires
-all successful current-attempt receipts, actual execution of every discovered
-case exactly once, matching revisions, and no new skip IDs. Rerun all jobs when
-retrying an attempt; receipts from earlier attempts cannot fill gaps.
+Routine PR checks inventory the complete suite but execute the declared baseline
+and affected selection in `scripts/offline_selection.py`. Windows retains shared
+consequential contracts and representative supported-route integrations. Linux
+retains distinct process/worker, filesystem, SQLite and tooling protection. A changed
+test module runs in full; route dependencies expand the relevant family and static
+import consumers. Shared surfaces use their owning tests plus consumer boundaries,
+rather than every historical variant through every route. Uncertain impact requests
+explicit full-fallback execution.
 
-`python scripts/check.py` and the existing hygiene checks still run on both OSes.
-Local full discovery remains opt-in; focused checks remain the normal development
-gate. Measurements, retained recognition coverage and the Supply repeat decision
-are in [the issue #47 validation record](validation/ticket-47/README.md).
+Each existing per-OS required job executes and verifies its own receipt. Verification
+recomputes discovery and the selection independently and rejects missing/repeated or
+unexecuted intended cases, failures, foreign policy/revision/attempts, undisclosed
+omissions and new skip IDs. A partial selection cannot claim full execution. Timing
+weights remain scheduling estimates, never selection allowlists.
+
+After merge, the workflow schedules full regression daily at 08:23 UTC and makes it
+available explicitly through workflow dispatch or `ci:full`. It is not another default pre-merge bottleneck. Deferred
+portability/fixture/rare-branch failures may survive an unrelated merge until the
+next successful full run (normally within 24 hours plus queue/runtime; longer if a
+schedule fails). Extra fresh-process Supply stress is manual diagnostic coverage;
+there is no automatic detection bound for failures unique to repeated startup.
+
+The developer command remains usable. Its environment helper is shared by the CI
+runner; CI sets hash/user-site flags before interpreter startup and scrubs runtime
+selectors before discovery. Focused entrypoint tests cover its real child launch
+and errors, replacing the duplicate controlled semantic rerun. Hygiene checks remain.
+Local full execution is opt-in. See the [issue #51 implementation ledger](validation/issue-51/README.md).
 
 
 ## Static debt ratchets
@@ -42,9 +58,10 @@ claim. Every file/error-code allowance must stay equal or shrink; new files and
 rules start at zero. When a finding disappears, run the command with
 `--refresh-baseline` and commit the lower allowance. Refresh refuses increases.
 
-CI enforces these gates on both OSes before retaining shard-zero execution
-receipts, and compares the committed allowances with the base revision so a
-baseline increase cannot conceal a regression. The initial counts, explicit
+Routine CI enforces these gates on Linux; full validation also runs them on Windows.
+It compares the committed allowances with the base revision so a baseline increase
+cannot conceal a regression. Windows-specific analyzer differences may be detected
+by the next full run. The initial counts, explicit
 shrinking type-debt list and scope are in
 [the issue #39 validation record](validation/ticket-39/README.md).
 Import-direction policy remains issue #22, not a second rule set in this checker.

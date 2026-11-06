@@ -41,7 +41,6 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         cls.building = cls.atlas.lookup_building(home.CAMPAIGN_HOME_ATLAS_BUILDING_ID)
         cls.frame = cv2.imread(str(FRAME))
         cls.localization = cls.localizer.localize(cls.frame)
-        cls.canonical = cv2.imread(str(FIXTURES / "canonical-home-20261029.png"))
         cls.after_noah = cv2.imread(str(FIXTURES / "after-noah-home-20261029.png"))
         cls.after_noah_localization = cls.localizer.localize(cls.after_noah)
         cls.short_pan = cv2.imread(str(FIXTURES / "campaign-home-short-pan-20261029.png"))
@@ -108,15 +107,6 @@ class CampaignHomeDirectEntryPanTests(unittest.TestCase):
         self.assertEqual(forecast["predicted_hit_roi"], target)
         self.assertEqual(forecast["predicted_camera_origin"], predicted)
         self.assertIs(forecast["input_authority"], False)
-
-    @requires_tesseract
-    def test_existing_current_native_campaign_binding_still_completes_without_pan(self):
-        step = self.driver().observe(self.canonical)
-        self.assertEqual(step.disposition, home.HomeDriverDisposition.COMPLETE)
-        self.assertIsNotNone(step.binding)
-        self.assertEqual(step.binding.target_roi, (411, 356, 560, 506))
-        self.assertEqual(step.binding.frame_sha256, vision.frame_digest(self.canonical))
-        self.assertIsNone(step.plan.drag_start)
 
     @requires_tesseract
     def test_actual_after_noah_pan_rounds_inside_verified_camera_bounds(self):

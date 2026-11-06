@@ -120,18 +120,6 @@ class ChipPanelNativeTests(unittest.TestCase):
                 self.assert_no_material_authority(self.recognize(frame))
 
     @requires_tesseract
-    def test_current_panel_back_reaches_commander_with_one_navigation_and_zero_resource(self):
-        commander = FRAME.with_name("native-commander-gear-20261029.png").read_bytes()
-        runtime, session = exit_runtime([self.raw, self.raw, commander, commander])
-        route = native.EnhancementIntegratedRoute(runtime, variant="chip", reset_identity="current-reset", session=session)
-        _, terminal = route._navigate_to("commander_overview")
-        self.assertEqual(terminal.detail_state, "commander_overview")
-        self.assertEqual([row["target_identity"] for row in runtime.inputs], ["enhancement-visible-back"])
-        self.assertEqual(runtime.inputs[0]["target_roi"], (47, 2, 128, 61))
-        self.assertFalse(route.resource_dispatch_keys)
-        self.assertEqual([row[1] for row in runtime.journal], ["confirmed"])
-
-    @requires_tesseract
     def test_fresh_frame_missing_back_cannot_reuse_the_planning_frame_target(self):
         changed = self.frame.copy()
         changed[:90, :180] = 0

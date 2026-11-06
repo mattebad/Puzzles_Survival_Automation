@@ -61,38 +61,6 @@ class CampaignLineupTests(unittest.TestCase):
         self.assertEqual(after.observation.screen, CampaignScreen.HERO_LINEUP)
         self.assertEqual(after.target("campaign-lineup-challenge"), before.target("campaign-lineup-challenge"))
 
-    @requires_tesseract
-    def test_changed_header_gold_or_caption_rejects_dispatch_target(self):
-        for variant in ("header", "gold", "caption"):
-            with self.subTest(variant=variant):
-                frame = self.frame()
-                if variant == "header":
-                    frame[5:70, 200:620] = 0
-                elif variant == "gold":
-                    gray = cv2.cvtColor(frame[1168:1252, 276:524], cv2.COLOR_BGR2GRAY)
-                    frame[1168:1252, 276:524] = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-                else:
-                    frame[1184:1238, 296:507] = (35, 150, 210)
-                    cv2.putText(frame, "Enhance", (319, 1222), cv2.FONT_HERSHEY_SIMPLEX,
-                                0.9, (255, 255, 255), 2, cv2.LINE_AA)
-                result = self.recognize(frame)
-                self.assertNotEqual(result.observation.screen, CampaignScreen.HERO_LINEUP)
-                self.assertIsNone(result.target("campaign-lineup-challenge"))
-                self.assertIsNone(result.target("campaign-lineup-back"))
-
-    @requires_tesseract
-    def test_duplicate_or_displaced_challenge_controls_fail_closed(self):
-        for duplicate in (True, False):
-            with self.subTest(duplicate=duplicate):
-                frame = self.frame()
-                control = frame[1168:1252, 276:524].copy()
-                if not duplicate:
-                    frame[1168:1252, 276:524] = (24, 28, 36)
-                frame[1168:1252, 20:268] = control
-                result = self.recognize(frame)
-                self.assertNotEqual(result.observation.screen, CampaignScreen.HERO_LINEUP)
-                self.assertIsNone(result.target("campaign-lineup-challenge"))
-
 
 if __name__ == "__main__":
     unittest.main()

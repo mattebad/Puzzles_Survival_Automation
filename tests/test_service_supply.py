@@ -1,6 +1,7 @@
 """Focused canonical Supply Depot service-boundary checks."""
 from __future__ import annotations
 
+from contextlib import ExitStack
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -28,6 +29,9 @@ from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.navigation_development_boundary import DevelopmentSession
 from scripts.startup_recovery import ContextualPopupRecoveryResult
 from tasks.scheduler_task_result import SchedulerIdentity
+from tasks.home_atlas_vision import frame_digest
+from tasks.perception_bundle import NativeFrameIdentity
+from tasks.supply_depot_vision import SupplyDepotControl, SupplyDepotScreenRecognition
 from tests.ocr_memo import install_module_memo
 from tests.support.environment import requires_ocr_worker, requires_tesseract
 
@@ -434,21 +438,80 @@ class ServiceSupplyTests(unittest.TestCase):
     @requires_ocr_worker
     def test_known_route_surfaces_preserve_no_popup_entry_without_new_input(self):
         fixtures = Path(__file__).parent / "fixtures/supply_depot"
-        for name in ("native-facility-20261029.png", "native-exhausted-20261029.png",
-                "native-arena-20261029.png", "native-raised-radial-20261029.png"):
+        for branch, name in (("facility", "native-facility-20261029.png"),
+                ("exhausted", "native-exhausted-20261029.png"),
+                ("arena", "native-arena-20261029.png"),
+                ("radial", "native-raised-radial-20261029.png")):
             with self.subTest(source=name):
                 self.owner.acquire()
                 runtime = self._runtime(HOME_FIXTURE.read_bytes())
                 runtime.initial_payload = (fixtures / name).read_bytes()
+                expected_frame = cv2.imdecode(np.frombuffer(runtime.initial_payload, np.uint8), cv2.IMREAD_COLOR)
+
+                def assert_source(frame, *, source_frame=None, source_png=None):
+                    self.assertTrue(np.array_equal(frame, expected_frame))
+                    if source_frame is not None:
+                        self.assertIsInstance(source_frame, NativeFrameIdentity)
+                        self.assertEqual(source_png, runtime.initial_payload)
+                        self.assertEqual(source_frame.transport_sha256, hashlib.sha256(source_png).hexdigest())
+                        self.assertEqual(source_frame.semantic_sha256, frame_digest(frame))
+                        self.assertEqual(source_frame.runtime_session_id, str(runtime.session))
+                        captures = [row for row in map(json.loads, runtime.events.read_text().splitlines())
+                            if row["type"] == "capture"]
+                        self.assertEqual(source_frame.capture_ordinal, len(captures))
+                        self.assertEqual(source_frame.capture_completed_monotonic, captures[-1]["captured_monotonic"])
+                        self.assertEqual(source_frame.evidence_path, captures[-1]["path"])
+
+                def screen(frame, *, source_frame, source_png) -> SupplyDepotScreenRecognition:
+                    assert_source(frame, source_frame=source_frame, source_png=source_png)
+                    return SupplyDepotScreenRecognition(
+                        recognized=branch == "exhausted", state="exhausted_or_cooldown" if branch == "exhausted" else "unknown",
+                        title_text="Supply Depot" if branch == "exhausted" else "", controls=tuple(
+                            SupplyDepotControl(index, (index * 200, 1140, (index + 1) * 200, 1280),
+                                reward, "collected_or_cooldown", False, 0.90)
+                            for index, reward in enumerate(("food", "wood", "steel", "gas"))
+                        ) if branch == "exhausted" else (), premium_or_purchase_visible=False,
+                        overlay=False, ambiguity="none" if branch == "exhausted" else "title_not_recognized",
+                        frame_sha256=frame_digest(frame), daily_free_attempts=0 if branch == "exhausted" else None,
+                    )
+
+                def arena(frame) -> tuple[int, int, int, int] | None:
+                    assert_source(frame)
+                    return (47, 2, 128, 61) if branch == "arena" else None
+
+                def radial(frame, *, source_frame, source_png) -> bool:
+                    assert_source(frame, source_frame=source_frame, source_png=source_png)
+                    return branch == "radial"
+
                 with (
+                    ExitStack() as seams,
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
                     patch("scripts.supply_depot_free_route.run", side_effect=RuntimeError("offline stop at proven route entry")) as run,
                 ):
+                    # Keep one native pixel-to-service composition. The other rows
+                    # exercise distinct source-bound service admission branches;
+                    # their native recognizers are covered in the vision/route tests.
+                    if branch != "facility":
+                        seams.enter_context(patch("scripts.startup_normalization.is_clean_home_frame", return_value=False))
+                        seams.enter_context(patch("scripts.supply_depot_free_route.recognize_supply_depot_screen", side_effect=screen))
+                        seams.enter_context(patch("scripts.supply_depot_free_route._arena_exit_target", side_effect=arena))
+                        seams.enter_context(patch("scripts.supply_depot_free_route.recognize_supply_depot_radial", side_effect=radial))
                     with self.assertRaises(SupplyNativePartialResultError) as caught:
                         self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
-                self.assertEqual(caught.exception.partial_result["total_input_count"], 0)
-                self.assertTrue(caught.exception.partial_result["startup_recovery"]["resume_ready"])
-                self.assertEqual(caught.exception.partial_result["startup_recovery"]["input_count"], 0)
+                partial = caught.exception.partial_result
+                self.assertEqual((partial["total_input_count"], partial["route_input_count"], partial["hold_transport_calls"]), (0, 0, 0))
+                self.assertTrue(partial["accounting_verified"])
+                startup = partial["startup_recovery"]
+                self.assertTrue(startup["resume_ready"])
+                self.assertTrue(startup["popup_absent"])
+                self.assertFalse(startup["dismissed"])
+                self.assertTrue(startup["accounting_verified"])
+                self.assertEqual(startup["input_count"], 0)
+                self.assertEqual(startup["source_frame"], startup["settled_frame"])
+                self.assertEqual(startup["source_frame"], startup["route_source_frame"])
+                rows = [json.loads(line) for line in runtime.events.read_text().splitlines()]
+                self.assertFalse([row for row in rows if row["type"] == "dispatch"])
+                self.assertEqual(runtime.input_count, 0)
                 run.assert_called_once()
                 self.owner.release()
 
