@@ -527,3 +527,19 @@ with all ten jobs green, all 3,159 IDs once per OS, and the unchanged 41 Linux /
 36 Windows skip identities. Final-head canonical proof is linked from PR #50.
 The temporary diagnostic is retired after preserving its source, logs, hardware,
 case timings and receipts outside the working tree and in immutable Git history.
+
+## Final-review native OCR evidence hold
+
+[Run 42167899112](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/42167899112)
+failed the unchanged native exhausted-Supply recognition case on Windows. Its
+`ocr_invalid_title` result hides the underlying semantic OCR reason; the retained
+log cannot distinguish deadline, worker, engine or provenance failure. Independent
+source reviews found no attributable regression in the CI optimization delta.
+The failed run is non-accepting; its underlying cause remains `evidence_required`.
+
+That case now retains real semantic OCR status, reason and elapsed time in its
+failure context. Recognition assertions, source PNG and identity, real OCR engine,
+worker ownership, deadline and skip controls are unchanged. The complete 24-case
+Supply vision module passes locally; an injected worker deadline still fails
+the original positive assertion and exposes `OCR_DEADLINE`. Neither result closes
+the hosted evidence hold or authorizes a retry of a consequential live action.
