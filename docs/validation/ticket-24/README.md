@@ -64,8 +64,10 @@ on `93cab54` passes both complete suites and controlled checks:
 
 Both jobs fail only the final whitespace gate: five retained #30 receipts contain
 CRLF. A path-specific `cr-at-eol` attribute preserves those historical bytes and
-the remaining whitespace checks. Overall CI remains `evidence_required` until the
-corrected head passes both jobs; no test, timeout or production behavior changed.
+the remaining whitespace checks.
+[Corrected-head run 41942881230](https://github.com/mattebad/Puzzles_Survival_Automation/actions/runs/41942881230)
+passes both OSes on `7eca65b`, including every hygiene gate. No test, timeout or
+production behavior changed in the receipt correction.
 
 All 66 affected contract/route/CLI checks pass with process launching forbidden.
 An actual offline service smoke rejects omitted selection without claims or

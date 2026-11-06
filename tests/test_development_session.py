@@ -547,6 +547,8 @@ class DevelopmentSessionTests(unittest.TestCase):
             self.assertEqual(dispatched, [])
 
     def test_runtime_multiple_actions_input_limit_and_cash_confirmation_guard(self):
+        import cv2
+
         with tempfile.TemporaryDirectory() as directory:
             runner = FakeRunner()
             with patch.dict("os.environ", {"PNS_DEVELOPMENT_MAX_INPUTS": "2"}):
@@ -562,9 +564,14 @@ class DevelopmentSessionTests(unittest.TestCase):
             post = runtime.capture("post")
             runtime.back(post, action_key="back-2")
             self.assertEqual(runner.backs, 1)
-            final = runtime.capture("final")
+            # A fresh pixel identity must leave the budget fence, not the
+            # duplicate-frame fence, responsible for denying the third input.
+            changed_png = cv2.imencode(".png", np.ones((1280, 800, 3), np.uint8))[1].tobytes()
+            with patch.object(runner, "capture_png", return_value=changed_png):
+                final = runtime.capture("final")
             with self.assertRaisesRegex(RuntimeError, "input limit"):
                 runtime.back(final, action_key="back-3")
+            self.assertEqual((len(runner.taps), runner.backs), (1, 1))
         with tempfile.TemporaryDirectory() as directory:
             runner = FakeRunner()
             runtime = LocalBlueStacksRuntime(runner, Path(directory) / "runtime", execute=True)

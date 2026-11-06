@@ -16,7 +16,14 @@ from scripts.flow_delivery_enhancement_bluestacks import (
 )
 from tests.support.enhancement_replay import CausalReplayFixture
 
+from tests.ocr_memo import install_module_memo
 from tests.support.environment import requires_tesseract
+
+
+def setUpModule():
+    # Causal mutations retain their recognizers; only identical OCR is reused.
+    install_module_memo()
+
 
 class EnhancementSemanticStageMappingTests(unittest.TestCase):
     def test_existing_phases_use_their_route_recognizer_contract(self):
