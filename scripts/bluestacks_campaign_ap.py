@@ -31,7 +31,6 @@ if str(REPO_ROOT) not in sys.path:
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from scripts.bluestacks_flow_collector import is_permitted_local_bluestacks_serial
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
 from scripts.home_atlas_bluestacks import (
@@ -104,6 +103,8 @@ class CampaignStageChallengeBoundary:
         self.attempted_entries = 0
 
     def __call__(self, source, recognition, command, *, progress: CampaignRouteProgress) -> CampaignStageEntryResult:
+        from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+
         if (type(progress) is not CampaignRouteProgress
                 or any(type(value) is not int or value < 0 for value in (
                     progress.initial_ap, progress.current_ap, progress.completed_runs,
