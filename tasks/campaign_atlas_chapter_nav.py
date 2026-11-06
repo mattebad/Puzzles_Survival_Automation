@@ -15,6 +15,8 @@ from typing import Mapping
 
 import numpy as np
 
+from scripts.bounded_tesseract import call_ocr, tesseract_data
+
 from tasks.campaign_atlas import (
     CAMPAIGN_PROFILE_ID,
     DEFAULT_ATLAS_ARTIFACT_ROOT,
@@ -281,7 +283,6 @@ def ocr_chapter_roi_near_projection(
     """Bind the chapter digit near an atlas projection when the red-badge OCR pass misses it."""
 
     import cv2
-    import pytesseract
 
     cx, cy = projected_screen_center
     x0 = max(0, int(cx) - pad_px)
@@ -306,10 +307,10 @@ def ocr_chapter_roi_near_projection(
             enlarged = cv2.resize(image, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
             for processed, scale in ((image, 1.0), (enlarged, 2.0)):
                 for psm in (6, 11):
-                    data = pytesseract.image_to_data(
+                    data = call_ocr(
+                        tesseract_data,
                         processed,
                         config=f"--psm {psm} -c tessedit_char_whitelist=0123456789",
-                        output_type=pytesseract.Output.DICT,
                     )
                     for index, text in enumerate(data["text"]):
                         token = str(text).strip()
@@ -362,10 +363,10 @@ def ocr_chapter_roi_near_projection(
                 interpolation=cv2.INTER_CUBIC,
             )
             for processed, scale in ((gray, 1.0), (enlarged, 2.0)):
-                digit_data = pytesseract.image_to_data(
+                digit_data = call_ocr(
+                    tesseract_data,
                     processed,
                     config="--psm 11 -c tessedit_char_whitelist=0123456789",
-                    output_type=pytesseract.Output.DICT,
                 )
                 for index, text in enumerate(digit_data["text"]):
                     if str(text).strip() != "2":
@@ -387,10 +388,10 @@ def ocr_chapter_roi_near_projection(
                         (center[0] - cx) ** 2 + (center[1] - cy) ** 2
                     ) ** 0.5 <= wide_pad:
                         digit_candidates.append(roi)
-                data = pytesseract.image_to_data(
+                data = call_ocr(
+                    tesseract_data,
                     processed,
                     config="--psm 11",
-                    output_type=pytesseract.Output.DICT,
                 )
                 for index, text in enumerate(data["text"]):
                     token = "".join(character for character in str(text).casefold() if character.isalpha())

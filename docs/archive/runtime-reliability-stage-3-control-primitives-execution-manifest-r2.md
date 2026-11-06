@@ -54,7 +54,7 @@ No production file and no path outside this allowlist may be mutated.
 
 ## Acceptance checks
 
-- The Enhancement fixture is a truthful minimal projection of the retained source record at `.local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/flow-delivery-result.json`, SHA-256 `bc36407fb2ede1d202d4b18ced544192c4fcb8125af3943e8364f1fb109dde0b`.
+- The Enhancement fixture is a truthful minimal projection of the retained source record at `.local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/flow-delivery-result.json`, SHA-256 `ff093c4288855c7b940fc2d585a0ba1bd461b136b17ed5a7a73b948143019fe1`.
 - Fixture annotations independently retain `pns-bluestacks-5-p64-800x1280-v1`, 800×1280 native geometry, provenance paths, and exact immediate-before/immediate-post/settled frame hashes from the retained record.
 - An executable replay test validates the fixture and, when the protected retained record is present, validates its digest and relevant values against the fixture without deriving expectations from production constants.
 - Enhancement replay passes typed transient and stable observations through `tasks.transition_stability` with zero input, making Enhancement the second distinct provenance-bound transition consumer alongside Nova.
@@ -86,7 +86,7 @@ No production file and no path outside this allowlist may be mutated.
 
 - r1 manifest and candidate: `docs/runtime-reliability-stage-3-control-primitives-execution-manifest-r1.md`
 - r1 independent recheck: mixed-action trace resolved; transition consumer minimum unresolved.
-- Retained Enhancement result digest: `bc36407fb2ede1d202d4b18ced544192c4fcb8125af3943e8364f1fb109dde0b`.
+- Retained Enhancement result digest: `ff093c4288855c7b940fc2d585a0ba1bd461b136b17ed5a7a73b948143019fe1`.
 - Retained Enhancement event digest: `4a78a4a648f15ecd171b0ec2bddc220d9659e982ecdfce0db37ae0648e7fc07b`.
 - Settling hashes: immediate post `1bd6a28ba8680f17ac4bfc13c8a32661389fcc92ab51f9357b9a0e3b2389bb92`; first settled `434f4ebb55b8606824247a727229c79accddfb2f243d528328b253726eac6c5b`; terminal settled `f1814d91384522e0f2c67c1796d13a7838f5081ad2e016887b78b9b597bdf2ea`.
 

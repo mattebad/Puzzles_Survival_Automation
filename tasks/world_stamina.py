@@ -12,12 +12,11 @@ import re
 from typing import Mapping, Optional
 
 from .contracts import ROI, TaskOutcome, TaskResult
-from .profile import PROFILE_ID
+from .profile import ACTIVE_RUNTIME_PROFILE_ID, BLUESTACKS_NATIVE_TARGET_PROVENANCE
 
 
 WORLD_SCREEN = "WORLD"
 ALLOWED_DESTINATION_KINDS = frozenset({"ZOMBIE_LAIR", "RESOURCE_NODE", "CAMPAIGN"})
-BLISS_NATIVE_TARGET_PROVENANCE = "bliss-native"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -42,7 +41,7 @@ class WorldStaminaObservation:
     evidence_refs: tuple[str, ...] = ()
     overlay_state: str = "none_observed"
     reset_guard_active: bool = False
-    runtime_profile_id: str = PROFILE_ID
+    runtime_profile_id: str = ACTIVE_RUNTIME_PROFILE_ID
     recognized: bool = True
 
 
@@ -55,15 +54,15 @@ def _target_inside_panel(observation: WorldStaminaObservation) -> bool:
     return bool(px0 <= tx0 < tx1 <= px1 and py0 <= ty0 < ty1 <= py1)
 
 
-def _has_bliss_native_source(observation: WorldStaminaObservation) -> bool:
+def _has_bluestacks_native_source(observation: WorldStaminaObservation) -> bool:
     refs = tuple(str(ref) for ref in observation.evidence_refs)
     return bool(
-        observation.target_provenance == BLISS_NATIVE_TARGET_PROVENANCE
+        observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE
         and _SHA256_RE.fullmatch(observation.source_frame_sha256 or "")
         and refs
         and all(ref and "local-reference" not in ref for ref in refs)
         and any(ref.startswith(("evidence/", "synthetic:")) for ref in refs)
-        and observation.runtime_profile_id == PROFILE_ID
+        and observation.runtime_profile_id == ACTIVE_RUNTIME_PROFILE_ID
     )
 
 
@@ -90,7 +89,7 @@ def world_route_authorizeable(
         and bool(observation.game_day_id)
         and not observation.reset_guard_active
         and observation.recognized
-        and _has_bliss_native_source(observation)
+        and _has_bluestacks_native_source(observation)
     )
 
 
@@ -256,7 +255,7 @@ class WorldNavigationObservation:
     state: str
     source_frame_sha256: str
     evidence_ref: str
-    runtime_profile_id: str = "pns-bluestacks-5-p64-800x1280-v1"
+    runtime_profile_id: str = ACTIVE_RUNTIME_PROFILE_ID
     frame_width: int = NATIVE_WORLD_WIDTH
     frame_height: int = NATIVE_WORLD_HEIGHT
     recognized: bool = True
@@ -343,7 +342,7 @@ def world_navigation_observation_from_mapping(
         source_frame_sha256=str(payload.get("source_frame_sha256") or ""),
         evidence_ref=str(payload.get("evidence_ref") or ""),
         runtime_profile_id=str(
-            payload.get("runtime_profile_id") or "pns-bluestacks-5-p64-800x1280-v1"
+            payload.get("runtime_profile_id") or ACTIVE_RUNTIME_PROFILE_ID
         ),
         frame_width=int(payload.get("frame_width") or NATIVE_WORLD_WIDTH),
         frame_height=int(payload.get("frame_height") or NATIVE_WORLD_HEIGHT),
@@ -395,7 +394,7 @@ def world_navigation_observation_authorizeable(
         or not observation.recognized
         or observation.unknown_modal
         or observation.overlay_state not in {"none", "none_observed", ""}
-        or observation.runtime_profile_id != "pns-bluestacks-5-p64-800x1280-v1"
+        or observation.runtime_profile_id != ACTIVE_RUNTIME_PROFILE_ID
         or (observation.frame_width, observation.frame_height)
         != (NATIVE_WORLD_WIDTH, NATIVE_WORLD_HEIGHT)
         or not _valid_sha256(observation.source_frame_sha256)

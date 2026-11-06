@@ -15,15 +15,16 @@ import sys
 import signal
 import threading
 import time
-from typing import Sequence
+from typing import Any, Callable, Mapping, Sequence
 from uuid import uuid4
 
 from .adapters import AdapterError, FakeDeviceAdapter, ReplayDeviceAdapter
 from .contracts import SchedulerFacts, ServiceMode
 from .operations import OperationsService, structured_summary
-from .registry import canonical_flow_specs
+from .registry import canonical_flow_specs, servable_flow_names
 from .service import AutomationService, ServiceError
 from .state import BotStateManager, StateBusyError, resolve_state_path
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 def _application_startup_directory(root: Path, run_id: str) -> Path:
@@ -60,8 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("summary")
     serve = subparsers.add_parser("serve")
     serve.add_argument("--live", action="store_true", help="explicitly permit the selected native routes")
-    serve.add_argument("--flow", action="append", choices=("recruitment", "nova", "campaign", "bioenhancer", "supply", "ultimate", "enhancement", "personal-might"),
-                       help="route to serve; repeat to select routes (default: recruitment)")
+    serve.add_argument("--flow", action="append", choices=tuple(servable_flow_names()), required=True,
+                       help="required route to serve; repeat to select routes")
     serve.add_argument("--campaign-stage", default="1-15-9")
     serve.add_argument("--operator-request-id", default=None,
                        help="one explicit extra Enhancement/Ultimate run; preserves daily completion")
@@ -235,7 +236,16 @@ def _structured_error(exc: BaseException) -> dict[str, object]:
     return {"status": "error", "error": str(exc)}
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    application_startup: Callable[..., Mapping[str, Any]] | None = None,
+) -> int:
+    """Run the service CLI.
+
+    Native serve needs an owner-bound application startup. The operator composition root
+    (``scripts/pnsctl.py``) supplies it so this package never imports the operator layer.
+    """
     parser = build_parser()
     try:
         args = parser.parse_args(argv)
@@ -454,7 +464,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ultimate_runner = None
                 enhancement_runner = None
                 personal_might_runner = None
-                selected = args.flow or ["recruitment"]
+                selected = args.flow
                 if native_serve:
                     from .recruitment import RecruitmentRunner
                     from .nova import NovaRunner
@@ -507,14 +517,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                             adb=args.adb, serial=args.serial,
                             output_directory=args.output_directory or state_path.parent / "personal-might-sessions",
                         )
-                application_startup = None
+                service_startup = None
                 if native_serve:
-                    from scripts import pnsctl
-                    if (str(Path(args.adb).resolve()), args.serial) != (str(pnsctl.BLUESTACKS_ADB.resolve()), pnsctl.BLUESTACKS_SERIAL):
+                    if application_startup is None:
+                        raise ServiceError("native application startup is supplied by scripts/pnsctl.py automation-service")
+                    if (str(Path(args.adb).resolve()), args.serial) != (str(BLUESTACKS_ADB.resolve()), BLUESTACKS_SERIAL):
                         raise ServiceError("native application startup requires the fixed BlueStacks runtime")
                     startup_root = (args.output_directory or state_path.parent / "application-startup")
-                    def application_startup(flow_id, run_id, runtime_input_lock, checkpoint):
-                        return pnsctl.owner_bound_application_startup(
+                    def service_startup(flow_id, run_id, runtime_input_lock, checkpoint):
+                        return application_startup(
                             runtime_input_lock=runtime_input_lock, checkpoint=checkpoint,
                             session_directory=_application_startup_directory(Path(startup_root), run_id),
                             flow_id=flow_id, require_ready=True)
@@ -527,20 +538,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                     ultimate_runner=ultimate_runner,
                     enhancement_runner=enhancement_runner,
                     personal_might_runner=personal_might_runner,
-                    application_startup=application_startup,
+                    application_startup=service_startup,
                 )
                 if native_serve:
-                    from .registry import BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID
+                    flow_names = servable_flow_names()
 
                     service.serve(
                         account_id=args.account_id, server_id=args.server_id, stop=stop,
                         operator_request_id=args.operator_request_id,
                         emit=lambda result: print(json.dumps(result, sort_keys=True), flush=True),
-                        flow_ids=tuple({"recruitment": RECRUITMENT_FLOW_ID, "nova": NOVA_FLOW_ID,
-                                        "campaign": CAMPAIGN_FLOW_ID, "bioenhancer": BIOENHANCER_FLOW_ID,
-                                        "supply": SUPPLY_FLOW_ID, "ultimate": ULTIMATE_FLOW_ID,
-                                        "enhancement": ENHANCEMENT_FLOW_ID,
-                                        "personal-might": PERSONAL_MIGHT_FLOW_ID}[flow] for flow in selected),
+                        flow_ids=tuple(flow_names[flow] for flow in selected),
                     )
                 else:
                     while not stop.is_set():

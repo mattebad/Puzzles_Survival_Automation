@@ -9,14 +9,16 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping
 
+from automation_service.registry import RECRUITMENT_FLOW_ID, RECRUITMENT_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
-FLOW_ID = "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"
+FLOW_ID = RECRUITMENT_FLOW_ID
 RUNNER_ID = "recruitment_bluestacks_runner"
 VALIDATOR_ID = "recruitment_bluestacks_evidence"
 RECOVERY_ID = "recruitment_bluestacks_recovery"
-MAX_INPUTS = 12
+MAX_INPUTS = RECRUITMENT_MAX_INPUTS
 MAX_CONTINUATION_INPUTS = 4
 MAX_RECRUITMENT_ACTIONS = 3
 RECRUIT_TARGET_IDENTITY = "noahs-tavern-daily-free"
@@ -401,7 +403,7 @@ def _write_delivery_result(
         "schema_version": 1,
         "flow_id": FLOW_ID,
         "status": result.get("status"),
-        "serial": _pnsctl().BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": _pnsctl().BLUESTACKS_NATIVE_WIDTH,
         "native_height": _pnsctl().BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
@@ -488,8 +490,8 @@ def run_recruitment(
     try:
         pnsctl = _pnsctl()
         runtime = LocalBlueStacksRuntime.connect(
-            adb=str(pnsctl.BLUESTACKS_ADB),
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=str(BLUESTACKS_ADB),
+            serial=BLUESTACKS_SERIAL,
             output_directory=runtime_directory,
             workflow=f"recruitment-{_stamp()}",
             execute=True,
@@ -497,8 +499,8 @@ def run_recruitment(
         from scripts import noahs_tavern_recruit_bluestacks as route_module
 
         route_args = SimpleNamespace(
-            adb=pnsctl.BLUESTACKS_ADB,
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=BLUESTACKS_ADB,
+            serial=BLUESTACKS_SERIAL,
             output_directory=runtime_directory,
             max_inputs=route_maximum,
             startup_recovery=startup_recovery,

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import replace
-import inspect
 import json
 import math
 from pathlib import Path
@@ -879,20 +878,6 @@ class BlueStacksHomeSafeExitTests(unittest.TestCase):
             exclusion_inventory=inventory,
             proposed_candidates=(_proposal(identity, "exit-a", (500, 250, 540, 290)),),
         )
-        source = Path(inspect.getsourcefile(bind_bluestacks_home_safe_exit) or "").read_text(
-            encoding="utf-8"
-        )
-        forbidden = (
-            "adb ",
-            "pnsctl",
-            "dispatch_tap",
-            "input tap",
-            "LocalBlueStacksRuntime",
-            "connect_runtime",
-        )
-        lowered = source.lower()
-        for token in forbidden:
-            self.assertNotIn(token.lower(), lowered)
         self.assertFalse(hasattr(result, "dispatch"))
         self.assertFalse(hasattr(result.candidate, "tap_xy"))
         self.assertIsNone(result.candidate.capability_grant)

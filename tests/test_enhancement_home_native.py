@@ -7,6 +7,7 @@ import unittest
 import cv2
 
 from scripts.enhancement_bluestacks import HOME_PROFILE_PORTRAIT_ROI, recognize_home_frame
+from tests.support.environment import requires_tesseract
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +15,7 @@ HOME = ROOT / "tests/fixtures/home_base/native-home-bio-zoomed-20261029.png"
 
 
 class EnhancementHomeNativeTests(unittest.TestCase):
+    @requires_tesseract
     def test_current_home_and_dynamic_artwork_bind_same_portrait_from_new_frames(self):
         frame = cv2.imread(str(HOME))
         first_hash = hashlib.sha256(HOME.read_bytes()).hexdigest()
@@ -31,6 +33,7 @@ class EnhancementHomeNativeTests(unittest.TestCase):
         self.assertEqual(second.portrait_target, first.portrait_target)
         self.assertEqual(second.frame_sha256, animated_hash)
 
+    @requires_tesseract
     def test_popup_and_radial_home_are_rejected(self):
         for reference in (
             "tasks/assets/navigation/800x1280/reset_popup_source.png",
@@ -42,6 +45,7 @@ class EnhancementHomeNativeTests(unittest.TestCase):
                 self.assertFalse(result.recognized, result)
                 self.assertIsNone(result.portrait_target)
 
+    @requires_tesseract
     def test_missing_avatar_or_ambiguous_profile_identity_does_not_bind(self):
         frame = cv2.imread(str(HOME))
         missing = frame.copy()

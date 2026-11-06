@@ -40,7 +40,6 @@ RAW_HEIGHT = 1280
 RAW_SIZE = (RAW_WIDTH, RAW_HEIGHT)
 EXPECTED_PACKAGE = "com.global.ztmslg"
 MANIFEST_SCHEMA_VERSION = 1
-KNOWN_BLUESTACKS_PRODUCTION_SERIALS = frozenset({"192.168.122.79:5555"})
 LOCAL_EMULATOR_SERIAL_RE = re.compile(r"^emulator-\d+$")
 FLOW_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -420,8 +419,6 @@ def coordinate_self_check() -> dict[str, Any]:
 
 
 def is_permitted_local_bluestacks_serial(serial: str) -> bool:
-    if serial in KNOWN_BLUESTACKS_PRODUCTION_SERIALS:
-        return False
     if LOCAL_EMULATOR_SERIAL_RE.fullmatch(serial):
         return True
     if serial.startswith("localhost:"):
@@ -812,7 +809,6 @@ class CollectorSession:
             self.runner = ADBRunner(self.args.adb, serial)
             self.source = ADBFrameSource(self.runner)
             permitted = is_permitted_local_bluestacks_serial(serial)
-            known_production = serial in KNOWN_BLUESTACKS_PRODUCTION_SERIALS
             diagnostics: dict[str, Any] = {
                 "mode": "live",
                 "adb_executable": str(self.args.adb),
@@ -822,9 +818,8 @@ class CollectorSession:
                 "device_list": [{"serial": item.serial, "state": item.state, "details": item.details} for item in devices],
                 "selected_device_state": next((item.state for item in devices if item.serial == serial), "missing"),
                 "permitted_local_bluestacks_endpoint": permitted,
-                "known_production_serial": known_production,
             }
-            if not permitted or known_production:
+            if not permitted:
                 diagnostics["rejection"] = "serial_is_not_a_permitted_local_bluestacks_endpoint"
                 self.manifest["device_diagnostics"] = diagnostics
                 self.manifest["dispatch_safety_gate"] = {
@@ -834,7 +829,6 @@ class CollectorSession:
                         "serial_selected_explicitly": True,
                         "serial_confirmation_matches": True,
                         "permitted_local_bluestacks_endpoint": permitted,
-                        "known_production_serial": known_production,
                         "record_only": bool(self.args.record_only or getattr(self.args, "passive", False)),
                     },
                 }
@@ -924,7 +918,6 @@ class CollectorSession:
             "serial_confirmation_matches": diagnostics.get("confirmed_serial") == diagnostics.get("serial"),
             "device_reachable": diagnostics.get("selected_device_state") == "device",
             "permitted_local_bluestacks_endpoint": diagnostics.get("permitted_local_bluestacks_endpoint", False),
-            "known_production_serial": diagnostics.get("known_production_serial", False),
             "screenshot_capture_succeeded": diagnostics.get("screenshot_capture_succeeded", False),
             "portrait": diagnostics.get("portrait_frame", False),
             "exact_800x1280": diagnostics.get("exact_800x1280", False),
@@ -954,7 +947,6 @@ class CollectorSession:
         dispatch_enabled = bool(
             all(passed for name, passed in checks.items() if name != "record_only")
             and not checks["record_only"]
-            and not checks["known_production_serial"]
         )
         self.manifest["dispatch_safety_gate"] = {
             "dispatch_enabled": dispatch_enabled,

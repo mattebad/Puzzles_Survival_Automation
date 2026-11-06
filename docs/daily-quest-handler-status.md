@@ -36,9 +36,8 @@ Daily Claim flow. All scheduler eligibility remains false.
   complete offline).
 - Daily Gear/Chip/Module row adapter: `tasks/daily_enhancement.py` (all three variants).
 - Campaign Auto Battle implementation: `tasks/campaign_auto_battle.py`,
-  `tasks/campaign_auto_battle_runtime.py`, and `tasks/campaign_auto_battle_vision.py`; the older
-  `tasks/campaign_ap.py` and `tasks/daily_campaign_ap.py` Sweep/Auto Complete semantics are retained
-  implementation debt and are not approved execution policy.
+  `tasks/campaign_auto_battle_runtime.py`, and `tasks/campaign_auto_battle_vision.py`; the retired
+  Sweep/Auto Complete contracts were deleted and are not approved execution policy.
 - Ultimate Challenge navigation/reset primitives: `tasks/ultimate_challenge_daily.py` plus the
   navigation-only BlueStacks adapter; Flee execution is not implemented.
 - Zombie Lair pure offline contracts: `tasks/zombie_lair.py` and `tasks/daily_zombie_lair.py`;
@@ -71,8 +70,6 @@ Daily Claim flow. All scheduler eligibility remains false.
   replay with unconditional no-entry-dispatch guard).
 - Disabled Resource Boost contract: `tasks/resource_boost_disabled.py` (resource-building
   identity/resource/duration/cost replay with unconditional no-boost-dispatch guard).
-- Task-state and one-pulse scheduler contracts: `tasks/scheduler.py`,
-  `safe_action_core/task_state.py`, and `safe_action_core/store.py`.
 
 These contracts remain unregistered and evidence-gated where matrix says so. “Offline
 implemented” does not mean that the newly approved policy, production replay, or supervised canary

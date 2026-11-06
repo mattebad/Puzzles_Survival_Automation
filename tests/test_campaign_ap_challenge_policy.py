@@ -17,9 +17,10 @@ from tasks.campaign_ap_challenge import (
     campaign_ap_drain_verified,
     campaign_ap_effect_verified,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 FLOW_ID = CAMPAIGN_AP_FLOW_ID
 
 

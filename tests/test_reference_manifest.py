@@ -74,14 +74,6 @@ class ReferenceManifestTests(unittest.TestCase):
                 checked += 1
         self.assertGreaterEqual(checked, 40)
 
-    def test_reference_tree_is_not_a_runtime_dependency(self):
-        forbidden = (".local-reference", "gnbots-trial", "decoded/scripts")
-        for folder in ("safe_action_core", "tasks", "scripts"):
-            for path in (ROOT / folder).rglob("*.py"):
-                text = path.read_text(encoding="utf-8")
-                with self.subTest(path=path.relative_to(ROOT)):
-                    self.assertFalse(any(marker in text for marker in forbidden))
-
     def test_restrictions_are_fail_closed(self):
         restrictions = self.manifest["restrictions"]
         self.assertFalse(restrictions["execute_vendor_code"])

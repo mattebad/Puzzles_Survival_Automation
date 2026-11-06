@@ -13,7 +13,8 @@ from scripts import home_atlas_bluestacks as home
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
 from tasks.home_atlas_vision import bind_visible_building
-from tests.test_home_atlas_verified_route import _ready
+from tests.support.home_atlas import _ready
+from tests.support.environment import requires_tesseract
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +33,7 @@ class ResearchLabHomeEntryBindingTests(unittest.TestCase):
             frame = cv2.imread(str(FIXTURES / name))
             localization = localizer.localize(frame)
             binding = bind_visible_building(
-                frame, localization, cls.building, home_is_clean=is_clean_home_frame
+                frame, localization, cls.building, home_is_clean=lambda _frame: True
             )
             cls.frames[name] = frame, localization, binding
 
@@ -40,9 +41,13 @@ class ResearchLabHomeEntryBindingTests(unittest.TestCase):
         safe, calibration = home.bluestacks_direct_pan_contract()
         return DirectPanNavigator(atlas or self.atlas, self.building.semantic_id, safe, calibration)
 
+    @requires_tesseract
     def test_native_current_lab_and_initial_safe_subregion_complete_without_pan(self):
-        for name, (frame, localization, binding) in self.frames.items():
+        for name, (frame, localization, _synthetic_binding) in self.frames.items():
             with self.subTest(frame=name):
+                binding = bind_visible_building(
+                    frame, localization, self.building, home_is_clean=is_clean_home_frame
+                )
                 self.assertIsNotNone(binding)
                 self.assertEqual(binding.atlas_anchor, (835, 520))
                 driver = home.BlueStacksLocalizeFirstHomeDriver(
@@ -94,14 +99,14 @@ class ResearchLabHomeEntryBindingTests(unittest.TestCase):
         frame, localization, _binding = self.frames["fully-visible-after-pan.png"]
         self.assertIsNone(bind_visible_building(
             frame, replace(localization, frame_sha256="f" * 64), self.building,
-            home_is_clean=is_clean_home_frame,
+            home_is_clean=lambda _frame: True,
         ))
         self.assertIsNone(bind_visible_building(
-            frame, localization, self.building, home_is_clean=lambda _f: False,
+            frame, localization, self.building, home_is_clean=lambda _frame: False,
         ))
         outside_anchor = replace(self.building, interaction_anchor_override=(500, 500))
         self.assertIsNone(bind_visible_building(
-            frame, localization, outside_anchor, home_is_clean=is_clean_home_frame,
+            frame, localization, outside_anchor, home_is_clean=lambda _frame: True,
         ))
 
     def test_fixture_bytes_match_retained_source_provenance(self):

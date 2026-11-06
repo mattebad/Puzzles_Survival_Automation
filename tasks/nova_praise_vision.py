@@ -11,8 +11,7 @@ import unicodedata
 
 import cv2
 import numpy as np
-import pytesseract
-from scripts.bounded_tesseract import call_ocr, tesseract_data
+from scripts.bounded_tesseract import call_ocr, tesseract_data, tesseract_string
 
 from .nova_praise import (
     NOVA_HOME,
@@ -216,7 +215,7 @@ def _text(frame: np.ndarray, box: Box, *, psm: int = 6) -> str:
     cached = _TEXT_CACHE.get(cache_key)
     if cached is not None:
         return cached
-    value = call_ocr(pytesseract.image_to_string, crop, config=f"--psm {psm}")
+    value = call_ocr(tesseract_string, crop, config=f"--psm {psm}")
     folded = unicodedata.normalize("NFKD", value.casefold())
     normalized = " ".join(
         "".join(c for c in folded if not unicodedata.combining(c)).split()
@@ -302,7 +301,7 @@ def _red_zero_attempts_glyph(frame: np.ndarray) -> bool | None:
     # read the digit; a ©/O in the full-row OCR is never converted to zero.
     numeric = cv2.resize(255 - glyph, None, fx=6, fy=6, interpolation=cv2.INTER_NEAREST)
     numeric = cv2.copyMakeBorder(numeric, 24, 24, 24, 24, cv2.BORDER_CONSTANT, value=255)
-    readings = [call_ocr(pytesseract.image_to_string,
+    readings = [call_ocr(tesseract_string,
         numeric, config=f"--psm {psm}",
     ).strip() for psm in (8, 13)]
     return readings == ["0", "0"]
@@ -531,6 +530,7 @@ def _template_match_in_search_roi(
     if search.size == 0:
         return None
     ranked: list[tuple[float, float, float, Box]] = []
+    runner_ups: list[tuple[float, Box]] = []
     for scale in NOVA_TEMPLATE_SCALES:
         height = max(8, int(round(template.shape[0] * scale)))
         width = max(8, int(round(template.shape[1] * scale)))
@@ -549,7 +549,7 @@ def _template_match_in_search_roi(
             max(0, my - height // 2) : my + height // 2 + 1,
             max(0, mx - width // 2) : mx + width // 2 + 1,
         ] = -1.0
-        _min_val2, second_val, _min_loc2, _max_loc2 = cv2.minMaxLoc(suppressed)
+        _min_val2, second_val, _min_loc2, second_loc = cv2.minMaxLoc(suppressed)
         match_roi = (
             sx0 + mx,
             sy0 + my,
@@ -557,6 +557,15 @@ def _template_match_in_search_roi(
             sy0 + my + height,
         )
         ranked.append((float(max_val), float(max_val - second_val), float(scale), match_roi))
+        runner_ups.append((
+            float(second_val),
+            (
+                sx0 + second_loc[0],
+                sy0 + second_loc[1],
+                sx0 + second_loc[0] + width,
+                sy0 + second_loc[1] + height,
+            ),
+        ))
     if not ranked:
         return None
     ranked.sort(reverse=True, key=lambda item: (item[0], item[1]))
@@ -573,8 +582,13 @@ def _template_match_in_search_roi(
             competing_margin,
             best_score - spatially_distinct[0][0],
         )
+    # A duplicated control is usually the runner-up peak of the same scale, so count
+    # runner-ups that do not overlap the winner alongside other scales' peaks.
     strong_distinct = [
         item for item in spatially_distinct if item[0] >= NOVA_TEMPLATE_MIN_SCORE
+    ] + [
+        item for item in runner_ups
+        if item[0] >= NOVA_TEMPLATE_MIN_SCORE and not _boxes_overlap(best_roi, item[1])
     ]
     return {
         "score": best_score,

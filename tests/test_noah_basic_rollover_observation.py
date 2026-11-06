@@ -7,10 +7,9 @@ from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
 
 import cv2
-import pytesseract
+from tests.support.environment import requires_tesseract
 
 from safe_action_core import SafetyStore, SQLiteSchedulerInvocationRepository
 from tasks.noahs_tavern_recruit import (
@@ -100,6 +99,7 @@ class BasicRolloverObservationTests(unittest.TestCase):
                         captured_monotonic=before.captured_monotonic + 2)
         self.assertTrue(runtime.accept_postcondition(self.recognition(result), after))
 
+    @requires_tesseract
     def test_retained_native_source_independently_recognizes_authorized_full_basic_quota(self):
         path = FIXTURES / "basic-free-five-20261030.png"
         provenance = json.loads(path.with_suffix(".provenance.json").read_text(encoding="utf-8"))
@@ -107,13 +107,7 @@ class BasicRolloverObservationTests(unittest.TestCase):
         original = Path(__file__).parents[1] / provenance["source"]
         if original.exists():
             self.assertEqual(original.read_bytes(), path.read_bytes())
-        tesseract = Path("C:/Program Files/Tesseract-OCR/tesseract.exe")
-        with patch.object(pytesseract.pytesseract, "tesseract_cmd", str(tesseract) if tesseract.exists() else "tesseract"):
-            try:
-                pytesseract.get_tesseract_version()
-            except (OSError, RuntimeError, pytesseract.TesseractNotFoundError):
-                self.skipTest("Tesseract unavailable for retained native OCR")
-            observed = recognize_noahs_tavern_frame(cv2.imread(str(path)), captured_monotonic=100.0)
+        observed = recognize_noahs_tavern_frame(cv2.imread(str(path)), captured_monotonic=100.0)
         self.assertEqual(observed.frame_sha256, provenance["decoded_frame_sha256"])
         self.assertEqual(observed.selected_tier, RecruitTier.BASIC)
         self.assertEqual(observed.tier(RecruitTier.BASIC).attempts_remaining, 5)
@@ -121,13 +115,12 @@ class BasicRolloverObservationTests(unittest.TestCase):
         self.assertEqual(self.runtime().next_command(self.recognition(observed)).action, NoahAction.RECRUIT_FREE)
         self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), provenance["transport_sha256"])
 
+    @requires_tesseract
     def test_native_stale_zero_free_button_commits_one_action_and_preserves_other_timers(self):
         path = FIXTURES / "basic-free-zero-20261102.png"
         provenance = json.loads(path.with_suffix(".provenance.json").read_text())
         self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), provenance["transport_sha256"])
-        tesseract = Path("C:/Program Files/Tesseract-OCR/tesseract.exe")
-        with patch.object(pytesseract.pytesseract, "tesseract_cmd", str(tesseract) if tesseract.exists() else "tesseract"):
-            observed = recognize_noahs_tavern_frame(cv2.imread(str(path)), captured_monotonic=100.0)
+        observed = recognize_noahs_tavern_frame(cv2.imread(str(path)), captured_monotonic=100.0)
         self.assertEqual(observed.frame_sha256, provenance["decoded_frame_sha256"])
         self.assertEqual(observed.tier(RecruitTier.BASIC).attempts_remaining, 0)
         self.assertTrue(noah_recruit_authorizeable(observed, RecruitTier.BASIC))

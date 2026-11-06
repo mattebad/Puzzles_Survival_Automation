@@ -140,12 +140,6 @@
           "state": "completed_canonical_route_migration",
           "replacement": "accepted canonical Home Atlas Supply Depot route",
           "runtime_authority": false
-        },
-        {
-          "legacy_id": "scripts/daily_claim_canary.py",
-          "state": "retired_compatibility_shim",
-          "replacement": "receipt-bound pnsctl Daily Claim route",
-          "runtime_authority": false
         }
       ],
       "invariants": [
@@ -289,7 +283,7 @@
       "claim_behavior": "does not claim; only binds selected Daily screen and inventory",
       "persistence_behavior": "dormant task-state integration; no live rows during planning",
       "backlog_task_id": "DQ-FOUNDATION-DAILY-INVENTORY",
-      "prompt_path": "docs/prompts/daily-quest/dq-foundation-daily-inventory.md",
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-foundation-daily-inventory.md",
       "bliss_native_evidence": ["evidence/sessions/20260712-m6-dq-bootstrap/assets/daily-quest-settled.png", "evidence/sessions/20260712-mvp-quest-to-claim/live-selected-tab-retest-20260713/quest-daily-retest-002-result.json"],
       "gnbots_provenance": ["GNB-DAILY-QUEST-CLAIMS; reference only"]
     },
@@ -305,7 +299,7 @@
       "claim_behavior": "one ordinary free non-milestone Claim tap claims all available completed Daily quests; points must increase and ordinary Claim controls must clear",
       "persistence_behavior": "receipt-bound development session with one-tap accounting; objective attribution remains separate",
       "backlog_task_id": "DQ-CLAIM-DAILY",
-      "prompt_path": "docs/prompts/daily-quest/dq-claim-daily.md",
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-claim-daily.md",
       "bliss_native_evidence": [],
       "gnbots_provenance": ["GNB-DAILY-QUEST-CLAIMS; static reference cannot authorize"]
     },
@@ -321,7 +315,7 @@
       "claim_behavior": "separate ready-chest Claim; never treated as ordinary row Claim",
       "persistence_behavior": "offline contract only; no live task-state rows",
       "backlog_task_id": "DQ-CLAIM-MILESTONE",
-      "prompt_path": "docs/prompts/daily-quest/dq-claim-milestone.md",
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-claim-milestone.md",
       "bliss_native_evidence": [],
       "gnbots_provenance": ["GNB-DAILY-MILESTONES; static reference cannot authorize"]
     },
@@ -337,7 +331,7 @@
       "claim_behavior": "historical evidence only; REC-D09 Personal Might provides completion attribution, Nova free Praise is distinct, and aggregate Daily Claim owns Claim",
       "persistence_behavior": "safe-action journal evidence retained; scheduler integration dormant",
       "backlog_task_id": "DQ-CLAIM-DAILY",
-      "prompt_path": "docs/prompts/daily-quest/dq-claim-daily.md",
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-claim-daily.md",
       "bliss_native_evidence": ["evidence/sessions/20260713-personal-might-praise/live-claim-success-020/claim-result.json", "evidence/sessions/20260713-personal-might-praise/live-claim-success-020/personal-might-claim-task-result.json"],
       "gnbots_provenance": ["GNB-DAILY-QUEST-CLAIMS; static geometry not used for authorization"]
     },
@@ -353,7 +347,7 @@
       "claim_behavior": "none",
       "persistence_behavior": "SQLite v1-to-v2 task_state adapter; action journal remains authoritative",
       "backlog_task_id": "DQ-PERSISTENCE",
-      "prompt_path": "docs/prompts/daily-quest/dq-persistence.md",
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-persistence.md",
       "bliss_native_evidence": [],
       "gnbots_provenance": []
     },
@@ -369,7 +363,7 @@
       "claim_behavior": "none; scheduler does not authorize Claim",
       "persistence_behavior": "persisted backoff/completion/unresolved state; external lease and unresolved gates required",
       "backlog_task_id": "DQ-SCHEDULER",
-      "prompt_path": "docs/prompts/daily-quest/dq-scheduler.md",
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-scheduler.md",
       "bliss_native_evidence": [],
       "gnbots_provenance": []
     },
@@ -385,7 +379,7 @@
       "claim_behavior": "must independently verify Claim authorization and promotion",
       "persistence_behavior": "future boundary; no live migration or task-state creation in planning",
       "backlog_task_id": "DQ-RUNTIME-INTEGRATION-GATE",
-      "prompt_path": "docs/prompts/daily-quest/dq-runtime-integration-gate.md",
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-runtime-integration-gate.md",
       "bliss_native_evidence": [],
       "gnbots_provenance": []
     },
@@ -401,7 +395,7 @@
       "claim_behavior": "none; objective execution and Claim remain separate",
       "persistence_behavior": "offline replay only; no live task-state rows",
       "backlog_task_id": "DQ-FLOW-WORLD-STAMINA-ENGINE",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-world-stamina-engine.md",
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-world-stamina-engine.md",
       "bliss_native_evidence": [],
       "gnbots_provenance": ["GNB-TILE-DIALOGS", "GNB-TILE-MARCH; static reference only"]
     }
@@ -441,7 +435,7 @@
       "required_product_or_policy_decisions": "whether any building target may be allowlisted",
       "dependencies": ["DQ-CATALOG-RECONCILIATION", "DQ-FOUNDATION-DAILY-INVENTORY"],
       "backlog_task_id": "DQ-FLOW-BUILDING-UPGRADE",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-building-upgrade.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-building-upgrade.md"
     },
     {
       "objective_key": "join_hero_duel",
@@ -477,7 +471,7 @@
       "required_product_or_policy_decisions": "manual PvP confirmation and event allowlist",
       "dependencies": ["DQ-CATALOG-RECONCILIATION", "HERO-DUEL-EVIDENCE-GATE"],
       "backlog_task_id": "DQ-FLOW-HERO-DUEL",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-hero-duel.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-hero-duel.md"
     },
     {
       "objective_key": "upgrade_tech",
@@ -513,7 +507,7 @@
       "required_product_or_policy_decisions": "research spend allowlist",
       "dependencies": ["DQ-CATALOG-RECONCILIATION"],
       "backlog_task_id": "DQ-FLOW-TECH-UPGRADE",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-tech-upgrade.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-tech-upgrade.md"
     },
     {
       "objective_key": "train_fighter",
@@ -553,7 +547,7 @@
       "required_product_or_policy_decisions": "minimum tier and resource budget",
       "dependencies": ["DQ-CATALOG-RECONCILIATION"],
       "backlog_task_id": "DQ-FLOW-TRAINING",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-training.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-training.md"
     },
     {
       "objective_key": "train_rider",
@@ -593,7 +587,7 @@
       "required_product_or_policy_decisions": "minimum tier and resource budget",
       "dependencies": ["DQ-CATALOG-RECONCILIATION"],
       "backlog_task_id": "DQ-FLOW-TRAINING",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-training.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-training.md"
     },
     {
       "objective_key": "train_shooter",
@@ -633,7 +627,7 @@
       "required_product_or_policy_decisions": "minimum tier and resource budget",
       "dependencies": ["DQ-CATALOG-RECONCILIATION"],
       "backlog_task_id": "DQ-FLOW-TRAINING",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-training.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-training.md"
     },
     {
       "objective_key": "train_vehicle",
@@ -673,7 +667,7 @@
       "required_product_or_policy_decisions": "minimum tier and resource budget",
       "dependencies": ["DQ-CATALOG-RECONCILIATION"],
       "backlog_task_id": "DQ-FLOW-TRAINING",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-training.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-training.md"
     },
     {
       "objective_key": "recruit_noahs_tavern",
@@ -709,7 +703,7 @@
       "required_product_or_policy_decisions": "none; Basic-five Daily, independent three-tab maintenance, exact cooldowns, and free-only resource policy are approved",
       "dependencies": ["DQ-FOUNDATION-DAILY-INVENTORY", "DQ-CLAIM-DAILY"],
       "backlog_task_id": "DQ-FLOW-RECRUITMENT",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-recruitment.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-recruitment.md"
     },
     {
       "objective_key": "upgrade_hero",
@@ -745,7 +739,7 @@
       "required_product_or_policy_decisions": "Wally identity and hero material allowlist",
       "dependencies": ["DQ-CATALOG-RECONCILIATION", "HERO-UPGRADE-EVIDENCE-GATE"],
       "backlog_task_id": "DQ-FLOW-HERO-UPGRADE",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-hero-upgrade.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-hero-upgrade.md"
     },
     {
       "objective_key": "defeat_zombie_lair",
@@ -781,7 +775,7 @@
       "required_product_or_policy_decisions": "allowed lair levels and stamina budget",
       "dependencies": ["DQ-FLOW-WORLD-STAMINA-ENGINE", "DQ-FOUNDATION-DAILY-INVENTORY"],
       "backlog_task_id": "DQ-FLOW-ZOMBIE-LAIR",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-zombie-lair.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-zombie-lair.md"
     },
     {
       "objective_key": "consume_stamina",
@@ -817,7 +811,7 @@
       "required_product_or_policy_decisions": "stamina budget",
       "dependencies": ["DQ-FLOW-WORLD-STAMINA-ENGINE"],
       "backlog_task_id": "DQ-FLOW-STAMINA",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-stamina.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-stamina.md"
     },
     {
       "objective_key": "consume_ap",
@@ -844,8 +838,8 @@
       "promotion_state": "EVIDENCE_GATED",
       "current_runtime_registration_status": "NOT_REGISTERED",
       "scheduler_eligibility": false,
-      "existing_implementation": "tasks/campaign_auto_battle.py/runtime/vision and scripts/bluestacks_campaign_ap.py; legacy tasks/campaign_ap.py and daily adapter do not own final execution policy",
-      "existing_tests": ["tests/test_campaign_auto_battle.py", "tests/test_campaign_auto_battle_runtime.py", "tests/test_campaign_ap.py", "tests/test_daily_campaign_ap.py"],
+      "existing_implementation": "tasks/campaign_auto_battle.py/runtime/vision and scripts/bluestacks_campaign_ap.py",
+      "existing_tests": ["tests/test_campaign_auto_battle.py", "tests/test_campaign_auto_battle_runtime.py"],
       "bliss_native_evidence": [],
       "gnbots_provenance": [],
       "missing_work": "integrate static cost map, 120 AP, 360-second regeneration/defer, and canonical Home into production path",
@@ -853,7 +847,7 @@
       "required_product_or_policy_decisions": "closed; evidence and implementation integration remain",
       "dependencies": ["DQ-CATALOG-RECONCILIATION"],
       "backlog_task_id": "DQ-FLOW-CAMPAIGN-AP",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-campaign-ap.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-campaign-ap.md"
     },
     {
       "objective_key": "help_allies",
@@ -889,7 +883,7 @@
       "required_product_or_policy_decisions": "none for offline completion attribution; any future gameplay provider requires a separate promoted task",
       "dependencies": ["DQ-FOUNDATION-DAILY-INVENTORY"],
       "backlog_task_id": "DQ-FLOW-ALLIANCE-HELP",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-alliance-help.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-alliance-help.md"
     },
     {
       "objective_key": "buy_box",
@@ -925,7 +919,7 @@
       "required_product_or_policy_decisions": "explicit product authorization remains absent; no approval",
       "dependencies": ["DQ-CATALOG-RECONCILIATION"],
       "backlog_task_id": "DQ-FLOW-PURCHASES",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-purchases.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-purchases.md"
     },
     {
       "objective_key": "gather_wood",
@@ -964,7 +958,7 @@
       "required_product_or_policy_decisions": "Wood march policy",
       "dependencies": ["DQ-FLOW-WORLD-STAMINA-ENGINE"],
       "backlog_task_id": "DQ-FLOW-GATHERING",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-gathering.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-gathering.md"
     },
     {
       "objective_key": "gather_steel",
@@ -1003,7 +997,7 @@
       "required_product_or_policy_decisions": "Steel march policy",
       "dependencies": ["DQ-FLOW-WORLD-STAMINA-ENGINE"],
       "backlog_task_id": "DQ-FLOW-GATHERING",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-gathering.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-gathering.md"
     },
     {
       "objective_key": "gather_gas",
@@ -1042,7 +1036,7 @@
       "required_product_or_policy_decisions": "Gas march policy",
       "dependencies": ["DQ-FLOW-WORLD-STAMINA-ENGINE"],
       "backlog_task_id": "DQ-FLOW-GATHERING",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-gathering.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-gathering.md"
     },
     {
       "objective_key": "boost_resource_building_output",
@@ -1078,7 +1072,7 @@
       "required_product_or_policy_decisions": "boost resource budget",
       "dependencies": ["DQ-CATALOG-RECONCILIATION"],
       "backlog_task_id": "DQ-FLOW-RESOURCE-BOOST",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-resource-boost.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-resource-boost.md"
     },
     {
       "objective_key": "ruins_shop_purchase",
@@ -1114,7 +1108,7 @@
       "required_product_or_policy_decisions": "explicit item/currency allowlist approval",
       "dependencies": ["DQ-FLOW-PURCHASES", "RUINS-SHOP-PURCHASE-EVIDENCE-GATE"],
       "backlog_task_id": "DQ-FLOW-PURCHASES",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-purchases.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-purchases.md"
     },
     {
       "objective_key": "rare_earth_shop_purchase",
@@ -1150,7 +1144,7 @@
       "required_product_or_policy_decisions": "exact item/currency allowlist approval",
       "dependencies": ["DQ-FLOW-PURCHASES", "RARE-EARTH-SHOP-PURCHASE-EVIDENCE-GATE"],
       "backlog_task_id": "DQ-FLOW-PURCHASES",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-purchases.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-purchases.md"
     },
     {
       "objective_key": "alliance_shop_purchase",
@@ -1186,7 +1180,7 @@
       "required_product_or_policy_decisions": "Joy Coin and Alliance-coin fallback item/currency allowlist",
       "dependencies": ["DQ-FLOW-PURCHASES", "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE"],
       "backlog_task_id": "DQ-FLOW-PURCHASES",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-purchases.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-purchases.md"
     },
     {
       "objective_key": "speedup_using_items",
@@ -1222,7 +1216,7 @@
       "required_product_or_policy_decisions": "speedup allowlist",
       "dependencies": ["DQ-CATALOG-RECONCILIATION"],
       "backlog_task_id": "DQ-FLOW-SPEEDUP",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-speedup.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-speedup.md"
     },
     {
       "objective_key": "bioenhancer_research",
@@ -1268,7 +1262,7 @@
       "required_product_or_policy_decisions": "none for the approved free-only objective provider",
       "dependencies": ["DQ-FOUNDATION-DAILY-INVENTORY"],
       "backlog_task_id": "DQ-FLOW-BIOENHANCER",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-bioenhancer.md",
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-bioenhancer.md",
       "authoritative_status": "BIOENHANCER_CURRENT_PROOF_REQUIRED",
       "execution_validation_status": "OFFLINE_CONTRACT_VALIDATED_ONLY",
       "daily_reconciliation_validation_status": "HISTORICAL_NON_ACCEPTING",
@@ -1329,7 +1323,7 @@
       "required_product_or_policy_decisions": "Normal Craft exact 100 NANO_PARTS policy is explicitly approved",
       "dependencies": ["DQ-FOUNDATION-DAILY-INVENTORY"],
       "backlog_task_id": "DQ-FLOW-NANOWEAPON",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-nanoweapon.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-nanoweapon.md"
     },
     {
       "objective_key": "personal_might_praise",
@@ -1375,7 +1369,7 @@
         "notes": "Retain completion-attribution ownership only. Retire Bliss gameplay ownership and historical Praise dispatch; no target, route, action, registration, or scheduler authority is inferred."
       },
       "backlog_task_id": "DQ-FLOW-PERSONAL-MIGHT-PRAISE",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-personal-might-praise.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-personal-might-praise.md"
     },
     {
       "objective_key": "enhance_chip",
@@ -1411,7 +1405,7 @@
       "required_product_or_policy_decisions": "material allowlist",
       "dependencies": ["DQ-FOUNDATION-DAILY-INVENTORY"],
       "backlog_task_id": "DQ-FLOW-ENHANCE-CHIP",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-enhance-chip.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-enhance-chip.md"
     },
     {
       "objective_key": "enhance_module",
@@ -1447,7 +1441,7 @@
       "required_product_or_policy_decisions": "material allowlist",
       "dependencies": ["DQ-FOUNDATION-DAILY-INVENTORY"],
       "backlog_task_id": "DQ-FLOW-ENHANCE-MODULE",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-enhance-module.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-enhance-module.md"
     },
     {
       "objective_key": "enhance_gear",
@@ -1483,7 +1477,7 @@
       "required_product_or_policy_decisions": "material allowlist",
       "dependencies": ["DQ-FOUNDATION-DAILY-INVENTORY"],
       "backlog_task_id": "DQ-FLOW-ENHANCE-GEAR",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-enhance-gear.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-enhance-gear.md"
     },
     {
       "objective_key": "donate_alliance_tech",
@@ -1519,7 +1513,7 @@
       "required_product_or_policy_decisions": "resource donation allowlist",
       "dependencies": ["DQ-CATALOG-RECONCILIATION"],
       "backlog_task_id": "DQ-FLOW-DONATION",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-donation.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-donation.md"
     },
     {
       "objective_key": "supply_depot",
@@ -1555,7 +1549,7 @@
       "required_product_or_policy_decisions": "known non-premium reward policy",
       "dependencies": ["DQ-FOUNDATION-DAILY-INVENTORY"],
       "backlog_task_id": "DQ-FLOW-SUPPLY-DEPOT",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-supply-depot.md"
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-supply-depot.md"
     },
     {
       "objective_key": "ruins_challenge",
@@ -1591,7 +1585,7 @@
       "required_product_or_policy_decisions": "entry/combat policy",
       "dependencies": ["DQ-CATALOG-RECONCILIATION"],
       "backlog_task_id": "DQ-FLOW-CHALLENGES",
-      "prompt_path": "docs/prompts/daily-quest/dq-flow-challenges.md",
+      "prompt_path": "docs/agent/prompts/daily-quest/dq-flow-challenges.md",
       "ownership_disposition": {
         "catalog_owner": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
         "navigation_prerequisite_flow": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",

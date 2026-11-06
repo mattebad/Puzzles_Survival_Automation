@@ -19,10 +19,18 @@ from automation_service.bioenhancer import (
 from automation_service.registry import NOVA_FLOW_ID, CANONICAL_FLOW_REGISTRY
 from scripts import navigation_development_boundary as boundary
 from scripts import startup_recovery as startup
-from scripts.bioenhancer_free_research_canary import parse_free_research_cooldown
+from scripts.bioenhancer_free_research_route import parse_free_research_cooldown
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.startup_recovery import ContextualPopupRecoveryResult
 from tasks.scheduler_task_result import SchedulerIdentity
+from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 START = 1_800_000_000.0
@@ -43,9 +51,9 @@ class ServiceBioenhancerTests(unittest.TestCase):
         self.home = patch("scripts.startup_normalization.is_clean_home_frame", return_value=True)
         self.home_recognizer = self.home.start()
         self.addCleanup(self.home.stop)
-        from scripts.bioenhancer_free_research_canary import bind_bioenhancer_back
+        from scripts.bioenhancer_free_research_route import bind_bioenhancer_back
         self.real_bio_binder = bind_bioenhancer_back
-        self.bio = patch("scripts.bioenhancer_free_research_canary.bind_bioenhancer_back", return_value=None)
+        self.bio = patch("scripts.bioenhancer_free_research_route.bind_bioenhancer_back", return_value=None)
         self.bio_recognizer = self.bio.start()
         self.addCleanup(self.bio.stop)
         self.real_startup_recovery = startup.recover_contextual_startup_overlay
@@ -162,7 +170,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
         runtime = self._runtime()
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-            patch("scripts.bioenhancer_free_research_canary.run") as route,
+            patch("scripts.bioenhancer_free_research_route.run") as route,
             self.assertRaises(BioenhancerNativePartialResultError) as caught,
         ):
             self._runner()(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -179,7 +187,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
                 self.startup_recovery.side_effect = self._popup_startup(resume=False, throw_after_input=stopped)
                 with (
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-                    patch("scripts.bioenhancer_free_research_canary.run") as route,
+                    patch("scripts.bioenhancer_free_research_route.run") as route,
                     self.assertRaises(BioenhancerNativePartialResultError) as caught,
                 ):
                     self._runner()(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -201,7 +209,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
         runtime = self._runtime()
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-            patch("scripts.bioenhancer_free_research_canary.run", side_effect=self._native_route(consume=False)),
+            patch("scripts.bioenhancer_free_research_route.run", side_effect=self._native_route(consume=False)),
             patch("scripts.flow_delivery_bioenhancer_bluestacks._verify_no_work_frames", return_value=True),
         ):
             result = self._runner()(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -218,7 +226,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
         runtime = self._runtime()
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-            patch("scripts.bioenhancer_free_research_canary.run") as route,
+            patch("scripts.bioenhancer_free_research_route.run") as route,
             self.assertRaises(BioenhancerNativePartialResultError) as caught,
         ):
             self._runner()(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -237,7 +245,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
                     recognize=lambda _frame: "recognized")
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-            patch("scripts.bioenhancer_free_research_canary.run", side_effect=too_many_inputs),
+            patch("scripts.bioenhancer_free_research_route.run", side_effect=too_many_inputs),
             self.assertRaises(BioenhancerNativePartialResultError) as caught,
         ):
             self._runner()(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -247,7 +255,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
         self.assertTrue(caught.exception.partial_result["accounting_verified"])
 
     def test_shared_helper_vip_and_scarlett_use_no_second_store_or_runtime(self):
-        from tests.test_startup_recovery import StartupRecoveryTests, popup
+        from tests.support.startup_recovery import popup, scarlett_detail
 
         self.owner.acquire()
         for kind in ("vip", "scarlett", "stack"):
@@ -260,11 +268,11 @@ class ServiceBioenhancerTests(unittest.TestCase):
                     if not ((kind == "scarlett" and runtime.input_count == 0)
                             or (kind == "stack" and runtime.input_count == 1)):
                         return {"recognized": False, "commercial_looking": False}
-                    return {**StartupRecoveryTests._scarlett_detail(),
+                    return {**scarlett_detail(),
                             "frame_sha256": hashlib.sha256(raw).hexdigest()}
                 with (
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect) as connect,
-                    patch("scripts.bioenhancer_free_research_canary.run", side_effect=self._native_route(consume=False)),
+                    patch("scripts.bioenhancer_free_research_route.run", side_effect=self._native_route(consume=False)),
                     patch("scripts.flow_delivery_bioenhancer_bluestacks._verify_no_work_frames", return_value=True),
                     patch.object(startup, "recognize_startup_surface", side_effect=surface),
                     patch.object(startup, "recognize_reset_popup", side_effect=lambda _frame:
@@ -294,6 +302,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
                 self.assertEqual(summary["initial_frame_sha256"], recovery["home_frame"]["frame_sha256"])
                 self.assertTrue(self.owner.held)
 
+    @requires_tesseract
     def test_real_native_already_open_bio_passes_shared_startup_without_popup_input(self):
         self.owner.acquire()
         runtime = self._runtime()
@@ -303,7 +312,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
         self.startup_recovery.side_effect = self.real_startup_recovery
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-            patch("scripts.bioenhancer_free_research_canary.run", side_effect=self._native_route(consume=False)),
+            patch("scripts.bioenhancer_free_research_route.run", side_effect=self._native_route(consume=False)),
             patch("scripts.flow_delivery_bioenhancer_bluestacks._verify_no_work_frames", return_value=True),
             patch.object(startup, "SafetyStore", side_effect=AssertionError("no startup store")),
         ):
@@ -337,8 +346,8 @@ class ServiceBioenhancerTests(unittest.TestCase):
                 with (
                     patch("scripts.bluestacks_native_runtime.ADBRunner", side_effect=AssertionError("device forbidden")),
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-                    patch("scripts.bioenhancer_free_research_canary.run", side_effect=self._native_route(consume=consume)),
-                    patch("scripts.bioenhancer_free_research_canary.recognize_free_research_cooldown", side_effect=recognize),
+                    patch("scripts.bioenhancer_free_research_route.run", side_effect=self._native_route(consume=consume)),
+                    patch("scripts.bioenhancer_free_research_route.recognize_free_research_cooldown", side_effect=recognize),
                     patch("scripts.flow_delivery_bioenhancer_bluestacks._verify_no_work_frames", return_value=True),
                 ):
                     result = runner(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -357,7 +366,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
         runner = BioenhancerRunner(adb="unused", serial="emulator-5554", output_directory=self.root / "output", utc_clock=lambda: self.now)
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-            patch("scripts.bioenhancer_free_research_canary.run", side_effect=self._native_route(consume=True)),
+            patch("scripts.bioenhancer_free_research_route.run", side_effect=self._native_route(consume=True)),
         ):
             with self.assertRaises(BioenhancerNativePartialResultError) as caught:
                 runner(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -383,7 +392,7 @@ class ServiceBioenhancerTests(unittest.TestCase):
 
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-            patch("scripts.bioenhancer_free_research_canary.run", side_effect=route),
+            patch("scripts.bioenhancer_free_research_route.run", side_effect=route),
             patch("automation_service.bioenhancer._current_cooldown") as cooldown,
             self.assertRaises(BioenhancerNativePartialResultError) as caught,
         ):
@@ -411,8 +420,8 @@ class ServiceBioenhancerTests(unittest.TestCase):
         runner = BioenhancerRunner(adb="unused", serial="emulator-5554", output_directory=self.root / "output", utc_clock=lambda: self.now)
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-            patch("scripts.bioenhancer_free_research_canary.run", side_effect=self._native_route(consume=True)),
-            patch("scripts.bioenhancer_free_research_canary.recognize_free_research_cooldown", side_effect=lambda _frame, *, now: parse_free_research_cooldown("Free in 01:00:00", now=now)),
+            patch("scripts.bioenhancer_free_research_route.run", side_effect=self._native_route(consume=True)),
+            patch("scripts.bioenhancer_free_research_route.recognize_free_research_cooldown", side_effect=lambda _frame, *, now: parse_free_research_cooldown("Free in 01:00:00", now=now)),
             patch("scripts.flow_delivery_bioenhancer_bluestacks._verify_no_work_frames", return_value=False),
         ):
             with self.assertRaises(BioenhancerNativePartialResultError) as caught:

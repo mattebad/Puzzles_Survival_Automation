@@ -26,6 +26,8 @@ from tasks.nova_praise_vision import (
     recognize_nova_frame,
 )
 from tasks.scheduler_task_result import SchedulerIdentity
+from tests.support.environment import require_tesseract, requires_tesseract
+from tests.support.local_captures import requires_local_captures
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -455,6 +457,7 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         self.assertNotEqual(result.reason, "CAPABILITY_CAPTURE_MISMATCH")
         self.assertGreaterEqual(packages["n"], 2)
 
+    @requires_tesseract
     def test_immediate_absent_praise_button_blocks_with_zero_transport(self) -> None:
         self.runtime = FakeRuntime(praise_button_present=False)
         proposal_capture, proposal = self.armed_proposal()
@@ -494,8 +497,8 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         def boom(*_args, **_kwargs):
             raise AssertionError("injected current semantics must not invoke OCR")
 
-        with patch("tasks.nova_praise_vision.pytesseract.image_to_string", boom), patch(
-            "tasks.nova_praise_vision.pytesseract.image_to_data", boom
+        with patch("pytesseract.image_to_string", boom), patch(
+            "tasks.nova_praise_vision.tesseract_data", boom
         ):
             result = boundary.execute_praise(proposal_capture, proposal)
         self.assertEqual(result.status, "confirmed")
@@ -601,36 +604,38 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         self.assertEqual(len(self.runtime.taps), 1)
         self.assertEqual(first.transport_calls, 1)
 
-        other_runtime = FakeRuntime(praise_button_present=False)
-        other_capture = other_runtime.capture("proposal")
-        with tempfile.TemporaryDirectory() as directory:
-            other_store = SafetyStore(Path(directory) / "actions.sqlite3")
-            try:
-                other_store.acquire_lease("owner", 100.0, 600.0)
-                other = NovaPraiseActionBoundary(
-                    other_runtime,
-                    other_store,
-                    pulse(replay=False),
-                    runtime_scope="bluestacks-dev-primary",
-                    owner_id="owner",
-                    invocation_id="other",
-                    execute=True,
-                    recognizer=recognize_nova_frame,
-                    monotonic_clock=lambda: 3.25,
-                    wall_clock=lambda: 100.5,
-                    post_delays=(0.0,),
-                )
-                blocked = other.execute_praise(
-                    other_capture,
-                    recognition(praise_observation(6, 1.0)),
-                )
-                self.assertEqual(blocked.status, "blocked")
-                self.assertTrue(blocked.reason.startswith("immediate_before_rejected:"))
-                self.assertEqual(blocked.transport_calls, 0)
-                self.assertEqual(other_runtime.taps, [])
-                self.assertEqual(other_store.list_actions_for_task(NOVA_TASK_ID), [])
-            finally:
-                other_store.close()
+        with self.subTest(case="native_mismatched_source"):
+            require_tesseract()
+            other_runtime = FakeRuntime(praise_button_present=False)
+            other_capture = other_runtime.capture("proposal")
+            with tempfile.TemporaryDirectory() as directory:
+                other_store = SafetyStore(Path(directory) / "actions.sqlite3")
+                try:
+                    other_store.acquire_lease("owner", 100.0, 600.0)
+                    other = NovaPraiseActionBoundary(
+                        other_runtime,
+                        other_store,
+                        pulse(replay=False),
+                        runtime_scope="bluestacks-dev-primary",
+                        owner_id="owner",
+                        invocation_id="other",
+                        execute=True,
+                        recognizer=recognize_nova_frame,
+                        monotonic_clock=lambda: 3.25,
+                        wall_clock=lambda: 100.5,
+                        post_delays=(0.0,),
+                    )
+                    blocked = other.execute_praise(
+                        other_capture,
+                        recognition(praise_observation(6, 1.0)),
+                    )
+                    self.assertEqual(blocked.status, "blocked")
+                    self.assertTrue(blocked.reason.startswith("immediate_before_rejected:"))
+                    self.assertEqual(blocked.transport_calls, 0)
+                    self.assertEqual(other_runtime.taps, [])
+                    self.assertEqual(other_store.list_actions_for_task(NOVA_TASK_ID), [])
+                finally:
+                    other_store.close()
 
     def test_no_effect_cancelled_retry_supersedes_and_dispatches_once(self) -> None:
         proposal_capture, proposal = self.armed_proposal()
@@ -754,6 +759,7 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
         self.assertEqual(complete.status, "complete_for_reset")
         self.assertEqual(self.runtime.taps, [])
 
+    @requires_local_captures
     def test_retained_six_to_five_uses_production_path_with_zero_transport(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         cases = {item["fixture_id"]: item for item in manifest["cases"]}
@@ -796,6 +802,7 @@ class CentralizedNovaBoundaryTests(unittest.TestCase):
             )
         )
 
+    @requires_local_captures
     def test_retained_cooldown_replay_does_not_persist_scheduler_state(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         case = next(

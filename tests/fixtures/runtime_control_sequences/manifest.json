@@ -40,7 +40,7 @@
     },
     {
       "path": "tests/fixtures/resource_effect_authority/historical_sessions.json",
-      "sha256": "9ac7f56f23caeb22d1d72c38cac11edb7007512b53c7679a4a9b3f6c178de1cc",
+      "sha256": "7189e2dd93126bfa75894f6e81f2a16d455e00f29a52338f55e894ea147bba8a",
       "role": "Resource retained event provenance; profile absent"
     }
   ],

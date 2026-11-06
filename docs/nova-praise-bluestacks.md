@@ -29,10 +29,9 @@ only bounded zoom recovery. Localized/canonical Atlas authority is required
 before pan, Research Lab or Nova dispatch, radial continuation, or terminal
 Home acceptance.
 
-The supervised development-session runner requires verified runtime scope, account, server, reset,
-and identity evidence. Its invocation guard is derived from the validated reset ID, so a new reset
-gets a new guard path and prior reset guards/evidence remain immutable. One invocation is bounded by
-the caller's total `max_inputs` (the frozen canary uses 8) and exactly one Praise.
+Nova runs only through `pnsctl automation-service ... serve --flow nova`; the former supervised
+development-session runner, `nova-praise-pulse` and the reset-scoped invocation guard were retired.
+The frozen canary budget was 8 inputs with exactly one Praise.
 
 ## Local BlueStacks inspection
 

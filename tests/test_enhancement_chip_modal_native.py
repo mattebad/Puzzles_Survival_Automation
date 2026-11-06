@@ -11,6 +11,8 @@ import numpy as np
 
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+from tests.support.enhancement import exit_runtime
+from tests.support.environment import requires_tesseract
 
 
 FRAME = Path(__file__).parent / "fixtures/enhancement_item_modal/native-chip-fighter-20261029.png"
@@ -43,6 +45,7 @@ class ChipModalNativeTests(unittest.TestCase):
         return native.recognize_commander_stage(self.frame if frame is None else frame, variant=variant,
             stage="item", source_frame_sha256=SHA, evidence_ref=FRAME, ocr_engine=engine, game_day_id="current-reset")
 
+    @requires_tesseract
     def test_real_chip_modal_has_actual_level_stats_equipped_footer_and_measured_controls(self):
         self.assertEqual(hashlib.sha256(self.raw).hexdigest(), SHA)
         result = self.recognize()
@@ -57,6 +60,7 @@ class ChipModalNativeTests(unittest.TestCase):
         self.assertIsNone(result.quantity)
         self.assertFalse(result.material_selected)
 
+    @requires_tesseract
     def test_current_title_without_ocr_star_still_requires_the_actual_equipped_icon(self):
         path = FRAME.with_name("native-chip-title-omitted-star-20261031.png")
         raw = path.read_bytes()
@@ -73,6 +77,7 @@ class ChipModalNativeTests(unittest.TestCase):
         self.assertFalse(denied.recognized)
         self.assertIsNone(denied.open_target)
 
+    @requires_tesseract
     def test_level_is_parsed_and_missing_malformed_or_duplicate_level_cannot_default_to_twenty(self):
         def level_engine(text, duplicate=False):
             def ocr(frame, roi):
@@ -87,6 +92,7 @@ class ChipModalNativeTests(unittest.TestCase):
                 self.assertFalse(result.recognized)
                 self.assertIsNone(result.open_target)
 
+    @requires_tesseract
     def test_missing_equipped_control_stat_icon_or_close_cannot_authorize_modal(self):
         for box in (native.CHIP_DETAIL_FOOTER_ROIS["unequip"], native.CHIP_DETAIL_FOOTER_ROIS["enhance"],
                 (600, 672, 705, 712), (125, 712, 300, 752), (343, 449, 391, 477),
@@ -105,6 +111,7 @@ class ChipModalNativeTests(unittest.TestCase):
         icon[(hsv[:, :, 0] >= 60) & (hsv[:, :, 0] <= 140) & (hsv[:, :, 1] > 80)] = 0
         self.assertFalse(self.recognize(changed).recognized)
 
+    @requires_tesseract
     def test_wrong_item_variant_and_nonunique_enhance_do_not_bind(self):
         def wrong(frame, roi):
             if roi == native.CHIP_DETAIL_TITLE_ROI:
@@ -120,10 +127,10 @@ class ChipModalNativeTests(unittest.TestCase):
         self.assertFalse(self.recognize(variant="gear").recognized)
         self.assertFalse(self.recognize(variant="module").recognized)
 
+    @requires_tesseract
     def test_known_chip_close_is_rebound_before_navigation_and_uses_no_resource(self):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
         commander = FRAME.with_name("native-commander-gear-20261029.png").read_bytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, self.raw, commander, commander])
+        runtime, session = exit_runtime([self.raw, self.raw, commander, commander])
         route = native.EnhancementIntegratedRoute(runtime, variant="chip", reset_identity="current-reset", session=session)
         _, terminal = route._navigate_to("commander_overview")
         self.assertEqual(terminal.detail_state, "commander_overview")
@@ -133,12 +140,13 @@ class ChipModalNativeTests(unittest.TestCase):
         missing = self.frame.copy()
         missing[345:420, 640:735] = 0
         raw = cv2.imencode(".png", missing)[1].tobytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, raw])
+        runtime, session = exit_runtime([self.raw, raw])
         route = native.EnhancementIntegratedRoute(runtime, variant="chip", reset_identity="current-reset", session=session)
         with self.assertRaises(native._FlowBlocked):
             route._navigate_to("commander_overview")
         self.assertFalse(runtime.inputs)
 
+    @requires_tesseract
     def test_chip_modal_satisfies_current_run_equipped_gate_but_has_no_material_authority(self):
         capture = captured_native_frame_from_png(self.raw, path=FRAME, captured_monotonic=1.)
         route = native.EnhancementIntegratedRoute(SimpleNamespace(), variant="chip", reset_identity="current-reset", session=object())

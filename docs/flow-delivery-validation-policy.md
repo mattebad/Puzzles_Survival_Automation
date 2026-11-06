@@ -42,7 +42,6 @@ code-enforced admission check, receipt requirement, candidate binding, or input 
   unknown modal, or unsafe release remains, record the blocker and escalate without input.
 
 See [runtime input safety](runtime-input-safety-policy.md) and
-[execution ownership](chat-execution-ownership-policy.md). Existing focused, shared-navigation,
-and explicitly requested full validation profiles remain available through
-`scripts/run_flow_delivery_validation.py`; using them neither admits live input nor promotes
-any flow. [Archived workflow records](archive/README.md) are historical, not current instructions.
+[execution ownership](chat-execution-ownership-policy.md). Run the focused unittest modules for
+the changed component directly; validation neither admits live input nor promotes any flow.
+[Archived workflow records](archive/README.md) are historical, not current instructions.

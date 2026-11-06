@@ -31,3 +31,20 @@ evidence/sessions/20260714-bioenhancer-e2e-validation/bioenhancer-free-178407961
 evidence/sessions/20260714-bioenhancer-e2e-validation/reset-popup-close-diagnostic-classification.json -text
 evidence/sessions/20260714-bioenhancer-live-transaction/bioenhancer-free-1784069057-result.json -text
 evidence/sessions/20260714-bioenhancer-live-transaction/daily-reconciliation-status.json -text
+
+# Retained evidence records committed with CRLF. Evidence is immutable, so keep
+# the recorded bytes instead of normalizing them under *.md eol=lf.
+evidence/sessions/20260713-gnbots-coordinate-calibration/record.md -text
+evidence/sessions/20260713-gnbots-profile-navigation-prep/record.md -text
+evidence/sessions/20260713-gnbots-reference-manifest/record.md -text
+evidence/sessions/20260713-personal-might-praise/live-personal-might-leaderboard-016/record.md -text
+evidence/sessions/20260713-personal-might-praise/live-praise-resume-017-no-input/record.md -text
+evidence/sessions/20260713-personal-might-praise/live-rankings-corrected-015/record.md -text
+
+# Retained #30 proof receipts were recorded with CRLF; preserve their bytes while
+# keeping ordinary trailing-space and terminal-blank-line checks enabled.
+docs/validation/ticket-30/case-map.json -text whitespace=cr-at-eol
+docs/validation/ticket-30/cases-after.txt -text whitespace=cr-at-eol
+docs/validation/ticket-30/cases-before.txt -text whitespace=cr-at-eol
+docs/validation/ticket-30/mutation-proofs.json -text whitespace=cr-at-eol
+docs/validation/ticket-30/sweep-comparison.json -text whitespace=cr-at-eol

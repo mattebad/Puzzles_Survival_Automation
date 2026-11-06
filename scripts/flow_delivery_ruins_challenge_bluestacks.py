@@ -22,6 +22,8 @@ from tasks.ruins_challenge_continuation import (
     validate_claim_record,
     write_continuation,
 )
+from safe_action_core.path_safety import UnsafePathError, require_no_untrusted_symlinks
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 # Compatibility export for existing adapter callers; the continuation contract
 # itself owns the literal identity tuple.
@@ -63,7 +65,11 @@ def _operator_result(stdout: str) -> dict[str, Any]:
 
 
 def _flow_root_for_checkpoint(path: Path) -> Path:
-    for ancestor in (path.resolve().parent, *path.resolve().parents):
+    try:
+        safe_checkpoint = require_no_untrusted_symlinks(path).resolve()
+    except UnsafePathError as exc:
+        raise ValueError("Ruins continuation checkpoint contains a link") from exc
+    for ancestor in (safe_checkpoint.parent, *safe_checkpoint.parents):
         if ancestor.name == FLOW_ID:
             return ancestor
     raise ValueError("Ruins continuation checkpoint is outside its flow root")
@@ -75,12 +81,23 @@ def _rebase_prior_records(
 ) -> list[dict[str, Any]]:
     """Copy validated prior evidence into the new flow root before merging."""
 
+    try:
+        prior_checkpoint = require_no_untrusted_symlinks(prior_checkpoint).resolve()
+        new_flow_root = require_no_untrusted_symlinks(new_flow_root).resolve()
+        destination_session = require_no_untrusted_symlinks(destination_session).resolve()
+    except UnsafePathError as exc:
+        raise ValueError("continuation path contains a link") from exc
     prior_root = _flow_root_for_checkpoint(prior_checkpoint)
-    checkpoint_digest = hashlib.sha256(prior_checkpoint.resolve().read_bytes()).hexdigest()[:24]
+    checkpoint_digest = hashlib.sha256(prior_checkpoint.read_bytes()).hexdigest()[:24]
     destination_root = destination_session / "prior-evidence" / checkpoint_digest
+    temporary_root = destination_session / f".prior-evidence-{checkpoint_digest}.tmp"
+    try:
+        destination_root = require_no_untrusted_symlinks(destination_root).resolve()
+        temporary_root = require_no_untrusted_symlinks(temporary_root).resolve()
+    except UnsafePathError as exc:
+        raise ValueError("prior continuation evidence destination contains a link") from exc
     if destination_root.exists():
         raise ValueError("prior continuation evidence destination collision")
-    temporary_root = destination_session / f".prior-evidence-{checkpoint_digest}.tmp"
     if temporary_root.exists():
         raise ValueError("prior continuation evidence temporary collision")
     rebased: list[dict[str, Any]] = []
@@ -92,10 +109,10 @@ def _rebase_prior_records(
                 raw_path = updated.get(key)
                 if raw_path is None:
                     continue
-                source = (prior_root / str(raw_path)).resolve()
                 try:
+                    source = require_no_untrusted_symlinks(prior_root / str(raw_path)).resolve()
                     source.relative_to(prior_root)
-                except ValueError as exc:
+                except (OSError, ValueError) as exc:
                     raise ValueError("prior continuation evidence path escaped flow root") from exc
                 target = temporary_root / f"{ordinal:03d}-{prefix}-{source.name}"
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -141,8 +158,8 @@ def run_ruins_challenge_home_atlas(
     command = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "ruins_challenge_bluestacks.py"),
-        "--adb", str(pnsctl.BLUESTACKS_ADB),
-        "--serial", pnsctl.BLUESTACKS_SERIAL,
+        "--adb", str(BLUESTACKS_ADB),
+        "--serial", BLUESTACKS_SERIAL,
         "--reset-identity", reset_identity,
         "--current-day", current_day,
         "--output-directory", str(root),
@@ -223,7 +240,7 @@ def run_ruins_challenge_home_atlas(
         "schema_version": 1,
         "flow_id": FLOW_ID,
         "status": "completed" if terminal else "dry_run" if zero_transport else "failed",
-        "serial": pnsctl.BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
         "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": lease["owner"],
@@ -375,7 +392,10 @@ def verify_ruins_challenge_home_atlas(
             expected_reset = result.get("reset_identity") or ruins.get("reset_identity")
             if not isinstance(expected_reset, str) or not expected_reset:
                 raise pnsctl.OperatorError("Ruins continuation is missing reset identity binding")
-            evidence_root = Path(structure.get("session_directory", "")).resolve()
+            try:
+                evidence_root = require_no_untrusted_symlinks(Path(structure.get("session_directory", ""))).resolve()
+            except UnsafePathError as exc:
+                raise pnsctl.OperatorError("Ruins continuation evidence root contains a link") from exc
             seen_confirmed: set[str] = set()
             for record in confirmed_records:
                 if not isinstance(record, dict) or record.get("reset_identity") != expected_reset:

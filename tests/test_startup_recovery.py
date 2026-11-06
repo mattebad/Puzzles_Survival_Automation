@@ -13,10 +13,7 @@ import cv2
 import numpy as np
 
 from safe_action_core import SafetyStore
-from scripts.bluestacks_native_runtime import (
-    CapturedNativeFrame,
-    NATIVE_RUNTIME_PROFILE_ID,
-)
+from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.startup_recovery import (
     ContextualPopupRecoveryResult,
     StartupRecoveryError,
@@ -26,35 +23,22 @@ from scripts.startup_recovery import (
     recover_known_startup_overlay,
 )
 from scripts.startup_surface_recognition import (
-    SCARLETT_EXPECTED_SUCCESSOR,
     SCARLETT_FORBIDDEN_PURCHASE_ROIS,
     SCARLETT_FRAME_SHA256,
-    SCARLETT_MAX_INPUTS,
     SCARLETT_SAFE_BACK_ROI,
-    SCARLETT_SAFE_BACK_TARGET_IDENTITY,
     SCARLETT_THREE_DAY_PACK,
     commercial_surface_signal,
     is_exact_scarlett_recognition,
     recognize_scarlett_three_day_pack,
 )
+from tests.support.startup_recovery import popup, scarlett_detail
+from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
 
 
-TARGET = (263, 781, 537, 869)
-
-
-def popup(
-    *,
-    target=TARGET,
-    popup_identity: str = "VIP_POINTS_GET_PTS",
-    target_identity: str = "reset-popup-close",
-) -> dict[str, object]:
-    return {
-        "recognized": True,
-        "popup_identity": popup_identity,
-        "target_identity": target_identity,
-        "target": target,
-        "target_center": (400, 825),
-    }
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 class FakeRuntime:
@@ -164,6 +148,7 @@ class StartupRecoveryTests(unittest.TestCase):
             self.assertEqual(plan.recovery_owner, "shared_home_startup_recovery")
             self.assertFalse(plan.input_authority)
 
+    @requires_tesseract
     def test_home_routes_recover_exact_vip_popup_before_route_execution(self) -> None:
         fixture = (
             Path(__file__).resolve().parents[1]
@@ -260,38 +245,7 @@ class StartupRecoveryTests(unittest.TestCase):
         assert frame is not None
         return frame, payload
 
-    @staticmethod
-    def _scarlett_detail() -> dict[str, object]:
-        return {
-            "recognized": True,
-            "surface_identity": SCARLETT_THREE_DAY_PACK,
-            "surface_kind": "full_page",
-            "runtime_profile_id": NATIVE_RUNTIME_PROFILE_ID,
-            "width": 800,
-            "height": 1280,
-            "frame_sha256": SCARLETT_FRAME_SHA256,
-            "title_text": "scarlett 3-day pack",
-            "title_identity": True,
-            "semantic_evidence": (
-                "title:Scarlett 3-Day Pack",
-                "full_page_real_money_promotion",
-                "visible_in_game_back_upper_left",
-                "purchase_regions_excluded",
-                "current_offer_benefits_and_three_day_rows",
-                "current_first_topup_notice",
-            ),
-            "safe_exit_target_identity": SCARLETT_SAFE_BACK_TARGET_IDENTITY,
-            "safe_exit_roi": SCARLETT_SAFE_BACK_ROI,
-            "forbidden_purchase_rois": SCARLETT_FORBIDDEN_PURCHASE_ROIS,
-            "purchase_exclusion_verified": True,
-            "critical_roi_hashes": (("title", "a" * 64),),
-            "page_context_verified": True,
-            "measured_back_roi": (47, 0, 128, 59),
-            "expected_successor": SCARLETT_EXPECTED_SUCCESSOR,
-            "max_inputs": SCARLETT_MAX_INPUTS,
-            "target_count": 1,
-        }
-
+    @requires_tesseract
     def test_exact_scarlett_fixture_binds_hash_geometry_and_back_roi(self) -> None:
         frame, payload = self._scarlett_fixture()
         with patch(
@@ -311,6 +265,7 @@ class StartupRecoveryTests(unittest.TestCase):
         visible_control_pixels = (back[:, :, 2] > 150) & (back[:, :, 1] < 130)
         self.assertGreater(int(visible_control_pixels.sum()), 700, "safe Back ROI must contain the visible Back control, not nearby body pixels")
 
+    @requires_tesseract
     def test_scarlett_rejects_cross_frame_bytes_and_ambiguous_target(self) -> None:
         frame, payload = self._scarlett_fixture()
         with patch(
@@ -342,7 +297,7 @@ class StartupRecoveryTests(unittest.TestCase):
             "safe_back_target_is_ambiguous_or_wrong_geometry",
         )
     def test_scarlett_contract_negatives_fail_closed(self) -> None:
-        detail = self._scarlett_detail()
+        detail = scarlett_detail()
         variants = {
             "title_only": {"semantic_evidence": ("title:Scarlett 3-Day Pack",)},
             "price_only": {"title_text": "$4.99", "title_identity": False},
@@ -373,6 +328,7 @@ class StartupRecoveryTests(unittest.TestCase):
             self.assertFalse(recognize_scarlett_three_day_pack(scaled, payload)["recognized"])
             self.assertFalse(recognize_scarlett_three_day_pack(cropped, payload)["recognized"])
 
+    @requires_tesseract
     def test_scarlett_recognition_tolerates_animation_outside_stable_rois(self) -> None:
         frame, payload = self._scarlett_fixture()
         animated, animated_payload = self._scarlett_animation_fixture()
@@ -385,6 +341,7 @@ class StartupRecoveryTests(unittest.TestCase):
         self.assertTrue(animated_result["recognized"])
         self.assertEqual(animated_result["frame_sha256"], hashlib.sha256(animated_payload).hexdigest())
 
+    @requires_tesseract
     def test_scarlett_portrait_artwork_is_not_source_authority(self) -> None:
         frame, _payload = self._scarlett_fixture()
         drifted = frame.copy(); drifted[180:220, 300:340] = 0
@@ -400,6 +357,7 @@ class StartupRecoveryTests(unittest.TestCase):
         payload = path.read_bytes()
         return cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR), payload
 
+    @requires_tesseract
     def test_current_and_old_native_scarlett_pages_share_semantic_back_binding(self) -> None:
         old, old_payload = self._scarlett_fixture()
         current, current_payload = self._current_scarlett_fixture()
@@ -412,6 +370,7 @@ class StartupRecoveryTests(unittest.TestCase):
                 self.assertEqual(result["safe_exit_roi"], SCARLETT_SAFE_BACK_ROI)
                 self.assertEqual(result["measured_back_roi"], (47, 0, 128, 59))
 
+    @requires_tesseract
     def test_current_scarlett_accepts_brightness_and_artwork_variance(self) -> None:
         frame, payload = self._current_scarlett_fixture()
         changed = cv2.convertScaleAbs(frame, alpha=0.9, beta=8)
@@ -425,6 +384,7 @@ class StartupRecoveryTests(unittest.TestCase):
         self.assertNotEqual(original["critical_roi_hashes"], result["critical_roi_hashes"])
         self.assertTrue(is_exact_scarlett_recognition(result))
 
+    @requires_tesseract
     def test_scarlett_rejects_native_dialog_and_missing_or_unsafe_back(self) -> None:
         frame, _payload = self._current_scarlett_fixture()
         popup_frame = cv2.imread(str(Path(__file__).resolve().parents[1]
@@ -471,6 +431,7 @@ class StartupRecoveryTests(unittest.TestCase):
         assert frame is not None
         return frame
 
+    @requires_tesseract
     def test_native_home_event_offer_does_not_block_route_owned_radial_cleanup(self) -> None:
         import pytesseract
 
@@ -488,6 +449,7 @@ class StartupRecoveryTests(unittest.TestCase):
             signal = commercial_surface_signal(frame)
         self.assertFalse(signal["commercial_looking"])
 
+    @requires_tesseract
     def test_central_purchase_still_blocks_over_native_home_context(self) -> None:
         frame = self._home_supply_radial_fixture().copy()
         cv2.rectangle(frame, (120, 400), (580, 650), (20, 20, 20), -1)
@@ -533,7 +495,7 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_scarlett_one_input_captures_unknown_successor_without_dismissing_again(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            detail = self._scarlett_detail()
+            detail = scarlett_detail()
             with patch(
                 "scripts.startup_recovery.recognize_startup_surface",
                 side_effect=(detail, detail, detail, {"recognized": False}),
@@ -581,7 +543,7 @@ class StartupRecoveryTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             runtime = SameDigestPostRuntime(Path(directory) / "runtime")
-            detail = self._scarlett_detail()
+            detail = scarlett_detail()
             successor = {
                 "recognized": False,
                 "commercial_looking": False,
@@ -608,7 +570,7 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_scarlett_recovery_allows_animation_between_current_frame_checks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            probe = self._scarlett_detail()
+            probe = scarlett_detail()
             authorization = dict(probe, frame_sha256="1" * 64,
                                  critical_roi_hashes=(("title", "1" * 64),))
             dispatch = dict(probe, frame_sha256="2" * 64,
@@ -624,7 +586,7 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_scarlett_persistent_source_is_terminal_after_one_input(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            detail = self._scarlett_detail()
+            detail = scarlett_detail()
             with patch(
                 "scripts.startup_recovery.recognize_startup_surface",
                 side_effect=(detail, detail, detail, detail),
@@ -647,7 +609,7 @@ class StartupRecoveryTests(unittest.TestCase):
             action_store_factory=lambda: SafetyStore(store_path),
         )
         if kind == "scarlett":
-            detail = self._scarlett_detail()
+            detail = scarlett_detail()
             with patch(
                 "scripts.startup_recovery.recognize_startup_surface",
                 return_value=detail if present_only else None,
@@ -689,7 +651,7 @@ class StartupRecoveryTests(unittest.TestCase):
                     self.assertEqual(store.get_action_by_key(later_result.action_key)["final_status"], "confirmed")
 
     def test_new_startup_invocation_preserves_consequential_unresolved_block(self):
-        from tests.test_safe_action_core import intent, request, TEST_TASK_ID
+        from tests.support.safe_action import intent, request, TEST_TASK_ID
         from safe_action_core import CentralPolicy, TransportResult
         from safe_action_core.store import LeaseError
 
@@ -728,7 +690,7 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_scarlett_unknown_commercial_successor_is_retained_as_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            detail = self._scarlett_detail()
+            detail = scarlett_detail()
             with patch(
                 "scripts.startup_recovery.recognize_startup_surface",
                 side_effect=(detail, detail, detail, {"recognized": False, "commercial_looking": True}),
@@ -763,9 +725,15 @@ class StartupRecoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             runtime = AuthorizationCaptureFailure(Path(directory) / "runtime")
             store_path = runtime.session / "test-startup-actions.sqlite3"
-            with patch(
-                "scripts.startup_recovery.recognize_reset_popup",
-                return_value=popup(),
+            with (
+                patch(
+                    "scripts.startup_recovery.recognize_reset_popup",
+                    return_value=popup(),
+                ),
+                patch(
+                    "scripts.startup_recovery.recognize_startup_surface",
+                    return_value={"recognized": False, "commercial_looking": False},
+                ),
             ):
                 with self.assertRaisesRegex(RuntimeError, "capture failed"):
                     self._recover(
@@ -789,9 +757,15 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_non_popup_is_observation_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            with patch(
-                "scripts.startup_recovery.recognize_reset_popup",
-                return_value={"recognized": False},
+            with (
+                patch(
+                    "scripts.startup_recovery.recognize_reset_popup",
+                    return_value={"recognized": False},
+                ),
+                patch(
+                    "scripts.startup_recovery.recognize_startup_surface",
+                    return_value={"recognized": False, "commercial_looking": False},
+                ),
             ):
                 result = self._recover(
                     runtime,
@@ -806,9 +780,15 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_exact_popup_closes_once_and_requires_home(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            with patch(
-                "scripts.startup_recovery.recognize_reset_popup",
-                side_effect=(popup(), popup(), popup(), {"recognized": False}),
+            with (
+                patch(
+                    "scripts.startup_recovery.recognize_reset_popup",
+                    side_effect=(popup(), popup(), popup(), {"recognized": False}),
+                ),
+                patch(
+                    "scripts.startup_recovery.recognize_startup_surface",
+                    return_value={"recognized": False, "commercial_looking": False},
+                ),
             ):
                 result = self._recover(
                     runtime,
@@ -825,8 +805,16 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_vip_dismissal_retains_non_home_successor_for_route(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            with patch("scripts.startup_recovery.recognize_reset_popup",
-                       side_effect=(popup(), popup(), popup(), {"recognized": False})):
+            with (
+                patch(
+                    "scripts.startup_recovery.recognize_reset_popup",
+                    side_effect=(popup(), popup(), popup(), {"recognized": False}),
+                ),
+                patch(
+                    "scripts.startup_recovery.recognize_startup_surface",
+                    return_value={"recognized": False, "commercial_looking": False},
+                ),
+            ):
                 result = self._recover(
                     runtime, task_id="FLOW", recognize_successor=lambda _frame: True,
                     successor_state="RETAINED_STARTUP_SUCCESSOR", sleep=lambda _: None,
@@ -848,7 +836,7 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_distinct_vip_then_scarlett_executor_actions_share_budget(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime", max_inputs=2)
-            detail = self._scarlett_detail()
+            detail = scarlett_detail()
             options = dict(task_id="FLOW", recognize_successor=lambda _: True,
                            successor_state="RETAINED_STARTUP_SUCCESSOR", sleep=lambda _: None)
             with patch("scripts.startup_recovery.recognize_startup_surface", return_value={"recognized": False}), \
@@ -902,9 +890,15 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_persistent_popup_is_terminal_after_one_input(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            with patch(
-                "scripts.startup_recovery.recognize_reset_popup",
-                side_effect=(popup(), popup(), popup(), popup()),
+            with (
+                patch(
+                    "scripts.startup_recovery.recognize_reset_popup",
+                    side_effect=(popup(), popup(), popup(), popup()),
+                ),
+                patch(
+                    "scripts.startup_recovery.recognize_startup_surface",
+                    return_value={"recognized": False, "commercial_looking": False},
+                ),
             ):
                 with self.assertRaisesRegex(StartupRecoveryError, "failed after dispatch"):
                     self._recover(
@@ -920,9 +914,15 @@ class StartupRecoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
             moved = (270, 781, 544, 869)
-            with patch(
-                "scripts.startup_recovery.recognize_reset_popup",
-                side_effect=(popup(), popup(), popup(target=moved)),
+            with (
+                patch(
+                    "scripts.startup_recovery.recognize_reset_popup",
+                    side_effect=(popup(), popup(), popup(target=moved)),
+                ),
+                patch(
+                    "scripts.startup_recovery.recognize_startup_surface",
+                    return_value={"recognized": False, "commercial_looking": False},
+                ),
             ):
                 with self.assertRaises(StartupRecoveryError):
                     self._recover(
@@ -936,9 +936,15 @@ class StartupRecoveryTests(unittest.TestCase):
     def test_unknown_successor_is_terminal_after_one_input(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime")
-            with patch(
-                "scripts.startup_recovery.recognize_reset_popup",
-                side_effect=(popup(), popup(), popup(), {"recognized": False}),
+            with (
+                patch(
+                    "scripts.startup_recovery.recognize_reset_popup",
+                    side_effect=(popup(), popup(), popup(), {"recognized": False}),
+                ),
+                patch(
+                    "scripts.startup_recovery.recognize_startup_surface",
+                    return_value={"recognized": False, "commercial_looking": False},
+                ),
             ):
                 with self.assertRaisesRegex(StartupRecoveryError, "failed after dispatch"):
                     self._recover(
@@ -947,9 +953,15 @@ class StartupRecoveryTests(unittest.TestCase):
                         recognize_successor=lambda _frame: False,
                         sleep=lambda _seconds: None,
                     )
-            with patch(
-                "scripts.startup_recovery.recognize_reset_popup",
-                return_value=popup(),
+            with (
+                patch(
+                    "scripts.startup_recovery.recognize_reset_popup",
+                    return_value=popup(),
+                ),
+                patch(
+                    "scripts.startup_recovery.recognize_startup_surface",
+                    return_value={"recognized": False, "commercial_looking": False},
+                ),
             ):
                 with self.assertRaisesRegex(
                     StartupRecoveryError,
@@ -967,9 +979,15 @@ class StartupRecoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             runtime = FakeRuntime(Path(directory) / "runtime", max_inputs=1)
             runtime.input_count = 1
-            with patch(
-                "scripts.startup_recovery.recognize_reset_popup",
-                return_value=popup(),
+            with (
+                patch(
+                    "scripts.startup_recovery.recognize_reset_popup",
+                    return_value=popup(),
+                ),
+                patch(
+                    "scripts.startup_recovery.recognize_startup_surface",
+                    return_value={"recognized": False, "commercial_looking": False},
+                ),
             ):
                 with self.assertRaisesRegex(StartupRecoveryError, "budget is exhausted"):
                     self._recover(

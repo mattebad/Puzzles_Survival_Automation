@@ -27,9 +27,10 @@ from .home_atlas import (
     point_in_polygon,
     polygon_is_valid,
 )
+from .profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-BLUESTACKS_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+BLUESTACKS_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 BLUESTACKS_PLATFORM = "BlueStacks 5 / Android"
 PROFILE_SIZE = (800, 1280)
 

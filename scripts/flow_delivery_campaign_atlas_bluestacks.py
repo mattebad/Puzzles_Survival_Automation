@@ -33,6 +33,7 @@ from safe_action_core import (
 )
 from scripts.bluestacks_flow_collector import ADBRunner
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+from scripts.bounded_tesseract import call_ocr, tesseract_data
 from scripts.campaign_atlas_bluestacks import report_from_dict
 from scripts import bluestacks_popup_recognition
 from scripts.home_atlas_bluestacks import (
@@ -52,7 +53,12 @@ from scripts.navigation_development_boundary import (
     make_source_safety_facts,
 )
 from tasks.home_context import HomeReadyObservation
-from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
+from tasks.runtime_identity import (
+    RuntimeIdentityAssurance,
+    VerifiedRuntimeIdentity,
+    BLUESTACKS_ADB,
+    BLUESTACKS_SERIAL,
+)
 from tasks.campaign_atlas import (
     ACTIVATED_AUXILIARY_INPUTS,
     ACTIVATED_EDGE_STEPS_PER_DIRECTION,
@@ -279,7 +285,7 @@ def production_survey_call_graph() -> dict[str, str]:
         "hud_safe_pan": "tasks.campaign_atlas_vision.hud_safe_pan_gesture",
         "registration_measurement": "tasks.campaign_atlas_vision.measure_campaign_frame_pair",
         "ultimate_landmark_bind": "tasks.ultimate_challenge_daily.recognize_ultimate_challenge_entry_from_texts",
-        "operator_interface": "scripts.pnsctl.bluestacks_run_flow",
+        "operator_interface": "scripts.pnsctl.development_session_run_flow",
     }
 
 
@@ -350,8 +356,8 @@ def recover_home_zoom_before_campaign_entry(
     if transport is None:
         pnsctl = _pnsctl()
         transport = ScrcpyMotionEventZoomTransport(
-            adb=str(pnsctl.BLUESTACKS_ADB),
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=str(BLUESTACKS_ADB),
+            serial=BLUESTACKS_SERIAL,
             evidence_directory=op.session / "scrcpy-zoom",
         )
     guarded = guarded_runtime
@@ -1873,10 +1879,9 @@ def _ocr_hits(frame: np.ndarray) -> dict[str, tuple[int, int, int, int]]:
     left, top, right, bottom = MAP_SEARCH_ROI
     crop = frame[top:bottom, left:right]
     try:
-        import pytesseract
+        payload = call_ocr(tesseract_data, crop, config="")
     except ImportError:
         return {}
-    payload = pytesseract.image_to_data(crop, output_type=pytesseract.Output.DICT)
     hits: dict[str, tuple[int, int, int, int]] = {}
     for index, text in enumerate(payload.get("text", [])):
         cleaned = str(text or "").strip()
@@ -3956,8 +3961,8 @@ def run_campaign_atlas_native_survey(
     try:
         delivery = run_bounded_campaign_atlas_survey(
             session=session,
-            adb=str(pnsctl.BLUESTACKS_ADB),
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=str(BLUESTACKS_ADB),
+            serial=BLUESTACKS_SERIAL,
             runtime_owner=str(lease["owner"]),
             prior_accounting=prior_accounting,
             prior_continuation=prior_continuation,
@@ -3965,7 +3970,7 @@ def run_campaign_atlas_native_survey(
     except Exception as exc:
         failure = _failure_delivery_from_session(
             session,
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            serial=BLUESTACKS_SERIAL,
             runtime_owner=str(lease["owner"]),
             exc=exc,
         )

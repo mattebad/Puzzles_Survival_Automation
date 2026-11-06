@@ -459,7 +459,7 @@ class UltimateServiceTests(unittest.TestCase):
         self.daily.assert_not_called()
 
     def test_startup_replay_accepts_windows_aliases_for_the_same_native_captures(self):
-        from tests.test_contextual_startup_recovery import windows_short_path
+        from tests.support.contextual_startup import windows_short_path
         self.write_state(self.completed(self.reset))
         self.device.phase = "vip"
         self.device.startup_sequence = ["scarlett", "home"]

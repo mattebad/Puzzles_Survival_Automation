@@ -1,6 +1,6 @@
 {
   "schema": "phase-e-zombie-lair-observations-v1",
-  "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+  "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
   "observations": {
     "lair_synthetic": {
       "screen_state": "WORLD",
@@ -22,12 +22,12 @@
       "defeat_confirmed": false,
       "result_identity": "",
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "1212121212121212121212121212121212121212121212121212121212121212",
       "evidence_refs": ["synthetic:zombie-lair-free-level-1"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "level_60_negative": {
@@ -50,12 +50,12 @@
       "defeat_confirmed": false,
       "result_identity": "",
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "1313131313131313131313131313131313131313131313131313131313131313",
       "evidence_refs": ["synthetic:zombie-lair-level-60-negative"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "main_negative": {
@@ -78,12 +78,12 @@
       "defeat_confirmed": false,
       "result_identity": "",
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "1414141414141414141414141414141414141414141414141414141414141414",
       "evidence_refs": ["synthetic:zombie-lair-main-negative"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "full_march_negative": {
@@ -106,12 +106,12 @@
       "defeat_confirmed": false,
       "result_identity": "",
       "game_day_id": "synthetic-day-1",
-      "target_provenance": "bliss-native",
+      "target_provenance": "bluestacks-native",
       "source_frame_sha256": "1515151515151515151515151515151515151515151515151515151515151515",
       "evidence_refs": ["synthetic:zombie-lair-full-march-negative"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     },
     "static_reference_negative": {
@@ -139,7 +139,7 @@
       "evidence_refs": ["synthetic:zombie-lair-static-reference"],
       "overlay_state": "none",
       "reset_guard_active": false,
-      "runtime_profile_id": "pns-blissos-poc-virgl-800x1280-v1",
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
       "recognized": true
     }
   }

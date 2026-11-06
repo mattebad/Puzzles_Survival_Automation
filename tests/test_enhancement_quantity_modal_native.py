@@ -12,6 +12,7 @@ import numpy as np
 
 from scripts import enhancement_bluestacks as native
 from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+from tests.support.environment import requires_tesseract
 
 
 FRAME = Path(__file__).parent / "fixtures/enhancement_item_modal/native-gear-quantity-one-20261029.png"
@@ -38,6 +39,7 @@ class QuantityModalNativeTests(unittest.TestCase):
         return native.recognize_commander_stage(self.frame if frame is None else frame,
             variant=variant, stage="material", source_frame_sha256=SHA, evidence_ref=FRAME)
 
+    @requires_tesseract
     def test_actual_modal_binds_quantity_use_and_x_without_resource_authority(self):
         self.assertEqual(hashlib.sha256(self.raw).hexdigest(), SHA)
         result = self.recognize()
@@ -53,6 +55,7 @@ class QuantityModalNativeTests(unittest.TestCase):
         self.assertEqual(result.item_identity, "")
         self.assertFalse(result.diagnostics["resource_authority"])
 
+    @requires_tesseract
     def test_current_native_gold_quantity_is_read_and_blank_cannot_default_to_one(self):
         path = FRAME.with_name("native-gear-quantity-gold-20261031.png")
         raw = path.read_bytes()
@@ -71,6 +74,7 @@ class QuantityModalNativeTests(unittest.TestCase):
         self.assertFalse(denied.recognized)
         self.assertIsNone(denied.quantity_target)
 
+    @requires_tesseract
     def test_wrong_quantity_type_material_or_total_denominator_cannot_authorize_use(self):
         for value in (0, 2, 10, None, True):
             with self.subTest(quantity=value), patch.object(native, "_quantity_count", return_value=value):
@@ -88,6 +92,7 @@ class QuantityModalNativeTests(unittest.TestCase):
         with patch.object(native, "_default_ocr", side_effect=mismatched):
             self.assertFalse(self.recognize().recognized)
 
+    @requires_tesseract
     def test_retained_live_denominator_slash_reads_stock_and_missing_field_stays_denied(self):
         path = FRAME.with_name("native-gear-quantity-denominator-20261102.png")
         provenance = json.loads(path.with_suffix(".json").read_text())
@@ -108,6 +113,7 @@ class QuantityModalNativeTests(unittest.TestCase):
         self.assertFalse(denied.recognized)
         self.assertIsNone(denied.quantity_target)
 
+    @requires_tesseract
     def test_missing_quantity_or_use_star_and_ambiguous_use_fail_closed(self):
         for box in ((508, 670, 623, 710), (330, 785, 470, 835), (130, 520, 175, 554)):
             with self.subTest(box=box):
@@ -125,6 +131,7 @@ class QuantityModalNativeTests(unittest.TestCase):
         with patch.object(native, "_default_ocr", side_effect=duplicated):
             self.assertFalse(self.recognize().recognized)
 
+    @requires_tesseract
     def test_item_modal_close_keeps_original_measurement_and_missing_quantity_x_is_none(self):
         gear = cv2.imread(str(FRAME.with_name("native-gear-sof-suit-20261029.png")))
         self.assertEqual(native._visible_item_modal_close(gear), (662, 339, 714, 391))
@@ -135,6 +142,7 @@ class QuantityModalNativeTests(unittest.TestCase):
         self.assertIsNone(result.close_target)
         self.assertIsNotNone(result.quantity_target)
 
+    @requires_tesseract
     def test_current_quantity_must_rebind_before_navigation_dispatch(self):
         test = self
         class Runtime:

@@ -245,7 +245,7 @@
 - Changes: Reuse REC-R10's destination binding but keep AP execution as a separate runner; verify static cost on every stage dialog, displayed AP before each run, AP ≤120, natural regeneration independently, and exact Auto Battle/result/Home transitions. Forbid Sweep, Blitz, Auto Complete, refill, Buy Now, Ultimate Challenge, and identical Campaign r2 retries. Persist every effect through R01 and treat timeout/lost result as `UNKNOWN`, never as permission to replay. Merge mutex: serial with REC-R10 and any Campaign handler/registry edits.
 - Non-goals: No navigation-only route ownership, AP refill, paid action, premium currency, unsupported destination, fixed-time success, or automatic repeat after ambiguous battle/result.
 - Acceptance: 1. Only the three tuples and exact costs 14/16/20 are admitted. 2. AP ledger never exceeds 120 and every spend is reconciled to displayed before/after plus independent regeneration. 3. No run starts below its fresh cost; refills and substitutions are denied. 4. Explicit victory/defeat and final Home are required; timeout or unknown result blocks and never auto-retries. 5. R10 navigation remains separately testable and no old Campaign r2 binding can dispatch concurrently.
-- Verification: Existing `python -m unittest tests.test_campaign_auto_battle tests.test_campaign_auto_battle_runtime tests.test_campaign_ap tests.test_campaign_stage9_destination_replay` is prescribed after implementation; no command is run here.
+- Verification: Existing `python -m unittest tests.test_campaign_auto_battle tests.test_campaign_auto_battle_runtime tests.test_campaign_stage9_destination_replay` is prescribed after implementation; no command is run here.
 - Native gate: `REC-O10` must later assign a current route-specific AP scenario for each admitted destination or explicitly record the untested subset, with exact before/after AP, result, and Home. Historical Campaign canary evidence is reusable evidence, not current canonical acceptance.
 - Integration owner: Update `automation_service/registry.py:CANONICAL_FLOW_REGISTRY`, `automation_service/handlers.py`, `scripts/flow_delivery_campaign_bluestacks.py:run_campaign_auto_battle_live/register`, and the AP gameplay contract/queue/registry hunks atomically only after R10's separate binding is retained; no navigation and AP runner may be live simultaneously for one occurrence.
 - PR boundary: `recovery/rec-r11` — Campaign AP Auto Battle cutover.
@@ -400,26 +400,28 @@
 - Runtime authorization: none.
 - Completion: Gas variant code/fixtures are separate from shared controller and native acceptance/enablement.
 
-### REC-R19 — Defer Zombie Lair maintenance and Daily attribution pending product decision
+### REC-R19 — Implement approved Zombie Lair maintenance and Daily attribution
 - Task ID: `REC-R19`
-- Type: Decision
+- Type: Story
 - Priority: P3
-- Status: BLOCKED_POLICY
-- Objective: Resolve whether the deferred notification-driven Zombie Lair maintenance capability may be authorized at all; until an explicit product decision is recorded, permit observation only and deny every join, stamina spend, refill, and Daily attribution.
-- Dependencies: none
-- Related work: `ZOMBIE-LAIR-HOME-MAINTENANCE` (retain the notification-driven contract but its Blocked status and no-registration state); `DQ-FLOW-ZOMBIE-LAIR` (retain first-successful-eligible-join Daily observation contract, not dispatch readiness); `DQ-FLOW-STAMINA` (retain disabled stamina arithmetic); `DQ-FLOW-WORLD-STAMINA-ENGINE` (retain World/stamina safety).
-- Evidence: `tasks/zombie_lair.py` and `tasks/daily_zombie_lair.py` model exact level/stamina/result facts; `tasks/world_stamina.py` provides World guard; `tasks/flow_delivery_product_policy.json` records proposed levels 30–55, exactly 28 stamina, Quick Join, no refill, and first-success-per-reset attribution, while historical BACKLOG explicitly defers this capability. The conflict is policy state, not evidence of execution; no route implementation is currently authorized.
-- Scope: `tasks/zombie_lair.py`; `tasks/daily_zombie_lair.py`; `tasks/world_stamina.py`; `tests/test_zombie_lair.py`; `tests/test_daily_zombie_lair.py`
-- Changes: Record an explicit product decision with one concrete result: **allowed** means Home notification pulse only, levels 30–55, Quick Join, exactly 28 stamina, at most `min(eligible_lair_count, floor(current_stamina/28))`, no refill, maintenance continues after the first success, and first successful eligible join owns Daily completion; **denied** means zero join/consume/refill input and observation-only. If allowed, open a separate fully specified implementation ticket; this ticket does not implement or authorize it. Merge mutex: none for policy record, but any later route must serialize with R16 and R01.
-- Non-goals: No implementation, native observation, stamina consumption, join, refill, combat/formation choice, Daily Claim, or inference that current policy JSON approval makes this route execution-ready.
-- Acceptance: 1. The product owner records allowed or denied, exact level range, cost, count formula, Quick Join/formation rule, notification trigger, terminal Home state, and Daily attribution. 2. Missing or contradictory decision leaves all dispatch denied. 3. No existing historical native/synthetic result is promoted to current acceptance. 4. If allowed, a new implementation ticket names route/test/integration paths before work begins. 5. Any unknown join/result/stamina effect is blocked and never automatically retried.
-- Verification: Existing `python -m unittest tests.test_zombie_lair tests.test_daily_zombie_lair tests.test_world_stamina` is prescribed to check the retained disabled contract after a decision; no command is run here.
-- Native gate: None while BLOCKED_POLICY; after a separate implementation ticket, `REC-O10` must assign current supervised scenarios and no old generic World join evidence may satisfy them.
-- Integration owner: Product authority owner updates only the exact Zombie policy record and disposition; no `automation_service/registry.py` or scheduler row may be enabled by this decision ticket. A later implementation owner must provide exact registry/handler/contract hunks.
-- PR boundary: `recovery/rec-r19` — policy decision record only.
-- Rollback: Leave dispatch disabled and preserve the deferred blocker; never re-enable a legacy Zombie Lair route.
-- Runtime authorization: none.
-- Completion: Product decision recorded or blocker preserved; neither outcome claims implementation, native readiness, or Daily completion.
+- Status: READY
+- Owner: repository owner (`mattebad`); implementation may be delegated, but live acceptance stays with the single supervised runtime operator.
+- Decision (recorded 2026-11-03, product owner, issue #33): **allowed**. Home notification pulse only; levels 30–55; Quick Join; exactly 28 stamina per join; at most `min(eligible_lair_count, floor(current_stamina/28))` joins per pulse; never level 60; never refill stamina; maintenance stays eligible after the first success; the first successful eligible join per reset owns Daily completion. No lair or stamina below 28 are explicit deferred outcomes. Every pulse ends at canonical Home or a recognized safe Home-equivalent state. This matches `tasks/flow_delivery_product_policy.json` records `zombie-lair-level-stamina-march` (`explicitly_approved`) and `zombie-lair-level-60` (`prohibited`).
+- Objective: Build the notification-driven Zombie Lair maintenance route under the decision above, disabled by default until its `REC-O10-R20` native acceptance record passes.
+- Dependencies: `REC-R16` (World/Search foundation and march-slot facts) and `REC-R01` (shared resource-effect ledger); serialize merges with both.
+- Related work: `ZOMBIE-LAIR-HOME-MAINTENANCE` (notification-driven contract; registration stays off until acceptance); `DQ-FLOW-ZOMBIE-LAIR` (first-successful-eligible-join Daily observation contract); `DQ-FLOW-STAMINA` (stamina arithmetic); `DQ-FLOW-WORLD-STAMINA-ENGINE` (World/stamina safety).
+- Evidence: `tasks/zombie_lair.py` and `tasks/daily_zombie_lair.py` model the level/stamina/result facts offline; `tasks/world_stamina.py` provides the World guard; the product policy records above carry the approved limits. No retained native or synthetic result counts as current acceptance.
+- Scope: `tasks/zombie_lair.py`; `tasks/daily_zombie_lair.py`; `tasks/world_stamina.py`; a new BlueStacks route module under `scripts/` and its canonical adapter under `automation_service/`; `automation_service/registry.py` (disabled registration only); `tests/test_zombie_lair.py`; `tests/test_daily_zombie_lair.py`; new route tests next to them.
+- Changes: Implement the route per the decision: recognize the Home notification, verify the lair level (30–55) and current stamina from the current frame, Quick Join only, account each 28-stamina join in the resource-effect ledger, stop when the count formula is exhausted, and return to Home. Attribute Daily completion to the first successful eligible join in the reset. Register disabled by default.
+- Non-goals: Level 60, stamina refill, any formation choice other than Quick Join, premium/paid controls, the aggregate Daily Claim tap, scheduler enablement.
+- Acceptance: 1. Offline tests prove level 60, level outside 30–55, stamina below 28, refill prompts, and unknown formation all deny without input. 2. The join count never exceeds `min(eligible_lair_count, floor(current_stamina/28))`. 3. An unknown join/result/stamina effect blocks and is never retried automatically. 4. First successful eligible join per reset owns Daily completion; later joins are maintenance only. 5. `REC-O10-R20` records current supervised native acceptance before any enablement; no old generic World join evidence satisfies it.
+- Verification: `python -m unittest tests.test_zombie_lair tests.test_daily_zombie_lair tests.test_world_stamina` plus the new route tests; supervised live scenarios come from `REC-O10-R20`.
+- Native gate: `REC-O10-R20`.
+- Integration owner: The implementation owner provides the exact registry/handler/contract hunks; the registration lands disabled.
+- PR boundary: `recovery/rec-r19` — Zombie Lair route, adapter and tests.
+- Rollback: Leave the registration disabled; never re-enable a legacy Zombie Lair route.
+- Runtime authorization: none from this record. Live attempts need current explicit authorization per AGENTS.md.
+- Completion: Route implemented and offline-tested with `REC-O10-R20` native acceptance recorded; enablement is a separate decision.
 
 ### REC-P01 — Decide Ruins Shop purchase policy
 - Task ID: `REC-P01`

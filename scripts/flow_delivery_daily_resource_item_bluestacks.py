@@ -1,4 +1,4 @@
-"""Thin pnsctl conduct adapter for the Daily 1K Food flow."""
+"""Thin development-session adapter for the Daily 1K Food flow."""
 
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ import cv2
 import numpy as np
 import os
 import re
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 FLOW_ID = "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
@@ -776,7 +777,7 @@ def _write_delivery_result(
         "schema_version": 1,
         "flow_id": FLOW_ID,
         "status": result.get("status"),
-        "serial": _pnsctl().BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": _pnsctl().BLUESTACKS_NATIVE_WIDTH,
         "native_height": _pnsctl().BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
@@ -861,8 +862,8 @@ def run_daily_resource_item(
     try:
         pnsctl = _pnsctl()
         runtime = LocalBlueStacksRuntime.connect(
-            adb=str(pnsctl.BLUESTACKS_ADB),
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=str(BLUESTACKS_ADB),
+            serial=BLUESTACKS_SERIAL,
             output_directory=outer_directory / "runtime",
             workflow=f"daily-resource-item-{_stamp()}",
             execute=True,

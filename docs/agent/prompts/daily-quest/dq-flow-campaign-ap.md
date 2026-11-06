@@ -1,0 +1,23 @@
+# DQ-FLOW-CAMPAIGN-AP
+
+Repository authority: catalog owns `consume_ap`; matrix owns resource policy/status; `docs/archive/backlog-legacy.md` preserves the historical task record.
+Main Quest Claim excluded.
+
+Scope: Consume 20 AP through Campaign route. Reuse Daily inventory, AP counter, Campaign
+navigation, safe action core. Route: Daily row → Campaign → eligible AP action. Source: completed
+row and current AP; target: exact AP-consuming action; successor: AP delta and row progress.
+Bind source/target/successor to current frame.
+
+Policy: evidence-gated material resource use; explicit AP budget required. Transaction: one bounded
+action dispatch, unresolved-action block. Postcondition: exact AP consumption confirmed without
+exceeding budget. Recovery: fail closed on stale AP, missing target, budget mismatch, or absent
+successor. Daily maps `consume_ap`; Claim independent. Persistence/scheduler dormant.
+
+Tests: AP budget guard, offline replay, route identity, cardinality, successor proof, Main negative,
+registration false, scheduler false. Bliss-native evidence required; GnBots cannot authorize.
+Future navigation read-only. Prohibit ADB, worker/VM, leases, journal migration, live input/evidence,
+registration, scheduler eligibility. Update docs/matrix/status. Commit:
+`feat(tasks): add Campaign AP offline contract`. The retired Sweep/Auto
+Complete offline contract was deleted; the current boundary is
+`tasks/campaign_auto_battle.py` and `scripts/bluestacks_campaign_ap.py`. Fresh Bliss-native Campaign
+target, AP cost, and positive result remain required for promotion. Continue offline.

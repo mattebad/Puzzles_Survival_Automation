@@ -11,6 +11,14 @@ import cv2
 import numpy as np
 
 from scripts import enhancement_bluestacks as native
+from tests.support.enhancement import exit_runtime
+from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 FRAME = Path(__file__).parent / "fixtures/enhancement_item_modal/native-chip-quantity-one-20261029.png"
@@ -41,9 +49,13 @@ class ChipQuantityNativeTests(unittest.TestCase):
         cls.ocr = staticmethod(ocr)
         cls.stack.enter_context(patch.object(native, "_default_ocr", side_effect=ocr))
         cls.stack.enter_context(patch.object(native.time, "sleep"))
-        cls.quantity = native.recognize_commander_stage(cls.frame, variant="chip", stage="material",
-            source_frame_sha256=SHA, evidence_ref=FRAME, game_day_id="current-reset")
 
+    @classmethod
+    def quantity_result(cls):
+        if not hasattr(cls, "_cached_quantity"):
+            cls._cached_quantity = native.recognize_commander_stage(cls.frame, variant="chip", stage="material",
+                source_frame_sha256=SHA, evidence_ref=FRAME, game_day_id="current-reset")
+        return cls._cached_quantity
     def recognize(self, frame=None, *, engine=None):
         if frame is None:
             image, digest, path = self.frame, SHA, FRAME
@@ -68,15 +80,15 @@ class ChipQuantityNativeTests(unittest.TestCase):
         self.assertIsNone(result.open_target)
 
     def runtime(self, payloads):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
-        return NativeEnhancementExitTests().runtime(payloads)
+        return exit_runtime(payloads)
 
     def route(self, runtime, session):
         return native.EnhancementIntegratedRoute(runtime, variant="chip", reset_identity="current-reset", session=session)
 
+    @requires_tesseract
     def test_actual_chip_quantity_has_independent_total_denominator_and_navigation_controls(self):
         self.assertEqual(hashlib.sha256(self.raw).hexdigest(), SHA)
-        result = self.quantity
+        result = self.quantity_result()
         self.assertTrue(result.recognized, result)
         self.assertEqual((result.detail_state, result.quantity, result.material_identity),
             ("quantity_modal", 1, "chip-material-one-star"))
@@ -91,12 +103,14 @@ class ChipQuantityNativeTests(unittest.TestCase):
         self.assertEqual(result.item_identity, "")
         self.assertFalse(result.diagnostics["resource_authority"])
 
+    @requires_tesseract
     def test_missing_truncated_or_changed_denominator_cannot_be_filled_from_total(self):
         for texts in ([], ["/1153"], ["/11534"], ["/"]):
             with self.subTest(texts=texts):
                 result = self.recognize(engine=self.overridden(native.QUANTITY_DENOMINATOR_ROI, texts))
                 self.assert_denied(result)
 
+    @requires_tesseract
     def test_wrong_quantity_material_missing_star_or_nonunique_use_cannot_grant_navigation(self):
         for quantity in (2, None, True):
             with self.subTest(quantity=quantity), patch.object(native, "_quantity_count", return_value=quantity):
@@ -112,6 +126,7 @@ class ChipQuantityNativeTests(unittest.TestCase):
 
         self.assert_denied(self.recognize(engine=duplicate_use))
 
+    @requires_tesseract
     def test_measured_quantity_x_panel_back_and_commander_back_reach_home_without_resource(self):
         panel = FRAME.with_name("native-chip-zero-selected-20261029.png").read_bytes()
         commander = FRAME.with_name("native-commander-gear-20261029.png").read_bytes()
@@ -127,6 +142,7 @@ class ChipQuantityNativeTests(unittest.TestCase):
         self.assertFalse(route.resource_dispatch_keys)
         self.assertEqual([row[1] for row in runtime.journal], ["confirmed"] * 3)
 
+    @requires_tesseract
     def test_missing_x_on_fresh_frame_blocks_before_any_input(self):
         changed = self.frame.copy()
         changed[365:435, 640:735] = 0
@@ -138,6 +154,7 @@ class ChipQuantityNativeTests(unittest.TestCase):
         self.assertFalse(runtime.inputs)
         self.assertFalse(route.resource_dispatch_keys)
 
+    @requires_tesseract
     def test_unknown_successor_stops_after_one_measured_x_without_repeating_it(self):
         unknown = cv2.imencode(".png", np.zeros((1280, 800, 3), np.uint8))[1].tobytes()
         runtime, session = self.runtime([self.raw, self.raw] + [unknown] * 4)
@@ -152,7 +169,6 @@ class ChipQuantityNativeTests(unittest.TestCase):
 
 class QuantityNavigationBoundaryTests(unittest.TestCase):
     def test_detected_quantity_without_safe_exit_cannot_borrow_underlying_panel_back(self):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
         raw = FRAME.read_bytes()
         quantity_states = (
             native.StageRecognition("navigation", True, "QUANTITY_ONE_USE_NAVIGATION_RECOGNIZED", SHA,
@@ -163,7 +179,7 @@ class QuantityNavigationBoundaryTests(unittest.TestCase):
         )
         for quantity in quantity_states:
             with self.subTest(quantity=quantity):
-                runtime, session = NativeEnhancementExitTests().runtime([raw])
+                runtime, session = exit_runtime([raw])
                 route = native.EnhancementIntegratedRoute(runtime, variant="chip",
                     reset_identity="current-reset", session=session)
                 tempting = native.StageRecognition("navigation", True, "ENHANCEMENT_PANEL_NAVIGATION_ONLY", SHA,

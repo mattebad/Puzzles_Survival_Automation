@@ -9,6 +9,8 @@ import cv2
 import numpy as np
 
 from scripts import enhancement_bluestacks as native
+from tests.support.enhancement import exit_runtime
+from tests.support.environment import requires_tesseract
 
 
 FRAME = Path(__file__).parent / "fixtures/enhancement_item_modal/native-chip-zero-selected-20261029.png"
@@ -37,8 +39,6 @@ class ChipPanelNativeTests(unittest.TestCase):
         cls.ocr = staticmethod(ocr)
         cls.stack.enter_context(patch.object(native, "_default_ocr", side_effect=ocr))
         cls.stack.enter_context(patch.object(native.time, "sleep"))
-        cls.panel = native.recognize_commander_stage(cls.frame, variant="chip", stage="material",
-            source_frame_sha256=SHA, evidence_ref=FRAME, game_day_id="current-reset")
 
     def recognize(self, frame=None, *, engine=None):
         if frame is None:
@@ -63,9 +63,10 @@ class ChipPanelNativeTests(unittest.TestCase):
         self.assertIsNone(result.open_target)
         self.assertIsNot(result.diagnostics.get("resource_authority"), True)
 
+    @requires_tesseract
     def test_actual_chip_panel_retains_measured_facts_without_equipment_or_resource_authority(self):
         self.assertEqual(hashlib.sha256(self.raw).hexdigest(), SHA)
-        result = self.panel
+        result = self.recognize()
         self.assertTrue(result.recognized, result)
         self.assertEqual((result.item_identity, result.item_level, result.detail_state),
             ("fighter chip", 20, "enhancement_panel"))
@@ -86,6 +87,7 @@ class ChipPanelNativeTests(unittest.TestCase):
         self.assertFalse(native.enhancement_bluestacks_authorizeable(result.observation))
         self.assertFalse(native.enhancement_bluestacks_postcondition_verified(result.observation, result.observation))
 
+    @requires_tesseract
     def test_missing_clipped_wrong_or_conflicting_item_name_cannot_supply_material_observation(self):
         for texts in ([], ["7* Fighter Chi+20"], ["7* Fighter Module+20"],
                 ["7* Fighter Chip+20", "Fighter Module+20"]):
@@ -94,6 +96,7 @@ class ChipPanelNativeTests(unittest.TestCase):
                 self.assertFalse(result.recognized)
                 self.assert_no_material_authority(result)
 
+    @requires_tesseract
     def test_missing_or_mismatched_icon_level_and_missing_exp_never_default_to_known_values(self):
         for roi, texts in ((native.ENHANCEMENT_PANEL_LEVEL_ROI, []),
                 (native.ENHANCEMENT_PANEL_LEVEL_ROI, ["+204"]), (EXP_ROI, [])):
@@ -102,6 +105,7 @@ class ChipPanelNativeTests(unittest.TestCase):
                 self.assertFalse(result.recognized)
                 self.assert_no_material_authority(result)
 
+    @requires_tesseract
     def test_missing_fraction_or_actual_slash_cannot_be_repaired_from_digits_or_speckles(self):
         missing_fraction = self.frame.copy()
         missing_fraction[619:636, 113:168] = 0
@@ -115,10 +119,10 @@ class ChipPanelNativeTests(unittest.TestCase):
                 self.assertIsNone(native._material_fraction(frame, (79, 612, 172, 705)))
                 self.assert_no_material_authority(self.recognize(frame))
 
+    @requires_tesseract
     def test_current_panel_back_reaches_commander_with_one_navigation_and_zero_resource(self):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
         commander = FRAME.with_name("native-commander-gear-20261029.png").read_bytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, self.raw, commander, commander])
+        runtime, session = exit_runtime([self.raw, self.raw, commander, commander])
         route = native.EnhancementIntegratedRoute(runtime, variant="chip", reset_identity="current-reset", session=session)
         _, terminal = route._navigate_to("commander_overview")
         self.assertEqual(terminal.detail_state, "commander_overview")
@@ -127,12 +131,12 @@ class ChipPanelNativeTests(unittest.TestCase):
         self.assertFalse(route.resource_dispatch_keys)
         self.assertEqual([row[1] for row in runtime.journal], ["confirmed"])
 
+    @requires_tesseract
     def test_fresh_frame_missing_back_cannot_reuse_the_planning_frame_target(self):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
         changed = self.frame.copy()
         changed[:90, :180] = 0
         raw = cv2.imencode(".png", changed)[1].tobytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, raw])
+        runtime, session = exit_runtime([self.raw, raw])
         route = native.EnhancementIntegratedRoute(runtime, variant="chip", reset_identity="current-reset", session=session)
         with self.assertRaises(native._FlowBlocked):
             route._navigate_to("commander_overview")

@@ -10,12 +10,12 @@
           "manifest": "tests/fixtures/runtime_control_sequences/enhancement_transition.json",
           "selector": "source_record",
           "path": ".local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/flow-delivery-result.json",
-          "sha256": "bc36407fb2ede1d202d4b18ced544192c4fcb8125af3943e8364f1fb109dde0b"
+          "sha256": "ff093c4288855c7b940fc2d585a0ba1bd461b136b17ed5a7a73b948143019fe1"
         },
         "portable_copy": {
           "path": "tests/fixtures/runtime_trace_projection/enhancement-source.json",
           "bytes": 23337,
-          "sha256": "bc36407fb2ede1d202d4b18ced544192c4fcb8125af3943e8364f1fb109dde0b"
+          "sha256": "ff093c4288855c7b940fc2d585a0ba1bd461b136b17ed5a7a73b948143019fe1"
         }
       },
       "event_log": {
@@ -23,12 +23,12 @@
           "manifest": "tests/fixtures/runtime_control_sequences/enhancement_transition.json",
           "selector": "event_log",
           "path": ".local-captures/development-sessions/ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T212046050878Z/runtime/enhancement-family-20260818T212046414162Z/events.jsonl",
-          "sha256": "4a78a4a648f15ecd171b0ec2bbdc220d9659e982ecdfce0db37ae0648e7fc07b"
+          "sha256": "8b06bb7815a5fc2540aa4b31e0d0ac5a0d1c770135c0a59519b0dff41a15b3d7"
         },
         "portable_copy": {
           "path": "tests/fixtures/runtime_trace_projection/enhancement-events.jsonl",
           "bytes": 4277,
-          "sha256": "4a78a4a648f15ecd171b0ec2bbdc220d9659e982ecdfce0db37ae0648e7fc07b"
+          "sha256": "8b06bb7815a5fc2540aa4b31e0d0ac5a0d1c770135c0a59519b0dff41a15b3d7"
         }
       },
       "frames": [
@@ -120,12 +120,12 @@
       "retained_source": {
         "manifest": "tests/fixtures/resource_effect_authority/historical_sessions.json",
         "selector": "sessions[1].events",
-        "sha256": "dcc43eb3cd5348ff2db9ec71b924add0e5af8e97824f6d23948aa98860f3a3cc"
+        "sha256": "78c75d6c18691cdd9f8514910f5c7927aa1b591c3cf4b218d19ae887c6ebc7f9"
       },
       "portable_copy": {
         "path": "tests/fixtures/runtime_trace_projection/resource-events.jsonl",
         "bytes": 8011,
-        "sha256": "dcc43eb3cd5348ff2db9ec71b924add0e5af8e97824f6d23948aa98860f3a3cc"
+        "sha256": "78c75d6c18691cdd9f8514910f5c7927aa1b591c3cf4b218d19ae887c6ebc7f9"
       }
     }
   }

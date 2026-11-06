@@ -5,8 +5,9 @@
 - This repository contains an implemented offline/runtime kernel and a smaller
   accepted live portfolio. Documentation MUST distinguish implemented code from
   live-accepted behavior.
-- `CURRENT_HANDOFF.md` records volatile current state; `BACKLOG.md` and `docs/`
-  hold durable plans and history. Git state and retained evidence are authoritative.
+- `docs/agent/CURRENT_HANDOFF.md` records volatile current state; agent prompts
+  and session note formats also live under `docs/agent/`. `BACKLOG.md` and the rest
+  of `docs/` hold durable plans and history. Git state and retained evidence are authoritative.
 - Describe readiness, blockers, and current state from present facts. Mark missing,
   stale, or contradictory proof as `evidence_required`; never infer readiness from
   an old receipt. Legacy receipts remain historical records and do not imply a
@@ -36,7 +37,6 @@
 - Exactly one live runtime operator may exist. Development chats, agents, tests,
   collectors, and automation MUST NOT share or overlap a live operator.
 - Every live attempt requires explicit current authorization recorded by the controller/operator; documentation, receipts, and retained evidence never grant live authority.
-- The `begin-delegation` command/API requires an explicit non-empty free-form attribution; it has no default persona, provider, or model.
 - Do not use ad-hoc ADB, SSH, remote shells, device access, VM access, or live
   input in offline development. Login, account switching, credentials, tutorial,
   CAPTCHA, and other explicitly manual-only states stop for a human.

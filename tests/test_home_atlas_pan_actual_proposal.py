@@ -21,7 +21,14 @@ from scripts import home_atlas_bluestacks as home
 from tasks.home_atlas_planner import DirectPanNavigator, PanProgress, PlanDisposition
 from tasks.home_atlas_vision import frame_digest
 from tasks.perception_bundle import PerceptionBundleError
-from tests.test_home_atlas_tap_actual_proposal import _RecordingPolicy
+from tests.support.home_atlas import _RecordingPolicy
+from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -120,7 +127,7 @@ class HomeAtlasActualPanProposalTests(unittest.TestCase):
         cls.localizer = home.BlueStacksHomeLocalizer(cls.atlas, ATLAS)
 
     @contextmanager
-    def case(self) -> Iterator[_PanCase]:
+    def case(self, *, native_ocr=False) -> Iterator[_PanCase]:
         with tempfile.TemporaryDirectory() as directory:
             case = _PanCase(Path(directory), self.atlas, self.localizer)
             try:
@@ -128,12 +135,17 @@ class HomeAtlasActualPanProposalTests(unittest.TestCase):
                 self.assertEqual(case.plan.disposition, PlanDisposition.PAN)
                 self.assertEqual(case.plan.drag_start, (450, 500))
                 self.assertEqual(case.plan.drag_end, (511, 573))
-                yield case
+                if native_ocr:
+                    yield case
+                else:
+                    with patch.object(home, "is_clean_home_frame", return_value=True):
+                        yield case
             finally:
                 case.store.close()
 
+    @requires_tesseract
     def test_native_pan_preserves_actual_proposal_issuance_and_measured_post_capture(self) -> None:
-        with self.case() as case:
+        with self.case(native_ocr=True) as case:
             issued, execution, immediate, telemetry = case.dispatch()
             self.assertTrue(issued.authorized)
             self.assertEqual(execution.status, ActionStatus.CONFIRMED)
@@ -258,8 +270,9 @@ class HomeAtlasActualPanProposalTests(unittest.TestCase):
             self.assertFalse(telemetry["verified"])
             self.assertEqual(case.store.get_action("native-home-pan")["final_status"], ActionStatus.UNRESOLVED.value)
 
+    @requires_tesseract
     def test_unknown_actual_post_image_rejects_claimed_progress_after_one_swipe(self) -> None:
-        with self.case() as case:
+        with self.case(native_ocr=True) as case:
             case.runtime.post_fixture = None
 
             def unknown_post_with_claimed_progress():

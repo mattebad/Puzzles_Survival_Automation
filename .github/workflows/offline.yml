@@ -15,6 +15,7 @@ jobs:
     env:
       # Match the live validation process before OCR worker/library startup.
       OMP_THREAD_LIMIT: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -28,6 +29,17 @@ jobs:
         with:
           # Retain commit history for provenance and ancestry checks.
           fetch-depth: 0
+      - name: Check fresh checkout is clean
+        shell: bash
+        run: |
+          # A fresh checkout must not report modified files on any runner
+          # (line-ending normalization drift is the known failure mode).
+          dirty="$(git status --porcelain)"
+          if [[ -n "$dirty" ]]; then
+            echo "Fresh checkout is dirty:"
+            echo "$dirty"
+            exit 1
+          fi
       - name: Set up Python 3.11
         uses: actions/setup-python@v7
         with:
@@ -57,100 +69,25 @@ jobs:
               tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_real_daylight_circle_survives_proposal_variation_with_same_final_gates \
               tests.test_supply_claim_button.SupplyClaimButtonNativeBindingTests.test_actual_reset_hud_caption_binds_only_with_complete_word_and_safe_button
           done
-      - name: Run deterministic offline checks
+      - name: Verify every test module is discovered
+        run: python -B scripts/check_test_discovery.py
+      - name: Run the complete offline test suite
+        run: python -B -m unittest discover -v -s tests -t .
+      - name: Run the supported controlled offline check
         run: python scripts/check.py
-      - name: Run REC-F01 provenance regressions
-        run: python -m unittest tests.test_automation_service_boundaries tests.test_automation_service_temporal
-      - name: Run REC-F02 OCR seam and caller regressions
-        run: >-
-          python -m unittest
-          tests.test_semantic_ocr_crop
-          tests.test_native_frame_mutation
-          tests.test_supply_depot_vision
-          tests.test_supply_claim_button
-          tests.test_supply_camera_reframe
-          tests.test_supply_depot_verified_route
-          tests.test_daily_supply_depot
-          tests.test_supply_depot
-          tests.test_flow_delivery_supply_depot_bluestacks
-      - name: Run REC-D01 catalog policy regressions
-        run: python -m unittest tests.test_daily_quest_planning tests.test_catalog_and_pnsctl tests.test_product_authority tests.test_gameplay_flow_contracts
-      - name: Run REC-F05 read-only scheduling regressions
-        run: python -m unittest tests.test_automation_service_canonical_authority tests.test_automation_service_cli tests.test_automation_service_scheduler_canonical tests.test_pnsctl_scheduler_pulse
-      - name: Run REC-F06 non-consuming selector regressions
-        run: python -m unittest tests.test_automation_service_handlers tests.test_automation_service_contracts tests.test_automation_service_canonical_authority tests.test_automation_service_scheduler
-      - name: Run REC-F08 evidence accounting regressions
-        run: python -m unittest tests.test_bluestacks_native_runtime tests.test_pnsctl_scheduler_pulse tests.test_world_map_navigation_bluestacks
-      - name: Run canonical route execution regressions without a device
-        run: >-
-          python -m unittest
-          tests.test_service_application_startup
-          tests.test_service_campaign_ap
-          tests.test_service_campaign_dispatch
-          tests.test_service_nova
-          tests.test_service_bioenhancer
-          tests.test_service_bioenhancer_dispatch
-          tests.test_service_supply
-          tests.test_service_supply_dispatch
-          tests.test_service_ultimate
-          tests.test_service_ultimate_dispatch
-          tests.test_service_enhancement
-          tests.test_service_enhancement_dispatch
-          tests.test_authorized_daily_repeat
-          tests.test_service_personal_might
-          tests.test_service_personal_might_dispatch
-          tests.test_service_cooldown_reset_edge
-      - name: Run route policy and recovery boundary regressions
-        run: >-
-          python -m unittest
-          tests.test_campaign_ap_challenge_policy
-          tests.test_campaign_ap_native_runner
-          tests.test_enhancement_category_resume
-          tests.test_recovered_executor_accounting
-          tests.test_noah_rollover_observation_schedule
-          tests.test_enhancement_ocr_deadline
-          tests.test_enhancement_atomic_progress
-          tests.test_vip_points_popup
-      - name: Run portable native recognition regressions without a device
-        run: >-
-          python -m unittest
-          tests.test_noah_free_tier_counter_scope
-          tests.test_noah_basic_rollover_observation
-          tests.test_nova_zero_counter
-          tests.test_bioenhancer_free_control_native
-          tests.test_campaign_ap_hud_native
-          tests.test_campaign_navigation_revalidation
-          tests.test_campaign_atlas_chapter_nav.PortableCampaignAtlasReframeTests.test_native_chapter_15_hud_occlusion_reframes_without_tapping
-          tests.test_campaign_atlas_chapter_nav.PortableCampaignAtlasReframeTests.test_unbound_reframe_requires_supported_localization_near_edge
-          tests.test_campaign_auto_battle_runtime.CampaignRuntimeControllerTests.test_unbound_edge_reframe_needs_progress_and_fresh_binding
-          tests.test_enhancement_selection_context_native
-          tests.test_enhancement_module_selection_native
-          tests.test_enhancement_quantity_modal_native
-          tests.test_enhancement_chip_quantity_native
-          tests.test_enhancement_module_quantity_native
-          tests.test_ultimate_battle_popup_native
-          tests.test_ultimate_defeat_recovery
-          tests.test_home_control_layouts
-          tests.test_startup_recovery
-          tests.test_contextual_startup_recovery
-          tests.test_nova_startup_recovery
-          tests.test_noahs_tavern_recruit.ContextualPopupRouteTests
-          tests.test_personal_might_bluestacks.PersonalMightNativeTests.test_native_fragmented_rankings_caption_still_binds_current_trophy_body
-      - name: Run directly affected cleanup regressions
-        run: >-
-          python -m unittest
-          tests.test_bliss_porting_toolbox
-          tests.test_daily_quest_planning
-          tests.test_development_session
-          tests.test_flow_delivery_orchestrator
-          tests.test_flow_delivery_lean_workflow
-          tests.test_flow_delivery_validation_profiles
-          tests.test_campaign_story_destinations
-          tests.test_flow_delivery_token_context_hygiene.ValidationRunnerTests
-          tests.test_runtime_trace_projection
-          tests.test_resource_effect_authority_history
       - name: Compile Python sources
-        run: python -m compileall -q automation_service safe_action_core scripts tasks tools
+        run: python -m compileall -q automation_service safe_action_core scripts tasks
+      - name: Check tracked text files match declared line endings
+        shell: bash
+        run: |
+          # Paths declared `eol=lf` in .gitattributes must be stored with LF in
+          # the index; otherwise every fresh clone starts with modified files.
+          violations="$(git ls-files --eol | awk '($1=="i/crlf" || $1=="i/mixed") && $3=="attr/text" && $4=="eol=lf"')"
+          if [[ -n "$violations" ]]; then
+            echo "Files committed with CRLF despite eol=lf (run: git add --renormalize <path>):"
+            echo "$violations"
+            exit 1
+          fi
       - name: Check committed diff whitespace
         shell: bash
         env:

@@ -17,8 +17,9 @@ from safe_action_core import (
     TransportResult,
     ocr_reuse_denial,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
-PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE = ACTIVE_RUNTIME_PROFILE_ID
 ROI_HASH = "d" * 64
 TEST_TASK_ID = "TEST-PRE-DISPATCH-FRESHNESS"
 TEST_TASKS = frozenset({TEST_TASK_ID})

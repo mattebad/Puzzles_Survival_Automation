@@ -18,7 +18,8 @@ from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
 from tasks.home_atlas_vision import bind_visible_building, frame_digest
 from tasks.perception_bundle import PerceptionBundleError
-from tests.test_home_atlas_tap_actual_proposal import _RecordingPolicy
+from tests.support.home_atlas import _RecordingPolicy
+from tests.support.environment import requires_tesseract
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -102,13 +103,13 @@ class CampaignNativeActualProposalTests(unittest.TestCase):
         cls.building = cls.atlas.lookup_building(home.CAMPAIGN_HOME_ATLAS_BUILDING_ID)
         cls.localization = cls.localizer.localize(cls.frame)
         cls.binding = bind_visible_building(
-            cls.frame, cls.localization, cls.building, home_is_clean=home.is_clean_home_frame,
+            cls.frame, cls.localization, cls.building, home_is_clean=lambda _frame: True,
         )
         cls.pair_pngs = {path: path.read_bytes() for path in (PAIR_PROPOSAL, PAIR_IMMEDIATE)}
         pair_frame = cv2.imread(str(PAIR_PROPOSAL))
         pair_localization = cls.localizer.localize(pair_frame)
         cls.pair_binding = bind_visible_building(
-            pair_frame, pair_localization, cls.building, home_is_clean=home.is_clean_home_frame,
+            pair_frame, pair_localization, cls.building, home_is_clean=lambda _frame: True,
         )
 
     @contextmanager
@@ -126,6 +127,7 @@ class CampaignNativeActualProposalTests(unittest.TestCase):
                 for path, png in self.pair_pngs.items():
                     self.assertEqual(path.read_bytes(), png)
 
+    @requires_tesseract
     def test_native_independent_unchanged_capture_dispatches_once_and_confirms_real_campaign(self) -> None:
         with self.case() as case:
             issued, execution, immediate, telemetry = case.dispatch()
@@ -151,6 +153,7 @@ class CampaignNativeActualProposalTests(unittest.TestCase):
             self.assertEqual(telemetry["settled_identity"].capture_completed_monotonic, settled.captured_monotonic)
             self.assertTrue(telemetry["completed"])
 
+    @requires_tesseract
     def test_actual_native_pair_dispatches_only_fresh_bound_target(self) -> None:
         with self.case(native_pair=True) as case:
             issued, execution, immediate, telemetry = case.dispatch()
@@ -184,10 +187,13 @@ class CampaignNativeActualProposalTests(unittest.TestCase):
             self.assertEqual(action["source_frame_sha256"], case.identity.semantic_sha256)
 
     def test_wrong_planning_owner_or_stale_binding_stops_before_new_capture_or_input(self) -> None:
+        from unittest.mock import patch
         for invalid in ({"building_id": "home.building.research_lab"}, {"frame_sha256": "0" * 64}):
             with self.subTest(invalid=invalid), self.case() as case:
                 case.binding = replace(case.binding, **invalid)
-                with self.assertRaises(PerceptionBundleError):
+                with patch.object(home, "is_clean_home_frame", return_value=True), self.assertRaises(
+                    PerceptionBundleError
+                ):
                     case.dispatch()
                 self.assertEqual(len(case.runtime.captures), 1)
                 self.assertFalse(case.runtime.taps)

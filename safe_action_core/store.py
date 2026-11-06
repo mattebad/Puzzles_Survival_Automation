@@ -14,7 +14,13 @@ from typing import Any, Dict, Iterator, List, Mapping, Optional
 from .models import ActionIntent, ActionStatus, PolicyResult, snapshot
 
 CURRENT_SCHEMA_VERSION = 4
-TASK_STATE_STATUSES = frozenset({"pending", "done", "blocked", "unresolved"})
+# One-time renames of persisted task ids (#36), applied in one transaction
+# when the store opens.  The old id is never accepted as a live alias: two
+# live ids would let one route claim the same reset twice.
+RENAMED_TASK_IDS: tuple[tuple[str, str], ...] = (
+    ("CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY", "CAMPAIGN-AP-AUTO-BATTLE"),
+)
+_TASK_ID_TABLES = ("scheduler_invocation_state", "scheduler_occurrences", "actions", "audit_events")
 SCHEDULER_INVOCATION_STATUSES = frozenset(
     {
         "pending",
@@ -46,6 +52,10 @@ class StoreError(RuntimeError):
 
 class DuplicateActionError(StoreError):
     pass
+
+
+class TaskIdMigrationConflict(StoreError):
+    """A renamed task id has persisted rows under both its old and new id."""
 
 
 class InvalidTransitionError(StoreError):
@@ -638,7 +648,9 @@ class SafetyStore:
         self.connection.execute("PRAGMA foreign_keys = ON")
         try:
             self._migrate()
+            self._retire_task_state()
             self._ensure_scheduler_tables()
+            self._migrate_renamed_task_ids()
         except BaseException:
             self.connection.close()
             raise
@@ -695,16 +707,6 @@ class SafetyStore:
                         lease_token_digest TEXT,
                         runtime_invocation_id TEXT,
                         lease_mode TEXT NOT NULL DEFAULT 'legacy'
-                    );
-                    CREATE TABLE task_state (
-                        task_id TEXT PRIMARY KEY,
-                        completion_key TEXT NOT NULL,
-                        game_day_id TEXT NOT NULL,
-                        status TEXT NOT NULL CHECK(status IN ('pending','done','blocked','unresolved')),
-                        next_due_monotonic REAL,
-                        revision INTEGER NOT NULL CHECK(revision >= 0),
-                        last_reason TEXT NOT NULL,
-                        updated_at REAL NOT NULL
                     );
                     CREATE TABLE scheduler_invocation_state (
                         account_id TEXT NOT NULL,
@@ -771,16 +773,6 @@ class SafetyStore:
         if version == 1:
             self.connection.executescript(
                 """BEGIN IMMEDIATE;
-                CREATE TABLE IF NOT EXISTS task_state (
-                    task_id TEXT PRIMARY KEY,
-                    completion_key TEXT NOT NULL,
-                    game_day_id TEXT NOT NULL,
-                    status TEXT NOT NULL CHECK(status IN ('pending','done','blocked','unresolved')),
-                    next_due_monotonic REAL,
-                    revision INTEGER NOT NULL CHECK(revision >= 0),
-                    last_reason TEXT NOT NULL,
-                    updated_at REAL NOT NULL
-                );
                 UPDATE schema_version SET version=2 WHERE singleton=1;
                 COMMIT;
                 """
@@ -815,6 +807,29 @@ class SafetyStore:
             self._ensure_scheduler_invocation_reconciliation()
         if self.schema_version != CURRENT_SCHEMA_VERSION:
             raise SchemaVersionError("database migration did not reach the current schema")
+
+    def _retire_task_state(self) -> None:
+        """Stop carrying the retired ``task_state`` table without destroying data.
+
+        Nothing reads or writes it any more. An empty table is dropped; a table
+        that still holds rows is left untouched (and unused) so no stored state
+        is silently destroyed. Stores without the table are not written to.
+        """
+
+        if not self._task_state_is_empty_table():
+            return
+        with self.transaction() as db:
+            if self._task_state_is_empty_table(db):
+                db.execute("DROP TABLE task_state")
+
+    def _task_state_is_empty_table(self, db: Optional[sqlite3.Connection] = None) -> bool:
+        db = db or self.connection
+        if db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='task_state'"
+        ).fetchone() is None:
+            return False
+        return db.execute("SELECT 1 FROM task_state LIMIT 1").fetchone() is None
+
     def _ensure_scheduler_invocation_reconciliation(self) -> None:
         """Rebuild legacy invocation CHECK while preserving every v4 row."""
 
@@ -935,6 +950,60 @@ class SafetyStore:
             if name not in columns:
                 self.connection.execute(
                     f"ALTER TABLE scheduler_occurrences ADD COLUMN {name} {definition}"
+                )
+
+    @staticmethod
+    def _task_id_row_count(db: sqlite3.Connection, task_id: str) -> int:
+        """Count rows whose task identity column or composite key names ``task_id``."""
+
+        total = sum(
+            int(db.execute(f"SELECT COUNT(*) FROM {table} WHERE task_id=?", (task_id,)).fetchone()[0])
+            for table in _TASK_ID_TABLES
+        )
+        # Projection keys are ``account|server|reset|task|flow``; match a whole
+        # component, since a new id may be a prefix of the old one.
+        total += int(db.execute(
+            "SELECT COUNT(*) FROM scheduler_projection_state WHERE instr('|' || projection_key || '|', ?) > 0",
+            (f"|{task_id}|",),
+        ).fetchone()[0])
+        return total
+
+    def _migrate_renamed_task_ids(self) -> None:
+        """Rewrite each renamed task id once; fail closed if both ids have rows.
+
+        Identity columns (``task_id``) and the composite scheduler occurrence
+        and projection keys are rewritten.  Gate facts (status, deadlines,
+        revisions, claims) are untouched, so a completed or deferred reset
+        stays completed under the new id.  Action keys and JSON payloads are
+        historical evidence and keep their original text.
+        """
+
+        pending = [
+            (old, new) for old, new in RENAMED_TASK_IDS
+            if self._task_id_row_count(self.connection, old)
+        ]
+        if not pending:
+            return
+        with self.transaction() as db:
+            for old, new in pending:
+                if self._task_id_row_count(db, old) == 0:
+                    continue
+                if self._task_id_row_count(db, new) != 0:
+                    raise TaskIdMigrationConflict(
+                        f"persisted task id {old!r} cannot be renamed to {new!r}: rows exist "
+                        "under both ids; resolve the safety store manually before starting"
+                    )
+                for table in _TASK_ID_TABLES:
+                    db.execute(f"UPDATE {table} SET task_id=? WHERE task_id=?", (new, old))
+                db.execute(
+                    "UPDATE scheduler_occurrences SET occurrence_key=REPLACE(occurrence_key, ?, ?) "
+                    "WHERE instr(occurrence_key, ?) > 0",
+                    (old, new, old),
+                )
+                db.execute(
+                    "UPDATE scheduler_projection_state SET projection_key=REPLACE(projection_key, ?, ?) "
+                    "WHERE instr(projection_key, ?) > 0",
+                    (old, new, old),
                 )
 
     def _migrate_resource_v4(self) -> None:
@@ -1168,50 +1237,6 @@ class SafetyStore:
             (task_id,),
         ).fetchall()
         return [dict(row) for row in rows]
-
-    def get_task_state(self, task_id: str) -> Optional[Dict[str, Any]]:
-        row = self.connection.execute("SELECT * FROM task_state WHERE task_id=?", (task_id,)).fetchone()
-        return dict(row) if row is not None else None
-
-    def list_task_states(self) -> List[Dict[str, Any]]:
-        rows = self.connection.execute("SELECT * FROM task_state ORDER BY task_id").fetchall()
-        return [dict(row) for row in rows]
-
-    def upsert_task_state(self, state: Mapping[str, Any], updated_at: float) -> None:
-        try:
-            task_id = str(state["task_id"])
-            completion_key = str(state["completion_key"])
-            game_day_id = str(state["game_day_id"])
-            status = str(state["status"])
-            next_due = state.get("next_due_monotonic")
-            revision = int(state["revision"])
-            last_reason = str(state.get("last_reason", ""))
-        except (KeyError, TypeError, ValueError) as exc:
-            raise StoreError("invalid task state") from exc
-        if not task_id.strip() or not completion_key.strip() or not game_day_id.strip():
-            raise StoreError("task state requires task, completion-key, and game-day identity")
-        if status not in TASK_STATE_STATUSES or revision < 0 or not math.isfinite(float(updated_at)):
-            raise StoreError("invalid task state status, revision, or update time")
-        if next_due is not None and not math.isfinite(float(next_due)):
-            raise StoreError("task state due time must be finite or None")
-        with self.transaction() as db:
-            current = db.execute("SELECT completion_key, revision FROM task_state WHERE task_id=?", (task_id,)).fetchone()
-            if current is not None and current["completion_key"] != completion_key:
-                raise StoreError("task completion key cannot change")
-            if current is not None and revision < int(current["revision"]):
-                raise StoreError("task state revision cannot move backward")
-            db.execute(
-                """INSERT INTO task_state(task_id,completion_key,game_day_id,status,next_due_monotonic,revision,last_reason,updated_at)
-                VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(task_id) DO UPDATE SET
-                game_day_id=excluded.game_day_id,status=excluded.status,next_due_monotonic=excluded.next_due_monotonic,
-                revision=excluded.revision,last_reason=excluded.last_reason,updated_at=excluded.updated_at""",
-                (task_id, completion_key, game_day_id, status, next_due, revision, last_reason, updated_at),
-            )
-            self._insert_audit(db, task_id, "task_state_updated", updated_at, {
-                "task_id": task_id, "completion_key": completion_key, "game_day_id": game_day_id,
-                "status": status, "next_due_monotonic": next_due, "revision": revision,
-                "last_reason": last_reason,
-            }, None, None, None)
 
     def get_scheduler_invocation_state(
         self,

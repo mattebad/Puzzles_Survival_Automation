@@ -7,7 +7,8 @@ from typing import Callable
 
 import cv2
 import numpy as np
-import pytesseract
+
+from scripts.bounded_tesseract import call_ocr, tesseract_data
 
 from tasks.home_atlas_vision import BLUESTACKS_PROFILE_ID, native_frame_guard
 from tasks.perception_bundle import ImmutableTargetObservation, NativeFrameIdentity
@@ -27,13 +28,16 @@ def _normalized(value):
     return " ".join(re.findall(r"[a-z0-9]+", str(value).lower()))
 
 
-def _tokens(frame, roi, *, source_frame, source_png, psm=7, scale=2):
+def _tokens(frame, roi, *, source_frame, source_png, psm=7, scale=2, whitelist: str | None = None):
     if not native_frame_guard(frame) or source_frame.runtime_profile_id != BLUESTACKS_PROFILE_ID:
         return ()
     try:
         upscale = NormalizationOp.UPSCALE_3X if scale == 3 else NormalizationOp.UPSCALE_2X
         _provenance, pixels = prepare_ocr_crop(frame, CropRoiRequest(source_frame, roi, source_png=source_png), normalization=(NormalizationOp.TO_GRAYSCALE, upscale))
-        data = pytesseract.image_to_data(pixels, config=f"--psm {psm}", output_type=pytesseract.Output.DICT, timeout=2)
+        config = f"--psm {psm}"
+        if whitelist is not None:
+            config += f" -c tessedit_char_whitelist={whitelist}"
+        data = call_ocr(tesseract_data, pixels, call_timeout=2, config=config)
     except (SemanticOcrCropError, RuntimeError, OSError, ValueError):
         return ()
     result = []
@@ -143,8 +147,24 @@ def _rank_1_context(frame, *, source_frame, source_png):
     if len(medals) != 1:
         return None
     x, y, width, height = medals[0]
-    digit = (math.floor(x + width * .29), math.floor(y + height * .1), math.ceil(x + width * .77), math.ceil(y + height * .9))
-    if _label_box(frame, digit, "1", **source, psm=10, scale=3) is None:
+    # The numeral is inside the shield, not its bright border. Including the
+    # emblem outline makes a complete badge look like an alphabetic character.
+    digit = (math.floor(x + width * .35), math.floor(y + height * .2), math.ceil(x + width * .68), math.ceil(y + height * .85))
+    # Inspect the full medal band before cropping: clipping a second numeral
+    # can make a multi-digit rank look like 1. Native numeral highlights are
+    # bright and low-saturation, unlike the surrounding golden shield.
+    highlights = cv2.inRange(
+        hsv[digit[1]:digit[3], x:x + width],
+        np.array((0, 0, 180), dtype=np.uint8),
+        np.array((179, 60, 255), dtype=np.uint8),
+    )
+    ink_x, _ink_y, ink_width, _ink_height = cv2.boundingRect(highlights)
+    if (not ink_width or x + ink_x < digit[0]
+            or x + ink_x + ink_width > digit[2]):
+        return None
+    # Read the medal's numeric field, not an unconstrained alphabetic glyph.
+    # Keep all digits available: another rank must not be coerced into Rank 1.
+    if _label_box(frame, digit, "1", **source, psm=10, scale=3, whitelist="0123456789") is None:
         return None
     return y + height / 2
 

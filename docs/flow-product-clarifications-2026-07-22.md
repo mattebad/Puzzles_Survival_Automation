@@ -24,7 +24,7 @@ Live readiness still requires focused validation and fresh flow-specific evidenc
 
 ## Read-first for later implementation or evidence work
 - AGENTS.md
-- CURRENT_HANDOFF.md
+- docs/agent/CURRENT_HANDOFF.md
 - BACKLOG.md (only the relevant flow sections)
 - tasks/flow_delivery_queue.json
 - tasks/flow_delivery_product_policy.json

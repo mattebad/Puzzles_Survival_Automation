@@ -18,8 +18,8 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
 ## Boundaries
 
 - Context classification is read-only. Flow handlers own action semantics.
-- The service scheduler uses UTC epoch `next_eligible_at` values. It never interprets
-  `tasks.scheduler.TaskState.next_due_monotonic` and does not compose two schedulers.
+- The service scheduler uses UTC epoch `next_eligible_at` values. It does not
+  compose two schedulers.
 - Fake and replay adapters have zero transport.
 - The BlueStacks adapter is supervised-only, requires a flow-bound single-use admission token,
   and can dispatch only through `SafeActionExecutor` with a bound core request/capability. The
@@ -89,7 +89,16 @@ The supported live boundary is `scripts/pnsctl.py automation-service`. The thin 
 the remaining arguments unchanged to `automation_service.cli.main`. It validates the standard
 supervised mode, BlueStacks adapter, and canonical state path
 before serving, and it does not auto-enable, unblock, register, schedule, deploy, or bypass any
-existing control gate.
+existing control gate. The other `pnsctl automation-service` subcommands (`status`, `health`,
+`enable`, `disable`, `service-enable`, `service-disable`, `emergency-stop`, `run`, `pulse`) and their
+safety notes are listed in the [operations runbook](pns-operations-runbook.md).
+
+Import direction: `scripts/pnsctl.py` imports `automation_service`, never the reverse. The fixed
+BlueStacks runtime constants and the fixed-slot binding derivation live in
+`tasks/runtime_identity.py`. Native serve receives its owner-bound application startup as the
+`application_startup` argument of `automation_service.cli.main`, which `pnsctl` supplies.
+`tests/test_architecture_imports.py` enforces zero `automation_service -> scripts.pnsctl` imports
+and ratchets the remaining `automation_service -> scripts` module edges.
 
 The normal Campaign launch shape is:
 

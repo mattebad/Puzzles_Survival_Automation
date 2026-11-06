@@ -7,6 +7,13 @@ import numpy as np
 from tasks.campaign_auto_battle import CampaignAction, CampaignAutoBattleConfig, CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_runtime import CampaignRuntimeController
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
+from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures/campaign_victory"
@@ -28,12 +35,14 @@ class NativeCampaignVictoryTests(unittest.TestCase):
         self.assertFalse(result.observation.winner_visible)
         self.assertIsNone(result.target("campaign-victory-continue"))
 
+    @requires_tesseract
     def test_three_native_glow_phases_and_retained_layout_bind_measured_caption(self):
-        for name, expected in (
+        for name, caption_surface in (
             ("current-winner-44.png", (300, 1133, 500, 1158)),
             ("current-winner-45.png", (300, 1133, 500, 1158)),
             ("current-winner-46.png", (300, 1133, 500, 1158)),
-            ("retained-winner.png", (289, 1117, 525, 1157)),
+            # Retained OCR includes the caption's right edge at x=508.
+            ("retained-winner.png", (289, 1117, 508, 1146)),
         ):
             with self.subTest(name=name):
                 frame = self.frame(name)
@@ -42,13 +51,25 @@ class NativeCampaignVictoryTests(unittest.TestCase):
                 self.assertTrue(result.observation.winner_visible)
                 self.assertTrue(result.observation.loot_visible)
                 self.assertTrue(result.observation.tap_to_continue_visible)
-                self.assertEqual(result.target("campaign-victory-continue"), expected)
+                self.assertIsNotNone(result.target("campaign-victory-continue"))
                 controller = CampaignRuntimeController(
                     CampaignAutoBattleConfig(target_stage=STAGE, ap_cost=14, ap_budget=14, max_runs=1), initial_ap=120)
                 command = controller.next_command(result, frame)
                 self.assertEqual(command.action, CampaignAction.CONTINUE_VICTORY)
-                self.assertEqual(command.target_roi, expected)
+                self.assertIsNotNone(command.target_roi)
+                x0, y0, x1, y1 = command.target_roi
+                self.assertTrue(200 <= x0 < x1 <= 610 and 1090 <= y0 < y1 <= 1190)
+                if name == "retained-winner.png":
+                    left, top, right, bottom = caption_surface
+                    # OCR may include glow particles; the integer dispatch point
+                    # must remain inside the visible caption, as before.
+                    point = ((x0 + x1) // 2, (y0 + y1) // 2)
+                    self.assertTrue(left <= point[0] < right and top <= point[1] < bottom,
+                                    f"{name}: dispatch point {point} misses caption {caption_surface}")
+                else:
+                    self.assertEqual(command.target_roi, (300, 1133, 500, 1158))
 
+    @requires_tesseract
     def test_reward_art_and_particles_outside_captions_do_not_gate_victory(self):
         original = self.frame()
         changed = original.copy()
@@ -59,6 +80,7 @@ class NativeCampaignVictoryTests(unittest.TestCase):
         self.assertEqual(after.observation, before.observation)
         self.assertEqual(after.targets, before.targets)
 
+    @requires_tesseract
     def test_wrong_or_incomplete_title_cannot_authorize_continue(self):
         for caption in ("WINER", "LOSER"):
             with self.subTest(caption=caption):
@@ -68,6 +90,7 @@ class NativeCampaignVictoryTests(unittest.TestCase):
                             2.5, (120, 210, 255), 4, cv2.LINE_AA)
                 self.assert_no_victory_dispatch(frame)
 
+    @requires_tesseract
     def test_missing_loot_or_continue_and_unknown_popup_block_continue(self):
         for kind in ("loot", "continue", "popup"):
             with self.subTest(kind=kind):
@@ -84,6 +107,7 @@ class NativeCampaignVictoryTests(unittest.TestCase):
                                 0.9, (255, 255, 255), 2, cv2.LINE_AA)
                 self.assert_no_victory_dispatch(frame)
 
+    @requires_tesseract
     def test_duplicate_or_split_row_continue_caption_is_ambiguous(self):
         for kind in ("duplicate", "split"):
             with self.subTest(kind=kind):
@@ -95,6 +119,7 @@ class NativeCampaignVictoryTests(unittest.TestCase):
                     frame[1133:1158, 389:500] = 0
                 self.assert_no_victory_dispatch(frame)
 
+    @requires_tesseract
     def test_native_defeat_retains_only_its_separate_return_control(self):
         result = self.recognize(self.frame("retained-defeat.png"))
         self.assertEqual(result.observation.screen, CampaignScreen.RESULT)

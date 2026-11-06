@@ -7,9 +7,6 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import cv2
-import numpy as np
-
 from scripts import flow_delivery_ultimate_challenge_bluestacks as delivery
 from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
@@ -19,48 +16,13 @@ from tasks.ultimate_challenge_daily import (
     evaluate_already_completed, load_reset_window_state, record_pending_home,
     save_reset_window_state,
 )
+from tests.support.ultimate import RESET, flee_proof, write_result
+from tests.support.environment import requires_tesseract
 
 
-RESET = "game-day-2026-10-29"
+
 ROOT = Path(__file__).resolve().parents[1]
 HOME = ROOT / "tests/fixtures/nova_praise_preflight/zoomed-home-a.png"
-
-
-def write_result(session, result, events):
-    session.mkdir(parents=True, exist_ok=True)
-    (session / "frames").mkdir(exist_ok=True)
-    (session / "runtime").mkdir(exist_ok=True)
-    (session / "result.json").write_text(json.dumps(result), encoding="utf-8")
-    (session / "events.jsonl").write_text('{"type":"route"}\n', encoding="utf-8")
-    (session / "runtime/events.jsonl").write_text("".join(json.dumps(row) + "\n" for row in events), encoding="utf-8")
-    for name in ("ledger.jsonl", "journal.jsonl", "capability-audit.jsonl"):
-        (session / name).write_text('{"status":"retained"}\n', encoding="utf-8")
-
-
-def flee_proof(session):
-    session.mkdir(parents=True, exist_ok=True)
-    frames = session / "frames"
-    frames.mkdir(exist_ok=True)
-    captures = []
-    for name, shade in (("before", 50), ("after", 80)):
-        path = frames / f"{name}.png"
-        cv2.imwrite(str(path), np.full((1280, 800, 3), shade, dtype=np.uint8))
-        captures.append({"type": "capture", "path": str(path.resolve()), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
-    before, after = [row["sha256"] for row in captures]
-    result = {
-        "flow_id": delivery.FLOW_ID, "reset_identity": RESET,
-        "terminal": "blocked_fail_closed", "input_count": 1,
-        "completed_actions": [{"action": "tap_flee", "before_sha256": before, "post_sha256": after}],
-    }
-    events = captures + [
-        {"type": "dispatch", "target_identity": "tap_flee", "execute": True, "source_sha256": before, "action_key": "flee-one"},
-        {"type": "reconcile", "action_key": "flee-one", "status": "confirmed", "post_sha256": after},
-    ]
-    write_result(session, result, events)
-    wrapper = {"flow_id": delivery.FLOW_ID, "serial": pnsctl.BLUESTACKS_SERIAL,
-               "native_width": 800, "native_height": 1280, "ultimate_challenge_result": result}
-    (session / "flow-delivery-result.json").write_text(json.dumps(wrapper), encoding="utf-8")
-    return result
 
 
 class UltimateRecoveryTests(unittest.TestCase):
@@ -98,6 +60,7 @@ class UltimateRecoveryTests(unittest.TestCase):
         write_result(output, result, [])
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
+    @requires_tesseract
     def test_failed_home_records_pending_and_default_resumes_without_another_flee(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -122,31 +85,51 @@ class UltimateRecoveryTests(unittest.TestCase):
             verdict = delivery.verify_ultimate_challenge_daily({"result": result, "session_directory": str(final_dir)}, {}, {})
             self.assertEqual(verdict["status"], "verified")
             self.assertTrue(verdict["terminal_recovery_verified"])
-            with patch.object(pnsctl, "_retained_flow_result", return_value=(final_dir, result)), \
-                 patch.object(pnsctl, "bluestacks_verify_flow", return_value=json.dumps(verdict)) as verify:
-                summary, verification = pnsctl._conductor_live_summary(delivery.FLOW_ID, {
-                    "status": "completed", "runtime_session_directory": str(final_dir),
-                })
-            self.assertEqual(summary["status"], "completed")
-            self.assertEqual(verification["status"], "verified")
-            verify.assert_called_once()
             done = load_reset_window_state(state_path)
             self.assertIsNone(done.pending_home_session)
             self.assertEqual(done.last_success_reset_identity, RESET)
             self.assertIn("--daily", commands[0])
             self.assertIn("--post-flee-home-only", commands[1])
 
+    @requires_tesseract
     def test_explicit_recovery_adopts_existing_confirmed_flee(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             prior = root / "prior"
             flee_proof(prior)
+            alias_parent = root / "alias-parent"
+            alias_parent.mkdir()
+            prior_reference = alias_parent / ".." / "prior"
             with self.runtime(root / "recovery", root / "reset.json") as lease, patch.object(delivery.subprocess, "run", side_effect=self.child) as child:
-                lease.update(recovery_only=True, recovery_session=str(prior))
+                lease.update(recovery_only=True, recovery_session=str(prior_reference))
                 result = json.loads(delivery.run_ultimate_challenge_daily({"development_session": True, "active_flow_id": delivery.FLOW_ID}, lease))
             self.assertEqual(result["status"], "completed")
             child.assert_called_once()
             self.assertIn("--post-flee-home-only", child.call_args.args[0])
+
+    def test_explicit_recovery_rejects_linked_session_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prior = root / "prior"
+            flee_proof(prior)
+            linked_prior = root / "linked-prior"
+            try:
+                linked_prior.symlink_to(prior, target_is_directory=True)
+            except (OSError, NotImplementedError) as exc:
+                if (isinstance(exc, (PermissionError, NotImplementedError))
+                        or getattr(exc, "winerror", None) == 1314):
+                    self.skipTest("host does not permit symbolic-link creation")
+                raise
+            with self.runtime(root / "recovery", root / "reset.json") as lease, patch.object(
+                delivery.subprocess, "run", side_effect=self.child
+            ) as child:
+                lease.update(recovery_only=True, recovery_session=str(linked_prior))
+                with self.assertRaisesRegex(pnsctl.OperatorError, "recovery evidence rejected"):
+                    delivery.run_ultimate_challenge_daily(
+                        {"development_session": True, "active_flow_id": delivery.FLOW_ID},
+                        lease,
+                    )
+            child.assert_not_called()
 
     def test_bad_prior_or_pending_proof_blocks_before_any_child(self):
         for mutation in ("reset", "profile", "unknown", "corrupt", "digest", "state_reset"):

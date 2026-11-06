@@ -43,7 +43,7 @@
           "enhance_control_visible": true,
           "enhancement_result_visible": false,
           "evidence_refs": [
-            "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T205035747118Z\\runtime\\enhancement-family-20260818T205036133767Z\\frames\\0002-use-one-star-enhancer-immediate-before.png"
+            "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T205035747118Z\\runtime\\enhancement-family-20260818T205036133767Z\\frames\\0002-use-one-star-enhancer-immediate-before.png"
           ],
           "game_day_id": "local-2026-08-18-enhancement-gear",
           "item_equipped": true,
@@ -84,10 +84,10 @@
         "reconciliation": "zero-input settled successor",
         "resource_affecting_action_key": "enhancement:gear:enhancement-use:20260818T205042993012Z",
         "resource_affecting_dispatch_count": 1,
-        "runtime_session": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T205035747118Z\\runtime\\enhancement-family-20260818T205036133767Z",
+        "runtime_session": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T205035747118Z\\runtime\\enhancement-family-20260818T205036133767Z",
         "source_frame_sha256": "ae32dd8d954508683232b6f3f50fd59fae8264e960cde0ad933bf60e431b3e31",
         "status": "completed",
-        "successor_evidence_ref": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T205345154231Z\\runtime\\enhancement-family-20260818T205345549209Z\\frames\\0001-enhancement-gear-recovery-source.png",
+        "successor_evidence_ref": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T205345154231Z\\runtime\\enhancement-family-20260818T205345549209Z\\frames\\0001-enhancement-gear-recovery-source.png",
         "successor_observation": {
           "action_mode": "ENHANCE",
           "auto_select_enabled": false,
@@ -97,7 +97,7 @@
           "enhance_control_visible": false,
           "enhancement_result_visible": true,
           "evidence_refs": [
-            "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T205345154231Z\\runtime\\enhancement-family-20260818T205345549209Z\\frames\\0001-enhancement-gear-recovery-source.png"
+            "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T205345154231Z\\runtime\\enhancement-family-20260818T205345549209Z\\frames\\0001-enhancement-gear-recovery-source.png"
           ],
           "game_day_id": "local-2026-08-18-enhancement-gear",
           "item_equipped": true,
@@ -147,7 +147,7 @@
           "enhance_control_visible": true,
           "enhancement_result_visible": false,
           "evidence_refs": [
-            "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T210658901489Z\\runtime\\enhancement-family-20260818T210659266770Z\\frames\\0002-use-one-star-enhancer-immediate-before.png"
+            "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T210658901489Z\\runtime\\enhancement-family-20260818T210659266770Z\\frames\\0002-use-one-star-enhancer-immediate-before.png"
           ],
           "game_day_id": "local-2026-08-18-enhancement-gear",
           "item_equipped": true,
@@ -188,10 +188,10 @@
         "reconciliation": "zero-input settled successor",
         "resource_affecting_action_key": "enhancement:chip:enhancement-use:20260818T210707249806Z",
         "resource_affecting_dispatch_count": 1,
-        "runtime_session": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T210658901489Z\\runtime\\enhancement-family-20260818T210659266770Z",
+        "runtime_session": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T210658901489Z\\runtime\\enhancement-family-20260818T210659266770Z",
         "source_frame_sha256": "66609e8892802ffccc19e593a75d6685eb76efc7850fbbb9cf9d2237b95cfe16",
         "status": "completed",
-        "successor_evidence_ref": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T210812808888Z\\runtime\\enhancement-family-20260818T210813209745Z\\frames\\0001-enhancement-chip-recovery-source.png",
+        "successor_evidence_ref": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T210812808888Z\\runtime\\enhancement-family-20260818T210813209745Z\\frames\\0001-enhancement-chip-recovery-source.png",
         "successor_observation": {
           "action_mode": "ENHANCE",
           "auto_select_enabled": false,
@@ -201,7 +201,7 @@
           "enhance_control_visible": false,
           "enhancement_result_visible": true,
           "evidence_refs": [
-            "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T210812808888Z\\runtime\\enhancement-family-20260818T210813209745Z\\frames\\0001-enhancement-chip-recovery-source.png"
+            "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T210812808888Z\\runtime\\enhancement-family-20260818T210813209745Z\\frames\\0001-enhancement-chip-recovery-source.png"
           ],
           "game_day_id": "local-2026-08-18-enhancement-gear",
           "item_equipped": true,
@@ -251,7 +251,7 @@
           "enhance_control_visible": true,
           "enhancement_result_visible": false,
           "evidence_refs": [
-            "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T211634239167Z\\runtime\\enhancement-family-20260818T211634622070Z\\frames\\0002-use-one-star-enhancer-immediate-before.png"
+            "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T211634239167Z\\runtime\\enhancement-family-20260818T211634622070Z\\frames\\0002-use-one-star-enhancer-immediate-before.png"
           ],
           "game_day_id": "local-2026-08-18-enhancement-gear",
           "item_equipped": true,
@@ -292,10 +292,10 @@
         "reconciliation": "zero-input settled successor",
         "resource_affecting_action_key": "enhancement:module:enhancement-use:20260818T211642487970Z",
         "resource_affecting_dispatch_count": 1,
-        "runtime_session": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T211634239167Z\\runtime\\enhancement-family-20260818T211634622070Z",
+        "runtime_session": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T211634239167Z\\runtime\\enhancement-family-20260818T211634622070Z",
         "source_frame_sha256": "a440d7f5475989071bd00f42c1e745c55416a959a66bef16dbc21fbf45ee1706",
         "status": "completed",
-        "successor_evidence_ref": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T211727208203Z\\runtime\\enhancement-family-20260818T211727599863Z\\frames\\0001-enhancement-module-recovery-source.png",
+        "successor_evidence_ref": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T211727208203Z\\runtime\\enhancement-family-20260818T211727599863Z\\frames\\0001-enhancement-module-recovery-source.png",
         "successor_observation": {
           "action_mode": "ENHANCE",
           "auto_select_enabled": false,
@@ -305,7 +305,7 @@
           "enhance_control_visible": false,
           "enhancement_result_visible": true,
           "evidence_refs": [
-            "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T211727208203Z\\runtime\\enhancement-family-20260818T211727599863Z\\frames\\0001-enhancement-module-recovery-source.png"
+            "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\development-sessions\\ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION-20260818T211727208203Z\\runtime\\enhancement-family-20260818T211727599863Z\\frames\\0001-enhancement-module-recovery-source.png"
           ],
           "game_day_id": "local-2026-08-18-enhancement-gear",
           "item_equipped": true,

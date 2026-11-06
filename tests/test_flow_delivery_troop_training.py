@@ -46,6 +46,9 @@ from tasks.troop_training import (
     TrainingScreenObservation,
     TroopTrainingConfig,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tasks.runtime_identity import BLUESTACKS_PACKAGE, BLUESTACKS_SERIAL
+from tests.support.local_captures import LOCAL_CAPTURES, require_capture, requires_local_captures
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -342,7 +345,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
 
         observation = {
             "device_state": "device",
-            "foreground_package": pnsctl.PACKAGE,
+            "foreground_package": BLUESTACKS_PACKAGE,
             "native_width": 800,
             "native_height": 1280,
             "frame_sha256": "0" * 64,
@@ -427,6 +430,8 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         ), patch(
             "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer.localize",
             return_value=SimpleNamespace(recognized=False, zoom_identity=None),
+        ), patch(
+            "scripts.troop_training_bluestacks.recognize_training_speedup", return_value=None,
         ):
             result = TroopTrainingReturnHomeRoute(runtime, require_active_queue=True).run()
         self.assertEqual(result.status, "blocked")
@@ -477,6 +482,8 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         ), patch(
             "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer",
             return_value=localizer,
+        ), patch(
+            "scripts.troop_training_bluestacks.recognize_training_speedup", return_value=None,
         ):
             result = TroopTrainingReturnHomeRoute(runtime, require_active_queue=True).run()
         self.assertEqual(result.status, "blocked")
@@ -517,17 +524,21 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
             "scripts.troop_training_bluestacks.recognize_home", return_value=home
         ), patch("scripts.troop_training_bluestacks.recognize_training", return_value=training), patch(
             "scripts.troop_training_bluestacks.load_home_atlas", return_value=object()
-        ), patch("scripts.troop_training_bluestacks.BlueStacksHomeLocalizer", return_value=localizer):
+        ), patch("scripts.troop_training_bluestacks.BlueStacksHomeLocalizer", return_value=localizer), patch(
+            "scripts.troop_training_bluestacks.recognize_training_speedup", return_value=None,
+        ), patch(
+            "scripts.troop_training_bluestacks.forbidden_atlas_entry_surface", return_value=None,
+        ):
             result = TroopTrainingReturnHomeRoute(runtime, require_active_queue=True).run()
         self.assertEqual(result.status, "completed")
         self.assertEqual(result.actions_completed, 0)
         self.assertTrue(result.final_home_recognized)
         self.assertEqual(runtime.inputs, [])
 
+    @requires_local_captures
     def test_retained_canonical_home_frame_has_spatial_hud_and_facility_proof(self) -> None:
-        frame_path = ROOT / ".local-captures" / "flow-delivery" / FLOW_ID / "run-20260813T175557906902Z" / "troop-training-20260813T175558441756Z" / "frames" / "0003-return-home-final.png"
-        if not frame_path.is_file():
-            self.skipTest("retained post-recovery Home frame is unavailable")
+        frame_path = LOCAL_CAPTURES / "flow-delivery" / FLOW_ID / "run-20260813T175557906902Z" / "troop-training-20260813T175558441756Z" / "frames" / "0003-return-home-final.png"
+        require_capture(frame_path)
         import cv2
 
         from tasks.troop_training_vision import recognize_home
@@ -537,11 +548,11 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         self.assertEqual(set(observation.facilities), {"fighter", "shooter", "rider", "vehicle"})
         self.assertGreaterEqual(len(observation.diagnostics["home_hud_values"]), 3)
 
+    @requires_local_captures
     def test_retained_recovery_home_proof_accepts_clipped_facility_labels(self) -> None:
         """HUD + canonical Atlas remain sufficient when a camera clips a label."""
-        frame_path = ROOT / ".local-captures" / "flow-delivery" / FLOW_ID / "run-20260813T191910848863Z" / "troop-training-20260813T191911410733Z" / "frames" / "0003-return-home-final.png"
-        if not frame_path.is_file():
-            self.skipTest("retained clipped-label recovery Home frame unavailable")
+        frame_path = LOCAL_CAPTURES / "flow-delivery" / FLOW_ID / "run-20260813T191910848863Z" / "troop-training-20260813T191911410733Z" / "frames" / "0003-return-home-final.png"
+        require_capture(frame_path)
         import cv2
 
         from scripts.troop_training_bluestacks import _canonical_home_proof
@@ -595,7 +606,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         self.assertIn(RECOVERY_ID, pnsctl._BLUESTACKS_RECOVERY_HANDLERS)
 
     def test_dry_run_is_bounded_and_does_not_dispatch(self) -> None:
-        with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", ROOT / ".local-captures" / "test-flow-delivery"):
+        with tempfile.TemporaryDirectory() as directory, patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", Path(directory)):
             result = json.loads(run_troop_training_consolidation({}, {"owner": "test", "max_inputs": 32}, live=False))
         self.assertEqual(result["flow_id"], FLOW_ID)
         self.assertFalse(result["dispatch"])
@@ -609,7 +620,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
         ):
             run_troop_training_consolidation({}, {}, live=True)
     def test_recovery_is_observe_only(self) -> None:
-        with patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", ROOT / ".local-captures" / "test-flow-delivery"):
+        with tempfile.TemporaryDirectory() as directory, patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", Path(directory)):
             result = json.loads(recover_troop_training_consolidation({}, {}))
         self.assertEqual(result["flow_id"], FLOW_ID)
         self.assertEqual(result["status"], "observed")
@@ -625,7 +636,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
 
         observation = {
             "device_state": "device",
-            "foreground_package": pnsctl.PACKAGE,
+            "foreground_package": BLUESTACKS_PACKAGE,
             "native_width": 800,
             "native_height": 1280,
             "frame_sha256": "0" * 64,
@@ -1106,7 +1117,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                 "schema_version": 1,
                 "flow_id": FLOW_ID,
                 "status": "blocked",
-                "serial": pnsctl.BLUESTACKS_SERIAL,
+                "serial": BLUESTACKS_SERIAL,
                 "native_width": 800,
                 "native_height": 1280,
                 "runtime_owner": "test",
@@ -1550,7 +1561,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                 "source_localization": {
                     "recognized": True,
                     "platform": "BlueStacks 5 / Android",
-                    "profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+                    "profile_id": ACTIVE_RUNTIME_PROFILE_ID,
                     "zoom_identity": "fully_zoomed_out",
                     "screen_to_atlas": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
                     "frame_sha256": frame_hash,
@@ -1747,7 +1758,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                     "source_localization": {
                         "recognized": True,
                         "platform": "BlueStacks 5 / Android",
-                        "profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+                        "profile_id": ACTIVE_RUNTIME_PROFILE_ID,
                         "zoom_identity": "fully_zoomed_out",
                         "screen_to_atlas": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
                         "frame_sha256": frame_hash,
@@ -1766,7 +1777,7 @@ class TroopTrainingFlowDeliveryTests(unittest.TestCase):
                 "schema_version": 1,
                 "flow_id": FLOW_ID,
                 "status": "completed",
-                "serial": pnsctl.BLUESTACKS_SERIAL,
+                "serial": BLUESTACKS_SERIAL,
                 "native_width": 800,
                 "native_height": 1280,
                 "runtime_owner": "test",

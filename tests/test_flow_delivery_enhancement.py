@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from dataclasses import replace
+from datetime import datetime, timedelta
 import hashlib
 import json
+import os
+import stat
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
@@ -11,6 +16,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
+from scripts import pnsctl
 import scripts.flow_delivery_enhancement_bluestacks as delivery
 import scripts.navigation_development_boundary as boundary
 from scripts.navigation_development_boundary import (
@@ -40,13 +46,20 @@ from scripts.flow_delivery_enhancement_bluestacks import (
     run_enhancement_family,
     verify_enhancement_family,
 )
-from scripts import pnsctl
 from tasks.enhancement import (
-    BLUESTACKS_NATIVE_TARGET_PROVENANCE,
     BLUESTACKS_RUNTIME_PROFILE_ID,
     ENHANCEMENT_SCREEN,
+    EnhancementObservation,
 )
+from tasks.profile import BLUESTACKS_NATIVE_TARGET_PROVENANCE
 from tasks.gameplay_flow_contracts import load_flow_contract
+from tests.support.enhancement_family import (
+    family_verifier_structure,
+    write_native_frame,
+    write_reset_occurrence_state as _write_reset_occurrence_state_support,
+)
+from tests.support.environment import requires_tesseract
+
 
 
 GEOMETRY = {
@@ -162,217 +175,503 @@ def _ocr(frame: np.ndarray, roi):
     return values
 
 
-def _write_native_frame(session: Path, name: str, marker: int) -> tuple[str, str]:
-    frame = np.full((1280, 800, 3), marker, dtype=np.uint8)
-    ok, encoded = cv2.imencode(".png", frame)
-    assert ok
-    reference = f"frames/{name}.png"
-    payload = encoded.tobytes()
-    (session / reference).write_bytes(payload)
-    return reference, hashlib.sha256(payload).hexdigest()
+_FIXTURE_CONFIRM_TARGET = (485, 1180, 651, 1245)
+_FIXTURE_SELECTION_TARGETS = {
+    "modal_enhance": (450, 800, 650, 870),
+    "baseline_card": (190, 610, 280, 700),
+    "quantity_use": (270, 760, 530, 840),
+}
 
 
-def _observation_payload(
-    variant: str,
-    digest: str,
-    reference: str,
-    *,
-    level: int,
-    successor: bool,
-) -> dict[str, object]:
-    identity = f"commander-{variant}-1"
-    return {
-        "screen_state": ENHANCEMENT_SCREEN,
-        "selected_tab": variant.upper(),
-        "selected_item_kind": variant.upper(),
-        "selected_item_identity": identity,
-        "item_equipped": True,
-        "item_level": level,
-        "target_identity": "enhancement-confirm",
-        "target_roi": [450, 960, 560, 1010],
-        "panel_bounds": [0, 0, 800, 1280],
-        "control_class": "ENHANCE",
-        "enhance_control_visible": True,
-        "action_mode": "ENHANCE",
-        "material_identity": f"{variant}-material-one-star",
-        "material_known": True,
-        "material_available": True,
-        "material_star": 1,
-        "material_quantity": 1,
-        "quantity": 1,
-        "enhancement_result_visible": successor,
-        "result_identity": identity if successor else "",
-        "game_day_id": "local-day",
-        "target_provenance": BLUESTACKS_NATIVE_TARGET_PROVENANCE,
-        "source_frame_sha256": digest,
-        "evidence_refs": [reference],
-        "overlay_state": "none",
-        "runtime_profile_id": BLUESTACKS_RUNTIME_PROFILE_ID,
-        "recognized": True,
-        "result_spatially_associated": successor,
-    }
-
-
-def _family_verifier_structure(session: Path) -> dict[str, object]:
-    (session / "frames").mkdir(parents=True)
-    frames: list[str] = []
-    events: list[dict[str, object]] = []
-    proofs: list[dict[str, object]] = []
-    stages: list[dict[str, object]] = []
-    source_hash = ""
-    terminal_hash = ""
-    for index, variant in enumerate(("gear", "chip", "module")):
-        before_ref, before_hash = _write_native_frame(
-            session, f"{variant}-before", index * 2 + 1
-        )
-        after_ref, after_hash = _write_native_frame(
-            session, f"{variant}-after", index * 2 + 2
-        )
-        frames.extend((before_ref, after_ref))
-        source_hash = source_hash or before_hash
-        terminal_hash = after_hash
-        action_key = f"enhancement:{variant}:enhancement-use:1"
-        stages.extend(
-            [
-                {
-                    "kind": "recognition",
-                    "stage": "use-one-star-enhancer-immediate-before",
-                    "frame_sha256": before_hash,
-                    "recognized": True,
-                    "variant": variant,
-                },
-                {
-                    "kind": "recognition",
-                    "stage": "enhancement-settle-0",
-                    "frame_sha256": after_hash,
-                    "recognized": True,
-                    "variant": variant,
-                },
-            ]
-        )
-        events.extend(
-            [
-                {"type": "capture", "sha256": before_hash},
-                {
-                    "type": "dispatch",
-                    "action_key": action_key,
-                    "target_identity": "enhancement-use",
-                    "source_sha256": before_hash,
-                },
-                {
-                    "type": "dispatch_classification",
-                    "action_key": action_key,
-                    "resource_affecting": True,
-                    "consequential": False,
-                },
-            ]
-        )
-        proofs.append(
-            {
-                "variant": variant,
-                "status": "completed",
-                "resource_affecting_dispatch_count": 1,
-                "resource_affecting_action_key": action_key,
-                "before_observation": _observation_payload(
-                    variant, before_hash, before_ref, level=4, successor=False
-                ),
-                "successor_observation": _observation_payload(
-                    variant, after_hash, after_ref, level=5, successor=True
-                ),
-            }
-        )
-    terminal_ref, terminal_hash = _write_native_frame(
-        session, "home-terminal", 99
-    )
-    frames.append(terminal_ref)
-    events.append({"type": "capture", "sha256": terminal_hash})
-    stages.append(
-        {
-            "kind": "recognition",
-            "stage": "return-home-immediate-post",
-            "frame_sha256": terminal_hash,
-            "recognized": True,
-            "variant": "module",
-        }
-    )
-    route = {
-        "status": "completed",
-        "postcondition_verified": True,
-        "terminal_recognized": True,
-        "source_frame_sha256": source_hash,
-        "terminal_frame_sha256": terminal_hash,
-        "resource_affecting_dispatch_count": 3,
-        "category_results": proofs,
-        "stages": stages,
-        "state_transition": [
-            "HOME_CANONICAL",
-            "COMMANDER_INFO_RECOGNIZED",
-            "GEAR_SUCCESSOR_RECONCILED",
-            "CHIP_SUCCESSOR_RECONCILED",
-            "MODULE_SUCCESSOR_RECONCILED",
-            "SAFE_TERMINAL_RECOGNIZED",
-        ],
-    }
-    trace = {
-        "trace_count": 1,
-        "read_only": True,
-        "input_authority": False,
-        "flow_id": FLOW_ID,
-        "proof_topology": "continuous",
-        "initial_frame_sha256": source_hash,
-        "transport_count": 3,
-        "resource_affecting_dispatch_count": 3,
-    }
-    result = {
-        "schema_version": 1,
-        "flow_id": FLOW_ID,
-        "status": "completed",
-        "variant": "family",
-        "serial": pnsctl.BLUESTACKS_SERIAL,
-        "native_width": 800,
-        "native_height": 1280,
-        "runtime_owner": "test-owner",
-        "terminal_runtime_state": "recognized_home",
-        "actions": [
-            {
-                "action_class": "ordinary_development_resource_affecting_confirmation",
-                "path": "home_to_ordered_enhancement_family_to_home",
-                "outcome": "completed",
-            }
-        ],
-        "frames": frames,
-        "required_artifacts": ["events_path"],
-        "events_path": "events.jsonl",
-        "dispatch_count": 3,
-        "input_count": 3,
-        "resource_affecting_dispatch_count": 3,
-        "enhancement_result": route,
-        "proof_topology": "continuous",
-        "initial_observation": {
-            "frame_sha256": source_hash,
-            "frame_path": frames[0],
-            "invocation_id": "enhancement-fixture",
-        },
-        "initial_frame_sha256": source_hash,
-        "causal_trace_count": 1,
-        "causal_trace": trace,
-        "effect_reconciliation_required": False,
-        "production_registration": "NOT_REGISTERED",
-        "scheduler_enabled": False,
-    }
-    (session / "events.jsonl").write_text(
-        "".join(json.dumps(row) + "\n" for row in events),
-        encoding="utf-8",
-    )
-    (session / "flow-delivery-result.json").write_text(
-        json.dumps(result, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+def _load_family_fixture(session: Path) -> dict[str, object]:
+    result = json.loads(
+        (session / "flow-delivery-result.json").read_text(encoding="utf-8")
     )
     return {
         "result": result,
         "session_directory": str(session),
-        "frames": frames,
+        "frames": result["frames"],
     }
+
+
+def _prepare_family_fixture(
+    structure: dict[str, object], reset: str = "local-2026-10-29-enhancement-family",
+) -> dict[str, object]:
+    """Give shared structural fixtures current native facts and causal events."""
+    result = structure["result"]
+    session = Path(structure["session_directory"]).resolve()
+    route = result["enhancement_result"]
+    route["reset_identity"] = reset
+    result["reset_identity"] = reset
+
+    marker = 20
+    initial_ref, initial_hash = write_native_frame(session, "home-initial", marker)
+    marker += 1
+    refs = list(result["frames"]) + [initial_ref]
+    rows: list[dict[str, object]] = []
+    timestamp = datetime.fromisoformat(
+        f"{reset[6:16]}T00:00:00+00:00"
+    )
+    event_number = 0
+    capture_number = 0
+
+    def next_timestamp() -> str:
+        nonlocal event_number
+        event_number += 1
+        return (timestamp + timedelta(seconds=event_number)).isoformat()
+
+    def capture(reference: str, digest: str) -> None:
+        nonlocal capture_number
+        capture_number += 1
+        rows.append(
+            {
+                "type": "capture",
+                "path": reference,
+                "sha256": digest,
+                "captured_monotonic": float(capture_number),
+                "timestamp": next_timestamp(),
+            }
+        )
+
+    def dispatch(
+        identity: str, target: tuple[int, int, int, int], digest: str,
+        action_key: str,
+    ) -> None:
+        rows.append(
+            {
+                "type": "dispatch",
+                "target_identity": identity,
+                "target_roi": list(target),
+                "point": [(target[0] + target[2]) // 2, (target[1] + target[3]) // 2],
+                "action_key": action_key,
+                "source_sha256": digest,
+                "execute": True,
+                "consequential": False,
+                "action_class": "navigation",
+                "timestamp": next_timestamp(),
+            }
+        )
+
+    capture(initial_ref, initial_hash)
+    route_actions: list[dict[str, object]] = []
+    for proof in route["category_results"]:
+        variant = proof["variant"]
+        before = proof["before_observation"]
+        after = proof.get("successor_observation")
+        before_ref = before["evidence_refs"][0]
+        before_hash = before["source_frame_sha256"]
+        after_hash = (
+            after["source_frame_sha256"] if after
+            else next(
+                stage["frame_sha256"] for stage in route["stages"]
+                if stage["variant"] == variant and stage["stage"] == "enhancement-settle-0"
+            )
+        )
+        after_ref = after["evidence_refs"][0] if after else next(
+            reference for reference in result["frames"]
+            if _decode_native(_retained_path(session, reference, "fixture successor")) == after_hash
+        )
+        modal_ref, modal_hash = write_native_frame(session, f"{variant}-modal", marker)
+        marker += 1
+        baseline_ref, baseline_hash = write_native_frame(session, f"{variant}-baseline", marker)
+        marker += 1
+        quantity_ref, quantity_hash = write_native_frame(session, f"{variant}-quantity", marker)
+        marker += 1
+        refs.extend((modal_ref, baseline_ref, quantity_ref))
+
+        before.update(
+            {
+                "target_identity": "enhancement-confirm",
+                "target_roi": list(_FIXTURE_CONFIRM_TARGET),
+                "item_equipped": True,
+                "item_level": 4,
+                "material_quantity": 1,
+                "quantity": 1,
+                "material_inventory_count": 9562,
+                "item_exp_current": 10,
+                "item_exp_required": 260000,
+                "item_exp_preview": 20,
+                "selection_baseline_frame_sha256": baseline_hash,
+                "selection_baseline_evidence_ref": baseline_ref,
+                "material_slot_facts": [
+                    [0, 4, 0, 2], [1, 1, 1, 9562], [2, 0, 0, 100],
+                ],
+                "game_day_id": reset,
+                "source_frame_sha256": before_hash,
+                "evidence_refs": [before_ref, modal_ref, baseline_ref, quantity_ref],
+                "enhancement_result_visible": False,
+                "result_identity": "",
+                "result_spatially_associated": False,
+                "recognized": True,
+            }
+        )
+        if after is not None:
+            after.update(
+                {
+                    "target_identity": "enhancement-confirm",
+                    "target_roi": list(_FIXTURE_CONFIRM_TARGET),
+                    "item_equipped": False,
+                    "item_level": 4,
+                    "material_quantity": 0,
+                    "quantity": 0,
+                    "material_inventory_count": 9561,
+                    "item_exp_current": 20,
+                    "item_exp_required": 260000,
+                    "item_exp_preview": None,
+                    "selection_baseline_frame_sha256": None,
+                    "selection_baseline_evidence_ref": None,
+                    "material_slot_facts": [
+                        [0, 4, 0, 2], [1, 1, 0, 9561], [2, 0, 0, 100],
+                    ],
+                    "game_day_id": reset,
+                    "source_frame_sha256": after_hash,
+                    "evidence_refs": [after_ref],
+                    "enhancement_result_visible": True,
+                    "result_identity": before["selected_item_identity"],
+                    "result_spatially_associated": True,
+                    "recognized": True,
+                }
+            )
+        proof["runtime_session"] = str(session)
+        proof["source_frame_sha256"] = before_hash
+
+        action_key = proof["resource_affecting_action_key"]
+        for reference, digest, identity, target in (
+            (modal_ref, modal_hash, f"open-enhance:{variant}", _FIXTURE_SELECTION_TARGETS["modal_enhance"]),
+            (baseline_ref, baseline_hash, f"material-select:{variant}", _FIXTURE_SELECTION_TARGETS["baseline_card"]),
+            (quantity_ref, quantity_hash, "quantity-use", _FIXTURE_SELECTION_TARGETS["quantity_use"]),
+            (before_ref, before_hash, "enhancement-use", _FIXTURE_CONFIRM_TARGET),
+        ):
+            capture(reference, digest)
+            key = (
+                action_key if identity == "enhancement-use"
+                else f"enhancement:{variant}:{identity}:fixture"
+            )
+            dispatch(identity, target, digest, key)
+            if identity == "enhancement-use":
+                rows.append(
+                    {
+                        "type": "dispatch_classification",
+                        "action_key": key,
+                        "resource_affecting": True,
+                        "consequential": False,
+                        "timestamp": next_timestamp(),
+                    }
+                )
+        capture(after_ref, after_hash)
+        route_actions.append(
+            {
+                "label": "use-one-star-enhancer",
+                "before_sha256": before_hash,
+                "immediate_post_sha256": after_hash,
+                "after_sha256": after_hash,
+                "recovery_used": False,
+                "action_key": action_key,
+            }
+        )
+
+    terminal_hash = route["terminal_frame_sha256"]
+    terminal_ref = next(
+        reference for reference in result["frames"]
+        if _decode_native(_retained_path(session, reference, "fixture terminal")) == terminal_hash
+    )
+    capture(terminal_ref, terminal_hash)
+    route["stages"].insert(
+        0,
+        {
+            "kind": "recognition",
+            "stage": "home-source",
+            "frame_sha256": initial_hash,
+            "recognized": True,
+            "variant": "gear",
+        },
+    )
+    result["frames"] = refs
+    result["initial_observation"] = {
+        "frame_sha256": initial_hash,
+        "frame_path": initial_ref,
+        "invocation_id": "enhancement-family-fixture",
+    }
+    result["initial_frame_sha256"] = initial_hash
+    result["dispatch_count"] = len([row for row in rows if row["type"] == "dispatch"])
+    result["input_count"] = result["dispatch_count"]
+    result["resource_affecting_dispatch_count"] = 3
+    result["actions"] = route_actions
+    result["causal_trace"] = {
+        **result["causal_trace"],
+        "initial_frame_sha256": initial_hash,
+        "transport_count": result["dispatch_count"],
+        "resource_affecting_dispatch_count": 3,
+    }
+    (session / "events.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+    )
+    (session / "flow-delivery-result.json").write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    structure["frames"] = refs
+    return structure
+
+
+def _write_reset_fixture(root: Path, reset: str, *, pending: bool = False):
+    _write_reset_occurrence_state_support(root, reset, pending=pending)
+    session = root / "retained-runtime"
+    structure = _prepare_family_fixture(_load_family_fixture(session), reset)
+    proofs = structure["result"]["enhancement_result"]["category_results"]
+    categories = {
+        proof["variant"]: {**proof, "runtime_session": str(session.resolve())}
+        for proof in proofs
+    }
+    (root / "family-progress.json").write_text(
+        json.dumps(
+            {"schema_version": 1, "flow_id": FLOW_ID, "categories": categories},
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    return categories
+
+
+@contextmanager
+def _family_replay_patches(structure: dict[str, object]):
+    result = structure["result"]
+    route = result["enhancement_result"]
+    proofs = {
+        proof["variant"]: (
+            delivery._observation(proof["before_observation"], f"{proof['variant']} fixture before"),
+            delivery._observation(proof["successor_observation"], f"{proof['variant']} fixture successor"),
+        )
+        for proof in route["category_results"]
+    }
+    allowed_home = {
+        result["initial_frame_sha256"],
+        route["terminal_frame_sha256"],
+    }
+
+    def commander(
+        _frame, *, variant, stage, source_frame_sha256, **_kwargs,
+    ):
+        before, after = proofs[variant]
+        expected = after if stage == "post" else before
+        return SimpleNamespace(
+            recognized=expected.source_frame_sha256 == source_frame_sha256,
+            observation=expected,
+        )
+
+    def selection(
+        current, *, variant, game_day_id, **_witnesses,
+    ):
+        before, _after = proofs[variant]
+        valid = (
+            current.sha256 == before.source_frame_sha256
+            and game_day_id == route["reset_identity"]
+        )
+        return SimpleNamespace(
+            recognized=valid,
+            frame_sha256=current.sha256,
+            observation=before if valid else None,
+            diagnostics={"selection_context_targets": _FIXTURE_SELECTION_TARGETS},
+        )
+
+    with (
+        patch("scripts.enhancement_bluestacks.recognize_commander_stage", commander),
+        patch("scripts.enhancement_bluestacks.recognize_selection_context", selection),
+        patch(
+            "scripts.enhancement_bluestacks.recognize_home_frame",
+            lambda _frame, *, source_frame_sha256, **_kwargs: SimpleNamespace(
+                recognized=source_frame_sha256 in allowed_home
+            ),
+        ),
+    ):
+        yield
+
+
+@contextmanager
+def _route_replay_patches(reset: str):
+    selected: dict[str, object] = {}
+
+    def observation(
+        frame, *, after: bool = False, digest: str = "", reference: str = "",
+    ) -> EnhancementObservation:
+        digest = digest or getattr(frame, "sha256", "")
+        reference = reference or str(getattr(frame, "path", ""))
+        if not after:
+            modal = selected["modal"]
+            baseline = selected["baseline"]
+            quantity = selected["quantity"]
+            references = (
+                reference,
+                str(modal.path),
+                str(baseline.path),
+                str(quantity.path),
+            )
+            return EnhancementObservation(
+                screen_state=ENHANCEMENT_SCREEN,
+                selected_tab="GEAR",
+                selected_item_kind="GEAR",
+                selected_item_identity="commander-gear-1",
+                item_equipped=True,
+                item_level=4,
+                target_identity="enhancement-confirm",
+                target_roi=_FIXTURE_CONFIRM_TARGET,
+                panel_bounds=(0, 0, 800, 1280),
+                control_class="ENHANCE",
+                enhance_control_visible=True,
+                action_mode="ENHANCE",
+                material_identity="gear-material-one-star",
+                material_known=True,
+                material_available=True,
+                material_star=1,
+                material_quantity=1,
+                quantity=1,
+                material_inventory_count=9562,
+                game_day_id=reset,
+                target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
+                source_frame_sha256=digest,
+                evidence_refs=references,
+                overlay_state="none",
+                runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
+                item_exp_current=10,
+                item_exp_required=100,
+                material_slot_facts=((0, 4, 0, 2), (1, 1, 1, 9562), (2, 0, 0, 100)),
+                item_exp_preview=20,
+                selection_baseline_frame_sha256=baseline.sha256,
+                selection_baseline_evidence_ref=str(baseline.path),
+            )
+        before = selected["before"]
+        return replace(
+            before,
+            item_equipped=False,
+            material_quantity=0,
+            quantity=0,
+            material_inventory_count=9561,
+            enhancement_result_visible=True,
+            result_identity=before.selected_item_identity,
+            source_frame_sha256=digest,
+            evidence_refs=(reference,),
+            result_spatially_associated=True,
+            item_exp_current=20,
+            item_exp_preview=None,
+            selection_baseline_frame_sha256=None,
+            selection_baseline_evidence_ref=None,
+            material_slot_facts=((0, 4, 0, 2), (1, 1, 0, 9561), (2, 0, 0, 100)),
+        )
+
+    def marker_of(frame) -> int:
+        return int(getattr(frame, "frame", frame)[0, 0, 0])
+
+    def commander(
+        frame, *, variant, stage, source_frame_sha256, **_kwargs,
+    ):
+        marker = marker_of(frame)
+        common = {
+            "stage": stage,
+            "frame_sha256": source_frame_sha256,
+            "recognized": variant == "gear",
+            "reason": "SYNTHETIC_CAPTURE_WITNESS_RECOGNIZED",
+            "category_selected": False,
+            "category_target": (50, 70, 140, 110),
+            "item_target": (180, 300, 390, 340),
+            "open_target": None,
+            "detail_state": None,
+            "close_target": None,
+            "material_target": None,
+            "quantity_target": None,
+            "quantity": None,
+            "material_selected": False,
+            "observation": None,
+            "diagnostics": {},
+        }
+        if stage == "tab":
+            common["recognized"] = variant == "gear" and marker != 1
+            common["category_selected"] = marker >= 3
+        elif stage == "item":
+            if marker == 3:
+                common["category_selected"] = True
+            elif marker in {4, 11}:
+                common.update(
+                    category_selected=True,
+                    detail_state="item_modal",
+                    open_target=_FIXTURE_SELECTION_TARGETS["modal_enhance"],
+                    diagnostics={"footer_controls": {"unequip": (200, 350, 280, 380)}},
+                )
+                # The final modal is intentionally missing a measured exit.
+                common["close_target"] = (
+                    (560, 80, 620, 140) if marker == 4 else None
+                )
+        elif stage == "material":
+            if marker == 5:
+                common.update(
+                    observation=SimpleNamespace(),
+                    quantity=0,
+                    material_target=_FIXTURE_SELECTION_TARGETS["baseline_card"],
+                    diagnostics={"exp_display_state": "committed"},
+                )
+            elif marker == 6:
+                common.update(
+                    reason="QUANTITY_ONE_USE_NAVIGATION_RECOGNIZED",
+                    quantity=1,
+                    material_selected=True,
+                    quantity_target=_FIXTURE_SELECTION_TARGETS["quantity_use"],
+                )
+            else:
+                common["recognized"] = False
+        elif stage == "post":
+            if marker == 0:
+                common.update(
+                    recognized=False,
+                    reason="SUCCESSOR_NOT_RECOGNIZED",
+                )
+            else:
+                common["observation"] = observation(
+                    frame,
+                    after=True,
+                    digest=source_frame_sha256,
+                    reference=_kwargs.get("evidence_ref", ""),
+                )
+        return SimpleNamespace(**common)
+
+    def selection(
+        current, *, variant, game_day_id, modal, baseline, quantity, **_kwargs,
+    ):
+        selected.update(
+            modal=modal,
+            baseline=baseline,
+            quantity=quantity,
+        )
+        before = observation(current)
+        selected["before"] = before
+        return SimpleNamespace(
+            recognized=variant == "gear" and game_day_id == reset,
+            frame_sha256=current.sha256,
+            reason="CURRENT_RUN_SELECTION_WITNESSES_RECOGNIZED",
+            observation=before,
+            material_selected=True,
+            quantity=1,
+            diagnostics={"selection_context_targets": _FIXTURE_SELECTION_TARGETS},
+        )
+
+
+    def home(frame, *, source_frame_sha256, ocr_engine=None, **_kwargs):
+        pixels = getattr(frame, "frame", frame)
+        if int(pixels[0, 0, 0]) != 1:
+            return SimpleNamespace(
+                recognized=False,
+                reason="SYNTHETIC_NONHOME_CAPTURE",
+                portrait_target=None,
+            )
+        return recognize_home_frame(
+            pixels,
+            source_frame_sha256=source_frame_sha256,
+            ocr_engine=ocr_engine,
+        )
+
+    with (
+        patch("scripts.enhancement_bluestacks.recognize_commander_stage", commander),
+        patch("scripts.enhancement_bluestacks.recognize_selection_context", selection),
+        patch("scripts.enhancement_bluestacks.recognize_home_frame", home),
+    ):
+        yield
 
 
 class FakeRuntime:
@@ -538,21 +837,27 @@ class DirectCommanderRouteTests(unittest.TestCase):
         connect.assert_not_called()
 
     def test_delayed_commander_entry_settles_after_home_immediate_post(self):
+        reset = "local-2026-10-29-enhancement-family"
         with tempfile.TemporaryDirectory() as folder:
             runtime = FakeRuntime(
                 Path(folder),
-                [1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 8, 9],
+                # Retain a fresh modal observation for exit binding after the Use proof.
+                [1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 8, 9, 11, 11],
             )
             session = FakeSession(runtime)
-            with patch(
-                "scripts.enhancement_bluestacks.is_clean_home_frame",
-                return_value=True,
-            ), patch("scripts.enhancement_bluestacks.time.sleep") as sleep:
+            with (
+                _route_replay_patches(reset),
+                patch(
+                    "scripts.enhancement_bluestacks.is_clean_home_frame",
+                    return_value=True,
+                ),
+                patch("scripts.enhancement_bluestacks.time.sleep") as sleep,
+            ):
                 result = EnhancementIntegratedRoute(
                     runtime,
                     session=session,
                     variant="gear",
-                    reset_identity="local-day",
+                    reset_identity=reset,
                     ocr_engine=_ocr,
                 ).run()
         self.assertEqual(result["status"], "blocked", result)
@@ -564,18 +869,19 @@ class DirectCommanderRouteTests(unittest.TestCase):
         ]
         settled = [
             stage for stage in result["stages"]
-            if stage.get("stage") == "home-to-commander-settled"
+            if stage.get("stage") == "home-to-commander-settled-1"
         ]
         self.assertEqual(len(immediate), 1)
         self.assertFalse(immediate[0]["recognized"])
         self.assertEqual(len(settled), 1)
         self.assertTrue(settled[0]["recognized"])
-        self.assertNotEqual(
-            immediate[0]["frame_sha256"],
-            settled[0]["frame_sha256"],
-        )
-        self.assertEqual(session.actions[0]["status"], "completed")
+        self.assertNotEqual(immediate[0]["frame_sha256"], settled[0]["frame_sha256"])
         self.assertEqual(session.actions[0]["after_sha256"], settled[0]["frame_sha256"])
+        self.assertEqual(result["resource_affecting_dispatch_count"], 1)
+        self.assertEqual(session.actions[0]["status"], "completed")
+        # Entry commits the fresh settled capture, not its immediate Home result.
+        self.assertEqual(session.actions[0]["after_sha256"], runtime.frames[3].sha256)
+        self.assertNotEqual(session.actions[0]["after_sha256"], runtime.frames[2].sha256)
 
     def test_family_startup_commander_module_tab_selects_gear_without_portrait(self):
         def module_selected_startup_ocr(frame, roi):
@@ -647,47 +953,49 @@ class DirectCommanderRouteTests(unittest.TestCase):
         self.assertEqual(session.input_count, 0)
         self.assertFalse(any(row.get("type") == "dispatch" for row in runtime.events))
 
-    def test_direct_route_retains_successor_when_visible_exit_is_unbound(self):
+    def test_verified_enhancement_keeps_unbound_visible_exit_blocked(self):
+        reset = "local-2026-10-29-enhancement-family"
         with tempfile.TemporaryDirectory() as folder:
             runtime = FakeRuntime(
                 Path(folder),
-                [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 8, 9, 10, 11, 11],
+                [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 8, 9, 11, 11],
             )
             session = FakeSession(runtime)
-            with patch(
-                "scripts.enhancement_bluestacks.is_clean_home_frame",
-                return_value=True,
+            with (
+                _route_replay_patches(reset),
+                patch(
+                    "scripts.enhancement_bluestacks.is_clean_home_frame",
+                    return_value=True,
+                ),
             ):
                 result = EnhancementIntegratedRoute(
                     runtime,
                     session=session,
                     variant="gear",
-                    reset_identity="local-day",
+                    reset_identity=reset,
                     ocr_engine=_ocr,
                 ).run()
         self.assertEqual(result["status"], "blocked", result)
         self.assertEqual(result["reason"], "ENHANCEMENT_VISIBLE_EXIT_NOT_BOUND")
-        self.assertEqual(result["resource_affecting_dispatch_count"], 1)
-        self.assertEqual(result["dispatch_count"], len(session.actions))
-        self.assertFalse(result["terminal_recognized"])
         self.assertEqual(result["terminal_state"], "evidence_required")
         self.assertFalse(result.get("postcondition_verified", False))
+        self.assertEqual(result["dispatch_count"], len(session.actions))
         self.assertEqual(len(result["category_results"]), 1)
         self.assertEqual(result["category_results"][0]["variant"], "gear")
+        self.assertEqual(result["resource_affecting_dispatch_count"], 1)
         self.assertEqual(result["category_results"][0]["status"], "completed")
-        terminal_records = [
-            stage for stage in result["stages"]
-            if stage.get("stage") == "return-home-source-0"
-        ]
-        self.assertEqual(len(terminal_records), 1)
-        self.assertTrue(terminal_records[0]["recognized"])
+        self.assertFalse(result["terminal_recognized"])
+        self.assertNotIn("android-back", [
+            row["target_identity"]
+            for row in runtime.events
+            if row.get("type") == "dispatch"
+        ])
         dispatch_targets = [
             row["target_identity"]
             for row in runtime.events
             if row.get("type") == "dispatch"
         ]
         self.assertEqual(dispatch_targets[-1], "enhancement-use")
-        self.assertNotIn("android-back", dispatch_targets)
 
     def test_retained_family_fresh_home_completes_without_new_input(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -997,6 +1305,7 @@ class DirectCommanderRouteTests(unittest.TestCase):
         self.assertEqual(material.reason, "MATERIAL_IDENTITY_UNKNOWN")
         self.assertNotEqual(item.item_identity, "gear-red-star-chest-armor")
 
+    @requires_tesseract
     def test_gear_detail_modal_requires_visible_unique_enhance(self):
         fixture = Path(__file__).parent / "fixtures/enhancement_item_modal/native-gear-sof-suit-20261029.png"
         frame = cv2.imread(str(fixture))
@@ -1033,34 +1342,46 @@ class DirectCommanderRouteTests(unittest.TestCase):
         self.assertEqual(session.input_count, 0)
 
     def test_unknown_use_successor_stays_evidence_required_and_reconciles(self):
+        reset = "local-2026-10-29-enhancement-family"
         with tempfile.TemporaryDirectory() as folder:
             runtime = FakeRuntime(
                 Path(folder),
-                [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 0],
+                [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 8, 0, 0, 0, 0],
             )
             session = FakeSession(runtime)
-            def unknown_ocr(frame, roi):
-                return [] if int(frame[0, 0, 0]) == 0 else _ocr(frame, roi)
 
-            with patch(
-                "scripts.enhancement_bluestacks.is_clean_home_frame",
-                return_value=True,
+            with (
+                _route_replay_patches(reset),
+                patch(
+                    "scripts.enhancement_bluestacks.is_clean_home_frame",
+                    return_value=True,
+                ),
             ):
                 result = EnhancementIntegratedRoute(
                     runtime,
                     session=session,
                     variant="gear",
-                    reset_identity="local-day",
-                    ocr_engine=unknown_ocr,
+                    reset_identity=reset,
+                    ocr_engine=_ocr,
                 ).run()
         self.assertEqual(result["status"], "evidence_required", result)
         self.assertEqual(result["resource_affecting_dispatch_count"], 1)
-        self.assertTrue(
-            any(
-                row.get("type") == "reconcile" and row.get("status") == "unresolved"
-                for row in runtime.events
-            )
+        self.assertEqual(
+            result["category_results"][0]["status"],
+            "dispatch_bearing_unresolved",
         )
+        self.assertFalse(result["terminal_recognized"])
+        dispatch_targets = [
+            row["target_identity"]
+            for row in runtime.events
+            if row.get("type") == "dispatch"
+        ]
+        self.assertIn("enhancement-use", dispatch_targets)
+        self.assertNotIn("android-back", dispatch_targets)
+        self.assertTrue(any(
+            row.get("type") == "reconcile" and row.get("status") == "unresolved"
+            for row in runtime.events
+        ))
 
     def test_wrong_variant_and_unsafe_material_fail_closed(self):
         frame = np.full((1280, 800, 3), 6, dtype=np.uint8)
@@ -1104,25 +1425,22 @@ class DirectCommanderRouteTests(unittest.TestCase):
 class ContractAndReservationTests(unittest.TestCase):
     def test_completed_ordered_family_verifies_three_uses(self):
         with tempfile.TemporaryDirectory() as folder:
-            structure = _family_verifier_structure(Path(folder))
-            with patch(
-                "scripts.enhancement_bluestacks.recognize_commander_stage",
-                return_value=SimpleNamespace(recognized=True),
-            ), patch(
-                "scripts.enhancement_bluestacks.recognize_home_frame",
-                return_value=SimpleNamespace(recognized=True),
-            ):
+            structure = _prepare_family_fixture(family_verifier_structure(Path(folder)))
+            with _family_replay_patches(structure):
                 verified = verify_enhancement_family(structure, {}, {})
         self.assertEqual(verified["status"], "verified")
         self.assertEqual(verified["variant"], "family")
-        self.assertEqual(verified["dispatch_count"], 3)
+        self.assertEqual(verified["current_resource_affecting_dispatch_count"], 3)
         self.assertTrue(verified["postcondition_verified"])
+        self.assertEqual(verified["categories_verified"], list(ORDERED_VARIANTS))
+        self.assertTrue(verified["causal_trace_verified"])
+        self.assertTrue(verified["transport_accounting_verified"])
 
     def test_completed_family_passes_operational_generic_verification(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             session = root / ".local-captures" / "enhancement-completed"
-            _family_verifier_structure(session)
+            structure = _prepare_family_fixture(family_verifier_structure(session))
             with (
                 patch.object(pnsctl, "REPO_ROOT", root),
                 patch.object(
@@ -1130,14 +1448,7 @@ class ContractAndReservationTests(unittest.TestCase):
                     "_load_flow_delivery_state",
                     side_effect=pnsctl.OperatorError("no active delivery"),
                 ),
-                patch(
-                    "scripts.enhancement_bluestacks.recognize_commander_stage",
-                    return_value=SimpleNamespace(recognized=True),
-                ),
-                patch(
-                    "scripts.enhancement_bluestacks.recognize_home_frame",
-                    return_value=SimpleNamespace(recognized=True),
-                ),
+                _family_replay_patches(structure),
             ):
                 verdict = json.loads(pnsctl.bluestacks_verify_flow(session))
         self.assertEqual(verdict["status"], "verified")
@@ -1145,7 +1456,7 @@ class ContractAndReservationTests(unittest.TestCase):
 
     def test_empty_stages_cannot_verify_completed_family(self):
         with tempfile.TemporaryDirectory() as folder:
-            structure = _family_verifier_structure(Path(folder))
+            structure = _prepare_family_fixture(family_verifier_structure(Path(folder)))
             retained_path = Path(structure["session_directory"]) / "flow-delivery-result.json"
             retained = json.loads(retained_path.read_text(encoding="utf-8"))
             retained["enhancement_result"]["stages"] = []
@@ -1154,20 +1465,15 @@ class ContractAndReservationTests(unittest.TestCase):
                 encoding="utf-8",
             )
             structure["result"]["enhancement_result"]["stages"] = []
-            with patch(
-                "scripts.enhancement_bluestacks.recognize_commander_stage",
-                return_value=SimpleNamespace(recognized=True),
-            ), patch(
-                "scripts.enhancement_bluestacks.recognize_home_frame",
-                return_value=SimpleNamespace(recognized=True),
-            ):
+            with _family_replay_patches(structure):
                 verified = verify_enhancement_family(structure, {}, {})
         self.assertEqual(verified["status"], "evidence_required")
         self.assertEqual(verified["reason"], "independent semantic re-recognition unavailable")
+        self.assertFalse(verified.get("postcondition_verified", False))
 
     def test_completed_composite_or_missing_trace_remains_evidence_required(self):
         with tempfile.TemporaryDirectory() as folder:
-            structure = _family_verifier_structure(Path(folder))
+            structure = _prepare_family_fixture(family_verifier_structure(Path(folder)))
             retained_path = Path(structure["session_directory"]) / "flow-delivery-result.json"
             original = json.loads(json.dumps(structure["result"]))
             for mutation in (
@@ -1305,8 +1611,22 @@ class ContractAndReservationTests(unittest.TestCase):
             target = root / "target.png"
             target.write_bytes(b"native")
             link = root / "link.png"
-            with patch("pathlib.Path.is_symlink", new=lambda path: path == link):
-                with self.assertRaisesRegex(pnsctl.OperatorError, "symlink"):
+            links = {link, link.resolve()}
+            destination = str(target.resolve())
+            original_lstat, original_readlink = os.lstat, os.readlink
+
+            def lstat(path, *args, **kwargs):
+                if Path(path) in links:
+                    return SimpleNamespace(st_mode=stat.S_IFLNK | 0o777, st_uid=501)
+                return original_lstat(path, *args, **kwargs)
+
+            def readlink(path, *args, **kwargs):
+                if Path(path) in links:
+                    return destination
+                return original_readlink(path, *args, **kwargs)
+
+            with patch("os.lstat", side_effect=lstat), patch("os.readlink", side_effect=readlink):
+                with self.assertRaisesRegex(pnsctl.OperatorError, "Enhancement frame reference contains a symlink"):
                     _retained_path(root, "link.png", "frame")
 
     def test_dispatch_bearing_use_is_persisted_and_blocks_continuation(self):
@@ -1457,31 +1777,12 @@ class EnhancementResetOccurrenceTests(unittest.TestCase):
     OLD = "local-2026-10-28-enhancement-family"
     CURRENT = "local-2026-10-29-enhancement-family"
 
-    def _state(self, root, reset, *, pending=False):
-        retained = root / "retained-runtime"
-        structure = _family_verifier_structure(retained)
-        result = structure["result"]
-        categories = {}
-        for proof in result["enhancement_result"]["category_results"]:
-            proof["before_observation"]["game_day_id"] = reset
-            proof["successor_observation"]["game_day_id"] = reset
-            if pending and proof["variant"] == "gear":
-                proof["status"] = "dispatch_bearing_unresolved"
-                proof["successor_observation"] = None
-            categories[proof["variant"]] = {**proof, "runtime_session": str(retained)}
-        (retained / "flow-delivery-result.json").write_text(json.dumps(result), encoding="utf-8")
-        (root / "family-progress.json").write_text(
-            json.dumps({"schema_version": 1, "flow_id": FLOW_ID, "categories": categories}),
-            encoding="utf-8",
-        )
-        return categories
-
     def test_new_day_has_fresh_occurrence_and_preserves_legacy_and_previous_proof(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / FLOW_ID
-            self._state(root, "local-2026-08-18-enhancement-gear")
+            _write_reset_fixture(root, "local-2026-08-18-enhancement-gear")
             prior = root / "occurrences" / self.OLD
-            self._state(prior, self.OLD)
+            _write_reset_fixture(prior, self.OLD)
             before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
             selected, reset, completed = delivery._select_family_state(root, self.CURRENT)
             self.assertEqual(selected, root / "occurrences" / self.CURRENT)
@@ -1497,54 +1798,119 @@ class EnhancementResetOccurrenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / FLOW_ID
             current = root / "occurrences" / self.CURRENT
-            categories = self._state(current, self.CURRENT)
-            selected, reset, completed = delivery._select_family_state(root, self.CURRENT)
+            categories = _write_reset_fixture(current, self.CURRENT)
+            structure = _load_family_fixture(current / "retained-runtime")
+            with _family_replay_patches(structure):
+                selected, reset, completed = delivery._select_family_state(root, self.CURRENT)
             self.assertEqual((selected, reset), (current, self.CURRENT))
             self.assertEqual(completed, categories)
 
     def test_old_proof_cannot_be_adopted_inside_current_occurrence(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / FLOW_ID
-            self._state(root / "occurrences" / self.CURRENT, self.OLD)
-            with self.assertRaisesRegex(pnsctl.OperatorError, "another reset"):
+            current = root / "occurrences" / self.CURRENT
+            _write_reset_fixture(current, self.OLD)
+            original = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
+            with self.assertRaisesRegex(pnsctl.OperatorError, "belongs to another reset"):
                 delivery._select_family_state(root, self.CURRENT)
+            self.assertTrue(current.exists())
+            for path, raw in original.items():
+                self.assertEqual(path.read_bytes(), raw)
 
     def test_legacy_and_prior_unresolved_use_blocks_new_day_without_creating_state(self):
         for legacy in (True, False):
             with self.subTest(legacy=legacy), tempfile.TemporaryDirectory() as folder:
                 root = Path(folder) / FLOW_ID
                 prior = root if legacy else root / "occurrences" / self.OLD
-                self._state(prior, self.OLD, pending=True)
+                _write_reset_fixture(prior, self.OLD, pending=True)
                 original = (prior / "family-progress.json").read_bytes()
                 with self.assertRaisesRegex(pnsctl.OperatorError, "unresolved dispatch-bearing Use"):
                     delivery._select_family_state(root, self.CURRENT)
                 self.assertFalse((root / "occurrences" / self.CURRENT).exists())
                 self.assertEqual((prior / "family-progress.json").read_bytes(), original)
 
-    def test_pending_recovery_uses_original_reset_without_creating_reservations(self):
+    def test_pending_recovery_requires_requested_current_reset_category(self):
         for legacy in (True, False):
             with self.subTest(legacy=legacy), tempfile.TemporaryDirectory() as folder:
                 root = Path(folder) / FLOW_ID
                 prior = root if legacy else root / "occurrences" / self.OLD
-                self._state(prior, self.OLD, pending=True)
-                original = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
-                selected, reset, completed = delivery._select_family_state(root, self.CURRENT, recovery_variant="gear")
-                self.assertEqual((selected, reset, completed), (prior, self.OLD, {}))
+                _write_reset_fixture(prior, self.OLD, pending=True)
+                original = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
+                with self.assertRaisesRegex(
+                    pnsctl.OperatorError, "recovery requires the requested current-reset pending category"
+                ):
+                    delivery._select_family_state(root, self.CURRENT, recovery_variant="gear")
+                self.assertFalse((root / "occurrences" / self.CURRENT).exists())
                 self.assertEqual(set(root.rglob("reservation-*.json")), set())
                 for path, raw in original.items():
                     self.assertEqual(path.read_bytes(), raw)
-                self.assertFalse((root / "occurrences" / self.CURRENT).exists())
 
-    def test_missing_or_ambiguous_pending_recovery_fails_without_new_state(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / FLOW_ID
-            with self.assertRaisesRegex(pnsctl.OperatorError, "one retained pending"):
+            current = root / "occurrences" / self.CURRENT
+            _write_reset_fixture(current, self.CURRENT, pending=True)
+            original = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
+            selected, reset, completed = delivery._select_family_state(
+                root, self.CURRENT, recovery_variant="gear"
+            )
+            self.assertEqual((selected, reset, completed), (current, self.CURRENT, {}))
+            self.assertEqual(set(root.rglob("reservation-*.json")), set())
+            for path, raw in original.items():
+                self.assertEqual(path.read_bytes(), raw)
+
+    def test_missing_or_noncurrent_pending_recovery_fails_without_new_state(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / FLOW_ID
+            with self.assertRaisesRegex(
+                pnsctl.OperatorError, "recovery requires the requested current-reset pending category"
+            ):
                 delivery._select_family_state(root, self.CURRENT, recovery_variant="gear")
             self.assertFalse(root.exists())
-            self._state(root, self.OLD, pending=True)
-            self._state(root / "occurrences" / self.OLD, self.OLD, pending=True)
-            with self.assertRaisesRegex(pnsctl.OperatorError, "one retained pending"):
+            _write_reset_fixture(root, self.OLD, pending=True)
+            _write_reset_fixture(root / "occurrences" / self.OLD, self.OLD, pending=True)
+            original = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
+            with self.assertRaisesRegex(
+                pnsctl.OperatorError, "recovery requires the requested current-reset pending category"
+            ):
                 delivery._select_family_state(root, self.CURRENT, recovery_variant="gear")
+            self.assertFalse((root / "occurrences" / self.CURRENT).exists())
+            for path, raw in original.items():
+                self.assertEqual(path.read_bytes(), raw)
+
+    def test_two_current_reset_pending_entries_fail_without_new_state(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / FLOW_ID
+            current = root / "occurrences" / self.CURRENT
+            for state_root in (root, current):
+                categories = _write_reset_fixture(state_root, self.CURRENT, pending=True)
+                self.assertEqual(categories["gear"]["status"], "dispatch_bearing_unresolved")
+                self.assertEqual(categories["gear"]["before_observation"]["game_day_id"], self.CURRENT)
+            original_entries = set(root.rglob("*"))
+            original = {path: path.read_bytes() for path in original_entries if path.is_file()}
+            with self.assertRaisesRegex(
+                pnsctl.OperatorError, "requires one retained pending current-reset category"
+            ):
+                delivery._select_family_state(root, self.CURRENT, recovery_variant="gear")
+            self.assertEqual(set(root.rglob("*")), original_entries)
+            for path, raw in original.items():
+                self.assertEqual(path.read_bytes(), raw)
+            self.assertEqual(set(root.rglob("reservation-*.json")), set())
+
+    def test_current_pending_recovery_is_not_ambiguous_with_another_reset(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / FLOW_ID
+            current = root / "occurrences" / self.CURRENT
+            _write_reset_fixture(root, self.OLD, pending=True)
+            _write_reset_fixture(current, self.CURRENT, pending=True)
+            original_entries = set(root.rglob("*"))
+            original = {path: path.read_bytes() for path in original_entries if path.is_file()}
+            selected, reset, completed = delivery._select_family_state(
+                root, self.CURRENT, recovery_variant="gear"
+            )
+            self.assertEqual((selected, reset, completed), (current, self.CURRENT, {}))
+            self.assertEqual(set(root.rglob("*")), original_entries)
+            for path, raw in original.items():
+                self.assertEqual(path.read_bytes(), raw)
 
     def test_malformed_prior_progress_or_reservation_fails_before_new_occurrence(self):
         for filename in ("family-progress.json", "reservation-gear.json"):

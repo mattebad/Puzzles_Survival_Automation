@@ -18,10 +18,6 @@ singleton ownership; descriptive attribution is not a bearer credential or permi
 Retiring editor/model workflow instructions does not waive candidate, review, receipt,
 authorization, or other safety checks enforced by that controller.
 
-The separate legacy `begin-delegation` development command/API requires an explicit non-empty
-free-form `--agent` value. This records attribution only, selects no model or persona, and does
-not authorize runtime input. Ordinary offline work need not use this command.
-
 ## Unresolved actions and handoff
 
 - Preserve fresh source/target binding, input budgets, unresolved-action handling, and the

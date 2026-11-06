@@ -28,6 +28,14 @@ from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.navigation_development_boundary import DevelopmentSession
 from scripts.startup_recovery import ContextualPopupRecoveryResult
 from tasks.scheduler_task_result import SchedulerIdentity
+from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_ocr_worker, requires_tesseract
+
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 START = 1_800_000_000.0
@@ -218,6 +226,7 @@ class ServiceSupplyTests(unittest.TestCase):
         self.assertEqual((descriptor.flow_id, descriptor.accepted_product, descriptor.product_revision), (FLOW_ID, PRODUCT_ID, PRODUCT_REVISION))
         self.assertEqual((descriptor.cadence, descriptor.reset_scoped), ("daily_once_per_reset", True))
 
+    @requires_tesseract
     def test_free_effect_and_zero_work_have_exact_counts_and_actual_reset(self):
         for consume in (False, True):
             with self.subTest(consume=consume):
@@ -225,7 +234,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 runtime = self._runtime(HOME_FIXTURE.read_bytes())
                 with (
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-                    patch("scripts.supply_depot_free_canary.run", side_effect=self._native_route(consume=consume)),
+                    patch("scripts.supply_depot_free_route.run", side_effect=self._native_route(consume=consume)),
                 ):
                     result = self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
                 self.assertEqual(result["total_input_count"], 1 + int(consume))
@@ -238,12 +247,13 @@ class ServiceSupplyTests(unittest.TestCase):
                 self.assertFalse(self.owner.held is False)
                 self.owner.release()
 
+    @requires_tesseract
     def test_failure_after_hold_keeps_reserved_count_and_denies_retry(self):
         self.owner.acquire()
         runtime = self._runtime(HOME_FIXTURE.read_bytes())
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-            patch("scripts.supply_depot_free_canary.run", side_effect=self._native_route(consume=True, fail_after_hold=True)),
+            patch("scripts.supply_depot_free_route.run", side_effect=self._native_route(consume=True, fail_after_hold=True)),
         ):
             with self.assertRaises(SupplyNativePartialResultError) as caught:
                 self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -254,6 +264,7 @@ class ServiceSupplyTests(unittest.TestCase):
         self.assertTrue(partial["identical_retry_denied"])
         self.assertTrue(self.owner.held)
 
+    @requires_tesseract
     def test_navigation_failure_preserves_native_reason_and_exact_zero_effect_accounting(self):
         self.owner.acquire()
         runtime = self._runtime(HOME_FIXTURE.read_bytes())
@@ -274,7 +285,7 @@ class ServiceSupplyTests(unittest.TestCase):
 
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-            patch("scripts.supply_depot_free_canary.run", side_effect=route),
+            patch("scripts.supply_depot_free_route.run", side_effect=route),
         ):
             with self.assertRaises(SupplyNativePartialResultError) as caught:
                 self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -288,6 +299,7 @@ class ServiceSupplyTests(unittest.TestCase):
         self.assertIsNone(partial["free_attempts_before"])
         self.assertIsNone(partial["free_attempts_after"])
 
+    @requires_tesseract
     def test_popup_input_is_adopted_once_and_stays_separate_from_free_hold(self):
         self.owner.acquire()
         runtime = self._runtime(HOME_FIXTURE.read_bytes())
@@ -301,7 +313,7 @@ class ServiceSupplyTests(unittest.TestCase):
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
             patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=self._startup(ready=True, consume=True)),
-            patch("scripts.supply_depot_free_canary.run", side_effect=run),
+            patch("scripts.supply_depot_free_route.run", side_effect=run),
             patch.object(DevelopmentSession, "adopt_retained_transport_count", autospec=True, side_effect=original_adopt) as adopt,
             patch.object(boundary.RuntimeInputLock, "acquire", side_effect=AssertionError("no nested owner")),
             patch.object(boundary.RuntimeInputLock, "release", side_effect=AssertionError("borrowed owner retained")),
@@ -318,6 +330,7 @@ class ServiceSupplyTests(unittest.TestCase):
         self.assertTrue(result["accounting_verified"])
         self.assertTrue(self.owner.held)
 
+    @requires_tesseract
     def test_two_startup_inputs_are_adopted_once_before_zero_hold_route(self):
         self.owner.acquire()
         runtime = self._runtime(HOME_FIXTURE.read_bytes())
@@ -327,7 +340,7 @@ class ServiceSupplyTests(unittest.TestCase):
         original = DevelopmentSession.adopt_retained_transport_count
         with patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect), \
                 patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=self._startup(consume=2)), \
-                patch("scripts.supply_depot_free_canary.run", side_effect=run), \
+                patch("scripts.supply_depot_free_route.run", side_effect=run), \
                 patch.object(DevelopmentSession, "adopt_retained_transport_count", autospec=True, side_effect=original) as adopt:
             result = self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
         self.assertEqual(adopt.call_count, 1)
@@ -345,7 +358,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 with (
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
                     patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=self._startup(ready=False, consume=consume, interrupt=interrupt)),
-                    patch("scripts.supply_depot_free_canary.run", side_effect=AssertionError("route must not start")) as run,
+                    patch("scripts.supply_depot_free_route.run", side_effect=AssertionError("route must not start")) as run,
                     patch.object(DevelopmentSession, "adopt_retained_transport_count", autospec=True, side_effect=original_adopt) as adopt,
                 ):
                     with self.assertRaises(SupplyNativePartialResultError) as caught:
@@ -362,6 +375,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 run.assert_not_called()
                 self.owner.release()
 
+    @requires_tesseract
     def test_popup_success_must_recapture_clean_home_before_route_binding(self):
         self.owner.acquire()
         runtime = self._runtime(HOME_FIXTURE.read_bytes())
@@ -369,7 +383,7 @@ class ServiceSupplyTests(unittest.TestCase):
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
             patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=self._startup(ready=True, consume=True)),
-            patch("scripts.supply_depot_free_canary.run", side_effect=AssertionError("dirty Home cannot start route")) as run,
+            patch("scripts.supply_depot_free_route.run", side_effect=AssertionError("dirty Home cannot start route")) as run,
         ):
             with self.assertRaises(SupplyNativePartialResultError) as caught:
                 self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -387,7 +401,7 @@ class ServiceSupplyTests(unittest.TestCase):
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
             patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=recover),
-            patch("scripts.supply_depot_free_canary.run", side_effect=AssertionError("route cannot start")) as run,
+            patch("scripts.supply_depot_free_route.run", side_effect=AssertionError("route cannot start")) as run,
         ):
             with self.assertRaises(SupplyNativePartialResultError) as caught:
                 self._runner(runtime)(IDENTITY, None, lambda: None, runtime_input_lock=self.owner)
@@ -407,7 +421,7 @@ class ServiceSupplyTests(unittest.TestCase):
         with (
             patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
             patch("scripts.startup_recovery.recover_contextual_startup_overlay", side_effect=missing_dispatch),
-            patch("scripts.supply_depot_free_canary.run", side_effect=AssertionError("unmatched ledger cannot start route")) as run,
+            patch("scripts.supply_depot_free_route.run", side_effect=AssertionError("unmatched ledger cannot start route")) as run,
         ):
             with self.assertRaises(SupplyNativePartialResultError) as caught:
                 self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -416,6 +430,8 @@ class ServiceSupplyTests(unittest.TestCase):
         self.assertFalse(caught.exception.partial_result["accounting_verified"])
         run.assert_not_called()
 
+    @requires_tesseract
+    @requires_ocr_worker
     def test_known_route_surfaces_preserve_no_popup_entry_without_new_input(self):
         fixtures = Path(__file__).parent / "fixtures/supply_depot"
         for name in ("native-facility-20261029.png", "native-exhausted-20261029.png",
@@ -426,7 +442,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 runtime.initial_payload = (fixtures / name).read_bytes()
                 with (
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-                    patch("scripts.supply_depot_free_canary.run", side_effect=RuntimeError("offline stop at proven route entry")) as run,
+                    patch("scripts.supply_depot_free_route.run", side_effect=RuntimeError("offline stop at proven route entry")) as run,
                 ):
                     with self.assertRaises(SupplyNativePartialResultError) as caught:
                         self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)
@@ -436,6 +452,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 run.assert_called_once()
                 self.owner.release()
 
+    @requires_tesseract
     def test_terminal_home_replay_rejects_non_home_and_changed_bytes(self):
         cases = (
             (NON_HOME_FIXTURE.read_bytes(), False),
@@ -447,7 +464,7 @@ class ServiceSupplyTests(unittest.TestCase):
                 runtime = self._runtime(payload)
                 with (
                     patch("scripts.bluestacks_native_runtime.LocalBlueStacksRuntime.connect", side_effect=runtime.connect),
-                    patch("scripts.supply_depot_free_canary.run", side_effect=self._native_route(tamper_terminal=tamper)),
+                    patch("scripts.supply_depot_free_route.run", side_effect=self._native_route(tamper_terminal=tamper)),
                 ):
                     with self.assertRaises(SupplyNativePartialResultError) as caught:
                         self._runner(runtime)(IDENTITY, None, self.checkpoint, runtime_input_lock=self.owner)

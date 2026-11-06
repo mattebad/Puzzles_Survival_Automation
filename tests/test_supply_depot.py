@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-import json
 from dataclasses import replace
 from pathlib import Path
 import unittest
 
 from tasks.contracts import TaskOutcome
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID, BLUESTACKS_NATIVE_TARGET_PROVENANCE
 from tasks.supply_depot import (
-    BLUESTACKS_NATIVE_TARGET_PROVENANCE,
-    BLUESTACKS_PROFILE_ID,
     SupplyDepotConfig,
     SupplyDepotHoldConfig,
     SupplyDepotObservation,
@@ -18,6 +16,7 @@ from tasks.supply_depot import (
     supply_depot_postcondition_verified,
     supply_depot_transaction_spec,
 )
+from tests.support.observations import load_observation
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,11 +24,10 @@ FIXTURE = ROOT / "tests/fixtures/phase_e_supply_depot_observations.json"
 
 
 def load_fixture(name: str) -> SupplyDepotObservation:
-    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))["observations"][name]
-    payload["target_roi"] = tuple(payload["target_roi"])
-    payload["panel_bounds"] = tuple(payload["panel_bounds"])
-    payload["evidence_refs"] = tuple(payload["evidence_refs"])
-    return SupplyDepotObservation(**payload)
+    return load_observation(
+        FIXTURE, name, SupplyDepotObservation,
+        ("target_roi", "panel_bounds", "evidence_refs"),
+    )
 
 
 class SupplyDepotContractTests(unittest.TestCase):
@@ -47,7 +45,7 @@ class SupplyDepotContractTests(unittest.TestCase):
             game_day_id=None,
             reset_identity_required=False,
             target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
-            runtime_profile_id=BLUESTACKS_PROFILE_ID,
+            runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
             evidence_refs=(".local-captures/supply-depot/frame.png",),
         )
         self.assertTrue(supply_depot_authorizeable(observation))
@@ -121,7 +119,7 @@ class SupplyDepotContractTests(unittest.TestCase):
             game_day_id=None,
             reset_identity_required=False,
             target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
-            runtime_profile_id=BLUESTACKS_PROFILE_ID,
+            runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
             evidence_refs=(".local-captures/supply-depot/food-before.png",),
         )
         exhausted = replace(before, collection_ready=False, control_class="", daily_free_attempts=0)

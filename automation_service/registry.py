@@ -17,6 +17,8 @@ import time
 from typing import Any, Callable, Iterator, Mapping
 
 from .contracts import FlowDescriptor, FlowSpec, RecurrenceClass, RecurrenceProjection
+from tasks.campaign_auto_battle import CAMPAIGN_MAX_INPUTS
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 REGISTRY_PATH = (
@@ -28,7 +30,7 @@ WORLD_FLOW_ID = "WORLD-MAP-NAVIGATION-FOUNDATION"
 WORLD_PRODUCT_ID = "world_map_navigation"
 WORLD_PRODUCT_REVISION = "world_map_navigation-v1"
 WORLD_HANDLER_ID = "world_map_navigation_foundation_selection_handler"
-WORLD_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+WORLD_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 WORLD_PHASE_MODE = "phase_canary"
 # Explicit aliases keep the fixed binding easy to consume without introducing
 # a second registration vocabulary.
@@ -42,6 +44,7 @@ NOVA_PRODUCT_REVISION = "nova_praise-v1"
 NOVA_HANDLER_ID = "nova_praise_selection_handler"
 NOVA_PROFILE_ID = WORLD_PROFILE_ID
 NOVA_PHASE_MODE = "phase_canary"
+NOVA_MAX_INPUTS = 8
 # Explicit aliases keep the fixed binding easy to consume without introducing
 # a second registration vocabulary.
 NOVA_SELECTION_HANDLER_ID = NOVA_HANDLER_ID
@@ -54,16 +57,18 @@ RECRUITMENT_PRODUCT_REVISION = "noahs_tavern_recruitment-v1"
 RECRUITMENT_HANDLER_ID = "recruitment_maintenance_selection_handler"
 RECRUITMENT_PROFILE_ID = WORLD_PROFILE_ID
 RECRUITMENT_PHASE_MODE = "phase_canary"
+RECRUITMENT_MAX_INPUTS = 12
 RECRUITMENT_SELECTION_HANDLER_ID = RECRUITMENT_HANDLER_ID
 RECRUITMENT_PROFILE = RECRUITMENT_PROFILE_ID
 RECRUITMENT_PRODUCT = RECRUITMENT_PRODUCT_ID
 RECRUITMENT_REVISION = RECRUITMENT_PRODUCT_REVISION
-CAMPAIGN_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
+CAMPAIGN_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE"
 CAMPAIGN_PRODUCT_ID = "campaign_ap"
 CAMPAIGN_PRODUCT_REVISION = "campaign_ap-v1"
 CAMPAIGN_HANDLER_ID = "campaign_ap_selection_handler"
 CAMPAIGN_PROFILE_ID = WORLD_PROFILE_ID
 CAMPAIGN_PHASE_MODE = "phase_canary"
+CAMPAIGN_ROUTE_MAX_INPUTS = CAMPAIGN_MAX_INPUTS
 CAMPAIGN_SELECTION_HANDLER_ID = CAMPAIGN_HANDLER_ID
 CAMPAIGN_PROFILE = CAMPAIGN_PROFILE_ID
 CAMPAIGN_PRODUCT = CAMPAIGN_PRODUCT_ID
@@ -74,30 +79,35 @@ BIOENHANCER_PRODUCT_REVISION = "bioenhancer_research-v1"
 BIOENHANCER_HANDLER_ID = "bioenhancer_research_execution_handler"
 BIOENHANCER_PROFILE_ID = WORLD_PROFILE_ID
 BIOENHANCER_PHASE_MODE = "phase_canary"
+BIOENHANCER_MAX_INPUTS = 8
 SUPPLY_FLOW_ID = "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION"
 SUPPLY_PRODUCT_ID = "supply_depot"
 SUPPLY_PRODUCT_REVISION = "supply_depot-v2"
 SUPPLY_HANDLER_ID = "supply_depot_execution_handler"
 SUPPLY_PROFILE_ID = WORLD_PROFILE_ID
 SUPPLY_PHASE_MODE = "phase_canary"
+SUPPLY_MAX_INPUTS = 10
 ULTIMATE_FLOW_ID = "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION"
 ULTIMATE_PRODUCT_ID = "ultimate_challenge_daily"
 ULTIMATE_PRODUCT_REVISION = "ultimate_challenge_daily-v1"
 ULTIMATE_HANDLER_ID = "ultimate_challenge_daily_execution_handler"
 ULTIMATE_PROFILE_ID = WORLD_PROFILE_ID
 ULTIMATE_PHASE_MODE = "phase_canary"
+ULTIMATE_MAX_INPUTS = 16
 ENHANCEMENT_FLOW_ID = "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
 ENHANCEMENT_PRODUCT_ID = "enhancement_family"
 ENHANCEMENT_PRODUCT_REVISION = "enhancement_family-v1"
 ENHANCEMENT_HANDLER_ID = "enhancement_family_execution_handler"
 ENHANCEMENT_PROFILE_ID = WORLD_PROFILE_ID
 ENHANCEMENT_PHASE_MODE = "phase_canary"
+ENHANCEMENT_MAX_INPUTS = 24
 PERSONAL_MIGHT_FLOW_ID = "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION"
 PERSONAL_MIGHT_PRODUCT_ID = "personal_might_praise"
 PERSONAL_MIGHT_PRODUCT_REVISION = "personal_might_praise-v1"
 PERSONAL_MIGHT_HANDLER_ID = "personal_might_praise_execution_handler"
 PERSONAL_MIGHT_PROFILE_ID = WORLD_PROFILE_ID
 PERSONAL_MIGHT_PHASE_MODE = "phase_canary"
+PERSONAL_MIGHT_MAX_INPUTS = 8
 
 
 _FIXED_BINDINGS = {
@@ -330,6 +340,10 @@ class CanonicalFlowRegistration:
     descriptor: FlowDescriptor
     registration: RegisteredDispatchSnapshot
     handler_id: str
+    cli_name: str | None = None
+    """``--flow`` spelling accepted by ``automation-service serve``; ``None`` = not servable."""
+    max_inputs: int | None = None
+    """Total input budget of one run; the only owner. ``None`` = the route never executes."""
 
     @property
     def flow_id(self) -> str:
@@ -408,6 +422,8 @@ def _canonical_registration(
     reset_scoped: bool = True,
     recurrence: RecurrenceProjection | None = None,
     observation_only_completion: bool = False,
+    cli_name: str | None = None,
+    max_inputs: int | None = None,
 ) -> CanonicalFlowRegistration:
     binding = _FIXED_BINDINGS[flow_id]
     snapshot = RegisteredDispatchSnapshot(
@@ -445,6 +461,8 @@ def _canonical_registration(
         descriptor=descriptor,
         registration=snapshot,
         handler_id=binding["production_handler"],
+        cli_name=cli_name,
+        max_inputs=max_inputs,
     )
 
 
@@ -459,6 +477,8 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         NOVA_FLOW_ID,
+        max_inputs=NOVA_MAX_INPUTS,
+        cli_name="nova",
         family="nova_praise",
         variant="supervised_one_free_pulse",
         cadence="cooldown_pulse",
@@ -466,6 +486,8 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         RECRUITMENT_FLOW_ID,
+        max_inputs=RECRUITMENT_MAX_INPUTS,
+        cli_name="recruitment",
         family="recruitment",
         variant="free_attempt_maintenance",
         cadence="cooldown_pulse",
@@ -473,6 +495,8 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         CAMPAIGN_FLOW_ID,
+        max_inputs=CAMPAIGN_ROUTE_MAX_INPUTS,
+        cli_name="campaign",
         family="campaign_ap",
         variant="drain_available_ap",
         cadence="after_ap_drain",
@@ -485,6 +509,8 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         BIOENHANCER_FLOW_ID,
+        max_inputs=BIOENHANCER_MAX_INPUTS,
+        cli_name="bioenhancer",
         family="bioenhancer_research",
         variant="one_free_pulse",
         cadence="cooldown_pulse",
@@ -492,6 +518,8 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         SUPPLY_FLOW_ID,
+        max_inputs=SUPPLY_MAX_INPUTS,
+        cli_name="supply",
         family="supply_depot",
         variant="free_until_exhausted",
         cadence="daily_once_per_reset",
@@ -499,6 +527,8 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         ULTIMATE_FLOW_ID,
+        max_inputs=ULTIMATE_MAX_INPUTS,
+        cli_name="ultimate",
         family="ultimate_challenge_daily",
         variant="one_daily_flee",
         cadence="daily_once_per_reset",
@@ -506,6 +536,8 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         ENHANCEMENT_FLOW_ID,
+        max_inputs=ENHANCEMENT_MAX_INPUTS,
+        cli_name="enhancement",
         family="enhancement_family",
         variant="gear_chip_module",
         cadence="daily_once_per_reset",
@@ -513,6 +545,8 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
     ),
     _canonical_registration(
         PERSONAL_MIGHT_FLOW_ID,
+        max_inputs=PERSONAL_MIGHT_MAX_INPUTS,
+        cli_name="personal-might",
         family="personal_might_praise",
         variant="one_daily_praise",
         cadence="daily_once_per_reset",
@@ -546,8 +580,12 @@ def canonical_descriptors() -> tuple[FlowDescriptor, ...]:
     return tuple(entry.descriptor for entry in CANONICAL_FLOW_REGISTRY)
 
 
-def build_canonical_handler(flow_id: str) -> Any:
-    """Build one fixed canonical handler by flow identity."""
+def canonical_entry(flow_id: str) -> CanonicalFlowRegistration:
+    """Return the one canonical registration for ``flow_id``.
+
+    Handlers and adapters derive their descriptors from this entry instead of
+    re-spelling family, variant, cadence, and product facts.
+    """
 
     entry = next(
         (item for item in CANONICAL_FLOW_REGISTRY if item.flow_id == flow_id),
@@ -555,7 +593,23 @@ def build_canonical_handler(flow_id: str) -> Any:
     )
     if entry is None:
         raise ValueError(f"unknown canonical flow: {flow_id}")
-    return entry.build_handler()
+    return entry
+
+
+def servable_flow_names() -> dict[str, str]:
+    """Map each ``automation-service serve --flow`` name to its flow id."""
+
+    return {
+        item.cli_name: item.flow_id
+        for item in CANONICAL_FLOW_REGISTRY
+        if item.cli_name is not None
+    }
+
+
+def build_canonical_handler(flow_id: str) -> Any:
+    """Build one fixed canonical handler by flow identity."""
+
+    return canonical_entry(flow_id).build_handler()
 
 
 _REGISTRY_LOCK = threading.RLock()
@@ -888,10 +942,12 @@ __all__ = [
     "CanonicalFlowRegistration",
     "CANONICAL_FLOW_REGISTRY",
     "canonical_descriptors",
+    "canonical_entry",
     "canonical_flow_specs",
     "canonical_registry",
     "build_canonical_handler",
     "load_canonical_registry",
+    "servable_flow_names",
     "DisabledProductionEntry",
     "ENTRY_FIELDS",
     "REGISTRY_PATH",
@@ -916,6 +972,7 @@ __all__ = [
     "NOVA_PRODUCT",
     "NOVA_REVISION",
     "NOVA_PHASE_MODE",
+    "NOVA_MAX_INPUTS",
     "RECRUITMENT_FLOW_ID",
     "RECRUITMENT_PRODUCT_ID",
     "RECRUITMENT_PRODUCT_REVISION",
@@ -926,6 +983,7 @@ __all__ = [
     "RECRUITMENT_PRODUCT",
     "RECRUITMENT_REVISION",
     "RECRUITMENT_PHASE_MODE",
+    "RECRUITMENT_MAX_INPUTS",
     "CAMPAIGN_FLOW_ID",
     "CAMPAIGN_PRODUCT_ID",
     "CAMPAIGN_PRODUCT_REVISION",
@@ -936,30 +994,35 @@ __all__ = [
     "CAMPAIGN_PRODUCT",
     "CAMPAIGN_REVISION",
     "CAMPAIGN_PHASE_MODE",
+    "CAMPAIGN_ROUTE_MAX_INPUTS",
     "SUPPLY_FLOW_ID",
     "SUPPLY_PRODUCT_ID",
     "SUPPLY_PRODUCT_REVISION",
     "SUPPLY_HANDLER_ID",
     "SUPPLY_PROFILE_ID",
     "SUPPLY_PHASE_MODE",
+    "SUPPLY_MAX_INPUTS",
     "ULTIMATE_FLOW_ID",
     "ULTIMATE_PRODUCT_ID",
     "ULTIMATE_PRODUCT_REVISION",
     "ULTIMATE_HANDLER_ID",
     "ULTIMATE_PROFILE_ID",
     "ULTIMATE_PHASE_MODE",
+    "ULTIMATE_MAX_INPUTS",
     "ENHANCEMENT_FLOW_ID",
     "ENHANCEMENT_PRODUCT_ID",
     "ENHANCEMENT_PRODUCT_REVISION",
     "ENHANCEMENT_HANDLER_ID",
     "ENHANCEMENT_PROFILE_ID",
     "ENHANCEMENT_PHASE_MODE",
+    "ENHANCEMENT_MAX_INPUTS",
     "PERSONAL_MIGHT_FLOW_ID",
     "PERSONAL_MIGHT_PRODUCT_ID",
     "PERSONAL_MIGHT_PRODUCT_REVISION",
     "PERSONAL_MIGHT_HANDLER_ID",
     "PERSONAL_MIGHT_PROFILE_ID",
     "PERSONAL_MIGHT_PHASE_MODE",
+    "PERSONAL_MIGHT_MAX_INPUTS",
     "consume_registered_entry",
     "consume_world_registration",
     "consume_nova_registration",

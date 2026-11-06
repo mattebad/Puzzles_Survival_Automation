@@ -14,20 +14,27 @@ import numpy as np
 
 from tasks.scheduler_task_result import SchedulerIdentity
 from tasks.ultimate_challenge_daily import (
-    FLOW_ID, ULTIMATE_CHALLENGE_OBJECTIVE, COMPLETION_UNKNOWN,
+    FLOW_ID, COMPLETION_UNKNOWN,
     TERMINAL_ALREADY_COMPLETED, TERMINAL_COMPLETE_FOR_RESET, TERMINAL_NAVIGATION_ONLY_COMPLETE,
     evaluate_already_completed, evaluate_navigation_only, load_reset_window_state,
     record_pending_home, record_verified_home_success, save_reset_window_state,
 )
-from .contracts import FlowDescriptor, FlowSpec, NormalizedOutcome, NormalizedResult
-from .registry import RegisteredDispatchSnapshot
+from .contracts import FlowSpec, NormalizedOutcome, NormalizedResult
+from .registry import (
+    ULTIMATE_MAX_INPUTS,
+    ULTIMATE_PRODUCT_ID,
+    ULTIMATE_PRODUCT_REVISION,
+    RegisteredDispatchSnapshot,
+    canonical_entry,
+)
 from .recruitment import recruitment_reset
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-PRODUCT_ID = ULTIMATE_CHALLENGE_OBJECTIVE
-PRODUCT_REVISION = "ultimate_challenge_daily-v1"
-PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
-MAX_INPUTS = 16
+PRODUCT_ID = ULTIMATE_PRODUCT_ID
+PRODUCT_REVISION = ULTIMATE_PRODUCT_REVISION
+PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
+MAX_INPUTS = ULTIMATE_MAX_INPUTS
 RESET_STATE_PATH = Path(__file__).resolve().parents[1] / ".local-captures/ultimate-challenge-daily-reset-window.json"
 _DAILY_TARGETS = frozenset({"tap_challenge", "tap_lineup_challenge", "tap_upper_right_exit", "tap_flee"})
 
@@ -93,10 +100,7 @@ class UltimateExecutionHandler:
         self.snapshot, self._execute = snapshot, execute
 
     def describe(self):
-        return FlowDescriptor(flow_id=FLOW_ID, owner="automation_service", family=PRODUCT_ID,
-            variant="one_daily_flee", cadence="daily_once_per_reset", reset_scoped=True,
-            priority=1, scheduler_eligible=True, accepted_product=PRODUCT_ID,
-            product_revision=PRODUCT_REVISION, registration_status="REGISTERED")
+        return canonical_entry(FLOW_ID).descriptor
 
     def eligibility(self, facts, perception=None):
         return bool(not facts.gate_failures(self.describe())

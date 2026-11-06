@@ -10,12 +10,14 @@ from types import SimpleNamespace
 
 from scripts import flow_delivery_enhancement_bluestacks as delivery
 from scripts import pnsctl
-from tests import test_enhancement_category_resume as resume_tests
+from tasks.runtime_identity import BLUESTACKS_SERIAL
+from tests.support.enhancement_replay import CategoryResumeCase
+from tests.support.contextual_startup import windows_short_path
 
 
 class PositiveRecoveryDeliveryTests(unittest.TestCase):
     def setUp(self):
-        helper = resume_tests.EnhancementCategoryResumeTests(methodName="test_long_original_and_current_replay_renews_existing_checkpoint")
+        helper = CategoryResumeCase()
         helper.setUp()
         self.addCleanup(helper.doCleanups)
         self.case = helper.make_session(("gear",))
@@ -55,7 +57,7 @@ class PositiveRecoveryDeliveryTests(unittest.TestCase):
             "proof_kind": "settled_successor", "read_only": True, "input_authority": False, "dispatch": False,
             "input_count": 0, "dispatch_count": 0, "resource_affecting_dispatch_count": 0}
         self.recovery_delivery = {"flow_id": delivery.FLOW_ID, "variant": "family", "status": "recovered_successor",
-            "serial": pnsctl.BLUESTACKS_SERIAL, "native_width": 800, "native_height": 1280,
+            "serial": BLUESTACKS_SERIAL, "native_width": 800, "native_height": 1280,
             "production_registration": "NOT_REGISTERED", "scheduler_enabled": False,
             "frames": [str(Path(row["path"]).relative_to(self.recovery)) for row in rows],
             "events_path": "events.jsonl", "input_count": 0, "dispatch_count": 0,
@@ -94,6 +96,21 @@ class PositiveRecoveryDeliveryTests(unittest.TestCase):
         self.assertTrue(verified["successor_recovered"])
         self.assertFalse(verified["family_completed"])
         self.assertEqual((verified["input_count"], verified["dispatch_count"]), (0, 0))
+
+    def test_validated_short_path_alias_binds_recovery_receipt(self):
+        alias = windows_short_path(self.recovery)
+        self.receipt["recovery_session_directory"] = str(alias)
+        self.persist_recovery()
+        delivery._reconcile_recovery_successor(self.root, "gear", self.route)
+        value = json.loads(self.progress.read_text())["categories"]["gear"]
+        self.assertEqual(Path(value["successor_receipt_path"]).parent.resolve(), self.recovery.resolve())
+        delivery._read_positive_receipt(value, "gear", self.reset)
+        verified = delivery.verify_enhancement_family({
+            "result": self.recovery_delivery,
+            "session_directory": str(self.recovery),
+            "frames": self.recovery_delivery["frames"],
+        }, {}, {})
+        self.assertTrue(verified["successor_recovered"])
 
     def test_legacy_reconciled_proof_only_accounts_for_prior_occurrence(self):
         delivery._reconcile_recovery_successor(self.root, "gear", self.route)

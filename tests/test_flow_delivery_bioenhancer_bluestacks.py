@@ -17,8 +17,8 @@ import cv2
 import scripts.pnsctl as pnsctl
 import scripts.flow_delivery_bioenhancer_bluestacks as delivery
 import scripts.navigation_development_boundary as boundary
-import scripts.bioenhancer_free_research_canary as canary
-from scripts.bioenhancer_free_research_canary import (
+import scripts.bioenhancer_free_research_route as bio_route
+from scripts.bioenhancer_free_research_route import (
     _free_research_cooldown_visible,
     evaluate_free_research_postcondition,
 )
@@ -37,8 +37,10 @@ from scripts.navigation_development_boundary import (
     DevelopmentSession,
 )
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
-from tasks.home_atlas_planner import PlanDisposition
+from tasks.home_atlas_planner import PlanDisposition, SafeInteractionRegion
 from tasks.perception_bundle import PerceptionBundleError
+from tests.support.environment import requires_tesseract
+
 
 
 class _PanRuntime:
@@ -78,6 +80,11 @@ class _PanRuntime:
 
 
 class _PanNavigator:
+    # plan_research_lab_pan reads the navigator's safe region and calibration
+    # to preview the right-HUD waypoint before it asks the navigator to plan.
+    safe_region = SafeInteractionRegion("home-default", (145, 180, 650, 1010), (400, 600))
+    calibration = object()
+
     def __init__(self, plans) -> None:
         self._plans = iter(plans)
         self.plan_calls = 0
@@ -118,16 +125,28 @@ def _run_bio_pan_case(
     terminal_status = None
     with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
         with (
-            patch.object(canary, "load_home_atlas", return_value=atlas),
-            patch.object(canary, "normalize_home_atlas_startup", return_value=(object(), object())),
-            patch.object(canary, "DirectPanNavigator", return_value=navigator),
-            patch.object(canary, "BlueStacksHomeLocalizer", return_value=localizer),
-            patch.object(canary, "_atlas_stack", return_value=(atlas, localization)),
-            patch.object(canary, "bind_visible_building", return_value=None),
-            patch.object(canary, "bind_research_radial_option", return_value=None),
-            patch.object(canary, "bind_research_lab", return_value=None),
-            patch.object(canary, "recognize_free_research_cooldown", return_value=None),
-            patch.object(canary, "is_clean_home_frame", side_effect=clean_home),
+            patch.object(bio_route, "load_home_atlas", return_value=atlas),
+            patch.object(bio_route, "normalize_home_atlas_startup", return_value=(object(), object())),
+            patch.object(bio_route, "DirectPanNavigator", return_value=navigator),
+            patch.object(bio_route, "BlueStacksHomeLocalizer", return_value=localizer),
+            patch.object(bio_route, "_atlas_stack", return_value=(atlas, localization)),
+            # Binding is None here, so the waypoint is never admitted; the
+            # preview of the normal plan must not need a real atlas.
+            patch.object(
+                bio_route,
+                "plan_direct_pan",
+                return_value=SimpleNamespace(
+                    disposition=PlanDisposition.PAN,
+                    reason="calculated_direct_pan",
+                    viewport=SimpleNamespace(rejection_counts=()),
+                ),
+            ),
+            patch.object(bio_route, "bind_bioenhancer_back", return_value=None),
+            patch.object(bio_route, "bind_visible_building", return_value=None),
+            patch.object(bio_route, "bind_research_radial_option", return_value=None),
+            patch.object(bio_route, "bind_research_lab", return_value=None),
+            patch.object(bio_route, "recognize_free_research_cooldown", return_value=None),
+            patch.object(bio_route, "is_clean_home_frame", side_effect=clean_home),
         ):
             with DevelopmentSession(
                 owner="bio-pan-test",
@@ -136,7 +155,7 @@ def _run_bio_pan_case(
                 max_inputs=4,
             ) as session:
                 try:
-                    result = canary.run(
+                    result = bio_route.run(
                         max_inputs=4,
                         settle_seconds=0,
                         session=session,
@@ -435,7 +454,7 @@ class BioenhancerFlowDeliveryTests(unittest.TestCase):
                             return_value=SimpleNamespace(session=child),
                         ),
                         patch(
-                            "scripts.bioenhancer_free_research_canary.run",
+                            "scripts.bioenhancer_free_research_route.run",
                             return_value={
                                 "status": "completed",
                                 "semantic_postcondition": {
@@ -556,22 +575,22 @@ class BioenhancerCooldownTests(unittest.TestCase):
 
     def test_unique_bounded_timer_has_exact_utc_next_due(self):
         for text, seconds in (("Free in 16:57:15", 61035), ("Free in 01:30", 90), ("Free in 24:00:00", 86400)):
-            result = canary.parse_free_research_cooldown(text, now=self.NOW)
+            result = bio_route.parse_free_research_cooldown(text, now=self.NOW)
             self.assertEqual(result["seconds_remaining"], seconds)
             self.assertEqual(datetime.fromisoformat(result["next_due_utc"]), self.NOW + timedelta(seconds=seconds))
         for text in ("Free in 00:00", "Free in 25:00:00", "Free in 16:99:00", "Free in 01:60", "Free in 99:10", "Free in 16:57:15 Free in 10:00", "Free in 16:57:15 Free in unknown", "2/100", "Free Research 1x"):
             with self.subTest(text=text):
-                self.assertIsNone(canary.parse_free_research_cooldown(text, now=self.NOW))
+                self.assertIsNone(bio_route.parse_free_research_cooldown(text, now=self.NOW))
         with self.assertRaises(ValueError):
-            canary.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW.replace(tzinfo=None))
+            bio_route.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW.replace(tzinfo=None))
 
     def test_timer_requires_exact_bioenhancer_context(self):
         frame = np.zeros((1280, 800, 3), np.uint8)
         tokens = [{"text_cf": value, "text": value} for value in ("Free", "in", "16:57:15")]
-        with patch.object(canary, "_ocr_tokens", return_value=tokens), patch.object(canary, "bind_bioenhancer_back", return_value=None):
-            self.assertIsNone(canary.recognize_free_research_cooldown(frame, now=self.NOW))
-        with patch.object(canary, "_ocr_tokens", return_value=tokens), patch.object(canary, "bind_bioenhancer_back", return_value=object()):
-            self.assertEqual(canary.recognize_free_research_cooldown(frame, now=self.NOW)["seconds_remaining"], 61035)
+        with patch.object(bio_route, "_ocr_tokens", return_value=tokens), patch.object(bio_route, "bind_bioenhancer_back", return_value=None):
+            self.assertIsNone(bio_route.recognize_free_research_cooldown(frame, now=self.NOW))
+        with patch.object(bio_route, "_ocr_tokens", return_value=tokens), patch.object(bio_route, "bind_bioenhancer_back", return_value=object()):
+            self.assertEqual(bio_route.recognize_free_research_cooldown(frame, now=self.NOW)["seconds_remaining"], 61035)
 
     def _route_case(self, root, *, already_open, ready_startup=False):
         class Runtime:
@@ -597,31 +616,31 @@ class BioenhancerCooldownTests(unittest.TestCase):
 
             def tap(self, _before, *, target_identity, **_kwargs):
                 self.taps.append(target_identity)
-                self.phase = {canary.RESEARCH_LAB_ID: 2, "research-lab-radial-research": 3,
+                self.phase = {bio_route.RESEARCH_LAB_ID: 2, "research-lab-radial-research": 3,
                     "bioenhancer-in-game-back": 1 if self.phase == 0 else 4}[target_identity]
 
         runtime = Runtime()
-        cooldown = canary.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW)
+        cooldown = bio_route.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW)
         def control(frame, phase, identity):
-            return canary.BoundControl(identity, (200, 300, 260, 360), (), .9) if int(frame[0, 0, 0]) == phase else None
+            return bio_route.BoundControl(identity, (200, 300, 260, 360), (), .9) if int(frame[0, 0, 0]) == phase else None
         with (
             patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
-            patch.object(canary, "recognize_free_research_cooldown", side_effect=lambda frame: dict(cooldown) if int(frame[0, 0, 0]) == 3 else None),
-            patch.object(canary, "is_clean_home_frame", side_effect=lambda frame: int(frame[0, 0, 0]) in (1, 4)),
-            patch.object(canary, "bind_bioenhancer_back", side_effect=lambda frame: control(
+            patch.object(bio_route, "recognize_free_research_cooldown", side_effect=lambda frame: dict(cooldown) if int(frame[0, 0, 0]) == 3 else None),
+            patch.object(bio_route, "is_clean_home_frame", side_effect=lambda frame: int(frame[0, 0, 0]) in (1, 4)),
+            patch.object(bio_route, "bind_bioenhancer_back", side_effect=lambda frame: control(
                 frame, 0 if int(frame[0, 0, 0]) == 0 else 3, "bioenhancer-in-game-back")),
-            patch.object(canary, "load_home_atlas", return_value=object()),
-            patch.object(canary, "normalize_home_atlas_startup", return_value=(object(), object())) as normalize,
-            patch.object(canary, "DirectPanNavigator", return_value=object()),
-            patch.object(canary, "plan_research_lab_pan", return_value=(object(), None, SimpleNamespace(disposition=PlanDisposition.BIND, reason="bound", drag_start=None, drag_end=None))),
-            patch.object(canary, "bind_research_lab", side_effect=lambda frame: control(frame, 1, canary.RESEARCH_LAB_ID)),
-            patch.object(canary, "bind_research_radial_option", side_effect=lambda frame: control(frame, 2, "research-lab-radial-research")),
-            patch.object(canary, "bind_free_research", side_effect=lambda frame: control(
+            patch.object(bio_route, "load_home_atlas", return_value=object()),
+            patch.object(bio_route, "normalize_home_atlas_startup", return_value=(object(), object())) as normalize,
+            patch.object(bio_route, "DirectPanNavigator", return_value=object()),
+            patch.object(bio_route, "plan_research_lab_pan", return_value=(object(), None, SimpleNamespace(disposition=PlanDisposition.BIND, reason="bound", drag_start=None, drag_end=None))),
+            patch.object(bio_route, "bind_research_lab", side_effect=lambda frame: control(frame, 1, bio_route.RESEARCH_LAB_ID)),
+            patch.object(bio_route, "bind_research_radial_option", side_effect=lambda frame: control(frame, 2, "research-lab-radial-research")),
+            patch.object(bio_route, "bind_free_research", side_effect=lambda frame: control(
                 frame, 0, "bioenhancer-free-research")) as free,
-            patch.object(canary, "_ocr_tokens", return_value=[]),
+            patch.object(bio_route, "_ocr_tokens", return_value=[]),
         ):
             with DevelopmentSession(owner="bio-cooldown-test", invocation_id="bio-cooldown-test", session_directory=root / "outer", max_inputs=8) as session:
-                result = canary.run(session=session, runtime=runtime, session_directory=runtime.session, settle_seconds=0)
+                result = bio_route.run(session=session, runtime=runtime, session_directory=runtime.session, settle_seconds=0)
                 inputs = session.input_count
         return result, inputs, runtime.taps, normalize.call_count, free.call_count
 
@@ -635,7 +654,7 @@ class BioenhancerCooldownTests(unittest.TestCase):
         self.assertEqual(result["startup_return_home"]["input_count"], 1)
         self.assertEqual(inputs, 4)
         self.assertEqual(normalized, 1)
-        self.assertEqual(taps, ["bioenhancer-in-game-back", canary.RESEARCH_LAB_ID,
+        self.assertEqual(taps, ["bioenhancer-in-game-back", bio_route.RESEARCH_LAB_ID,
             "research-lab-radial-research", "bioenhancer-in-game-back"])
 
     def test_already_open_and_home_full_repeat_return_home_without_research(self):
@@ -659,7 +678,7 @@ class BioenhancerCooldownTests(unittest.TestCase):
                 raw = cv2.imencode(".png", np.full((1280, 800, 3), marker, np.uint8))[1].tobytes()
                 (session / "frames" / f"{label}.png").write_bytes(raw)
                 records[label] = {"frame_path": f"frames/{label}.png", "frame_sha256": hashlib.sha256(raw).hexdigest()}
-            cooldown = {**canary.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW), **records["cooldown"]}
+            cooldown = {**bio_route.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW), **records["cooldown"]}
             (session / "events.jsonl").write_text(json.dumps({"type": "dispatch", "execute": True, "action_key": "bioenhancer-return-home:1"}) + "\n")
             payload = delivery._result_payload({"status": "completed", "no_work": True, "cooldown": cooldown, "terminal_home_verified": True, "terminal_home_frame": records["home"]}, session_directory=session, input_count=1, free_calls=0, maximum=8)
             initial = {"frame_path": records["cooldown"]["frame_path"], "frame_sha256": records["cooldown"]["frame_sha256"], "invocation_id": "bio-cooldown"}
@@ -668,7 +687,7 @@ class BioenhancerCooldownTests(unittest.TestCase):
             delivery._write_delivery_result(session, payload, lease={"owner": "test"}, maximum=8)
             retained = json.loads((session / "flow-delivery-result.json").read_text())
             with (
-                patch.object(canary, "recognize_free_research_cooldown", side_effect=lambda frame, **_kwargs: cooldown if int(frame[0, 0, 0]) == 3 else None),
+                patch.object(bio_route, "recognize_free_research_cooldown", side_effect=lambda frame, **_kwargs: cooldown if int(frame[0, 0, 0]) == 3 else None),
                 patch("scripts.startup_normalization.is_clean_home_frame", side_effect=lambda frame: int(frame[0, 0, 0]) == 4),
             ):
                 verdict = verify_bioenhancer_free_research({"result": retained, "session_directory": str(session)}, {}, {})
@@ -686,7 +705,7 @@ class BioenhancerCooldownTests(unittest.TestCase):
                 self.assertEqual(verdict["status"], "evidence_required")
 
     def test_no_work_cannot_relabel_a_research_dispatch_or_unproved_home(self):
-        base = {"status": "completed", "no_work": True, "cooldown": canary.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW), "terminal_home_verified": True, "terminal_home_frame": {}, "semantic_postcondition": {"proven": True, "timer_proven": True}}
+        base = {"status": "completed", "no_work": True, "cooldown": bio_route.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW), "terminal_home_verified": True, "terminal_home_frame": {}, "semantic_postcondition": {"proven": True, "timer_proven": True}}
         result = delivery._result_payload(base, session_directory="test", input_count=2, free_calls=1, maximum=8)
         self.assertEqual(result["status"], "effect_reconciliation_required")
         base["terminal_home_verified"] = False
@@ -699,13 +718,13 @@ class BioenhancerCooldownTests(unittest.TestCase):
             source = SimpleNamespace(path=root / "cooldown.png", sha256="1" * 64)
             session = SimpleNamespace(input_count=1, terminal_status=None)
             with (
-                patch.object(canary, "_return_to_home", return_value={"status": "home_returned"}),
-                patch.object(canary, "is_clean_home_frame") as recognize,
+                patch.object(bio_route, "_return_to_home", return_value={"status": "home_returned"}),
+                patch.object(bio_route, "is_clean_home_frame") as recognize,
             ):
                 def capture(_label):
                     self.fail("verified return must not trigger another capture")
-                result = canary._complete_cooldown_no_work(
-                    {}, canary.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW), source,
+                result = bio_route._complete_cooldown_no_work(
+                    {}, bio_route.parse_free_research_cooldown("Free in 16:57:15", now=self.NOW), source,
                     session=session, runtime=object(), capture=capture,
                     session_directory=root, settle_seconds=0,
                 )
@@ -715,29 +734,30 @@ class BioenhancerCooldownTests(unittest.TestCase):
 
 
 class BioenhancerVisibleExitTests(unittest.TestCase):
+    @requires_tesseract
     def test_back_binding_requires_exact_title_arrow_and_no_modal(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
         frame[15:50, 20:75] = 220
         title = [{"text_cf": "bioenhancer"}]
         with (
-            patch.object(canary, "_ocr_tokens", return_value=title) as ocr,
-            patch.object(canary, "_generic_modal_overlay_evidence", return_value={"recognized": False}) as modal,
+            patch.object(bio_route, "_ocr_tokens", return_value=title) as ocr,
+            patch.object(bio_route, "_generic_modal_overlay_evidence", return_value={"recognized": False}) as modal,
         ):
-            control = canary.bind_bioenhancer_back(frame)
+            control = bio_route.bind_bioenhancer_back(frame)
             self.assertIsNotNone(control)
             self.assertEqual(control.identity, "bioenhancer-in-game-back")
             variant = frame.copy()
             variant[300:900, 200:600] = 130
-            self.assertEqual(canary.bind_bioenhancer_back(variant).target_roi, control.target_roi)
+            self.assertEqual(bio_route.bind_bioenhancer_back(variant).target_roi, control.target_roi)
             missing_arrow = variant.copy()
             missing_arrow[:90, :140] = 0
-            self.assertIsNone(canary.bind_bioenhancer_back(missing_arrow))
+            self.assertIsNone(bio_route.bind_bioenhancer_back(missing_arrow))
             ocr.return_value = [{"text_cf": "research"}]
-            self.assertIsNone(canary.bind_bioenhancer_back(frame))
+            self.assertIsNone(bio_route.bind_bioenhancer_back(frame))
             ocr.return_value = title
             modal.return_value = {"recognized": True}
-            self.assertIsNone(canary.bind_bioenhancer_back(frame))
-        self.assertIsNone(canary.bind_bioenhancer_back(frame[:640]))
+            self.assertIsNone(bio_route.bind_bioenhancer_back(frame))
+        self.assertIsNone(bio_route.bind_bioenhancer_back(frame[:640]))
 
     def _return_case(self, root, *, bind=True, home_marker=3, changed_source=False):
         class ExitRuntime(_PanRuntime):
@@ -752,22 +772,22 @@ class BioenhancerVisibleExitTests(unittest.TestCase):
                 raise AssertionError("Bioenhancer must never use Android Back")
 
         runtime = ExitRuntime()
-        control = canary.BoundControl("bioenhancer-in-game-back", (10, 5, 90, 60), (), .9)
+        control = bio_route.BoundControl("bioenhancer-in-game-back", (10, 5, 90, 60), (), .9)
 
         def binding(frame):
             return control if bind and not (changed_source and int(frame[0, 0, 0]) == 2) else None
 
         with (
             patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"),
-            patch.object(canary, "bind_bioenhancer_back", side_effect=binding),
-            patch.object(canary, "is_clean_home_frame", side_effect=lambda frame: int(frame[0, 0, 0]) == home_marker),
+            patch.object(bio_route, "bind_bioenhancer_back", side_effect=binding),
+            patch.object(bio_route, "is_clean_home_frame", side_effect=lambda frame: int(frame[0, 0, 0]) == home_marker),
         ):
             with DevelopmentSession(
                 owner="bio-exit-test", invocation_id="bio-exit-test",
                 session_directory=root / "session", max_inputs=2,
             ) as session:
                 try:
-                    result = canary._return_to_home(
+                    result = bio_route._return_to_home(
                         session=session, runtime=runtime, capture=runtime.capture,
                         session_directory=root / "session", settle_seconds=0,
                     )

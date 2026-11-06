@@ -17,7 +17,8 @@ import numpy as np
 from automation_service.registry import CAMPAIGN_FLOW_ID
 from tasks.campaign_auto_battle import CAMPAIGN_STAGE_COSTS, CampaignRouteObservation, CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import CampaignFrameRecognition
-from tasks.campaign_victory_recovery import load_victory_recovery_proof
+from tasks.campaign_victory_recovery import RETAINED_CAMPAIGN_FLOW_ID, load_victory_recovery_proof
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 NOW = datetime(2026, 10, 29, 6, tzinfo=timezone.utc)
@@ -65,7 +66,7 @@ class CampaignVictoryRecoveryProofTests(unittest.TestCase):
         # Fixed snapshot constructor validates the exact Campaign binding.
         snapshot = {
             "flow_id": CAMPAIGN_FLOW_ID, "product_id": "campaign_ap", "product_revision": "campaign_ap-v1",
-            "production_handler": "campaign_ap_selection_handler", "profile": "pns-bluestacks-5-p64-800x1280-v1",
+            "production_handler": "campaign_ap_selection_handler", "profile": ACTIVE_RUNTIME_PROFILE_ID,
             "mode": "phase_canary", "registration_status": "REGISTERED", "scheduler_eligible": True,
         }
         self.delivery = {
@@ -230,6 +231,33 @@ class CampaignVictoryRecoveryProofTests(unittest.TestCase):
                 return result
             with self.subTest(marker=marker, changes=changes), self.assertRaises(ValueError):
                 self._load(recognizer=altered)
+
+    def _as_retained_session(self, record_flow_id: str) -> None:
+        """Move the fixture to a pre-#36 session name and stamp its records."""
+
+        retained = self.root / f"{RETAINED_CAMPAIGN_FLOW_ID}-20261029T053617951795Z"
+        self.session.rename(retained)
+        for row in self.rows:
+            if row["type"] == "observation":
+                row["frame"] = row["frame"].replace(str(self.session), str(retained))
+        self.session, self.leaf = retained, retained / self.leaf.relative_to(self.session)
+        for record in (self.outer, self.outer["result"], self.delivery):
+            record["flow_id"] = record_flow_id
+            record["initial_observation"]["invocation_id"] = retained.name
+            record.get("registration_snapshot", {}).update(flow_id=record_flow_id)
+        self._save()
+
+    def test_retained_pre_rename_session_is_read_with_its_own_flow_id(self):
+        self._as_retained_session(RETAINED_CAMPAIGN_FLOW_ID)
+        proof = self._load()
+        self.assertEqual(proof["registration_snapshot"]["flow_id"], CAMPAIGN_FLOW_ID)
+        self.assertTrue(proof["source_session"].endswith(self.session.name))
+        self.assertEqual(proof["new_battle_count"], 0)
+
+    def test_retained_session_name_cannot_carry_the_new_flow_id(self):
+        self._as_retained_session(CAMPAIGN_FLOW_ID)
+        with self.assertRaisesRegex(ValueError, "flow identity mismatch"):
+            self._load()
 
     def test_traversal_and_ambiguous_route_leaf_fail(self):
         self.rows[0]["frame"] = "../../outside.png"

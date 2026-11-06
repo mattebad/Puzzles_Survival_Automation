@@ -8,6 +8,13 @@ import cv2
 
 from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import read_campaign_frame, recognize_campaign_frame
+from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures/campaign_lineup_current"
@@ -33,6 +40,7 @@ class CurrentCampaignLineupTests(unittest.TestCase):
         self.assertIsNone(recognition.target("campaign-lineup-challenge"))
         self.assertIsNone(recognition.target("campaign-lineup-back"))
 
+    @requires_tesseract
     def test_actual_png_reader_binds_current_challenge_and_source_pixels(self):
         manifest = json.loads((FIXTURES / "manifest.json").read_text(encoding="utf-8"))[SOURCE.name]
         self.assertEqual(hashlib.sha256(SOURCE.read_bytes()).hexdigest(), manifest["sha256"])
@@ -42,6 +50,7 @@ class CurrentCampaignLineupTests(unittest.TestCase):
         self.assertEqual(recognition.target("campaign-lineup-challenge"), CONTROL)
         self.assertEqual(recognition.frame_sha256, hashlib.sha256(self.frame().tobytes()).hexdigest())
 
+    @requires_tesseract
     def test_missing_or_wrong_header_cannot_authorize_challenge(self):
         for caption in ("", "Hero Upgrade", "Buy Hero Lineup"):
             with self.subTest(caption=caption):
@@ -52,6 +61,7 @@ class CurrentCampaignLineupTests(unittest.TestCase):
                                 0.65, (255, 255, 255), 2, cv2.LINE_AA)
                 self.assert_closed(frame)
 
+    @requires_tesseract
     def test_wrong_or_premium_caption_cannot_replace_challenge(self):
         for caption in ("Enhance", "Refill", "Buy Challenge"):
             with self.subTest(caption=caption):
@@ -61,6 +71,7 @@ class CurrentCampaignLineupTests(unittest.TestCase):
                             0.7, (255, 255, 255), 2, cv2.LINE_AA)
                 self.assert_closed(frame)
 
+    @requires_tesseract
     def test_duplicate_or_displaced_control_remains_ambiguous(self):
         for duplicate in (True, False):
             with self.subTest(duplicate=duplicate):
@@ -71,6 +82,7 @@ class CurrentCampaignLineupTests(unittest.TestCase):
                 frame[1168:1252, 20:268] = button
                 self.assert_closed(frame)
 
+    @requires_tesseract
     def test_non_gold_or_occluded_challenge_cannot_dispatch(self):
         for variant in ("non_gold", "overlay"):
             with self.subTest(variant=variant):
@@ -84,6 +96,7 @@ class CurrentCampaignLineupTests(unittest.TestCase):
                                 0.7, (255, 255, 255), 2, cv2.LINE_AA)
                 self.assert_closed(frame)
 
+    @requires_tesseract
     def test_current_control_is_measured_after_a_small_displacement(self):
         frame = self.frame()
         button = frame[1168:1252, 276:524].copy()

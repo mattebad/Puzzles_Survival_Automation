@@ -11,15 +11,18 @@ from typing import Any, Mapping
 
 import cv2
 import numpy as np
+from automation_service.registry import BIOENHANCER_FLOW_ID, BIOENHANCER_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
+from safe_action_core.path_safety import UnsafePathError, require_no_untrusted_symlinks
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FLOW_ID = "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"
+FLOW_ID = BIOENHANCER_FLOW_ID
 RUNNER_ID = "bioenhancer_free_research_bluestacks_runner"
 VALIDATOR_ID = "bioenhancer_free_research_bluestacks_evidence"
 RECOVERY_ID = "bioenhancer_free_research_bluestacks_recovery"
-MAX_INPUTS = 8
+MAX_INPUTS = BIOENHANCER_MAX_INPUTS
 MAX_FREE_RESEARCH_TRANSPORT_CALLS = 1
 
 
@@ -178,7 +181,7 @@ def _write_delivery_result(
         "schema_version": 1,
         "flow_id": FLOW_ID,
         "status": result.get("status"),
-        "serial": _pnsctl().BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": _pnsctl().BLUESTACKS_NATIVE_WIDTH,
         "native_height": _pnsctl().BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
@@ -315,7 +318,7 @@ def _result_payload(
 
 
 def _verify_no_work_frames(session: Path, result: Mapping[str, Any]) -> bool:
-    from scripts.bioenhancer_free_research_canary import recognize_free_research_cooldown
+    from scripts.bioenhancer_free_research_route import recognize_free_research_cooldown
     from scripts.startup_normalization import is_clean_home_frame
 
     cooldown = result.get("cooldown")
@@ -323,15 +326,16 @@ def _verify_no_work_frames(session: Path, result: Mapping[str, Any]) -> bool:
         return False
     images = {}
     try:
+        safe_session = require_no_untrusted_symlinks(session).resolve()
         for label, record in (("cooldown", cooldown), ("home", result.get("terminal_home_frame"))):
             if not isinstance(record, Mapping):
                 return False
             reference = record.get("frame_path")
             if not isinstance(reference, str) or Path(reference).is_absolute() or ".." in Path(reference).parts:
                 return False
-            path = session / reference
-            path.resolve().relative_to(session.resolve())
-            if not path.is_file() or any(part.is_symlink() for part in (path, *path.parents)):
+            path = require_no_untrusted_symlinks(safe_session / reference).resolve()
+            path.relative_to(safe_session)
+            if not path.is_file():
                 return False
             raw = path.read_bytes()
             if not raw.startswith(b"\x89PNG\r\n\x1a\n") or hashlib.sha256(raw).hexdigest() != record.get("frame_sha256"):
@@ -359,7 +363,7 @@ def run_bioenhancer_free_research(
     *,
     live: bool = True,
 ) -> str:
-    """Run the existing canary inside pnsctl's already-owned session."""
+    """Run the existing route inside pnsctl's already-owned session."""
 
     del queue
     maximum = _max_inputs(lease)
@@ -383,14 +387,14 @@ def run_bioenhancer_free_research(
     try:
         pnsctl = _pnsctl()
         runtime = LocalBlueStacksRuntime.connect(
-            adb=str(pnsctl.BLUESTACKS_ADB),
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=str(BLUESTACKS_ADB),
+            serial=BLUESTACKS_SERIAL,
             output_directory=outer_directory / "runtime",
             workflow=f"bioenhancer-free-research-{_stamp()}",
             execute=True,
         )
         runtime_session = runtime.session
-        from scripts import bioenhancer_free_research_canary as route_module
+        from scripts import bioenhancer_free_research_route as route_module
 
         route_result = route_module.run(
             max_inputs=maximum,
@@ -469,16 +473,20 @@ def verify_bioenhancer_free_research(
     if not isinstance(result, Mapping):
         raise _pnsctl().OperatorError("Bioenhancer delivery result is missing")
     session = Path(str(structure.get("session_directory") or ""))
+    try:
+        session = require_no_untrusted_symlinks(session).resolve()
+    except UnsafePathError as exc:
+        raise _pnsctl().OperatorError("Bioenhancer session path contains a link") from exc
     initial = result.get("initial_observation")
     trace = result.get("causal_trace")
     initial_ok = False
     if isinstance(initial, Mapping):
         frame_path = session / str(initial.get("frame_path") or "")
         try:
-            frame_path.resolve().relative_to(session.resolve())
+            frame_path = require_no_untrusted_symlinks(frame_path).resolve()
+            frame_path.relative_to(session)
             initial_ok = (
                 frame_path.is_file()
-                and not frame_path.is_symlink()
                 and hashlib.sha256(frame_path.read_bytes()).hexdigest()
                 == initial.get("frame_sha256")
                 == result.get("initial_frame_sha256")
@@ -492,10 +500,10 @@ def verify_bioenhancer_free_research(
     trace_file_ok = False
     trace_path = session / str(result.get("causal_trace_path") or "")
     try:
-        trace_path.resolve().relative_to(session.resolve())
+        trace_path = require_no_untrusted_symlinks(trace_path).resolve()
+        trace_path.relative_to(session)
         trace_file_ok = (
             trace_path.is_file()
-            and not trace_path.is_symlink()
             and json.loads(trace_path.read_text(encoding="utf-8")) == trace
         )
     except (OSError, ValueError, json.JSONDecodeError):

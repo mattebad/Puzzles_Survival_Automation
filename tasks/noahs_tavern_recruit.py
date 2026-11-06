@@ -12,7 +12,6 @@ import re
 from typing import Optional
 
 from .contracts import ActionTransactionSpec, ROI
-from .profile import PROFILE_ID
 
 
 HOME_BASE_SCREEN = "HOME_BASE"

@@ -7,12 +7,13 @@ import re
 from typing import Mapping, Optional
 
 from .contracts import ActionTransactionSpec, ROI, TaskOutcome, TaskResult
+from .profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 DAILY_QUEST_SCREEN = "DAILY_QUEST"
 DAILY_QUEST_CLAIM_TARGET = "daily-quest-claim"
 BLUESTACKS_NATIVE_TARGET_PROVENANCE = "bluestacks-native"
-BLUESTACKS_NATIVE_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+BLUESTACKS_NATIVE_RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 

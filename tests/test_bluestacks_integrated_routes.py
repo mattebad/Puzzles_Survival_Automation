@@ -44,6 +44,13 @@ from tasks.ruins_challenge import (
     RuinsScreenObservation,
 )
 from tasks.ruins_challenge_vision import RuinsDetailRecognition, RuinsFrameRecognition, RuinsResultRecognition, RuinsRewardRecognition
+from tests.support.local_captures import LOCAL_CAPTURES
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 RESET = "integration-reset"
@@ -101,9 +108,10 @@ class FakeRuntime:
         return "com.global.ztmslg"
 
     def reconcile(self, action_key, status, post, reason):
-        self.assert_in_flight(action_key)
+        # Reconciliation accepts ordinary transitions without an in-flight marker;
+        # tap/back still enforce the exact key for explicit continuation_of inputs.
         self.reconciliations.append((action_key, status, post.sha256, reason))
-        if status != "unresolved":
+        if status != "unresolved" and self.in_flight_action == action_key:
             self.in_flight_action = None
 
 
@@ -675,7 +683,15 @@ class IntegratedRouteTests(unittest.TestCase):
         self.assertEqual(outcome.actions_completed, 1)
         self.assertIsInstance(outcome.contextual_popup_recoveries, tuple)
         self.assertTrue(all("source_context" in row for row in outcome.contextual_popup_recoveries))
-        self.assertEqual(runtime.reconciliations, [])
+        self.assertEqual(
+            [(key, status, post) for key, status, post, _reason in runtime.reconciliations],
+            [
+                (runtime.taps[0][1]["action_key"], "confirmed", runtime.frames[1].sha256),
+                (runtime.taps[1][1]["action_key"], "confirmed", runtime.frames[4].sha256),
+                (runtime.taps[2][1]["action_key"], "confirmed", runtime.frames[4].sha256),
+                (runtime.backs[0][1]["action_key"], "confirmed", runtime.frames[runtime.index - 1].sha256),
+            ],
+        )
         self.assertEqual(len([item for item in runtime.taps if item[1].get("consequential")]), 0)
         self.assertEqual(runtime.taps[0][1]["target_roi"], (10, 10, 20, 20))
         self.assertEqual(bound_rois, [runtime.frames[0].sha256])
@@ -981,7 +997,7 @@ class IntegratedRouteTests(unittest.TestCase):
             RuinsDetailObservation("Gear Challenge", True, 68, 190, RuinsControlState.VISIBLE_ENABLED, reset_identity=RESET),
             "e" * 64, (), {},
         )
-        evidence_root = Path(".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION")
+        evidence_root = LOCAL_CAPTURES / "flow-delivery" / "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
         evidence_root.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(dir=evidence_root) as directory:
             evidence = Path(directory)
@@ -1025,7 +1041,7 @@ class IntegratedRouteTests(unittest.TestCase):
 
     def test_ruins_recovery_rejects_path_escape_wrong_hash_and_wrong_key(self):
         route = RuinsIntegratedRoute(FakeRuntime(), reset_identity=RESET, current_day="Wed", post_input_delay=0)
-        artifact_root = Path(".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION")
+        artifact_root = LOCAL_CAPTURES / "flow-delivery" / "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
         artifact_root.mkdir(parents=True, exist_ok=True)
         for tamper, expected in (("path", "recovery_evidence_path_escape"), ("hash", "recovery_evidence_successor_hash_mismatch"), ("key", "recovery_evidence_reconcile_link_invalid")):
             with self.subTest(tamper=tamper), TemporaryDirectory(dir=artifact_root) as directory:

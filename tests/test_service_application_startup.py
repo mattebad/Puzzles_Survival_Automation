@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 from scripts import pnsctl
 from scripts import navigation_development_boundary as boundary
-from tests.test_development_launch_game import _frame
+from tests.support.launch_game import _frame
+from tasks.runtime_identity import BLUESTACKS_PACKAGE
 
 
 class Lock:
@@ -46,7 +47,7 @@ class ApplicationStartupTests(unittest.TestCase):
             return f"mCurrentFocus=Window{{1 u0 {package}/.MainActivity}}"
         plan = patches.get("plan", SimpleNamespace(status="clear", recovery_owner=None))
         with patch.object(pnsctl, "_development_launcher_observation", side_effect=observations), \
-                patch.object(pnsctl, "_resolve_installed_game_activity", return_value=pnsctl.PACKAGE + "/.Main"), \
+                patch.object(pnsctl, "_resolve_installed_game_activity", return_value=BLUESTACKS_PACKAGE + "/.Main"), \
                 patch.object(pnsctl, "_run_fixed_bluestacks_adb", side_effect=adb), \
                 patch("scripts.startup_recovery.classify_startup_frame", return_value=plan), \
                 patch("scripts.startup_normalization.is_clean_home_frame",
@@ -56,7 +57,7 @@ class ApplicationStartupTests(unittest.TestCase):
                 checkpoint=self.checkpoint, session_directory=self.root / "evidence", flow_id="campaign", require_ready=True)
         return result, calls
     def test_existing_game_is_not_launched_and_current_context_owned_by_route(self):
-        result, calls = self.run_start([self.observe(pnsctl.PACKAGE), self.observe(pnsctl.PACKAGE)])
+        result, calls = self.run_start([self.observe(BLUESTACKS_PACKAGE), self.observe(BLUESTACKS_PACKAGE)])
         self.assertEqual(result["system_launch_count"], 0)
         self.assertEqual(calls, [])
         self.assertEqual(result["status"], "already_foreground")
@@ -65,7 +66,7 @@ class ApplicationStartupTests(unittest.TestCase):
         first = _application_startup_directory(self.root, "same-run")
         second = _application_startup_directory(self.root, "same-run")
         with patch.object(pnsctl, "_development_launcher_observation",
-                          side_effect=[self.observe(pnsctl.PACKAGE)] * 4):
+                          side_effect=[self.observe(BLUESTACKS_PACKAGE)] * 4):
             for directory in (first, second):
                 pnsctl.owner_bound_application_startup(runtime_input_lock=self.lock,
                     checkpoint=self.checkpoint, session_directory=directory,
@@ -78,7 +79,7 @@ class ApplicationStartupTests(unittest.TestCase):
 
     def test_known_launcher_starts_once_only_after_immediate_source_and_retains_evidence(self):
         launcher = self.observe("com.uncube.launcher3")
-        result, calls = self.run_start([launcher, launcher, self.observe(pnsctl.PACKAGE)])
+        result, calls = self.run_start([launcher, launcher, self.observe(BLUESTACKS_PACKAGE)])
         self.assertEqual(result["system_launch_count"], 1)
         self.assertEqual(len([c for c in calls if c[:3] == ("shell", "am", "start")]), 1)
         self.assertEqual(result["game_input_count"], 0)
@@ -117,8 +118,8 @@ class ApplicationStartupTests(unittest.TestCase):
         launcher = self.observe("com.uncube.launcher3")
         with patch.object(pnsctl.time, "monotonic", side_effect=[0, 91]):
             with self.assertRaises(pnsctl.ApplicationStartupError) as raised:
-                self.run_start([launcher, launcher, self.observe(pnsctl.PACKAGE),
-                                self.observe(pnsctl.PACKAGE)], ready=False)
+                self.run_start([launcher, launcher, self.observe(BLUESTACKS_PACKAGE),
+                                self.observe(BLUESTACKS_PACKAGE)], ready=False)
         self.assertEqual(raised.exception.startup_result["system_launch_count"], 1)
         self.assertFalse(raised.exception.startup_result["route_ready"])
 
@@ -126,7 +127,7 @@ class ApplicationStartupTests(unittest.TestCase):
         launcher = self.observe("com.uncube.launcher3")
         with patch.object(pnsctl.time, "monotonic", side_effect=[0, 91]):
             with self.assertRaises(pnsctl.ApplicationStartupError) as raised:
-                self.run_start([launcher, launcher, self.observe(pnsctl.PACKAGE), launcher],
+                self.run_start([launcher, launcher, self.observe(BLUESTACKS_PACKAGE), launcher],
                                ready=False)
         result = raised.exception.startup_result
         self.assertEqual(result["foreground_package"], "com.uncube.launcher3")
@@ -143,7 +144,7 @@ class ApplicationStartupTests(unittest.TestCase):
         with patch.object(pnsctl.time, "monotonic", side_effect=[0, 35]), \
                 patch.object(pnsctl.time, "sleep"):
             result, calls = self.run_start(
-                [launcher, launcher, self.observe(pnsctl.PACKAGE), self.observe(pnsctl.PACKAGE)],
+                [launcher, launcher, self.observe(BLUESTACKS_PACKAGE), self.observe(BLUESTACKS_PACKAGE)],
                 readiness_sequence=[False, True],
             )
         self.assertTrue(result["route_ready"])
@@ -155,7 +156,7 @@ class ApplicationStartupTests(unittest.TestCase):
     def test_known_owned_overlay_is_an_eligible_fresh_successor(self):
         launcher = self.observe("com.uncube.launcher3")
         plan = SimpleNamespace(status="recovery_required", recovery_owner="shared_home_startup_recovery")
-        result, _ = self.run_start([launcher, launcher, self.observe(pnsctl.PACKAGE)], ready=False, plan=plan)
+        result, _ = self.run_start([launcher, launcher, self.observe(BLUESTACKS_PACKAGE)], ready=False, plan=plan)
         self.assertEqual(result["readiness"], "known_startup_overlay")
 
     def test_checkpoint_loss_after_launcher_capture_prevents_launch(self):
@@ -181,9 +182,9 @@ class ApplicationStartupTests(unittest.TestCase):
 
 class ClaimedServiceStartupTests(unittest.TestCase):
     def test_callback_runs_under_claim_and_marker_before_fake_route(self):
-        from tests import test_service_recruitment as recruitment_tests
+        from tests.support import recruitment_service as recruitment_support
         from automation_service.registry import RECRUITMENT_FLOW_ID
-        case = recruitment_tests.ServiceRecruitmentTests(methodName="test_native_pass_cooldown_restart_and_later_eligibility")
+        case = recruitment_support.RecruitmentServiceCase("runTest")
         case.setUp()
         self.addCleanup(case.doCleanups)
         seen = []
@@ -204,8 +205,8 @@ class ClaimedServiceStartupTests(unittest.TestCase):
         self.assertGreater(reports[0]["result"]["total_input_count"], 0)
 
     def test_startup_failure_preserves_attempt_and_never_calls_route(self):
-        from tests import test_service_recruitment as recruitment_tests
-        case = recruitment_tests.ServiceRecruitmentTests(methodName="test_native_pass_cooldown_restart_and_later_eligibility")
+        from tests.support import recruitment_service as recruitment_support
+        case = recruitment_support.RecruitmentServiceCase("runTest")
         case.setUp()
         self.addCleanup(case.doCleanups)
         def startup(*_args):

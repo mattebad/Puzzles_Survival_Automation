@@ -14,10 +14,12 @@ from typing import Callable
 import cv2
 import numpy as np
 
+from automation_service.registry import ULTIMATE_FLOW_ID
 from safe_action_core import (
     ActionClass, ActionStatus, CentralPolicy, Observation, PolicyRequest,
     SafeActionExecutor, SafetyStore, TransportResult,
 )
+from safe_action_core.path_safety import UnsafePathError, require_no_untrusted_symlinks
 from scripts.bluestacks_native_runtime import (
     CapturedNativeFrame, LocalBlueStacksRuntime, NATIVE_RUNTIME_PROFILE_ID,
 )
@@ -97,10 +99,10 @@ class ContextualStartupRecoveryStep:
     reason: str
 
     def to_mapping(self, session) -> dict[str, object]:
-        raw_root = Path(session)
-        if raw_root.is_symlink():
-            raise ValueError("Startup recovery session reference contains a symlink")
-        root = raw_root.resolve()
+        try:
+            root = require_no_untrusted_symlinks(Path(session)).resolve()
+        except UnsafePathError as exc:
+            raise ValueError("Startup recovery session reference contains a symlink") from exc
         value = {"popup_identity": self.popup_identity, "action_key": self.action_key,
                  "target_identity": self.target_identity, "target_roi": list(self.target_roi),
                  "input_count": self.input_count, "confirmed": self.confirmed, "reason": self.reason}
@@ -108,15 +110,11 @@ class ContextualStartupRecoveryStep:
                             ("settled", self.settled_frame)):
             relative = None
             if frame:
-                relative = frame.path.resolve().relative_to(root).as_posix()
-                for path in (frame.path, *frame.path.parents):
-                    resolved = path.resolve()
-                    if not resolved.is_relative_to(root):
-                        break
-                    if path.is_symlink():
-                        raise ValueError("Startup recovery capture reference contains a symlink")
-                    if resolved == root:
-                        break
+                try:
+                    frame_path = require_no_untrusted_symlinks(frame.path).resolve()
+                except UnsafePathError as exc:
+                    raise ValueError("Startup recovery capture reference contains a symlink") from exc
+                relative = frame_path.relative_to(root).as_posix()
             value[name + "_frame"] = relative
             value[name + "_sha256"] = frame.sha256 if frame else None
             value[name + "_captured_monotonic"] = frame.captured_monotonic if frame else None
@@ -166,7 +164,7 @@ def classify_startup_frame(
             frame_sha256=frame_sha256,
             recognition=dict(startup_detail),
         )
-    if flow_id == "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION":
+    if flow_id == ULTIMATE_FLOW_ID:
         from scripts.bluestacks_ultimate_challenge import _bind_ultimate_defeat_continue
 
         target = _bind_ultimate_defeat_continue(frame)

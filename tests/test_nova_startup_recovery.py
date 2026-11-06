@@ -11,8 +11,14 @@ import cv2
 import numpy as np
 
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
-from scripts.nova_praise_bluestacks import NovaNavigationCanaryRoute
-from tests.test_nova_navigation_canary import ATLAS_PATH, _identity
+from scripts.nova_praise_bluestacks import NovaNavigationRoute
+from tests.support.nova_navigation import ATLAS_PATH, _identity
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 FIXTURES = Path(__file__).parent / "fixtures/startup"
@@ -48,7 +54,7 @@ class NovaStartupRecoveryTests(unittest.TestCase):
         device = RetainedDevice(frames)
         runtime = LocalBlueStacksRuntime(device, Path(self.directory.name) / "native", execute=True)
         runtime.max_inputs = 8
-        route = NovaNavigationCanaryRoute(runtime, _identity(), atlas_path=ATLAS_PATH,
+        route = NovaNavigationRoute(runtime, _identity(), atlas_path=ATLAS_PATH,
                                           maximum_steps=0, settle_seconds=0)
         return device, runtime, route
 

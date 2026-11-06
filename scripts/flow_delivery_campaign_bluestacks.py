@@ -22,12 +22,13 @@ from automation_service.registry import (
     CAMPAIGN_FLOW_ID,
     RegisteredDispatchSnapshot,
 )
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_PACKAGE, BLUESTACKS_SERIAL
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"
 PROVING_FLOW_ID = "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE"
-AUTO_BATTLE_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
+AUTO_BATTLE_FLOW_ID = CAMPAIGN_FLOW_ID
 DESTINATIONS = ("1-20-9", "1-15-9", "2-2-9")
 MAX_PROVING_ATTEMPTS = 25
 REQUIRED_CONSECUTIVE_PROVING_CYCLES = 3
@@ -138,8 +139,8 @@ def _ensure_home_surface_before_prep(
         raise pnsctl.OperatorError("Campaign Home prep input budget is invalid")
     provided_runtime = runtime is not None
     runtime = runtime or LocalBlueStacksRuntime.connect(
-        adb=str(pnsctl.BLUESTACKS_ADB),
-        serial=pnsctl.BLUESTACKS_SERIAL,
+        adb=str(BLUESTACKS_ADB),
+        serial=BLUESTACKS_SERIAL,
         output_directory=session / "campaign-exit-to-home",
         workflow="campaign-exit-to-home",
         execute=True,
@@ -314,9 +315,9 @@ def _prepare_canonical_home(
         str(REPO_ROOT / "scripts" / "home_atlas_bluestacks.py"),
         "zoom-out",
         "--adb",
-        str(pnsctl.BLUESTACKS_ADB),
+        str(BLUESTACKS_ADB),
         "--serial",
-        pnsctl.BLUESTACKS_SERIAL,
+        BLUESTACKS_SERIAL,
         "--canonical-reference",
         str(canonical_reference),
         "--output-directory",
@@ -337,9 +338,9 @@ def _prepare_canonical_home(
         str(REPO_ROOT / "scripts" / "home_atlas_bluestacks.py"),
         "return-canonical",
         "--adb",
-        str(pnsctl.BLUESTACKS_ADB),
+        str(BLUESTACKS_ADB),
         "--serial",
-        pnsctl.BLUESTACKS_SERIAL,
+        BLUESTACKS_SERIAL,
         "--atlas",
         str(atlas),
         "--output-directory",
@@ -445,9 +446,9 @@ def _run_campaign_navigation_execution(
         sys.executable,
         str(REPO_ROOT / "scripts" / "bluestacks_campaign_ap.py"),
         "--adb",
-        str(pnsctl.BLUESTACKS_ADB),
+        str(BLUESTACKS_ADB),
         "--serial",
-        pnsctl.BLUESTACKS_SERIAL,
+        BLUESTACKS_SERIAL,
         "--stage",
         destination,
         "--ap-cost",
@@ -486,7 +487,7 @@ def _run_campaign_navigation_execution(
         "schema_version": 1,
         "flow_id": flow_id,
         "status": "completed" if ok else "failed",
-        "serial": pnsctl.BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": pnsctl.BLUESTACKS_NATIVE_WIDTH,
         "native_height": pnsctl.BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": lease["owner"],
@@ -677,7 +678,7 @@ def recover_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[st
         raise pnsctl.OperatorError("approved BlueStacks serial is not in device state")
     focus = str(pnsctl._run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
     package = pnsctl._focused_package(focus)
-    if package != pnsctl.PACKAGE:
+    if package != BLUESTACKS_PACKAGE:
         raise pnsctl.OperatorError("Puzzles & Survival is not the foreground package during recovery")
     return json.dumps(
         {
@@ -1146,7 +1147,7 @@ def _write_campaign_delivery_result(
         "schema_version": 1,
         "flow_id": AUTO_BATTLE_FLOW_ID,
         "status": result.get("status"),
-        "serial": _pnsctl().BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": _pnsctl().BLUESTACKS_NATIVE_WIDTH,
         "native_height": _pnsctl().BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
@@ -1221,9 +1222,9 @@ def _run_campaign_victory_home_recovery(
             sys.executable,
             str(REPO_ROOT / "scripts" / "bluestacks_campaign_ap.py"),
             "--adb",
-            str(pnsctl.BLUESTACKS_ADB),
+            str(BLUESTACKS_ADB),
             "--serial",
-            pnsctl.BLUESTACKS_SERIAL,
+            BLUESTACKS_SERIAL,
             "--stage",
             destination,
             "--ap-cost",

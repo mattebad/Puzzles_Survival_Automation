@@ -25,6 +25,8 @@ from tasks.campaign_atlas_chapter_nav import (
     resolve_atlas_chapter_navigation,
 )
 from tasks.campaign_atlas_vision import hud_safe_pan_gesture
+from tests.support.local_captures import require_capture, requires_local_captures
+from tests.support.environment import requires_tesseract
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,12 +62,21 @@ LIVE_CH2_ECLIPOLIS = (
 )
 
 
+class CampaignAtlasSafeFramingTests(unittest.TestCase):
+    def test_safe_framing_requires_projection_and_complete_roi_clear_of_hud(self) -> None:
+        x0, y0, x1, y1 = CHAPTER_SAFE_VIEWPORT
+        self.assertTrue(projection_is_safely_framed((x0 + x1) / 2, (y0 + y1) / 2))
+        self.assertFalse(projection_is_safely_framed(x0 - 1, (y0 + y1) / 2))
+        self.assertTrue(chapter_roi_is_safely_framed((240, 300, 360, 360)))
+        self.assertFalse(chapter_roi_is_safely_framed((120, 300, 360, 360)))
+        self.assertFalse(chapter_roi_is_safely_framed((580, 940, 680, 1010)))
+
+
+@requires_local_captures
 class CampaignAtlasChapterNavTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.atlas_path = default_campaign_atlas_path()
-        if not cls.atlas_path.is_file():
-            raise unittest.SkipTest("accepted Campaign atlas artifact is absent")
+        cls.atlas_path = require_capture(default_campaign_atlas_path())
         cls.atlas = load_campaign_atlas(cls.atlas_path)
 
     def test_accepted_atlas_has_supported_chapter_landmarks(self) -> None:
@@ -95,18 +106,9 @@ class CampaignAtlasChapterNavTests(unittest.TestCase):
         direction = pan_direction_toward_screen_point(projected[0], projected[1])
         self.assertIn(direction, {"top", "right", "bottom", "left"})
 
-    def test_safe_framing_requires_projection_and_complete_roi_clear_of_hud(self) -> None:
-        x0, y0, x1, y1 = CHAPTER_SAFE_VIEWPORT
-        self.assertTrue(projection_is_safely_framed((x0 + x1) / 2, (y0 + y1) / 2))
-        self.assertFalse(projection_is_safely_framed(x0 - 1, (y0 + y1) / 2))
-        self.assertTrue(chapter_roi_is_safely_framed((240, 300, 360, 360)))
-        self.assertFalse(chapter_roi_is_safely_framed((120, 300, 360, 360)))
-        self.assertFalse(chapter_roi_is_safely_framed((580, 940, 680, 1010)))
-
+    @requires_tesseract
     def test_live_frame_near_chapter_20_reframes_before_tap(self) -> None:
-        if not LIVE_NEAR_CH20.is_file():
-            raise unittest.SkipTest("retained live frame near Chapter 20 is absent")
-        frame = np.asarray(Image.open(LIVE_NEAR_CH20).convert("RGB"))
+        frame = np.asarray(Image.open(require_capture(LIVE_NEAR_CH20)).convert("RGB"))
         # Weak OCR set that previously overrode ORB with a single Ch.21 anchor.
         decision = resolve_atlas_chapter_navigation(
             frame,
@@ -125,10 +127,9 @@ class CampaignAtlasChapterNavTests(unittest.TestCase):
             or "orb" in decision.reason.casefold()
         )
 
+    @requires_tesseract
     def test_retained_chapter_2_false_badge_is_ignored_when_eclipolis_binds(self) -> None:
-        if not LIVE_CH2_FALSE_BADGE.is_file():
-            raise unittest.SkipTest("retained Chapter 2 false-badge frame is absent")
-        frame = np.asarray(Image.open(LIVE_CH2_FALSE_BADGE).convert("RGB"))
+        frame = np.asarray(Image.open(require_capture(LIVE_CH2_FALSE_BADGE)).convert("RGB"))
         decision = resolve_atlas_chapter_navigation(
             frame,
             destination_id="2-2-9",
@@ -142,10 +143,9 @@ class CampaignAtlasChapterNavTests(unittest.TestCase):
         self.assertLess(decision.target_roi[2], 560)
         self.assertGreater(decision.target_roi[1], 700)
 
+    @requires_tesseract
     def test_retained_chapter_2_eclipolis_frame_binds_medallion_not_label(self) -> None:
-        if not LIVE_CH2_ECLIPOLIS.is_file():
-            raise unittest.SkipTest("retained Chapter 2 Eclipolis frame is absent")
-        frame = np.asarray(Image.open(LIVE_CH2_ECLIPOLIS).convert("RGB"))
+        frame = np.asarray(Image.open(require_capture(LIVE_CH2_ECLIPOLIS)).convert("RGB"))
         decision = resolve_atlas_chapter_navigation(
             frame,
             destination_id="2-2-9",
@@ -157,10 +157,9 @@ class CampaignAtlasChapterNavTests(unittest.TestCase):
         # Retained Eclipolis text starts to the right of x=348; target the medallion.
         self.assertLessEqual(decision.target_roi[2], 348)
 
+    @requires_tesseract
     def test_retained_edge_clipped_chapter_15_frame_never_taps(self) -> None:
-        if not LIVE_CH15_EDGE_CLIPPED.is_file():
-            raise unittest.SkipTest("retained edge-clipped Chapter 15 frame is absent")
-        frame = np.asarray(Image.open(LIVE_CH15_EDGE_CLIPPED).convert("RGB"))
+        frame = np.asarray(Image.open(require_capture(LIVE_CH15_EDGE_CLIPPED)).convert("RGB"))
         decision = resolve_atlas_chapter_navigation(
             frame,
             destination_id="1-15-9",
@@ -190,6 +189,7 @@ class PortableCampaignAtlasReframeTests(unittest.TestCase):
                                 return_value=SimpleNamespace(bound=False, current_frame_roi=None,
                                                              reason="retained template miss: 0.197")))
 
+    @requires_tesseract
     def test_native_chapter_15_hud_occlusion_reframes_without_tapping(self) -> None:
         path = ROOT / "tests/fixtures/campaign_atlas_chapter_nav/chapter15-right-hud-20261101.png"
         frame = cv2.imread(str(path))

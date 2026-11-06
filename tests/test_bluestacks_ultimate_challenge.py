@@ -43,6 +43,15 @@ from tasks.ultimate_challenge_daily import (
     UltimateChallengeEntryObservation,
     empty_reset_window_state,
 )
+from tests.support.ultimate import CampaignExitRuntime, captured_native_frame
+from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -204,6 +213,7 @@ class UltimateChallengeVisualTests(unittest.TestCase):
         self.assertFalse(observation.entry_control_visible)
         self.assertIsNone(observation.entry_roi)
 
+    @requires_tesseract
     def test_home_terminal_accepts_native_variants_and_rejects_missing_anchors(self) -> None:
         frames = [
             cv2.imread(
@@ -233,7 +243,13 @@ class UltimateChallengeVisualTests(unittest.TestCase):
 
     def test_unexpected_overlay_rejects_each_actionable_state(self) -> None:
         blank = np.zeros((1280, 800, 3), dtype=np.uint8)
-        with patch.object(ultimate, "_unexpected_visual_popup", return_value=True):
+        with patch.object(ultimate, "_unexpected_visual_popup", return_value=True), patch.object(
+            ultimate, "_ocr_ordered_tokens", return_value=True
+        ), patch.object(
+            ultimate,
+            "recognize_reset_popup",
+            return_value={"recognized": False, "blocking_unknown_modal": False},
+        ):
             self.assertIsNone(ultimate._recognize_ultimate_main(blank))
             self.assertIsNone(ultimate._bind_lineup_challenge_button(blank))
             self.assertIsNone(ultimate._recognize_active_battle(blank))
@@ -299,12 +315,18 @@ class UltimateChallengeVisualTests(unittest.TestCase):
         frame[385:425, 270:530] = (0, 0, 180)
         self.assertIsNone(ultimate._recognize_flee_warning(frame))
 
-    def test_repair_rebinds_entry_on_exact_immediate_before_and_enforces_ceiling(self) -> None:
-        source = Path(ultimate.__file__).read_text(encoding="utf-8")
-        self.assertIn('runtime.capture("uc-entry-immediate-before")', source)
-        self.assertIn("fresh_entry = _bind_ultimate_challenge_entry", source)
+    def test_input_budget_ceiling_is_enforced_by_the_cli(self) -> None:
         self.assertEqual(ultimate.MAX_TOTAL_INPUTS, 16)
-        self.assertIn("--max-total-inputs", source)
+        for budget in (0, ultimate.MAX_TOTAL_INPUTS + 1):
+            with self.subTest(budget=budget), patch("sys.stderr"):
+                with self.assertRaises(SystemExit) as raised:
+                    ultimate.main([
+                        "--adb", "HD-Adb.exe",
+                        "--serial", "127.0.0.1:5555",
+                        "--navigation-only",
+                        "--max-total-inputs", str(budget),
+                    ])
+            self.assertEqual(raised.exception.code, 2)
 
 
 class UltimateChallengeLineupTests(unittest.TestCase):
@@ -379,6 +401,10 @@ class UltimateChallengeLineupTests(unittest.TestCase):
             side_effect=lambda _frame, _roi, expected: title_ok if expected == ("hero", "lineup") else True,
         ), patch.object(
             ultimate,
+            "recognize_reset_popup",
+            return_value={"recognized": False, "blocking_unknown_modal": False},
+        ), patch.object(
+            ultimate,
             "_central_popup_candidates",
             return_value=(
                 [self._CARD_GRID_CANDIDATE]
@@ -388,6 +414,7 @@ class UltimateChallengeLineupTests(unittest.TestCase):
         ):
             return ultimate._bind_lineup_challenge_button(frame)
 
+    @requires_tesseract
     def test_native_positive_lineup_accepts_title_cards_button_and_grid_artifact(self) -> None:
         frame = self._lineup_frame()
         self.assertTrue(
@@ -496,6 +523,7 @@ class UltimateChallengeLineupTests(unittest.TestCase):
         ) -> None:
             self.reconciliations.append((action_key, status, post, reason))
 
+    @requires_tesseract
     def test_route_confirms_exact_challenge_key_against_lineup_capture(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -757,6 +785,9 @@ class UltimateChallengeLineupTests(unittest.TestCase):
 
 
 class UltimateVipResetContinuationTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch.dict("os.environ"))
+
     POPUP_FRAME = ROOT / "tasks/assets/navigation/800x1280/reset_popup_source.png"
     LINEUP_ROI = (290, 1153, 511, 1258)
 
@@ -849,8 +880,8 @@ class UltimateVipResetContinuationTests(unittest.TestCase):
         initial_observation: dict[str, object],
     ):
         with patch.object(
-            ultimate.pytesseract,
-            "image_to_data",
+            ultimate,
+            "tesseract_data",
             return_value=self._lineup_ocr(),
         ), patch.object(ultimate.time, "sleep", return_value=None):
             return ultimate._continue_from_vip_reset_popup(
@@ -915,6 +946,7 @@ class UltimateVipResetContinuationTests(unittest.TestCase):
         self.assertIs(post, settled)
         self.assertEqual(detail["lineup_roi"], self.LINEUP_ROI)
 
+    @requires_tesseract
     def test_wrong_popup_text_and_close_identity_are_rejected_by_shared_recognizer(self) -> None:
         frame = cv2.imread(str(self.POPUP_FRAME), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
@@ -1151,6 +1183,7 @@ class UltimateVipResetContinuationTests(unittest.TestCase):
         self.assertEqual(runtime.capture_labels, [])
         self.assertIs(runtime.taps[0]["source"], lineup)
 
+    @requires_tesseract
     def test_main_passes_settled_vip_successor_to_daily_route(self) -> None:
         class FakeRunner:
             def __init__(self, *_args) -> None:
@@ -1230,8 +1263,8 @@ class UltimateVipResetContinuationTests(unittest.TestCase):
                 "_run_daily_route",
                 side_effect=fake_daily,
             ), patch.object(
-                ultimate.pytesseract,
-                "image_to_data",
+                ultimate,
+                "tesseract_data",
                 return_value=self._lineup_ocr(),
             ), patch.object(
                 ultimate.time,
@@ -1267,6 +1300,9 @@ class UltimateVipResetContinuationTests(unittest.TestCase):
 
 
 class UltimateHomeNormalizationTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch.dict("os.environ"))
+
     @staticmethod
     def _home_frame(*, marker: int = 0) -> np.ndarray:
         frame = cv2.imread(
@@ -1683,6 +1719,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
                     ok, detail = run_normalizer()
         return root, runtime, ok, detail
 
+    @requires_tesseract
     def test_already_canonical_home_uses_zero_zoom(self) -> None:
         canonical = self._home_frame()
         _root, runtime, ok, detail = self._run_normalizer(
@@ -1694,6 +1731,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         self.assertEqual(runtime.input_count, 0)
         self.assertEqual(runtime.zoom_dispatches, [])
 
+    @requires_tesseract
     def test_main_hands_off_after_settled_pan_normalization(self) -> None:
         initial = self._home_frame(marker=1)
         canonical = self._home_frame()
@@ -1842,6 +1880,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         self.assertEqual(result["home_normalization"]["zoom_input_count"], 1)
         self.assertEqual(result["home_normalization"]["terminal_zoom_identity"], "fully_zoomed_out")
 
+    @requires_tesseract
     def test_edge_spanning_scenery_does_not_block_synthetic_home_normalization(self) -> None:
         canonical = self._home_frame()
         edge_spanning_scenery = (34, 588, 799, 1091)
@@ -1858,6 +1897,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         self.assertEqual(detail["zoom_input_count"], 0)
         self.assertEqual(runtime.input_count, 0)
 
+    @requires_tesseract
     def test_recoverable_zoom_uses_guarded_counted_transport(self) -> None:
         canonical = self._home_frame()
         root, runtime, ok, detail = self._run_normalizer(
@@ -1880,6 +1920,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         ]
         self.assertEqual(len(action_keys), len(set(action_keys)))
 
+    @requires_tesseract
     def test_dynamic_immediate_before_replans_and_binds_all_accounting_to_it(self) -> None:
         immediate_frame = self._home_frame(marker=2)
         accounting_sources: list[str] = []
@@ -1920,6 +1961,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         self.assertEqual(plan["refreshed_source_frame_sha256"], immediate_semantic)
         self.assertNotEqual(plan["planned_source_frame_sha256"], immediate_semantic)
 
+    @requires_tesseract
     def test_settled_fully_out_pan_ignores_transient_immediate_popup(self) -> None:
         driver = self._SettledDispositionDriver(
             ultimate.HomeDriverDisposition.PAN,
@@ -1959,6 +2001,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         self.assertEqual(plan["status"], "confirmed")
         self.assertNotIn("unresolved", {status for _, status in runtime.reconciliations})
 
+    @requires_tesseract
     def test_settled_unsafe_terminal_does_not_confirm_or_recover_again(self) -> None:
         driver = self._SettledDispositionDriver(
             ultimate.HomeDriverDisposition.PAN,
@@ -1980,6 +2023,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         self.assertEqual(detail["zoom_input_count"], 1)
         self.assertNotIn("confirmed", {status for _, status in runtime.reconciliations})
 
+    @requires_tesseract
     def test_popup_or_non_home_immediate_before_blocks_without_input(self) -> None:
         popup_frame = self._home_frame(marker=2)
         non_home_frame = self._non_home_frame()
@@ -2009,6 +2053,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
                     self.assertEqual(runtime.reconciliation_attempts, [])
                     self.assertIn("immediate-before", str(detail["reason"]))
 
+    @requires_tesseract
     def test_refreshed_unknown_or_changed_disposition_blocks_without_input(self) -> None:
         for disposition in (
             ultimate.HomeDriverDisposition.BLOCKED,
@@ -2031,6 +2076,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
                     f"{disposition.value}",
                 )
 
+    @requires_tesseract
     def test_zoom_reconciliation_joins_exact_dispatched_key_on_success_and_failure(self) -> None:
         canonical = self._home_frame()
         _root, success_runtime, ok, _detail = self._run_normalizer(
@@ -2083,6 +2129,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
             )
         )
 
+    @requires_tesseract
     def test_guard_denial_before_inner_dispatch_does_not_reconcile_unreserved_key(self) -> None:
         _root, runtime, ok, detail = self._run_normalizer(
             factory=lambda _count: self._home_frame(marker=1),
@@ -2099,6 +2146,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         self.assertFalse(plan[0]["runtime_accounted"])
         self.assertEqual(detail["zoom_input_count"], 0)
 
+    @requires_tesseract
     def test_driver_accounting_failure_reconciles_exact_runtime_key_unresolved(self) -> None:
         _root, runtime, ok, detail = self._run_normalizer(
             factory=lambda _count: self._home_frame(),
@@ -2128,6 +2176,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         self.assertEqual(plan[0]["status"], "unresolved")
         self.assertEqual(detail["zoom_input_count"], 1)
 
+    @requires_tesseract
     def test_no_progress_home_successor_is_failed_confirmed_after_reobservation(self) -> None:
         _root, runtime, ok, detail = self._run_normalizer(
             factory=lambda _count: self._home_frame(marker=1),
@@ -2144,6 +2193,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
         self.assertEqual(len(plan_records), 1)
         self.assertEqual(plan_records[0]["status"], "failed_confirmed")
 
+    @requires_tesseract
     def test_wrong_unknown_overlay_repeated_and_transport_failure_block(self) -> None:
         canonical = self._home_frame()
         cases = (
@@ -2173,6 +2223,7 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
                 self.assertTrue(detail["reason"])
                 self.assertLessEqual(detail["zoom_input_count"], ultimate.MAX_HOME_ZOOM_INPUTS)
 
+    @requires_tesseract
     def test_exhaustion_and_aggregate_ceiling_are_fail_closed(self) -> None:
         def changing_zoom(count: int) -> np.ndarray:
             return self._home_frame(marker=(count % 200) + 1)
@@ -2195,28 +2246,11 @@ class UltimateHomeNormalizationTests(unittest.TestCase):
 
 
 class UltimateCampaignExitRecoveryTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch.dict("os.environ"))
+
     CANCEL_ROI = (60, 650, 380, 780)
     EXIT_ROI = (690, 920, 800, 1060)
-
-    @staticmethod
-    def _captured(
-        root: Path,
-        frame: np.ndarray,
-        label: str,
-        ordinal: int,
-    ) -> CapturedNativeFrame:
-        encoded_ok, encoded = cv2.imencode(".png", frame)
-        assert encoded_ok
-        payload = encoded.tobytes()
-        path = root / f"{ordinal:04d}-{label}.png"
-        path.write_bytes(payload)
-        return CapturedNativeFrame(
-            frame=frame.copy(),
-            png=payload,
-            sha256=hashlib.sha256(payload).hexdigest(),
-            captured_monotonic=float(ordinal),
-            path=path,
-        )
 
     @staticmethod
     def _exit_dialog_frame(
@@ -2258,55 +2292,6 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             cv2.LINE_AA,
         )
         return frame
-
-    class _Runtime:
-        def __init__(
-            self,
-            root: Path,
-            frames: list[np.ndarray],
-        ) -> None:
-            self.root = root
-            self.root.mkdir(parents=True, exist_ok=True)
-            self.frames = list(frames)
-            self.captures: list[CapturedNativeFrame] = []
-            self.taps: list[dict[str, object]] = []
-            self.backs: list[dict[str, object]] = []
-            self.reconciliations: list[
-                tuple[str, str, CapturedNativeFrame, str]
-            ] = []
-            self.action_keys: set[str] = set()
-            self.input_count = 0
-            self.runner = SimpleNamespace()
-
-        def capture(self, label: str) -> CapturedNativeFrame:
-            frame = self.frames.pop(0) if self.frames else self.captures[-1].frame
-            captured = UltimateCampaignExitRecoveryTests._captured(
-                self.root,
-                frame,
-                label,
-                len(self.captures) + 1,
-            )
-            self.captures.append(captured)
-            return captured
-
-        def tap(self, source: CapturedNativeFrame, **kwargs) -> None:
-            self.taps.append({"source": source, **kwargs})
-            self.action_keys.add(str(kwargs["action_key"]))
-            self.input_count += 1
-
-        def back(self, source: CapturedNativeFrame, **kwargs) -> None:
-            self.backs.append({"source": source, **kwargs})
-            self.action_keys.add(str(kwargs["action_key"]))
-            self.input_count += 1
-
-        def reconcile(
-            self,
-            action_key: str,
-            status: str,
-            post: CapturedNativeFrame,
-            reason: str,
-        ) -> None:
-            self.reconciliations.append((action_key, status, post, reason))
 
     def test_real_exit_dialog_binds_only_cancel_and_rejects_negatives(self) -> None:
         recognized, cancel_roi = ultimate.troop_training_vision.recognize_exit_dialog(
@@ -2365,14 +2350,14 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             (session / "frames").mkdir(parents=True)
             events = session / "events.jsonl"
             campaign_frame = np.zeros((1280, 800, 3), dtype=np.uint8)
-            runtime = self._Runtime(
+            runtime = CampaignExitRuntime(
                 root,
                 [
                     np.zeros((1280, 800, 3), dtype=np.uint8),
                     np.zeros((1280, 800, 3), dtype=np.uint8),
                 ],
             )
-            campaign = self._captured(root, campaign_frame, "campaign", 90)
+            campaign = captured_native_frame(root, campaign_frame, "campaign", 90)
             with patch.object(
                 ultimate,
                 "_recognize_ultimate_main",
@@ -2427,12 +2412,12 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
         self.assertEqual(detail["resource_delta"], {"ap": 0, "stamina": 0, "currency": 0, "items": 0})
 
     def test_post_flee_uc_back_transport_failure_reconciles_only_accounted_key(self) -> None:
-        class BackFailsAfterAccounting(self._Runtime):
+        class BackFailsAfterAccounting(CampaignExitRuntime):
             def back(self, source, **kwargs) -> None:
                 super().back(source, **kwargs)
                 raise RuntimeError("synthetic UC back transport failure")
 
-        class BackFailsBeforeAccounting(self._Runtime):
+        class BackFailsBeforeAccounting(CampaignExitRuntime):
             def back(self, _source, **_kwargs) -> None:
                 raise RuntimeError("synthetic pre-accounting failure")
 
@@ -2489,12 +2474,12 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
                 session = root / "session"
                 (session / "frames").mkdir(parents=True)
                 events = session / "events.jsonl"
-                runtime = self._Runtime(
+                runtime = CampaignExitRuntime(
                     root,
                     [np.zeros((1280, 800, 3), dtype=np.uint8)],
                 )
                 successor = (
-                    self._captured(
+                    captured_native_frame(
                         root,
                         np.full((1280, 800, 3), 7, dtype=np.uint8),
                         "wrong-successor",
@@ -2543,11 +2528,11 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             session = root / "session"
             (session / "frames").mkdir(parents=True)
             events = session / "events.jsonl"
-            runtime = self._Runtime(
+            runtime = CampaignExitRuntime(
                 root,
                 [np.zeros((1280, 800, 3), dtype=np.uint8)],
             )
-            campaign = self._captured(
+            campaign = captured_native_frame(
                 root,
                 np.full((1280, 800, 3), 9, dtype=np.uint8),
                 "campaign-successor",
@@ -2602,7 +2587,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
                 session = root / "session"
                 (session / "frames").mkdir(parents=True)
                 events = session / "events.jsonl"
-                runtime = self._Runtime(
+                runtime = CampaignExitRuntime(
                     root,
                     [np.zeros((1280, 800, 3), dtype=np.uint8)] * 10,
                 )
@@ -2649,6 +2634,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
                     self.assertEqual(len(runtime.taps), 1)
                     self.assertEqual(runtime.reconciliations[-1][1], "unresolved")
 
+    @requires_tesseract
     def test_main_current_exit_dialog_recovers_with_two_confirmed_inputs(self) -> None:
         dialog = self._exit_dialog_frame()
         campaign_frame = cv2.imread(
@@ -2660,7 +2646,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             ),
             cv2.IMREAD_COLOR,
         )
-        runtime_holder: list[UltimateCampaignExitRecoveryTests._Runtime] = []
+        runtime_holder: list[CampaignExitRuntime] = []
         frames = [dialog, dialog, campaign_frame, campaign_frame, np.zeros((1280, 800, 3), dtype=np.uint8)]
 
         class FakeRunner:
@@ -2673,7 +2659,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             def get_state(self) -> str:
                 return "device"
 
-        class FakeRuntime(self._Runtime):
+        class FakeRuntime(CampaignExitRuntime):
             def __init__(self, runner, session: Path, *, execute: bool) -> None:
                 super().__init__(session / "frames", frames)
                 self.runner = runner
@@ -2770,7 +2756,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             def get_state(self) -> str:
                 return "device"
 
-        class FakeRuntime(self._Runtime):
+        class FakeRuntime(CampaignExitRuntime):
             def __init__(self, runner, session: Path, *, execute: bool) -> None:
                 super().__init__(
                     session / "frames", [np.zeros((1280, 800, 3), dtype=np.uint8)]
@@ -2832,6 +2818,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
                 any(event["type"] == "campaign_exit_home_only" for event in events)
             )
 
+    @requires_tesseract
     def test_main_campaign_exit_home_only_fails_closed_off_campaign(self) -> None:
         class FakeRunner:
             def __init__(self, *_args) -> None:
@@ -2843,7 +2830,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
             def get_state(self) -> str:
                 return "device"
 
-        class FakeRuntime(self._Runtime):
+        class FakeRuntime(CampaignExitRuntime):
             def __init__(self, runner, session: Path, *, execute: bool) -> None:
                 super().__init__(
                     session / "frames", [np.zeros((1280, 800, 3), dtype=np.uint8)]
@@ -2910,7 +2897,7 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
                 self.session = runtime_session
                 self.execute = execute
                 self.input_count = 0
-                self._captured = UltimateCampaignExitRecoveryTests._captured(
+                self._captured = captured_native_frame(
                     runtime_session,
                     dialog,
                     "campaign-resume-source",
@@ -2997,6 +2984,9 @@ class UltimateCampaignExitRecoveryTests(unittest.TestCase):
 
 
 class UltimateChallengeOperatorTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch.dict("os.environ"))
+
     class FakePnsctl:
         BLUESTACKS_ADB = Path("fake-adb")
         BLUESTACKS_SERIAL = "emulator-5554"
@@ -3264,6 +3254,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             self.assertTrue(any(event["type"] == "post_flee_home_source" for event in events))
             self.assertEqual(len(captured_frames), 1)
 
+    @requires_tesseract
     def test_localization_blocked_early_return_retains_zero_input_evidence(self) -> None:
         captured_frames: list[CapturedNativeFrame] = []
 
@@ -3387,6 +3378,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             )
             self.assertTrue(frames)
 
+    @requires_tesseract
     def test_main_unwraps_captured_frames_for_resume_and_navigation_binding(self) -> None:
         captured_frames: list[CapturedNativeFrame] = []
         runtime_instances = []
@@ -3659,10 +3651,14 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 delivery.run_ultimate_challenge_daily(queue, lease)
         return commands[0], load_state, record_home, save_state
 
+    @requires_tesseract
     def test_daily_wrapper_accepts_minimal_development_session_context(self) -> None:
         queue = {"active_flow_id": FLOW_ID, "development_session": True}
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            physical_artifact_root = root / "canonical-artifacts"
+            physical_artifact_root.mkdir()
+            artifact_root_alias = physical_artifact_root / ".." / "canonical-artifacts"
             initial_bytes = b"typed-ultimate-terminal-initial"
             digest = hashlib.sha256(initial_bytes).hexdigest()
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
@@ -3689,7 +3685,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                         "initial_frame_sha256": digest,
                     }
                     command, _load_state, _record_home, _save_state = self._run_wrapper(
-                        root,
+                        artifact_root_alias,
                         terminal="complete_for_reset",
                         home_nav_recognized=True,
                         input_count=2,
@@ -3697,17 +3693,27 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                         lease_context=lease,
                     )
             result_paths = list(
-                (root / "artifacts" / FLOW_ID).glob(
+                (physical_artifact_root / "artifacts" / FLOW_ID).glob(
                     "daily-*/nav-child/flow-delivery-result.json"
                 )
             )
             self.assertEqual(len(result_paths), 1)
             delivery_result = json.loads(result_paths[0].read_text(encoding="utf-8"))
+            self.assertEqual(
+                delivery_result["verified_home_path"],
+                "frames/canonical-home-terminal.png",
+            )
             with patch.object(delivery, "_pnsctl", return_value=pnsctl):
                 verified = delivery.verify_ultimate_challenge_daily(
                     {
                         "result": delivery_result,
-                        "session_directory": str(result_paths[0].parent),
+                        "session_directory": str(
+                            artifact_root_alias
+                            / "artifacts"
+                            / FLOW_ID
+                            / result_paths[0].parent.parent.name
+                            / "nav-child"
+                        ),
                     },
                     {},
                     {},
@@ -3734,6 +3740,11 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
         self.assertTrue(verified["initial_observation_verified"])
         self.assertTrue(verified["transport_accounting_verified"])
         self.assertEqual(verified["new_flee_transport_count"], 1)
+        self.assertEqual(
+            verified["verified_home_path"],
+            "frames/canonical-home-terminal.png",
+        )
+
 
     def test_terminal_session_rejects_equal_but_nonidentical_initial_observation(
         self,
@@ -3869,6 +3880,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                     (Path(directory) / "artifacts" / FLOW_ID).exists()
                 )
 
+    @requires_tesseract
     def test_daily_wrapper_accepts_legacy_context_and_propagates_explicit_ceiling(
         self,
     ) -> None:
@@ -4236,6 +4248,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                     (Path(directory) / "artifacts" / FLOW_ID).exists()
                 )
 
+    @requires_tesseract
     def test_daily_wrapper_uses_current_reset_and_ignores_history(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             command, load_state, record_home, save_state = self._run_wrapper(
@@ -4270,6 +4283,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
                 record_home.assert_not_called()
                 save_state.assert_not_called()
 
+    @requires_tesseract
     def test_complete_for_reset_nonzero_child_exit_does_not_persist(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _command, load_state, record_home, save_state = self._run_wrapper(
@@ -4283,6 +4297,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
         record_home.assert_not_called()
         save_state.assert_not_called()
 
+    @requires_tesseract
     def test_complete_for_reset_over_budget_does_not_persist(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _command, load_state, record_home, save_state = self._run_wrapper(
@@ -4296,6 +4311,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
         record_home.assert_not_called()
         save_state.assert_not_called()
 
+    @requires_tesseract
     def test_complete_for_reset_without_current_flee_does_not_persist(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _command, load_state, record_home, save_state = self._run_wrapper(
@@ -4341,6 +4357,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
         record_home.assert_not_called()
         save_state.assert_not_called()
 
+    @requires_tesseract
     def test_already_completed_home_is_verified_without_persistence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _command, load_state, record_home, save_state = self._run_wrapper(
@@ -4352,6 +4369,7 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
         record_home.assert_not_called()
         save_state.assert_not_called()
 
+    @requires_tesseract
     def test_wrapper_home_evidence_rejects_tamper_and_non_home(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -4372,6 +4390,32 @@ class UltimateChallengeOperatorTests(unittest.TestCase):
             self.assertTrue(delivery._verified_home_evidence(root, result)[0])
             path.write_bytes(b"tampered")
             self.assertFalse(delivery._verified_home_evidence(root, result)[0])
+
+    def test_wrapper_home_evidence_rejects_linked_frame_before_reading(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            frames = root / "frames"
+            frames.mkdir()
+            original = root / "original.png"
+            payload = b"linked evidence must not be opened"
+            original.write_bytes(payload)
+            linked = frames / "home.png"
+            try:
+                linked.symlink_to(original)
+            except (OSError, NotImplementedError) as exc:
+                if (isinstance(exc, (PermissionError, NotImplementedError))
+                        or getattr(exc, "winerror", None) == 1314):
+                    self.skipTest("host does not permit symbolic-link creation")
+                raise
+            result = {
+                "home_nav_recognized": True,
+                "home_frame": "frames/home.png",
+                "home_frame_sha256": hashlib.sha256(payload).hexdigest(),
+            }
+            with patch.object(Path, "read_bytes", side_effect=AssertionError(
+                    "linked evidence must not be read")) as read:
+                self.assertFalse(delivery._verified_home_evidence(root, result)[0])
+                read.assert_not_called()
 
     def test_verifier_rejects_tampered_home_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

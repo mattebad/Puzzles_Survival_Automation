@@ -88,7 +88,7 @@ Links point directly to each stable ticket heading. All 74 records are listed ex
 - [`REC-R16` — Shared direct Home-to-World gathering/march controller](resources.md#rec-r16--shared-direct-home-to-world-gatheringmarch-controller)
 - [`REC-R17` — Wood 30000 and Steel 6000 gathering variants](resources.md#rec-r17--wood-30000-and-steel-6000-gathering-variants)
 - [`REC-R18` — Gas 1500 gathering with bounded reveal/rebind](resources.md#rec-r18--gas-1500-gathering-with-bounded-revealrebind)
-- [`REC-R19` — Defer Zombie Lair maintenance and Daily attribution pending product decision](resources.md#rec-r19--defer-zombie-lair-maintenance-and-daily-attribution-pending-product-decision)
+- [`REC-R19` — Implement approved Zombie Lair maintenance and Daily attribution](resources.md#rec-r19--implement-approved-zombie-lair-maintenance-and-daily-attribution)
 - [`REC-P01` — Decide Ruins Shop purchase policy](resources.md#rec-p01--decide-ruins-shop-purchase-policy)
 - [`REC-P02` — Decide Rare Earth Shop purchase policy](resources.md#rec-p02--decide-rare-earth-shop-purchase-policy)
 - [`REC-P03` — Decide Alliance Shop purchase policy](resources.md#rec-p03--decide-alliance-shop-purchase-policy)

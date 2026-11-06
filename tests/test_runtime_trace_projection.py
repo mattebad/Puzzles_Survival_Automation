@@ -7,8 +7,8 @@ import unittest
 from unittest.mock import patch
 
 import cv2
+import pytesseract
 
-from scripts import bluestacks_popup_recognition as popup_recognition
 from scripts.bluestacks_popup_recognition import classify_popup_recovery, recognize_reset_popup
 from scripts.runtime_trace_projection import TraceStatus, project_trace
 from tasks.list_search import ListObservation, SearchStatus, inspect_list
@@ -321,7 +321,7 @@ class RuntimeTraceProjectionTests(unittest.TestCase):
             return observation["text"]
 
         with patch.object(
-            popup_recognition.pytesseract,
+            pytesseract,
             "image_to_string",
             side_effect=replay_ocr,
         ):

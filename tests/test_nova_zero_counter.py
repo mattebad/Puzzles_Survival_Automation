@@ -8,9 +8,11 @@ import unittest
 from unittest.mock import patch
 
 import cv2
+import pytesseract
 
 from tasks.nova_praise import nova_postcondition_verified
 from tasks import nova_praise_vision as vision
+from tests.support.environment import requires_tesseract
 
 
 FIXTURES = Path(__file__).parent / "fixtures/nova_zero_counter"
@@ -23,6 +25,7 @@ class NovaZeroCounterTests(unittest.TestCase):
         cls.before = cv2.imread(str(FIXTURES / "native-before-one.png"))
         cls.after = cv2.imread(str(FIXTURES / "native-after-zero.png"))
 
+    @requires_tesseract
     def test_current_seven_attempt_screen_is_actionable(self):
         provenance = json.loads((FIXTURES / "native-current-seven.provenance.json").read_text())
         path = FIXTURES / "native-current-seven.png"
@@ -33,6 +36,7 @@ class NovaZeroCounterTests(unittest.TestCase):
         self.assertEqual(result.observation.attempts_remaining, 7)
         self.assertEqual(result.target(vision.NOVA_PRAISE_TARGET), vision.NOVA_PRAISE_ROI)
 
+    @requires_tesseract
     def test_current_header_and_praise_label_are_both_required(self):
         original = cv2.imread(str(FIXTURES / "native-current-seven.png"))
         for roi in (vision.NOVA_HEADER_ROI, vision.NOVA_PRAISE_ROI):
@@ -44,6 +48,7 @@ class NovaZeroCounterTests(unittest.TestCase):
                 self.assertFalse(result.observation.recognized)
                 self.assertFalse(result.observation.praise_enabled)
 
+    @requires_tesseract
     def test_actual_last_praise_has_exact_decrement_and_observed_cooldown(self):
         observations = []
         for frame, record in zip((self.before, self.after), self.provenance["frames"]):
@@ -61,6 +66,7 @@ class NovaZeroCounterTests(unittest.TestCase):
         self.assertEqual(after.cooldown_seconds, 291)
         self.assertTrue(nova_postcondition_verified(before, after, now=after.captured_monotonic))
 
+    @requires_tesseract
     def test_unknown_row_character_is_not_a_zero_without_the_visible_digit(self):
         missing = self.after.copy()
         missing[1180:1210, 550:580] = (30, 30, 30)
@@ -70,6 +76,7 @@ class NovaZeroCounterTests(unittest.TestCase):
         self.assertIsNone(result.observation.attempts_remaining)
         self.assertFalse(result.observation.recognized)
 
+    @requires_tesseract
     def test_red_nonzero_nondigit_and_multiple_glyphs_cannot_supply_zero(self):
         for value in ("C", "Q", "O", "8", "00"):
             with self.subTest(value=value):
@@ -79,6 +86,7 @@ class NovaZeroCounterTests(unittest.TestCase):
                             .75, (0, 0, 255), 2, cv2.LINE_AA)
                 self.assertIsNone(vision._attempts_from_frame(changed, "interaction attempts left: ©"))
 
+    @requires_tesseract
     def test_pixel_zero_cannot_override_conflicting_or_multiple_row_values(self):
         for text in ("interaction attempts left: 1", "interaction attempts left: 0 1",
                      "interaction attempts left: ©1", "interaction attempts left: © ©",
@@ -99,7 +107,7 @@ class NovaZeroCounterTests(unittest.TestCase):
     def test_digit_ocr_modes_must_agree(self):
         for readings in (("0", "8"), ("0", ""), ("O", "O")):
             with self.subTest(readings=readings), patch.object(
-                vision.pytesseract, "image_to_string", side_effect=readings,
+                pytesseract, "image_to_string", side_effect=readings,
             ):
                 self.assertIsNone(vision._attempts_from_frame(self.after, "interaction attempts left: ©"))
 

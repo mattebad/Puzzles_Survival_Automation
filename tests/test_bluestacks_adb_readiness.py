@@ -13,6 +13,7 @@ from scripts.bluestacks_adb_readiness import (
 )
 from scripts import bluestacks_flow_collector as collector
 from scripts import pnsctl
+from tasks.runtime_identity import BLUESTACKS_SERIAL
 
 
 class BlueStacksADBReadinessTests(unittest.TestCase):
@@ -123,8 +124,8 @@ class BlueStacksADBReadinessTests(unittest.TestCase):
                 return_value=CompletedProcess([], 0, "device\n", ""),
             ) as run:
                 pnsctl._run_fixed_bluestacks_adb("get-state")
-            ready.assert_called_once_with(str(executable), pnsctl.BLUESTACKS_SERIAL)
-            self.assertEqual(run.call_args.args[0][1:3], ["-s", pnsctl.BLUESTACKS_SERIAL])
+            ready.assert_called_once_with(str(executable), BLUESTACKS_SERIAL)
+            self.assertEqual(run.call_args.args[0][1:3], ["-s", BLUESTACKS_SERIAL])
 
     def test_child_runner_invokes_readiness_before_list_devices(self) -> None:
         runner = collector.ADBRunner("HD-Adb.exe", "emulator-5554")

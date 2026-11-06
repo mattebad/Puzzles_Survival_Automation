@@ -56,9 +56,7 @@ reconciliation or blocked and are never automatically retried.
 The root [`BACKLOG.md`](../BACKLOG.md) is only an index to the linked records. The historical
 148-record backlog is preserved byte-for-byte at
 [`docs/archive/backlog-legacy.md`](archive/backlog-legacy.md). Existing legacy tooling may read that
-explicit archive path; the archive is historical and cannot activate a current ticket. The derived
-`tasks/backlog_task_index.json` remains a compatibility subset for legacy flow-delivery context, not
-discovery for the 74 records.
+explicit archive path; the archive is historical and cannot activate a current ticket.
 
 ## Future assignment boundary
 

@@ -23,6 +23,7 @@ from typing import Any, Callable, Mapping, Sequence
 import cv2
 import numpy as np
 
+from automation_service.registry import ENHANCEMENT_FLOW_ID
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime, NativeBox, captured_native_frame_from_png
 from tasks.enhancement import (
     BLUESTACKS_NATIVE_TARGET_PROVENANCE,
@@ -37,11 +38,11 @@ from scripts.startup_normalization import is_clean_home_frame
 from scripts.bounded_tesseract import (
     DEADLINE as _OCR_DEADLINE, CHECKPOINT as _OCR_CHECKPOINT,
     OcrDeadline as _OcrDeadline, check_budget as _check_ocr_budget,
-    call_ocr, tesseract_data as _tesseract_data,
+    call_ocr, tesseract_data as _tesseract_data, tesseract_string,
 )
 
 
-FLOW_ID = "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION"
+FLOW_ID = ENHANCEMENT_FLOW_ID
 ORDERED_VARIANTS = ("gear", "chip", "module")
 NATIVE_WIDTH = 800
 NATIVE_HEIGHT = 1280
@@ -931,14 +932,13 @@ def _native_enhancement_panel(
 
 
 def _quantity_count(frame: np.ndarray) -> int | None:
-    import pytesseract
     # Isolate the displayed gold digits from their dark input field. No default
     # quantity is supplied when the glyph is missing or the two reads disagree.
     digits = cv2.inRange(cv2.cvtColor(frame[670:710, 508:623], cv2.COLOR_BGR2HSV),
         np.array((10, 80, 90), np.uint8), np.array((45, 255, 255), np.uint8))
     current = cv2.resize(255 - digits, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
     current = cv2.copyMakeBorder(current, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
-    readings = [re.sub(r"\s+", "", _call_ocr(pytesseract.image_to_string, current,
+    readings = [re.sub(r"\s+", "", _call_ocr(tesseract_string, current,
         config=f"--psm {mode} -c tessedit_char_whitelist=0123456789")) for mode in (7, 10)]
     return int(readings[0]) if readings[0] == readings[1] and re.fullmatch(r"\d+", readings[0]) else None
 
@@ -1032,7 +1032,6 @@ def _material_slash_fragments(labels: np.ndarray, components, *, top: int, left:
 
 def _material_label(frame: np.ndarray, cell: NativeBox):
     """Read only the common-baseline white glyph labels, excluding book pixels."""
-    import pytesseract
     x0, y0, x1, _y1 = cell
     crop = frame[y0:y0 + 34, x0:x1]
     # Keep neutral antialiased text edges, including the slash, while excluding
@@ -1065,7 +1064,7 @@ def _material_label(frame: np.ndarray, cell: NativeBox):
         cv2.BORDER_CONSTANT, value=255)
     glyphs = cv2.resize(glyphs, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
     glyphs = cv2.copyMakeBorder(glyphs, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
-    readings = [re.sub(r"\s+", "", _call_ocr(pytesseract.image_to_string, glyphs,
+    readings = [re.sub(r"\s+", "", _call_ocr(tesseract_string, glyphs,
         config=f"--psm {mode} -c tessedit_char_whitelist=0123456789/")) for mode in (8, 13)]
     if readings[0] != readings[1]:
         return None
@@ -1087,7 +1086,6 @@ def _selected_material_fraction(frame: np.ndarray, label: NativeBox) -> tuple[in
     The selected card dims both its text and star. The linked baseline supplies
     only the text search bounds; no digit or inventory value is substituted.
     """
-    import pytesseract
     x0, y0, x1, y1 = label
     crop = frame[y0 - 2:y1 + 2, x0 - 5:x1 + 3]
     neutral = cv2.inRange(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV),
@@ -1102,7 +1100,7 @@ def _selected_material_fraction(frame: np.ndarray, label: NativeBox) -> tuple[in
         cv2.BORDER_CONSTANT, value=0)
     glyphs = cv2.resize(255 - neutral, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
     glyphs = cv2.copyMakeBorder(glyphs, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
-    readings = [re.sub(r"\s+", "", _call_ocr(pytesseract.image_to_string, glyphs,
+    readings = [re.sub(r"\s+", "", _call_ocr(tesseract_string, glyphs,
         config=f"--psm {mode} -c tessedit_char_whitelist=0123456789/")) for mode in (7, 8, 13)]
     match = re.fullmatch(r"(\d+)/(\d+)", readings[0])
     if match is None:
@@ -1143,7 +1141,7 @@ def _selected_material_fraction(frame: np.ndarray, label: NativeBox) -> tuple[in
                 cv2.BORDER_CONSTANT, value=255)
             alternate = cv2.resize(alternate, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
             alternate = cv2.copyMakeBorder(alternate, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
-            corroboration = [re.sub(r"\s+", "", _call_ocr(pytesseract.image_to_string, alternate,
+            corroboration = [re.sub(r"\s+", "", _call_ocr(tesseract_string, alternate,
                 config=f"--psm {mode} -c tessedit_char_whitelist=0123456789/")) for mode in (7, 8, 13)]
             if any(text != readings[0] for text in corroboration):
                 return None

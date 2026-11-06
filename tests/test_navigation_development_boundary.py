@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import multiprocessing
+import os
 from pathlib import Path
+import stat
 import tempfile
 import time
 import unittest
@@ -138,14 +140,6 @@ class FakeInnerRuntime:
 
 
 class NavigationDevelopmentBoundaryTests(unittest.TestCase):
-    def test_shared_source_has_no_task_specific_identifiers(self) -> None:
-        source = Path(boundary.__file__).read_text(encoding="utf-8").lower()
-        for needle in ("nova", "research lab", "praise"):
-            self.assertNotIn(needle, source)
-        self.assertNotRegex(source, r"\bresearch_lab\b")
-        self.assertNotRegex(source, r"\bpraise\b")
-        self.assertNotRegex(source, r"\bnova\b")
-
     def test_declaration_validation_rejects_bad_contracts(self) -> None:
         with self.assertRaisesRegex(NavigationBoundaryError, "allowed_source_states"):
             _declaration(allowed_source_states=frozenset()).validate()
@@ -226,6 +220,34 @@ class NavigationDevelopmentBoundaryTests(unittest.TestCase):
                 local = RuntimeInputLock(owner="local", invocation_id="local-1")
                 local.acquire()
                 local.release()
+
+    def test_fixed_path_accepts_real_test_temp_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            expected = Path(directory) / "bluestacks-runtime-input-lock.sqlite3"
+            self.assertEqual(
+                require_fixed_orchestrator_path(None, expected, "runtime input lock"),
+                expected,
+            )
+
+    def test_fixed_path_rejects_a_link_hidden_before_a_parent_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            expected = root / "bluestacks-runtime-input-lock.sqlite3"
+            component = root / "canceled"
+            component.mkdir()
+            candidate = component / ".." / expected.name
+            linked_paths = {component, component.resolve()}
+            original = os.lstat
+            with patch("os.lstat", side_effect=lambda path, *args, **kwargs: (
+                    os.stat_result((stat.S_IFLNK | 0o777, *original(path, *args, **kwargs)[1:]))
+                    if Path(path) in linked_paths else original(path, *args, **kwargs)
+            )):
+                with self.assertRaises(NavigationBoundaryError):
+                    require_fixed_orchestrator_path(candidate, expected, "runtime input lock")
+            self.assertEqual(
+                require_fixed_orchestrator_path(candidate, expected, "runtime input lock"),
+                expected.absolute(),
+            )
 
     def test_fixed_lock_and_action_store_paths_reject_escape(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -656,32 +678,6 @@ class NavigationDevelopmentBoundaryTests(unittest.TestCase):
             self.assertNotIn("transport_observed", audit_text)
             self.assertNotIn('"authorized": true', audit_text.lower())
 
-    def test_bluestacks_run_flow_live_is_retired_before_runtime_or_state(self) -> None:
-        import scripts.pnsctl as pnsctl
-
-        with tempfile.TemporaryDirectory() as directory:
-            artifact_root = Path(directory) / "artifacts"
-            with (
-                patch.object(pnsctl, "BLUESTACKS_FLOW_IDS", ("FLOW-X",)),
-                patch.object(pnsctl, "_load_bluestacks_flow_registry") as registry,
-                patch.object(pnsctl, "_load_flow_delivery_state") as state,
-                patch.object(pnsctl, "_development_runtime_observation") as observe,
-                patch.object(pnsctl, "BLUESTACKS_ARTIFACT_ROOT", artifact_root),
-                patch.dict(
-                    pnsctl._BLUESTACKS_FLOW_RUNNERS,
-                    {"runner-x": lambda _queue, _lease: "unexpected"},
-                ),
-            ):
-                with self.assertRaisesRegex(
-                    pnsctl.OperatorError,
-                    "legacy bluestacks run-flow --live is retired",
-                ):
-                    pnsctl.bluestacks_run_flow("FLOW-X", live=True)
-
-            registry.assert_not_called()
-            state.assert_not_called()
-            observe.assert_not_called()
-            self.assertFalse(artifact_root.exists())
 
     def test_settle_successor_only_observes_and_preserves_typed_states(self) -> None:
         captures: list[str] = []

@@ -45,9 +45,10 @@ from tasks.scheduler_task_result import (
     SchedulerIdentity,
     SchedulerTaskOutcome,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 SEMANTIC_ACTION = "PRAISE_NOVA"
 EXPECTED_POSTCONDITION = "NOVA_PRAISE_ATTEMPT_DECREMENT_AND_COOLDOWN"
 _ATTEMPTS_STATE_RE = re.compile(r"^NOVA_PRAISE_ATTEMPTS_(\d+)$")

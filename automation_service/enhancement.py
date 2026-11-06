@@ -16,15 +16,23 @@ from scripts.navigation_development_boundary import (
 )
 from tasks.scheduler_task_result import SchedulerIdentity
 
-from .contracts import FlowDescriptor, NormalizedOutcome, NormalizedResult
-from .registry import RegisteredDispatchSnapshot
+from .contracts import NormalizedOutcome, NormalizedResult
+from .registry import (
+    ENHANCEMENT_MAX_INPUTS,
+    ENHANCEMENT_PRODUCT_ID,
+    ENHANCEMENT_PRODUCT_REVISION,
+    RegisteredDispatchSnapshot,
+    canonical_entry,
+)
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 FLOW_ID = native.FLOW_ID
-PRODUCT_ID = "enhancement_family"
-PRODUCT_REVISION = "enhancement_family-v1"
-PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
-MAX_INPUTS = 24
+PRODUCT_ID = ENHANCEMENT_PRODUCT_ID
+PRODUCT_REVISION = ENHANCEMENT_PRODUCT_REVISION
+PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
+MAX_INPUTS = ENHANCEMENT_MAX_INPUTS
 MAX_ACTIONS = 3
 _CATEGORIES = ("gear", "chip", "module")
 
@@ -52,12 +60,7 @@ class EnhancementExecutionHandler:
         self.snapshot, self._execute = snapshot, execute
 
     def describe(self):
-        return FlowDescriptor(
-            flow_id=FLOW_ID, owner="automation_service", family=PRODUCT_ID,
-            variant="gear_chip_module", cadence="daily_once_per_reset", reset_scoped=True,
-            priority=1, scheduler_eligible=True, accepted_product=PRODUCT_ID,
-            product_revision=PRODUCT_REVISION, registration_status="REGISTERED",
-        )
+        return canonical_entry(FLOW_ID).descriptor
 
     def eligibility(self, facts, perception=None):
         return bool(
@@ -235,7 +238,7 @@ class EnhancementRunner:
         started = _epoch(self.utc_clock(), "start")
         native_reset, _ = _reset(started, identity.reset_id)
         pnsctl = native._pnsctl()
-        if (str(self.adb), self.serial) != (str(pnsctl.BLUESTACKS_ADB), pnsctl.BLUESTACKS_SERIAL):
+        if (str(self.adb), self.serial) != (str(BLUESTACKS_ADB), BLUESTACKS_SERIAL):
             raise ValueError("Enhancement runtime configuration differs from its existing wrapper")
         invocation = f"enhancement-{datetime.fromtimestamp(started, timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}-{uuid4().hex[:8]}"
         session = None

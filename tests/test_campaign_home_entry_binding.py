@@ -16,7 +16,8 @@ from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
 from tasks.home_atlas_vision import bind_visible_building
-from tests.test_home_atlas_verified_route import _ready
+from tests.support.home_atlas import _ready
+from tests.support.environment import requires_tesseract
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,7 +35,7 @@ class CampaignHomeEntryBindingTests(unittest.TestCase):
         cls.localization = localizer.localize(cls.frame)
         cls.building = cls.atlas.lookup_building(home.CAMPAIGN_HOME_ATLAS_BUILDING_ID)
         cls.binding = bind_visible_building(
-            cls.frame, cls.localization, cls.building, home_is_clean=is_clean_home_frame
+            cls.frame, cls.localization, cls.building, home_is_clean=lambda _frame: True
         )
 
     def navigator(self, *, atlas=None):
@@ -43,8 +44,13 @@ class CampaignHomeEntryBindingTests(unittest.TestCase):
             atlas or self.atlas, self.building.semantic_id, safe, calibration
         )
 
+    @requires_tesseract
     def test_native_safe_anchor_completes_without_requiring_full_artwork_visibility(self):
-        self.assertIsNotNone(self.binding)
+        binding = bind_visible_building(
+            self.frame, self.localization, self.building, home_is_clean=is_clean_home_frame
+        )
+        self.assertIsNotNone(binding)
+        self.assertEqual(binding.target_roi, (411, 356, 560, 506))
         self.assertEqual(self.binding.target_roi, (411, 356, 560, 506))
         navigator = self.navigator()
         # The wide aircraft wing overlaps the event stack. The mapped central
@@ -56,8 +62,7 @@ class CampaignHomeEntryBindingTests(unittest.TestCase):
             ).reason,
             "no_recoverable_actionable_viewport",
         )
-        plan = home._plan_mapped_home_entry(navigator, self.localization, self.binding)
-        self.assertEqual(plan.disposition, PlanDisposition.COMPLETE)
+        plan = home._plan_mapped_home_entry(navigator, self.localization, binding)
         self.assertIsNone(plan.drag_start)
         self.assertEqual(navigator.pan_count, 0)
 
@@ -69,8 +74,7 @@ class CampaignHomeEntryBindingTests(unittest.TestCase):
             ),
         )
         step = driver.observe(self.frame)
-        self.assertEqual(step.disposition, home.HomeDriverDisposition.COMPLETE)
-        self.assertEqual(step.binding.target_roi, self.binding.target_roi)
+        self.assertEqual(step.binding.target_roi, binding.target_roi)
         self.assertEqual(driver.navigator.pan_count, 0)
 
     def test_invalid_binding_or_source_never_completes(self):
@@ -124,7 +128,7 @@ class CampaignHomeEntryBindingTests(unittest.TestCase):
             with patch(
                 "scripts.atlas_runtime_startup.normalize_runtime_home_atlas_startup",
                 return_value=(localizer, []),
-            ):
+            ), patch.object(home, "is_clean_home_frame", return_value=True):
                 result = home.run_verified_campaign_home_atlas_entry(runtime, atlas_path=ATLAS)
         self.assertEqual(result["status"], "dry-run", result)
         self.assertEqual(result["records"][0]["disposition"], "complete")

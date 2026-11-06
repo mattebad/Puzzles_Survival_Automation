@@ -23,6 +23,16 @@ from tasks import personal_might_vision as vision
 from tasks.perception_bundle import PerceptionBundleError
 from tasks.runtime_identity import derive_fixed_runtime_binding, derive_resource_runtime_identity
 from safe_action_core import SafetyStore
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+from tests.support.capability_firewall import Clock
+
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 FIXTURE = Path(__file__).parent / "fixtures/personal_might/native-home-more-20261029.png"
 MENU_FIXTURE = FIXTURE.with_name("native-more-menu-20261029.png")
@@ -39,7 +49,7 @@ def captured(payload, *, path=FIXTURE):
 
 
 class Runtime:
-    def __init__(self, root, *, changed_before=False, source_png=None, successor_png=None, immediate_png=None, capture_pngs=None, wall_clock=None):
+    def __init__(self, root, *, changed_before=False, source_png=None, successor_png=None, immediate_png=None, capture_pngs=None, wall_clock=None, monotonic_clock=time.monotonic):
         self.session = root
         root.mkdir(parents=True, exist_ok=True)
         self.ordinal = 0
@@ -50,6 +60,7 @@ class Runtime:
         self.immediate_png = immediate_png
         self.capture_pngs = capture_pngs
         self.wall_clock = wall_clock or (lambda: datetime.now(timezone.utc))
+        self.monotonic_clock = monotonic_clock
 
     def event(self, kind, **values):
         with (self.session / "events.jsonl").open("a", encoding="utf-8") as output:
@@ -68,7 +79,7 @@ class Runtime:
             payload = cv2.imencode(".png", np.zeros((1280, 800, 3), dtype=np.uint8))[1].tobytes()
         path = self.session / f"{self.ordinal}-{label}.png"
         path.write_bytes(payload)
-        frame = captured(payload, path=path)
+        frame = captured_native_frame_from_png(payload, path=path, captured_monotonic=self.monotonic_clock())
         self.event("capture", label=label, path=str(path), sha256=frame.sha256, captured_monotonic=frame.captured_monotonic)
         return frame
 
@@ -85,18 +96,31 @@ class Runtime:
 
 
 def original_unresolved(root, store, *, successor_png=None, canonical=False):
-    binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
-    identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
-    runtime = Runtime(root / "original", source_png=PERSONAL_MIGHT_FIXTURE.read_bytes(), successor_png=PRAISED_FIXTURE.read_bytes() if successor_png is None else successor_png)
+    binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
+    # Real Windows clocks can tie across these zero-delay synthetic captures.
+    # Advance only this fixture's event clock; keep both policy clocks aligned.
+    clock = Clock(time.monotonic())
+    epoch = time.time() - clock()
+
+    def wall_clock():
+        return epoch + clock()
+
+    identity = derive_resource_runtime_identity(binding, datetime.fromtimestamp(wall_clock(), timezone.utc))
+
+    def event_clock():
+        clock.advance(0.001)
+        return datetime.fromtimestamp(wall_clock(), timezone.utc)
+
+    runtime = Runtime(root / "original", source_png=PERSONAL_MIGHT_FIXTURE.read_bytes(), successor_png=PRAISED_FIXTURE.read_bytes() if successor_png is None else successor_png, monotonic_clock=clock, wall_clock=event_clock)
     with DevelopmentSession(owner="personal-original", invocation_id="original", session_directory=root / "original-session", max_inputs=8) as session:
-        store.acquire_lease(session.owner, time.time(), 60)
+        store.acquire_lease(session.owner, wall_clock(), 60)
         with patch.object(route.PersonalMightPraiseBoundary, "_praised", return_value=False):
-            result = route.PersonalMightPraiseBoundary(session=session, runtime=runtime, store=store, identity=identity, validate_identity=lambda: None, settle_seconds=0).execute()
-        store.release_lease(session.owner, time.time())
+            result = route.PersonalMightPraiseBoundary(session=session, runtime=runtime, store=store, identity=identity, validate_identity=lambda: None, settle_seconds=0, monotonic_clock=clock, wall_clock=wall_clock).execute()
+        store.release_lease(session.owner, wall_clock())
     record = {**result, "flow_id": delivery.FLOW_ID, "session_directory": str(runtime.session), "runtime_identity": asdict(identity), "events_path": "events.jsonl"}
     if canonical:
         backend = record.pop("runtime_identity")
-        record.update(backend_identity=backend, task_id="personal_might_praise", runtime_profile_id="pns-bluestacks-5-p64-800x1280-v1", time_basis="utc", reset_id="game-day-" + identity.reset_start_utc[:10])
+        record.update(backend_identity=backend, task_id="personal_might_praise", runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID, time_basis="utc", reset_id="game-day-" + identity.reset_start_utc[:10])
     (runtime.session / ("personal-might-result.json" if canonical else "flow-delivery-result.json")).write_text(json.dumps(record), encoding="utf-8")
     return binding, identity, record, runtime.session
 
@@ -117,7 +141,7 @@ def save_delivery(runtime, result, identity, *, initial_png, topology):
 def no_work_delivery(root):
     """Synthetic retained events replay real native fixtures; never live evidence."""
     runtime = Runtime(root)
-    binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+    binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
     identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
     from tasks.personal_might_praise import personal_might_daily_key
     key = personal_might_daily_key(runtime_scope=identity.runtime_scope, account_id=identity.account_id, server_id=identity.server_id, reset_id=identity.reset_id)
@@ -145,6 +169,7 @@ def no_work_delivery(root):
 
 
 class PersonalMightNativeTests(unittest.TestCase):
+    @requires_tesseract
     def test_native_fragmented_rankings_caption_still_binds_current_trophy_body(self):
         original = cv2.imread(str(FRAGMENTED_RANKINGS_FIXTURE))
         for defect in (None, "caption", "trophy"):
@@ -164,6 +189,7 @@ class PersonalMightNativeTests(unittest.TestCase):
                 else:
                     self.assertIsNone(target)
 
+    @requires_tesseract
     def test_public_no_work_validator_reads_only_and_claims_zero_new_effect(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -178,6 +204,7 @@ class PersonalMightNativeTests(unittest.TestCase):
             self.assertFalse(result["input_authority"])
             self.assertEqual(before, {file.name: hashlib.sha256(file.read_bytes()).hexdigest() for file in root.iterdir() if file.is_file()})
 
+    @requires_tesseract
     def test_public_validator_rejects_false_count_gold_no_work_and_wrong_input(self):
         for defect in ("praise_count", "gold_no_work", "unresolved_nav", "wrong_point", "stale_source", "malformed_initial"):
             with self.subTest(defect=defect), tempfile.TemporaryDirectory() as directory:
@@ -221,10 +248,11 @@ class PersonalMightNativeTests(unittest.TestCase):
         gray = captured(cv2.imencode(".png", negative)[1].tobytes())
         self.assertFalse(vision.personal_might_praised(gray.frame, source_frame=identity_from_captured(gray, session_id="global-desaturation", ordinal=1), source_png=gray.png))
 
+    @requires_tesseract
     def test_gold_to_disabled_post_confirms_one_praise_after_two_observations(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+            binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
             identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
             store = SafetyStore(root / "actions.sqlite3")
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
@@ -242,9 +270,11 @@ class PersonalMightNativeTests(unittest.TestCase):
                     store.release_lease(session.owner, time.time())
             store.close()
 
+    @requires_tesseract
     def test_linked_recovery_confirms_only_original_action_then_two_back_home(self):
         self._assert_linked_recovery()
 
+    @requires_tesseract
     def test_canonical_source_recovery_uses_original_gray_pair_without_reward_toasts(self):
         self._assert_linked_recovery(canonical=True, successor_png=DISABLED_FIXTURE.read_bytes())
 
@@ -299,8 +329,9 @@ class PersonalMightNativeTests(unittest.TestCase):
                     store.release_lease(session.owner, time.time())
             store.close()
 
+    @requires_tesseract
     def test_recovery_bad_source_or_canonical_epoch_leaves_fence_and_zero_inputs(self):
-        for defect in ("source_sha", "duplicate_dispatch", "canonical_epoch", "current_gold", "one_gray", "duplicate_gray", "current_only_gray", "ambiguous_result"):
+        for defect in ("source_sha", "duplicate_dispatch", "canonical_epoch", "current_gold", "one_gray", "duplicate_gray", "current_only_gray", "ambiguous_result", "successor_utc_tie", "successor_monotonic_tie"):
             with self.subTest(defect=defect), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 store = SafetyStore(root / "actions.sqlite3")
@@ -322,15 +353,23 @@ class PersonalMightNativeTests(unittest.TestCase):
                         (original / "flow-delivery-result.json").write_text(json.dumps(record), encoding="utf-8")
                     elif defect == "ambiguous_result":
                         (original / "personal-might-result.json").write_text(json.dumps(record), encoding="utf-8")
+                    elif defect in {"successor_utc_tie", "successor_monotonic_tie"}:
+                        events = delivery._events(original)
+                        first, second = [next(event for event in events if event.get("path") == path) for path in record["praise_result_frames"][:2]]
+                        field = "timestamp" if defect == "successor_utc_tie" else "captured_monotonic"
+                        second[field] = first[field]
+                        (original / "events.jsonl").write_text("".join(json.dumps(event) + "\n" for event in events), encoding="utf-8")
                     runtime = Runtime(root / "recovery", source_png=PERSONAL_MIGHT_FIXTURE.read_bytes() if defect == "current_gold" else PRAISED_FIXTURE.read_bytes())
                     with DevelopmentSession(owner="personal-recovery", invocation_id="negative", session_directory=root / "recovery-session", max_inputs=8) as session:
-                        with self.assertRaises((ValueError, RuntimeError)):
+                        rejection = self.assertRaisesRegex(ValueError, "Personal Might recovery successor precedes its dispatch") if defect in {"successor_utc_tie", "successor_monotonic_tie"} else self.assertRaises((ValueError, RuntimeError))
+                        with rejection:
                             delivery.reconcile_personal_might(session=session, runtime=runtime, store=store, identity=identity, binding=binding, validate_identity=lambda: None, source_session=original)
                         self.assertEqual(session.input_count, 0)
                         self.assertEqual(runtime.taps, [])
                         self.assertEqual(store.get_action(record["action_id"])["final_status"], "unresolved")
                 store.close()
 
+    @requires_tesseract
     def test_native_disabled_antialias_requires_rank_identity_finger_and_cuff(self):
         pixels = cv2.imread(str(DISABLED_FIXTURE))
         for defect in (None, "cuff", "finger", "rank", "desaturation"):
@@ -357,6 +396,31 @@ class PersonalMightNativeTests(unittest.TestCase):
             with self.assertRaises(pnsctl.OperatorError):
                 pnsctl.development_session_run_flow(delivery.FLOW_ID, live=True, yes=True, max_inputs=8, recovery_only=True)
             connect.assert_not_called()
+
+    def test_linked_ancestor_is_rejected_before_retained_evidence_is_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parent = root / "original"
+            (parent / "source").mkdir(parents=True)
+            link = root / "linked"
+            try:
+                link.symlink_to(parent, target_is_directory=True)
+            except (OSError, NotImplementedError) as exc:
+                if getattr(exc, "winerror", None) == 1314 or isinstance(exc, NotImplementedError):
+                    self.skipTest("host cannot create symbolic links without elevated privileges")
+                if isinstance(exc, PermissionError):
+                    self.skipTest("host does not permit symbolic-link creation")
+                raise
+            for mode in ("recovery", "validation"):
+                with self.subTest(mode=mode), patch.object(
+                        delivery, "_retained_result",
+                        side_effect=AssertionError("untrusted evidence must not be read")) as retained:
+                    with self.assertRaises(ValueError):
+                        if mode == "recovery":
+                            delivery._recovery_proof(link / "source", store=None, identity=None, binding=None)
+                        else:
+                            delivery._validation_session(link / "source")
+                    retained.assert_not_called()
 
     def test_native_rank_1_thumb_requires_exact_header_medal_and_unique_body(self):
         frame = captured(PERSONAL_MIGHT_FIXTURE.read_bytes(), path=PERSONAL_MIGHT_FIXTURE)
@@ -387,6 +451,27 @@ class PersonalMightNativeTests(unittest.TestCase):
                 changed = captured(cv2.imencode(".png", pixels)[1].tobytes())
                 self.assertIsNone(vision.bind_personal_might_praise(changed.frame, source_frame=identity_from_captured(changed, session_id="native-thumb-negative", ordinal=1), source_png=changed.png))
 
+    @requires_tesseract
+    def test_numeric_rank_field_does_not_authorize_a_different_rank(self):
+        original = captured(PERSONAL_MIGHT_FIXTURE.read_bytes(), path=PERSONAL_MIGHT_FIXTURE)
+        for rank in ("1", "2", "3", "7", "9", "10", "11", "12", "21"):
+            with self.subTest(rank=rank):
+                pixels = original.frame.copy()
+                # Replace only the numeral; retain the independently required
+                # connected gold medal around it.
+                pixels[174:202, 92:114] = 0
+                cv2.putText(pixels, rank, (92, 199), cv2.FONT_HERSHEY_COMPLEX,
+                            0.8, (255, 255, 255), 2, cv2.LINE_AA)
+                changed = captured(cv2.imencode(".png", pixels)[1].tobytes())
+                source = {"source_frame": identity_from_captured(changed, session_id="numeric-rank-field", ordinal=1),
+                          "source_png": changed.png}
+                target = vision.bind_personal_might_praise(changed.frame, **source)
+                if rank == "1":
+                    self.assertIsNotNone(target)
+                    self.assertEqual(target.target_roi, (701, 167, 741, 207))
+                else:
+                    self.assertIsNone(target)
+
     def test_current_visible_back_arrow_is_bound_on_both_native_pages(self):
         for fixture, personal_page in ((PERSONAL_MIGHT_FIXTURE, True), (LEADERBOARD_FIXTURE, False)):
             frame = captured(fixture.read_bytes(), path=fixture)
@@ -400,10 +485,11 @@ class PersonalMightNativeTests(unittest.TestCase):
             erased = captured(cv2.imencode(".png", missing)[1].tobytes())
             self.assertIsNone(vision.bind_back(erased.frame, source_frame=identity_from_captured(erased, session_id="missing-back", ordinal=1), source_png=erased.png, personal_page=personal_page))
 
+    @requires_tesseract
     def test_one_fenced_praise_unknown_persists_and_blocks_next_invocation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+            binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
             identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
             validate = lambda: delivery._validate_identity(identity, binding, datetime.now(timezone.utc))
             store = SafetyStore(root / "actions.sqlite3")
@@ -435,10 +521,11 @@ class PersonalMightNativeTests(unittest.TestCase):
                     self.assertEqual(second.taps, [])
             store.close()
 
+    @requires_tesseract
     def test_changed_immediate_thumb_never_reaches_praise_input_reservation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+            binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
             identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
             store = SafetyStore(root / "actions.sqlite3")
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
@@ -453,6 +540,7 @@ class PersonalMightNativeTests(unittest.TestCase):
                     store.release_lease(session.owner, time.time())
             store.close()
 
+    @requires_tesseract
     def test_valid_moved_immediate_thumb_fails_canonical_p_to_i_guard(self):
         source = cv2.imread(str(PERSONAL_MIGHT_FIXTURE))
         shifted = source.copy()
@@ -460,7 +548,7 @@ class PersonalMightNativeTests(unittest.TestCase):
         shifted[162:212, 698:748] = source[162:212, 696:746]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+            binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
             identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
             store = SafetyStore(root / "actions.sqlite3")
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
@@ -476,6 +564,7 @@ class PersonalMightNativeTests(unittest.TestCase):
                     store.release_lease(session.owner, time.time())
             store.close()
 
+    @requires_tesseract
     def test_immediate_capture_with_proposal_timestamp_stops_before_policy_issue(self):
         class SameTimestampRuntime(Runtime):
             def capture(self, label):
@@ -488,7 +577,7 @@ class PersonalMightNativeTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+            binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
             identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
             store = SafetyStore(root / "actions.sqlite3")
             with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
@@ -505,17 +594,18 @@ class PersonalMightNativeTests(unittest.TestCase):
             store.close()
 
     def test_identity_reset_and_expiry_remain_bound_to_fixed_slot(self):
-        binding = derive_fixed_runtime_binding("emulator-5554", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+        binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
         now = datetime(2026, 10, 29, 12, tzinfo=timezone.utc)
         identity = derive_resource_runtime_identity(binding, now)
         delivery._validate_identity(identity, binding, now)
         for later in (now - timedelta(seconds=1), now + timedelta(seconds=600), now + timedelta(days=1)):
             with self.assertRaises(RuntimeError):
                 delivery._validate_identity(identity, binding, later)
-        other = derive_fixed_runtime_binding("emulator-5556", "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg", "primary-login-slot-v1")
+        other = derive_fixed_runtime_binding("emulator-5556", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
         with self.assertRaises(RuntimeError):
             delivery._validate_identity(identity, other, now)
 
+    @requires_tesseract
     def test_native_more_menu_rankings_is_bound_without_more_toggle(self):
         frame = captured(MENU_FIXTURE.read_bytes(), path=MENU_FIXTURE)
         identity = identity_from_captured(frame, session_id="native-more-menu", ordinal=1)
@@ -536,6 +626,7 @@ class PersonalMightNativeTests(unittest.TestCase):
                 self.assertIsNone(vision.bind_more_rankings(erased.frame, **changed_source))
                 self.assertIsNone(vision.bind_home_more(erased.frame, **changed_source))
 
+    @requires_tesseract
     def test_native_caption_help_source_uses_trophy_and_missing_body_blocks(self):
         frame = captured(CAPTION_HELP_SOURCE.read_bytes(), path=CAPTION_HELP_SOURCE)
         identity = identity_from_captured(frame, session_id="caption-help-source", ordinal=1)
@@ -616,6 +707,7 @@ class PersonalMightNativeTests(unittest.TestCase):
             self.assertEqual(result["verified_navigation"], [])
             self.assertEqual(result["praise_transport_calls"], 0)
 
+    @requires_tesseract
     def test_native_more_binding_is_current_and_popup_free(self):
         frame = captured(FIXTURE.read_bytes())
         identity = identity_from_captured(frame, session_id="native-more", ordinal=1)
@@ -637,9 +729,9 @@ class PersonalMightNativeTests(unittest.TestCase):
         identity = identity_from_captured(frame, session_id="native-more", ordinal=1)
         for text in ([], ["More", "More"], ["Mail"]):
             data = {"text": text, "left": [20] * len(text), "top": [2] * len(text), "width": [100] * len(text), "height": [40] * len(text)}
-            with self.subTest(text=text), patch.object(vision.pytesseract, "image_to_data", return_value=data):
+            with self.subTest(text=text), patch.object(vision, "tesseract_data", return_value=data):
                 self.assertIsNone(vision.bind_home_more(frame.frame, source_frame=identity, source_png=frame.png, home_is_clean=lambda _: True))
-        with patch.object(vision.pytesseract, "image_to_data", side_effect=RuntimeError("timeout")):
+        with patch.object(vision, "tesseract_data", side_effect=RuntimeError("timeout")):
             self.assertIsNone(vision.bind_home_more(frame.frame, source_frame=identity, source_png=frame.png, home_is_clean=lambda _: True))
 
     def test_discovery_dispatches_one_more_and_stops_without_praise(self):

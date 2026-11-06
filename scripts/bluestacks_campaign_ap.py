@@ -103,6 +103,8 @@ class CampaignStageChallengeBoundary:
         self.attempted_entries = 0
 
     def __call__(self, source, recognition, command, *, progress: CampaignRouteProgress) -> CampaignStageEntryResult:
+        from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+
         if (type(progress) is not CampaignRouteProgress
                 or any(type(value) is not int or value < 0 for value in (
                     progress.initial_ap, progress.current_ap, progress.completed_runs,
@@ -137,7 +139,7 @@ class CampaignStageChallengeBoundary:
             return Observation(
                 frame_sha256=captured.sha256,
                 capture_completed_monotonic=captured.captured_monotonic,
-                runtime_profile_id="pns-bluestacks-5-p64-800x1280-v1", width=width, height=height,
+                runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID, width=width, height=height,
                 valid_png=captured.frame.shape == (1280, 800, 3), corrupt=False,
                 black=not bool(np.any(captured.frame)), source_state=facts.screen.value,
                 overlay_state=facts.overlay_state, target_identity=expected_target, target_roi=target,
@@ -220,7 +222,7 @@ class CampaignStageChallengeBoundary:
                 # nothing about AP expenditure or the Stage's displayed price.
                 yield Observation(
                     frame_sha256=captured.sha256, capture_completed_monotonic=captured.captured_monotonic,
-                    runtime_profile_id="pns-bluestacks-5-p64-800x1280-v1", width=width, height=height,
+                    runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID, width=width, height=height,
                     valid_png=captured.frame.shape == (1280, 800, 3), corrupt=False,
                     black=not bool(np.any(captured.frame)), source_state=facts.screen.value,
                     overlay_state=facts.overlay_state, recognized=facts.recognized,

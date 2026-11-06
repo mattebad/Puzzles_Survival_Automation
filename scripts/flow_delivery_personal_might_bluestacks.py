@@ -14,19 +14,30 @@ from typing import Any, Mapping
 import cv2
 import numpy as np
 
+from safe_action_core.path_safety import require_no_untrusted_symlinks
+from automation_service.registry import PERSONAL_MIGHT_FLOW_ID, PERSONAL_MIGHT_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime, captured_native_frame_from_png
 from scripts.home_atlas_bluestacks import identity_from_captured
 from scripts.navigation_development_boundary import DevelopmentInitialObservation, DevelopmentSession
-from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity, derive_resource_runtime_identity, derive_static_utc_reset
+from tasks.runtime_identity import (
+    RuntimeIdentityAssurance,
+    VerifiedRuntimeIdentity,
+    derive_resource_runtime_identity,
+    derive_static_utc_reset,
+    BLUESTACKS_ADB,
+    BLUESTACKS_SERIAL,
+    resource_fixed_runtime_binding,
+)
 from tasks import personal_might_vision as vision
 from tasks.personal_might_praise import SEMANTIC_ACTION, SOURCE_STATE, TARGET_IDENTITY, CONSEQUENCE, POSTCONDITION, personal_might_daily_key
 from scripts.startup_normalization import is_clean_home_frame
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
-FLOW_ID = "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION"
+FLOW_ID = PERSONAL_MIGHT_FLOW_ID
 RUNNER_ID = "personal_might_bluestacks_runner"
 VALIDATOR_ID = "personal_might_bluestacks_evidence"
 RECOVERY_ID = "personal_might_bluestacks_recovery"
-MAX_INPUTS = 8
+MAX_INPUTS = PERSONAL_MIGHT_MAX_INPUTS
 MAX_PRAISE_INPUTS = 1
 
 
@@ -69,7 +80,7 @@ def _retained_result(root, retained):
         raise ValueError("Personal Might retained result is malformed")
     if names[0] == "personal-might-result.json":
         backend = record.get("backend_identity")
-        if (record.get("task_id") != "personal_might_praise" or record.get("runtime_profile_id") != "pns-bluestacks-5-p64-800x1280-v1"
+        if (record.get("task_id") != "personal_might_praise" or record.get("runtime_profile_id") != ACTIVE_RUNTIME_PROFILE_ID
                 or record.get("time_basis") != "utc" or not isinstance(backend, dict)
                 or record.get("reset_id") != "game-day-" + str(backend.get("reset_start_utc", ""))[:10]):
             raise ValueError("Personal Might canonical source identity differs")
@@ -79,20 +90,23 @@ def _retained_result(root, retained):
 
 def _recovery_proof(source_session, *, store, identity, binding):
     """Read-only validation of one original, transported gold -> gray action."""
-    root = Path(source_session).resolve(strict=True)
-    if not root.is_dir() or Path(source_session).is_symlink():
+    root = require_no_untrusted_symlinks(Path(source_session)).resolve(strict=True)
+    if not root.is_dir():
         raise ValueError("Personal Might recovery source is not a retained session")
 
     def retained(value):
         path = Path(value)
         path = path if path.is_absolute() else root / path
-        if path.is_symlink() or not path.resolve(strict=True).is_relative_to(root) or not path.is_file():
+        path = require_no_untrusted_symlinks(path).resolve(strict=True)
+        if not path.is_relative_to(root) or not path.is_file():
             raise ValueError("Personal Might recovery artifact escapes its source session")
-        return path.resolve(strict=True)
+        return path
 
     result_path, record = _retained_result(root, retained)
     key = personal_might_daily_key(runtime_scope=identity.runtime_scope, account_id=identity.account_id, server_id=identity.server_id, reset_id=identity.reset_id)
-    if record.get("flow_id") != FLOW_ID or Path(record.get("session_directory", "")).resolve() != root or record.get("praise_transport_calls") != 1 or record.get("action_key") != key:
+    if (record.get("flow_id") != FLOW_ID
+            or require_no_untrusted_symlinks(Path(record.get("session_directory", ""))).resolve() != root
+            or record.get("praise_transport_calls") != 1 or record.get("action_key") != key):
         raise ValueError("Personal Might recovery receipt/action identity is not exact")
     old_payload = dict(record["runtime_identity"])
     old_payload["assurance"] = RuntimeIdentityAssurance(old_payload["assurance"])
@@ -108,7 +122,11 @@ def _recovery_proof(source_session, *, store, identity, binding):
     if not isinstance(transport, dict) or transport.get("dispatched") is not True:
         raise ValueError("Personal Might recovery lacks a canonical dispatched receipt")
     request = json.loads(action["policy_request_json"])
-    if request.get("free_only") is not True or request.get("maximum_cost") != 0 or request.get("action_class") != "zero_cost_consequential" or request.get("runtime_session_id") != str(root):
+    request_session = request.get("runtime_session_id")
+    if (request.get("free_only") is not True or request.get("maximum_cost") != 0
+            or request.get("action_class") != "zero_cost_consequential"
+            or not isinstance(request_session, str) or not request_session
+            or require_no_untrusted_symlinks(Path(request_session)).resolve(strict=True) != root):
         raise ValueError("Personal Might recovery lacks its canonical zero-cost request")
     events_path = retained(record.get("events_path", "events.jsonl"))
     events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -194,7 +212,7 @@ def run_personal_might(queue: Mapping[str, Any], lease: Mapping[str, Any], *, li
 
     maximum = lease.get("max_inputs", MAX_INPUTS)
     if type(maximum) is not int or not 1 <= maximum <= MAX_INPUTS:
-        raise pnsctl.OperatorError("Personal Might max_inputs must be between 1 and 8")
+        raise pnsctl.OperatorError(f"Personal Might max_inputs must be between 1 and {MAX_INPUTS}")
     if not live:
         return json.dumps({"status": "dry_run", "flow_id": FLOW_ID, "dispatch": False, "input_count": 0, "praise_transport_calls": 0})
     outer = lease.get("development_session")
@@ -211,14 +229,14 @@ def run_personal_might(queue: Mapping[str, Any], lease: Mapping[str, Any], *, li
     if recovery_only and not lease.get("recovery_session"):
         raise pnsctl.OperatorError("Personal Might recovery requires its original session")
     runtime = LocalBlueStacksRuntime.connect(
-        adb=str(pnsctl.BLUESTACKS_ADB), serial=pnsctl.BLUESTACKS_SERIAL,
+        adb=str(BLUESTACKS_ADB), serial=BLUESTACKS_SERIAL,
         output_directory=directory / "runtime", workflow="personal-might-discovery",
         execute=True,
     )
     child = Path(runtime.session)
     from scripts import personal_might_praise_bluestacks as route
     from scripts.navigation_development_boundary import open_canonical_action_store
-    binding = pnsctl._resource_fixed_runtime_binding()
+    binding = resource_fixed_runtime_binding()
     identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc), evidence_refs=("identity-source:fixed-login-slot", "identity-source:static-UTC-reset", f"session-owner:{outer.owner}", f"session-invocation:{outer.invocation_id}"))
     validate_identity = lambda: _validate_identity(identity, binding, datetime.now(timezone.utc))
     store = open_canonical_action_store()
@@ -277,7 +295,7 @@ def run_personal_might(queue: Mapping[str, Any], lease: Mapping[str, Any], *, li
     }
     outer.set_causal_trace(trace)
     delivery = {
-        **payload, "serial": pnsctl.BLUESTACKS_SERIAL,
+        **payload, "serial": BLUESTACKS_SERIAL,
         "native_width": 800, "native_height": 1280, "runtime_owner": outer.owner,
         "terminal_runtime_state": "recognized_home" if result.get("terminal_home_verified") is True else "safe_blocked_terminal", "actions": [],
         "frames": [path.relative_to(child).as_posix() for path in (child / "frames").glob("*.png")],
@@ -289,19 +307,21 @@ def run_personal_might(queue: Mapping[str, Any], lease: Mapping[str, Any], *, li
 
 
 def _validation_session(value):
-    root = Path(value).resolve(strict=True)
-    if not root.is_dir() or Path(value).is_symlink():
+    root = require_no_untrusted_symlinks(Path(value)).resolve(strict=True)
+    if not root.is_dir():
         raise ValueError("Personal Might retained session is invalid")
 
     def path(value):
         found = Path(value)
         found = found if found.is_absolute() else root / found
-        if found.is_symlink() or not found.is_file() or not found.resolve(strict=True).is_relative_to(root):
+        found = require_no_untrusted_symlinks(found).resolve(strict=True)
+        if not found.is_file() or not found.is_relative_to(root):
             raise ValueError("Personal Might retained artifact escapes its session")
-        return found.resolve(strict=True)
+        return found
 
     result_path, record = _retained_result(root, path)
-    if not isinstance(record, dict) or record.get("flow_id") != FLOW_ID or Path(record.get("session_directory", "")).resolve() != root:
+    if (not isinstance(record, dict) or record.get("flow_id") != FLOW_ID
+            or require_no_untrusted_symlinks(Path(record.get("session_directory", ""))).resolve() != root):
         raise ValueError("Personal Might retained result identity differs")
     events_path = path(record.get("events_path", "events.jsonl"))
     events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -345,7 +365,7 @@ def _validation_identity(record, sample):
     values["assurance"] = RuntimeIdentityAssurance(values["assurance"])
     values["evidence_refs"] = tuple(values["evidence_refs"])
     identity = VerifiedRuntimeIdentity(**values)
-    _validate_identity(identity, pnsctl._resource_fixed_runtime_binding(), _utc(sample))
+    _validate_identity(identity, resource_fixed_runtime_binding(), _utc(sample))
     key = personal_might_daily_key(runtime_scope=identity.runtime_scope, account_id=identity.account_id, server_id=identity.server_id, reset_id=identity.reset_id)
     if record.get("action_key") != key:
         raise ValueError("Personal Might daily action identity differs")
@@ -475,7 +495,7 @@ def verify_personal_might(structure, queue, lease):
             proof = result["source_proof"]
             if praise_count or targets != ["personal-might-back", "leaderboard-back"] or result.get("source_praise_transport_calls") != 1 or proof.get("confirmed") is not True or proof.get("zero_praise_input") is not True or proof.get("action_id") != result.get("action_id") or proof.get("action_key") != result.get("action_key"):
                 raise ValueError("Personal Might composite source link is not exact")
-            if trace.get("source_proof") != proof or trace.get("source_session") != result["source_session"] or proof.get("source_session") != result["source_session"] or Path(trace.get("recovery_session", "")).resolve() != root or trace.get("source_praise_transport_calls") != 1:
+            if trace.get("source_proof") != proof or trace.get("source_session") != result["source_session"] or proof.get("source_session") != result["source_session"] or require_no_untrusted_symlinks(Path(trace.get("recovery_session", ""))).resolve() != root or trace.get("source_praise_transport_calls") != 1:
                 raise ValueError("Personal Might composite trace link differs")
             prior = _validation_session(result["source_session"])
             if hashlib.sha256(prior[6].read_bytes()).hexdigest() != proof.get("source_result_sha256") or hashlib.sha256(prior[7].read_bytes()).hexdigest() != proof.get("source_events_sha256"):

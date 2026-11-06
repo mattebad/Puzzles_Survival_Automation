@@ -24,6 +24,7 @@ from scripts.bluestacks_native_runtime import (
     NATIVE_HEIGHT,
     NATIVE_WIDTH,
 )
+from scripts.bounded_tesseract import call_ocr, tesseract_data
 from scripts.daily_row_claim_bluestacks import (
     _generic_modal_overlay_evidence,
 )
@@ -32,11 +33,12 @@ from tasks.home_nav_recognition import (
     _load_template as _load_home_nav_template,
     recognize_home_nav,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 FLOW_ID = "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
 EXPECTED_PACKAGE = "com.global.ztmslg"
-RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 MAX_RESOURCE_LIST_SWIPES = 6
 MAX_ROUTE_INPUTS = 10
 RESOURCE_LIST_SCROLL_PX = 180
@@ -247,13 +249,7 @@ def _roi(value: Sequence[int]) -> NativeBox | None:
 
 
 def _default_ocr(image: np.ndarray) -> Mapping[str, Sequence[object]]:
-    import pytesseract
-
-    return pytesseract.image_to_data(
-        image,
-        config="--oem 3 --psm 11",
-        output_type=pytesseract.Output.DICT,
-    )
+    return call_ocr(tesseract_data, image, config="--oem 3 --psm 11")
 
 
 def _ocr_tokens(

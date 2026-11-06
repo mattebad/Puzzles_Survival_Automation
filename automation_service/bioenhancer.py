@@ -16,13 +16,19 @@ from scripts.navigation_development_boundary import (
     DevelopmentInitialObservation, DevelopmentSession,
 )
 
-from .contracts import FlowDescriptor, NormalizedOutcome, NormalizedResult
-from .registry import RegisteredDispatchSnapshot
+from .contracts import NormalizedOutcome, NormalizedResult
+from .registry import (
+    BIOENHANCER_PRODUCT_ID,
+    BIOENHANCER_PRODUCT_REVISION,
+    RegisteredDispatchSnapshot,
+    canonical_entry,
+)
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-PRODUCT_ID = "bioenhancer_research"
-PRODUCT_REVISION = "bioenhancer_research-v1"
-PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+PRODUCT_ID = BIOENHANCER_PRODUCT_ID
+PRODUCT_REVISION = BIOENHANCER_PRODUCT_REVISION
+PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 
 
 class BioenhancerNativePartialResultError(RuntimeError):
@@ -48,12 +54,7 @@ class BioenhancerExecutionHandler:
         self.snapshot, self._execute = snapshot, execute
 
     def describe(self):
-        return FlowDescriptor(
-            flow_id=FLOW_ID, owner="automation_service", family=PRODUCT_ID,
-            variant="one_free_pulse", cadence="cooldown_pulse", reset_scoped=False,
-            priority=1, scheduler_eligible=True, accepted_product=PRODUCT_ID,
-            product_revision=PRODUCT_REVISION, registration_status="REGISTERED",
-        )
+        return canonical_entry(FLOW_ID).descriptor
 
     def eligibility(self, facts, perception=None):
         return bool(
@@ -101,7 +102,7 @@ def _consumption(runtime):
 
 
 def _current_cooldown(runtime, result):
-    from scripts.bioenhancer_free_research_canary import recognize_free_research_cooldown
+    from scripts.bioenhancer_free_research_route import recognize_free_research_cooldown
 
     if result.get("no_work") is True:
         return dict(result.get("cooldown") or {})
@@ -127,7 +128,7 @@ def _current_cooldown(runtime, result):
 
 
 def _startup_context(session, runtime, initial, result):
-    from scripts.bioenhancer_free_research_canary import bind_bioenhancer_back
+    from scripts.bioenhancer_free_research_route import bind_bioenhancer_back
     from scripts.startup_normalization import is_clean_home_frame
     from scripts.startup_recovery import recover_contextual_startup_overlay
 
@@ -186,7 +187,7 @@ class BioenhancerRunner:
 
     def __call__(self, identity, previous_reset_id, checkpoint, *, runtime_input_lock):
         from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
-        from scripts.bioenhancer_free_research_canary import run
+        from scripts.bioenhancer_free_research_route import run
         from scripts.flow_delivery_bioenhancer_bluestacks import _verify_no_work_frames
 
         del previous_reset_id

@@ -300,13 +300,6 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
                 delivery._campaign_maximum({"max_inputs": maximum})
         with self.assertRaises(pnsctl.OperatorError):
             delivery._campaign_maximum({"max_inputs": 16, "route_max_inputs": 17})
-        self.assertEqual(pnsctl._conduct_max_inputs(delivery.AUTO_BATTLE_FLOW_ID, None), 16)
-        self.assertEqual(
-            pnsctl._conduct_max_inputs(delivery.AUTO_BATTLE_FLOW_ID, 12),
-            12,
-        )
-        with self.assertRaises(pnsctl.OperatorError):
-            pnsctl._conduct_max_inputs(delivery.AUTO_BATTLE_FLOW_ID, 1)
 
     def test_historical_continuous_receipt_still_validates_without_a_live_runner(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -570,29 +563,6 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
         ):
             result = json.loads(pnsctl.bluestacks_verify_flow(Path("retained")))
         self.assertEqual(result["status"], "verified")
-
-    def test_conduct_campaign_rejects_before_observation_or_legacy_runner(self):
-        with tempfile.TemporaryDirectory() as directory:
-            with (
-                patch.object(
-                    pnsctl,
-                    "development_session_observe",
-                    side_effect=AssertionError("pre-observation is forbidden"),
-                ),
-                patch.object(
-                    pnsctl,
-                    "development_session_run_flow",
-                    return_value=json.dumps({"status": "blocked"}),
-                ) as run_flow,
-            ):
-                with self.assertRaisesRegex(pnsctl.OperatorError, "automation-service"):
-                    pnsctl.conduct_flow(
-                        delivery.AUTO_BATTLE_FLOW_ID,
-                        live=True,
-                        yes=True,
-                        state_root=Path(directory),
-                    )
-            run_flow.assert_not_called()
 
 
 if __name__ == "__main__":

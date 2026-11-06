@@ -1,7 +1,6 @@
 """Executor-bound Nova pulses using the existing native action boundary."""
 from __future__ import annotations
 
-from dataclasses import replace
 import json
 import math
 from pathlib import Path
@@ -15,19 +14,18 @@ from tasks.runtime_identity import (
 )
 
 from .handlers import NovaPraiseSelectionHandler
+from .registry import NOVA_MAX_INPUTS
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 class NovaExecutionHandler(NovaPraiseSelectionHandler):
     selection_only = False
-    max_inputs = 8
+    max_inputs = NOVA_MAX_INPUTS
     max_actions = 1
 
     def __init__(self, snapshot, execute):
         super().__init__(snapshot)
         self._execute = execute
-
-    def describe(self):
-        return replace(super().describe(), cadence="cooldown_pulse", reset_scoped=False)
 
     def execute_run(self, run, facts, perception=None):
         return self._execute(run, facts)
@@ -44,7 +42,7 @@ class NovaRunner:
         self.utc_clock = utc_clock
         self.monotonic_clock = monotonic_clock
         self.binding = derive_fixed_runtime_binding(
-            serial, "pns-bluestacks-5-p64-800x1280-v1", "com.global.ztmslg",
+            serial, ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg",
             "primary-login-slot-v1",
         )
 
@@ -67,7 +65,7 @@ class NovaRunner:
         )
         args = SimpleNamespace(
             adb=self.adb, serial=self.serial, output_directory=self.output_directory,
-            owner="automation-service:nova", max_inputs=8, settle_seconds=1.0,
+            owner="automation-service:nova", max_inputs=NOVA_MAX_INPUTS, settle_seconds=1.0,
             checkpoint=checkpoint, utc_clock=self.utc_clock,
             monotonic_clock=self.monotonic_clock,
         )

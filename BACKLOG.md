@@ -3,9 +3,9 @@
 ## Implemented BlueStacks route portfolio
 
 Reconciled November2 against the code and retained native evidence. All eight
-routes below are **implemented** in the canonical service on the MR16 branch.
-`IMPLEMENTED_LOCAL` in the detailed records means implemented repository/PR code,
-including committed/pushed code; it does not mean uncommitted, merged or enabled.
+routes below are **implemented** in the canonical service on `main` (PR #16, merged
+2026-11-02). `IMPLEMENTED_LOCAL` in the detailed records means implemented, committed
+repository code; it does not mean enabled or closed beyond its recorded scope.
 
 | Route | Implementation | Proven BlueStacks behavior | Detailed backlog |
 | --- | --- | --- | --- |
@@ -59,10 +59,9 @@ That request is consumed and separate from the fresh continuous proof.
 
 Local checks:104 route/recovery,113 shared Home/VIP/Nova,81 native/service cases,
 then21 final context/fault and6 Module-context cases plus the new conflict negatives.
-Counts overlap; full discovery was not run. Actual new-head CI remains
-`evidence_required` until BOTH complete Windows/Linux jobs match the PR head in
-`.local-validation/pr16-astra-corrections-current-head-ci-20261102.json` and
-[PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks).
+Counts overlap; full discovery was not run. PR #16's final head `b34a8a3` later passed
+both Windows/Linux jobs in [PR16 checks](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16/checks)
+and merged to `main` as `f6b201f`.
 
 CI84 failed on both platforms because one retained replay OCR stub lacked the new
 `timeout` argument. The stub now requires a positive timeout at most five seconds;
@@ -160,8 +159,8 @@ All nine flow/service controls remain OFF, no active/orphan/input/effect owner a
 leases released. Every daily due/ordinal and all other flow rows were preserved
 through the manual goal iterations. The consumed November1 extra request was not
 reused; current standing iterative-testing authorization was explicitly recorded
-by the canonical controller. PR16 remains draft/unmerged; no permanent scheduling.
-This portfolio does not close the74 broader records below. `CURRENT_HANDOFF.md`
+by the canonical controller. PR16 has since merged to `main`; no permanent scheduling.
+This portfolio does not close the74 broader records below. [`docs/agent/CURRENT_HANDOFF.md`](docs/agent/CURRENT_HANDOFF.md)
 records volatile operator state; historical receipts never grant live authority.
 
 ## Historical acceptance, October31 and earlier
@@ -220,23 +219,22 @@ merged, deployed or enabled merely because a standalone route passed.
 
 Generic due scheduling is implemented. Aggregate Daily claims, milestone chests, observed Daily
 point attribution, Alliance Help, training, gathering, shops, broader World work and hosted
-acceptance remain separate work. The code snapshot is committed locally on
-`codex/bluestacks-route-reliability`; [draft PR #16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16)
-is published. For the agreed BlueStacks scope, actual latest-head CI and formal review precede merge;
-this does not require closing unrelated Daily/World/hosted tickets.
+acceptance remain separate work. The code was developed on `codex/bluestacks-route-reliability`
+and merged to `main` through [PR #16](https://github.com/mattebad/Puzzles_Survival_Automation/pull/16)
+on 2026-11-02; that merge did not close unrelated Daily/World/hosted tickets.
 These Markdown records are not a runtime queue or authority.
 
 Read the [recovery execution guide](docs/backlog/execution-guide.md) before assigning work, then read
 the complete linked ticket and the [proportionate planning contract](docs/backlog-task-contract.md).
 
-- [Foundation tickets REC-F01ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“REC-F17](docs/backlog/foundation.md)
-- [Daily tickets REC-D01ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“REC-D12](docs/backlog/daily.md)
-- [Resource and policy tickets REC-R01ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“REC-R19 and REC-P01ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“REC-P12](docs/backlog/resources.md)
-- [Operations tickets REC-O01ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“REC-O14](docs/backlog/operations.md)
+- [Foundation tickets REC-F01 to REC-F17](docs/backlog/foundation.md)
+- [Daily tickets REC-D01 to REC-D12](docs/backlog/daily.md)
+- [Resource and policy tickets REC-R01 to REC-R19 and REC-P01 to REC-P12](docs/backlog/resources.md)
+- [Operations tickets REC-O01 to REC-O14](docs/backlog/operations.md)
 
 The linked records distinguish local implementation, code merged, native evidence,
-scheduler acceptance, and explicit enablement. BlueStacks remains the development environment;
-final production is NAS/Unraid-hosted. No live readiness is claimed for these future records. Runtime launchers,
+scheduler acceptance, and explicit enablement. BlueStacks is the runtime; there is no
+NAS/Unraid production target. No live readiness is claimed for these future records. Runtime launchers,
 controls, `ResourceEffectAuthority`, leases/fencing, manual-only states, and live gates remain
 unchanged and authoritative where they already apply.
 
@@ -265,5 +263,5 @@ its derived index remains a 32-record compatibility subset and is not discovery 
 Historical statuses, evidence, and no-retry conclusions are not promoted by this index.
 
 See [`docs/archive/README.md`](docs/archive/README.md) for archive scope and [`docs/archive/governance-simplification-plan.md`](docs/archive/governance-simplification-plan.md)
-for the historical migration proposal. Current architecture is in [the service guide](docs/automation-service.md). `CURRENT_HANDOFF.md` remains the volatile
+for the historical migration proposal. Current architecture is in [the service guide](docs/automation-service.md). [`docs/agent/CURRENT_HANDOFF.md`](docs/agent/CURRENT_HANDOFF.md) remains the volatile
 operational handoff; it does not activate a linked recovery ticket.

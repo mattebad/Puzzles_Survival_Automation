@@ -19,6 +19,13 @@ from tasks.enhancement import (
     BLUESTACKS_RUNTIME_PROFILE_ID,
     EnhancementObservation,
 )
+from tasks.runtime_identity import BLUESTACKS_SERIAL
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 RESET = "local-2026-10-29-enhancement-family"
@@ -87,7 +94,7 @@ def _state(root: Path, payload: bytes | None = None):
     attempt = json.loads(json.dumps(attempt))
     result = {
         "flow_id": delivery.FLOW_ID, "variant": "family",
-        "serial": pnsctl.BLUESTACKS_SERIAL, "native_width": 800, "native_height": 1280,
+        "serial": BLUESTACKS_SERIAL, "native_width": 800, "native_height": 1280,
         "actions": [{"label": "use-one-star-enhancer", "action_key": KEY,
                      "before_sha256": p_hash, "immediate_post_sha256": i_hash,
                      "after_sha256": i_hash}],
@@ -401,7 +408,8 @@ class EnhancementNoEffectRecoveryTests(unittest.TestCase):
         payload = fixture.read_bytes()
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            attempt, _receipt, _original, recovery = _state(root, payload)
+            (root / "alias-anchor").mkdir()
+            attempt, _receipt, _original, recovery = _state(root / "alias-anchor" / "..", payload)
             base = root / "flow"
             _historical_chip(base)
             current = base / "occurrences" / RESET

@@ -9,14 +9,16 @@ from pathlib import Path
 import shutil
 from typing import Any, Mapping
 
+from automation_service.registry import SUPPLY_FLOW_ID, SUPPLY_MAX_INPUTS
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
-FLOW_ID = "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION"
+FLOW_ID = SUPPLY_FLOW_ID
 RUNNER_ID = "supply_depot_bluestacks_runner"
 VALIDATOR_ID = "supply_depot_bluestacks_evidence"
 RECOVERY_ID = "supply_depot_bluestacks_recovery"
-MAX_INPUTS = 10
+MAX_INPUTS = SUPPLY_MAX_INPUTS
 MAX_HOLD_TRANSPORT_CALLS = 1
 
 
@@ -209,7 +211,7 @@ def _write_delivery_result(
         "schema_version": 1,
         "flow_id": FLOW_ID,
         "status": result.get("status"),
-        "serial": _pnsctl().BLUESTACKS_SERIAL,
+        "serial": BLUESTACKS_SERIAL,
         "native_width": _pnsctl().BLUESTACKS_NATIVE_WIDTH,
         "native_height": _pnsctl().BLUESTACKS_NATIVE_HEIGHT,
         "runtime_owner": str(lease.get("owner") or "pnsctl-development-session"),
@@ -267,16 +269,16 @@ def run_supply_depot(
     try:
         pnsctl = _pnsctl()
         runtime = LocalBlueStacksRuntime.connect(
-            adb=str(pnsctl.BLUESTACKS_ADB),
-            serial=pnsctl.BLUESTACKS_SERIAL,
+            adb=str(BLUESTACKS_ADB),
+            serial=BLUESTACKS_SERIAL,
             output_directory=outer_directory / "runtime",
             workflow=f"supply-depot-{_stamp()}",
             execute=True,
         )
         runtime_directory = runtime.session
-        from scripts import supply_depot_free_canary
+        from scripts import supply_depot_free_route
 
-        result = supply_depot_free_canary.run(
+        result = supply_depot_free_route.run(
             session=outer,
             runtime=runtime,
             session_directory=runtime_directory,

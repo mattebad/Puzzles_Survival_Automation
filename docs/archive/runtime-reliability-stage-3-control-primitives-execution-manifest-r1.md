@@ -103,7 +103,7 @@ No path outside this allowlist may be mutated without a parent-owned architectur
 - `CURRENT_HANDOFF.md` at baseline closure commit `9e6f350b629c21f63eb89a0234ce902cfe664cb5`
 - `docs/runtime-reliability-convergence-status.md`
 - `.cursor/plans/p&s_runtime_reliability_convergence_program_e62703e1.plan.md`, Stage 5 only
-- Completed context-only Resource child plan `C:/Users/burni/.cursor/plans/resource_effect_authority_integration_38cea4aa.plan.md`
+- Completed context-only Resource child plan `C:/Users/owner/.cursor/plans/resource_effect_authority_integration_38cea4aa.plan.md`
 - Targeted retained sessions and checked-in native assets/fixtures referenced by existing flow tests; evidence trees must not be recursively inspected or rewritten.
 
 ## Escalation conditions

@@ -29,6 +29,7 @@ from tasks.home_context import (
     navigate_home_building,
 )
 from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 def _identity() -> VerifiedRuntimeIdentity:
@@ -55,7 +56,7 @@ def _ready(**changes) -> HomeReadyObservation:
 
 
 def _atlas() -> HomeAtlas:
-    profile = PlatformProfile("BlueStacks 5 / Android", "pns-bluestacks-5-p64-800x1280-v1", (800, 1280), "com.global.ztmslg")
+    profile = PlatformProfile("BlueStacks 5 / Android", ACTIVE_RUNTIME_PROFILE_ID, (800, 1280), "com.global.ztmslg")
     viewport = AtlasViewport(
         "v1",
         "tile.png",
@@ -107,7 +108,7 @@ def _loc(
     return LocalizationResult(
         recognized,
         "BlueStacks 5 / Android",
-        "pns-bluestacks-5-p64-800x1280-v1",
+        ACTIVE_RUNTIME_PROFILE_ID,
         zoom,
         ((1, 0, tx), (0, 1, ty), (0, 0, 1)) if recognized else None,
         ((tx, ty), (tx + 800, ty), (tx + 800, ty + 1280), (tx, ty + 1280)),

@@ -19,6 +19,7 @@ import cv2
 import numpy as np
 
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, NativeBox
+from scripts.bounded_tesseract import call_ocr, tesseract_data
 from tasks.available_daily_claim import (
     AvailableDailyClaimObservation,
     available_daily_claim_authorizeable,
@@ -27,6 +28,7 @@ from tasks.home_nav_recognition import recognize_home_nav
 from scripts.world_map_navigation_bluestacks import (
     _visual_popup_panel_candidates as _accepted_visual_popup_panel_candidates,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 NATIVE_WIDTH = 800
@@ -45,7 +47,7 @@ DAILY_CLAIM_STATE = "DAILY_CLAIM_READY"
 DAILY_CLAIM_ACTION_IDENTITY = "daily-claim:aggregate"
 DAILY_CLAIM_TARGET_IDENTITY = "daily-quest-claim"
 BLUESTACKS_TARGET_PROVENANCE = "bluestacks-native"
-BLUESTACKS_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
+BLUESTACKS_RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 DAILY_CLAIM_CONSEQUENCE_CLASS = "ordinary_development"
 DAILY_CLAIM_ACTION_CLASS = "reward_claim"
 DAILY_CLAIM_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0
@@ -210,13 +212,7 @@ def _clamp_roi(roi: Sequence[int]) -> NativeBox | None:
 
 
 def _default_ocr(image: np.ndarray) -> Mapping[str, Sequence[object]]:
-    import pytesseract
-
-    return pytesseract.image_to_data(
-        image,
-        config="--psm 11",
-        output_type=pytesseract.Output.DICT,
-    )
+    return call_ocr(tesseract_data, image, config="--psm 11")
 
 
 def _ocr_tokens(
@@ -3279,7 +3275,7 @@ def _run_daily_return_home_action(
     return action, terminal
 
 
-def run_daily_row_claim_canary(
+def run_daily_row_claim_once(
     runtime: RuntimeLike,
     session: SessionLike,
     *,

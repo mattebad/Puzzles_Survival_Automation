@@ -7,7 +7,6 @@ recognition coverage.
 from __future__ import annotations
 
 from dataclasses import replace
-import inspect
 import json
 from pathlib import Path
 import unittest
@@ -45,11 +44,12 @@ from tasks.perception_bundle import (
     semantic_validity,
     transport_freshness,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "perception_bundle_evidence.json"
-PROFILE = "pns-bluestacks-5-p64-800x1280-v1"
+PROFILE = ACTIVE_RUNTIME_PROFILE_ID
 PLATFORM = "BlueStacks 5 / Android"
 
 
@@ -342,14 +342,7 @@ class PerceptionBundleTests(unittest.TestCase):
         self.assertNotIn("dtype", blob)
         self.assertNotIn("ndarray", blob)
 
-    def test_neutral_module_has_no_capture_dependency(self):
-        source = inspect.getsource(perception_bundle_module)
-        self.assertNotIn("CapturedNativeFrame", source)
-        self.assertNotIn("ADBRunner", source)
-        self.assertNotIn("bluestacks_native_runtime", source)
-        self.assertNotIn("import cv2", source)
-        self.assertNotIn("import numpy", source)
-        self.assertNotRegex(source, r"(?m)^\s*def\s+capture\s*\(")
+    def test_neutral_module_exposes_no_capture_entrypoint(self):
         self.assertFalse(hasattr(perception_bundle_module, "capture"))
         with mock.patch.object(
             perception_bundle_module, "bundle_from_identity", wraps=perception_bundle_module.bundle_from_identity

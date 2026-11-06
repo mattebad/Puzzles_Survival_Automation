@@ -50,7 +50,7 @@ from tasks.navigation_session import (
     reconcile_pan,
     save_session,
 )
-from tests.test_navigation_session import (
+from tests.support.navigation import (
     binding_result,
     identity,
     prepared_uncertain_session,

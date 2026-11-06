@@ -14,18 +14,25 @@ from tasks.personal_might_praise import (
     FLOW_ID, SEMANTIC_ACTION, SOURCE_STATE, TARGET_IDENTITY, CONSEQUENCE,
     POSTCONDITION, personal_might_daily_key,
 )
-from tasks.runtime_identity import derive_resource_runtime_identity
+from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
 from tasks.scheduler_task_result import SchedulerIdentity
 
-from .contracts import FlowDescriptor, FlowSpec, NormalizedOutcome, NormalizedResult
+from .contracts import FlowSpec, NormalizedOutcome, NormalizedResult
 from .recruitment import recruitment_reset
-from .registry import RegisteredDispatchSnapshot
+from .registry import (
+    PERSONAL_MIGHT_MAX_INPUTS,
+    PERSONAL_MIGHT_PRODUCT_ID,
+    PERSONAL_MIGHT_PRODUCT_REVISION,
+    RegisteredDispatchSnapshot,
+    canonical_entry,
+)
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 
-PRODUCT_ID = "personal_might_praise"
-PRODUCT_REVISION = "personal_might_praise-v1"
-PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
-MAX_INPUTS = 8
+PRODUCT_ID = PERSONAL_MIGHT_PRODUCT_ID
+PRODUCT_REVISION = PERSONAL_MIGHT_PRODUCT_REVISION
+PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
+MAX_INPUTS = PERSONAL_MIGHT_MAX_INPUTS
 
 
 class PersonalMightExecutionHandler:
@@ -48,10 +55,7 @@ class PersonalMightExecutionHandler:
         self.snapshot, self._execute = snapshot, execute
 
     def describe(self):
-        return FlowDescriptor(flow_id=FLOW_ID, owner="automation_service", family=PRODUCT_ID,
-            variant="one_daily_praise", cadence="daily_once_per_reset", reset_scoped=True,
-            priority=1, scheduler_eligible=True, accepted_product=PRODUCT_ID,
-            product_revision=PRODUCT_REVISION, registration_status="REGISTERED")
+        return canonical_entry(FLOW_ID).descriptor
 
     def eligibility(self, facts, perception=None):
         return bool(not facts.gate_failures(self.describe())
@@ -93,12 +97,6 @@ def _scheduler_identity(identity, now):
     if (not isinstance(identity, SchedulerIdentity) or identity.task_id != PRODUCT_ID
             or identity.reset_id != recruitment_reset(_epoch(now, "identity clock"))):
         raise ValueError("Personal Might requires its current scheduler game-day identity")
-
-
-def _fixed_binding():
-    # This is the same pure fixed-slot derivation used by the operational wrapper.
-    from scripts.pnsctl import _resource_fixed_runtime_binding
-    return _resource_fixed_runtime_binding()
 
 
 def _key(identity):
@@ -193,7 +191,7 @@ class PersonalMightRunner:
             checkpoint()
             started = _epoch(self.utc_clock(), "start")
             _scheduler_identity(identity, started)
-            binding = _fixed_binding()
+            binding = resource_fixed_runtime_binding()
             if self.serial != binding.serial or binding.runtime_profile_id != PROFILE_ID:
                 raise ValueError("Personal Might requires the fixed BlueStacks backend")
             backend = derive_resource_runtime_identity(binding, datetime.fromtimestamp(started, timezone.utc))
@@ -380,7 +378,7 @@ def personal_might_next_due(result, identity, started_at):
         recorded["assurance"] = RuntimeIdentityAssurance(recorded["assurance"])
         recorded["evidence_refs"] = tuple(recorded["evidence_refs"])
         backend = VerifiedRuntimeIdentity(**recorded)
-        _validate_identity(backend, _fixed_binding(), datetime.fromtimestamp(completed, timezone.utc))
+        _validate_identity(backend, resource_fixed_runtime_binding(), datetime.fromtimestamp(completed, timezone.utc))
         if result.get("action_key") != _key(backend):
             raise ValueError("daily key mismatch")
     except (KeyError, TypeError, ValueError, RuntimeError) as exc:

@@ -6,6 +6,7 @@ from pathlib import Path
 import cv2
 
 from scripts import bluestacks_ultimate_challenge as ultimate
+from tests.support.environment import requires_tesseract
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +17,7 @@ class UltimateLineupNativeTests(unittest.TestCase):
     def frame():
         return cv2.imread(str(ROOT / "tests/fixtures/ultimate_lineup/hero-lineup-20261029-a.png"))
 
+    @requires_tesseract
     def test_native_variants_bind_same_enabled_challenge(self):
         first = self.frame()
         self.assertEqual(ultimate._bind_lineup_challenge_button(first), (287, 1178, 513, 1241))
@@ -26,6 +28,7 @@ class UltimateLineupNativeTests(unittest.TestCase):
         self.assertNotEqual(ultimate.frame_sha256(first), ultimate.frame_sha256(changed))
         self.assertEqual(ultimate._bind_lineup_challenge_button(changed), (287, 1178, 513, 1241))
 
+    @requires_tesseract
     def test_missing_any_selected_glyph_fails_closed(self):
         for index, (x0, y0, x1, y1) in enumerate(ultimate._HERO_LINEUP_SELECTED_CARD_ROIS):
             with self.subTest(slot=index):
@@ -33,6 +36,7 @@ class UltimateLineupNativeTests(unittest.TestCase):
                 frame[y0:y1, x0:x1] = 0
                 self.assertIsNone(ultimate._bind_lineup_challenge_button(frame))
 
+    @requires_tesseract
     def test_changed_header_disabled_or_wrong_action_fails_closed(self):
         for part in ("header", "disabled", "wrong_action"):
             with self.subTest(part=part):
@@ -47,6 +51,7 @@ class UltimateLineupNativeTests(unittest.TestCase):
                                 1, (255, 255, 255), 2, cv2.LINE_AA)
                 self.assertIsNone(ultimate._bind_lineup_challenge_button(frame))
 
+    @requires_tesseract
     def test_real_vip_and_unknown_modal_fail_closed(self):
         vip = cv2.imread(str(ROOT / "tasks/assets/navigation/800x1280/reset_popup_source.png"))
         frame = self.frame()

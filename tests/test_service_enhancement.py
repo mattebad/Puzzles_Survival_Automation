@@ -16,6 +16,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
+import automation_service.enhancement as enhancement_service
 import automation_service.registry as registry
 from automation_service.contracts import NormalizedOutcome
 from automation_service.enhancement import (
@@ -29,7 +30,16 @@ from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from tasks.scheduler_task_result import SchedulerIdentity
-from tests.test_service_recruitment import VirtualStop
+from tests.support.service_stop import VirtualStop
+from tasks.runtime_identity import BLUESTACKS_SERIAL
+from tests.ocr_memo import install_module_memo
+
+
+def setUpModule():
+    # Route/service tests replay identical frames; run real Tesseract once per
+    # unique (image, config) and reuse that real result. Real-OCR recognition
+    # coverage lives in the named recognition suites (see tests/ocr_memo.py).
+    install_module_memo()
 
 
 START = 1_800_000_000.0
@@ -109,8 +119,8 @@ class ServiceEnhancementTests(unittest.TestCase):
         for target, name, value in (
             (boundary, "RUNTIME_INPUT_LOCK_PATH", self.root / "lock.sqlite3"),
             (pnsctl, "BLUESTACKS_ARTIFACT_ROOT", self.root / "artifacts"),
-            (pnsctl, "BLUESTACKS_ADB", "fake-adb"),
-            (pnsctl, "BLUESTACKS_SERIAL", "emulator-5554"),
+            (enhancement_service, "BLUESTACKS_ADB", "fake-adb"),
+            (delivery, "BLUESTACKS_ADB", "fake-adb"),
         ):
             patched = patch.object(target, name, value)
             patched.start()
@@ -250,7 +260,7 @@ class ServiceEnhancementTests(unittest.TestCase):
                     delivery._verify_family_startup(result, runtime.session, changed)
 
     def test_startup_replay_accepts_windows_session_alias_without_accepting_foreign_evidence(self):
-        from tests.test_contextual_startup_recovery import windows_short_path
+        from tests.support.contextual_startup import windows_short_path
         self.startup_frames = ("startup/nova-vip-reset-20261031.png",
                                "startup/scarlett-current-20261030.png", "home_base/native-home-20261029.png")
         with self.startup_session() as (runtime, session):
@@ -354,7 +364,7 @@ class ServiceEnhancementTests(unittest.TestCase):
                  "state_transition": ["HOME_CANONICAL", "COMMANDER_INFO_RECOGNIZED", "GEAR_SUCCESSOR_RECONCILED",
                                       "CHIP_SUCCESSOR_RECONCILED", "MODULE_SUCCESSOR_RECONCILED", "SAFE_TERMINAL_RECOGNIZED"]}
         result = {"flow_id": FLOW_ID, "status": self.route_status, "variant": "family",
-                  "serial": pnsctl.BLUESTACKS_SERIAL, "native_width": 800, "native_height": 1280,
+                  "serial": BLUESTACKS_SERIAL, "native_width": 800, "native_height": 1280,
                   "input_count": session.input_count, "dispatch_count": runtime.input_count,
                   "resource_affecting_dispatch_count": len(current), "enhancement_result": route,
                   "terminal_recognized": True, "proof_topology": self.topology,

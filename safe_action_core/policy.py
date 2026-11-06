@@ -61,10 +61,10 @@ from tasks.personal_might_praise import (
     SOURCE_STATE as PERSONAL_MIGHT_SOURCE_STATE,
     TARGET_IDENTITY as PERSONAL_MIGHT_TARGET_IDENTITY,
 )
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_SIZE = (800, 1280)
-ACTIVE_RUNTIME_PROFILE_ID = "pns-bluestacks-5-p64-800x1280-v1"
 RESOURCE_FLOW_ID = "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
 RESOURCE_PRODUCT_POLICY_REVISION = "use_resource_item-v1"
 RESOURCE_RECURRENCE_POLICY_REVISION = "daily_reset-v1"
@@ -76,7 +76,7 @@ RESOURCE_VARIANT = "1k_food"
 # Campaign AP is a route-owned effect, not a reopening of the generic spend
 # class and not a ResourceEffectAuthority item.  Keep this contract narrow and
 # task-keyed until a canonical native runner supplies the same exact fields.
-CAMPAIGN_AP_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
+CAMPAIGN_AP_FLOW_ID = "CAMPAIGN-AP-AUTO-BATTLE"
 CAMPAIGN_AP_PRODUCT_ID = "campaign_ap"
 CAMPAIGN_AP_PRODUCT_REVISION = "campaign_ap-v1"
 CAMPAIGN_AP_SEMANTIC_ACTION = "dispatch_campaign_ap_auto_battle"

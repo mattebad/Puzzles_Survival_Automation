@@ -77,12 +77,12 @@ registration, or scheduling.
 Frozen manifests:
 
 - r1: `docs/runtime-reliability-stage-3-control-primitives-execution-manifest-r1.md`
-  (SHA-256 `0a8cb90b283a4209a5f9e590d807548e1abcd401b6584097d10e1c20366399ad`).
+  (SHA-256 `c18b4093f54e47458b5796747d5f988c47af991edffb80da965ef1ac2f1cd23a`).
 - r2: `docs/runtime-reliability-stage-3-control-primitives-execution-manifest-r2.md`.
   It terminated before mutation as `process_state` because the parent packet
   transcribed the retained event digest incorrectly.
 - r3: `docs/runtime-reliability-stage-3-control-primitives-execution-manifest-r3.md`
-  (SHA-256 `bdf221ee636af73e7dcd21748ac0e9df99ff3d5b573295c9fb519fb973242f36`).
+  (SHA-256 `3b30ff0987e3aaec4b59976531936245ec4fc2bcad8e1110d0e24222dd1fa191`).
 
 The candidate adds three small, pure, input-free primitives for stable
 transition polling, list/card search state, and source-context modal/recovery

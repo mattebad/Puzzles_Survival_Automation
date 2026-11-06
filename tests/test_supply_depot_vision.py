@@ -21,6 +21,7 @@ from tasks.supply_depot_vision import (
     recognize_supply_depot_screen,
     recognize_supply_depot_radial,
 )
+from tests.support.environment import requires_ocr_worker, requires_tesseract
 
 
 def queued_ocr(*values: str):
@@ -90,8 +91,11 @@ class SupplyDepotVisionTests(unittest.TestCase):
         frame = np.zeros((1280, 800, 3), np.uint8)
         frame[780:823, 480:518] = glyph
         self.assertFalse(recognize_supply_depot_radial(frame, ocr=lambda *_: "Details"))
-        self.assertIsNone(bind_supply_depot_claim_supply(frame, ocr=lambda *_: "Details"))
+        with patch("scripts.bluestacks_popup_recognition.recognize_reset_popup", return_value={}):
+            self.assertIsNone(bind_supply_depot_claim_supply(frame, ocr=lambda *_: "Details"))
 
+    @requires_tesseract
+    @requires_ocr_worker
     def test_native_collapsed_drawer_keeps_safe_button_despite_covered_lower_caption(self):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         from scripts.home_atlas_bluestacks import identity_from_captured
@@ -140,10 +144,12 @@ class SupplyDepotVisionTests(unittest.TestCase):
         for name in ("native-raised-radial-20261029.png", "native-facility-20261029.png"):
             self.assertIsNone(bind(cv2.imread(str(path.parent / name)), expanded=True), name)
 
+    @requires_tesseract
+    @requires_ocr_worker
     def test_native_exhausted_capture_keeps_identity_across_scene_animation(self):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         from scripts.home_atlas_bluestacks import identity_from_captured
-        from scripts.supply_depot_free_canary import exhausted_free_state
+        from scripts.supply_depot_free_route import exhausted_free_state
 
         root = Path(__file__).parent / "fixtures/supply_depot"
         path = root / "native-exhausted-20261029.png"
@@ -151,12 +157,28 @@ class SupplyDepotVisionTests(unittest.TestCase):
         earlier = cv2.imread(str(root / "native-facility-20261029.png"))
         self.assertFalse(np.array_equal(earlier[70:], captured.frame[70:]))
         identity = identity_from_captured(captured, session_id="offline-supply-exhausted", ordinal=1)
-        result = recognize_supply_depot_screen(captured.frame, source_frame=identity, source_png=captured.png)
-        self.assertTrue(result.recognized, result)
+        observations = []
+        real_ocr = supply_depot_module.run_semantic_ocr
+
+        def observe_ocr(image, request, **kwargs):
+            started = time.monotonic()
+            observation = real_ocr(image, request, **kwargs)
+            observations.append({
+                "status": observation.status.value,
+                "reason_code": observation.reason_code,
+                "elapsed_seconds": time.monotonic() - started,
+            })
+            return observation
+
+        with patch.object(supply_depot_module, "run_semantic_ocr", side_effect=observe_ocr):
+            result = recognize_supply_depot_screen(captured.frame, source_frame=identity, source_png=captured.png)
+        self.assertTrue(result.recognized, (result, observations))
         self.assertEqual(result.daily_free_attempts, 0)
         self.assertTrue(exhausted_free_state(result))
         self.assertTrue(all(not control.zero_cost for control in result.controls))
 
+    @requires_tesseract
+    @requires_ocr_worker
     def test_native_scene_cannot_replace_missing_or_wrong_header(self):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         from scripts.home_atlas_bluestacks import identity_from_captured
@@ -177,6 +199,8 @@ class SupplyDepotVisionTests(unittest.TestCase):
                 self.assertFalse(result.recognized)
                 self.assertEqual(result.controls, ())
 
+    @requires_tesseract
+    @requires_ocr_worker
     def test_original_native_capture_recognizes_free_controls_with_explicit_identity(self):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         from scripts.home_atlas_bluestacks import identity_from_captured
@@ -265,7 +289,10 @@ class SupplyDepotVisionTests(unittest.TestCase):
 
 
     def test_radial_identity_alone_does_not_supply_a_button_target(self):
-        with patch.object(supply_depot_module.pytesseract, "image_to_data", return_value={"text": []}):
+        with (
+            patch.object(supply_depot_module, "tesseract_data", return_value={"text": []}),
+            patch("scripts.bluestacks_popup_recognition.recognize_reset_popup", return_value={}),
+        ):
             for text in ("Details Upgrade Claim Supply", "Details grade Claim Supply",
                          "etail Clai rage Supp", "etail Clai Upgrade Sup",
                          "Det Clai: rade Upgrade Supply"):
@@ -286,11 +313,13 @@ class SupplyDepotVisionTests(unittest.TestCase):
         with (
             patch.object(supply_depot_module, "_recognized_supply_radial_roi", return_value=(145, 840, 800, 1120)),
             patch("scripts.bluestacks_popup_recognition.recognize_reset_popup", return_value={}),
-            patch.object(supply_depot_module.pytesseract, "image_to_data", side_effect=RuntimeError("OCR timeout")) as engine,
+            patch.object(supply_depot_module, "tesseract_data", side_effect=RuntimeError("OCR timeout")) as engine,
         ):
             self.assertIsNone(bind_supply_depot_claim_supply(self.frame))
         self.assertEqual(engine.call_args.kwargs["timeout"], 5)
 
+    @requires_tesseract
+    @requires_ocr_worker
     def test_native_edge_radial_identity_does_not_authorize_footer_covered_label(self):
         frame = cv2.imread(str(Path(__file__).parent / "fixtures/supply_depot/native-edge-radial-20261029.png"))
         self.assertIsNotNone(frame)
@@ -318,6 +347,8 @@ class SupplyDepotVisionTests(unittest.TestCase):
         clipped = {"text": ["Claim"], "left": [0], "top": [20], "width": [100], "height": [40]}
         self.assertIsNone(_claim_label_row_from_data(clipped, search_roi=(145, 620, 800, 1020)))
 
+    @requires_tesseract
+    @requires_ocr_worker
     def test_native_raised_radial_uses_tight_label_and_book_occlusion_stays_blocked(self):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         from scripts.home_atlas_bluestacks import identity_from_captured
@@ -361,6 +392,8 @@ class SupplyDepotVisionTests(unittest.TestCase):
                         changed[y0:y1, x0:x1] = 0
                         self.assertIsNone(bind_supply_depot_claim_supply(changed))
 
+    @requires_tesseract
+    @requires_ocr_worker
     def test_actual_hud_occluded_radial_stays_recognized_but_not_actionable(self):
         from scripts.bluestacks_native_runtime import captured_native_frame_from_png
         from scripts.home_atlas_bluestacks import identity_from_captured
@@ -380,6 +413,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
             with self.subTest(roi=roi):
                 self.assertIsNone(choose(roi))
 
+    @requires_ocr_worker
     def test_capture_bound_screen_recognizes_free_controls(self):
         result = recognize_supply_depot_screen(
             self.frame,
@@ -429,6 +463,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
         self.assertEqual(result.controls, ())
         self.assertFalse(result.premium_or_purchase_visible)
 
+    @requires_ocr_worker
     def test_explicit_attempts_ocr_engine_failure_fails_closed(self):
         result = recognize_supply_depot_screen(
             self.frame,
@@ -438,6 +473,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
         self.assert_fail_closed_ocr_result(result, "ocr_invalid_attempts")
         self.assertIsNone(result.daily_free_attempts)
 
+    @requires_ocr_worker
     def test_explicit_panel_ocr_engine_failure_fails_closed(self):
         result = recognize_supply_depot_screen(
             self.frame,
@@ -450,6 +486,7 @@ class SupplyDepotVisionTests(unittest.TestCase):
         self.assert_fail_closed_ocr_result(result, "ocr_invalid_panel")
         self.assertEqual(result.daily_free_attempts, 9)
 
+    @requires_ocr_worker
     def test_explicit_control_ocr_engine_failure_discards_partial_controls(self):
         result = recognize_supply_depot_screen(
             self.frame,

@@ -82,8 +82,8 @@
         "execution_flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
         "queue_record_state": "accepted_existing",
         "depends_on": [],
-        "maximum_inputs": 11,
-        "maximum_resource_list_swipes": 8,
+        "maximum_inputs": 10,
+        "maximum_resource_list_swipes": 6,
         "blocker": null
       },
       {
@@ -186,7 +186,7 @@
       },
       {
         "task_id": "campaign-natural-ap-auto-battle",
-        "execution_flow_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+        "execution_flow_id": "CAMPAIGN-AP-AUTO-BATTLE",
         "queue_record_state": "blocked_evidence_required",
         "depends_on": ["CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION"],
         "blocker": "Terminal Campaign AP r2 closed blocked_evidence_required after LOCALIZATION_NOT_RECOGNIZED on canonical Home/Atlas localization with zero input; identical r2 retry is prohibited until a separately activated HOME-ATLAS-LOCALIZATION-RESTORATION task restores canonical localization"
@@ -481,7 +481,7 @@
         "tasks/campaign_atlas.py",
         "tasks/campaign_atlas_vision.py",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION.json",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "BACKLOG.md",
         "safe_action_core/policy.py",
         "scripts/bluestacks_popup_recognition.py",
@@ -499,7 +499,6 @@
         "tasks/assets/campaign_auto_battle/800x1280/tier1_unselected.png",
         "tasks/assets/campaign_auto_battle/800x1280/tier2_selected.png",
         "tasks/assets/campaign_auto_battle/800x1280/tier2_unselected.png",
-        "tasks/backlog_task_index.json",
         "tasks/flow_delivery_queue.json"
       ],
       "navigation_model": "campaign_screen_atlas_native_survey_and_validation",
@@ -518,7 +517,7 @@
           "repository_head": "44f607ee816a52df947acf3bd33fae2435c0aa3a",
           "started_at": "2026-07-23T23:05:17.405129Z",
           "finished_at": "2026-07-24T02:52:20.001438Z",
-          "session_directory": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION\\survey-20260724T023336884972Z",
+          "session_directory": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION\\survey-20260724T023336884972Z",
           "terminal_outcome": "completed",
           "diagnosis": "Native Campaign survey completed at 93/272 inputs across accepted sessions survey-20260723T232154448911Z, survey-20260724T000253173324Z, survey-20260724T004227747200Z, survey-20260724T012057293610Z, survey-20260724T021222146973Z, and survey-20260724T023336884972Z; direct measured exit returned to recognized Home"
         }
@@ -539,8 +538,6 @@
         "tests/test_campaign_atlas.py",
         "tests/test_campaign_atlas_vision.py",
         "tests/test_campaign_atlas_collector.py",
-        "tests/test_flow_delivery_authority_consistency.py",
-        "tests/test_flow_delivery_orchestrator.py",
         "tests/test_home_atlas_verified_route.py",
         "tests/test_personal_might_praise.py"
       ],
@@ -594,13 +591,9 @@
         "tests/test_campaign_atlas.py",
         "tests/test_campaign_atlas_vision.py",
         "tests/test_campaign_atlas_collector.py",
-        "tests/test_flow_delivery_authority_consistency.py",
-        "tests/test_flow_delivery_orchestrator.py",
-        "tests/test_flow_delivery_lean_workflow.py",
         "tests/test_home_atlas_verified_route.py",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "BACKLOG.md",
-        "tasks/backlog_task_index.json",
         "safe_action_core/policy.py",
         "scripts/bluestacks_popup_recognition.py",
         "tests/test_personal_might_praise.py",
@@ -636,8 +629,6 @@
         "tests/test_campaign_atlas.py",
         "tests/test_campaign_atlas_vision.py",
         "tests/test_campaign_atlas_collector.py",
-        "tests/test_flow_delivery_authority_consistency.py",
-        "tests/test_flow_delivery_orchestrator.py",
         "tests/test_home_atlas_verified_route.py"
       ],
       "consequential_stage_policy": {
@@ -662,12 +653,10 @@
         "scripts/campaign_atlas_bluestacks.py",
         "tasks/campaign_auto_battle.py",
         "tasks/ultimate_challenge_daily.py",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "BACKLOG.md",
         "tasks/flow_delivery_queue.json",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
-        "tasks/backlog_task_index.json",
-        "tasks/flow_delivery_coverage.json",
         "docs/flow_delivery_coverage.md"
       ],
       "navigation_model": "campaign_atlas_verified_destination_and_ultimate_entry_replay",
@@ -684,9 +673,7 @@
         "tests/test_campaign_atlas_vision.py",
         "tests/test_campaign_atlas_navigation.py",
         "tests/test_campaign_story_destinations.py",
-        "tests/test_ultimate_challenge_daily.py",
-        "tests/test_flow_delivery_authority_consistency.py",
-        "tests/test_flow_delivery_orchestrator.py"
+        "tests/test_ultimate_challenge_daily.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -738,15 +725,11 @@
         "tests/test_campaign_atlas_navigation.py",
         "tests/test_campaign_story_destinations.py",
         "tests/test_ultimate_challenge_daily.py",
-        "tests/test_flow_delivery_authority_consistency.py",
-        "tests/test_flow_delivery_orchestrator.py",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
         "tasks/flow_delivery_queue.json",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "BACKLOG.md",
-        "tasks/backlog_task_index.json",
-        "docs/flow_delivery_coverage.md",
-        "tasks/flow_delivery_coverage.json"
+        "docs/flow_delivery_coverage.md"
       ],
       "live_validation_scenarios": [
         {
@@ -766,8 +749,6 @@
         "tests/test_campaign_atlas_navigation.py",
         "tests/test_campaign_story_destinations.py",
         "tests/test_ultimate_challenge_daily.py",
-        "tests/test_flow_delivery_authority_consistency.py",
-        "tests/test_flow_delivery_orchestrator.py",
         "tests/test_gameplay_flow_contracts.py"
       ],
       "consequential_stage_policy": {
@@ -793,16 +774,13 @@
         "tasks/campaign_auto_battle_vision.py",
         "tasks/campaign_stage9.py",
         "scripts/home_atlas_bluestacks.py",
-        "scripts/flow_delivery_control.py",
-        "scripts/flow_delivery_context.py",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "scripts/flow_delivery_campaign_bluestacks.py",
         "scripts/pnsctl.py",
         "tasks/flow_delivery_bluestacks_registry.json",
         "BACKLOG.md",
         "docs/campaign-auto-battle.md",
         "docs/flow_delivery_coverage.md",
-        "tasks/backlog_task_index.json",
         "tasks/gameplay_flow_contracts/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION.json",
         "tasks/assets/campaign_auto_battle/800x1280/manifest.json",
         "tasks/assets/campaign_auto_battle/800x1280/ground-truth/stage-9-chapter-20/manifest.json",
@@ -1041,10 +1019,6 @@
         "tests/test_campaign_story_destinations.py",
         "tests/test_home_atlas_verified_route.py",
         "tests/test_campaign_stage9_destination_replay.py",
-        "tests/test_flow_delivery_orchestrator.py",
-        "tests/test_flow_delivery_token_context_hygiene.py",
-        "tests/test_flow_delivery_parent_conversation_rollover.py",
-        "tests/test_flow_delivery_lean_workflow.py",
         "tests/test_campaign_atlas_chapter_nav.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
@@ -1082,7 +1056,7 @@
       "reference_docs": [
         "docs/campaign-auto-battle.md",
         "docs/flow_delivery_coverage.md",
-        "docs/prompts/daily-quest/dq-flow-campaign-ap.md"
+        "docs/agent/prompts/daily-quest/dq-flow-campaign-ap.md"
       ],
       "direct_dependencies": [
         "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
@@ -1094,20 +1068,15 @@
         "tasks/campaign_auto_battle_vision.py",
         "tasks/campaign_stage9.py",
         "scripts/home_atlas_bluestacks.py",
-        "scripts/flow_delivery_control.py",
-        "scripts/flow_delivery_context.py",
         "tests/test_campaign_auto_battle.py",
         "tests/test_campaign_auto_battle_runtime.py",
         "tests/test_campaign_story_destinations.py",
         "tests/test_home_atlas_verified_route.py",
         "tests/test_campaign_stage9_destination_replay.py",
-        "tests/test_flow_delivery_orchestrator.py",
-        "tests/test_flow_delivery_lean_workflow.py",
         "BACKLOG.md",
-        "CURRENT_HANDOFF.md",
+        "docs/agent/CURRENT_HANDOFF.md",
         "docs/campaign-auto-battle.md",
         "docs/flow_delivery_coverage.md",
-        "tasks/backlog_task_index.json",
         "tasks/gameplay_flow_contracts/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION.json",
         "tasks/assets/campaign_auto_battle/800x1280/manifest.json",
         "tasks/assets/campaign_auto_battle/800x1280/stage9_chapter20.png",
@@ -1177,12 +1146,9 @@
         "scripts/pnsctl.py",
         "tasks/ultimate_challenge_daily.py",
         "tasks/flow_delivery_bluestacks_registry.json",
-        "tasks/flow_delivery_coverage.json",
-        "tasks/flow_delivery_validation_profiles.json",
         "docs/flow_delivery_coverage.md",
-        "CURRENT_HANDOFF.md",
-        "BACKLOG.md",
-        "tasks/backlog_task_index.json"
+        "docs/agent/CURRENT_HANDOFF.md",
+        "BACKLOG.md"
       ],
       "navigation_model": "canonical_home_atlas_to_campaign_ultimate_challenge_entry",
       "requires_bluestacks_live": true,
@@ -1226,7 +1192,7 @@
           "repository_head": "ebb5e7151b276f3c17ff32dc8ce89cee17f02d13",
           "started_at": "2026-07-26T22:14:52.732891Z",
           "finished_at": "2026-07-26T22:17:16.252197Z",
-          "session_directory": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION\\daily-20260726T221453439136Z",
+          "session_directory": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION\\daily-20260726T221453439136Z",
           "terminal_outcome": "blocked",
           "diagnosis": "Zero-input pre-entry block: supported Home Atlas zoom-out had zero exact BlueStacks App Player 4 windows and the fresh ADB localization fallback was insufficient_landmarks/unknown zoom; no Ultimate Challenge gameplay transport or resource delta. Retry requires a materially corrected supported foreground/window or positively canonical fresh Home; identical pre-entry retry prohibited."
         },
@@ -1238,7 +1204,7 @@
           "repository_head": "ebb5e7151b276f3c17ff32dc8ce89cee17f02d13",
           "started_at": "2026-07-26T22:21:03.244102Z",
           "finished_at": "2026-07-26T22:28:46.764337Z",
-          "session_directory": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION\\daily-20260726T222110933999Z",
+          "session_directory": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION\\daily-20260726T222110933999Z",
           "terminal_outcome": "blocked",
           "diagnosis": "Zero-gameplay pre-entry block after accepted Home Atlas Campaign door: current native Campaign tier-map frame recognized, but OCR-only Ultimate Challenge entry bind returned no spatial identity. No Challenge/lineup/Exit/Flee transport or resource delta. Retry only with materially corrected retained-template current-frame binding; identical retry prohibited."
         },
@@ -1250,7 +1216,7 @@
           "repository_head": "ebb5e7151b276f3c17ff32dc8ce89cee17f02d13",
           "started_at": "2026-07-26T22:29:44.814273Z",
           "finished_at": "2026-07-26T22:30:36.265679Z",
-          "session_directory": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION\\daily-20260726T222955422918Z",
+          "session_directory": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION\\daily-20260726T222955422918Z",
           "terminal_outcome": "blocked",
           "diagnosis": "Zero-input pre-entry block: after prior Campaign-door bind failure the runtime remained on Campaign tier map; Win32 zoom-out found zero BlueStacks App Player 4 windows and fresh ADB localization was insufficient_landmarks/unknown. No gameplay transport or resource delta. Final retry requires bounded Campaign tier-map-to-Home recovery first; identical pre-entry retry prohibited."
         },
@@ -1262,7 +1228,7 @@
           "repository_head": "ebb5e7151b276f3c17ff32dc8ce89cee17f02d13",
           "started_at": "2026-07-26T22:31:38.177384Z",
           "finished_at": "2026-07-26T22:34:20.389272Z",
-          "session_directory": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION\\daily-20260726T223144611948Z",
+          "session_directory": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION\\daily-20260726T223144611948Z",
           "terminal_outcome": "blocked",
           "diagnosis": "Attempt 6 tapped the text-label ROI and reached ordinary Campaign CHAPTER_MAP Ch.2 Eclipolis, not Ultimate Challenge. This is contradictory native evidence proving the selector was a false positive. No consequential Challenge/lineup/Exit/Flee input or resource delta occurred. The result-writer then hit a missing TERMINAL_COMPLETE_FOR_RESET import, fixed locally. The text-label tap is permanently prohibited."
         },
@@ -1274,7 +1240,7 @@
           "repository_head": "232e6b029b745a3d08b8ad5f9928f0b5fd98b321",
           "started_at": "2026-07-26T22:57:13.979096Z",
           "finished_at": "2026-07-26T22:59:39.565713Z",
-          "session_directory": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION\\daily-20260726T225722041353Z",
+          "session_directory": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION\\daily-20260726T225722041353Z",
           "terminal_outcome": "blocked",
           "diagnosis": "Attempt 7 correctly entered Ultimate Challenge via the blue vortex, then misbound OCR text 'Hero Challenge Level: 210' at (263,1130)-(381,1154) as the Challenge button. Two taps at (322,1142) were semantically no-effect; fresh native frame remains Ultimate Challenge main, with no Challenge/lineup/Exit/Flee transition and zero resource delta. This coordinate and identical retry are permanently prohibited; next attempt requires actual red-button geometry."
         },
@@ -1402,7 +1368,7 @@
       ],
       "reference_docs": [
         "docs/flow_delivery_coverage.md",
-        "docs/prompts/daily-quest/dq-flow-challenges.md"
+        "docs/agent/prompts/daily-quest/dq-flow-challenges.md"
       ],
       "direct_dependencies": [
         "CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY"
@@ -1410,7 +1376,6 @@
       "implementation_allowlist_seed": [
         "scripts/home_atlas_bluestacks.py",
         "scripts/flow_delivery_evidence.py",
-        "tests/test_flow_delivery_orchestrator.py",
         "tests/test_home_atlas_verified_route.py"
       ],
       "live_validation_scenarios": [
@@ -1428,7 +1393,6 @@
         "blocked_fail_closed"
       ],
       "completion_tests": [
-        "tests/test_flow_delivery_orchestrator.py",
         "tests/test_home_atlas_verified_route.py"
       ],
       "consequential_stage_policy": {
@@ -1603,7 +1567,7 @@
       ],
       "reference_docs": [
         "docs/nova-praise-bluestacks.md",
-        "docs/prompts/daily-quest/dq-flow-personal-might-praise.md"
+        "docs/agent/prompts/daily-quest/dq-flow-personal-might-praise.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -1648,8 +1612,7 @@
         "scripts/nova_praise_bluestacks.py",
         "scripts/nova_praise_centralized.py",
         "tasks/nova_praise.py",
-        "tasks/nova_praise_pulse.py",
-        "tasks/flow_scenario_attempts.py"
+        "tasks/nova_praise_pulse.py"
       ],
       "navigation_model": "canonical_home_atlas_to_nova_then_centralized_praise_boundary_and_safe_home_return",
       "requires_bluestacks_live": true,
@@ -1676,10 +1639,7 @@
         "tests/test_nova_praise.py",
         "tests/test_nova_praise_pulse.py",
         "tests/test_nova_praise_centralized_boundary.py",
-        "tests/test_nova_navigation_canary.py",
-        "tests/test_flow_scenario_attempts.py",
-        "tests/test_pnsctl_nova_praise.py",
-        "tests/test_flow_delivery_orchestrator.py"
+        "tests/test_nova_navigation.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -1727,19 +1687,14 @@
         "scripts/nova_praise_centralized.py",
         "tasks/nova_praise.py",
         "tasks/nova_praise_pulse.py",
-        "tasks/flow_scenario_attempts.py",
         "tests/test_nova_praise.py",
         "tests/test_nova_praise_pulse.py",
         "tests/test_nova_praise_centralized_boundary.py",
-        "tests/test_nova_navigation_canary.py",
-        "tests/test_flow_scenario_attempts.py",
-        "tests/test_pnsctl_nova_praise.py",
-        "tests/test_flow_delivery_orchestrator.py",
+        "tests/test_nova_navigation.py",
         "tasks/flow_delivery_product_policy.json",
         "tasks/gameplay_flow_contracts/NOVA-PRAISE-HOME-ATLAS-MIGRATION.json",
-        "tasks/backlog_task_index.json",
         "BACKLOG.md",
-        "CURRENT_HANDOFF.md"
+        "docs/agent/CURRENT_HANDOFF.md"
       ],
       "live_validation_scenarios": [
         {
@@ -1758,10 +1713,7 @@
         "tests/test_nova_praise.py",
         "tests/test_nova_praise_pulse.py",
         "tests/test_nova_praise_centralized_boundary.py",
-        "tests/test_nova_navigation_canary.py",
-        "tests/test_flow_scenario_attempts.py",
-        "tests/test_pnsctl_nova_praise.py",
-        "tests/test_flow_delivery_orchestrator.py"
+        "tests/test_nova_navigation.py"
       ],
       "consequential_stage_policy": {
         "initial_live_validation": "one_supervised_free_praise",
@@ -1770,7 +1722,7 @@
       }
     },
     {
-      "flow_id": "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY",
+      "flow_id": "CAMPAIGN-AP-AUTO-BATTLE",
       "title": "Spend Campaign AP through the production Auto Battle controller",
       "kind": "consequential_auto_battle_canary",
       "priority": 25,
@@ -1789,10 +1741,10 @@
         "scripts/flow_delivery_campaign_bluestacks.py",
         "scripts/pnsctl.py",
         "tasks/gameplay_flow_contracts/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION.json",
-        "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY.json",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE.json",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
         "BACKLOG.md",
-        "CURRENT_HANDOFF.md"
+        "docs/agent/CURRENT_HANDOFF.md"
       ],
       "navigation_model": "accepted_home_atlas_plus_campaign_atlas_stage9_then_production_auto_battle",
       "requires_bluestacks_live": true,
@@ -2109,13 +2061,9 @@
         "tests/test_campaign_atlas_chapter_nav.py",
         "tests/test_campaign_auto_battle.py",
         "tests/test_campaign_auto_battle_runtime.py",
-        "tests/test_campaign_ap.py",
-        "tests/test_daily_campaign_ap.py",
         "tests/test_campaign_stage9_destination_replay.py",
         "tests/test_campaign_story_destinations.py",
-        "tests/test_gameplay_flow_contracts.py",
-        "tests/test_flow_delivery_authority_consistency.py",
-        "tests/test_flow_delivery_orchestrator.py"
+        "tests/test_gameplay_flow_contracts.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -2163,31 +2111,17 @@
         "scripts/home_atlas_bluestacks.py",
         "scripts/flow_delivery_campaign_bluestacks.py",
         "scripts/pnsctl.py",
-        "scripts/flow_delivery_context.py",
-        "scripts/flow_delivery_control.py",
-        "scripts/run_flow_delivery_validation.py",
         "tasks/flow_delivery_bluestacks_registry.json",
         "tasks/gameplay_flow_contracts/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION.json",
-        "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY.json",
+        "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE.json",
         "tasks/gameplay_flow_contracts/CAMPAIGN-ATLAS-NAVIGATION-INTEGRATION-AND-REPLAY.json",
         "tests/test_campaign_auto_battle.py",
         "tests/test_campaign_auto_battle_runtime.py",
-        "tests/test_campaign_ap.py",
-        "tests/test_daily_campaign_ap.py",
         "tests/test_campaign_stage9_destination_replay.py",
         "tests/test_campaign_story_destinations.py",
         "tests/test_gameplay_flow_contracts.py",
-        "tests/test_flow_delivery_authority_consistency.py",
-        "tests/test_flow_delivery_orchestrator.py",
-        "tests/test_flow_delivery_token_context_hygiene.py",
-        "tests/test_flow_delivery_lean_workflow.py",
-        "tests/test_flow_delivery_parent_conversation_rollover.py",
-        "tests/test_flow_scenario_attempts.py",
-        "tests/test_flow_delivery_validation_profiles.py",
-        "tasks/flow_delivery_validation_profiles.json",
         "BACKLOG.md",
-        "CURRENT_HANDOFF.md",
-        "tasks/backlog_task_index.json",
+        "docs/agent/CURRENT_HANDOFF.md",
         "tasks/flow_delivery_queue.json",
         "docs/validation/campaign-ap-auto-battle-live-canary-manifest.json"
       ],
@@ -2216,11 +2150,8 @@
       "completion_tests": [
         "tests/test_campaign_auto_battle.py",
         "tests/test_campaign_auto_battle_runtime.py",
-        "tests/test_campaign_ap.py",
-        "tests/test_daily_campaign_ap.py",
         "tests/test_campaign_stage9_destination_replay.py",
-        "tests/test_gameplay_flow_contracts.py",
-        "tests/test_flow_delivery_orchestrator.py"
+        "tests/test_gameplay_flow_contracts.py"
       ],
       "consequential_stage_policy": {
         "initial_live_validation": "production_replay_then_1-20-9_canary",
@@ -2323,7 +2254,7 @@
       ],
       "reference_docs": [
         "docs/noahs-tavern-recruit-bluestacks.md",
-        "docs/prompts/daily-quest/dq-flow-recruitment.md"
+        "docs/agent/prompts/daily-quest/dq-flow-recruitment.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -2368,10 +2299,9 @@
         "tasks/ruins_challenge_runtime.py",
         "tasks/ruins_challenge_vision.py",
         "scripts/home_atlas_bluestacks.py",
-        "scripts/flow_delivery_control.py",
         "tasks/flow_delivery_bluestacks_registry.json",
         "tasks/gameplay_flow_contracts/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION.json",
-        "CURRENT_HANDOFF.md"
+        "docs/agent/CURRENT_HANDOFF.md"
       ],
       "navigation_model": "dedicated_route_to_canonical_home_atlas",
       "requires_bluestacks_live": true,
@@ -2716,7 +2646,7 @@
       ],
       "reference_docs": [
         "docs/ruins-challenge.md",
-        "docs/prompts/daily-quest/dq-flow-ruins-challenge-bluestacks.md"
+        "docs/agent/prompts/daily-quest/dq-flow-ruins-challenge-bluestacks.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -2729,14 +2659,13 @@
         "tasks/ruins_challenge_runtime.py",
         "tasks/ruins_challenge_vision.py",
         "scripts/home_atlas_bluestacks.py",
-        "scripts/flow_delivery_control.py",
         "tasks/flow_delivery_bluestacks_registry.json",
         "tasks/gameplay_flow_contracts/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION.json",
         "tests/test_ruins_challenge.py",
         "tests/test_home_atlas_verified_route.py",
         "tests/test_campaign_atlas_collector.py",
         "tests/test_navigation_development_boundary.py",
-        "CURRENT_HANDOFF.md"
+        "docs/agent/CURRENT_HANDOFF.md"
       ],
       "live_validation_scenarios": [
         {
@@ -2772,7 +2701,7 @@
           "repository_head": "7934bb781563edd362890c1ed0c56dbab429ed7e",
           "started_at": "2026-08-07T05:06:06.953113Z",
           "finished_at": "2026-08-07T05:08:26.540218Z",
-          "session_directory": "C:\\Users\\burni\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\RUINS-CHALLENGE-HOME-ATLAS-MIGRATION\\nav-20260807T050611653643Z\\ruins-challenge-20260807T050612196801Z",
+          "session_directory": "C:\\Users\\owner\\Documents\\Coding_Projects\\Puzzle_Survival_Runtime_POC\\.local-captures\\flow-delivery\\RUINS-CHALLENGE-HOME-ATLAS-MIGRATION\\nav-20260807T050611653643Z\\ruins-challenge-20260807T050612196801Z",
           "terminal_outcome": "blocked",
           "diagnosis": "zero_input_home_recognizer_gate_corrected_from_native_frame",
           "input_count": 0,
@@ -2961,7 +2890,7 @@
       ],
       "reference_docs": [
         "docs/troop-training-bluestacks.md",
-        "docs/prompts/daily-quest/dq-flow-training.md"
+        "docs/agent/prompts/daily-quest/dq-flow-training.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -3090,7 +3019,7 @@
       ],
       "reference_docs": [
         "docs/troop-training-bluestacks.md",
-        "docs/prompts/daily-quest/dq-flow-training.md"
+        "docs/agent/prompts/daily-quest/dq-flow-training.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -3156,8 +3085,7 @@
       "focused_validation_receipt_digest": "21d2184ba75969cdd7e1f75101eddde3f1edf69d1344255eb9564a236b0ca036",
       "architecture_validation_receipt_digest": "ff47b92baf60b59dcc859bf0fca1232ad0047717aab8fb25fb6f501ea4f06a0d",
       "focused_tests": [
-        "tests/test_flow_delivery_supply_depot_bluestacks.py",
-        "tests/test_flow_delivery_authority_consistency.py"
+        "tests/test_flow_delivery_supply_depot_bluestacks.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
@@ -3176,7 +3104,6 @@
       "backlog_task_id": "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION",
       "dependencies": [],
       "implementation_entrypoints": [
-        "scripts/supply_depot_bluestacks.py",
         "scripts/home_atlas_bluestacks.py",
         "tasks/supply_depot.py",
         "tasks/supply_depot_vision.py"
@@ -3230,11 +3157,10 @@
       ],
       "reference_docs": [
         "docs/navigation_verified_flow_readiness.md",
-        "docs/prompts/daily-quest/dq-flow-supply-depot.md"
+        "docs/agent/prompts/daily-quest/dq-flow-supply-depot.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
-        "scripts/supply_depot_bluestacks.py",
         "scripts/home_atlas_bluestacks.py",
         "tasks/supply_depot.py",
         "tasks/supply_depot_vision.py",
@@ -3410,9 +3336,9 @@
         "no arbitrary BlueStacks input outside authorized live validation"
       ],
       "reference_docs": [
-        "docs/prompts/daily-quest/dq-flow-enhance-gear.md",
-        "docs/prompts/daily-quest/dq-flow-enhance-chip.md",
-        "docs/prompts/daily-quest/dq-flow-enhance-module.md"
+        "docs/agent/prompts/daily-quest/dq-flow-enhance-gear.md",
+        "docs/agent/prompts/daily-quest/dq-flow-enhance-chip.md",
+        "docs/agent/prompts/daily-quest/dq-flow-enhance-module.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
@@ -3421,7 +3347,6 @@
         "scripts/bluestacks_native_runtime.py",
         "scripts/enhancement_bluestacks.py",
         "scripts/flow_delivery_enhancement_bluestacks.py",
-        "scripts/flow_delivery_control.py",
         "scripts/pnsctl.py",
         "tasks/flow_delivery_bluestacks_registry.json",
         "tasks/flow_delivery_queue.json",
@@ -3430,8 +3355,7 @@
         "tests/test_daily_enhancement.py",
         "tests/test_daily_enhancement_chip.py",
         "tests/test_daily_enhancement_module.py",
-        "tests/test_flow_delivery_enhancement.py",
-        "tests/test_flow_delivery_orchestrator.py"
+        "tests/test_flow_delivery_enhancement.py"
       ],
       "live_validation_scenarios": [
         {
@@ -3977,7 +3901,7 @@
         "no arbitrary BlueStacks input outside authorized live validation"
       ],
       "reference_docs": [
-        "docs/prompts/daily-quest/dq-flow-world-stamina-engine.md",
+        "docs/agent/prompts/daily-quest/dq-flow-world-stamina-engine.md",
         "docs/navigation_verified_flow_readiness.md"
       ],
       "direct_dependencies": [],
@@ -4174,8 +4098,7 @@
       "focused_tests": [
         "tests/test_daily_resource_item_bluestacks.py",
         "tests/test_flow_delivery_daily_resource_item_bluestacks.py",
-        "tests/test_gameplay_flow_contracts.py",
-        "tests/test_flow_delivery_validation_profiles.py"
+        "tests/test_gameplay_flow_contracts.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -4215,14 +4138,12 @@
         "scripts/pnsctl.py",
         "tasks/flow_delivery_bluestacks_registry.json",
         "tasks/flow_delivery_queue.json",
-        "tasks/flow_delivery_validation_profiles.json",
         "tasks/gameplay_flow_contracts/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION.json",
         "tasks/daily_quest_catalog.json",
         "tasks/daily_quest_execution_matrix.json",
         "tests/test_daily_resource_item_bluestacks.py",
         "tests/test_flow_delivery_daily_resource_item_bluestacks.py",
-        "tests/test_gameplay_flow_contracts.py",
-        "tests/test_flow_delivery_validation_profiles.py"
+        "tests/test_gameplay_flow_contracts.py"
       ],
       "live_validation_scenarios": [
         {
@@ -4240,8 +4161,7 @@
       "completion_tests": [
         "tests/test_daily_resource_item_bluestacks.py",
         "tests/test_flow_delivery_daily_resource_item_bluestacks.py",
-        "tests/test_gameplay_flow_contracts.py",
-        "tests/test_flow_delivery_validation_profiles.py"
+        "tests/test_gameplay_flow_contracts.py"
       ],
       "consequential_stage_policy": {
         "initial_live_validation": "supervised_consequential_validation",
@@ -4435,7 +4355,7 @@
       "dependencies": [],
       "implementation_entrypoints": [
         "scripts/flow_delivery_bioenhancer_bluestacks.py",
-        "scripts/bioenhancer_free_research_canary.py",
+        "scripts/bioenhancer_free_research_route.py",
         "tasks/bioenhancer.py",
         "tasks/flow_delivery_bluestacks_registry.json",
         "tasks/gameplay_flow_contracts/BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION.json"
@@ -4465,6 +4385,47 @@
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION"
+    },
+    {
+      "flow_id": "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION",
+      "title": "Validate one free Personal Might Praise per UTC reset",
+      "kind": "direct_free_praise_integration",
+      "priority": 126,
+      "status": "blocked",
+      "backlog_task_id": "DQ-FLOW-PERSONAL-MIGHT",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "scripts/flow_delivery_personal_might_bluestacks.py",
+        "scripts/personal_might_praise_bluestacks.py",
+        "tasks/personal_might_praise.py",
+        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/gameplay_flow_contracts/PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION.json"
+      ],
+      "navigation_model": "canonical_home_to_more_rankings_personal_might_praise_and_canonical_home",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "No live attempt is authorized by this record; one uninterrupted native Home-to-Praise-to-Home route with complete source-linked successor proof remains required.",
+      "consequence_policy": "Exactly one zero-cost Personal Might Praise per fixed account/server/UTC reset. Paid, unknown, stale, contradictory, and identical-retry Praise remain prohibited.",
+      "product_policy_status": "supervised_consequential_validation",
+      "registration_state": "NOT_REGISTERED",
+      "production_eligible": false,
+      "scheduler_eligibility": false,
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_personal_might_bluestacks.py",
+        "tests/test_personal_might_praise.py",
+        "tests/test_personal_might_policy.py",
+        "tests/test_service_personal_might.py",
+        "tests/test_gameplay_flow_contracts.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [],
+      "blocked_reason": "The contract's uninterrupted-native-acceptance gate is evidence_required: one uninterrupted native Home-to-Praise-to-Home route with complete source-linked successor proof is missing.",
+      "next_concrete_action": "Remain evidence_required; use the existing Personal Might development runner only after separate authorization; keep registration, scheduling, and Praise dispatch disabled.",
+      "last_completed_stage": null,
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION"
     },
     {
       "flow_id": "VIP-GET-PTS-POPUP-DISMISSAL",

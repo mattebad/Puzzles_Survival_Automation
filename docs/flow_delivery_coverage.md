@@ -1,7 +1,5 @@
 # Flow-delivery coverage
 
-Machine-readable companion: `tasks/flow_delivery_coverage.json`.
-
 This matrix separates Daily objective ownership from independent maintenance. Retained gameplay,
 navigation, offline replay, and supervised evidence are cumulative classifications: none of them
 alone proves a production-controller replay or authorizes runtime input. Every flow below requires

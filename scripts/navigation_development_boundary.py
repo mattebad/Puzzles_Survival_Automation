@@ -32,6 +32,7 @@ from scripts.bluestacks_native_runtime import (
     reject_real_money_confirmation,
 )
 from safe_action_core import SafetyStore
+from safe_action_core.path_safety import UnsafePathError, require_no_untrusted_symlinks
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -56,7 +57,7 @@ class NavigationBoundaryError(RuntimeError):
 
 
 def require_fixed_orchestrator_path(path: Path | None, expected: Path, label: str) -> Path:
-    """Reject path escape and symlinks; only the fixed orchestrator path is legal."""
+    """Reject path escape and untrusted links; only the fixed path is legal."""
 
     expected_path = Path(expected)
     candidate = Path(expected_path if path is None else path)
@@ -64,15 +65,13 @@ def require_fixed_orchestrator_path(path: Path | None, expected: Path, label: st
     exp_abs = Path(os.path.abspath(os.path.normpath(str(expected_path))))
     if cand_abs != exp_abs:
         raise NavigationBoundaryError(f"{label} must be exactly {expected_path}")
-    probes = [cand_abs, exp_abs, *list(cand_abs.parents), *list(exp_abs.parents)]
-    seen: set[str] = set()
-    for probe in probes:
-        key = str(probe)
-        if key in seen:
-            continue
-        seen.add(key)
-        if probe.exists() and os.path.islink(probe):
-            raise NavigationBoundaryError(f"{label} must not be a symlink")
+    try:
+        # Check the returned authority path and any canceled raw components.
+        require_no_untrusted_symlinks(exp_abs)
+        if candidate != cand_abs:
+            require_no_untrusted_symlinks(candidate)
+    except UnsafePathError as exc:
+        raise NavigationBoundaryError(f"{label} must not contain an untrusted symlink") from exc
     return exp_abs
 
 

@@ -7,6 +7,13 @@ import numpy as np
 
 from tasks.campaign_auto_battle import CampaignScreen, CampaignStage
 from tasks.campaign_auto_battle_vision import recognize_campaign_frame
+from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +30,7 @@ class CampaignLineupTests(unittest.TestCase):
     def recognize(self, frame):
         return recognize_campaign_frame(frame, CampaignStage(1, 20, 9))
 
+    @requires_tesseract
     def test_native_scaled_lineup_binds_the_current_challenge_control(self):
         recognition = self.recognize(self.frame())
         self.assertEqual(recognition.observation.screen, CampaignScreen.HERO_LINEUP)
@@ -32,6 +40,7 @@ class CampaignLineupTests(unittest.TestCase):
         self.assertEqual(recognition.target("campaign-lineup-back"), (47, 2, 128, 61))
         self.assertGreaterEqual(recognition.diagnostics["lineup_score"], 0.72)
 
+    @requires_tesseract
     def test_missing_game_arrow_preserves_lineup_identity_without_a_back_target(self):
         frame = self.frame()
         frame[0:90, 0:180] = 0
@@ -41,6 +50,7 @@ class CampaignLineupTests(unittest.TestCase):
         self.assertIsNotNone(recognition.target("campaign-lineup-challenge"))
         self.assertIsNone(recognition.target("campaign-lineup-back"))
 
+    @requires_tesseract
     def test_hero_art_and_selection_contents_do_not_authorize_the_control(self):
         original = self.frame()
         changed = original.copy()
@@ -51,6 +61,7 @@ class CampaignLineupTests(unittest.TestCase):
         self.assertEqual(after.observation.screen, CampaignScreen.HERO_LINEUP)
         self.assertEqual(after.target("campaign-lineup-challenge"), before.target("campaign-lineup-challenge"))
 
+    @requires_tesseract
     def test_changed_header_gold_or_caption_rejects_dispatch_target(self):
         for variant in ("header", "gold", "caption"):
             with self.subTest(variant=variant):
@@ -69,6 +80,7 @@ class CampaignLineupTests(unittest.TestCase):
                 self.assertIsNone(result.target("campaign-lineup-challenge"))
                 self.assertIsNone(result.target("campaign-lineup-back"))
 
+    @requires_tesseract
     def test_duplicate_or_displaced_challenge_controls_fail_closed(self):
         for duplicate in (True, False):
             with self.subTest(duplicate=duplicate):

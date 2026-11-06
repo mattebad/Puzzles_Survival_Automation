@@ -178,6 +178,32 @@ class AutomationServiceStateTests(unittest.TestCase):
                 self.assertEqual(states[0].next_occurrence_key, 0)
             finally:
                 manager.close()
+    def test_interrupted_write_rolls_back_and_leaves_manager_writable(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.sqlite3"
+            manager = BotStateManager(path, owner_instance_id="owner-a")
+            try:
+                manager.set_service_enabled(True, now_utc_epoch=10.0)
+                before = manager.get_service()
+                for interruption in (KeyboardInterrupt, SystemExit):
+                    with self.subTest(interruption=interruption.__name__):
+                        with patch.object(
+                            BotStateManager, "_service", side_effect=interruption
+                        ):
+                            with self.assertRaises(interruption):
+                                manager.set_service_enabled(False, now_utc_epoch=11.0)
+                        with closing(sqlite3.connect(path)) as observer:
+                            enabled, generation = observer.execute(
+                                "SELECT enabled, generation FROM service_control WHERE singleton_id = 1"
+                            ).fetchone()
+                        self.assertEqual((enabled, generation), (1, before.generation))
+                        self.assertEqual(manager.get_service(), before)
+                after = manager.set_service_enabled(False, now_utc_epoch=12.0)
+                self.assertFalse(after.enabled)
+                self.assertEqual(after.generation, before.generation + 1)
+            finally:
+                manager.close()
+
     def test_read_only_decodes_prior_schema_without_migration(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "prior.sqlite3"
@@ -340,6 +366,44 @@ class AutomationServiceStateTests(unittest.TestCase):
                 self.assertIsNone(after.process_start_token)
                 self.assertEqual(after.lease_generation, before.lease_generation + 2)
                 self.assertEqual(after.row_version, before.row_version + 2)
+            finally:
+                manager.close()
+
+    def test_interrupted_implicit_claim_releases_its_fresh_lease(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manager, generation = bootstrap_manager(Path(folder) / "state.sqlite3")
+            try:
+                self.assertTrue(
+                    manager.release_service_lease(
+                        owner_instance_id="owner-a",
+                        process_start_token="process-a",
+                        lease_generation=generation,
+                    )
+                )
+                with patch(
+                    "automation_service.state._normalize_occurrence_kind",
+                    side_effect=KeyboardInterrupt,
+                ):
+                    with self.assertRaises(KeyboardInterrupt):
+                        manager.claim_occurrence(
+                            FLOW_ID,
+                            RESET_ID,
+                            now_utc_epoch=102.0,
+                            max_inputs=4,
+                            max_actions=4,
+                        )
+                lease = manager.get_service_lease()
+                self.assertIsNone(lease.owner_instance_id)
+                self.assertIsNone(lease.process_start_token)
+                self.assertIsNotNone(
+                    manager.claim_occurrence(
+                        FLOW_ID,
+                        RESET_ID,
+                        now_utc_epoch=103.0,
+                        max_inputs=4,
+                        max_actions=4,
+                    )
+                )
             finally:
                 manager.close()
 

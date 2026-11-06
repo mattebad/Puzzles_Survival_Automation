@@ -31,6 +31,7 @@ from automation_service.screens import (
 from automation_service.state import ActionState, BotStateManager, DispatchValidation, RunState
 from automation_service.session import RuntimeSession
 from automation_service.adapters import FrameSample
+from tests.support.environment import requires_ocr_worker
 
 
 FLOW_ID = "BOUNDARY-FLOW"
@@ -1205,6 +1206,7 @@ class RuntimeBoundaryTests(unittest.TestCase):
                 owner_b.close()
                 owner_a.close()
 
+    @requires_ocr_worker
     def test_screen_ocr_positive_result_is_normalized(self) -> None:
         observation = ScreenRouter(
             [
@@ -1221,6 +1223,7 @@ class RuntimeBoundaryTests(unittest.TestCase):
         self.assertEqual(observation.screen, ScreenId.HOME)
         self.assertTrue(observation.recognized)
 
+    @requires_ocr_worker
     def test_successful_ocr_drains_descendant_before_return(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             marker = Path(folder) / "ocr-success-worker.pid"
@@ -1242,6 +1245,7 @@ class RuntimeBoundaryTests(unittest.TestCase):
             self.assertFalse(process_alive(worker_pid))
             self.assertFalse(process_alive(child_pid))
 
+    @requires_ocr_worker
     def test_blocking_ocr_times_out_unknown_and_releases_ownership(self) -> None:
 
         with tempfile.TemporaryDirectory() as folder:
@@ -1333,6 +1337,20 @@ class OverlayBoundaryTests(unittest.TestCase):
             observation = ScreenRouter([definition]).observe(cycle)
             self.assertTrue(observation.is_unknown)
             self.assertEqual(observation.reason_code, "RECOGNITION_EXCEPTION:RuntimeError")
+        direct = ScreenRouter([exploding]).observe(cycle)
+        self.assertTrue(direct.is_unknown)
+        self.assertEqual(direct.reason_code, "RECOGNITION_EXCEPTION:RuntimeError")
+
+        class ExplodingRecognizer:
+            def recognize(self, _cycle: CaptureCycle, _deadline: float | None = None) -> object:
+                raise LookupError("recognizer object")
+
+        object_result = ScreenRouter([ExplodingRecognizer()]).observe(cycle)
+        self.assertTrue(object_result.is_unknown)
+        self.assertEqual(object_result.reason_code, "RECOGNITION_EXCEPTION:LookupError")
+
+    @requires_ocr_worker
+    def test_ocr_recognizer_callback_exception_is_unknown(self) -> None:
         ocr_observation = ScreenRouter(
             [
                 ScreenDefinition(
@@ -1345,17 +1363,6 @@ class OverlayBoundaryTests(unittest.TestCase):
         ).observe(ocr_cycle())
         self.assertTrue(ocr_observation.is_unknown)
         self.assertEqual(ocr_observation.reason_code, "RECOGNITION_EXCEPTION:LookupError")
-        direct = ScreenRouter([exploding]).observe(cycle)
-        self.assertTrue(direct.is_unknown)
-        self.assertEqual(direct.reason_code, "RECOGNITION_EXCEPTION:RuntimeError")
-
-        class ExplodingRecognizer:
-            def recognize(self, _cycle: CaptureCycle, _deadline: float | None = None) -> object:
-                raise LookupError("recognizer object")
-
-        object_result = ScreenRouter([ExplodingRecognizer()]).observe(cycle)
-        self.assertTrue(object_result.is_unknown)
-        self.assertEqual(object_result.reason_code, "RECOGNITION_EXCEPTION:LookupError")
 
     def test_target_predicate_exception_blocks_without_transport(self) -> None:
         class ExplodingSource(ScreenObservation):

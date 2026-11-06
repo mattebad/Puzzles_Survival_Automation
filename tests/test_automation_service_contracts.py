@@ -155,9 +155,11 @@ class AutomationServiceContractTests(unittest.TestCase):
         )
         self.assertTrue(all(item.scheduler_eligible is False for item in entries))
         registry_ids = {item.flow_id for item in entries}
-        self.assertEqual(
-            registry_ids,
+        # The disabled registry also tracks planned flows that pnsctl does not
+        # offer because they have no runner yet.
+        self.assertLessEqual(
             set(BLUESTACKS_FLOW_IDS) | {"RECRUITMENT-BLUESTACKS-INTEGRATION"},
+            registry_ids,
         )
 
     def test_snapshot_allowlist_and_registry_cardinality_are_strict(self) -> None:

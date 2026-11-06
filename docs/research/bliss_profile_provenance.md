@@ -25,36 +25,6 @@ Vendor manifest IDs explain semantic lineage only. Production geometry always co
 Rankings entry replaces historical broad `(0,1120)-(800,1185)` target. Its current center is
 `(646,1152)`, not `(400,1152)`.
 
-## Provisional-anchor gate
-
-Current Praise route anchors now have raw Bliss evidence. `NavigationRunner` still returns
-`ANCHOR_EVIDENCE_REQUIRED` before policy evaluation or transport whenever any future route declares
-a provisional source, target, or postcondition anchor.
-
-## NavigationRunner audit
-
-Failing tests first proved three declared-contract gaps:
-
-1. target anchor did not have to match immediate observation identity and ROI;
-2. declared postcondition anchor was ignored;
-3. `old_anchor_must_disappear` was ignored.
-
-Runner now enforces all three, requires recognized foreground successors, and blocks provisional
-anchors. Existing exactly-one navigation dispatch and one safe no-effect retry semantics remain
-unchanged.
-
-## Popup scope
-
-Navigation popup registry recognizes only:
-
-- `vip-points-reset`;
-- `help-webview`.
-
-Unknown benign popups return `UNKNOWN`; cost/resource/premium dialogs return `BLOCKING`; hard stops
-return `FATAL`. At most one popup is handled from one frame hash. Action transactions handle only
-their exact declared confirmation dialog. Live Personal Might adapter uses this registry before VIP
-or Help WebView dismissal.
-
 ## Remaining evidence dependencies
 
 - Praise semantic postcondition after exactly one input;

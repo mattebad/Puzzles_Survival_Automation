@@ -9,6 +9,14 @@ import cv2
 import numpy as np
 
 from scripts import enhancement_bluestacks as native
+from tests.support.enhancement import exit_runtime
+from tests.ocr_memo import install_module_memo
+from tests.support.environment import requires_tesseract
+
+
+def setUpModule():
+    # Identical frames are replayed across tests; run real Tesseract once per unique input.
+    install_module_memo()
 
 
 FRAME = Path(__file__).parent / "fixtures/enhancement_item_modal/native-module-zero-selected-20261029.png"
@@ -37,8 +45,13 @@ class ModulePanelNativeTests(unittest.TestCase):
 
         cls.stack.enter_context(patch.object(native, "_default_ocr", side_effect=ocr))
         cls.stack.enter_context(patch.object(native.time, "sleep"))
-        cls.panel = native.recognize_commander_stage(cls.frame, variant="module", stage="material",
-            source_frame_sha256=SHA, evidence_ref=FRAME, game_day_id="current-reset")
+
+    @classmethod
+    def panel_result(cls):
+        if not hasattr(cls, "_cached_panel"):
+            cls._cached_panel = native.recognize_commander_stage(cls.frame, variant="module", stage="material",
+                source_frame_sha256=SHA, evidence_ref=FRAME, game_day_id="current-reset")
+        return cls._cached_panel
 
     def recognize(self, image):
         raw = cv2.imencode(".png", image)[1].tobytes()
@@ -52,9 +65,10 @@ class ModulePanelNativeTests(unittest.TestCase):
         self.assertIsNone(result.open_target)
         self.assertIsNot(result.diagnostics.get("resource_authority"), True)
 
+    @requires_tesseract
     def test_actual_module_panel_binds_one_real_star_and_inventory_without_equipment_authority(self):
         self.assertEqual(hashlib.sha256(self.raw).hexdigest(), SHA)
-        result = self.panel
+        result = self.panel_result()
         self.assertTrue(result.recognized, result)
         self.assertEqual((result.item_identity, result.item_level, result.detail_state),
             ("fighter module", 18, "enhancement_panel"))
@@ -75,6 +89,7 @@ class ModulePanelNativeTests(unittest.TestCase):
         self.assertFalse(native.enhancement_bluestacks_authorizeable(result.observation))
         self.assertFalse(native.enhancement_bluestacks_postcondition_verified(result.observation, result.observation))
 
+    @requires_tesseract
     def test_tiny_actual_icon_glints_cannot_replace_an_erased_real_star(self):
         changed = self.frame.copy()
         # The actual gold star is x113..136/y678..699; detached icon glints at
@@ -84,6 +99,7 @@ class ModulePanelNativeTests(unittest.TestCase):
         self.assertTrue(np.array_equal(changed[676:677, 144:147], self.frame[676:677, 144:147]))
         self.assert_no_material_authority(self.recognize(changed))
 
+    @requires_tesseract
     def test_missing_fraction_slash_or_populated_card_never_disappears_into_a_valid_observation(self):
         for name, box in (("fraction", (99, 619, 169, 636)), ("slash", (114, 621, 122, 634)),
                 ("card", (77, 610, 174, 707))):
@@ -93,6 +109,7 @@ class ModulePanelNativeTests(unittest.TestCase):
                 changed[y0:y1, x0:x1] = 0
                 self.assert_no_material_authority(self.recognize(changed))
 
+    @requires_tesseract
     def test_second_actual_populated_one_star_card_denies_a_unique_material_target(self):
         changed = self.frame.copy()
         changed[612:705, 189:282] = self.frame[612:705, 79:172]
@@ -101,11 +118,11 @@ class ModulePanelNativeTests(unittest.TestCase):
         self.assertEqual(read[0], ((0, 1, 0, 8299), (1, 1, 0, 8299)))
         self.assert_no_material_authority(self.recognize(changed))
 
+    @requires_tesseract
     def test_measured_back_reaches_home_without_resource_and_missing_fresh_back_blocks(self):
-        from tests.test_enhancement_item_modal_native import NativeEnhancementExitTests
         commander = FRAME.with_name("native-commander-gear-20261029.png").read_bytes()
         home = (Path(__file__).parent / "fixtures/home_base/native-home-bio-zoomed-20261029.png").read_bytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, self.raw, commander, commander, home])
+        runtime, session = exit_runtime([self.raw, self.raw, commander, commander, home])
         route = native.EnhancementIntegratedRoute(runtime, variant="module", reset_identity="current-reset", session=session)
         _, terminal = route._navigate_to("home")
         self.assertEqual(terminal.detail_state, "home")
@@ -117,7 +134,7 @@ class ModulePanelNativeTests(unittest.TestCase):
         changed = self.frame.copy()
         changed[:90, :180] = 0
         missing = cv2.imencode(".png", changed)[1].tobytes()
-        runtime, session = NativeEnhancementExitTests().runtime([self.raw, missing])
+        runtime, session = exit_runtime([self.raw, missing])
         route = native.EnhancementIntegratedRoute(runtime, variant="module", reset_identity="current-reset", session=session)
         with self.assertRaises(native._FlowBlocked):
             route._navigate_to("home")

@@ -9,6 +9,7 @@ import unittest
 from safe_action_core.resource_effect_authority import (
     HistoricalResourceEffect,
     HistoricalResourceTransportFact,
+    ResourceAuthorizationDenied,
     ResourceEffectAuthority,
     ResourceIntegrityError,
     ResourceResetIdentity,
@@ -226,6 +227,61 @@ class ResourceAuthorityHistoryTests(unittest.TestCase):
                 }
             )
         )
+
+    def _clear_against_later_reset(self) -> dict:
+        self.authority.append_reset_identity(
+            ResourceResetIdentity(
+                "reset-later",
+                "account",
+                "server",
+                "unknown",
+                "2026-08-20T00:00:01Z",
+                "2026-08-21T00:00:00Z",
+                observed_at=10.0,
+                evidence_refs=("fixture:later-reset",),
+            )
+        )
+        block = self.store.connection.execute(
+            "SELECT block_id FROM resource_effect_block_facts LIMIT 1"
+        ).fetchone()["block_id"]
+        return self.authority.append_historical_block_resolution(
+            {
+                "block_id": block,
+                "decision": "CLEAR_FOR_PROVEN_LATER_RESET",
+                "current_reset_id": "reset-later",
+                "authoritative_evidence": {
+                    "account_id": "account",
+                    "server_id": "server",
+                    "evidence_refs": ["fixture:later-reset"],
+                },
+            }
+        )
+
+    def test_later_reset_cannot_clear_effect_with_unknown_transport_time(self) -> None:
+        for session in self.fixture["sessions"]:
+            session["transport_at_utc"] = None
+        self._import_fixture()
+        with self.assertRaises(ResourceAuthorizationDenied):
+            self._clear_against_later_reset()
+        self.assertTrue(
+            self.authority.has_scoped_resource_block(
+                {
+                    "scope_key": "runtime-objective:unknown|use_resource_item",
+                    "reset_identity_id": "reset-later",
+                }
+            )
+        )
+
+    def test_later_reset_cannot_clear_effect_with_unparseable_stored_time(self) -> None:
+        self._import_fixture()
+        # The importer normalizes times and facts are trigger-protected, so an
+        # unparseable value can only arrive out of band (e.g. a legacy row).
+        # Model that writer directly to prove the clear never drops the row.
+        db = self.store.connection
+        db.execute("DROP TRIGGER resource_historical_transport_facts_no_update")
+        db.execute("UPDATE resource_historical_transport_facts SET transport_at_utc='not-a-time'")
+        with self.assertRaises(ResourceAuthorizationDenied):
+            self._clear_against_later_reset()
 
     def test_terminal_observation_projection_is_same_occurrence_and_append_only(self) -> None:
         self._import_fixture()

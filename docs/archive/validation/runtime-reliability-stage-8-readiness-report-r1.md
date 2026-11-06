@@ -24,7 +24,7 @@ enable scheduling, implement Stage 9, acquire runtime ownership, or authorize li
 
 The existing dirty `CURRENT_HANDOFF.md` closure update was preserved. Pre-existing untracked paths
 were preserved: `.omp/config.yml`, `Start-PnS-OMP.ps1`, `Stop-PnS-OMP.ps1`, and
-`UsersburniAppDataLocalTemprecruitment-conductor-state/RECRUITMENT-BLUESTACKS-INTEGRATION.json`.
+`UsersownerAppDataLocalTemprecruitment-conductor-state/RECRUITMENT-BLUESTACKS-INTEGRATION.json`.
 No protected evidence, queue history, product authority, gameplay contract, runtime, registry, or
 scheduler path changed.
 
@@ -60,7 +60,7 @@ relevant. `CURRENT_HANDOFF.md` remains read-only for Luna.
 
 Authority was read in the plan's order:
 
-1. Repository `AGENTS.md` and user-managed `C:\Users\burni\.codex\AGENTS.md`.
+1. Repository `AGENTS.md` and user-managed `C:\Users\owner\.codex\AGENTS.md`.
 2. `CURRENT_HANDOFF.md`.
 3. `docs/runtime-reliability-convergence-status.md`.
 4. `docs/runtime-reliability-stage-6-flow-migration-packets.md`.

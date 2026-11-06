@@ -11,17 +11,14 @@ from unittest.mock import patch
 
 import cv2
 import numpy as np
-import pytesseract
+from tests.support.environment import requires_tesseract
 
 from tasks.noahs_tavern_recruit import (
     HERO_RECRUIT_RESULT_SCREEN,
     HOME_BASE_SCREEN,
     NOAHS_TAVERN_SCREEN,
     NOAHS_TAVERN_FREE_TARGET,
-    NoahTavernObservation,
-    NoahTierObservation,
     RecruitTier,
-    TIER_ATTEMPT_MAXIMUMS,
     TierState,
     noah_recruit_authorizeable,
     noah_recruit_transaction_spec,
@@ -50,87 +47,7 @@ from scripts.noahs_tavern_recruit_bluestacks import (
 )
 from scripts.startup_recovery import ContextualPopupRecoveryResult
 from tasks.home_atlas import ZoomIdentity
-
-
-class NoahFixtures:
-    def tier(self, tier, *, remaining=None, cooldown_text="", cooldown=False, enabled=False, **changes):
-        if remaining is None:
-            remaining = TIER_ATTEMPT_MAXIMUMS[tier]
-        base = NoahTierObservation(
-            tier=tier,
-            daily_attempt_maximum=TIER_ATTEMPT_MAXIMUMS[tier],
-            attempts_remaining=remaining,
-            cooldown_text=cooldown_text,
-            cooldown_duration_seconds=parse_cooldown_seconds(cooldown_text),
-            cooldown_active=cooldown,
-            next_eligible_timestamp=130.0 if cooldown else None,
-            free_control_visible=enabled,
-            free_control_enabled=enabled,
-            target_roi=(100, 950, 370, 1040),
-            panel_roi=(40, 840, 760, 1070),
-            target_identity=NOAHS_TAVERN_FREE_TARGET,
-            control_class=NOAHS_TAVERN_FREE_TARGET,
-            cost_type="none",
-            cost_amount=0,
-            quantity=1,
-            premium_control_visible=True,
-            recognized=True,
-            **changes,
-        )
-        return base
-
-    def tavern(self, selected=RecruitTier.BASIC, *, basic_remaining=5, digest="a" * 64, **changes):
-        tiers = {
-            RecruitTier.BASIC: self.tier(RecruitTier.BASIC, remaining=basic_remaining, enabled=selected == RecruitTier.BASIC),
-            RecruitTier.INT: self.tier(RecruitTier.INT, remaining=1, enabled=selected == RecruitTier.INT),
-            RecruitTier.ADV: self.tier(RecruitTier.ADV, remaining=1, enabled=selected == RecruitTier.ADV),
-        }
-        if selected is not None:
-            tiers[selected] = replace(tiers[selected], free_control_visible=True, free_control_enabled=True)
-        return NoahTavernObservation(
-            screen_state=NOAHS_TAVERN_SCREEN,
-            selected_tier=selected,
-            tiers=tuple(tiers.values()),
-            frame_sha256=digest,
-            captured_monotonic=100.0,
-            recognized=True,
-            **changes,
-        )
-
-    def result(self, tier=RecruitTier.BASIC, digest="b" * 64):
-        return NoahTavernObservation(
-            screen_state=HERO_RECRUIT_RESULT_SCREEN,
-            selected_tier=None,
-            tiers=tuple(self.tier(item, remaining=None, enabled=False) for item in RecruitTier),
-            frame_sha256=digest,
-            captured_monotonic=101.0,
-            recognized=True,
-            result_tier=tier,
-            safe_close_visible=True,
-            safe_close_roi=(100, 1000, 340, 1070),
-            premium_result_control_visible=True,
-        )
-
-    def after(self, before, tier=RecruitTier.BASIC, digest="c" * 64, cooldown_text="00:09:52"):
-        tiers = list(before.tiers)
-        index = next(i for i, item in enumerate(tiers) if item.tier == tier)
-        tiers[index] = replace(
-            tiers[index],
-            attempts_remaining=(before.tier(tier).attempts_remaining - 1),
-            cooldown_text=f"Free in {cooldown_text}",
-            cooldown_duration_seconds=parse_cooldown_seconds(cooldown_text),
-            cooldown_active=True,
-            next_eligible_timestamp=130.0,
-            free_control_enabled=False,
-        )
-        return NoahTavernObservation(
-            screen_state=NOAHS_TAVERN_SCREEN,
-            selected_tier=tier,
-            tiers=tuple(tiers),
-            frame_sha256=digest,
-            captured_monotonic=102.0,
-            recognized=True,
-        )
+from tests.support.tavern import NoahFixtures
 
 
 class NoahContractTests(unittest.TestCase):
@@ -391,11 +308,8 @@ class NoahContractTests(unittest.TestCase):
         self.assertEqual(len(calls), 3)
         self.assertTrue(all(height < 1000 for (height, _width), _psm in calls))
 
+    @requires_tesseract
     def test_result_close_does_not_depend_on_reward_ocr(self):
-        try:
-            pytesseract.get_tesseract_version()
-        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
-            self.skipTest("Tesseract is unavailable for native OCR fixture")
         frame = cv2.imread(str(Path(__file__).with_name("fixtures") / "noahs_tavern_nova_result.png"))
         self.assertIsNotNone(frame)
         blank_reward = frame.copy()
@@ -435,11 +349,8 @@ class NoahContractTests(unittest.TestCase):
             HERO_RECRUIT_RESULT_SCREEN,
         )
 
+    @requires_tesseract
     def test_native_advanced_fixture_preserves_complete_header_and_title_glyphs(self):
-        try:
-            pytesseract.get_tesseract_version()
-        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
-            self.skipTest("Tesseract is unavailable for native OCR fixture")
         fixture_path = Path(__file__).with_name("fixtures") / "noahs_tavern_advanced_roi.png"
         frame = cv2.imread(str(fixture_path), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
@@ -453,11 +364,8 @@ class NoahContractTests(unittest.TestCase):
         self.assertEqual(advanced.cost_amount, 0)
         self.assertEqual(advanced.quantity, 1)
 
+    @requires_tesseract
     def test_native_after_close_fixture_keeps_cooldown_and_blocks_duplicate_free(self):
-        try:
-            pytesseract.get_tesseract_version()
-        except (FileNotFoundError, OSError, RuntimeError, pytesseract.TesseractNotFoundError):
-            self.skipTest("Tesseract is unavailable for native OCR fixture")
         fixture_path = Path(__file__).with_name("fixtures") / "noahs_tavern_recruit_after_close.png"
         frame = cv2.imread(str(fixture_path), cv2.IMREAD_COLOR)
         self.assertIsNotNone(frame)
@@ -985,12 +893,12 @@ class ContextualPopupRouteTests(unittest.TestCase):
     def test_native_two_overlay_sequence_retains_route_accounting_and_failure_lock(self):
         from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
         from scripts import startup_recovery as shared
-        from tests.test_contextual_startup_recovery import (
-            PngDevice, ContextualStartupRecoveryTests, VIP, SCARLETT, ARTWORK, HOME, UNKNOWN, marker,
+        from tests.support.contextual_startup import (
+            PngDevice, VIP, SCARLETT, ARTWORK, HOME, UNKNOWN, marker, reset_popup, startup_surface,
         )
         with tempfile.TemporaryDirectory() as directory, \
-                patch.object(shared, "recognize_startup_surface", side_effect=ContextualStartupRecoveryTests.startup_surface), \
-                patch.object(shared, "recognize_reset_popup", side_effect=ContextualStartupRecoveryTests.reset_popup):
+                patch.object(shared, "recognize_startup_surface", side_effect=startup_surface), \
+                patch.object(shared, "recognize_reset_popup", side_effect=reset_popup):
             device = PngDevice()
             device.frames = [VIP, VIP, SCARLETT, ARTWORK, HOME]
             runtime = LocalBlueStacksRuntime(device, Path(directory) / "ready", execute=True)
@@ -1022,12 +930,12 @@ class ContextualPopupRouteTests(unittest.TestCase):
     def test_zero_input_unknown_observation_does_not_consume_a_later_fresh_recovery(self):
         from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
         from scripts import startup_recovery as shared
-        from tests.test_contextual_startup_recovery import (
-            PngDevice, ContextualStartupRecoveryTests, VIP, HOME, UNKNOWN, marker,
+        from tests.support.contextual_startup import (
+            PngDevice, VIP, HOME, UNKNOWN, marker, reset_popup, startup_surface,
         )
         with tempfile.TemporaryDirectory() as directory, \
-                patch.object(shared, "recognize_startup_surface", side_effect=ContextualStartupRecoveryTests.startup_surface), \
-                patch.object(shared, "recognize_reset_popup", side_effect=ContextualStartupRecoveryTests.reset_popup):
+                patch.object(shared, "recognize_startup_surface", side_effect=startup_surface), \
+                patch.object(shared, "recognize_reset_popup", side_effect=reset_popup):
             device = PngDevice()
             device.frames = [UNKNOWN, VIP, VIP, HOME]
             runtime = LocalBlueStacksRuntime(device, Path(directory), execute=True)
