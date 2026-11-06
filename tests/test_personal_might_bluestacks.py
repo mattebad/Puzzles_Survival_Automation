@@ -26,6 +26,7 @@ from safe_action_core import SafetyStore
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tests.ocr_memo import install_module_memo
 from tests.support.environment import requires_tesseract
+from tests.support.capability_firewall import Clock
 
 
 
@@ -48,7 +49,7 @@ def captured(payload, *, path=FIXTURE):
 
 
 class Runtime:
-    def __init__(self, root, *, changed_before=False, source_png=None, successor_png=None, immediate_png=None, capture_pngs=None, wall_clock=None):
+    def __init__(self, root, *, changed_before=False, source_png=None, successor_png=None, immediate_png=None, capture_pngs=None, wall_clock=None, monotonic_clock=time.monotonic):
         self.session = root
         root.mkdir(parents=True, exist_ok=True)
         self.ordinal = 0
@@ -59,6 +60,7 @@ class Runtime:
         self.immediate_png = immediate_png
         self.capture_pngs = capture_pngs
         self.wall_clock = wall_clock or (lambda: datetime.now(timezone.utc))
+        self.monotonic_clock = monotonic_clock
 
     def event(self, kind, **values):
         with (self.session / "events.jsonl").open("a", encoding="utf-8") as output:
@@ -77,7 +79,7 @@ class Runtime:
             payload = cv2.imencode(".png", np.zeros((1280, 800, 3), dtype=np.uint8))[1].tobytes()
         path = self.session / f"{self.ordinal}-{label}.png"
         path.write_bytes(payload)
-        frame = captured(payload, path=path)
+        frame = captured_native_frame_from_png(payload, path=path, captured_monotonic=self.monotonic_clock())
         self.event("capture", label=label, path=str(path), sha256=frame.sha256, captured_monotonic=frame.captured_monotonic)
         return frame
 
@@ -95,13 +97,26 @@ class Runtime:
 
 def original_unresolved(root, store, *, successor_png=None, canonical=False):
     binding = derive_fixed_runtime_binding("emulator-5554", ACTIVE_RUNTIME_PROFILE_ID, "com.global.ztmslg", "primary-login-slot-v1")
-    identity = derive_resource_runtime_identity(binding, datetime.now(timezone.utc))
-    runtime = Runtime(root / "original", source_png=PERSONAL_MIGHT_FIXTURE.read_bytes(), successor_png=PRAISED_FIXTURE.read_bytes() if successor_png is None else successor_png)
+    # Real Windows clocks can tie across these zero-delay synthetic captures.
+    # Advance only this fixture's event clock; keep both policy clocks aligned.
+    clock = Clock(time.monotonic())
+    epoch = time.time() - clock()
+
+    def wall_clock():
+        return epoch + clock()
+
+    identity = derive_resource_runtime_identity(binding, datetime.fromtimestamp(wall_clock(), timezone.utc))
+
+    def event_clock():
+        clock.advance(0.001)
+        return datetime.fromtimestamp(wall_clock(), timezone.utc)
+
+    runtime = Runtime(root / "original", source_png=PERSONAL_MIGHT_FIXTURE.read_bytes(), successor_png=PRAISED_FIXTURE.read_bytes() if successor_png is None else successor_png, monotonic_clock=clock, wall_clock=event_clock)
     with DevelopmentSession(owner="personal-original", invocation_id="original", session_directory=root / "original-session", max_inputs=8) as session:
-        store.acquire_lease(session.owner, time.time(), 60)
+        store.acquire_lease(session.owner, wall_clock(), 60)
         with patch.object(route.PersonalMightPraiseBoundary, "_praised", return_value=False):
-            result = route.PersonalMightPraiseBoundary(session=session, runtime=runtime, store=store, identity=identity, validate_identity=lambda: None, settle_seconds=0).execute()
-        store.release_lease(session.owner, time.time())
+            result = route.PersonalMightPraiseBoundary(session=session, runtime=runtime, store=store, identity=identity, validate_identity=lambda: None, settle_seconds=0, monotonic_clock=clock, wall_clock=wall_clock).execute()
+        store.release_lease(session.owner, wall_clock())
     record = {**result, "flow_id": delivery.FLOW_ID, "session_directory": str(runtime.session), "runtime_identity": asdict(identity), "events_path": "events.jsonl"}
     if canonical:
         backend = record.pop("runtime_identity")
@@ -316,7 +331,7 @@ class PersonalMightNativeTests(unittest.TestCase):
 
     @requires_tesseract
     def test_recovery_bad_source_or_canonical_epoch_leaves_fence_and_zero_inputs(self):
-        for defect in ("source_sha", "duplicate_dispatch", "canonical_epoch", "current_gold", "one_gray", "duplicate_gray", "current_only_gray", "ambiguous_result"):
+        for defect in ("source_sha", "duplicate_dispatch", "canonical_epoch", "current_gold", "one_gray", "duplicate_gray", "current_only_gray", "ambiguous_result", "successor_utc_tie", "successor_monotonic_tie"):
             with self.subTest(defect=defect), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 store = SafetyStore(root / "actions.sqlite3")
@@ -338,9 +353,16 @@ class PersonalMightNativeTests(unittest.TestCase):
                         (original / "flow-delivery-result.json").write_text(json.dumps(record), encoding="utf-8")
                     elif defect == "ambiguous_result":
                         (original / "personal-might-result.json").write_text(json.dumps(record), encoding="utf-8")
+                    elif defect in {"successor_utc_tie", "successor_monotonic_tie"}:
+                        events = delivery._events(original)
+                        first, second = [next(event for event in events if event.get("path") == path) for path in record["praise_result_frames"][:2]]
+                        field = "timestamp" if defect == "successor_utc_tie" else "captured_monotonic"
+                        second[field] = first[field]
+                        (original / "events.jsonl").write_text("".join(json.dumps(event) + "\n" for event in events), encoding="utf-8")
                     runtime = Runtime(root / "recovery", source_png=PERSONAL_MIGHT_FIXTURE.read_bytes() if defect == "current_gold" else PRAISED_FIXTURE.read_bytes())
                     with DevelopmentSession(owner="personal-recovery", invocation_id="negative", session_directory=root / "recovery-session", max_inputs=8) as session:
-                        with self.assertRaises((ValueError, RuntimeError)):
+                        rejection = self.assertRaisesRegex(ValueError, "Personal Might recovery successor precedes its dispatch") if defect in {"successor_utc_tie", "successor_monotonic_tie"} else self.assertRaises((ValueError, RuntimeError))
+                        with rejection:
                             delivery.reconcile_personal_might(session=session, runtime=runtime, store=store, identity=identity, binding=binding, validate_identity=lambda: None, source_session=original)
                         self.assertEqual(session.input_count, 0)
                         self.assertEqual(runtime.taps, [])
