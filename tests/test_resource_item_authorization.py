@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -8,6 +9,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -18,6 +20,7 @@ from safe_action_core.resource_effect_authority import ResourceFenceError
 from safe_action_core.store import LeaseError
 from scripts import navigation_development_boundary as boundary
 from scripts import resource_item_authorization as authorization
+from scripts import daily_resource_item_bluestacks as resource_route
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.navigation_development_boundary import DevelopmentSession
 from tasks.runtime_identity import (
@@ -402,6 +405,95 @@ class ResourceItemAuthorizationTests(unittest.TestCase):
                             wall_clock=lambda: now,
                         )
                     self.assertEqual(second.input_count, 0)
+
+    def test_service_use_resamples_utc_after_navigation_and_cancels_before_transport(self):
+        from automation_service.recruitment import recruitment_reset
+
+        deadline = datetime(2026, 8, 20, tzinfo=timezone.utc)
+        for label, started, use_time in (
+            ("reset-margin", deadline - timedelta(seconds=10), deadline - timedelta(seconds=2)),
+            ("reset-crossed", deadline - timedelta(seconds=10), deadline + timedelta(seconds=1)),
+            (
+                "authorization-expired",
+                deadline - timedelta(hours=2),
+                deadline - timedelta(hours=2) + timedelta(
+                    seconds=authorization.RESOURCE_AUTHORIZATION_FRESHNESS_SECONDS,
+                ),
+            ),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                current = [started]
+                with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
+                    with DevelopmentSession(
+                        owner="resource-service-window",
+                        invocation_id=f"resource-service-{label}",
+                        session_directory=root / "session",
+                        max_inputs=1,
+                    ) as session, closing(SafetyStore(root / "actions.sqlite3")) as store:
+                        binding = resource_fixed_runtime_binding()
+                        inner = SimpleNamespace(
+                            execute=True,
+                            frame_max_age_seconds=30.0,
+                            input_count=0,
+                            action_keys=set(),
+                            events=session.session_directory / "events.jsonl",
+                            session=session.session_directory,
+                            dispatch_calls=0,
+                        )
+
+                        def transport(*_args, **_kwargs):
+                            inner.dispatch_calls += 1
+                            return TransportResult(False, "NOT_SENT")
+
+                        inner.dispatch_prepared_resource_item_use = transport
+                        context = SimpleNamespace(
+                            identity=SimpleNamespace(
+                                account_id=binding.account_id,
+                                server_id=binding.server_id,
+                                reset_id=recruitment_reset(started.timestamp()),
+                            ),
+                            session=session,
+                            action_store=store,
+                            runtime=inner,
+                            occurrence_key=f"service-window-{label}",
+                            utc_clock=lambda: current[0].timestamp(),
+                            validate_identity=lambda: None,
+                            accounting=lambda: SimpleNamespace(
+                                verified=True, input_count=0,
+                                session_input_count=0, runtime_input_count=0,
+                            ),
+                        )
+
+                        def delayed_use(runtime, _session):
+                            # Exercise the real typed preparation, policy, SQLite
+                            # reservation and Use seam after navigation has elapsed.
+                            current[0] = use_time
+                            runtime.dispatch_one_food_use(
+                                _frame(root / "immediate-before.png"),
+                                target_roi=(100, 100, 140, 140),
+                                action_key=authorization.ITEM_USE_ACTION_KEY,
+                            )
+                            return {"item_use_transport_calls": inner.dispatch_calls}
+
+                        with patch.object(resource_route, "run_daily_resource_item", delayed_use):
+                            result = resource_route._run_service_native_route(context, {})
+                        self.assertEqual(inner.dispatch_calls, 0)
+                        self.assertEqual(session.input_count, 0)
+                        self.assertEqual(result["item_use_transport_calls"], 0)
+                        self.assertEqual(result["committed_action_count"], 0)
+                        self.assertEqual(result["reservation_state"], "CLOSED")
+                        self.assertEqual(result["journal_status"], "cancelled")
+                        self.assertEqual(
+                            store.connection.execute(
+                                "SELECT state FROM resource_occurrences WHERE occurrence_id=?",
+                                (result["resource_occurrence_id"],),
+                            ).fetchone()[0],
+                            "BLOCKED",
+                        )
+                        self.assertIsNone(store.connection.execute(
+                            "SELECT 1 FROM resource_transport_facts",
+                        ).fetchone())
 
     def test_resource_authorization_window_rejects_naive_times(self):
         deadline = datetime(2026, 8, 20, 11, tzinfo=timezone.utc)

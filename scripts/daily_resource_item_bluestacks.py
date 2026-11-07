@@ -2444,12 +2444,11 @@ def _run_service_native_route(
     service_identity = context.identity
     session = context.session
     sampled_utc = datetime.fromtimestamp(context.utc_clock(), timezone.utc)
-    wall_clock = lambda: sampled_utc
     if recruitment_reset(sampled_utc.timestamp()) != service_identity.reset_id:
         raise ValueError("Resource item native sample differs from the service reset")
     verified_identity, deadline_payload = produce_resource_runtime_identity(
         session=context.session,
-        wall_clock=wall_clock,
+        wall_clock=lambda: sampled_utc,
         return_deadline_evidence=True,
     )
     if (
@@ -2460,12 +2459,18 @@ def _run_service_native_route(
         or verified_identity.reset_deadline_utc != deadline_payload["reset_deadline_utc"]
     ):
         raise ValueError("Resource item fixed-backend identity differs from the service reset")
+
+    def current_wall_clock() -> datetime:
+        # Resample service UTC on every authorization check so the reset margin
+        # and authorization expiry are enforced at Use time, not at visit start.
+        return datetime.fromtimestamp(context.utc_clock(), timezone.utc)
+
     components = build_resource_runtime_components(
         session=session,
         verified_identity=verified_identity,
         deadline_payload=deadline_payload,
         action_store=context.action_store,
-        wall_clock=wall_clock,
+        wall_clock=current_wall_clock,
     )
     route_runtime = components["runtime_factory"](context.runtime)
     route_result: dict[str, Any] = {}
