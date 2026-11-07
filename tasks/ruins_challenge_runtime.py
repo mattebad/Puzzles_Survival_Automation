@@ -145,6 +145,8 @@ class RuinsRuntimeController:
                "last_postcondition_state": result.result.value},
         )
         self.daily.challenge_initiations_completed += 1
+        self.daily.ready_to_claim = True
+        self.daily.claim_dormant = True
         if result.result == RuinsResult.SUCCESS:
             self.daily.successful_challenges_completed += 1
         self.in_flight_action = None

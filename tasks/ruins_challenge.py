@@ -10,9 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import hashlib
+import re
 from typing import Optional
-
-from .contracts import ROI, TaskOutcome, TaskResult
 from .profile import ACTIVE_RUNTIME_PROFILE_ID
 BLUESTACKS_RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 
@@ -75,6 +74,45 @@ class RuinsResult(str, Enum):
 KNOWN_CHALLENGE_IDENTITIES = tuple(item.value for item in RuinsChallengeId)
 WEEKDAYS = frozenset({"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"})
 FORBIDDEN_CONTROL_WORDS = frozenset({"exchange", "mall", "buy", "purchase", "upgrade", "ticket"})
+RUINS_CHALLENGE_DISPATCH_ACTION = "ruins_zero_cost_npc_challenge_dispatch"
+RUINS_CHEST_CLAIM_ACTION = "ruins_green_ready_stage_chest_claim"
+RUINS_CHALLENGE_RESULT_POSTCONDITION = "RUINS_CHALLENGE_RESULT_RECOGNIZED"
+RUINS_CHEST_CLAIM_POSTCONDITION = "RUINS_STAGE_CHEST_CLAIMED"
+RUINS_FLOW_ID = "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
+RUINS_PRODUCT_ID = "ruins_challenge"
+RUINS_PRODUCT_REVISION = "ruins_challenge-v1"
+
+
+def ruins_daily_action_key(
+    *,
+    flow_id: str,
+    runtime_scope: str,
+    account_id: str,
+    server_id: str,
+    reset_identity: str,
+    current_day: str,
+    category: str,
+) -> str:
+    """Build the canonical account/server/reset/day/category action key."""
+
+    parts = (
+        flow_id,
+        runtime_scope,
+        account_id,
+        server_id,
+        reset_identity,
+        current_day,
+        category,
+    )
+    if any(not isinstance(value, str) or not value or value.strip() != value for value in parts):
+        raise ValueError("Ruins action identity fields must be normalized non-empty strings")
+    if current_day not in WEEKDAYS:
+        raise ValueError("Ruins action key requires the current weekday")
+    digest = hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
+    label = re.sub(r"[^a-z0-9_-]+", "-", category.casefold()).strip("-")
+    if not label:
+        raise ValueError("Ruins action category is invalid")
+    return f"ruins:{label}:{digest}"
 
 
 def frame_hash(frame: bytes) -> str:
@@ -265,11 +303,12 @@ def detail_attack_authorized(detail: RuinsDetailObservation) -> bool:
         and detail.floor_current >= 0
         and detail.floor_maximum > 0
         and detail.attack_control == RuinsControlState.VISIBLE_ENABLED
-        and detail.resource_cost in (None, 0)
+        and detail.resource_cost == 0
         and not detail.premium
         and not detail.paid
         and not detail.ticketed
         and detail.overlay_state == "none"
+        and _native_source(detail.source_frame_sha256, detail.reset_identity)
     )
 
 
@@ -286,7 +325,11 @@ def dispatch_authorized(detail: RuinsDetailObservation) -> bool:
 
 
 def result_verified(before: RuinsChallengeRow, result: RuinsResultObservation) -> bool:
-    if result.identity != before.identity or result.reset_identity != before.reset_identity:
+    if (
+        result.identity != before.identity
+        or result.reset_identity != before.reset_identity
+        or not _native_source(result.source_frame_sha256, result.reset_identity)
+    ):
         return False
     if result.result == RuinsResult.SUCCESS:
         return bool(
@@ -295,7 +338,6 @@ def result_verified(before: RuinsChallengeRow, result: RuinsResultObservation) -
             and result.progress_after > before.progress_current
             and result.maximum_after == before.progress_maximum
             and result.level_after is not None
-            and result.source_frame_sha256
         )
     if result.result == RuinsResult.FAILURE:
         return bool(result.explicit_failure_text and result.tap_to_continue_visible)
@@ -316,7 +358,13 @@ def chest_claim_authorized(
         and screen.overlay_state == "none"
         and row.chest_state == RuinsChestState.AVAILABLE
         and row.identity in KNOWN_CHALLENGE_IDENTITIES
+        and row.reset_identity == screen.reset_identity
+        and _native_source(row.source_frame_sha256, row.reset_identity)
         and row.source_frame_sha256 == screen.source_frame_sha256
+        and not row.premium
+        and not row.paid
+        and not row.ticketed
+        and row.currency_cost in (None, 0)
         and action_key not in seen_action_keys
         and action_key
     )
