@@ -16,6 +16,8 @@ from automation_service.registry import (
     NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID,
     RECRUITMENT_FLOW_ID, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, SUPPLY_FLOW_ID,
     HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID,
+    ULTIMATE_FLOW_ID, WORLD_FLOW_ID,
+    canonical_entry,
 )
 from automation_service.service import AutomationService
 from automation_service.state import BotStateManager
@@ -31,6 +33,7 @@ from tests.support.service_route_fakes import (
     GuardedPersonalMightRunner, GuardedRecruitmentRunner,
     GuardedRecommendedResearchRunner, GuardedResourceItemRunner, GuardedRuinsRunner,
     GuardedHallOfWarRunner, GuardedTroopTrainingRunner,
+    GuardedSupplyRunner, GuardedUltimateRunner,
 )
 from tests.support.service_stop import VirtualStop
 
@@ -187,10 +190,12 @@ ROUTES = {
     HALL_OF_WAR_FLOW_ID: RouteSpec(
         HALL_OF_WAR_FLOW_ID, lambda stop, root: GuardedHallOfWarRunner(stop, root),
         _work_by_default, _e_route_partial, (12, 1), (1, 0), 18,
+        partial_outcome=SchedulerTaskOutcome.RECONCILIATION_REQUIRED,
     ),
     TROOP_TRAINING_FLOW_ID: RouteSpec(
         TROOP_TRAINING_FLOW_ID, lambda stop, root: GuardedTroopTrainingRunner(stop, root),
         _work_by_default, _e_route_partial, (18, 2), (1, 0), 28,
+        partial_outcome=SchedulerTaskOutcome.RECONCILIATION_REQUIRED,
     ),
 }
 

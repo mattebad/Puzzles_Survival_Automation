@@ -86,6 +86,7 @@ from automation_service.food_farm_boost import (
 )
 from automation_service.hall_of_war import (
     FLOW_ID as HALL_OF_WAR_ADAPTER_FLOW_ID,
+    MAX_ACTIONS as HALL_OF_WAR_MAX_ACTIONS,
     MAX_INPUTS as HALL_OF_WAR_ADAPTER_MAX_INPUTS,
     PROFILE_ID as HALL_OF_WAR_ADAPTER_PROFILE_ID,
     PRODUCT_ID as HALL_OF_WAR_ADAPTER_PRODUCT_ID,
@@ -2678,6 +2679,14 @@ class _GuardedENativeBoundary:
             FOOD_FARM_BOOST_FLOW_ID: (
                 FOOD_FARM_BOOST_PRODUCT_ID, FOOD_FARM_BOOST_PRODUCT_REVISION,
                 FOOD_FARM_BOOST_PROFILE_ID, FOOD_FARM_BOOST_MAX_ACTIONS,
+            ),
+            HALL_OF_WAR_ADAPTER_FLOW_ID: (
+                HALL_OF_WAR_ADAPTER_PRODUCT_ID, HALL_OF_WAR_ADAPTER_PRODUCT_REVISION,
+                HALL_OF_WAR_ADAPTER_PROFILE_ID, HALL_OF_WAR_MAX_ACTIONS,
+            ),
+            TROOP_TRAINING_ADAPTER_FLOW_ID: (
+                TROOP_TRAINING_ADAPTER_PRODUCT_ID, TROOP_TRAINING_ADAPTER_PRODUCT_REVISION,
+                TROOP_TRAINING_ADAPTER_PROFILE_ID, TROOP_TRAINING_MAX_ACTIONS,
             ),
         }[flow_id]
         self.requests = []

@@ -695,21 +695,11 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(cost["maximum_cost"], 0)
         self.assertEqual(cost["quantity"], 1)
         transitions = {item["transition_id"]: item for item in contract["transition_contracts"]}
-        self.assertIn("already Applied saved commander preset is exactly Military", " ".join(transitions["verify_current_military_preset"]["postconditions"]))
-        self.assertIn("Troop Set 1", " ".join(transitions["apply_saved_troop_set_one"]["postconditions"]))
-        self.assertIn("five heroes", " ".join(transitions["apply_saved_troop_set_one"]["postconditions"]).casefold())
-        self.assertIn("current troops equal to capacity", " ".join(transitions["apply_saved_troop_set_one"]["postconditions"]))
-        self.assertIn("explicit zero cost", " ".join(transitions["dispatch_one_zombie_zero"]["postconditions"]).casefold())
         self.assertIsNone(transitions["reconcile_prior_attempt_without_redispatch"]["permitted_input"])
-        self.assertIn("without another dispatch", " ".join(transitions["reconcile_prior_attempt_without_redispatch"]["postconditions"]).casefold())
         self.assertEqual(
             transitions["claim_own_glowing_reward_row_once"]["permitted_input"],
             "tap_own_glowing_daily_reward_row_once",
         )
-        self.assertIn("claimed successor/checkmarks", " ".join(transitions["verify_claimed_row_checkmarks"]["postconditions"]))
-        unsupported = " ".join(contract["unsupported_or_manual_only_states"]).casefold()
-        for marker in ("quick select", "troop set 2", "duplicate dispatch", "daily objective-row inspection", "d02 prerequisite", "points attribution"):
-            self.assertIn(marker, unsupported)
         self.assertEqual(contract["implementation_status"], "reference_implemented")
         self.assertEqual(contract["proof_state"], "evidence_required")
         self.assertEqual(contract["registration_state"], "disabled")

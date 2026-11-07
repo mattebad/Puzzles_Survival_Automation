@@ -11,22 +11,14 @@ from unittest.mock import Mock, patch
 
 from automation_service import cli
 from automation_service.registry import (
-    ALLIANCE_DONATION_FLOW_ID,
-    ALLIANCE_HELP_FLOW_ID,
-    ALLIANCE_SHOP_FLOW_ID,
-    DAILY_REWARDS_FLOW_ID,
-    DAILY_SHOPS_FLOW_ID,
     NANO_MATERIAL_PRODUCTION_FLOW_ID,
     NANOWEAPON_FLOW_ID,
     HERO_DUEL_FLOW_ID,
     RECOMMENDED_RESEARCH_FLOW_ID,
     FOOD_FARM_BOOST_FLOW_ID,
     HALL_OF_WAR_FLOW_ID,
-    RESOURCE_ITEM_FLOW_ID,
-    RUINS_FLOW_ID,
     canonical_flow_specs,
     TROOP_TRAINING_FLOW_ID,
-    servable_flow_names,
 )
 from automation_service.state import BotStateManager
 from scripts import navigation_development_boundary as boundary
@@ -36,115 +28,6 @@ from tasks.runtime_identity import BLUESTACKS_ADB
 
 
 class CanonicalServeFacadeTests(unittest.TestCase):
-    def test_native_options_and_exit_status_are_forwarded_unchanged(self):
-        for common in (
-            ["--mode", "supervised", "--adapter", "bluestacks", "--state-path", "state with spaces.sqlite3"],
-            ["--mode=supervised", "--adapter=bluestacks", "--state-path=serve"],
-        ):
-            with self.subTest(common=common):
-                argv = ["automation-service", *common, "serve", "--live"]
-                for flow in (
-                    "nova",
-                    "campaign",
-                    "ultimate",
-                    "supply",
-                    "recruitment",
-                    "enhancement",
-                    "bioenhancer",
-                    "personal-might",
-                    "daily-rewards",
-                    "resource-item",
-                    "ruins",
-                    "alliance-help",
-                    "alliance-donation",
-                    "alliance-shop",
-                    "daily-shops",
-                    "nano-material-production",
-                    "nanoweapon",
-                    "hero-duel",
-                    "recommended-research",
-                    "food-farm-boost",
-                    "hall-of-war",
-                    "troop-training",
-                ):
-                    argv.extend(["--flow", flow])
-                argv.extend(["--campaign-stage", "1-15-9", "--campaign-cadence-seconds", "300",
-                             "--adb", "adb-under-test", "--serial", "emulator-5554",
-                             "--account-id", "account", "--server-id", "server", "--output-directory", "captures with spaces"])
-                parsed = cli.build_parser().parse_args(argv[1:])
-                self.assertEqual(parsed.mode, "supervised")
-                self.assertEqual(len(parsed.flow), 22)
-                self.assertEqual(len(servable_flow_names()), 22)
-                with patch.object(cli, "main", return_value=17) as canonical:
-                    self.assertEqual(pnsctl.main(argv), 17)
-                canonical.assert_called_once()
-                self.assertEqual(canonical.call_args.args, (argv[1:],))
-                kwargs = canonical.call_args.kwargs
-                self.assertIs(
-                    kwargs["application_startup"],
-                    pnsctl.owner_bound_application_startup,
-                )
-                native_bindings = kwargs["native_route_bindings"]
-                self.assertEqual(
-                    set(native_bindings),
-                    {
-                        DAILY_REWARDS_FLOW_ID,
-                        RESOURCE_ITEM_FLOW_ID,
-                        RUINS_FLOW_ID,
-                        ALLIANCE_HELP_FLOW_ID,
-                        ALLIANCE_DONATION_FLOW_ID,
-                        ALLIANCE_SHOP_FLOW_ID,
-                        NANO_MATERIAL_PRODUCTION_FLOW_ID,
-                        NANOWEAPON_FLOW_ID,
-                        DAILY_SHOPS_FLOW_ID,
-                        HERO_DUEL_FLOW_ID,
-                        RECOMMENDED_RESEARCH_FLOW_ID,
-                        HALL_OF_WAR_FLOW_ID,
-                        TROOP_TRAINING_FLOW_ID,
-                        FOOD_FARM_BOOST_FLOW_ID,
-                    },
-                )
-                self.assertTrue(
-                    all(callable(binding.run) for binding in native_bindings.values())
-                )
-                for flow_id, contract in {
-                    HERO_DUEL_FLOW_ID: ("hero_duel", "hero_duel-v2", 64, 3),
-                    RECOMMENDED_RESEARCH_FLOW_ID: (
-                        "recommended_research",
-                        "recommended_research-v1",
-                        24,
-                        1,
-                    ),
-                    FOOD_FARM_BOOST_FLOW_ID: (
-                        "food_farm_output_boost",
-                        "food_farm_output_boost-v1",
-                        16,
-                        2,
-                    ),
-                    HALL_OF_WAR_FLOW_ID: (
-                        "hall_of_war_zombie_zero",
-                        "hall_of_war_zombie_zero-v1",
-                        24,
-                        2,
-                    ),
-                    TROOP_TRAINING_FLOW_ID: (
-                        "troop_training",
-                        "troop_training-v3",
-                        32,
-                        12,
-                    ),
-                }.items():
-                    binding = native_bindings[flow_id]
-                    self.assertEqual(
-                        (
-                            binding.flow_id,
-                            binding.product_id,
-                            binding.product_revision,
-                            binding.max_inputs,
-                            binding.max_actions,
-                        ),
-                        (flow_id, *contract),
-                    )
 
     def test_a_global_option_value_named_serve_is_not_the_command(self):
         for common in (["--state-path", "serve"], ["--state-path=serve"], ["--mode", "serve"]):

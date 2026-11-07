@@ -926,6 +926,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         family="hall_of_war",
         variant="zombie_zero_attack_and_daily_reward",
         cadence="cooldown_pulse",
+        observation_only_completion=True,
     ),
     _canonical_registration(
         TROOP_TRAINING_FLOW_ID,
@@ -934,6 +935,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         family="troop_training",
         variant="four_fixed_training_variants",
         cadence="timer",
+        observation_only_completion=True,
     ),
 )
 
