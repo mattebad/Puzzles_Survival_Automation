@@ -5,7 +5,7 @@ Current owner direction and planning live in [tracker #53](https://github.com/ma
 
 - **Verified starting point:** `origin/main` and Original HEAD were `c6f0e2fba509dacde136226a7519568550f6b066` at startup; do not infer that it remains current.
 - **Review branch:** `impl/base-route-batch-b-20261107`, draft PR #98, stacked on A #97. B integrates #69/#56 through canonical service and retires their obsolete operator paths.
-- **B offline proof:** previously 353 focused tests and device-free `scripts/check.py` 401 passed; supported pnsctl/read-only Ruins help passed with repository PYTHONPATH unset. Current A follow-up is being incorporated; B post-merge checks remain pending.
+- **B offline proof:** after forwarding current A, 203 focused route/authority/metadata/service-contract tests and device-free `scripts/check.py` 401 passed. Earlier broader B proof was 353 focused tests. Supported pnsctl/read-only Ruins help passed with repository PYTHONPATH unset; the finished Daily native-driver/journal/adapter replay also passed under B (one aggregate plus five chests, six confirmed effects).
 - **Ruins:** challenge first, then independently ready overview chests without a required win. Fake native replay confirmed loss plus two chests; UNKNOWN retains unresolved provenance and stops retries.
 - **Help:** ten actual successful requests/reset, including verified Help All coverage, not button taps. Partial completion and UNKNOWN are durable.
 - **Persistence:** actual canonical service with temporary SQLite and guarded fake runners recorded Ruins/Help completion; reopening before due produced no new runs.
