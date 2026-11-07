@@ -35,11 +35,12 @@ from automation_service.registry import (
     ALLIANCE_HELP_PROFILE_ID, ALLIANCE_SHOP_FLOW_ID, ALLIANCE_SHOP_PROFILE_ID,
     CAMPAIGN_FLOW_ID, CAMPAIGN_PRODUCT_REVISION, CANONICAL_FLOW_REGISTRY,
     DAILY_REWARDS_FLOW_ID, DAILY_SHOPS_FLOW_ID, DAILY_SHOPS_PROFILE_ID,
-    FOOD_FARM_BOOST_FLOW_ID, FOOD_FARM_BOOST_PROFILE_ID, HERO_DUEL_FLOW_ID,
-    HERO_DUEL_PROFILE_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
-    NANO_MATERIAL_PRODUCTION_PROFILE_ID, NANOWEAPON_FLOW_ID, NANOWEAPON_PROFILE_ID,
-    RECOMMENDED_RESEARCH_FLOW_ID, RECOMMENDED_RESEARCH_PROFILE_ID,
-    RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, RUINS_PROFILE_ID,
+    FOOD_FARM_BOOST_FLOW_ID, FOOD_FARM_BOOST_PROFILE_ID, HALL_OF_WAR_FLOW_ID,
+    HERO_DUEL_FLOW_ID, HERO_DUEL_PROFILE_ID,
+    NANO_MATERIAL_PRODUCTION_FLOW_ID, NANO_MATERIAL_PRODUCTION_PROFILE_ID,
+    NANOWEAPON_FLOW_ID, NANOWEAPON_PROFILE_ID, RECOMMENDED_RESEARCH_FLOW_ID,
+    RECOMMENDED_RESEARCH_PROFILE_ID, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID,
+    RUINS_PROFILE_ID, TROOP_TRAINING_FLOW_ID,
     load_disabled_registry, canonical_entry, servable_flow_names,
 )
 from automation_service.service import AutomationService, _runner_attribute
@@ -75,6 +76,8 @@ NO_OPERATOR_RUNNER = {
     HERO_DUEL_FLOW_ID: "Hero Duel is canonical-service-only and has no operator wrapper",
     RECOMMENDED_RESEARCH_FLOW_ID: "Recommended Research is canonical-service-only and has no operator wrapper",
     FOOD_FARM_BOOST_FLOW_ID: "Food Farm Boost is canonical-service-only and has no operator wrapper",
+    HALL_OF_WAR_FLOW_ID: "Hall of War is canonical-service-only and has no operator wrapper",
+    TROOP_TRAINING_FLOW_ID: "Troop Training legacy runner/validator retired in Batch F; canonical serve uses its fixed native binding",
 }
 
 # Retained operator-registry flows with no development-session input default in ``pnsctl._DEFAULT_MAX_INPUTS``.
@@ -156,6 +159,8 @@ EXECUTION_HANDLERS = {
     FOOD_FARM_BOOST_FLOW_ID: (
         "automation_service.food_farm_boost", "FoodFarmBoostExecutionHandler",
     ),
+    HALL_OF_WAR_FLOW_ID: ("automation_service.hall_of_war", "HallOfWarExecutionHandler"),
+    TROOP_TRAINING_FLOW_ID: ("automation_service.troop_training", "TroopTrainingExecutionHandler"),
 }
 
 
@@ -443,6 +448,14 @@ MAX_INPUT_COPIES = {
         ("automation_service.food_farm_boost", "MAX_INPUTS"),
         ("scripts.food_farm_boost_bluestacks", "MAX_INPUTS"),
     ],
+    HALL_OF_WAR_FLOW_ID: [
+        ("automation_service.hall_of_war", "MAX_INPUTS"),
+        ("scripts.hall_of_war_bluestacks", "MAX_INPUTS"),
+    ],
+    TROOP_TRAINING_FLOW_ID: [
+        ("automation_service.troop_training", "MAX_INPUTS"),
+        ("scripts.troop_training_bluestacks", "MAX_INPUTS"),
+    ],
 }
 
 
@@ -666,7 +679,7 @@ class ProductBindingTests(RouteTestCase):
             ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
         })
         operator = _operator_ids()
-        self.assertEqual(len(operator), 12, "Batch C adds canonical-only service routes, not operator runners")
+        self.assertEqual(len(operator), 11, "Batch F retires Training's legacy choice; Batch C remains canonical-only")
         queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
         for flow_id, expected in C_FIXED_RELATIONSHIPS.items():
             queue_record = queue[flow_id]
@@ -748,7 +761,7 @@ class ProductBindingTests(RouteTestCase):
             NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
         })
         operator = _operator_ids()
-        self.assertEqual(len(operator), 12, "Batch D preserves the existing operator routes")
+        self.assertEqual(len(operator), 11, "Batch F retires only the Training legacy operator choice")
         queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
         for flow_id, expected in D_FIXED_RELATIONSHIPS.items():
             queue_record = queue[flow_id]
@@ -836,7 +849,7 @@ class ProductBindingTests(RouteTestCase):
             HERO_DUEL_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
         })
         operator = _operator_ids()
-        self.assertEqual(len(operator), 12, "Batch E keeps all legacy operator choices unchanged")
+        self.assertEqual(len(operator), 11, "Batch F retires only the Training legacy operator choice")
         queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
         for flow_id, expected in E_FIXED_RELATIONSHIPS.items():
             queue_record = queue[flow_id]
@@ -924,6 +937,7 @@ class ProductBindingTests(RouteTestCase):
                 self.assertNotIn(flow_id, pnsctl.BLUESTACKS_FLOW_IDS)
                 self.assertNotIn(flow_id, pnsctl._DEFAULT_MAX_INPUTS)
 
+
     def test_selection_handlers_describe_the_registry_cadence(self) -> None:
         for entry in CANONICAL_FLOW_REGISTRY:
             if entry.registration_status != "REGISTERED":
@@ -980,7 +994,6 @@ class MaxInputTests(RouteTestCase):
 
     def test_batch_a_routes_are_canonical_only_and_resource_copies_agree(self) -> None:
         from scripts import daily_resource_item_bluestacks as resource_route
-        from scripts import flow_delivery_troop_training_bluestacks as troop_delivery
 
         queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
         staging = {
@@ -1018,11 +1031,6 @@ class MaxInputTests(RouteTestCase):
             resource_route.MAX_RESOURCE_LIST_SWIPES,
         )
 
-        troop = troop_delivery.FLOW_ID
-        self.assertEqual(defaults[troop], troop_delivery.MAX_INPUTS)
-        self.assertEqual(
-            queue[troop]["development_session_max_inputs"], troop_delivery.MAX_INPUTS,
-        )
 
 
 class ServeWiringTests(RouteTestCase):

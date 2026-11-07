@@ -27,7 +27,7 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
 - The legacy production registry remains disabled in
   `tasks/flow_delivery_disabled_production_registry.json`; it records the disabled
   `NOT_REGISTERED` posture and is separate from canonical service admission. The canonical code
-  registry has twenty-one fixed flow specs, which report `REGISTERED`; this is composition only.
+  registry has twenty-three fixed flow specs, which report `REGISTERED`; this is composition only.
   SQLite service/flow enablement is separate, defaults off, and is restored off after bounded tests.
 - Campaign selection remains non-consuming. Explicit native service composition installs
   the Campaign runner behind canonical claims and dispatch fences, reusing destination policy,
@@ -107,18 +107,18 @@ The normal Campaign launch shape is:
 python scripts/pnsctl.py automation-service --mode supervised --adapter bluestacks --state-path .local-orchestrator/bot-state.sqlite3 serve --live --flow campaign --campaign-stage 1-15-9 --campaign-cadence-seconds 300 --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 --account-id primary-account --server-id primary-server --output-directory .local-captures/automation-service-live
 ```
 
-Repeat `--flow` for other named routes; the README gives the complete 20-route command. Argument order does not
+Repeat `--flow` for other named routes; the README gives the complete 22-route command. Argument order does not
 choose scheduler order; due eligibility and existing controls do. The disabled-gates canonical CLI
 proof produced zero captures and zero new runs, so it is control evidence only and does not promote
 native route acceptance. Facade checks, the ordinary one-battle live-entrypoint retirement, and
 the scheduler/facade consumer checks are recorded separately; their counts are not additive.
 
-The fixed native composition binds 20 canonical routes: Nova, Recruitment, Campaign,
+The fixed native composition binds 22 canonical routes: Nova, Recruitment, Campaign,
 Bioenhancer, Supply, Ultimate, Enhancement, Personal Might, Daily Rewards, Resource Item,
 Ruins, Alliance Help, Alliance Donation, Alliance Shop, Daily Shops, Nano Material Production,
-Nanoweapon, Hero Duel, Recommended Research, and Food Farm Boost. The 21st fixed flow spec
-is `world_map_navigation`, which is selection-only and has no `serve --flow`. The ordinary registered
-selectors remain non-consuming; passing `--flow` alone does not enable a route.
+Nanoweapon, Hero Duel, Recommended Research, Food Farm Boost, Hall of War, and Troop Training.
+The 23rd fixed flow spec is `world_map_navigation`, which is selection-only and has no `serve --flow`.
+The ordinary registered selectors remain non-consuming; passing `--flow` alone does not enable a route.
 
 B adds Ruins/Help; C adds Donation, Alliance Shop and Daily Shops. These are implemented and
 offline-proven, not newly live-accepted; production and SQLite runtime controls remain disabled.
@@ -149,12 +149,35 @@ effect proof; unknown inventory is not zero. One owned-item boost and positive t
 total inventory and the exact premium branch remain unproven. None of this raw investigation is
 route-level live acceptance.
 
+Batch F adds canonical-only Hall of War and Troop Training native service routes. It removes the
+legacy Troop Training operator runner/validator/aliases, leaving eleven operator routes, and keeps
+supported manual-only `pnsctl bluestacks recover-home`; no compatibility route or standalone
+Commander flow is added. The shared Commander preset helper requires a fresh exact `Applied`
+observation on every use; cached readiness is not proof, and an already-applied preset is not
+switched again. Hall's manual #96 investigation observed one dispatch, reconciled result, and
+separate Daily Reward row claim; this is not canonical route acceptance, and unexplained same-reset
+manual dispatch blocks an identical retry. Known unavailable-challenge/reward outcomes preserve
+confirmed progress and use a bounded 300-second policy re-observation, clipped to the UTC reset;
+this is not an observed game cooldown or an unknown-effect retry.
+The fixed native factory validates canonical requests through the shared native boundary; Hall
+result validation remains in its canonical adapter. A device-free actual held-lock/request probe
+passes before device open. This startup proof does not establish live gameplay acceptance.
+Training remains `evidence_required`: Fighter T8/current
+numeric maximum/continuous and Vehicle T1/current numeric maximum/continuous; Shooter T8/250 and
+Rider T1/250 once per reset. Verify exact current costs, before/after balances, current queue and
+positive timer; keep current maxima dynamic rather than pinning old amounts. Fighter/Vehicle box
+continuations require exact current inventory and effect authority; absent proof they remain
+`evidence_required`, with no box dispatch, no expected-warehouse assumption, and no blind Train.
+Shooter/Rider never use boxes. No Train Now, premium, speedup, or Daily/D02/points prerequisite.
+Both routes are registered in the canonical service but remain production-unregistered,
+unscheduled and runtime-disabled; no live route acceptance is claimed.
+
 Daily performs at most one current aggregate Claim, then separately claims glowing chests with
 same-slot `Claimed` and canonical journal confirmation. Restart-stable reset/slot keys protect
 effects; UNKNOWN stops without identical retry, and already-claimed manual work is skipped.
 Complete zero-ready scans return to verified Home. The owner-authorized November 7 #54 observation
 was exactly one manual chest tap at zero spend; `glowing` to `Claimed` is its recognition basis.
-Keep the raw `UNKNOWN` record unchanged; this one-chest observation is not completed-route
+Preserve the raw `UNKNOWN` record unchanged; this one-chest observation is not completed-route
 acceptance. Current native acceptance for all these new routes remains `evidence_required`.
 Existing individual effect/Home acceptance, uninterrupted Enhancement proof, independent recruit
 timers, and cadence scope are historical context in [`BACKLOG.md`](../BACKLOG.md), not active

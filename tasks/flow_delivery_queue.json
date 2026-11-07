@@ -188,9 +188,9 @@
       {
         "task_id": "troop-training-four-variants",
         "execution_flow_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
-        "queue_record_state": "accepted_existing",
+        "queue_record_state": "blocked_evidence_required",
         "depends_on": [],
-        "blocker": null
+        "blocker": "The canonical Troop Training service is implemented and offline-contractable, but current canonical live route acceptance is absent; keep registration and scheduling disabled and defer unconfirmed resource-box continuations."
       },
       {
         "task_id": "gathering-search-level5",
@@ -2910,7 +2910,7 @@
         "home_recovery_latency_seconds"
       ],
       "blocked_reason": "",
-      "next_concrete_action": "Historical navigation-only flow is superseded by completed TROOP-TRAINING-END-TO-END-CONSOLIDATION.",
+      "next_concrete_action": "Retain this completed navigation-only evidence as historical provenance; it does not establish acceptance for the current canonical Troop Training service route.",
       "last_completed_stage": "completed",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE",
@@ -2964,125 +2964,239 @@
       }
     },
     {
+      "flow_id": "HALL-OF-WAR-ZOMBIE-ZERO-BLUESTACKS-INTEGRATION",
+      "title": "Canonical Hall of War Zombie Zero challenge and Daily Reward route",
+      "kind": "canonical_service_route",
+      "priority": 46,
+      "status": "evidence_required",
+      "backlog_task_id": "HALL-OF-WAR-ZOMBIE-ZERO-BLUESTACKS-INTEGRATION",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "automation_service/hall_of_war.py",
+        "scripts/hall_of_war_bluestacks.py",
+        "tasks/hall_of_war.py",
+        "tests/test_hall_of_war.py",
+        "tests/test_service_hall_of_war.py",
+        "tests/support/service_route_contract.py",
+        "tests/support/service_route_fakes.py"
+      ],
+      "navigation_model": "canonical_home_saved_military_preset_hall_of_war_zombie_zero_one_dispatch_result_daily_row_claim_terminal_home",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "A manual investigation observed one challenge dispatch, a reconciled result, and one separate Daily Reward row claim; this is not canonical route acceptance. No current canonical route attempt is recorded. On a reset where an unexplained manual dispatch already occurred, do not dispatch again; defer until the next verified reset identity.",
+      "consequence_policy": "At most one Zombie Zero challenge dispatch and one subsequent eligible Daily Reward row claim under the exact current reset identity. Revalidate the saved Military preset and use the saved troop lineup without editing or Quick Select; if already applied, do not switch redundantly. Reconcile result/exit but require no win or damage threshold. The single glowing Daily Reward row claim may collect all three displayed rewards and is one claim action. Unknown effects or unexplained same-reset use remain unresolved/deferred with identical retry denied; no repeat dispatch, alternate challenge, or Daily/D02/points prerequisite.",
+      "product_policy_status": "explicitly_approved",
+      "production_registration": "NOT_REGISTERED",
+      "registration_state": "NOT_REGISTERED",
+      "scheduler_enabled": false,
+      "maximum_inputs": 24,
+      "maximum_live_inputs": 24,
+      "maximum_actions": 2,
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_authorization_count": 0,
+      "physical_session_count": null,
+      "physical_session_count_status": "unknown_not_derived",
+      "input_accounting_scope": "No canonical route invocation is accepted as live route evidence. The manual #96 investigation is preserved as non-authorizing source evidence and must not be counted as a canonical route attempt.",
+      "live_attempts": [],
+      "current_live_investigation": {
+        "authority": "manual_non_acceptance",
+        "challenge_dispatch_observed": 1,
+        "challenge_result_reconciled": true,
+        "daily_reward_row_claim_observed": 1,
+        "canonical_route_acceptance": false,
+        "same_reset_unexplained_use_must_defer": true
+      },
+      "focused_tests": [
+        "tests/test_hall_of_war.py",
+        "tests/test_service_hall_of_war.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_pnsctl_canonical_serve.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "saved_military_preset_verification",
+        "challenge_dispatch_attempt_and_result_reconciliation",
+        "separate_daily_reward_row_claim",
+        "terminal_home_localization"
+      ],
+      "blocked_reason": "One manual challenge/result/row-claim investigation exists but is not canonical route acceptance. No canonical route attempt or route acceptance is recorded; a manual same-reset dispatch must be reconciled and never repeated.",
+      "next_concrete_action": "Keep all controls and scheduling disabled; preserve the investigation source, then require separately authorized route-specific evidence under a fresh verified reset before acceptance.",
+      "last_completed_stage": "canonical_offline_contract",
+      "last_commit": null,
+      "acceptance_criteria": [
+        "Verify current account/server/reset identity and inspect prior same-reset action history before any challenge input.",
+        "Verify the saved Military preset and existing saved five-hero lineup; never edit the lineup, Quick Select, or repeat an already-applied preset.",
+        "Use the currently available Zombie Zero challenge only; one dispatched challenge must reconcile its actual result/Exit/Flee state, with no win or damage threshold.",
+        "Only after the result, separately inspect and claim the first eligible glowing Daily Reward row; record the claim as one effect even when it collects three rewards.",
+        "Return to recognized canonical Home and persist reset/occurrence identity, transport attempts, committed effects, and unresolved/retry-denial state.",
+        "If a manual same-reset dispatch is unexplained, an effect is unknown, the challenge/reward row is unavailable, or result evidence is missing, truthfully defer/block/unresolve and never issue an identical retry."
+      ],
+      "scope_prohibitions": [
+        "no production registration or scheduler eligibility",
+        "no repeated challenge dispatch or alternate challenge",
+        "no lineup editing or Quick Select",
+        "no win, damage, or success threshold",
+        "no Daily/D02/points prerequisite",
+        "no treat-manual-investigation-as-canonical-route-acceptance"
+      ],
+      "reference_docs": [
+        "README.md",
+        "docs/automation-service.md",
+        "docs/adding-a-route.md"
+      ],
+      "direct_dependencies": [],
+      "implementation_allowlist_seed": [
+        "automation_service/hall_of_war.py",
+        "scripts/hall_of_war_bluestacks.py",
+        "tasks/hall_of_war.py",
+        "tests/test_hall_of_war.py",
+        "tests/test_service_hall_of_war.py",
+        "tests/support/service_route_contract.py",
+        "tests/support/service_route_fakes.py"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "canonical-hall-of-war-zombie-zero-one-dispatch-and-row-claim",
+          "mode": "supervised_consequential_validation"
+        }
+      ],
+      "required_terminal_states": [
+        "complete_for_reset",
+        "deferred",
+        "blocked",
+        "unresolved",
+        "manual_required"
+      ],
+      "completion_tests": [
+        "tests/test_hall_of_war.py",
+        "tests/test_service_hall_of_war.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py"
+      ],
+      "consequential_stage_policy": {
+        "initial_live_validation": "evidence_required_after_offline_review",
+        "maximum_canaries": 0,
+        "challenge_dispatch": "one_only",
+        "daily_reward_claim": "one_separate_row_claim"
+      }
+    },
+    {
       "flow_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
-      "title": "Consolidate configurable four-type Troop Training end to end",
-      "kind": "supervised_consequential_validation",
+      "title": "Canonical four-variant Troop Training service route",
+      "kind": "canonical_service_route",
       "priority": 45,
-      "status": "completed",
+      "status": "evidence_required",
       "backlog_task_id": "TROOP-TRAINING-END-TO-END-CONSOLIDATION",
       "dependencies": [],
       "superseded_provenance": [
         "TROOP-TRAINING-VERIFIED-NAVIGATION-CONVERGENCE"
       ],
       "implementation_entrypoints": [
-        "tasks/troop_training.py",
-        "tasks/troop_training_runtime.py",
-        "tasks/troop_training_entry.py",
-        "tasks/troop_training_vision.py",
+        "automation_service/troop_training.py",
         "scripts/troop_training_bluestacks.py",
-        "scripts/flow_delivery_troop_training_bluestacks.py"
+        "automation_service/commander_talents.py",
+        "scripts/commander_talents_bluestacks.py",
+        "tasks/troop_training.py",
+        "tasks/troop_training_entry.py",
+        "tasks/troop_training_runtime.py",
+        "tasks/troop_training_vision.py",
+        "tests/test_troop_training.py",
+        "tests/test_troop_training_entry.py",
+        "tests/test_service_troop_training.py",
+        "tests/support/service_route_contract.py",
+        "tests/support/service_route_fakes.py"
       ],
-      "navigation_model": "canonical_home_atlas_single_facility_entry_verified_four_tab_pass_terminal_home",
+      "navigation_model": "canonical_home_atlas_saved_commander_preset_exact_facility_and_tab_binding_terminal_home",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "One bounded supervised development canary may exercise the named user-configurable profile through one canonical facility entry, verified top-tab transitions, and one terminal Home return.",
-      "consequence_policy": "supervised consequential validation; normal timed Train only; no Train Now, premium, speedup, registration, scheduler, or unsupported resource transaction.",
-      "product_policy_status": "supervised_consequential_validation",
-      "maximum_live_attempts": 1,
-      "development_session_max_inputs": 32,
-      "canary_admission": "one bounded dispatch-bearing canary; durable handler guard rejects any prior dispatch-bearing artifact under this flow root; dry-run and observe-only recovery remain allowed",
-      "dispatch_bearing_canary_guard": {
-        "maximum_runs": 1,
-        "recovery_only_after_exhaustion": true,
-        "counts": "dispatch-bearing artifacts only"
-      },
-      "live_attempt_count": 1,
-      "live_authorization_count": 1,
+      "live_validation_scope": "No live route acceptance is recorded. Any separately authorized bounded validation must use the current canonical binding, verify every attempt/effect and durable timer state, preserve recovery authority, and stop/defer on missing exact resource continuation proof.",
+      "consequence_policy": "Normal timed Train only. Fighter T8 and Vehicle T1 use the current displayed numeric maximum and continuous policy; Shooter T8 and Rider T1 train exactly 250 once per reset. Verify the saved commander preset, exact current costs/balances, resource deltas, queue identity and positive timers. Resource boxes are considered only for exact approved Fighter/Vehicle continuations; the current native box continuation has no confirmed action-result DTO and must defer without dispatch. No Train Now, premium, speedup, arbitrary box, Shooter/Rider box, Daily/D02/points prerequisite, or standalone Commander flow.",
+      "product_policy_status": "explicitly_approved",
+      "production_registration": "NOT_REGISTERED",
+      "registration_state": "NOT_REGISTERED",
+      "scheduler_enabled": false,
+      "maximum_inputs": 32,
+      "maximum_live_inputs": 32,
+      "maximum_actions": 12,
+      "maximum_live_attempts": 0,
+      "live_attempt_count": 0,
+      "live_authorization_count": 0,
       "physical_session_count": null,
       "physical_session_count_status": "unknown_not_derived",
-      "physical_session_count_explanation": "The retained evidence proves one terminal development session, not a separately derived physical-session total.",
-      "terminal_transport_input_count": 10,
-      "consequential_input_count": 1,
-      "recovery_input_count": 0,
-      "input_accounting_scope": "These independent counters are not summed; historical evidence and session records remain authoritative.",
-      "completion_evidence": {
-        "terminal_session_count": 1,
-        "terminal_transport_input_count": 10,
-        "consequential_input_count": 1,
-        "recovery_input_count": 0,
-        "physical_session_count": null,
-        "physical_session_count_status": "unknown_not_derived"
-      },
-      "live_attempts": [
-        {
-          "ordinal": 1,
-          "started_at": "2026-08-13T17:29:28Z",
-          "finished_at": "2026-08-14T05:51:01Z",
-          "session_directory": ".local-captures/flow-delivery/TROOP-TRAINING-END-TO-END-CONSOLIDATION",
-          "terminal_outcome": "completed",
-          "diagnosis": "One bounded evidence-linked development canary and its materially changed repair continuations used canonical camp entry and verified top tabs. The terminal session freshly reconciled exact Fighter T8 x1000, Shooter T8 x250, and Rider T1 x250 queues, proved Vehicle current maximum 1000 before normal timed Train, verified exact Vehicle T1 x1000, and returned to canonical Home with ownership released.",
-          "input_count": 26,
-          "input_count_scope": "initial canary sequence; bounded repair-session inputs are retained in compact development-session summaries",
-          "terminal_verification_session": ".local-captures/flow-delivery/TROOP-TRAINING-END-TO-END-CONSOLIDATION/run-20260814T054246158698Z/troop-training-20260814T054246675094Z",
-          "terminal_verification_input_count": 10,
-          "consumes_live_attempt": true
-        }
-      ],
+      "input_accounting_scope": "No current canonical live route attempt is recorded. Historical legacy development evidence is preserved separately and is not accepted route evidence.",
+      "live_attempts": [],
       "focused_tests": [
         "tests/test_troop_training.py",
         "tests/test_troop_training_entry.py",
-        "tests/test_bluestacks_integrated_routes.py",
-        "tests/test_flow_delivery_troop_training.py"
+        "tests/test_service_troop_training.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_pnsctl_canonical_serve.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
-        "navigation_input_count",
-        "per_type_training_records",
+        "native_transport_attempts_and_committed_effects",
+        "exact_per_variant_resource_before_after",
+        "queue_identity_and_positive_timer",
+        "saved_commander_preset_verification",
         "terminal_home_localization"
       ],
-      "blocked_reason": "",
-      "next_concrete_action": "Begin SUPPLY-DEPOT-LEGACY-ADAPTER-RETIREMENT; Troop Training remains NOT_REGISTERED and scheduler-disabled.",
-      "last_completed_stage": "completed",
-      "last_commit": "d9f47bb9a8ac0f610d6e2a31bce37a211d8aeb75",
-      "artifact_root": ".local-captures/flow-delivery/TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+      "blocked_reason": "Canonical service/native semantics and offline contracts exist, but no current canonical route acceptance is recorded; exact resource-box action-result confirmation is also absent and must remain deferred.",
+      "next_concrete_action": "Keep controls and scheduler disabled; obtain separately authorized current-route evidence only after the normal-train and unresolved-effect boundaries are reviewed.",
+      "last_completed_stage": "canonical_offline_contract",
+      "last_commit": null,
+      "historical_development_evidence": {
+        "authority": "historical_non_authorizing_legacy_development_canary",
+        "artifact_root": ".local-captures/flow-delivery/TROOP-TRAINING-END-TO-END-CONSOLIDATION",
+        "scope": "This retained legacy development capture is not a current canonical service-route acceptance, does not count as a current live attempt, and does not establish current resource-box behavior."
+      },
       "acceptance_criteria": [
-        "named default profile and all per-type overrides are retained exactly in route results",
-        "current_max resolves from current screen and proves selected equals maximum",
-        "exact queue label/type/tier/quantity and positive timer are reconciled",
-        "one canonical Home Atlas facility entry, exact per-type top-tab successors, and terminal Home evidence",
-        "one bounded canary retains native source/immediate-before/post/result evidence",
-        "development-session artifact contract requires native frames and events.jsonl; legacy bookkeeping is not fabricated"
+        "Revalidate the saved Commander preset; if the already-applied Military preset is observed, do not switch or repeat it.",
+        "Preserve the exact four-variant profile: Fighter T8/current displayed maximum/continuous; Shooter T8/250/once_daily; Rider T1/250/once_daily; Vehicle T1/current displayed maximum/continuous.",
+        "Resolve current maxima from the live displayed quantity control and prove the selected quantity equals that maximum; never pin historical numeric maxima.",
+        "Verify exact resource costs and balances before normal training; reconcile held-before minus held-after for each exact resource and count committed effects separately from transport attempts.",
+        "Reconcile exact queue variant/tier/quantity and a positive active timer; retain timers through restart and never duplicate an active or unresolved start.",
+        "Only exact approved Fighter/Vehicle resource-box continuations may be considered; without a confirmed effect DTO and exact inventory proof, defer with zero box dispatch.",
+        "Return to recognized canonical Home or report blocked/unresolved/manual-required truthfully; retain reset/occurrence identities and durable attempt-versus-confirmed counts."
       ],
       "scope_prohibitions": [
         "no production registration or scheduler eligibility",
-        "no Daily Quest authority inheritance or promotion",
-        "no Train Now, premium, speedup, Cash Mall, or arbitrary ADB",
-        "no modification of Bliss, GnBots, or historical navigation flow"
+        "no Train Now, premium, speedup, arbitrary resource box, or unverified resource transaction",
+        "no resource boxes for Shooter or Rider",
+        "no Daily/D02/points ownership prerequisite",
+        "no standalone Commander helper scheduler route",
+        "no change to historical development or navigation-only evidence"
       ],
       "reference_docs": [
-        "docs/troop-training-bluestacks.md",
-        "docs/agent/prompts/daily-quest/dq-flow-training.md"
+        "README.md",
+        "docs/automation-service.md",
+        "docs/adding-a-route.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
+        "automation_service/troop_training.py",
+        "scripts/troop_training_bluestacks.py",
+        "automation_service/commander_talents.py",
+        "scripts/commander_talents_bluestacks.py",
         "tasks/troop_training.py",
         "tasks/troop_training_runtime.py",
         "tasks/troop_training_entry.py",
         "tasks/troop_training_vision.py",
-        "scripts/troop_training_bluestacks.py",
-        "scripts/flow_delivery_troop_training_bluestacks.py",
         "tests/test_troop_training.py",
         "tests/test_troop_training_entry.py",
-        "tests/test_bluestacks_integrated_routes.py",
-        "tests/test_flow_delivery_troop_training.py"
+        "tests/test_service_troop_training.py",
+        "tests/support/service_route_contract.py",
+        "tests/support/service_route_fakes.py"
       ],
       "live_validation_scenarios": [
         {
-          "id": "troop-training-consolidation-supervised-canary",
+          "id": "canonical-troop-training-four-variants",
           "mode": "supervised_consequential_validation"
         }
       ],
       "required_terminal_states": [
-        "recognized_home",
+        "complete_for_reset",
+        "deferred",
         "blocked",
         "unresolved",
         "manual_required"
@@ -3090,12 +3204,13 @@
       "completion_tests": [
         "tests/test_troop_training.py",
         "tests/test_troop_training_entry.py",
-        "tests/test_bluestacks_integrated_routes.py",
-        "tests/test_flow_delivery_troop_training.py"
+        "tests/test_service_troop_training.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py"
       ],
       "consequential_stage_policy": {
-        "initial_live_validation": "supervised_consequential_validation",
-        "maximum_canaries": 1,
+        "initial_live_validation": "evidence_required_after_offline_review",
+        "maximum_canaries": 0,
         "train_action": "normal_timed_train_only"
       }
     },

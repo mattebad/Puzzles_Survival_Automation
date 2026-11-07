@@ -193,6 +193,20 @@ FOOD_FARM_BOOST_HANDLER_ID = "food_farm_boost_execution_handler"
 FOOD_FARM_BOOST_PROFILE_ID = WORLD_PROFILE_ID
 FOOD_FARM_BOOST_PHASE_MODE = "phase_canary"
 FOOD_FARM_BOOST_MAX_INPUTS = 16
+HALL_OF_WAR_FLOW_ID = "HALL-OF-WAR-ZOMBIE-ZERO-BLUESTACKS-INTEGRATION"
+HALL_OF_WAR_PRODUCT_ID = "hall_of_war_zombie_zero"
+HALL_OF_WAR_PRODUCT_REVISION = "hall_of_war_zombie_zero-v1"
+HALL_OF_WAR_HANDLER_ID = "hall_of_war_execution_handler"
+HALL_OF_WAR_PROFILE_ID = WORLD_PROFILE_ID
+HALL_OF_WAR_PHASE_MODE = "phase_canary"
+HALL_OF_WAR_MAX_INPUTS = 24
+TROOP_TRAINING_FLOW_ID = "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
+TROOP_TRAINING_PRODUCT_ID = "troop_training"
+TROOP_TRAINING_PRODUCT_REVISION = "troop_training-v3"
+TROOP_TRAINING_HANDLER_ID = "troop_training_execution_handler"
+TROOP_TRAINING_PROFILE_ID = WORLD_PROFILE_ID
+TROOP_TRAINING_PHASE_MODE = "phase_canary"
+TROOP_TRAINING_MAX_INPUTS = 96
 
 
 _FIXED_BINDINGS = {
@@ -406,6 +420,26 @@ _FIXED_BINDINGS = {
         "registration_status": "REGISTERED",
         "scheduler_eligible": True,
     },
+    HALL_OF_WAR_FLOW_ID: {
+        "flow_id": HALL_OF_WAR_FLOW_ID,
+        "product_id": HALL_OF_WAR_PRODUCT_ID,
+        "product_revision": HALL_OF_WAR_PRODUCT_REVISION,
+        "production_handler": HALL_OF_WAR_HANDLER_ID,
+        "profile": HALL_OF_WAR_PROFILE_ID,
+        "mode": HALL_OF_WAR_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    TROOP_TRAINING_FLOW_ID: {
+        "flow_id": TROOP_TRAINING_FLOW_ID,
+        "product_id": TROOP_TRAINING_PRODUCT_ID,
+        "product_revision": TROOP_TRAINING_PRODUCT_REVISION,
+        "production_handler": TROOP_TRAINING_HANDLER_ID,
+        "profile": TROOP_TRAINING_PROFILE_ID,
+        "mode": TROOP_TRAINING_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
 }
 
 # Entry fields are deliberately closed.  Runtime, queue, target, and scheduler
@@ -611,6 +645,8 @@ class CanonicalFlowRegistration:
             HERO_DUEL_FLOW_ID,
             RECOMMENDED_RESEARCH_FLOW_ID,
             FOOD_FARM_BOOST_FLOW_ID,
+            HALL_OF_WAR_FLOW_ID,
+            TROOP_TRAINING_FLOW_ID,
         }:
             # Only explicit supervised serve installs its executor and held-owner
             # checkpoint. Generic composition must never create native authority.
@@ -881,6 +917,24 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         family="food_farm_boost",
         variant="one_daily_food_farm_boost",
         cadence="cooldown_pulse",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        HALL_OF_WAR_FLOW_ID,
+        max_inputs=HALL_OF_WAR_MAX_INPUTS,
+        cli_name="hall-of-war",
+        family="hall_of_war",
+        variant="zombie_zero_attack_and_daily_reward",
+        cadence="cooldown_pulse",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        TROOP_TRAINING_FLOW_ID,
+        max_inputs=TROOP_TRAINING_MAX_INPUTS,
+        cli_name="troop-training",
+        family="troop_training",
+        variant="four_fixed_training_variants",
+        cadence="timer",
         observation_only_completion=True,
     ),
 )

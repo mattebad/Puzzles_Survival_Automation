@@ -40,6 +40,10 @@ from automation_service.registry import (
     RESOURCE_ITEM_FLOW_ID, RESOURCE_ITEM_MAX_INPUTS, RESOURCE_ITEM_PRODUCT_ID,
     RESOURCE_ITEM_PRODUCT_REVISION, RECRUITMENT_FLOW_ID, RUINS_FLOW_ID,
     RUINS_PRODUCT_ID, RUINS_PRODUCT_REVISION, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
+    HALL_OF_WAR_FLOW_ID, HALL_OF_WAR_PRODUCT_ID,
+    HALL_OF_WAR_PRODUCT_REVISION, HALL_OF_WAR_PROFILE_ID,
+    TROOP_TRAINING_FLOW_ID, TROOP_TRAINING_PRODUCT_ID,
+    TROOP_TRAINING_PRODUCT_REVISION, TROOP_TRAINING_PROFILE_ID,
 )
 from tasks.purchases_disabled import (
     ALLIANCE_CURRENCY, ALLIANCE_FALLBACK_ITEM, ALLIANCE_OTHER_SHOP,
@@ -80,6 +84,26 @@ from automation_service.food_farm_boost import (
     PRODUCT_REVISION as FOOD_FARM_BOOST_PRODUCT_REVISION,
     FoodFarmBoostRunner,
 )
+from automation_service.hall_of_war import (
+    FLOW_ID as HALL_OF_WAR_ADAPTER_FLOW_ID,
+    MAX_ACTIONS as HALL_OF_WAR_MAX_ACTIONS,
+    MAX_INPUTS as HALL_OF_WAR_ADAPTER_MAX_INPUTS,
+    PROFILE_ID as HALL_OF_WAR_ADAPTER_PROFILE_ID,
+    PRODUCT_ID as HALL_OF_WAR_ADAPTER_PRODUCT_ID,
+    PRODUCT_REVISION as HALL_OF_WAR_ADAPTER_PRODUCT_REVISION,
+    HallOfWarRunner,
+)
+from automation_service.troop_training import (
+    FLOW_ID as TROOP_TRAINING_ADAPTER_FLOW_ID,
+    MAX_ACTIONS as TROOP_TRAINING_MAX_ACTIONS,
+    MAX_INPUTS as TROOP_TRAINING_ADAPTER_MAX_INPUTS,
+    PROFILE_ID as TROOP_TRAINING_ADAPTER_PROFILE_ID,
+    PRODUCT_ID as TROOP_TRAINING_ADAPTER_PRODUCT_ID,
+    PRODUCT_REVISION as TROOP_TRAINING_ADAPTER_PRODUCT_REVISION,
+    TroopTrainingRunner,
+    make_training_start_action_key,
+    training_identity_digest,
+)
 from automation_service.native_execution import NativeRouteOutcome
 from scripts import navigation_development_boundary as boundary
 from safe_action_core.resource_effect_authority import (
@@ -94,6 +118,9 @@ from tasks.resource_boost_disabled import food_farm_boost_daily_action_key
 from tasks.runtime_identity import (
     BLUESTACKS_SERIAL, derive_resource_runtime_identity, derive_static_utc_reset,
     resource_fixed_runtime_binding,
+)
+from tasks.troop_training import (
+    FACILITY_BY_TYPE, TROOP_TYPES, ResourceReading, default_troop_training_config,
 )
 from tasks.alliance_help import (
     CONSEQUENCE as ALLIANCE_HELP_CONSEQUENCE, DAILY_REQUEST_LIMIT,
@@ -2653,6 +2680,14 @@ class _GuardedENativeBoundary:
                 FOOD_FARM_BOOST_PRODUCT_ID, FOOD_FARM_BOOST_PRODUCT_REVISION,
                 FOOD_FARM_BOOST_PROFILE_ID, FOOD_FARM_BOOST_MAX_ACTIONS,
             ),
+            HALL_OF_WAR_ADAPTER_FLOW_ID: (
+                HALL_OF_WAR_ADAPTER_PRODUCT_ID, HALL_OF_WAR_ADAPTER_PRODUCT_REVISION,
+                HALL_OF_WAR_ADAPTER_PROFILE_ID, HALL_OF_WAR_MAX_ACTIONS,
+            ),
+            TROOP_TRAINING_ADAPTER_FLOW_ID: (
+                TROOP_TRAINING_ADAPTER_PRODUCT_ID, TROOP_TRAINING_ADAPTER_PRODUCT_REVISION,
+                TROOP_TRAINING_ADAPTER_PROFILE_ID, TROOP_TRAINING_MAX_ACTIONS,
+            ),
         }[flow_id]
         self.requests = []
 
@@ -2771,6 +2806,8 @@ class _GuardedEAdapterRunner:
             HERO_DUEL_FLOW_ID: "duel_dispatch_count",
             RECOMMENDED_RESEARCH_FLOW_ID: "research_transport_calls",
             FOOD_FARM_BOOST_FLOW_ID: "food_farm_dispatch_count",
+            HALL_OF_WAR_FLOW_ID: "hall_of_war_dispatch_count",
+            TROOP_TRAINING_FLOW_ID: "training_dispatch_count",
         }
         committed = result.get("committed_action_count", 0)
         if self.flow_id == FOOD_FARM_BOOST_FLOW_ID:
@@ -2925,3 +2962,443 @@ class GuardedFoodFarmBoostRunner(_GuardedEAdapterRunner):
         self.collection_unresolved_resets = set()
         self.boost_unresolved_resets = set()
         self.boost_completed_resets = set()
+_HALL_HOME_FRAME = {"frame_path": "frames/hall-of-war-home.png", "frame_sha256": "a" * 64}
+
+
+def _hall_backend_identity_proof(identity, stop):
+    backend = derive_resource_runtime_identity(
+        resource_fixed_runtime_binding(),
+        datetime.fromtimestamp(float(stop.now), timezone.utc),
+    )
+    if (backend.account_id, backend.server_id) != (identity.account_id, identity.server_id):
+        raise ValueError("fake Hall of War backend identity differs from scheduler identity")
+    return {
+        "runtime_scope": backend.runtime_scope,
+        "account_id": backend.account_id,
+        "server_id": backend.server_id,
+        "reset_id": backend.reset_id,
+        "reset_start_utc": backend.reset_start_utc,
+        "reset_deadline_utc": backend.reset_deadline_utc,
+        "assurance": backend.assurance.value,
+        "runtime_binding_digest": backend.runtime_binding_digest,
+    }
+
+
+def _hall_of_war_native_result(identity, stop, input_count: int, *, mode: str):
+    proof = _hall_backend_identity_proof(identity, stop)
+    result = {
+        "flow_id": HALL_OF_WAR_FLOW_ID,
+        "product_id": HALL_OF_WAR_PRODUCT_ID,
+        "product_revision": HALL_OF_WAR_PRODUCT_REVISION,
+        "runtime_profile_id": HALL_OF_WAR_PROFILE_ID,
+        "status": "complete_for_reset",
+        "reason": "hall_of_war_challenge_and_reward_reconciled",
+        "challenge_status": "confirmed",
+        "reward_status": "claimed",
+        "challenge_participation_proven": True,
+        "saved_military_verified": True,
+        "military_preset_verification": {
+            "status": "already_applied",
+            "preset_name": "Military",
+            "verified": True,
+            "switch_transport_attempted": False,
+        },
+        "troop_set_one": {
+            "selected": True,
+            "applied_toast_verified": True,
+            "hero_count": 5,
+            "current_troops": 160_200,
+            "troop_capacity": 160_200,
+            "source_frame_sha256": "b" * 64,
+        },
+        "challenge_attempt_state": "ready",
+        "today_highest_damage": 2_166_282_036,
+        "challenge_transport_calls": 1,
+        "dispatch_transport_calls": 1,
+        "reward_claim_transport_calls": 1,
+        "talent_switch_transport_calls": 0,
+        "dispatch_action": {"status": "confirmed", "semantic_action": "HALL_OF_WAR_DISPATCH"},
+        "reward_action": {"status": "confirmed", "semantic_action": "HALL_OF_WAR_REWARD"},
+        "reward_action_key": "hall-of-war:reward:current-reset",
+        "reward_result_frame": {"frame_path": "frames/hall-reward-claimed.png", "frame_sha256": "c" * 64},
+        "hall_of_war_dispatch_count": 2,
+        "committed_action_count": 2,
+        "scheduler_reset_id": identity.reset_id,
+        "backend_reset_id": proof["reset_id"],
+        "backend_identity_proof": proof,
+        "terminal_home_verified": True,
+        "terminal_home_frame": dict(_HALL_HOME_FRAME),
+        "effect_reconciliation_required": False,
+        "identical_retry_denied": False,
+        "accounting_verified": True,
+        "total_input_count": input_count,
+        "input_count": input_count,
+        "verified_navigation": [
+            "open-building",
+            "open-zombie-zero",
+            "select-troop-set-one",
+            "confirm-result",
+            "return-home",
+        ],
+    }
+    if mode == "unresolved_dispatch":
+        result.update(
+            status="unresolved",
+            reason="dispatch_effect_unresolved",
+            challenge_status="unknown",
+            reward_status="unknown",
+            challenge_transport_calls=1,
+            dispatch_transport_calls=1,
+            reward_claim_transport_calls=0,
+            dispatch_action={"status": "unresolved", "semantic_action": "HALL_OF_WAR_DISPATCH"},
+            reward_action=None,
+            hall_of_war_dispatch_count=1,
+            committed_action_count=0,
+            terminal_home_verified=False,
+            terminal_home_frame=None,
+            effect_reconciliation_required=True,
+            identical_retry_denied=True,
+        )
+    elif mode == "blocked":
+        result.update(
+            status="blocked",
+            reason="native checkpoint stopped before any consequential action",
+            challenge_status="unknown",
+            reward_status="unknown",
+            challenge_transport_calls=0,
+            dispatch_transport_calls=0,
+            reward_claim_transport_calls=0,
+            dispatch_action=None,
+            reward_action=None,
+            hall_of_war_dispatch_count=0,
+            committed_action_count=0,
+            terminal_home_verified=False,
+            terminal_home_frame=None,
+        )
+    elif mode == "unavailable":
+        result.update(
+            status="deferred",
+            reason="challenge_unavailable_and_daily_reward_unavailable",
+            challenge_status="unavailable",
+            reward_status="unavailable",
+            challenge_participation_proven=False,
+            challenge_attempt_state="unavailable",
+            challenge_transport_calls=0,
+            dispatch_transport_calls=0,
+            reward_claim_transport_calls=0,
+            dispatch_action=None,
+            reward_action=None,
+            hall_of_war_dispatch_count=0,
+            committed_action_count=0,
+            identical_retry_denied=False,
+        )
+    elif mode == "reward_unavailable":
+        result.update(
+            status="deferred",
+            reason="daily_reward_not_available_after_confirmed_challenge",
+            reward_status="unavailable",
+            reward_claim_transport_calls=0,
+            reward_action=None,
+            hall_of_war_dispatch_count=1,
+            committed_action_count=1,
+            identical_retry_denied=False,
+        )
+    elif mode == "manual_prior_use":
+        result.update(
+            status="blocked",
+            reason="prior_same_reset_use_has_no_canonical_dispatch_record",
+            challenge_status="deferred_unexplained_prior_same_reset_use",
+            challenge_participation_proven=True,
+            challenge_transport_calls=0,
+            dispatch_transport_calls=0,
+            reward_status="already_claimed",
+            reward_claim_transport_calls=0,
+            dispatch_action=None,
+            reward_action=None,
+            hall_of_war_dispatch_count=0,
+            committed_action_count=0,
+            challenge_attempt_state="unavailable",
+            identical_retry_denied=False,
+        )
+    elif mode == "already_reconciled":
+        result.update(
+            challenge_status="confirmed_prior_canonical_action",
+            challenge_transport_calls=0,
+            dispatch_transport_calls=0,
+            reward_status="already_claimed",
+            reward_claim_transport_calls=0,
+            dispatch_action=None,
+            reward_action=None,
+            hall_of_war_dispatch_count=0,
+            committed_action_count=0,
+        )
+    if result["status"] == "complete_for_reset" and result["dispatch_action"] is not None:
+        result["dispatch_action"]["action_key"] = "hall-of-war:dispatch:current-reset"
+    return result
+
+
+def _hall_of_war_result_builder(identity, stop, input_count, *, explicit_partial, interrupted, owner):
+    mode = "unresolved_dispatch" if explicit_partial else "blocked" if interrupted else owner.hall_mode
+    return _hall_of_war_native_result(identity, stop, input_count, mode=mode)
+
+
+def _training_current_maximum(identity, troop_type: str) -> int:
+    digest = hashlib.sha256(f"{identity.reset_id}\0{troop_type}".encode("utf-8")).digest()
+    return 601 + int.from_bytes(digest[:2], "big") % 300
+
+
+def _training_variant_row(identity, stop, troop_type: str, *, queue_state: str = "active"):
+    profile = default_troop_training_config()
+    config = profile.for_type(troop_type)
+    maximum = _training_current_maximum(identity, troop_type)
+    quantity = maximum if config.quantity_mode == "current_max" else config.quantity
+    assert quantity is not None
+    tier = config.target_tier
+    assert tier is not None
+    action_key = make_training_start_action_key(
+        training_identity_digest(FIXED_RUNTIME_SCOPE, identity.account_id, identity.server_id),
+        identity.reset_id,
+        troop_type,
+        1,
+    )
+    expected_completion = datetime.fromtimestamp(float(stop.now), timezone.utc) + timedelta(seconds=3_600)
+    requirements = {
+        "food": quantity * 12,
+        "wood": quantity * 8,
+        "steel": quantity * 4,
+        "gas": quantity * 2,
+    }
+    before = [
+        asdict(ResourceReading(name, amount + 20_000, amount))
+        for name, amount in requirements.items()
+    ]
+    after = [
+        asdict(ResourceReading(name, amount + 20_000 - amount, amount))
+        for name, amount in requirements.items()
+    ]
+    return {
+        "troop_type": troop_type,
+        "facility_identity": FACILITY_BY_TYPE[troop_type],
+        "selected_tier": tier,
+        "quantity": quantity,
+        "configured_quantity": config.quantity,
+        "quantity_mode": config.quantity_mode,
+        "quantity_maximum": maximum,
+        "maximum_equality_proven": (
+            config.quantity_mode != "current_max" or quantity == maximum
+        ),
+        "queue_label": f"{troop_type.title()} T{tier}",
+        "queue_troop_type": troop_type,
+        "queue_tier": tier,
+        "queue_quantity": quantity,
+        "duration_source": "queue_band",
+        "queue_spatially_associated": True,
+        "resources_before": before,
+        "resources_after": after,
+        "reset_identity": identity.reset_id,
+        "action_key": action_key,
+        "queue_generation": 1,
+        "source_frame_hash": "d" * 64,
+        "immediate_before_frame_hash": "d" * 64,
+        "immediate_post_frame_hash": "e" * 64,
+        "displayed_training_duration_seconds": 3_600,
+        "dispatch_timestamp": datetime.fromtimestamp(float(stop.now), timezone.utc).isoformat(),
+        "expected_completion_timestamp": expected_completion.isoformat(),
+        "queue_state": queue_state,
+        "training_policy": config.training_policy,
+        "next_eligible_timestamp": (
+            None if config.training_policy == "continuous"
+            else (
+                datetime.fromtimestamp(float(stop.now), timezone.utc)
+                .replace(hour=0, minute=0, second=0, microsecond=0)
+                + timedelta(days=1)
+            ).isoformat()
+        ),
+    }
+
+
+def _training_resolved_config(identity, *, started: set[str]):
+    profile = default_troop_training_config()
+    resolved = profile.resolved_profile()
+    for troop_type in TROOP_TYPES:
+        config = profile.for_type(troop_type)
+        maximum = _training_current_maximum(identity, troop_type)
+        resolved[troop_type].update(
+            resolved_quantity=maximum if config.quantity_mode == "current_max" else config.quantity,
+            daily_initiation_state=(
+                "initiated" if config.training_policy == "once_daily" and troop_type in started
+                else "not_started"
+            ),
+            queue_state="active" if troop_type in started else "empty",
+            queue_generation=1 if troop_type in started else 0,
+            per_reset_variant_start_count=1 if troop_type in started else 0,
+            per_reset_variant_claim_count=0,
+            pending_start_action_key=(
+                make_training_start_action_key(
+                    training_identity_digest(FIXED_RUNTIME_SCOPE, identity.account_id, identity.server_id),
+                    identity.reset_id, troop_type, 1,
+                ) if troop_type in started else None
+            ),
+            next_start_action_key=None if troop_type in started else make_training_start_action_key(
+                training_identity_digest(FIXED_RUNTIME_SCOPE, identity.account_id, identity.server_id),
+                identity.reset_id, troop_type, 1,
+            ),
+        )
+    return resolved
+
+
+def _troop_training_native_result(identity, stop, input_count: int, *, mode: str):
+    started_types = (
+        set(TROOP_TYPES) if mode in {"completed", "occupied"}
+        else {"fighter"} if mode == "unresolved"
+        else set()
+    )
+    training_rows = [
+        _training_variant_row(identity, stop, troop_type)
+        for troop_type in TROOP_TYPES if troop_type in started_types
+    ]
+    reset_deadline = (int(float(stop.now) // 86_400) + 1) * 86_400
+    result = {
+        "flow_id": TROOP_TRAINING_FLOW_ID,
+        "task_id": TROOP_TRAINING_PRODUCT_ID,
+        "native_task_id": TROOP_TRAINING_FLOW_ID,
+        "product_id": TROOP_TRAINING_PRODUCT_ID,
+        "product_revision": TROOP_TRAINING_PRODUCT_REVISION,
+        "runtime_profile_id": TROOP_TRAINING_PROFILE_ID,
+        "status": "completed",
+        "reason": "all configured training variants reconciled at canonical Home",
+        "actions_completed": input_count,
+        "completed_claims": [],
+        "warehouse_approvals": [],
+        "resource_box_approvals": [],
+        "training": training_rows,
+        "final_home_recognized": mode != "unresolved",
+        "entry_navigation": {"canonical_home_entry_verified": True, "terminal_home_verified": mode != "unresolved"},
+        "session": "service-route-contract/troop-training",
+        "resolved_config": _training_resolved_config(identity, started=started_types),
+        "training_dispatch_count": 4 if mode == "completed" else 0,
+        "training_start_transport_calls": 4 if mode == "completed" else 0,
+        "claim_dispatch_count": 0,
+        "resource_box_dispatch_count": 0,
+        "warehouse_dispatch_count": 0,
+        "committed_action_count": 4 if mode == "completed" else 0,
+        "effect_reconciliation_required": False,
+        "identical_retry_denied": False,
+        "terminal_home_verified": mode != "unresolved",
+        "saved_training_preset_verified": True,
+        "remaining_eligible_variants": [],
+        "accounting_verified": True,
+        "total_input_count": input_count,
+        "input_count": input_count,
+        "native_execution_verified": True,
+        "next_due_utc": float(stop.now) + 3_600,
+    }
+    if mode == "unresolved":
+        result.update(
+            status="unresolved",
+            reason="training start successor unknown after a confirmed resource-effect prefix",
+            training=training_rows[:1],
+            training_dispatch_count=2,
+            training_start_transport_calls=2,
+            committed_action_count=1,
+            effect_reconciliation_required=True,
+            identical_retry_denied=True,
+            terminal_home_verified=False,
+            final_home_recognized=False,
+            saved_training_preset_verified=True,
+            remaining_eligible_variants=list(TROOP_TYPES[1:]),
+            next_due_utc=None,
+        )
+    elif mode == "resource_shortage":
+        result.update(
+            status="deferred",
+            reason="fighter exact base-resource shortage; no box/warehouse continuation authorized",
+            training=[{
+                "troop_type": "fighter",
+                "queue_state": "empty",
+                "status": "deferred_resource_shortage",
+                "reason": "exact base resources insufficient; resource-box/warehouse continuation is not authorized",
+            }],
+            resolved_config=_training_resolved_config(identity, started=set()),
+            next_due_utc=float(stop.now) + 300,
+        )
+    elif mode == "box_deferred":
+        result.update(
+            status="deferred",
+            reason="exact resource-box identity/effect proof unavailable; continuation deferred",
+            training=[{
+                "troop_type": "fighter",
+                "queue_state": "empty",
+                "status": "deferred_resource_shortage",
+                "reason": "resource-box continuation lacks exact inventory/effect authority",
+            }],
+            resolved_config=_training_resolved_config(identity, started=set()),
+            next_due_utc=float(stop.now) + 300,
+        )
+    elif mode == "unavailable":
+        result.update(
+            status="deferred",
+            reason="no eligible training queue action is currently available",
+            training=[],
+            resolved_config=_training_resolved_config(identity, started=set()),
+            next_due_utc=float(reset_deadline),
+        )
+    elif mode == "occupied":
+        result.update(
+            status="deferred",
+            reason="active queues are positively recognized; no duplicate start is dispatched",
+            training_dispatch_count=0,
+            training_start_transport_calls=0,
+            committed_action_count=0,
+            next_due_utc=float(stop.now) + 1_800,
+        )
+    return result
+
+
+def _troop_training_result_builder(identity, stop, input_count, *, explicit_partial, interrupted, owner):
+    if explicit_partial:
+        mode = "unresolved"
+    elif interrupted:
+        mode = "unavailable"
+    elif identity.reset_id in owner.completed_resets:
+        mode = "occupied"
+    else:
+        mode = owner.training_mode
+    result = _troop_training_native_result(identity, stop, input_count, mode=mode)
+    if mode == "completed":
+        owner.completed_resets.add(identity.reset_id)
+    return result
+
+
+class GuardedHallOfWarRunner(_GuardedEAdapterRunner):
+    def __init__(self, stop, output_directory):
+        super().__init__(
+            stop, output_directory, HALL_OF_WAR_ADAPTER_FLOW_ID, 18, 12,
+            HALL_OF_WAR_ADAPTER_MAX_INPUTS, _hall_of_war_result_builder,
+            lambda native: HallOfWarRunner(
+                native=native, output_directory=output_directory,
+                serial=BLUESTACKS_SERIAL, utc_clock=lambda: stop.now,
+            ),
+        )
+        self.hall_mode = "completed"
+
+
+class GuardedTroopTrainingRunner(_GuardedEAdapterRunner):
+    def __init__(self, stop, output_directory):
+        def adapter(native):
+            native.product_id = TROOP_TRAINING_ADAPTER_PRODUCT_ID
+            native.product_revision = TROOP_TRAINING_ADAPTER_PRODUCT_REVISION
+            native.runtime_profile_id = TROOP_TRAINING_ADAPTER_PROFILE_ID
+            native.max_inputs = TROOP_TRAINING_ADAPTER_MAX_INPUTS
+            native.max_actions = TROOP_TRAINING_MAX_ACTIONS
+            return TroopTrainingRunner(
+                native=native, output_directory=output_directory,
+                utc_clock=lambda: stop.now,
+            )
+
+        super().__init__(
+            stop, output_directory, TROOP_TRAINING_ADAPTER_FLOW_ID, 28, 18,
+            TROOP_TRAINING_ADAPTER_MAX_INPUTS, _troop_training_result_builder, adapter,
+        )
+        self.training_mode = "completed"
+        self.completed_resets = set()

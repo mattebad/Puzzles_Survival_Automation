@@ -356,8 +356,8 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r18",
-    "product_authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r19",
+    "product_authority_digest": "a343f9f592ad18fa367b2d3e82be179866677fd3278cdc0cb4e31f54fae79057",
     "product_record_id": "hero_duel",
     "product_record_revision": "hero_duel-v2",
     "product_record_digest": "6eef740d0ef6f726966573dd2886404a8a3c08d68c5ecac31833c3e32262e63c",

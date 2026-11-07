@@ -266,6 +266,10 @@
     {
       "policy_id": "daily-reset-static-utc-midnight",
       "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "commander-talent-preset-helper",
+      "source": "tasks/flow_delivery_product_policy.json"
     }
   ],
   "implementation_status": "reference_implemented",
@@ -286,11 +290,11 @@
   "recovery_behavior": "observe-only or safe canonical Home return; never retry unresolved Train",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r18",
-    "product_authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r19",
+    "product_authority_digest": "a343f9f592ad18fa367b2d3e82be179866677fd3278cdc0cb4e31f54fae79057",
     "product_record_id": "troop_training",
-    "product_record_revision": "troop_training-v2",
-    "product_record_digest": "5cc24fffa0a7d3bf14a7f25bb19964a9475c204f6fa19e38b6aad3899cdd8fce",
+    "product_record_revision": "troop_training-v3",
+    "product_record_digest": "9dc451e87f326f08c23ca0c07214341e89a58d3bb4883bb759a0517e8e840cc2",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

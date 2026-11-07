@@ -14,7 +14,7 @@ focused tests as its behavior changes.
 | Family, variant, cadence, reset scope, priority, recurrence | `CANONICAL_FLOW_REGISTRY` entry | every handler and adapter `describe()` returns `canonical_entry(flow_id).descriptor`; the test compares them |
 | `serve --flow` name | `cli_name` on the registry entry | `serve --flow` choices, `AutomationService.serve` allowed set, runner lookup (`<cli_name>_runner`), reason-code prefix; README table and example are checked |
 | Product id, product revision, handler id, profile, mode | `_FIXED_BINDINGS` in `registry.py` | descriptor, adapter `PRODUCT_ID`/`PRODUCT_REVISION`, scheduler admission facts |
-| Total input budget of one run | `max_inputs` on the registry entry, spelled once as `<ROUTE>_MAX_INPUTS` | adapter and native budget copies import it; `pnsctl._DEFAULT_MAX_INPUTS` covers only retained operator routes. Development-only Troop Training and Campaign Atlas budgets remain in their `flow_delivery_*` modules. |
+| Total input budget of one run | `max_inputs` on the registry entry, spelled once as `<ROUTE>_MAX_INPUTS` | adapter and native budget copies import it; `pnsctl._DEFAULT_MAX_INPUTS` covers only retained operator routes. Canonical Troop Training now owns its budget in the service registry; only the separate Campaign Atlas development flow keeps its budget in a `flow_delivery_*` module. |
 | Operator runner / validator / recovery ids, when present | `tasks/flow_delivery_bluestacks_registry.json` | `pnsctl.BLUESTACKS_FLOW_IDS` equals this registry's flow set. Canonical-service-only routes have an explicit checked `NO_OPERATOR_RUNNER` reason instead. |
 | Gameplay semantics (states, transitions, permitted inputs, evidence gates) | `tasks/gameplay_flow_contracts/<FLOW_ID>.json` | schema-validated; the optional `product_authority_binding` is validated against the product policy |
 | Product record (purpose, recurrence, forbidden actions) | `tasks/flow_delivery_product_policy.json` `product_records` | contract bindings check `record_revision` and digest |
@@ -127,9 +127,9 @@ Existing layout exceptions:
 * **Ultimate, Campaign AP, Enhancement**: adapters import their native runner (`bluestacks_ultimate_challenge`,
   `bluestacks_campaign_ap`, `flow_delivery_enhancement_bluestacks`) rather than a `<route>_route` module.
 * **World navigation**: registered selection stub only (no adapter, no `cli_name`).
-* **Development-only flows** (Troop Training and Campaign Atlas):
-  retained operator wrappers and contracts, no service adapter or code-registry entry; their budgets
-  live in their `flow_delivery_*` modules.
+* **Development-only Campaign Atlas**: its separate retained wrapper and contract have no service
+  adapter or code-registry entry; its budget remains in its `flow_delivery_*` module. Troop Training
+  is no longer in this exception after the Batch F canonical service cutover.
 * **Batch A Daily Rewards and Resource Item**: canonical service routes with fixed native bindings;
   their former development wrappers/operator rows are retired and must not be reintroduced as a
   second dispatch path. Both remain runtime-disabled and `evidence_required`. The supplied Nov 6
@@ -169,12 +169,12 @@ Existing layout exceptions:
   runtime-disabled with live acceptance `evidence_required`; no live acceptance is claimed.
 
 * **Batch E Hero Duel, Recommended Research, and Food Farm Boost**: canonical-service-only routes
-  with fixed native bindings and no operator rows; preserve the existing twelve legacy operator
-  choices until Batch F. Product approval does not enable production registration or runtime
-  controls: each route remains disabled and `evidence_required`. Offline route contracts and native
-  scenarios model durable attempts separately from confirmed resource effects, restart/partial/
-  unknown outcomes, and no identical retry after unresolved effects. Hero Duel requires three
-  reset-scoped free entry/Flee cycles, a saved and verified first-five defense lineup, and all-five
+  with fixed native bindings and no operator rows. E retained the twelve existing legacy operator
+  choices; Batch F later retires Training's choice, leaving eleven. Product approval does not enable
+  production registration or runtime controls: each route remains disabled and `evidence_required`.
+  Offline route contracts and native scenarios model durable attempts separately from confirmed
+  resource effects, restart/partial/unknown outcomes, and no identical retry after unresolved effects.
+  Hero Duel requires three reset-scoped free entry/Flee cycles, a saved and verified first-five defense lineup, and all-five
   eligible attack lineup with battle/Exit/Flee/result evidence; a win is not
   required. Research considers only the first displayed ordinary-queue recommendation when idle and
   affordable; it freshly binds the mapped Home Atlas Research dome. If HUD obscures the target, safely
@@ -187,6 +187,26 @@ Existing layout exceptions:
   one free loss cycle and five eligible defense heroes observed; Research had no start/timer proof;
   Food Farm had one owned-item boost with a positive timer and incidental multi-building collection,
   while total inventory and the premium branch remain unproven. These are not route-level acceptance.
+
+* **Batch F Hall of War and Troop Training**: canonical-service-only routes with fixed
+  bindings; no compatibility runner, validator, operator-registry row, or second input-budget owner
+  is retained for Training. The supported manual-only `pnsctl bluestacks recover-home` remains
+  distinct. The Commander preset helper is shared, not a standalone flow: every use requires fresh
+  exact `Applied` recognition; cached readiness is not proof, and no redundant switch occurs when
+  the required preset is already Applied. Both routes are product-approved but remain unregistered
+  for production, scheduler-disabled, and runtime-disabled with live acceptance `evidence_required`.
+  Hall requires current reset/preset/lineup evidence, one Zombie Zero dispatch and reconciled result,
+  then one separate glowing Daily Reward row claim; no win threshold applies. The manual #96
+  dispatch/result/row-claim investigation is raw evidence, not canonical route acceptance, and
+  unexplained same-reset manual use must defer without retry. Training preserves Fighter T8 and
+  Vehicle T1 at the current displayed numeric maximum with continuous policy, Shooter T8 and Rider
+  T1 at 250 once per reset, exact resource before/after reconciliation, recognized queue state and
+  positive timer. The maximum is dynamic, never a pinned historical quantity. Fighter/Vehicle box
+  continuations require exact current inventory and effect authority; absent proof they remain
+  `evidence_required`, with no box dispatch, expected-warehouse assumption, or blind Train.
+  Shooter/Rider never open boxes. No Train Now, premium, speedup, Daily/D02/points prerequisite, or
+  separate Commander route. Historical legacy Training evidence does not establish canonical
+  live acceptance.
 
 * **Campaign budgets**: the service route budget (`CAMPAIGN_MAX_INPUTS`, a whole AP drain) is a different
   fact from the single-battle development-session ceiling in `pnsctl`; the test lists the difference.

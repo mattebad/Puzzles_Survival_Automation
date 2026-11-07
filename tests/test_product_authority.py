@@ -96,6 +96,7 @@ class ProductAuthorityTests(unittest.TestCase):
                 "hero_duel",
                 "recommended_research",
                 "food_farm_output_boost",
+                "hall_of_war_zombie_zero",
                 "nanoweapon_normal_craft",
                 "nano_material_production",
                 "vip_points_popup_dismissal",
@@ -182,6 +183,7 @@ class ProductAuthorityTests(unittest.TestCase):
             "hero_duel",
             "recommended_research",
             "food_farm_output_boost",
+            "hall_of_war_zombie_zero",
             "nanoweapon_normal_craft",
             "nano_material_production",
             "world_map_navigation",
@@ -679,10 +681,6 @@ class ProductAuthorityTests(unittest.TestCase):
         )
         self.assertTrue(target["diamond_price_cap_not_assumed_current_price"])
         effect = record["semantic_effect"]
-        self.assertTrue(effect["diamond_price_cap_not_assumed_current_price"])
-        self.assertTrue(effect["exact_current_numeric_price_and_balance_required"])
-        self.assertTrue(effect["current_price_must_not_exceed_authorized_cap"])
-        self.assertTrue(effect["current_price_rechecked_if_confirmation_appears"])
         self.assertTrue(effect["collection_balances_must_be_reconciled_before_boost"])
         self.assertTrue(
             effect["collection_exact_balance_delta_for_each_resource_required"]
@@ -693,6 +691,7 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertTrue(effect["collection_is_not_boost_success"])
         self.assertTrue(effect["same_farm_active_boost_successor_required"])
         self.assertFalse(effect["global_food_output_boost_item_allowed"])
+        self.assertTrue(effect["current_price_must_not_exceed_authorized_cap"])
         forbidden = json.dumps(record["forbidden_actions"]).casefold()
         for marker in (
             "buy box",
@@ -723,6 +722,9 @@ class ProductAuthorityTests(unittest.TestCase):
             lambda invalid: invalid["target"]["diamond_fallback_offer"].__setitem__(
                 "current_numeric_price_must_not_exceed_authorized_cap", False
             ),
+            lambda invalid: invalid["target"].__setitem__(
+                "diamond_price_cap_not_assumed_current_price", False
+            ),
         ):
             invalid = deepcopy(record)
             mutate(invalid)
@@ -730,11 +732,14 @@ class ProductAuthorityTests(unittest.TestCase):
             with self.assertRaises(ProductAuthorityError):
                 validate_product_record(invalid)
 
-    def test_e_product_policy_statuses_are_enforced_and_non_authorizing(self) -> None:
+    def test_e_and_f_product_policy_statuses_are_enforced_and_non_authorizing(self) -> None:
         for policy_id in (
             "hero-duel-policy",
             "recommended-research-policy",
             "food-farm-output-boost-policy",
+            "commander-talent-preset-helper",
+            "hall-of-war-zombie-zero-policy",
+            "troop-training-resource-policy",
         ):
             with self.subTest(policy_id=policy_id):
                 changed = deepcopy(self.authority)
@@ -757,6 +762,118 @@ class ProductAuthorityTests(unittest.TestCase):
         changed["authority_digest"] = authority_digest(changed)
         with self.assertRaises(ProductAuthorityError):
             validate_product_authority(changed)
+
+    def test_f_policy_guards_saved_preset_costs_hall_quota_and_box_scope(self) -> None:
+        mutations = (
+            (
+                "commander-talent-preset-helper",
+                lambda policy: policy.__setitem__(
+                    "switch_cost_allowance", "observed_zero_or_paid"
+                ),
+            ),
+            (
+                "commander-talent-preset-helper",
+                lambda policy: policy.__setitem__("route_approval_required", False),
+            ),
+            (
+                "hall-of-war-zombie-zero-policy",
+                lambda policy: policy.__setitem__("maximum_dispatches_per_reset", 2),
+            ),
+            (
+                "troop-training-resource-policy",
+                lambda policy: policy["resource_box_continuation"].__setitem__(
+                    "allowed_types", ["fighter", "vehicle", "shooter"]
+                ),
+            ),
+        )
+        for policy_id, mutate in mutations:
+            with self.subTest(policy_id=policy_id):
+                changed = deepcopy(self.authority)
+                policy = next(
+                    item
+                    for item in changed["policies"]
+                    if item["policy_id"] == policy_id
+                )
+                mutate(policy)
+                changed["authority_digest"] = authority_digest(changed)
+                with self.assertRaises(ProductAuthorityError):
+                    validate_product_authority(changed)
+
+
+    def test_hall_of_war_zombie_zero_record_is_one_current_free_attempt_and_separate_reward(self) -> None:
+        record = self.records["hall_of_war_zombie_zero"]
+        policy = next(
+            item
+            for item in self.authority["policies"]
+            if item["policy_id"] == "hall-of-war-zombie-zero-policy"
+        )
+        self.assertEqual(policy["status"], "explicitly_approved")
+        self.assertEqual(policy["maximum_dispatches_per_reset"], 1)
+        self.assertEqual(
+            policy["dispatch_cost_allowance"], "current_explicit_zero_only"
+        )
+        self.assertFalse(policy["premium_or_refill_allowed"])
+        self.assertTrue(policy["current_troop_loss_effect_must_be_known_and_approved"])
+        self.assertEqual(record["record_revision"], "hall_of_war_zombie_zero-v1")
+        self.assertEqual(
+            record["semantic_entry_route"]["route"], ["HALL_OF_WAR", "ZOMBIE_ZERO"]
+        )
+        target = record["target"]
+        self.assertEqual(target["maximum_dispatches_per_reset"], 1)
+        self.assertTrue(target["attempt_state_must_be_current"])
+        self.assertTrue(target["attempt_availability_or_cooldown_is_not_hardcoded"])
+        self.assertTrue(target["dispatch_requires_current_explicit_zero_cost"])
+        self.assertEqual(target["commander_talent_requirement"]["required_preset"], "Military")
+        self.assertTrue(
+            target["commander_talent_requirement"]["route_approval_required"]
+        )
+        self.assertEqual(target["saved_troop_set_identity"], "Troop Set 1")
+        self.assertTrue(target["saved_troop_set_must_be_selected_and_applied"])
+        self.assertTrue(target["five_heroes_must_be_populated"])
+        self.assertTrue(target["current_troops_must_equal_current_capacity"])
+        self.assertFalse(target["quick_select_allowed"])
+        self.assertFalse(target["formation_edit_allowed"])
+        self.assertIsNone(target["minimum_damage_threshold"])
+        self.assertTrue(target["reward_claim_requires_current_glowing_ready_row"])
+        self.assertTrue(target["reward_claim_is_one_daily_row_tap"])
+        self.assertTrue(target["claimed_reward_successor_requires_current_row_checkmarks"])
+        cost = record["quantity_cost"]["cost"]
+        self.assertEqual(cost["kind"], "current_explicit_zero_only")
+        self.assertEqual(cost["amount"], 0)
+        self.assertTrue(cost["free_only"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["history_high_result_successor_required"])
+        self.assertTrue(effect["reward_claim_requires_same_reset_positive_participation"])
+        self.assertTrue(effect["one_row_tap_and_current_claimed_checkmark_successor_required"])
+        self.assertFalse(effect["daily_inspection_required"])
+        self.assertFalse(effect["d02_prerequisite"])
+        self.assertFalse(effect["points_attribution_required"])
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+        for mutate in (
+            lambda invalid: invalid["target"].__setitem__(
+                "maximum_dispatches_per_reset", 2
+            ),
+            lambda invalid: invalid["target"].__setitem__(
+                "saved_troop_set_identity", "Troop Set 2"
+            ),
+            lambda invalid: invalid["target"].__setitem__(
+                "loss_free_behavior_assumed", True
+            ),
+            lambda invalid: invalid["target"].__setitem__(
+                "minimum_damage_threshold", 1
+            ),
+            lambda invalid: invalid["quantity_cost"]["cost"].__setitem__(
+                "kind", "unknown_cost"
+            ),
+            lambda invalid: invalid["semantic_effect"].__setitem__(
+                "one_row_tap_and_current_claimed_checkmark_successor_required", False
+            ),
+        ):
+            invalid = deepcopy(record)
+            mutate(invalid)
+            invalid["record_digest"] = record_digest(invalid)
+            with self.assertRaises(ProductAuthorityError):
+                validate_product_record(invalid)
 
     def test_ruins_shop_candidate_is_unresolved_and_non_dispatching(self) -> None:
         record = self.records["ruins_shop_purchase"]
@@ -965,6 +1082,7 @@ class ProductAuthorityTests(unittest.TestCase):
         record = self.records["gathering_resources"]
         self.assertEqual(record["record_type"], "gathering_resources")
         self.assertEqual(record["recurrence"], "pulse_march_slot_timer")
+        self.assertEqual(record["record_revision"], "gathering_resources-v3")
         self.assertEqual(record["semantic_entry_route"]["source_home_authorities"], ["HOME_READY"])
         self.assertEqual(
             record["semantic_entry_route"]["route"],
@@ -978,9 +1096,11 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertEqual(target["formation"], "default")
         self.assertFalse(target["source_daily_row_required"])
         self.assertEqual(target["food_authority"], "forbidden")
+        self.assertNotIn("commander_talent_requirement", target)
         self.assertEqual(record["quantity_cost"]["quantity"], 1)
         self.assertTrue(record["quantity_cost"]["cost"]["free_only"])
         effect = record["semantic_effect"]
+        self.assertNotIn("commander_talent_preset_verified_before_dispatch", effect)
         self.assertTrue(effect["free_march_slot_required"])
         self.assertTrue(effect["default_formation_required"])
         self.assertTrue(effect["outbound_timer_successor_required"])
@@ -1071,6 +1191,7 @@ class ProductAuthorityTests(unittest.TestCase):
     def test_troop_training_record_preserves_four_type_queue_and_daily_policy(self) -> None:
         record = self.records["troop_training"]
         self.assertEqual(record["record_type"], "troop_training")
+        self.assertEqual(record["record_revision"], "troop_training-v3")
         self.assertEqual(record["semantic_entry_route"]["target"], "TRAINING_FACILITIES")
         variants = record["target"]["per_type_contract"]
         self.assertEqual(variants["fighter"]["target_tier"], 8)
@@ -1085,6 +1206,33 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertEqual(variants["rider"]["quantity"], 250)
         self.assertEqual(variants["rider"]["training_policy"], "once_daily")
         self.assertFalse(variants["rider"]["allow_resource_boxes"])
+        self.assertEqual(
+            record["target"]["current_max_quantity_source"],
+            "fresh_current_frame_numeric_maximum",
+        )
+        self.assertIsNone(record["target"]["current_max_fixed_fallback"])
+        self.assertEqual(
+            record["target"]["commander_talent_requirement"]["required_preset"],
+            "Training",
+        )
+        self.assertTrue(
+            record["target"]["commander_talent_requirement"]["route_approval_required"]
+        )
+
+        invalid_maximum = deepcopy(record)
+        invalid_maximum["target"]["current_max_fixed_fallback"] = 1000
+        invalid_maximum["record_digest"] = record_digest(invalid_maximum)
+        with self.assertRaises(ProductAuthorityError):
+            validate_product_record(invalid_maximum)
+        invalid_boxes = deepcopy(record)
+        invalid_boxes["target"]["resource_box_continuation"]["allowed_types"] = [
+            "fighter",
+            "vehicle",
+            "shooter",
+        ]
+        invalid_boxes["record_digest"] = record_digest(invalid_boxes)
+        with self.assertRaises(ProductAuthorityError):
+            validate_product_record(invalid_boxes)
         self.assertTrue(record["semantic_effect"]["active_queue_successor_required"])
         self.assertTrue(record["semantic_effect"]["positive_timer_spatial_association_required"])
         self.assertTrue(record["semantic_effect"]["once_daily_reset_identity_bound"])
@@ -1817,6 +1965,33 @@ class ProductAuthorityTests(unittest.TestCase):
         }
         self.assertEqual(bound, set(self.records))
 
+
+    def test_research_farm_and_hall_routes_reject_typed_record_substitution(self) -> None:
+        for flow_id, wrong_record_id in (
+            (
+                "RECOMMENDED-RESEARCH-BLUESTACKS-INTEGRATION",
+                "food_farm_output_boost",
+            ),
+            (
+                "FOOD-FARM-OUTPUT-BOOST-DAILY-BLUESTACKS-INTEGRATION",
+                "recommended_research",
+            ),
+            (
+                "HALL-OF-WAR-ZOMBIE-ZERO-BLUESTACKS-INTEGRATION",
+                "hero_duel",
+            ),
+        ):
+            contract = deepcopy(self.contracts[flow_id])
+            wrong_record = self.records[wrong_record_id]
+            binding = contract["product_authority_binding"]
+            binding["product_record_id"] = wrong_record_id
+            binding["product_record_revision"] = wrong_record["record_revision"]
+            binding["product_record_digest"] = wrong_record["record_digest"]
+            with self.subTest(flow_id=flow_id), self.assertRaises(ProductAuthorityError):
+                validate_contract_product_authority_bindings(
+                    self.authority,
+                    {flow_id: contract},
+                )
     def test_ruins_and_alliance_help_contracts_bind_their_exact_typed_records(self) -> None:
         for flow_id, record_id, revision in (
             (

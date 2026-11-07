@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from pathlib import Path
+from typing import Iterable, Mapping
 
 from .troop_training import (
     TROOP_TYPES,
@@ -26,6 +26,7 @@ class TrainingPhase(str, Enum):
     TRAINING_ACTIVE = "training_active"
     CLAIM_READY = "claim_ready"
     COMPLETE = "complete"
+    DEFERRED = "deferred"
     BLOCKED = "blocked"
     UNRESOLVED = "unresolved"
 
@@ -42,8 +43,22 @@ class TrainingDecision:
 class TroopTrainingRuntimeController:
     """State machine that never supplies transport or chooses a fallback tier."""
 
-    def __init__(self, config: TroopTrainingConfig, *, reset_identity: str, persistence_path: Path | None = None):
-        self.semantic = TrainingController(config, reset_identity=reset_identity, persistence_path=persistence_path)
+    def __init__(
+        self,
+        config: TroopTrainingConfig,
+        *,
+        reset_identity: str,
+        prior_daily_initiations: Iterable[str] = (),
+        queue_generations: Mapping[str, int] | None = None,
+        pending_start_action_keys: Mapping[str, str] | None = None,
+    ) -> None:
+        self.semantic = TrainingController(
+            config,
+            reset_identity=reset_identity,
+            prior_daily_initiations=prior_daily_initiations,
+            queue_generations=queue_generations,
+            pending_start_action_keys=pending_start_action_keys,
+        )
         self.phase = TrainingPhase.HOME
         self.unresolved_action: str | None = None
 
@@ -91,9 +106,16 @@ class TroopTrainingRuntimeController:
             self.phase = TrainingPhase.BLOCKED
             return TrainingDecision(self.phase, "stop", quantity_plan, troop_type)
         start_plan = self.semantic.plan_training(observation, troop_type)
-        if start_plan in {"authorize_normal_train", "authorize_normal_train_expected_warehouse"}:
+        if start_plan == "authorize_normal_train":
             self.phase = TrainingPhase.READY_TO_TRAIN
             return TrainingDecision(self.phase, "start_training", "normal timed Train is authorized", troop_type)
+        if start_plan in {
+            "defer_resource_shortage_effect_authority_unavailable",
+            "defer_warehouse_confirmation_authority_unavailable",
+            "defer_resource_shortage_resource_boxes_disabled",
+        }:
+            self.phase = TrainingPhase.DEFERRED
+            return TrainingDecision(self.phase, "defer", start_plan, troop_type)
         self.phase = TrainingPhase.BLOCKED
         return TrainingDecision(self.phase, "stop", start_plan, troop_type)
 

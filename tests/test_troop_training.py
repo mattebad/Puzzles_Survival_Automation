@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-import argparse
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -14,9 +13,13 @@ import cv2
 import numpy as np
 
 from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
-from scripts.troop_training_bluestacks import TroopTrainingIntegratedRoute, _load_config
+from scripts.troop_training_bluestacks import (
+    TroopTrainingIntegratedRoute,
+    TroopTrainingReturnHomeResult,
+    TroopTrainingReturnHomeRoute,
+    run_troop_training_home_recovery,
+)
 from tasks.troop_training import (
-    DAILY_TRAINING_QUANTITY,
     FACILITY_BY_TYPE,
     TROOP_TYPES,
     ResourceReading,
@@ -27,16 +30,15 @@ from tasks.troop_training import (
     TrainingScreenObservation,
     TroopTrainingConfig,
     all_base_resources_sufficient,
-    daily_progress_from_text,
-    expected_completion_timestamp,
+    default_troop_training_config,
     parse_duration_seconds,
     parse_quantity,
+    expected_completion_timestamp,
 )
 from tasks.troop_training_runtime import TrainingPhase, TroopTrainingRuntimeController
 from tasks.troop_training_vision import (
     QUEUE_BAND,
     QUEUE_TIMER_BAND,
-    TAB_ROIS,
     QUANTITY_BAND,
     recognize_auto_use_resource_popup,
     recognize_radial_menu,
@@ -44,6 +46,12 @@ from tasks.troop_training_vision import (
 )
 from tests.support.local_captures import LOCAL_CAPTURES, require_capture, requires_local_captures
 from tests.ocr_memo import install_module_memo
+
+
+@dataclass(frozen=True)
+class _TerminalLocalization:
+    recognized: bool
+    zoom_identity: object
 
 
 def setUpModule():
@@ -142,8 +150,6 @@ class RecordingRunner:
 class TroopTrainingContractTests(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        for troop_type in TROOP_TYPES:
-            TrainingController._daily_initiations.discard((RESET, troop_type))
 
     def test_radial_train_is_bound_inside_tight_facility_relative_sector(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
@@ -217,32 +223,7 @@ class TroopTrainingContractTests(unittest.TestCase):
         self.assertEqual(controller.plan_training(observation(queue_active=True), "fighter"), "reject_active_queue")
         self.assertEqual(controller.plan_training(replace(observation(), overlay_state="popup"), "fighter"), "reject_quantity_or_tier")
         unknown = tuple(ResourceReading(name, None, 50) for name in ("food", "wood", "steel", "gas"))
-        self.assertEqual(controller.plan_training(replace(observation(), resources=unknown), "fighter"), "reject_resource_sufficiency")
-
-    def test_current_max_reconciles_exact_active_queue_without_screen_maximum(self):
-        current_max_config = replace(
-            config(policy="continuous", allow_resource_boxes=True),
-            fighter=TrainingConfig(
-                target_tier=8,
-                quantity=None,
-                quantity_mode="current_max",
-                training_policy="continuous",
-                allow_resource_boxes=True,
-            ),
-        )
-        controller = TrainingController(current_max_config, reset_identity=RESET)
-        active = replace(
-            observation("fighter", quantity=1000, queue_active=True, duration=9369),
-            quantity_maximum=None,
-            queue_label="Train T8 x1000",
-            queue_troop_type="fighter",
-            queue_tier=8,
-            queue_quantity=1000,
-        )
-
-        self.assertEqual(controller.reconcile_active_queue(active, "fighter"), "active_queue_reconciled")
-        self.assertEqual(controller.states["fighter"].last_dispatch_state, "reconciled_existing")
-        self.assertEqual(controller.states["fighter"].resolved_quantity, 1000)
+        self.assertEqual(controller.plan_training(replace(observation(), resources=unknown), "fighter"), "reject_unknown_resources")
 
     def test_current_max_reconciliation_rejects_selected_quantity_mismatch(self):
         current_max_config = replace(
@@ -267,6 +248,66 @@ class TroopTrainingContractTests(unittest.TestCase):
 
         self.assertEqual(controller.reconcile_active_queue(active, "fighter"), "reject_active_queue_quantity")
         self.assertEqual(controller.states["fighter"].last_dispatch_state, "none")
+
+    def test_current_max_uses_exact_observed_capacity_above_generic_fixed_limit(self):
+        training_config = default_troop_training_config()
+        controller = TrainingController(
+            training_config,
+            reset_identity=RESET,
+            queue_generations={"fighter": 1},
+            pending_start_action_keys={"fighter": "fighter:batch-1"},
+        )
+        current = replace(observation("fighter", quantity=1400), quantity_maximum=1400)
+
+        self.assertEqual(controller.resolved_quantity(current, "fighter"), 1400)
+        self.assertEqual(controller.plan_quantity(current, "fighter"), "quantity_verified")
+        self.assertEqual(controller.plan_training(current, "fighter"), "authorize_normal_train")
+
+        for invalid_capacity in (None, 0, True, 1400.0):
+            invalid = replace(current, quantity_maximum=invalid_capacity)
+            with self.subTest(quantity_maximum=invalid_capacity):
+                self.assertIsNone(controller.resolved_quantity(invalid, "fighter"))
+                self.assertEqual(controller.plan_quantity(invalid, "fighter"), "reject_numeric_capacity_unresolved")
+
+        mismatched = replace(current, selected_quantity=1399)
+        self.assertEqual(controller.plan_training(mismatched, "fighter"), "reject_quantity_or_tier")
+        active = replace(
+            current,
+            queue_active=True,
+            queue_label="Train T8 x1400",
+            queue_troop_type="fighter",
+            queue_tier=8,
+            queue_quantity=1400,
+        )
+        self.assertEqual(controller.reconcile_active_queue(active, "fighter"), "active_queue_reconciled")
+        self.assertEqual(controller.states["fighter"].resolved_quantity, 1400)
+        self.assertEqual(
+            controller.reconcile_active_queue(replace(active, selected_quantity=1399), "fighter"),
+            "reject_active_queue_quantity",
+        )
+
+        completion = replace(current, completion_ready=True, completion_batch_id="fighter:batch-1")
+        self.assertEqual(controller.plan_claim(completion, action_key="claim-1400"), "authorize_claim")
+        self.assertEqual(
+            controller.plan_claim(
+                replace(completion, selected_quantity=1399),
+                action_key="claim-1400-mismatch",
+            ),
+            "reject_claim_quantity_mismatch",
+        )
+
+        post = replace(
+            active,
+            frame_sha256="b" * 64,
+        )
+        committed = TrainingController(training_config, reset_identity=RESET).commit_training(
+            "fighter",
+            current,
+            action_key="training-1400",
+            dispatched_at=datetime.now(timezone.utc),
+            post=post,
+        )
+        self.assertEqual(committed.resolved_quantity, 1400)
 
     def test_fixed_reconciliation_still_uses_configured_quantity(self):
         controller = TrainingController(config(), reset_identity=RESET)
@@ -316,12 +357,50 @@ class TroopTrainingContractTests(unittest.TestCase):
 
         self.assertEqual(controller.plan_training(empty, "rider"), "reject_quantity_or_tier")
 
-    def test_known_shortage_requires_exact_warehouse_successor_and_forbidden_popup_is_rejected(self):
-        controller = TrainingController(config(), reset_identity=RESET)
+    def test_known_shortage_is_deferred_and_forbidden_popup_is_rejected(self):
+        controller = TrainingController(config(allow_resource_boxes=True), reset_identity=RESET)
         shortage = tuple(ResourceReading(name, 10, 50) for name in ("food", "wood", "steel", "gas"))
-        self.assertEqual(controller.plan_training(replace(observation(), resources=shortage), "fighter"), "authorize_normal_train_expected_warehouse")
+        self.assertEqual(
+            controller.plan_training(replace(observation(), resources=shortage), "fighter"),
+            "defer_resource_shortage_effect_authority_unavailable",
+        )
         forbidden = replace(observation(), premium_popup=True, forbidden_controls=("premium",))
         self.assertEqual(controller.plan_training(forbidden, "fighter"), "reject_forbidden_control")
+
+        warehouse = replace(
+            observation(),
+            resources=shortage,
+            warehouse_popup=True,
+            warehouse_confirm_target=(180, 990, 290, 1025),
+        )
+        self.assertEqual(
+            controller.plan_training(warehouse, "fighter"),
+            "defer_warehouse_confirmation_authority_unavailable",
+        )
+        with self.assertRaisesRegex(TrainingContractError, "preconditions are not authorizeable"):
+            controller.commit_training(
+                "fighter",
+                replace(observation(), resources=shortage),
+                action_key="shortage-start",
+                dispatched_at=datetime.now(timezone.utc),
+                post=observation(queue_active=True),
+            )
+
+
+    def test_resource_shortage_is_deferred_and_cannot_dispatch(self):
+        shortage = tuple(ResourceReading(name, 10, 50) for name in ("food", "wood", "steel", "gas"))
+        controller = TroopTrainingRuntimeController(
+            config(allow_resource_boxes=True),
+            reset_identity=RESET,
+        )
+        decision = controller.observe_training(
+            replace(observation(), resources=shortage),
+            "fighter",
+        )
+        self.assertEqual(decision.phase, TrainingPhase.DEFERRED)
+        self.assertEqual(decision.action, "defer")
+        self.assertEqual(decision.reason, "defer_resource_shortage_effect_authority_unavailable")
+        self.assertEqual(controller.dispatch_started("fighter", "unexpected-start").action, "stop")
 
     def test_auto_use_resource_boxes_are_exactly_recognized_as_non_warehouse(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
@@ -374,25 +453,32 @@ class TroopTrainingContractTests(unittest.TestCase):
             popup = recognize_auto_use_resource_popup(frame)
         disabled = TrainingController(config(allow_resource_boxes=False), reset_identity=RESET)
         enabled = TrainingController(config(allow_resource_boxes=True), reset_identity=RESET)
-        self.assertEqual(disabled.plan_resource_box_continuation(before, popup, "fighter"), "reject_resource_boxes_disabled")
-        self.assertEqual(enabled.plan_resource_box_continuation(before, popup, "fighter"), "authorize_resource_box_confirmation")
+        self.assertEqual(
+            disabled.plan_resource_box_continuation(before, popup, "fighter"),
+            "reject_resource_boxes_disabled",
+        )
+        self.assertEqual(
+            enabled.plan_resource_box_continuation(before, popup, "fighter"),
+            "defer_resource_box_effect_authority_unavailable",
+        )
+        # The recognized popup's projected resource totals are not proof of the
+        # consumed box identity/count or an authorized resource effect.
+        self.assertEqual(tuple(r.held for r in popup.resources_after_use), (98_600, 1_420_000, 697_000, 485_000))
+        wrong_projection = replace(
+            popup,
+            resources_after_use=(
+                replace(popup.resources_after_use[0], required=97_999),
+                *popup.resources_after_use[1:],
+            ),
+        )
+        self.assertEqual(
+            enabled.plan_resource_box_continuation(before, wrong_projection, "fighter"),
+            "reject_resource_box_amount_mismatch",
+        )
         # Resource boxes are structurally restricted to Fighter/Vehicle even when
         # an unsafe legacy override requests them for Shooter/Rider.
         self.assertEqual(enabled.plan_resource_box_continuation(rider_before, popup, "rider"), "reject_resource_boxes_disabled")
-        applied = replace(
-            before,
-            selected_quantity=251,
-            resources=(
-                ResourceReading("food", 98_600, 98_400),
-                ResourceReading("wood", 1_420_000, 30_100),
-                ResourceReading("steel", 697_000, 4_340),
-                ResourceReading("gas", 485_000, 457),
-            ),
-            frame_sha256="b" * 64,
-        )
-        self.assertTrue(enabled.prove_resource_boxes_applied(before, popup, applied, "fighter"))
-        self.assertFalse(enabled.prove_resource_boxes_applied(rider_before, popup, applied, "rider"))
-        self.assertFalse(disabled.prove_resource_boxes_applied(before, popup, applied, "fighter"))
+
         mixed = TroopTrainingConfig(
             fighter=TrainingConfig(target_tier=8),
             shooter=TrainingConfig(target_tier=8),
@@ -401,6 +487,460 @@ class TroopTrainingContractTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(TrainingContractError, "structurally forbidden"):
             mixed.validate()
+
+    def test_native_train_defers_known_shortage_without_opening_box_branch(self):
+        shortage = (
+            ResourceReading("food", 50, 100, "base"),
+            ResourceReading("wood", 1_000, 100, "base"),
+            ResourceReading("steel", 1_000, 100, "base"),
+            ResourceReading("gas", 1_000, 100, "base"),
+        )
+        source_observation = replace(
+            observation("fighter", quantity=1000),
+            resources=shortage,
+        )
+        capture = SimpleNamespace(
+            frame=np.zeros((1280, 800, 3), dtype=np.uint8),
+            sha256="a" * 64,
+        )
+
+        class Runtime:
+            def __init__(self):
+                self.capture_labels = []
+                self.taps = []
+
+            def capture(self, label):
+                self.capture_labels.append(label)
+                return capture
+
+            def tap(self, *args, **kwargs):
+                self.taps.append((args, kwargs))
+                raise AssertionError("known shortage must not dispatch Train or a box confirmation")
+
+        runtime = Runtime()
+        route = TroopTrainingIntegratedRoute.__new__(TroopTrainingIntegratedRoute)
+        route.native_context = SimpleNamespace(runtime=runtime)
+        route.config = default_troop_training_config()
+        route.controller = TroopTrainingRuntimeController(route.config, reset_identity=RESET)
+        recognition = SimpleNamespace(
+            observation=source_observation,
+            target=lambda _name: source_observation.normal_train_target,
+        )
+        with patch(
+            "scripts.troop_training_bluestacks.recognize_training_with_targets",
+            return_value=recognition,
+        ):
+            returned_capture, returned_observation, error = route._train(
+                capture,
+                source_observation,
+                "fighter",
+            )
+
+        self.assertIs(returned_capture, capture)
+        self.assertIs(returned_observation, source_observation)
+        self.assertEqual(
+            error,
+            "defer_resource_shortage_effect_authority_unavailable",
+        )
+        self.assertEqual(runtime.capture_labels, ["fighter-train-immediate-before"])
+        self.assertEqual(runtime.taps, [])
+
+    def test_busy_and_shortage_variants_leave_independent_variants_authorizeable(self):
+        controller = TrainingController(
+            default_troop_training_config(),
+            reset_identity=RESET,
+            queue_generations={"fighter": 1},
+        )
+        busy_fighter = replace(
+            observation("fighter", quantity=1000, queue_active=True),
+            queue_label="Train T8 Veteran x1000",
+            queue_troop_type="fighter",
+            queue_tier=8,
+            queue_quantity=1000,
+        )
+
+        self.assertEqual(controller.reconcile_active_queue(busy_fighter, "fighter"), "active_queue_reconciled")
+        self.assertEqual(controller.states["fighter"].queue_state, "active")
+        self.assertEqual(controller.plan_training(observation("shooter"), "shooter"), "authorize_normal_train")
+
+        shortage = tuple(ResourceReading(name, 0, 50, "base") for name in ("food", "wood", "steel", "gas"))
+        self.assertEqual(
+            controller.plan_training(replace(observation("shooter"), resources=shortage), "shooter"),
+            "defer_resource_shortage_resource_boxes_disabled",
+        )
+        self.assertEqual(
+            controller.plan_training(
+                replace(observation("rider", tier=1), resources=shortage),
+                "rider",
+            ),
+            "defer_resource_shortage_resource_boxes_disabled",
+        )
+        self.assertEqual(controller.plan_training(observation("rider", tier=1), "rider"), "authorize_normal_train")
+
+    def test_native_tab_loop_visits_independent_variants_after_busy_and_shortage(self):
+        from tasks.home_atlas import ZoomIdentity
+
+        screen = np.zeros((1280, 800, 3), dtype=np.uint8)
+        shortage = tuple(ResourceReading(name, 0, 50, "base") for name in ("food", "wood", "steel", "gas"))
+        observations = {
+            "fighter": replace(
+                observation("fighter", quantity=1000, queue_active=True),
+                queue_label="Train T8 Veteran x1000",
+                queue_troop_type="fighter",
+                queue_tier=8,
+                queue_quantity=1000,
+            ),
+            "shooter": replace(observation("shooter", tier=8, quantity=250), resources=shortage),
+            "rider": replace(observation("rider", tier=1, quantity=250), resources=shortage),
+            "vehicle": replace(observation("vehicle", tier=1, quantity=1000), resources=shortage),
+        }
+        captured = SimpleNamespace(frame=screen, sha256="a" * 64)
+
+        class Runtime:
+            session = Path("training-variant-replay")
+            input_count = 0
+            in_flight_action = None
+
+            def __init__(self):
+                self.frames = [
+                    SimpleNamespace(frame=screen.copy(), sha256="b" * 64),
+                    SimpleNamespace(frame=screen.copy(), sha256="c" * 64),
+                ]
+                self.backs = []
+
+            def capture(self, _label):
+                return self.frames.pop(0)
+
+            def back(self, fresh, *, action_key):
+                self.backs.append((fresh.sha256, action_key))
+
+        runtime = Runtime()
+        with TemporaryDirectory() as directory:
+            atlas_path = Path(directory) / "atlas.json"
+            atlas_path.write_text("{}", encoding="utf-8")
+            route = TroopTrainingIntegratedRoute(
+                runtime,
+                config=default_troop_training_config(),
+                reset_identity=RESET,
+                post_input_delay=0,
+                atlas_path=atlas_path,
+            )
+            route._switch_tab = lambda _captured, _observation, troop: (
+                captured,
+                observations[troop],
+                None,
+            )
+
+            class TrainRuntime:
+                def __init__(self):
+                    self.capture_labels = []
+
+                def capture(self, label):
+                    self.capture_labels.append(label)
+                    return SimpleNamespace(frame=screen, sha256="d" * 64)
+
+            train_runtime = TrainRuntime()
+            route.native_context = SimpleNamespace(runtime=train_runtime, max_inputs=32, max_actions=12)
+            attempted: list[str] = []
+
+            def recognize_training_source(_frame):
+                troop = ("shooter", "rider", "vehicle")[len(attempted)]
+                attempted.append(troop)
+                return SimpleNamespace(
+                    observation=observations[troop],
+                    target=lambda _name: observations[troop].normal_train_target,
+                )
+
+            home = SimpleNamespace(
+                recognized=True,
+                overlay_state="none",
+                diagnostics={"home_hud_signal": True},
+            )
+            localization = _TerminalLocalization(
+                recognized=True,
+                zoom_identity=ZoomIdentity.FULLY_ZOOMED_OUT,
+            )
+            with (
+                patch(
+                    "scripts.troop_training_bluestacks.recognize_training_with_targets",
+                    side_effect=recognize_training_source,
+                ),
+                patch("scripts.troop_training_bluestacks.recognize_home", return_value=home),
+                patch(
+                    "scripts.troop_training_bluestacks.recognize_training",
+                    return_value=SimpleNamespace(recognized=False),
+                ),
+                patch("scripts.troop_training_bluestacks.forbidden_atlas_entry_surface", return_value=None),
+                patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=object()),
+                patch(
+                    "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer",
+                    return_value=SimpleNamespace(localize=lambda _frame: localization),
+                ),
+            ):
+                result = route._run_training_tabs(
+                    captured,
+                    observations["fighter"],
+                    list(TROOP_TYPES),
+                    "fighter",
+                )
+
+        self.assertEqual(attempted, ["shooter", "rider", "vehicle"])
+        self.assertEqual(
+            train_runtime.capture_labels,
+            [
+                "shooter-train-immediate-before",
+                "rider-train-immediate-before",
+                "vehicle-train-immediate-before",
+            ],
+        )
+        self.assertEqual(result.status, "partial")
+        self.assertTrue(result.final_home_recognized)
+        self.assertTrue(result.terminal_home_verified)
+        self.assertEqual(result.remaining_eligible_variants, ("shooter", "rider", "vehicle"))
+        self.assertEqual(result.training_dispatch_count, 0)
+        self.assertEqual(len(runtime.backs), 1)
+
+
+    def test_unknown_start_successor_blocks_identical_retry(self):
+        controller = TroopTrainingRuntimeController(config(), reset_identity=RESET)
+        ready = controller.observe_training(observation(), "fighter")
+        self.assertEqual(ready.action, "start_training")
+        dispatched = controller.dispatch_started("fighter", "training-start-1")
+        self.assertEqual(dispatched.action, "await_postcondition")
+
+        unknown = replace(observation(), frame_sha256="b" * 64)
+        unresolved = controller.reconcile_started(
+            "fighter",
+            observation(),
+            unknown,
+            action_key="training-start-1",
+            dispatched_at=datetime.now(timezone.utc),
+        )
+        self.assertEqual(unresolved.action, "stop")
+        self.assertEqual(controller.phase, TrainingPhase.UNRESOLVED)
+        self.assertEqual(controller.unresolved_action, "training-start-1")
+
+        retry = controller.observe_training(observation(), "fighter")
+        self.assertEqual(retry.action, "stop")
+        self.assertEqual(retry.reason, "prior consequential action unresolved")
+        self.assertEqual(controller.unresolved_action, "training-start-1")
+
+
+    def test_integrated_return_home_reports_terminal_localization_truthfully(self):
+        from tasks.home_atlas import ZoomIdentity
+
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        home = SimpleNamespace(
+            recognized=True,
+            overlay_state="none",
+            diagnostics={"home_hud_signal": True},
+        )
+
+        class Runtime:
+            session = Path("training-terminal-home")
+
+            def __init__(self):
+                self.frames = [
+                    SimpleNamespace(frame=frame.copy(), sha256="f" * 64),
+                    SimpleNamespace(frame=frame.copy(), sha256="h" * 64),
+                ]
+                self.backs = []
+
+            def capture(self, _label):
+                return self.frames.pop(0)
+
+            def back(self, captured, *, action_key):
+                self.backs.append((captured.sha256, action_key))
+
+        def run_case(final_localization_recognized):
+            runtime = Runtime()
+            final_localization = _TerminalLocalization(
+                recognized=final_localization_recognized,
+                zoom_identity=ZoomIdentity.FULLY_ZOOMED_OUT,
+            )
+            localizers = (
+                SimpleNamespace(
+                    localize=lambda _frame: SimpleNamespace(
+                        recognized=True,
+                        zoom_identity=ZoomIdentity.FULLY_ZOOMED_OUT,
+                    )
+                ),
+                SimpleNamespace(localize=lambda _frame: final_localization),
+            )
+            with TemporaryDirectory() as directory:
+                atlas_path = Path(directory) / "atlas.json"
+                atlas_path.write_text("{}", encoding="utf-8")
+                route = TroopTrainingIntegratedRoute(
+                    runtime,
+                    config=default_troop_training_config(),
+                    reset_identity=RESET,
+                    post_input_delay=0,
+                    atlas_path=atlas_path,
+                )
+                with (
+                    patch("scripts.troop_training_bluestacks.recognize_home", return_value=home),
+                    patch(
+                        "scripts.troop_training_bluestacks.recognize_training",
+                        return_value=SimpleNamespace(recognized=False),
+                    ),
+                    patch("scripts.troop_training_bluestacks.forbidden_atlas_entry_surface", return_value=None),
+                    patch("scripts.troop_training_bluestacks.load_home_atlas", return_value=object()),
+                    patch(
+                        "scripts.troop_training_bluestacks.BlueStacksHomeLocalizer",
+                        side_effect=localizers,
+                    ),
+                ):
+                    result = route._return_home(
+                        SimpleNamespace(frame=frame, sha256="s" * 64)
+                    )
+            return result, runtime
+
+        complete, complete_runtime = run_case(True)
+        self.assertEqual(complete.status, "completed")
+        self.assertTrue(complete.final_home_recognized)
+        self.assertTrue(complete.terminal_home_verified)
+        self.assertEqual(len(complete_runtime.backs), 1)
+
+        blocked, blocked_runtime = run_case(False)
+        self.assertEqual(blocked.status, "blocked")
+        self.assertFalse(blocked.final_home_recognized)
+        self.assertFalse(blocked.terminal_home_verified)
+        self.assertEqual(len(blocked_runtime.backs), 1)
+
+    def test_manual_home_recovery_requires_exact_queue_and_uses_back_only(self):
+        frame = np.zeros((1280, 800, 3), dtype=np.uint8)
+        queue = SimpleNamespace(
+            recognized=True,
+            queue_active=True,
+            queue_label="Train T8 x250",
+            queue_troop_type="fighter",
+            queue_tier=8,
+            queue_quantity=250,
+            training_duration_seconds=3600,
+            diagnostics={
+                "duration_source": "queue_band",
+                "queue_spatially_associated": True,
+            },
+        )
+        no_training = SimpleNamespace(recognized=False, queue_active=False)
+
+        class Runtime:
+            session = Path("manual-training-home-recovery")
+
+            def __init__(self, frames):
+                self.frames = [
+                    SimpleNamespace(frame=frame.copy(), sha256=f"{index:064x}")
+                    for index, _ in enumerate(frames, 1)
+                ]
+                self.inputs = []
+
+            def capture(self, _label):
+                return self.frames.pop(0)
+
+            def back(self, captured, *, action_key):
+                self.inputs.append(("back", captured.sha256, action_key))
+
+        blocked_runtime = Runtime([frame])
+        with (
+            patch("scripts.troop_training_bluestacks.recognize_training_speedup", return_value=False),
+            patch("scripts.troop_training_bluestacks.recognize_exit_dialog", return_value=(False, None)),
+            patch("scripts.troop_training_bluestacks.recognize_home", return_value=SimpleNamespace(recognized=False)),
+            patch("scripts.troop_training_bluestacks.recognize_training", return_value=no_training),
+            patch("scripts.troop_training_bluestacks._canonical_home_proof", return_value=False),
+        ):
+            blocked = TroopTrainingReturnHomeRoute(
+                blocked_runtime,
+                post_input_delay=0,
+                require_active_queue=True,
+            ).run()
+        self.assertEqual(blocked.status, "blocked")
+        self.assertEqual(blocked_runtime.inputs, [])
+
+        recovery_runtime = Runtime([frame, frame, frame])
+        with (
+            patch("scripts.troop_training_bluestacks.time.sleep"),
+            patch("scripts.troop_training_bluestacks.recognize_training_speedup", return_value=False),
+            patch("scripts.troop_training_bluestacks.recognize_exit_dialog", return_value=(False, None)),
+            patch(
+                "scripts.troop_training_bluestacks.recognize_home",
+                side_effect=(SimpleNamespace(recognized=False), SimpleNamespace(recognized=True)),
+            ),
+            patch(
+                "scripts.troop_training_bluestacks.recognize_training",
+                side_effect=(queue, queue, no_training),
+            ),
+            patch("scripts.troop_training_bluestacks._canonical_home_proof", return_value=True),
+        ):
+            recovered = TroopTrainingReturnHomeRoute(
+                recovery_runtime,
+                post_input_delay=0,
+                require_active_queue=True,
+            ).run()
+        self.assertEqual(recovered.status, "completed")
+        self.assertTrue(recovered.final_home_recognized)
+        self.assertEqual(len(recovery_runtime.inputs), 1)
+        self.assertEqual(recovery_runtime.inputs[0][0], "back")
+
+    def test_native_manual_home_recovery_is_navigation_only_and_fenced(self):
+        class Lock:
+            owner = "recovery-owner"
+            invocation_id = "recovery-invocation"
+
+            def __init__(self):
+                self.assertions = []
+
+            def assert_held(self, owner, invocation_id):
+                self.assertions.append((owner, invocation_id))
+
+        class Session:
+            is_active = True
+            owner = "session-owner"
+            invocation_id = "session-invocation"
+            input_count = 0
+
+            def __init__(self):
+                self.runtime_input_lock = Lock()
+
+        class Runtime:
+            execute = True
+            session = Path("manual-training-home-recovery")
+            input_count = 0
+            max_inputs = 40
+
+        session = Session()
+        runtime = Runtime()
+        checkpoints = []
+        returned = TroopTrainingReturnHomeResult(
+            "completed",
+            "exact queue closed and canonical Home Atlas recognized",
+            1,
+            True,
+            str(runtime.session),
+        )
+        with patch(
+            "scripts.troop_training_bluestacks.TroopTrainingReturnHomeRoute"
+        ) as route:
+            route.return_value.run.return_value = returned
+            result = run_troop_training_home_recovery(
+                runtime,
+                session=session,
+                checkpoint=lambda: checkpoints.append("held"),
+                max_inputs=12,
+            )
+
+        route.assert_called_once()
+        self.assertTrue(route.call_args.kwargs["require_active_queue"])
+        self.assertEqual(runtime.max_inputs, 12)
+        self.assertEqual(session.runtime_input_lock.assertions, [("recovery-owner", "recovery-invocation")])
+        self.assertEqual(checkpoints, ["held", "held"])
+        self.assertEqual(result["status"], "completed")
+        self.assertTrue(result["final_home_recognized"])
+        self.assertEqual(result["training_dispatch_count"], 0)
+        self.assertFalse(result["training_execution_attempted"])
+        self.assertFalse(result["training_action_resolved"])
+        self.assertFalse(result["controls_changed"])
+        self.assertEqual(result["input_count"], 0)
+        self.assertEqual(result["session_input_count"], 0)
 
     def test_training_commit_records_timer_expected_completion_and_daily_state(self):
         controller = TrainingController(config(), reset_identity=RESET)
@@ -421,55 +961,53 @@ class TroopTrainingContractTests(unittest.TestCase):
         self.assertEqual(state.daily_initiation_state, "initiated")
         self.assertEqual(controller.scheduler_state("fighter").state, "WAIT_UNTIL_COMPLETION")
 
-    def test_daily_persistence_unions_types_and_rejects_malformed_schema(self):
-        reset = "persist-union-regression"
-        TrainingController._daily_initiations.discard((reset, "shooter"))
-        TrainingController._daily_initiations.discard((reset, "rider"))
-        with TemporaryDirectory() as directory:
-            path = Path(directory) / "troop-training-state.json"
-            controller = TrainingController(config(), reset_identity=reset, persistence_path=path)
-            for troop_type in ("shooter", "rider"):
-                before = observation(troop_type)
-                post = replace(
-                    before,
-                    queue_active=True,
-                    queue_label="Train T8 x250",
-                    queue_troop_type=troop_type,
-                    queue_tier=8,
-                    queue_quantity=250,
-                )
-                controller.commit_training(
-                    troop_type,
-                    before,
-                    action_key=f"persist-{troop_type}",
-                    dispatched_at=datetime(2026, 7, 16, 20, 0, tzinfo=timezone.utc),
-                    post=post,
-                )
-            TrainingController._daily_initiations.discard((reset, "shooter"))
-            TrainingController._daily_initiations.discard((reset, "rider"))
-            restored = TrainingController(config(), reset_identity=reset, persistence_path=path)
-            self.assertEqual(restored.states["shooter"].daily_initiation_state, "initiated")
-            self.assertEqual(restored.states["rider"].daily_initiation_state, "initiated")
+    def test_durable_once_daily_and_queue_state_is_injected_from_action_history(self):
+        runtime = TroopTrainingRuntimeController(
+            config(),
+            reset_identity="canonical-reset",
+            prior_daily_initiations=("shooter", "rider"),
+            queue_generations={"fighter": 3},
+            pending_start_action_keys={"fighter": "canonical-start-key"},
+        )
+        controller = runtime.semantic
+        self.assertEqual(controller.states["shooter"].daily_initiation_state, "initiated")
+        self.assertEqual(controller.states["rider"].daily_initiation_state, "initiated")
+        self.assertEqual(controller.states["fighter"].queue_generation, 3)
+        self.assertEqual(
+            controller.pending_start_action_keys["fighter"],
+            "canonical-start-key",
+        )
+        self.assertEqual(
+            controller.plan_training(observation("shooter"), "shooter"),
+            "reject_once_daily_already_initiated",
+        )
+        self.assertEqual(
+            controller.plan_training(observation("fighter"), "fighter"),
+            "authorize_normal_train",
+        )
 
-            path.write_text('{"daily_initiations": ["malformed"]}\n', encoding="utf-8")
-            malformed = TrainingController(config(), reset_identity="persist-malformed", persistence_path=path)
-            self.assertEqual(malformed.plan_training(observation("shooter"), "shooter"), "reject_daily_persistence_unresolved")
-
-    def test_inherited_current_max_rejects_explicit_cli_quantity(self):
-        values = {"config": None}
-        for troop_type in TROOP_TYPES:
-            values.update(
-                {
-                    f"{troop_type}_enabled": None,
-                    f"{troop_type}_tier": None,
-                    f"{troop_type}_quantity": 123 if troop_type == "fighter" else None,
-                    f"{troop_type}_quantity_mode": "current_max" if troop_type == "fighter" else None,
-                    f"{troop_type}_policy": None,
-                    f"{troop_type}_allow_resource_boxes": None,
-                }
+    def test_default_service_profile_matches_approved_four_type_policy(self):
+        profile = default_troop_training_config()
+        profile.validate()
+        expected = {
+            "fighter": (8, "current_max", None, "continuous", True),
+            "vehicle": (1, "current_max", None, "continuous", True),
+            "shooter": (8, "fixed", 250, "once_daily", False),
+            "rider": (1, "fixed", 250, "once_daily", False),
+        }
+        for troop_type, facts in expected.items():
+            item = profile.for_type(troop_type)
+            self.assertTrue(item.enabled)
+            self.assertEqual(
+                (
+                    item.target_tier,
+                    item.quantity_mode,
+                    item.quantity,
+                    item.training_policy,
+                    item.allow_resource_boxes,
+                ),
+                facts,
             )
-        with self.assertRaisesRegex(ValueError, "current_max cannot include a fixed quantity"):
-            _load_config(argparse.Namespace(**values))
 
     def test_queue_timer_source_is_spatially_bound_to_queue_label(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)
@@ -922,7 +1460,6 @@ class TroopTrainingContractTests(unittest.TestCase):
                 reset_identity=RESET,
                 post_input_delay=0,
                 max_tier_swipes=1,
-                persistence_path=Path(directory) / "state.json",
             )
             selected_capture, selected, error = route._select_tier(runtime.frame, current, "rider")
         self.assertIsNotNone(selected_capture)
@@ -1047,7 +1584,6 @@ class TroopTrainingContractTests(unittest.TestCase):
                 reset_identity=RESET,
                 post_input_delay=0,
                 max_tier_swipes=2,
-                persistence_path=Path(directory) / "state.json",
             )
             _, selected, error = route._select_tier(runtime.frame, current, "rider")
         self.assertIsNone(selected)
@@ -1100,7 +1636,6 @@ class TroopTrainingContractTests(unittest.TestCase):
                 reset_identity=RESET,
                 post_input_delay=0,
                 max_tier_swipes=1,
-                persistence_path=Path(directory) / "state.json",
             )
             selected_capture, selected, error = route._select_tier(runtime.frame, current, "rider")
         self.assertIsNotNone(selected_capture)
@@ -1121,7 +1656,12 @@ class TroopTrainingContractTests(unittest.TestCase):
         self.assertEqual(start[1], end[1])
 
     def test_claim_is_exact_once_and_continuous_waits_for_claim_reconciliation(self):
-        controller = TrainingController(config(policy="continuous"), reset_identity=RESET)
+        controller = TrainingController(
+            config(policy="continuous"),
+            reset_identity=RESET,
+            queue_generations={"fighter": 1},
+            pending_start_action_keys={"fighter": "fighter:batch-1"},
+        )
         before = observation(completion_ready=True)
         self.assertEqual(controller.plan_claim(before, action_key="claim-1"), "authorize_claim")
         self.assertTrue(controller.reconcile_claim(before, replace(before, completion_ready=False, completion_batch_id=None), action_key="claim-1"))
@@ -1130,10 +1670,6 @@ class TroopTrainingContractTests(unittest.TestCase):
         controller.states["fighter"] = state
         self.assertEqual(controller.scheduler_state("fighter").state, "WAIT_CLAIM_RECONCILIATION")
 
-    def test_daily_rows_are_parsed_without_claim_authorization(self):
-        progress = daily_progress_from_text("Fighter 250/250 Shooter 0/250 Rider 25/250 Vehicle 250/250")
-        self.assertEqual({item.troop_type: item.current for item in progress}, {"fighter": 250, "shooter": 0, "rider": 25, "vehicle": 250})
-        self.assertTrue(all(item.maximum == DAILY_TRAINING_QUANTITY for item in progress))
 
     def test_native_runtime_dry_run_issues_no_swipe_text_or_key_input(self):
         with TemporaryDirectory() as directory:
@@ -1148,31 +1684,6 @@ class TroopTrainingContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "dry-run"):
                     operation()
             self.assertEqual(runner.inputs, [])
-
-    def test_scheduler_boundary_remains_disabled(self):
-        controller = TrainingController(config(), reset_identity=RESET)
-        scheduler = controller.scheduler_state("fighter")
-        self.assertFalse(scheduler.scheduler_eligibility)
-        self.assertFalse(scheduler.production_registration)
-        self.assertEqual(set(TAB_ROIS), set(TROOP_TYPES))
-
-    def test_route_dry_run_cannot_complete_through_mock_transport(self):
-        class FakeRuntime:
-            execute = False
-            in_flight_action = None
-            session = Path("fake-session")
-
-            def capture(self, _label):
-                return CapturedNativeFrame(np.zeros((1280, 800, 3), dtype=np.uint8), b"png", "a" * 64, 1.0, Path("frame.png"))
-
-        with patch("scripts.troop_training_bluestacks.recognize_radial_menu", return_value=SimpleNamespace(recognized=False)), patch.object(
-            TroopTrainingIntegratedRoute,
-            "_navigate_selected_facility",
-            return_value=(None, None, None, "dry-run-calculated-pan-not-dispatched"),
-        ):
-            result = TroopTrainingIntegratedRoute(FakeRuntime(), config=config(), reset_identity=RESET).run()
-        self.assertEqual(result.status, "dry-run")
-        self.assertEqual(result.actions_completed, 0)
 
 
 if __name__ == "__main__":

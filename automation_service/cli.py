@@ -35,6 +35,8 @@ from .registry import (
     RECOMMENDED_RESEARCH_FLOW_ID,
     FOOD_FARM_BOOST_FLOW_ID,
     RUINS_FLOW_ID,
+    HALL_OF_WAR_FLOW_ID,
+    TROOP_TRAINING_FLOW_ID,
     canonical_flow_specs,
     servable_flow_names,
 )
@@ -493,6 +495,8 @@ def main(
                 recommended_research_runner = None
                 food_farm_boost_runner = None
                 daily_shops_runner = None
+                hall_of_war_runner = None
+                troop_training_runner = None
                 selected = args.flow
                 if native_serve:
                     from .recruitment import RecruitmentRunner
@@ -515,6 +519,8 @@ def main(
                     from .hero_duel import HeroDuelRunner
                     from .recommended_research import RecommendedResearchRunner
                     from .food_farm_boost import FoodFarmBoostRunner
+                    from .hall_of_war import HallOfWarRunner
+                    from .troop_training import TroopTrainingRunner
 
                     if "recruitment" in selected:
                         runner = RecruitmentRunner(
@@ -662,6 +668,24 @@ def main(
                             output_directory=args.output_directory or state_path.parent / "food-farm-boost-sessions",
                             native=native_route_bindings[FOOD_FARM_BOOST_FLOW_ID],
                         )
+                    if "hall-of-war" in selected:
+                        if native_route_bindings is None or HALL_OF_WAR_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("hall-of-war native binding is supplied by scripts/pnsctl.py automation-service")
+                        hall_of_war_runner = HallOfWarRunner(
+                            adb=args.adb,
+                            serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "hall-of-war-sessions",
+                            native=native_route_bindings[HALL_OF_WAR_FLOW_ID],
+                        )
+                    if "troop-training" in selected:
+                        if native_route_bindings is None or TROOP_TRAINING_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("troop-training native binding is supplied by scripts/pnsctl.py automation-service")
+                        troop_training_runner = TroopTrainingRunner(
+                            adb=args.adb,
+                            serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "troop-training-sessions",
+                            native=native_route_bindings[TROOP_TRAINING_FLOW_ID],
+                        )
                 service_startup = None
                 if native_serve:
                     if application_startup is None:
@@ -696,6 +720,8 @@ def main(
                     hero_duel_runner=hero_duel_runner,
                     recommended_research_runner=recommended_research_runner,
                     food_farm_boost_runner=food_farm_boost_runner,
+                    hall_of_war_runner=hall_of_war_runner,
+                    troop_training_runner=troop_training_runner,
                 )
                 if native_serve:
                     flow_names = servable_flow_names()

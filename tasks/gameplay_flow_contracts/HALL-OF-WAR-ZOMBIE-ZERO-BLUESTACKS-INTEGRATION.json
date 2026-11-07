@@ -1,0 +1,407 @@
+{
+  "schema_version": 2,
+  "flow_id": "HALL-OF-WAR-ZOMBIE-ZERO-BLUESTACKS-INTEGRATION",
+  "product_purpose": "Under the current daily reset identity, verify the already Applied Military preset, navigate Hall of War to Zombie Zero, revalidate current availability and explicit zero cost, apply only saved Troop Set 1 with five heroes and full numeric troop capacity, issue at most one dispatch, reconcile its same-reset result, then tap at most once on its own glowing ready reward row and verify the claimed successor.",
+  "trigger_cadence_type": "daily_once",
+  "reset_scope": "one_dispatch_and_one_own_reward_row_claim_per_daily_reset_identity",
+  "required_starting_context": [
+    "home_canonical"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_canonical",
+    "military_preset_verified",
+    "hall_of_war",
+    "zombie_zero",
+    "attempt_state_known",
+    "formation_verified",
+    "dispatch_attempted",
+    "result_reconciled",
+    "own_reward_state_known",
+    "reward_claim_attempted",
+    "reward_claimed",
+    "blocked",
+    "manual_required",
+    "unknown_requires_evidence"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "verify_current_military_preset",
+      "from": "home_canonical",
+      "to": "military_preset_verified",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "The already Applied saved commander preset is exactly Military.",
+        "Only verify an already applied preset; preset switching is forbidden without route-specific approved cost evidence."
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hall_zombie_zero_native_acceptance"
+    },
+    {
+      "transition_id": "navigate_to_hall_of_war",
+      "from": "military_preset_verified",
+      "to": "hall_of_war",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "navigate_to_hall_of_war",
+      "postconditions": [
+        "Current Hall of War screen and canonical source route are positively recognized."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "already_complete",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hall_zombie_zero_native_acceptance"
+    },
+    {
+      "transition_id": "open_zombie_zero",
+      "from": "hall_of_war",
+      "to": "zombie_zero",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "open_zombie_zero",
+      "postconditions": [
+        "Exact Zombie Zero page identity is positively recognized; no alternate Hall activity is selected."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "already_complete",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hall_zombie_zero_native_acceptance"
+    },
+    {
+      "transition_id": "revalidate_attempt_availability_cost",
+      "from": "zombie_zero",
+      "to": "attempt_state_known",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "Current reset identity, attempt ordinal 1, durable attempt-versus-confirmed state, current availability/cooldown, and exact dispatch cost are freshly revalidated.",
+        "Only a positively recognized ready state with unused ordinal 1 may continue; busy or unavailable yields no dispatch and defers, while unknown blocks.",
+        "Dispatch requires exact current explicit zero cost; unknown or nonzero cost blocks, premium/refill is forbidden, and availability/cooldown is never hardcoded."
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "already_complete",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hall_zombie_zero_native_acceptance"
+    },
+    {
+      "transition_id": "apply_saved_troop_set_one",
+      "from": "attempt_state_known",
+      "to": "formation_verified",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "select_and_apply_saved_troop_set_one",
+      "postconditions": [
+        "Proceed only from the freshly revalidated ready state with unused ordinal 1 and no prior attempt; otherwise do not select or apply a formation.",
+        "Select and apply only saved Troop Set 1; positively verify all five heroes and numeric positive current troop capacity with current troops equal to capacity.",
+        "Quick Select, formation edits, and Troop Set 2/3 are forbidden."
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hall_zombie_zero_native_acceptance"
+    },
+    {
+      "transition_id": "dispatch_one_zombie_zero",
+      "from": "formation_verified",
+      "to": "dispatch_attempted",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "dispatch_one_zombie_zero",
+      "postconditions": [
+        "Immediately recheck Military, attempt ordinal/availability, explicitly zero cost, approved known troop-loss effect, and complete saved Troop Set 1.",
+        "Issue at most one dispatch under this daily reset identity; persist attempt before input and do not retry an uncertain dispatch."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "already_complete",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hall_zombie_zero_native_acceptance"
+    },
+    {
+      "transition_id": "reconcile_prior_attempt_without_redispatch",
+      "from": "attempt_state_known",
+      "to": "result_reconciled",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "If durable same-reset attempt evidence already exists, revalidate its canonical identity/result without another dispatch.",
+        "An attempted but unresolved dispatch is blocked/manual and is never repeated."
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hall_zombie_zero_native_acceptance"
+    },
+    {
+      "transition_id": "recognize_same_reset_result",
+      "from": "dispatch_attempted",
+      "to": "result_reconciled",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "Recognize the current same-reset Zombie Zero history/high result as positive participation; no win or minimum damage threshold is required.",
+        "Dispatch alone is not a confirmed result; preserve separate attempt and confirmed counts."
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hall_zombie_zero_native_acceptance"
+    },
+    {
+      "transition_id": "inspect_own_reward_row",
+      "from": "result_reconciled",
+      "to": "own_reward_state_known",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "Only after positive same-reset participation, inspect the exact own Zombie Zero daily reward row for ready, unavailable, claimed, or unknown.",
+        "No aggregate Daily objective-row inspection, D02 prerequisite, or points attribution is performed."
+      ],
+      "terminal_outcomes": [
+        "already_complete",
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hall_zombie_zero_native_acceptance"
+    },
+    {
+      "transition_id": "claim_own_glowing_reward_row_once",
+      "from": "own_reward_state_known",
+      "to": "reward_claim_attempted",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "tap_own_glowing_daily_reward_row_once",
+      "postconditions": [
+        "Tap exactly one current glowing ready own reward row only when same-reset positive participation is confirmed.",
+        "No individual reward-icon tap or duplicate claim."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "already_complete",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hall_zombie_zero_native_acceptance"
+    },
+    {
+      "transition_id": "verify_claimed_row_checkmarks",
+      "from": "reward_claim_attempted",
+      "to": "reward_claimed",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "The same current reward row shows the claimed successor/checkmarks; reconcile its claim separately from dispatch."
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hall_zombie_zero_native_acceptance"
+    },
+    {
+      "transition_id": "return_canonical_home",
+      "from": "reward_claimed",
+      "to": "home_canonical",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "return_to_canonical_home",
+      "postconditions": [
+        "The route-owned source-bound return reaches current canonical Home."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "complete_for_reset",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hall_zombie_zero_native_acceptance"
+    }
+  ],
+  "permitted_inputs": [
+    "navigate_to_hall_of_war",
+    "open_zombie_zero",
+    "select_and_apply_saved_troop_set_one",
+    "dispatch_one_zombie_zero",
+    "tap_own_glowing_daily_reward_row_once",
+    "return_to_canonical_home"
+  ],
+  "consequential_action_class": "one_zombie_zero_dispatch_and_separate_own_reward_claim",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": 1,
+    "resource_or_currency": "NO_RESOURCE_OR_CURRENCY_SPEND",
+    "notes": "One dispatch is permitted only with current exact explicit zero cost and an approved known troop-loss effect. Premium/refill is forbidden. The separate own reward claim is one row tap and is not inferred from dispatch."
+  },
+  "completion_identity": "hall-zombie-zero:dispatch-result-and-own-reward-row:daily-reset-identity",
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "complete_for_reset",
+    "already_complete",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "Defer if current attempt state is busy or unavailable, the daily ordinal was already used, or the own reward is unavailable/already claimed; do not hardcode attempt availability or cooldown.",
+  "bounded_recovery_behavior": "Persist attempt before dispatch and confirmed result/claim separately. Revalidate prior canonical attempt/result evidence without redispatch; any ambiguous or unresolved attempt, cost, loss, formation, result, reward row, claimed checkmark, reset identity, or Home blocks/manual-requires and never retries.",
+  "evidence_requirements": [
+    "Current native source-bound sequence for already Applied Military preset, Hall of War→Zombie Zero identity, current reset/attempt ordinal/state/availability/cooldown, exact explicit zero dispatch cost, approved troop-loss effect, saved Troop Set 1 selected and applied with five heroes and exact full positive current troop capacity, one dispatch, same-reset history/high result, own glowing reward row and one tap, current claimed-row checkmarks, separate durable attempt/confirmed dispatch and claim counts, prior-attempt no-redispatch revalidation, and canonical Home.",
+    "No win requirement or minimum damage threshold is inferred. No native acceptance, capture identifier, or live readiness is asserted."
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "hall_zombie_zero_native_acceptance",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Synthetic policy fixtures do not authorize a dispatch or claim and do not replace native attempt/result/reward evidence."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "unknown or changed Hall/Zombie Zero identity",
+    "unknown reset identity or attempt ordinal",
+    "busy or unavailable attempt",
+    "unknown/hardcoded attempt availability or cooldown",
+    "unknown or nonzero dispatch cost",
+    "premium or refill prompt",
+    "unknown or unapproved troop loss",
+    "Military preset not already applied or unverifiable",
+    "preset switch",
+    "missing or ambiguous Troop Set 1",
+    "Quick Select",
+    "formation edit",
+    "Troop Set 2 or Troop Set 3",
+    "fewer than five heroes",
+    "unknown or nonpositive troop capacity",
+    "current troops below or different from capacity",
+    "uncertain dispatch or unresolved result",
+    "unknown same-reset participation",
+    "reward row not glowing/ready",
+    "individual reward-icon tap",
+    "unknown or missing claimed checkmarks",
+    "duplicate dispatch or claim",
+    "Daily objective-row inspection",
+    "D02 prerequisite",
+    "points attribution",
+    "unknown canonical Home",
+    "scheduler promotion"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "evidence_required",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "product_policy_refs": [
+    {
+      "policy_id": "hall-of-war-zombie-zero-policy",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "commander-talent-preset-helper",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
+  "registration_state": "disabled",
+  "production_eligible": false,
+  "evidence_gates": [
+    {
+      "gate_id": "hall_zombie_zero_native_acceptance",
+      "status": "evidence_required",
+      "blocks": [
+        "verify_current_military_preset",
+        "navigate_to_hall_of_war",
+        "open_zombie_zero",
+        "revalidate_attempt_availability_cost",
+        "apply_saved_troop_set_one",
+        "dispatch_one_zombie_zero",
+        "reconcile_prior_attempt_without_redispatch",
+        "recognize_same_reset_result",
+        "inspect_own_reward_row",
+        "claim_own_glowing_reward_row_once",
+        "verify_claimed_row_checkmarks",
+        "return_canonical_home",
+        "hall_zombie_zero_one_dispatch_and_reward_claim"
+      ],
+      "required_evidence": [
+        "The complete native evidence set listed in evidence_requirements, including independently reconciled dispatch and own-row claim effects."
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "hall_zombie_zero_one_dispatch_and_reward_claim",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [],
+      "required_transitions": [
+        "verify_current_military_preset",
+        "navigate_to_hall_of_war",
+        "open_zombie_zero",
+        "revalidate_attempt_availability_cost",
+        "apply_saved_troop_set_one",
+        "dispatch_one_zombie_zero",
+        "reconcile_prior_attempt_without_redispatch",
+        "recognize_same_reset_result",
+        "inspect_own_reward_row",
+        "claim_own_glowing_reward_row_once",
+        "verify_claimed_row_checkmarks",
+        "return_canonical_home"
+      ],
+      "evidence_gate_ids": [
+        "hall_zombie_zero_native_acceptance"
+      ],
+      "notes": "This is a disabled, evidence-gated contract. Typed policy lists only the route-owned action classes; this scenario authorizes no runtime input until the native gate is satisfied."
+    }
+  ],
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ],
+    "selected_daily_prerequisite": false,
+    "product_authority_revision": "flow-delivery-product-authority-v2-r19",
+    "product_authority_digest": "a343f9f592ad18fa367b2d3e82be179866677fd3278cdc0cb4e31f54fae79057",
+    "product_record_id": "hall_of_war_zombie_zero",
+    "product_record_revision": "hall_of_war_zombie_zero-v1",
+    "product_record_digest": "09d9a89d729a75866ab432f353218b5cc2edcbfdcf6642fb72053ec90ea67fd1"
+  }
+}

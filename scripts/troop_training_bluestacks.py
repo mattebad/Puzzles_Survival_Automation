@@ -1,17 +1,14 @@
-#!/usr/bin/env python3
-"""Executable, dry-run-by-default local BlueStacks route for Daily troop training."""
+"""Canonical native BlueStacks driver for the fixed Troop Training service route."""
 
 from __future__ import annotations
 
-
-import argparse
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
-import json
+import hashlib
 from pathlib import Path
 import sys
 import time
-from typing import Mapping
+from typing import Any, Mapping
 
 import cv2
 import numpy as np
@@ -20,7 +17,39 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.bluestacks_native_runtime import IntegratedRouteResult, LocalBlueStacksRuntime, NativeRuntimePort
+from safe_action_core import (
+    ActionClass,
+    ActionStatus,
+    CentralPolicy,
+    Observation,
+    PolicyRequest,
+    SafeActionExecutor,
+    TransportResult,
+)
+from automation_service.commander_talents import ensure_commander_talent_preset
+from automation_service.troop_training import (
+    FLOW_ID,
+    MAX_ACTIONS,
+    MAX_INPUTS,
+    PROFILE_ID,
+    PRODUCT_ID,
+    PRODUCT_REVISION,
+    TrainingActionHistoryError,
+    derive_training_action_state,
+    make_training_claim_action_key,
+    make_training_start_action_key,
+    troop_training_next_due,
+)
+from scripts.commander_talents_bluestacks import (
+    COMMANDER_TALENT,
+    HOME as TALENT_HOME,
+    PROFILE as TALENT_PROFILE,
+    TALENT_MEMORY,
+    _recognized_page,
+    recognize_commander_talent_page,
+    run_commander_talent_preset,
+)
+from scripts.bluestacks_native_runtime import NativeRuntimePort
 from scripts.home_atlas_bluestacks import (
     BlueStacksLocalizeFirstHomeDriver,
     HomeDriverDisposition,
@@ -38,15 +67,15 @@ from tasks.home_atlas_planner import PlanDisposition, camera_origin
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BLUESTACKS_PLATFORM, BLUESTACKS_PROFILE_ID, BlueStacksHomeLocalizer, bind_visible_building, frame_digest
 from tasks.home_context import HomeReadyObservation
-from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
+from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity, resource_fixed_runtime_binding
 from tasks.troop_training import (
     FACILITY_BY_TYPE,
     RESOURCE_NAMES,
     TROOP_TYPES,
-    TrainingConfig,
     TrainingController,
     TroopTrainingConfig,
     TrainingScreenObservation,
+    all_base_resources_sufficient,
     default_troop_training_config,
     expected_completion_timestamp,
     make_action_key,
@@ -58,8 +87,8 @@ from tasks.troop_training_vision import (
     TAB_ROIS,
     forbidden_atlas_entry_surface,
     recognize_auto_use_resource_popup,
-    recognize_home,
     recognize_exit_dialog,
+    recognize_home,
     recognize_radial_menu,
     recognize_training_speedup,
     recognize_training,
@@ -67,9 +96,71 @@ from tasks.troop_training_vision import (
 )
 
 
-RESOURCE_BOXES_APPLIED_REAPPLY_TRAINING = "resource boxes applied; reapply exact quantity and authorize a new Train transaction"
 DEFAULT_HOME_ATLAS = ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
-TROOP_TRAINING_FRAME_MAX_AGE_SECONDS = 45.0
+
+
+class _TroopTrainingInputBudgetRuntime:
+    """Track route navigation in the borrowed session and reserve Home input."""
+
+    _INPUT_METHODS = frozenset(
+        {"back", "clear_numeric_text", "press_key", "swipe", "tap", "type_text"}
+    )
+
+    def __init__(self, runtime, *, max_inputs: int, session=None, checkpoint=None) -> None:
+        self._runtime = runtime
+        self._max_inputs = int(max_inputs)
+        self._session = session
+        self._checkpoint = checkpoint
+
+    def __getattr__(self, name):
+        value = getattr(self._runtime, name)
+        if name not in self._INPUT_METHODS or not callable(value):
+            return value
+
+        def bounded_input(*args, **kwargs):
+            current = getattr(self._runtime, "input_count", None)
+            if type(current) is not int:
+                raise RuntimeError("troop-training native input count is unavailable")
+            action_key = str(kwargs.get("action_key", ""))
+            returning_home = name == "back" and "return-home" in action_key
+            limit = self._max_inputs if returning_home else self._max_inputs - 1
+            if current >= limit:
+                raise RuntimeError(
+                    "troop-training input budget exhausted"
+                    if returning_home
+                    else "troop-training input budget reserved for Home"
+                )
+            if self._session is None:
+                return value(*args, **kwargs)
+            if not args or not callable(getattr(self._session, "run_action", None)):
+                raise RuntimeError("troop-training navigation requires the borrowed native session")
+            source = args[0]
+            label = action_key or f"troop-training-navigation:{name}:{source.sha256}"
+
+            def authorize(before):
+                if callable(self._checkpoint):
+                    self._checkpoint()
+                if before.sha256 != source.sha256:
+                    raise RuntimeError("troop-training navigation frame changed before input")
+
+            def dispatch(before):
+                value(before, *args[1:], **kwargs)
+
+            self._session.run_action(
+                action_class="navigation",
+                label=label,
+                capture=self._runtime.capture,
+                dispatch=dispatch,
+                recognize=lambda _after: "navigation_transport_observed",
+                authorize=authorize,
+                target_roi=kwargs.get("target_roi"),
+                consequence_class="navigation_only",
+            )
+            return None
+
+        return bounded_input
+
+
 
 
 def _is_canonical_entry_localization(localization) -> bool:
@@ -206,26 +297,23 @@ class TroopTrainingRouteResult:
     warehouse_approvals: tuple[dict[str, object], ...]
     resource_box_approvals: tuple[dict[str, object], ...]
     training: tuple[dict[str, object], ...]
-    daily_progress: dict[str, object]
     final_home_recognized: bool
     entry_navigation: dict[str, object]
     session: str
     resolved_config: dict[str, object] = field(default_factory=dict)
+    training_dispatch_count: int = 0
+    training_start_transport_calls: int = 0
+    claim_dispatch_count: int = 0
+    resource_box_dispatch_count: int = 0
+    warehouse_dispatch_count: int = 0
+    committed_action_count: int = 0
+    effect_reconciliation_required: bool = False
+    identical_retry_denied: bool = False
+    terminal_home_verified: bool = False
+    saved_training_preset_verified: bool = False
+    remaining_eligible_variants: tuple[str, ...] = ()
+    next_due_utc: float | None = None
 
-
-@dataclass(frozen=True)
-class TroopTrainingRecoveryResult:
-    status: str
-    reason: str
-    actions_completed: int
-    recovered_action_key: str | None
-    troop_type: str | None
-    selected_tier: int | None
-    quantity: int | None
-    displayed_training_duration_seconds: int | None
-    expected_completion_timestamp: str | None
-    final_home_recognized: bool
-    session: str
 
 
 @dataclass(frozen=True)
@@ -532,326 +620,52 @@ class TroopTrainingReturnHomeRoute:
                 )
         return TroopTrainingReturnHomeResult("completed", "recognized surface closed and Home/Base positively recognized", 1, True, str(self.runtime.session))
 
+def run_troop_training_home_recovery(
+    runtime: NativeRuntimePort,
+    *,
+    session,
+    checkpoint,
+    max_inputs: int,
+) -> Mapping[str, object]:
+    """Run only the retained native return-home route under a bounded session."""
 
-class TroopTrainingUnresolvedRecoveryRoute:
-    """Reconcile one prior unresolved Train from a fresh native queue frame."""
-
-    def __init__(self, runtime: NativeRuntimePort, *, previous_session: Path, post_input_delay: float = 1.0) -> None:
-        self.runtime = runtime
-        self.previous_session = previous_session
-        self.post_input_delay = post_input_delay
-
-    def _result(self, status: str, reason: str, **values: object) -> TroopTrainingRecoveryResult:
-        defaults: dict[str, object] = {
-            "actions_completed": 0,
-            "recovered_action_key": None,
-            "troop_type": None,
-            "selected_tier": None,
-            "quantity": None,
-            "displayed_training_duration_seconds": None,
-            "expected_completion_timestamp": None,
-            "final_home_recognized": False,
-        }
-        defaults.update(values)
-        return TroopTrainingRecoveryResult(
-            status=status,
-            reason=reason,
-            session=str(self.runtime.session),
-            **defaults,
-        )
-
-    def _prior_action(self) -> tuple[dict[str, object], dict[str, object]]:
-        events_path = self.previous_session / "events.jsonl"
-        if not events_path.is_file():
-            raise RuntimeError("prior unresolved session events are missing")
-        events = [
-            json.loads(line)
-            for line in events_path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        unresolved = next(
-            (
-                event
-                for event in reversed(events)
-                if event.get("type") == "reconcile" and event.get("status") == "unresolved"
-            ),
-            None,
-        )
-        if unresolved is None:
-            raise RuntimeError("prior session has no unresolved consequential reconciliation")
-        action_key = str(unresolved.get("action_key", ""))
-        dispatch = next(
-            (
-                event
-                for event in reversed(events)
-                if event.get("type") == "dispatch"
-                and event.get("consequential")
-                and event.get("action_key") == action_key
-            ),
-            None,
-        )
-        if dispatch is None or not str(dispatch.get("target_identity", "")).startswith("normal-train:"):
-            raise RuntimeError("prior unresolved action is not a normal troop Train dispatch")
-        post_path = Path(str(unresolved.get("post_path", "")))
-        if not post_path.is_absolute():
-            post_path = Path.cwd() / post_path
-        if not post_path.is_file():
-            raise RuntimeError("prior unresolved immediate-post evidence is missing")
-        return dispatch, {**unresolved, "post_path": str(post_path)}
-
-    def run(self) -> TroopTrainingRecoveryResult:
-        try:
-            dispatch, unresolved = self._prior_action()
-            old_post_path = Path(str(unresolved["post_path"]))
-            old_frame = cv2.imread(str(old_post_path), cv2.IMREAD_COLOR)
-            if old_frame is None:
-                return self._result("blocked", "prior immediate-post frame could not be read")
-            old_observation = recognize_training(old_frame)
-            if not old_observation.recognized or not old_observation.queue_active:
-                return self._result("blocked", "prior immediate-post frame does not positively prove an active queue")
-            troop_type = old_observation.troop_type
-            if (
-                troop_type is None
-                or old_observation.selected_tier is None
-                or old_observation.selected_quantity is None
-                or old_observation.training_duration_seconds is None
-            ):
-                return self._result("blocked", "prior queue identity is incomplete")
-            dispatched_at = datetime.fromisoformat(str(dispatch["timestamp"]))
-            expected = expected_completion_timestamp(dispatched_at, old_observation.training_duration_seconds)
-
-            current = self.runtime.capture("unresolved-recovery-current-training")
-            current_observation = recognize_training(current.frame)
-            if not current_observation.recognized or not current_observation.queue_active:
-                return self._result(
-                    "blocked",
-                    "fresh frame does not positively prove an active queue",
-                    recovered_action_key=str(dispatch["action_key"]),
-                    troop_type=troop_type,
-                )
-            if (
-                current_observation.troop_type != troop_type
-                or current_observation.selected_tier != old_observation.selected_tier
-                or current_observation.selected_quantity != old_observation.selected_quantity
-                or current_observation.training_duration_seconds is None
-            ):
-                return self._result(
-                    "blocked",
-                    "fresh queue identity does not match the prior unresolved action",
-                    recovered_action_key=str(dispatch["action_key"]),
-                    troop_type=troop_type,
-                )
-            self.runtime.record_recovery(
-                action_key=str(dispatch["action_key"]),
-                previous_session=str(self.previous_session),
-                previous_source_sha256=str(dispatch["source_sha256"]),
-                previous_post_sha256=str(unresolved["post_sha256"]),
-                current=current,
-                expected_completion_timestamp=expected.isoformat(),
-                reason="fresh native queue matches prior unresolved Train by troop type, tier, quantity, and timer",
-            )
-            self.runtime.back(current, action_key=f"training:recovery:return-home:{current.sha256}")
-            time.sleep(self.post_input_delay)
-            final = self.runtime.capture("unresolved-recovery-final-home")
-            final_home = recognize_home(final.frame, reset_identity="recovery")
-            values = {
-                "recovered_action_key": str(dispatch["action_key"]),
-                "troop_type": troop_type,
-                "selected_tier": old_observation.selected_tier,
-                "quantity": old_observation.selected_quantity,
-                "displayed_training_duration_seconds": old_observation.training_duration_seconds,
-                "expected_completion_timestamp": expected.isoformat(),
-                "final_home_recognized": final_home.recognized,
-                "actions_completed": 1,
-            }
-            if not final_home.recognized:
-                return self._result("blocked", "recovery navigation did not positively return Home/Base", **values)
-            return self._result(
-                "completed",
-                "prior unresolved Train reconciled from a fresh active queue and returned Home/Base",
-                **values,
-            )
-        except Exception as exc:
-            return self._result("blocked", f"safe recovery stop: {exc}")
+    if type(max_inputs) is not int or not 1 <= max_inputs <= MAX_INPUTS:
+        raise ValueError("Training recovery input budget is outside the canonical route limit")
+    if getattr(runtime, "execute", False) is not True:
+        raise RuntimeError("Training Home recovery requires the authorized native runtime")
+    if not callable(checkpoint) or getattr(session, "is_active", False) is not True:
+        raise RuntimeError("Training Home recovery requires an active development session")
+    lock = session.runtime_input_lock
+    lock.assert_held(lock.owner, lock.invocation_id)
+    checkpoint()
+    if type(getattr(runtime, "input_count", None)) is not int:
+        raise RuntimeError("Training Home recovery runtime input accounting is unavailable")
+    if runtime.input_count != 0:
+        raise RuntimeError("Training Home recovery runtime must start with a fresh input budget")
+    runtime.max_inputs = max_inputs
+    bounded = _TroopTrainingInputBudgetRuntime(
+        runtime,
+        max_inputs=max_inputs,
+        session=session,
+        checkpoint=checkpoint,
+    )
+    result = TroopTrainingReturnHomeRoute(
+        bounded,
+        require_active_queue=True,
+    ).run()
+    checkpoint()
+    return {
+        **asdict(result),
+        "input_count": runtime.input_count,
+        "session_input_count": session.input_count,
+        "training_execution_attempted": False,
+        "training_action_resolved": False,
+        "training_dispatch_count": 0,
+        "controls_changed": False,
+    }
 
 
-class TroopTrainingForbiddenPopupRecoveryRoute(TroopTrainingUnresolvedRecoveryRoute):
-    """Cancel one exact forbidden Auto Use resource-box successor; never retry Train."""
 
-    def run(self) -> TroopTrainingRecoveryResult:
-        try:
-            dispatch, unresolved = self._prior_action()
-            old_post_path = Path(str(unresolved["post_path"]))
-            old_frame = cv2.imread(str(old_post_path), cv2.IMREAD_COLOR)
-            if old_frame is None:
-                return self._result("blocked", "prior immediate-post frame could not be read")
-            old_popup = recognize_auto_use_resource_popup(old_frame)
-            if not old_popup.recognized or not old_popup.resource_boxes_selected or old_popup.warehouse_only:
-                return self._result("blocked", "prior post does not prove the forbidden Auto Use resource-box popup")
-
-            current = self.runtime.capture("forbidden-resource-popup-current")
-            popup = recognize_auto_use_resource_popup(current.frame)
-            if (
-                not popup.recognized
-                or not popup.resource_boxes_selected
-                or popup.warehouse_only
-                or popup.cancel_target is None
-                or popup.confirm_target is None
-            ):
-                return self._result("blocked", "fresh frame does not prove the exact forbidden resource-box popup")
-            troop_type = str(dispatch["target_identity"]).removeprefix("normal-train:")
-            self.runtime.tap(
-                current,
-                target_identity="auto-use-resource-boxes:cancel",
-                target_roi=popup.cancel_target,
-                action_key=f"{dispatch['action_key']}:cancel-forbidden-resource-boxes",
-            )
-            time.sleep(self.post_input_delay)
-            canceled = self.runtime.capture("forbidden-resource-popup-cancel-post")
-            canceled_popup = recognize_auto_use_resource_popup(canceled.frame)
-            canceled_training = recognize_training(canceled.frame)
-            if (
-                canceled_popup.recognized
-                or not canceled_training.recognized
-                or canceled_training.troop_type != troop_type
-                or canceled_training.queue_active
-            ):
-                return self._result(
-                    "blocked",
-                    "Cancel did not positively restore the same empty troop training screen",
-                    actions_completed=1,
-                    recovered_action_key=str(dispatch["action_key"]),
-                    troop_type=troop_type,
-                )
-            self.runtime.record_recovery(
-                action_key=str(dispatch["action_key"]),
-                previous_session=str(self.previous_session),
-                previous_source_sha256=str(dispatch["source_sha256"]),
-                previous_post_sha256=str(unresolved["post_sha256"]),
-                current=canceled,
-                expected_completion_timestamp="",
-                reason="exact Auto Use resource-box successor canceled; normal Train failed without a queue or inventory consumption",
-            )
-
-            fresh = self.runtime.capture("forbidden-resource-popup-fresh-before-home")
-            fresh_training = recognize_training(fresh.frame)
-            if not fresh_training.recognized or fresh_training.troop_type != troop_type or fresh_training.queue_active:
-                return self._result(
-                    "blocked",
-                    "fresh post-cancel frame is not the same empty troop training screen",
-                    actions_completed=1,
-                    recovered_action_key=str(dispatch["action_key"]),
-                    troop_type=troop_type,
-                )
-            self.runtime.back(fresh, action_key=f"training:recovery:forbidden-popup:return-home:{fresh.sha256}")
-            time.sleep(self.post_input_delay)
-            final = self.runtime.capture("forbidden-resource-popup-final-home")
-            final_home = recognize_home(final.frame, reset_identity="recovery")
-            values = {
-                "actions_completed": 2,
-                "recovered_action_key": str(dispatch["action_key"]),
-                "troop_type": troop_type,
-                "selected_tier": canceled_training.selected_tier,
-                "quantity": canceled_training.selected_quantity,
-                "final_home_recognized": final_home.recognized,
-            }
-            if not final_home.recognized:
-                return self._result("blocked", "forbidden popup was canceled but Home/Base was not recognized", **values)
-            return self._result(
-                "completed",
-                "forbidden Auto Use resource-box popup canceled, Train terminally rejected, and Home/Base restored",
-                **values,
-            )
-        except Exception as exc:
-            return self._result("blocked", f"safe forbidden-popup recovery stop: {exc}")
-
-
-class TroopTrainingResourceBoxAcquisitionRecoveryRoute(TroopTrainingUnresolvedRecoveryRoute):
-    """Reconcile an unresolved Auto Use confirmation that applied boxes but started no queue."""
-
-    def run(self) -> TroopTrainingRecoveryResult:
-        try:
-            dispatch, unresolved = self._prior_action()
-            events = [
-                json.loads(line)
-                for line in (self.previous_session / "events.jsonl").read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
-            source_event = next(
-                event for event in events
-                if event.get("type") == "capture" and event.get("sha256") == dispatch.get("source_sha256")
-            )
-            confirm_dispatch = next(
-                event for event in events
-                if event.get("type") == "dispatch"
-                and event.get("action_key") == f"{dispatch['action_key']}:resource-box-confirm"
-            )
-            popup_event = next(
-                event for event in events
-                if event.get("type") == "capture" and event.get("sha256") == confirm_dispatch.get("source_sha256")
-            )
-            def event_path(event: dict[str, object]) -> Path:
-                path = Path(str(event["path"]))
-                return path if path.is_absolute() else Path.cwd() / path
-
-            before_frame = cv2.imread(str(event_path(source_event)), cv2.IMREAD_COLOR)
-            popup_frame = cv2.imread(str(event_path(popup_event)), cv2.IMREAD_COLOR)
-            post_frame = cv2.imread(str(Path(str(unresolved["post_path"]))), cv2.IMREAD_COLOR)
-            if before_frame is None or popup_frame is None or post_frame is None:
-                return self._result("blocked", "prior resource-box evidence could not be read")
-            before = recognize_training(before_frame)
-            popup = recognize_auto_use_resource_popup(popup_frame)
-            post = recognize_training(post_frame)
-            troop_type = str(dispatch["target_identity"]).removeprefix("normal-train:")
-            if troop_type not in TROOP_TYPES or before.selected_tier is None or before.selected_quantity is None:
-                return self._result("blocked", "prior resource-box transaction identity is incomplete")
-            values = {
-                name: TrainingConfig(enabled=False, training_policy="disabled")
-                for name in TROOP_TYPES
-            }
-            values[troop_type] = TrainingConfig(
-                target_tier=before.selected_tier,
-                quantity=before.selected_quantity,
-                training_policy="continuous",
-                allow_resource_boxes=True,
-            )
-            semantic = TrainingController(TroopTrainingConfig(**values), reset_identity="resource-box-recovery")
-            if not semantic.prove_resource_boxes_applied(before, popup, post, troop_type):
-                return self._result("blocked", "prior post does not positively prove resource boxes applied with an empty queue")
-
-            current = self.runtime.capture("resource-box-acquisition-recovery-current")
-            current_observation = recognize_training(current.frame)
-            post_resources = post.resources_by_name()
-            current_resources = current_observation.resources_by_name()
-            if (
-                not current_observation.recognized
-                or current_observation.troop_type != troop_type
-                or current_observation.selected_tier != before.selected_tier
-                or current_observation.queue_active
-                or set(current_resources) != set(RESOURCE_NAMES)
-                or any(current_resources[name].held != post_resources[name].held for name in RESOURCE_NAMES)
-            ):
-                return self._result("blocked", "fresh frame does not match the proven queue-empty resource acquisition successor")
-            self.runtime.record_recovery(
-                action_key=str(dispatch["action_key"]),
-                previous_session=str(self.previous_session),
-                previous_source_sha256=str(dispatch["source_sha256"]),
-                previous_post_sha256=str(unresolved["post_sha256"]),
-                current=current,
-                expected_completion_timestamp="",
-                reason="resource boxes applied exactly as popup projected; queue remained empty and no Train retry occurred",
-            )
-            return self._result(
-                "completed",
-                "resource-box acquisition reconciled queue-empty; current training screen retained for a new exact transaction",
-                recovered_action_key=str(dispatch["action_key"]),
-                troop_type=troop_type,
-                selected_tier=current_observation.selected_tier,
-                quantity=current_observation.selected_quantity,
-                actions_completed=0,
-            )
-        except Exception as exc:
-            return self._result("blocked", f"safe resource-box acquisition recovery stop: {exc}")
 
 
 class TroopTrainingIntegratedRoute:
@@ -869,10 +683,33 @@ class TroopTrainingIntegratedRoute:
         atlas_path: Path = DEFAULT_HOME_ATLAS,
         maximum_home_pans: int = 4,
         home_pan_settle_seconds: float = 1.0,
-        persistence_path: Path | None = None,
         zoom_transport=None,
+        native_context: Any | None = None,
+        runtime_identity_sha256: str = "",
+        prior_daily_initiations: tuple[str, ...] = (),
+        queue_generations: Mapping[str, int] | None = None,
+        pending_start_action_keys: Mapping[str, str] | None = None,
+        pending_start_reset_ids: Mapping[str, str] | None = None,
+        next_start_action_keys: Mapping[str, str] | None = None,
+        blocked_start_variants: Mapping[str, str] | None = None,
+        per_reset_variant_start_counts: Mapping[str, int] | None = None,
+        per_reset_variant_claim_counts: Mapping[str, int] | None = None,
+        preset_context: Mapping[str, object] | None = None,
     ) -> None:
-        self.runtime = runtime
+        self.runtime = (
+            _TroopTrainingInputBudgetRuntime(
+                runtime,
+                max_inputs=(
+                    native_context.max_inputs
+                    if native_context is not None and type(native_context.max_inputs) is int
+                    else MAX_INPUTS
+                ),
+                session=native_context.session,
+                checkpoint=native_context.checkpoint,
+            )
+            if native_context is not None
+            else runtime
+        )
         self.config = config
         self.reset_identity = reset_identity
         self.post_input_delay = post_input_delay
@@ -882,11 +719,38 @@ class TroopTrainingIntegratedRoute:
         self.maximum_home_pans = maximum_home_pans
         self.home_pan_settle_seconds = home_pan_settle_seconds
         self.zoom_transport = zoom_transport
-        # Session folders are ephemeral; reset-scoped initiation state must survive
-        # controller/process recreation in the stable local capture root.
-        persistence_path = persistence_path or (Path.cwd() / ".local-captures" / "troop-training-state.json")
-        self.controller = TroopTrainingRuntimeController(config, reset_identity=reset_identity, persistence_path=persistence_path)
+        self.native_context = native_context
+        self.runtime_identity_sha256 = runtime_identity_sha256
+        self.pending_start_action_keys = dict(pending_start_action_keys or {})
+        self.pending_start_reset_ids = dict(pending_start_reset_ids or {})
+        self.start_action_keys = dict(next_start_action_keys or {})
+        self.blocked_start_variants = dict(blocked_start_variants or {})
+        self.per_reset_variant_start_counts = {
+            troop_type: int((per_reset_variant_start_counts or {}).get(troop_type, 0))
+            for troop_type in TROOP_TYPES
+        }
+        self.per_reset_variant_claim_counts = {
+            troop_type: int((per_reset_variant_claim_counts or {}).get(troop_type, 0))
+            for troop_type in TROOP_TYPES
+        }
+        self.preset_context = dict(preset_context or {})
+        self.controller = TroopTrainingRuntimeController(
+            config,
+            reset_identity=reset_identity,
+            prior_daily_initiations=prior_daily_initiations,
+            queue_generations=queue_generations,
+            pending_start_action_keys=pending_start_action_keys,
+        )
         self.actions_completed = 0
+        self.training_start_transport_calls = 0
+        self.claim_dispatch_count = 0
+        self.resource_box_dispatch_count = 0
+        self.warehouse_dispatch_count = 0
+        self.committed_action_count = 0
+        self.effect_reconciliation_required = False
+        self.identical_retry_denied = False
+        self.saved_training_preset_verified = False
+        self.remaining_eligible_variants: list[str] = []
         self.completed_claims: list[dict[str, object]] = []
         self.warehouse_approvals: list[dict[str, object]] = []
         self.resource_box_approvals: list[dict[str, object]] = []
@@ -900,6 +764,11 @@ class TroopTrainingIntegratedRoute:
             resolved_config[troop_type]["resolved_quantity"] = state.resolved_quantity
             resolved_config[troop_type]["daily_initiation_state"] = state.daily_initiation_state
             resolved_config[troop_type]["queue_state"] = state.queue_state
+            resolved_config[troop_type]["queue_generation"] = state.queue_generation
+            resolved_config[troop_type]["per_reset_variant_start_count"] = self.per_reset_variant_start_counts[troop_type]
+            resolved_config[troop_type]["per_reset_variant_claim_count"] = self.per_reset_variant_claim_counts[troop_type]
+            resolved_config[troop_type]["pending_start_action_key"] = self.pending_start_action_keys.get(troop_type)
+            resolved_config[troop_type]["next_start_action_key"] = self.start_action_keys.get(troop_type)
         return TroopTrainingRouteResult(
             status=status,
             reason=reason,
@@ -908,11 +777,26 @@ class TroopTrainingIntegratedRoute:
             warehouse_approvals=tuple(self.warehouse_approvals),
             resource_box_approvals=tuple(self.resource_box_approvals),
             training=tuple(self.training),
-            daily_progress=self.controller.semantic.aggregate_daily(),
             final_home_recognized=final_home,
             entry_navigation=self.entry_navigation,
             session=str(self.runtime.session),
             resolved_config=resolved_config,
+            training_dispatch_count=(
+                self.training_start_transport_calls
+                + self.claim_dispatch_count
+                + self.resource_box_dispatch_count
+                + self.warehouse_dispatch_count
+            ),
+            training_start_transport_calls=self.training_start_transport_calls,
+            claim_dispatch_count=self.claim_dispatch_count,
+            resource_box_dispatch_count=self.resource_box_dispatch_count,
+            warehouse_dispatch_count=self.warehouse_dispatch_count,
+            committed_action_count=self.committed_action_count,
+            effect_reconciliation_required=self.effect_reconciliation_required,
+            identical_retry_denied=self.identical_retry_denied,
+            terminal_home_verified=final_home,
+            saved_training_preset_verified=self.saved_training_preset_verified,
+            remaining_eligible_variants=tuple(self.remaining_eligible_variants),
         )
 
     def _navigate_selected_facility(self, target):
@@ -1235,6 +1119,341 @@ class TroopTrainingIntegratedRoute:
         if self.post_input_delay > 0:
             time.sleep(self.post_input_delay)
 
+    def _ensure_training_preset(self) -> str | None:
+        context = self.native_context
+        if context is None:
+            return "NATIVE_SERVICE_CONTEXT_REQUIRED"
+        try:
+            result = ensure_commander_talent_preset(
+                context.session,
+                context.runtime,
+                "Training",
+                checkpoint=context.checkpoint,
+                runtime_input_lock=context.runtime_input_lock,
+                action_store=context.action_store,
+                source_generation=context.invocation_id,
+                context=self.preset_context,
+                native_port=run_commander_talent_preset,
+                switch_approval=None,
+            )
+        except Exception as exc:
+            return f"TRAINING_PRESET_VERIFICATION_FAILED:{type(exc).__name__}:{exc}"
+        if not result.verified or result.preset_name != "Training":
+            return f"TRAINING_PRESET_NOT_VERIFIED:{result.status}:{result.reason}"
+        self.saved_training_preset_verified = True
+        return None
+
+    def _policy_observation(
+        self,
+        captured,
+        *,
+        target_identity: str | None,
+        target_roi,
+        control_class: str | None,
+        consequence: str | None,
+        cost_type: str | None,
+        cost_amount: float | None,
+        quantity: int | None,
+        postcondition: str,
+        source_state: str = "TROOP_TRAINING_SCREEN",
+        recognized: bool = True,
+        overlay_state: str = "none_observed",
+    ) -> Observation:
+        try:
+            package = str(self.native_context.runtime.measure_foreground_package())
+        except Exception:
+            package = ""
+        return Observation(
+            frame_sha256=str(captured.sha256),
+            capture_completed_monotonic=float(captured.captured_monotonic),
+            runtime_profile_id=PROFILE_ID,
+            width=int(captured.frame.shape[1]),
+            height=int(captured.frame.shape[0]),
+            valid_png=True,
+            corrupt=False,
+            black=False,
+            source_state=source_state,
+            overlay_state=overlay_state,
+            target_identity=target_identity,
+            target_roi=target_roi,
+            recognized=recognized,
+            control_class=control_class,
+            consequence=consequence,
+            cost_type=cost_type,
+            cost_amount=cost_amount,
+            quantity=quantity,
+            expected_postcondition=postcondition,
+            evidence_refs=(str(captured.path),),
+            source_family="troop_training",
+            target_isolated=target_roi is not None,
+            package_foreground=package == "com.global.ztmslg",
+        )
+
+    def _execute_canonical_action(
+        self,
+        *,
+        captured,
+        target_identity: str,
+        target_key: str,
+        target_roi,
+        action_key: str,
+        action_kind: str,
+        subject: str,
+        counter_variant: str,
+        action_class: ActionClass,
+        control_class: str,
+        consequence: str,
+        postcondition: str,
+        cost_type: str,
+        cost_amount: int,
+        action_quantity: int,
+        resource_or_currency: str | None,
+        maximum_cost: int,
+        free_only: bool,
+        semantic_preconditions: tuple[str, ...],
+        before_positive,
+        after_positive,
+        counter_kind: str,
+    ) -> dict[str, object]:
+        context = self.native_context
+        if context is None:
+            return {"status": "blocked", "reason": "NATIVE_SERVICE_CONTEXT_REQUIRED", "transport_calls": 0}
+        input_budget = context.max_inputs if type(context.max_inputs) is int else MAX_INPUTS
+        runtime_input_count = getattr(context.runtime, "input_count", None)
+        if type(runtime_input_count) is not int or runtime_input_count >= input_budget - 1:
+            return {"status": "blocked", "reason": "TRAINING_INPUT_BUDGET_HOME_RESERVE", "transport_calls": 0}
+        training_dispatch_count = (
+            self.training_start_transport_calls
+            + self.claim_dispatch_count
+            + self.resource_box_dispatch_count
+            + self.warehouse_dispatch_count
+        )
+        action_budget = context.max_actions if type(context.max_actions) is int else MAX_ACTIONS
+        if training_dispatch_count >= action_budget:
+            return {"status": "blocked", "reason": "TRAINING_CONSEQUENTIAL_ACTION_BUDGET_EXHAUSTED", "transport_calls": 0}
+        observation = self._policy_observation(
+            captured,
+            target_identity=target_identity,
+            target_roi=target_roi,
+            control_class=control_class,
+            consequence=consequence,
+            cost_type=cost_type,
+            cost_amount=cost_amount,
+            quantity=action_quantity,
+            postcondition=postcondition,
+        )
+        now = float(context.utc_clock())
+        monotonic_now = float(context.monotonic_clock())
+        store, session, runtime = context.action_store, context.session, context.runtime
+        action_id = f"troop-training:{hashlib.sha256((action_key + context.invocation_id).encode()).hexdigest()}"
+        request = PolicyRequest(
+            action_id=action_id,
+            action_key=action_key,
+            task_id=FLOW_ID,
+            task_mode="supervised_validation",
+            semantic_action=action_kind,
+            expected_runtime_profile_id=PROFILE_ID,
+            observation=observation,
+            monotonic_now=monotonic_now,
+            observation_max_age_seconds=30.0,
+            dispatch_max_age_seconds=30.0,
+            lease_owner=session.owner,
+            lease_valid=store.lease_valid_for(session.owner, now),
+            unresolved_action=store.has_action_block(),
+            duplicate_action_key=store.action_key_exists(action_key),
+            game_day_id=self.reset_identity,
+            action_class=action_class,
+            action_kind=action_kind,
+            subject=subject,
+            resource_or_currency=resource_or_currency,
+            maximum_cost=maximum_cost,
+            free_only=free_only,
+            semantic_preconditions=semantic_preconditions,
+            semantic_postconditions=(postcondition,),
+            runtime_session_id=str(runtime.session),
+        )
+        policy = CentralPolicy(frozenset({FLOW_ID}))
+        issued = policy.issue_capability(request)
+        store.audit(FLOW_ID, "capability_issued", now, issued.audit, action_id)
+        if not issued.authorized or issued.capability is None:
+            if issued.reason_code == "DUPLICATE_ACTION_KEY" or store.action_key_exists(action_key):
+                self.identical_retry_denied = True
+            return {
+                "status": "blocked",
+                "reason": issued.reason_code,
+                "action_key": action_key,
+                "transport_calls": 0,
+            }
+
+        post_captures: list[tuple[Any, TrainingScreenObservation, bool]] = []
+        dispatch_counts: list[int] = []
+
+        def record_dispatch(count: int) -> None:
+            if count <= 0:
+                return
+            dispatch_counts.append(count)
+            self.actions_completed += count
+            if counter_kind == "start":
+                self.training_start_transport_calls += count
+                self.per_reset_variant_start_counts[counter_variant] += count
+            elif counter_kind == "claim":
+                self.claim_dispatch_count += count
+                self.per_reset_variant_claim_counts[counter_variant] += count
+            else:
+                raise ValueError("unknown troop-training consequential counter")
+
+        def transport(_intent):
+            runtime_before = getattr(runtime, "input_count", None)
+            session_before = getattr(session, "input_count", None)
+            if type(runtime_before) is not int or type(session_before) is not int:
+                raise RuntimeError("native input accounting is unavailable before consequential dispatch")
+
+            def authorize(before):
+                context.checkpoint()
+                context.validate_identity()
+                if before.sha256 != captured.sha256:
+                    raise RuntimeError("training target frame changed before consequential input")
+                fresh = recognize_training_with_targets(before.frame)
+                if (
+                    not fresh.observation.recognized
+                    or fresh.target(target_key) != target_roi
+                    or not before_positive(fresh.observation)
+                ):
+                    raise RuntimeError("training source facts or target changed before consequential input")
+
+            def dispatch(before):
+                if counter_kind == "start":
+                    dispatch_decision = self.controller.dispatch_started(
+                        counter_variant,
+                        action_key,
+                    )
+                    if dispatch_decision.action != "await_postcondition":
+                        raise RuntimeError("training controller rejected its preauthorized start")
+                runtime.tap(
+                    before,
+                    target_identity=target_identity,
+                    target_roi=target_roi,
+                    action_key=action_key,
+                    action_class=action_kind,
+                    consequential=True,
+                )
+
+            def recognize(after):
+                fresh = recognize_training_with_targets(after.frame)
+                shape_ok = (
+                    getattr(session, "input_count", None) - session_before == 1
+                    and getattr(runtime, "input_count", None) - runtime_before == 1
+                )
+                positive = bool(shape_ok and after_positive(fresh.observation))
+                post_captures.append((after, fresh.observation, positive))
+                return postcondition if positive else "unknown"
+
+            def settled_successor():
+                if context.settle_seconds > 0:
+                    time.sleep(float(context.settle_seconds))
+                context.checkpoint()
+                return runtime.capture(f"{counter_kind}-post-settled")
+
+            try:
+                session.run_action(
+                    action_class=action_kind,
+                    label=f"troop-training-{counter_kind}-{subject}",
+                    capture=runtime.capture,
+                    dispatch=dispatch,
+                    recognize=recognize,
+                    authorize=authorize,
+                    target_roi=target_roi,
+                    consequence_class=consequence,
+                    settled_successor=settled_successor,
+                )
+            except Exception as exc:
+                runtime_delta = int(getattr(runtime, "input_count", runtime_before)) - runtime_before
+                session_delta = int(getattr(session, "input_count", session_before)) - session_before
+                record_dispatch(max(runtime_delta, session_delta))
+                return TransportResult(
+                    max(runtime_delta, session_delta) > 0,
+                    f"TROOP_TRAINING_TRANSPORT_{type(exc).__name__}",
+                )
+            runtime_delta = int(getattr(runtime, "input_count", runtime_before)) - runtime_before
+            session_delta = int(getattr(session, "input_count", session_before)) - session_before
+            actual_count = max(runtime_delta, session_delta)
+            record_dispatch(actual_count)
+            if runtime_delta != 1 or session_delta != 1:
+                return TransportResult(actual_count > 0, "TROOP_TRAINING_INPUT_ACCOUNTING_MISMATCH")
+            return TransportResult(True, "TROOP_TRAINING_CONSEQUENTIAL_INPUT_SENT")
+
+        def recapture():
+            return observation
+
+        def post_observe():
+            if not post_captures:
+                return ()
+            post_capture, _semantic, positive = post_captures[-1]
+            return (
+                self._policy_observation(
+                    post_capture,
+                    target_identity=None,
+                    target_roi=None,
+                    control_class=None,
+                    consequence=None,
+                    cost_type=None,
+                    cost_amount=None,
+                    quantity=None,
+                    postcondition=postcondition,
+                    source_state=postcondition if positive else "UNKNOWN",
+                    recognized=positive,
+                    overlay_state="none_observed" if positive else "unknown",
+                ),
+            )
+
+        def reconcile(_intent, observed):
+            return bool(
+                post_captures
+                and observed.frame_sha256 == post_captures[-1][0].sha256
+                and observed.source_state == postcondition
+                and post_captures[-1][2]
+            )
+
+        execution = SafeActionExecutor(
+            store,
+            policy,
+            session.owner,
+            context.monotonic_clock,
+            transport,
+            recapture,
+            post_observe,
+            reconcile,
+            wall_clock=context.utc_clock,
+            max_pre_dispatch_attempts=1,
+        ).execute(request, issued.capability)
+        actual_count = sum(dispatch_counts)
+        if execution.status is ActionStatus.CONFIRMED and actual_count == 1:
+            self.committed_action_count += 1
+        elif execution.status is ActionStatus.UNRESOLVED or actual_count:
+            self.effect_reconciliation_required = True
+            self.identical_retry_denied = True
+        row = store.get_action_by_key(action_key)
+        if row is not None and row.get("final_status") == "cancelled":
+            self.identical_retry_denied = True
+        return {
+            "status": (
+                "confirmed"
+                if execution.status is ActionStatus.CONFIRMED
+                else "unresolved"
+                if execution.status is ActionStatus.UNRESOLVED
+                else "blocked"
+            ),
+            "reason": execution.reason,
+            "action_key": action_key,
+            "journal_status": row.get("final_status") if row else None,
+            "transport_calls": actual_count,
+            "executor_transport_calls": execution.transport_calls,
+            "effect_reconciliation_required": execution.status is ActionStatus.UNRESOLVED,
+            "successor_sha256": post_captures[-1][0].sha256 if post_captures else None,
+            "successor_capture": post_captures[-1][0] if post_captures else None,
+            "successor_observation": post_captures[-1][1] if post_captures else None,
+        }
+
     def _navigation_tap(self, captured, *, identity: str, roi, action_key: str) -> None:
         self.runtime.tap(captured, target_identity=identity, target_roi=roi, action_key=action_key)
         self.actions_completed += 1
@@ -1244,35 +1463,148 @@ class TroopTrainingIntegratedRoute:
         troop_type = observation.troop_type
         if troop_type is None or not observation.completion_ready:
             return captured, observation, None
+        start_action_key = self.pending_start_action_keys.get(troop_type)
+        start_reset_id = self.pending_start_reset_ids.get(troop_type)
+        if not start_action_key or not start_reset_id:
+            return None, None, "completed legacy/unknown queue requires manual reconciliation; no start row may be fabricated"
+        bound = replace(observation, completion_batch_id=start_action_key)
         recognition = recognize_training_with_targets(captured.frame)
         target = recognition.target(f"tab:{troop_type}")
-        action_key = make_action_key(troop_type, self.reset_identity, captured.sha256, "claim")
-        if target is None or self.controller.semantic.plan_claim(observation, action_key=action_key) != "authorize_claim":
-            return None, None, "completed troop claim was not authorizeable"
-        self.runtime.tap(
-            captured,
-            target_identity=f"tab:{troop_type}:claim-completed",
+        config = self.config.for_type(troop_type)
+        state = self.controller.semantic.states[troop_type]
+        quantity = observation.selected_quantity
+        batch_quantity = observation.queue_quantity
+        if (
+            target is None
+            or observation.facility_identity != FACILITY_BY_TYPE[troop_type]
+            or observation.queue_troop_type != troop_type
+            or observation.queue_tier != config.target_tier
+            or type(quantity) is not int
+            or type(batch_quantity) is not int
+            or batch_quantity != quantity
+            or type(observation.quantity_maximum) is not int
+            or observation.quantity_maximum <= 0
+            or self.controller.semantic.plan_claim(bound, action_key=make_training_claim_action_key(start_action_key))
+            != "authorize_claim"
+        ):
+            return None, None, "completed troop claim identity or quantity is not positively authorizeable"
+        action_key = make_training_claim_action_key(start_action_key)
+        facility = FACILITY_BY_TYPE[troop_type].casefold().replace(" ", "_")
+        configured = "current_max" if config.quantity_mode == "current_max" else str(config.quantity)
+        preconditions = (
+            f"troop_training_product={PRODUCT_ID}",
+            f"troop_training_product_revision={PRODUCT_REVISION}",
+            "approved_profile=true",
+            f"runtime_scope={resource_fixed_runtime_binding().runtime_scope}",
+            f"account_id={self.native_context.identity.account_id}",
+            f"server_id={self.native_context.identity.server_id}",
+            f"runtime_identity_sha256={self.runtime_identity_sha256}",
+            f"variant={troop_type}",
+            f"facility_identity={facility}",
+            f"troop_type={troop_type}",
+            f"tier={config.target_tier}",
+            f"quantity_mode={config.quantity_mode}",
+            f"configured_quantity={configured}",
+            f"selected_quantity={quantity}",
+            "completed_batch_ready=true",
+            f"completed_batch_id={start_action_key}",
+            f"confirmed_start_action_key={start_action_key}",
+            f"confirmed_start_reset_id={start_reset_id}",
+            f"completed_batch_troop_type={troop_type}",
+            f"completed_batch_tier={observation.queue_tier}",
+            f"completed_batch_quantity={batch_quantity}",
+            "queue_state=positively_completed",
+            f"queue_generation={state.queue_generation}",
+            f"per_reset_variant_start_count={self.per_reset_variant_start_counts[troop_type]}",
+            f"per_reset_variant_claim_count={self.per_reset_variant_claim_counts[troop_type]}",
+            f"reset_id={self.reset_identity}",
+            "overlay=none",
+            "forbidden_controls=none",
+        )
+        postcondition = f"TROOP_TRAINING_BATCH_CLAIMED:{troop_type}:{start_action_key}"
+
+        def before_positive(fresh):
+            return bool(
+                fresh.troop_type == troop_type
+                and fresh.facility_identity == FACILITY_BY_TYPE[troop_type]
+                and fresh.overlay_state == "none"
+                and fresh.completion_ready
+                and fresh.queue_troop_type == troop_type
+                and fresh.queue_tier == config.target_tier
+                and fresh.queue_quantity == batch_quantity
+                and fresh.selected_tier == config.target_tier
+                and fresh.selected_quantity == quantity
+                and not fresh.premium_popup
+                and not fresh.forbidden_controls
+            )
+
+        def after_positive(fresh):
+            return bool(
+                fresh.recognized
+                and fresh.troop_type == troop_type
+                and fresh.facility_identity == FACILITY_BY_TYPE[troop_type]
+                and fresh.overlay_state == "none"
+                and not fresh.completion_ready
+                and fresh.selected_tier == config.target_tier
+                and fresh.selected_quantity == quantity
+                and not fresh.premium_popup
+                and not fresh.forbidden_controls
+            )
+
+        result = self._execute_canonical_action(
+            captured=captured,
+            target_identity=f"troop_training:completed_batch_claim:{troop_type}",
+            target_key=f"tab:{troop_type}",
             target_roi=target,
             action_key=action_key,
-            consequential=False,
+            action_kind="TROOP_TRAINING_COMPLETED_BATCH_CLAIM",
+            subject="TROOP_TRAINING_COMPLETED_BATCH_CLAIM",
+            counter_variant=troop_type,
+            action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+            control_class=f"tab:{troop_type}:claim-completed",
+            consequence="claim_zero_cost_reward",
+            postcondition=postcondition,
+            cost_type="none",
+            cost_amount=0,
+            action_quantity=1,
+            resource_or_currency=None,
+            maximum_cost=0,
+            free_only=True,
+            semantic_preconditions=preconditions,
+            before_positive=before_positive,
+            after_positive=after_positive,
+            counter_kind="claim",
         )
-        self.actions_completed += 1
-        self._wait()
-        post_capture, post = self._capture_training("completed-claim-immediate-post")
-        if not self.controller.semantic.reconcile_claim(observation, post, action_key=action_key):
-            self.runtime.reconcile(action_key, "unresolved", post_capture, "completed troop state did not clear positively")
-            return None, None, "completed troop claim unresolved"
-        self.runtime.reconcile(action_key, "confirmed", post_capture, "completed troop claim cleared on same-type tab")
+        if result["status"] != "confirmed":
+            if result["status"] == "unresolved":
+                self.effect_reconciliation_required = True
+                self.identical_retry_denied = True
+                return None, None, f"completed troop claim unresolved: {result['reason']}"
+            return captured, bound, f"completed troop claim blocked: {result['reason']}"
+        post_capture = result.get("successor_capture")
+        post = result.get("successor_observation")
+        if (
+            post_capture is None
+            or not isinstance(post, TrainingScreenObservation)
+            or not self.controller.semantic.reconcile_claim(bound, post, action_key=action_key)
+        ):
+            self.effect_reconciliation_required = True
+            self.identical_retry_denied = True
+            return None, None, "completed troop claim successor did not reconcile to the same persisted batch"
+        self.pending_start_action_keys.pop(troop_type, None)
+        self.pending_start_reset_ids.pop(troop_type, None)
+        self.controller.semantic.pending_start_action_keys.pop(troop_type, None)
         self.completed_claims.append(
             {
                 "troop_type": troop_type,
                 "action_key": action_key,
+                "confirmed_start_action_key": start_action_key,
+                "confirmed_start_reset_id": start_reset_id,
                 "source_frame_hash": captured.sha256,
                 "post_frame_hash": post_capture.sha256,
-                "batch_identity": observation.completion_batch_id,
+                "batch_identity": start_action_key,
             }
         )
-        state = self.controller.semantic.states[troop_type]
         self.training.append(
             {
                 "troop_type": troop_type,
@@ -1282,22 +1614,18 @@ class TroopTrainingIntegratedRoute:
                 "configured_quantity": state.configured_quantity,
                 "quantity_mode": state.quantity_mode,
                 "quantity_maximum": observation.quantity_maximum,
-                "maximum_equality_proven": state.quantity_mode != "current_max" or observation.selected_quantity == observation.quantity_maximum,
-                "queue_label": None,
-                "queue_troop_type": None,
-                "queue_tier": None,
-                "queue_quantity": None,
-                "displayed_training_duration_seconds": None,
-                "duration_source": None,
-                "queue_spatially_associated": False,
-                "queue_roi": observation.diagnostics.get("queue_band"),
-                "expected_completion_timestamp": None,
-                "queue_state": state.queue_state,
-                "completion_policy": "completed_batch_claim_reconciled",
-                "batch_identity": observation.completion_batch_id,
+                "maximum_equality_proven": state.quantity_mode != "current_max"
+                or observation.selected_quantity == observation.quantity_maximum,
+                "queue_label": observation.queue_label,
+                "queue_troop_type": observation.queue_troop_type,
+                "queue_tier": observation.queue_tier,
+                "queue_quantity": observation.queue_quantity,
+                "queue_state": "completed_claimed",
+                "completion_policy": "canonical_confirmed_batch_claim",
+                "batch_identity": start_action_key,
                 "action_key": action_key,
                 "daily_initiation_state": state.daily_initiation_state,
-                "reset_identity": state.reset_identity,
+                "reset_identity": self.reset_identity,
                 "training_policy": state.training_policy,
                 "source_frame_hash": captured.sha256,
                 "immediate_before_frame_hash": captured.sha256,
@@ -1524,8 +1852,8 @@ class TroopTrainingIntegratedRoute:
             action_key=f"training:navigation:quantity-editor:{troop_type}:{captured.sha256}",
         )
         editor_capture = self.runtime.capture("quantity-editor-before-text")
-        # The editor can display a one-digit resource-limited value while retaining a previous
-        # four-digit buffer. Clear the contract maximum width every time before exact entry.
+        # The editor may retain a stale numeric value; clear the full observed maximum width.
+        # Then enter the exact authorized quantity.
         max_digits = len(str(observation.quantity_maximum or quantity or 1000))
         self.runtime.clear_numeric_text(
             editor_capture,
@@ -1555,186 +1883,237 @@ class TroopTrainingIntegratedRoute:
         return post_capture, post, None
 
     def _train(self, captured, observation: TrainingScreenObservation, troop_type: str):
-        # Full-frame OCR can consume the native runtime's complete source-age budget.  Re-run
-        # the training recognizer on one fresh native frame, then use that exact observation for
-        # every semantic gate and the consequential dispatch binding.
-        captured, observation = self._capture_training(
-            f"{troop_type}-train-immediate-before"
-        )
-        if not observation.recognized:
-            return None, None, "fresh Train frame was not recognized"
-        if observation.troop_type != troop_type:
-            return None, None, f"fresh Train frame troop type mismatch: expected {troop_type}"
+        context = self.native_context
+        if context is None:
+            return None, None, "canonical native service context is required for Train"
+        captured = context.runtime.capture(f"{troop_type}-train-immediate-before")
+        recognition = recognize_training_with_targets(captured.frame)
+        observation = recognition.observation
+        config = self.config.for_type(troop_type)
+        state = self.controller.semantic.states[troop_type]
+        if (
+            not observation.recognized
+            or observation.troop_type != troop_type
+            or observation.facility_identity != FACILITY_BY_TYPE[troop_type]
+            or observation.overlay_state != "none"
+            or observation.queue_active
+            or observation.completion_ready
+            or observation.premium_popup
+            or observation.forbidden_controls
+        ):
+            return None, None, "fresh exact queue-empty training source is not recognized"
         plan = self.controller.semantic.plan_training(observation, troop_type)
-        if plan not in {"authorize_normal_train", "authorize_normal_train_expected_warehouse"}:
+        if plan in {
+            "defer_resource_shortage_effect_authority_unavailable",
+            "defer_warehouse_confirmation_authority_unavailable",
+            "defer_resource_shortage_resource_boxes_disabled",
+        }:
+            decision = self.controller.observe_training(observation, troop_type)
+            if decision.action != "defer":
+                return None, None, decision.reason
+            return captured, observation, plan
+        if plan != "authorize_normal_train":
             return None, None, plan
-        target = observation.normal_train_target
-        if target is None:
-            return None, None, "normal Train target is not positively bound"
-        action_key = make_action_key(troop_type, self.reset_identity, captured.sha256, "train")
+        if not all_base_resources_sufficient(observation.resources):
+            decision = self.controller.observe_training(observation, troop_type)
+            if decision.action == "defer":
+                return captured, observation, decision.reason
+            return None, None, decision.reason
+        if observation.normal_train_target is None or recognition.target("train") != observation.normal_train_target:
+            return None, None, "normal Train target is not positively bound on the fresh frame"
+        quantity = self.controller.semantic.resolved_quantity(observation, troop_type)
+        if (
+            type(quantity) is not int
+            or type(observation.selected_quantity) is not int
+            or observation.selected_quantity != quantity
+            or type(observation.quantity_maximum) is not int
+            or observation.quantity_maximum <= 0
+        ):
+            return None, None, "numeric current quantity and capacity do not match the fixed variant"
+        if config.quantity_mode == "current_max" and quantity != observation.quantity_maximum:
+            return None, None, "current numeric maximum is not selected exactly"
+        if config.quantity_mode == "fixed" and (
+            config.quantity != 250 or quantity != 250 or observation.quantity_maximum < 250
+        ):
+            return None, None, "fixed daily quantity is not exactly 250 within the current numeric capacity"
+        action_key = self.start_action_keys.get(troop_type)
+        candidate_generation = state.queue_generation + 1
+        if not action_key:
+            if troop_type in self.blocked_start_variants:
+                self.identical_retry_denied = True
+                return None, None, self.blocked_start_variants[troop_type]
+            return None, None, "canonical next queue-generation action key is missing"
+        try:
+            expected_action_key = make_training_start_action_key(
+                self.runtime_identity_sha256,
+                self.reset_identity,
+                troop_type,
+                candidate_generation,
+            )
+        except ValueError:
+            return None, None, "canonical start-key identity is incomplete"
+        if action_key != expected_action_key:
+            return None, None, "canonical start key does not match the exact identity/reset/variant/global generation"
+        resources = observation.resources_by_name()
+        if set(resources) != set(RESOURCE_NAMES) or len(observation.resources) != len(RESOURCE_NAMES):
+            return None, None, "exact four-resource cost vector is unresolved"
+        resource_tokens: list[str] = []
+        required_costs: list[int] = []
+        frozen_resources: dict[str, tuple[int, int]] = {}
+        for name in RESOURCE_NAMES:
+            reading = resources[name]
+            if type(reading.held) is not int or type(reading.required) is not int or reading.held < reading.required:
+                return None, None, f"resource.{name} held/required amount is missing or insufficient"
+            frozen_resources[name] = (reading.held, reading.required)
+            required_costs.append(reading.required)
+            resource_tokens.extend(
+                (
+                    f"resource.{name}.held={reading.held}",
+                    f"resource.{name}.required={reading.required}",
+                )
+            )
+        configured = "current_max" if config.quantity_mode == "current_max" else str(config.quantity)
+        facility = FACILITY_BY_TYPE[troop_type].casefold().replace(" ", "_")
+        preconditions = (
+            f"troop_training_product={PRODUCT_ID}",
+            f"troop_training_product_revision={PRODUCT_REVISION}",
+            f"runtime_scope={resource_fixed_runtime_binding().runtime_scope}",
+            f"account_id={context.identity.account_id}",
+            f"server_id={context.identity.server_id}",
+            f"runtime_identity_sha256={self.runtime_identity_sha256}",
+            f"game_day_id={self.reset_identity}",
+            "approved_profile=true",
+            f"variant={troop_type}",
+            f"facility_identity={facility}",
+            f"troop_type={troop_type}",
+            f"tier={config.target_tier}",
+            f"quantity_mode={config.quantity_mode}",
+            f"configured_quantity={configured}",
+            f"selected_quantity={quantity}",
+            f"quantity_maximum={observation.quantity_maximum}",
+            f"training_policy={config.training_policy}",
+            f"allow_resource_boxes={str(config.allow_resource_boxes).lower()}",
+            "queue_state=positively_empty",
+            f"queue_generation={candidate_generation}",
+            f"per_reset_variant_start_count={self.per_reset_variant_start_counts[troop_type]}",
+            "saved_commander_talent_preset=Training",
+            "saved_commander_talent_preset_verified=true",
+            *resource_tokens,
+            "forbidden_controls=none",
+            "overlay=none",
+        )
+        if len(preconditions) != 33 or not self.runtime_identity_sha256:
+            return None, None, "exact training policy preconditions are incomplete"
+        preset_error = self._ensure_training_preset()
+        if preset_error is not None:
+            return None, None, preset_error
         decision = self.controller.observe_training(observation, troop_type)
         if decision.action != "start_training":
             return None, None, decision.reason
-        self.controller.dispatch_started(troop_type, action_key)
-        dispatched_at = datetime.now(timezone.utc)
-        self.runtime.tap(
-            captured,
-            target_identity=f"normal-train:{troop_type}",
-            target_roi=target,
-            action_key=action_key,
-            consequential=True,
+        dispatched_at = datetime.fromtimestamp(float(context.utc_clock()), timezone.utc)
+        postcondition = (
+            f"active_queue_confirmed:{troop_type}:{config.target_tier}:"
+            f"{quantity}:positive_current_timer"
         )
-        self.actions_completed += 1
-        self._wait()
-        post_capture, post = self._capture_training(f"{troop_type}-train-immediate-post")
-        resource_popup = recognize_auto_use_resource_popup(post_capture.frame)
-        if resource_popup.recognized:
-            # Shooter and Rider never authorize resource-box use, even if a caller
-            # supplied a permissive legacy config.  Their exact popup is canceled.
-            if troop_type not in {"fighter", "vehicle"}:
-                resource_popup = replace(resource_popup, recognized=True)
-            # Rebind both buttons and every resource amount from a fresh native frame before the
-            # one permitted continuation input.  Confirm is never inferred from the stale
-            # immediate-post frame.
-            popup_capture = self.runtime.capture(f"{troop_type}-resource-box-popup-immediate-before")
-            resource_popup = recognize_auto_use_resource_popup(popup_capture.frame)
-            popup_plan = (
-                "reject_resource_boxes_disabled"
-                if troop_type not in {"fighter", "vehicle"}
-                else self.controller.semantic.plan_resource_box_continuation(
-                observation,
-                resource_popup,
-                troop_type,
+
+        def before_positive(fresh):
+            fresh_resources = fresh.resources_by_name()
+            return bool(
+                fresh.troop_type == troop_type
+                and fresh.facility_identity == FACILITY_BY_TYPE[troop_type]
+                and fresh.overlay_state == "none"
+                and not fresh.queue_active
+                and not fresh.completion_ready
+                and fresh.selected_tier == config.target_tier
+                and fresh.selected_quantity == quantity
+                and fresh.quantity_maximum == observation.quantity_maximum
+                and set(fresh_resources) == set(RESOURCE_NAMES)
+                and all(
+                    type(fresh_resources[name].held) is int
+                    and type(fresh_resources[name].required) is int
+                    and (fresh_resources[name].held, fresh_resources[name].required) == frozen_resources[name]
+                    for name in RESOURCE_NAMES
                 )
+                and not fresh.premium_popup
+                and not fresh.forbidden_controls
             )
-            if popup_plan == "authorize_resource_box_confirmation":
-                if resource_popup.confirm_target is None:
-                    self.runtime.reconcile(action_key, "unresolved", popup_capture, "resource-box Confirm target disappeared")
-                    return None, None, "resource-box continuation unresolved"
-                self.runtime.tap(
-                    popup_capture,
-                    target_identity=f"resource-box-confirm:{troop_type}",
-                    target_roi=resource_popup.confirm_target,
-                    action_key=f"{action_key}:resource-box-confirm",
-                    continuation_of=action_key,
-                )
-                self.actions_completed += 1
-                self._wait()
-                confirmed_capture, confirmed = self._capture_training(f"{troop_type}-resource-box-immediate-post")
-                approval = {
-                    "troop_type": troop_type,
-                    "action_key": action_key,
-                    "configured_quantity": self.controller.semantic.resolved_quantity(observation, troop_type),
-                    "quantity_mode": self.config.for_type(troop_type).quantity_mode,
-                    "popup_frame_hash": popup_capture.sha256,
-                    "post_frame_hash": confirmed_capture.sha256,
-                    "resources_after_use": [asdict(resource) for resource in resource_popup.resources_after_use],
-                }
-                if (
-                    confirmed.recognized
-                    and confirmed.queue_active
-                    and confirmed.troop_type == troop_type
-                    and confirmed.selected_tier == observation.selected_tier
-                    and confirmed.selected_quantity == self.controller.semantic.resolved_quantity(observation, troop_type)
-                ):
-                    self.resource_box_approvals.append({**approval, "successor": "active_queue"})
-                    post_capture, post = confirmed_capture, confirmed
-                elif self.controller.semantic.prove_resource_boxes_applied(
-                    observation,
-                    resource_popup,
-                    confirmed,
-                    troop_type,
-                ):
-                    before_resources = observation.resources_by_name()
-                    applied = {
-                        resource.name: (resource.held or 0) - (before_resources[resource.name].held or 0)
-                        for resource in resource_popup.resources_after_use
-                    }
-                    failed = self.controller.reconcile_failed_started(
-                        troop_type,
-                        confirmed,
-                        action_key=action_key,
-                        reason="resource_boxes_applied_queue_empty",
-                    )
-                    if failed.phase != TrainingPhase.BLOCKED:
-                        self.runtime.reconcile(action_key, "unresolved", confirmed_capture, failed.reason)
-                        return None, None, failed.reason
-                    self.runtime.reconcile(
-                        action_key,
-                        "failed_confirmed",
-                        confirmed_capture,
-                        "resource boxes positively applied; queue remained empty and requires a new exact Train transaction",
-                    )
-                    self.resource_box_approvals.append(
-                        {**approval, "successor": "resources_applied_queue_empty", "applied_amounts": applied}
-                    )
-                    return confirmed_capture, confirmed, RESOURCE_BOXES_APPLIED_REAPPLY_TRAINING
-                else:
-                    self.runtime.reconcile(action_key, "unresolved", confirmed_capture, "resource-box confirmation did not prove resource acquisition or the exact active queue")
-                    return None, None, "resource-box continuation unresolved"
-            elif popup_plan == "reject_resource_boxes_disabled":
-                if resource_popup.cancel_target is None:
-                    self.runtime.reconcile(action_key, "unresolved", popup_capture, "resource-box Cancel target disappeared")
-                    return None, None, "resource-box disabled continuation unresolved"
-                self.runtime.tap(
-                    popup_capture,
-                    target_identity=f"resource-box-cancel:{troop_type}",
-                    target_roi=resource_popup.cancel_target,
-                    action_key=f"{action_key}:resource-box-cancel",
-                    continuation_of=action_key,
-                )
-                self.actions_completed += 1
-                self._wait()
-                canceled_capture, canceled = self._capture_training(f"{troop_type}-resource-box-cancel-immediate-post")
-                failed = self.controller.reconcile_failed_started(
-                    troop_type,
-                    canceled,
-                    action_key=action_key,
-                    reason="resource_boxes_disabled",
-                )
-                if failed.phase != TrainingPhase.BLOCKED:
-                    self.runtime.reconcile(action_key, "unresolved", canceled_capture, failed.reason)
-                    return None, None, failed.reason
-                self.runtime.reconcile(action_key, "failed_confirmed", canceled_capture, "resource boxes disabled; exact popup canceled and queue remained empty")
-                return canceled_capture, canceled, "resource boxes are required but allow_resource_boxes is false"
-            else:
-                self.runtime.reconcile(action_key, "unresolved", popup_capture, popup_plan)
-                return None, None, f"resource-box popup rejected: {popup_plan}"
-        elif post.warehouse_popup:
-            if post.warehouse_confirm_target is None or post.premium_popup or post.forbidden_controls or not post.resource_shortage:
-                self.runtime.reconcile(action_key, "unresolved", post_capture, "warehouse confirmation was not exact warehouse-only")
-                return None, None, "ambiguous or forbidden warehouse confirmation"
-            self.runtime.tap(
-                post_capture,
-                target_identity=f"warehouse-confirm:{troop_type}",
-                target_roi=post.warehouse_confirm_target,
-                action_key=f"{action_key}:warehouse-confirm",
-                continuation_of=action_key,
+
+        def after_positive(fresh):
+            return bool(
+                fresh.recognized
+                and fresh.troop_type == troop_type
+                and fresh.facility_identity == FACILITY_BY_TYPE[troop_type]
+                and fresh.overlay_state == "none"
+                and fresh.queue_active
+                and fresh.queue_label
+                and fresh.queue_troop_type == troop_type
+                and fresh.queue_tier == config.target_tier
+                and fresh.queue_quantity == quantity
+                and fresh.selected_tier == config.target_tier
+                and fresh.selected_quantity == quantity
+                and type(fresh.quantity_maximum) is int
+                and fresh.quantity_maximum > 0
+                and (config.quantity_mode != "current_max" or fresh.quantity_maximum == quantity)
+                and type(fresh.training_duration_seconds) is int
+                and fresh.training_duration_seconds > 0
+                and fresh.diagnostics.get("duration_source") == "queue_band"
+                and fresh.diagnostics.get("queue_spatially_associated") is True
+                and not fresh.premium_popup
+                and not fresh.forbidden_controls
             )
-            self.actions_completed += 1
-            self._wait()
-            confirmed_capture, confirmed = self._capture_training(f"{troop_type}-warehouse-immediate-post")
-            if not confirmed.queue_active:
-                self.runtime.reconcile(action_key, "unresolved", confirmed_capture, "warehouse confirmation did not prove an active timed queue")
-                return None, None, "warehouse continuation unresolved"
-            post_capture, post = confirmed_capture, confirmed
-            self.warehouse_approvals.append(
-                {
-                    "troop_type": troop_type,
-                    "action_key": action_key,
-                    "post_frame_hash": confirmed_capture.sha256,
-                    "shortage": post.resource_shortage,
-                }
-            )
-        elif not post.queue_active:
-            self.runtime.reconcile(action_key, "unresolved", post_capture, "normal Train did not prove an active timed queue")
-            return None, None, "training initiation unresolved"
-        reconciled = self.controller.reconcile_started(troop_type, observation, post, action_key=action_key, dispatched_at=dispatched_at)
+
+        result = self._execute_canonical_action(
+            captured=captured,
+            target_identity=f"troop_training:normal_train:{troop_type}",
+            target_key="train",
+            target_roi=observation.normal_train_target,
+            action_key=action_key,
+            action_kind="TROOP_TRAINING_START",
+            subject=troop_type,
+            counter_variant=troop_type,
+            action_class=ActionClass.SPEND_OR_STRATEGIC,
+            control_class="TRAIN",
+            consequence="troop_training_start",
+            postcondition=postcondition,
+            cost_type="ordinary_game_resources",
+            cost_amount=sum(required_costs),
+            action_quantity=quantity,
+            resource_or_currency="food+wood+steel+gas",
+            maximum_cost=sum(required_costs),
+            free_only=False,
+            semantic_preconditions=preconditions,
+            before_positive=before_positive,
+            after_positive=after_positive,
+            counter_kind="start",
+        )
+        if result["status"] != "confirmed":
+            if result["status"] == "unresolved":
+                self.effect_reconciliation_required = True
+                self.identical_retry_denied = True
+                return None, None, f"training start unresolved: {result['reason']}"
+            return captured, observation, f"training start blocked: {result['reason']}"
+        post_capture = result.get("successor_capture")
+        post = result.get("successor_observation")
+        if post_capture is None or not isinstance(post, TrainingScreenObservation):
+            self.effect_reconciliation_required = True
+            self.identical_retry_denied = True
+            return None, None, "confirmed training action lost its positive queue successor"
+        reconciled = self.controller.reconcile_started(
+            troop_type,
+            observation,
+            post,
+            action_key=action_key,
+            dispatched_at=dispatched_at,
+        )
         if reconciled.action != "yield":
-            self.runtime.reconcile(action_key, "unresolved", post_capture, reconciled.reason)
-            return None, None, reconciled.reason
-        self.runtime.reconcile(action_key, "confirmed", post_capture, "active queue, quantity, tier, and timer positively recognized")
-        state = self.controller.states[troop_type]
+            self.effect_reconciliation_required = True
+            self.identical_retry_denied = True
+            return None, None, f"canonical confirmed queue did not reconcile in controller: {reconciled.reason}"
+        self.pending_start_action_keys[troop_type] = action_key
+        self.pending_start_reset_ids[troop_type] = self.reset_identity
+        self.controller.semantic.pending_start_action_keys[troop_type] = action_key
+        self.start_action_keys.pop(troop_type, None)
+        state = self.controller.semantic.states[troop_type]
         self.training.append(
             {
                 "troop_type": troop_type,
@@ -1744,10 +2123,8 @@ class TroopTrainingIntegratedRoute:
                 "configured_quantity": state.configured_quantity,
                 "quantity_mode": state.quantity_mode,
                 "quantity_maximum": observation.quantity_maximum,
-                "maximum_equality_proven": self.config.for_type(troop_type).quantity_mode != "current_max" or (
-                    observation.quantity_maximum is not None
-                    and observation.selected_quantity == observation.quantity_maximum
-                ),
+                "maximum_equality_proven": config.quantity_mode != "current_max"
+                or observation.selected_quantity == observation.quantity_maximum,
                 "queue_label": post.queue_label,
                 "queue_troop_type": post.queue_troop_type,
                 "queue_tier": post.queue_tier,
@@ -1757,21 +2134,27 @@ class TroopTrainingIntegratedRoute:
                 "queue_roi": post.diagnostics.get("queue_band"),
                 "resources_before": [asdict(resource) for resource in observation.resources],
                 "resources_after": [asdict(resource) for resource in post.resources],
-                "reset_identity": state.reset_identity,
+                "reset_identity": self.reset_identity,
                 "action_key": action_key,
+                "queue_generation": state.queue_generation,
                 "source_frame_hash": captured.sha256,
                 "immediate_before_frame_hash": captured.sha256,
                 "immediate_post_frame_hash": post_capture.sha256,
                 "displayed_training_duration_seconds": state.training_duration_seconds,
                 "dispatch_timestamp": dispatched_at.isoformat(),
-                "expected_completion_timestamp": state.expected_completion_timestamp.isoformat() if state.expected_completion_timestamp else None,
+                "expected_completion_timestamp": (
+                    state.expected_completion_timestamp.isoformat()
+                    if state.expected_completion_timestamp else None
+                ),
                 "queue_state": state.queue_state,
                 "training_policy": state.training_policy,
-                "next_eligible_timestamp": state.next_eligible_timestamp.isoformat() if state.next_eligible_timestamp else None,
+                "next_eligible_timestamp": (
+                    state.next_eligible_timestamp.isoformat()
+                    if state.next_eligible_timestamp else None
+                ),
             }
         )
         return post_capture, post, None
-
     def _return_home(
         self,
         captured,
@@ -1821,22 +2204,54 @@ class TroopTrainingIntegratedRoute:
 
     def _run_training_tabs(self, captured, observation: TrainingScreenObservation, enabled_types: list[str], first: str) -> TroopTrainingRouteResult:
         self.controller.begin_facility(first, captured.sha256)
-        for troop_type in enabled_types:
+        self.remaining_eligible_variants = list(enabled_types)
+        input_limit = (
+            self.native_context.max_inputs
+            if self.native_context is not None and type(self.native_context.max_inputs) is int
+            else MAX_INPUTS
+        )
+        for index, troop_type in enumerate(enabled_types):
+            if self.runtime.input_count >= input_limit - 1:
+                self.remaining_eligible_variants = list(enabled_types[index:])
+                return self._return_home(
+                    captured,
+                    status="partial",
+                    reason="bounded native input budget reserved Home; remaining variants are explicitly due",
+                )
             captured, observation, error = self._switch_tab(captured, observation, troop_type)
             if error:
-                return self._result("unresolved" if self.runtime.in_flight_action else "blocked", error)
+                unresolved = self.runtime.in_flight_action is not None or self.controller.unresolved_action is not None
+                return self._result("unresolved" if unresolved else "blocked", error)
             self.controller.begin_facility(troop_type, captured.sha256)
             if observation.completion_ready:
                 captured, observation, error = self._claim_completed_tab(captured, observation)
                 if error:
                     return self._result("blocked", f"{troop_type}: {error}")
                 if self.config.for_type(troop_type).training_policy == "once_daily":
+                    self.remaining_eligible_variants.remove(troop_type)
                     continue
             if observation.queue_active:
                 queue_plan = self.controller.semantic.reconcile_active_queue(observation, troop_type)
                 if queue_plan != "active_queue_reconciled":
                     return self._result("blocked", f"{troop_type}: {queue_plan}")
                 self._record_reconciled_queue(captured, observation, troop_type)
+                self.remaining_eligible_variants.remove(troop_type)
+                continue
+            config = self.config.for_type(troop_type)
+            if (
+                config.training_policy == "once_daily"
+                and self.controller.semantic.states[troop_type].daily_initiation_state == "initiated"
+            ):
+                self.training.append(
+                    {
+                        "troop_type": troop_type,
+                        "queue_state": "empty",
+                        "daily_initiation_state": "initiated",
+                        "training_policy": "once_daily",
+                        "status": "already_started_this_reset",
+                    }
+                )
+                self.remaining_eligible_variants.remove(troop_type)
                 continue
             captured, observation, error = self._select_tier(captured, observation, troop_type)
             if error:
@@ -1845,15 +2260,64 @@ class TroopTrainingIntegratedRoute:
             if error:
                 return self._result("blocked", f"{troop_type}: {error}")
             captured, observation, error = self._train(captured, observation, troop_type)
-            if error == RESOURCE_BOXES_APPLIED_REAPPLY_TRAINING:
-                captured, observation, error = self._set_quantity(captured, observation, troop_type)
-                if error:
-                    return self._result("blocked", f"{troop_type}: resource boxes applied but exact quantity could not be restored: {error}")
-                captured, observation, error = self._train(captured, observation, troop_type)
             if error:
-                if self.runtime.in_flight_action is None and captured is not None and observation is not None and observation.recognized:
-                    return self._return_home(captured, status="blocked", reason=f"{troop_type}: {error}")
-                return self._result("unresolved" if self.runtime.in_flight_action else "blocked", f"{troop_type}: {error}")
+                unresolved = self.runtime.in_flight_action is not None or self.controller.unresolved_action is not None
+                if unresolved:
+                    self.effect_reconciliation_required = True
+                    self.identical_retry_denied = True
+                    return self._result("unresolved", f"{troop_type}: {error}")
+                if (
+                    error in {
+                        "defer_resource_shortage_effect_authority_unavailable",
+                        "defer_warehouse_confirmation_authority_unavailable",
+                        "defer_resource_shortage_resource_boxes_disabled",
+                    }
+                    and captured is not None
+                    and observation is not None
+                    and observation.recognized
+                    and not observation.queue_active
+                    and not observation.completion_ready
+                ):
+                    self.training.append(
+                        {
+                            "troop_type": troop_type,
+                            "queue_state": "empty",
+                            "status": (
+                                "deferred_warehouse_confirmation"
+                                if error == "defer_warehouse_confirmation_authority_unavailable"
+                                else "deferred_resource_shortage"
+                            ),
+                            "reason": error,
+                        }
+                    )
+                    continue
+                if (
+                    error.startswith("training start blocked: TRAINING_INPUT_BUDGET_HOME_RESERVE")
+                    and captured is not None
+                    and observation is not None
+                    and observation.recognized
+                ):
+                    self.remaining_eligible_variants = list(enabled_types[index:])
+                    return self._return_home(
+                        captured,
+                        status="partial",
+                        reason="bounded native input budget reserved Home; remaining variants are explicitly due",
+                    )
+                if captured is not None and observation is not None and observation.recognized:
+                    return self._return_home(
+                        captured,
+                        status="blocked",
+                        reason=f"{troop_type}: {error}",
+                    )
+                return self._result("blocked", f"{troop_type}: {error}")
+            if troop_type in self.remaining_eligible_variants:
+                self.remaining_eligible_variants.remove(troop_type)
+        if self.remaining_eligible_variants:
+            return self._return_home(
+                captured,
+                status="partial",
+                reason="one or more independent variants remain eligible after exact resource reconciliation",
+            )
         return self._return_home(captured)
 
     def run(self) -> TroopTrainingRouteResult:
@@ -1862,6 +2326,7 @@ class TroopTrainingIntegratedRoute:
         if target is None:
             return self._result("completed", "all troop workflows disabled; no input authorized", final_home=True)
         enabled_types = [troop_type for troop_type in TROOP_TYPES if self.config.for_type(troop_type).enabled and self.config.for_type(troop_type).training_policy != "disabled"]
+        self.remaining_eligible_variants = list(enabled_types)
         first = target.troop_type
         try:
             current = self.runtime.capture("training-route-current-source")
@@ -1996,166 +2461,208 @@ class TroopTrainingIntegratedRoute:
                 return self._result("blocked", "complete training screen not recognized")
             return self._run_training_tabs(captured, observation, enabled_types, first)
         except Exception as exc:
+            if "troop-training input budget reserved for Home" in str(exc):
+                if self.runtime.in_flight_action is None and self.controller.unresolved_action is None:
+                    try:
+                        budget_capture, budget_observation = self._capture_training(
+                            "input-budget-partial-current-training"
+                        )
+                    except Exception:
+                        budget_capture, budget_observation = None, None
+                    if (
+                        budget_capture is not None
+                        and budget_observation is not None
+                        and budget_observation.recognized
+                        and budget_observation.overlay_state == "none"
+                    ):
+                        return self._return_home(
+                            budget_capture,
+                            status="partial",
+                            reason="bounded native input budget reserved Home; remaining variants are explicitly due",
+                        )
             if self.runtime.in_flight_action is not None:
                 return self._result("unresolved", f"runtime failure after consequential action: {exc}")
             return self._result("blocked", f"safe route stop: {exc}")
 
 
-def _load_config(args: argparse.Namespace) -> TroopTrainingConfig:
-    if args.config:
-        payload = json.loads(Path(args.config).read_text(encoding="utf-8"))
-        defaults = default_troop_training_config()
-        values = {}
-        for troop_type in TROOP_TYPES:
-            item = payload.get(troop_type, {})
-            fallback = defaults.for_type(troop_type)
-            quantity_mode = str(item.get("quantity_mode", fallback.quantity_mode))
-            if quantity_mode == "current_max" and item.get("quantity") is not None:
-                raise ValueError(f"{troop_type}: current_max cannot include a fixed quantity")
-            values[troop_type] = TrainingConfig(
-                enabled=item.get("enabled", fallback.enabled),
-                target_tier=item.get("target_tier", fallback.target_tier),
-                quantity=(None if quantity_mode == "current_max" else (int(item["quantity"]) if "quantity" in item and item["quantity"] is not None else fallback.quantity)),
-                quantity_mode=quantity_mode,
-                training_policy=str(item.get("training_policy", fallback.training_policy)),
-                allow_resource_boxes=item.get("allow_resource_boxes", fallback.allow_resource_boxes),
-            )
-        return TroopTrainingConfig(**values)
-    defaults = default_troop_training_config()
-    values = {}
-    for troop_type in TROOP_TYPES:
-        fallback = defaults.for_type(troop_type)
-        tier = getattr(args, f"{troop_type}_tier")
-        quantity = getattr(args, f"{troop_type}_quantity")
-        mode = getattr(args, f"{troop_type}_quantity_mode")
-        policy = getattr(args, f"{troop_type}_policy")
-        boxes = getattr(args, f"{troop_type}_allow_resource_boxes")
-        enabled = getattr(args, f"{troop_type}_enabled")
-        if quantity is not None and (mode == "current_max" or (mode is None and fallback.quantity_mode == "current_max")):
-            raise ValueError(f"{troop_type}: current_max cannot include a fixed quantity")
-        resolved_mode = fallback.quantity_mode if mode is None else mode
-        resolved_quantity = None if resolved_mode == "current_max" else (fallback.quantity if quantity is None else quantity)
-        values[troop_type] = TrainingConfig(
-            enabled=fallback.enabled if enabled is None else enabled,
-            target_tier=fallback.target_tier if tier is None else tier,
-            quantity=resolved_quantity,
-            quantity_mode=resolved_mode,
-            training_policy=fallback.training_policy if policy is None else policy,
-            allow_resource_boxes=fallback.allow_resource_boxes if boxes is None else boxes,
+def _training_return_to_home_after_preset(context, runtime) -> tuple[Any | None, str | None]:
+    expected_next = {
+        TALENT_MEMORY: COMMANDER_TALENT,
+        COMMANDER_TALENT: TALENT_PROFILE,
+        TALENT_PROFILE: TALENT_HOME,
+    }
+    for _ in range(4):
+        context.checkpoint()
+        captured = context.runtime.capture("training-preset-return-home-before")
+        page = recognize_commander_talent_page(
+            captured,
+            required_preset="Training",
         )
-    return TroopTrainingConfig(**values)
-
-
-def _retain_route_result(runtime: NativeRuntimePort, result: object) -> None:
-    """Retain the concise machine-readable route result beside native captures."""
-
-    path = Path(runtime.session) / "troop-training-result.json"
-    path.write_text(json.dumps(asdict(result), indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
-
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--adb", required=True)
-    parser.add_argument("--serial", required=True)
-    parser.add_argument("--reset-identity", required=True)
-    parser.add_argument("--config", type=Path)
-    for troop_type in TROOP_TYPES:
-        parser.add_argument(f"--{troop_type}-enabled", action=argparse.BooleanOptionalAction, default=None)
-        parser.add_argument(f"--{troop_type}-tier", type=int)
-        parser.add_argument(f"--{troop_type}-quantity", type=int, default=None)
-        parser.add_argument(f"--{troop_type}-quantity-mode", choices=("fixed", "current_max"), default=None)
-        parser.add_argument(f"--{troop_type}-policy", choices=("once_daily", "continuous", "disabled"), default=None)
-        parser.add_argument(
-            f"--{troop_type}-allow-resource-boxes",
-            action=argparse.BooleanOptionalAction,
-            default=None,
-            help=f"allow exact Auto Use resource-box confirmation for {troop_type} only (default: false)",
+        if not page.recognized:
+            return None, "commander-talent page is not positively recognized after preset verification"
+        if page.page == TALENT_HOME:
+            home = recognize_home(captured.frame, reset_identity=context.identity.reset_id)
+            if _canonical_home_proof(captured.frame, home, DEFAULT_HOME_ATLAS):
+                return captured, None
+            return None, "commander-talent Home page lacks canonical Atlas proof"
+        successor_page = expected_next.get(page.page)
+        if successor_page is None:
+            return None, f"unexpected commander-talent page after preset verification: {page.page}"
+        runtime.back(
+            captured,
+            action_key=f"training:preset:return-home:{page.page}:{captured.sha256}",
         )
-    parser.add_argument("--execute", action="store_true")
-    parser.add_argument("--yes", action="store_true", help="confirm the exact local BlueStacks target non-interactively")
-    parser.add_argument(
-        "--entry-only",
-        "--navigation-only",
-        dest="entry_only",
-        action="store_true",
-        help="navigate to the selected facility, recognize its radial Train control, then Back to canonical Home without tapping Train",
-    )
-    parser.add_argument("--home-atlas", type=Path, default=DEFAULT_HOME_ATLAS)
-    parser.add_argument("--maximum-home-pans", type=int, default=4)
-    parser.add_argument("--home-pan-settle-seconds", type=float, default=1.0)
-    parser.add_argument(
-        "--reconcile-unresolved-session",
-        type=Path,
-        help="reconcile one prior unresolved Train from a fresh live queue; no consequential input is available in this mode",
-    )
-    parser.add_argument(
-        "--reconcile-forbidden-resource-popup-session",
-        type=Path,
-        help="cancel and reconcile one exact Auto Use resource-box successor; Train is never retried",
-    )
-    parser.add_argument(
-        "--reconcile-resource-box-acquisition-session",
-        type=Path,
-        help="reconcile exact resource-box use that returned queue-empty; issues no input and never retries Train",
-    )
-    parser.add_argument(
-        "--return-home-only",
-        action="store_true",
-        help="close a positively recognized training/radial surface with native Back and verify Home/Base",
-    )
-    parser.add_argument(
-        "--recovery-active-queue",
-        action="store_true",
-        help="for pnsctl recovery only: require a fresh exact active queue before safe Home return",
-    )
-    parser.add_argument(
-        "--recovery-training-screen",
-        action="store_true",
-        help="for pnsctl recovery only: permit a fresh recognized queue-empty training screen before safe Home return",
-    )
-    parser.add_argument("--radial-troop-type", choices=TROOP_TYPES, default="shooter")
-    parser.add_argument("--post-input-delay", type=float, default=1.0)
-    parser.add_argument("--output-directory", type=Path, default=Path(".local-captures/troop-training-integrated"))
-    args = parser.parse_args(argv)
-    if args.execute and not args.yes:
-        parser.error("--execute requires --yes")
-    runtime = LocalBlueStacksRuntime.connect(
-        adb=args.adb,
-        serial=args.serial,
-        output_directory=args.output_directory,
-        workflow="troop-training",
-        execute=args.execute,
-    )
-    runtime.frame_max_age_seconds = TROOP_TRAINING_FRAME_MAX_AGE_SECONDS
-    config = _load_config(args)
-    config.validate()
-    if args.return_home_only:
-        result = TroopTrainingReturnHomeRoute(
-            runtime,
-            post_input_delay=args.post_input_delay,
-            radial_troop_type=args.radial_troop_type,
-            atlas_path=args.home_atlas,
-            require_active_queue=args.recovery_active_queue,
-            allow_queue_empty_training=args.recovery_training_screen,
-        ).run()
-        _retain_route_result(runtime, result)
-        print(json.dumps(asdict(result), sort_keys=True, default=str))
-        return 0 if result.status == "completed" else 3
-    result = TroopTrainingIntegratedRoute(
-        runtime,
-        config=config,
-        reset_identity=args.reset_identity,
-        post_input_delay=args.post_input_delay,
-        entry_only=args.entry_only,
-        atlas_path=args.home_atlas,
-        maximum_home_pans=args.maximum_home_pans,
-        home_pan_settle_seconds=args.home_pan_settle_seconds,
-    ).run()
-    _retain_route_result(runtime, result)
-    print(json.dumps(asdict(result), sort_keys=True, default=str))
-    return 0 if result.status in {"completed", "dry-run"} else 3
+        context.checkpoint()
+        successor = context.runtime.capture("training-preset-return-home-after")
+        recognized = recognize_commander_talent_page(
+            successor,
+            required_preset="Training",
+        )
+        if not recognized.recognized or recognized.page != successor_page:
+            return None, f"commander-talent Back did not reach exact expected page {successor_page}"
+    return None, "commander-talent route exceeded its bounded Home return"
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+def run_troop_training_native(context, arguments: Mapping[str, object]) -> Mapping[str, object]:
+    """Run the fixed four-variant controller through the borrowed native lifecycle."""
+
+    if arguments:
+        raise ValueError("troop training does not accept caller-supplied route arguments")
+    if (
+        context.flow_id,
+        context.product_id,
+        context.product_revision,
+        context.runtime_profile_id,
+    ) != (FLOW_ID, PRODUCT_ID, PRODUCT_REVISION, PROFILE_ID):
+        raise ValueError("troop-training native context does not match the fixed service binding")
+    context.checkpoint()
+    context.validate_identity()
+    identity = context.identity
+    initial_home = recognize_home(
+        context.initial_frame.frame,
+        reset_identity=identity.reset_id,
+    )
+    if not _canonical_home_proof(
+        context.initial_frame.frame,
+        initial_home,
+        DEFAULT_HOME_ATLAS,
+    ):
+        raise RuntimeError("troop training requires a fresh canonical Home/Base initial observation")
+    context.bind_initial_observation(
+        context.initial_frame,
+        extra={"troop_training_initial_home_verified": True},
+    )
+    action_rows = context.action_store.list_actions_for_task(FLOW_ID)
+    state = derive_training_action_state(
+        action_rows,
+        runtime_scope=resource_fixed_runtime_binding().runtime_scope,
+        account_id=identity.account_id,
+        server_id=identity.server_id,
+        game_day_id=identity.reset_id,
+    )
+    preset_context = {
+        "flow_id": FLOW_ID,
+        "product_id": PRODUCT_ID,
+        "product_revision": PRODUCT_REVISION,
+        "runtime_profile_id": PROFILE_ID,
+        "runtime_scope": resource_fixed_runtime_binding().runtime_scope,
+        "account_id": identity.account_id,
+        "server_id": identity.server_id,
+        "scheduler_reset_id": identity.reset_id,
+        "runtime_identity_sha256": state.runtime_identity_sha256,
+        "required_preset": "Training",
+    }
+    route = TroopTrainingIntegratedRoute(
+        context.runtime,
+        config=default_troop_training_config(),
+        reset_identity=identity.reset_id,
+        post_input_delay=context.settle_seconds,
+        native_context=context,
+        runtime_identity_sha256=state.runtime_identity_sha256,
+        prior_daily_initiations=tuple(state.prior_daily_initiations),
+        queue_generations=state.queue_generations,
+        pending_start_action_keys=state.pending_start_action_keys,
+        pending_start_reset_ids=state.pending_start_reset_ids,
+        next_start_action_keys=state.next_start_action_keys,
+        blocked_start_variants=state.blocked_start_variants,
+        per_reset_variant_start_counts=state.per_reset_variant_start_counts,
+        per_reset_variant_claim_counts=state.per_reset_variant_claim_counts,
+        preset_context=preset_context,
+    )
+    preset_error = route._ensure_training_preset()
+    if preset_error is not None:
+        result = route._result("blocked", preset_error)
+    else:
+        _home_capture, home_error = _training_return_to_home_after_preset(
+            context,
+            route.runtime,
+        )
+        if home_error is not None:
+            result = route._result("blocked", home_error)
+        else:
+            result = route.run()
+    context.checkpoint()
+    context.validate_identity()
+    accounting = context.accounting()
+    completed_at = float(context.utc_clock())
+    payload = asdict(result)
+    payload.update(
+        {
+            "flow_id": FLOW_ID,
+            "task_id": PRODUCT_ID,
+            "native_task_id": FLOW_ID,
+            "product_id": PRODUCT_ID,
+            "product_revision": PRODUCT_REVISION,
+            "runtime_profile_id": PROFILE_ID,
+            "account_id": identity.account_id,
+            "server_id": identity.server_id,
+            "reset_id": identity.reset_id,
+            "backend_runtime_scope": resource_fixed_runtime_binding().runtime_scope,
+            "runtime_identity_sha256": state.runtime_identity_sha256,
+            "total_input_count": accounting.input_count,
+            "input_count": accounting.input_count,
+            "accounting_verified": accounting.verified,
+            "terminal_home_verified": result.terminal_home_verified,
+            "training_dispatch_count": result.training_dispatch_count,
+            "training_start_transport_calls": result.training_start_transport_calls,
+            "claim_dispatch_count": result.claim_dispatch_count,
+            "resource_box_dispatch_count": result.resource_box_dispatch_count,
+            "warehouse_dispatch_count": result.warehouse_dispatch_count,
+            "committed_action_count": result.committed_action_count,
+            "effect_reconciliation_required": result.effect_reconciliation_required,
+            "identical_retry_denied": result.identical_retry_denied,
+            "completed_at_utc": completed_at,
+        }
+    )
+    if (
+        result.status == "partial"
+        and result.remaining_eligible_variants
+        and result.terminal_home_verified
+        and accounting.verified
+    ):
+        payload["next_due_utc"] = completed_at + 60.0
+    elif result.status in {"completed", "deferred", "partial"} and result.terminal_home_verified:
+        payload["next_due_utc"] = troop_training_next_due(
+            payload,
+            identity,
+            completed_at,
+        )
+    return payload
+
+
+def create_service_binding(make_native_route_binding):
+    """Bind the fixed route to the canonical service-owned native lifecycle."""
+
+    return make_native_route_binding(
+        flow_id=FLOW_ID,
+        product_id=PRODUCT_ID,
+        product_revision=PRODUCT_REVISION,
+        runtime_profile_id=PROFILE_ID,
+        owner="automation-service:troop-training",
+        workflow="troop-training-native",
+        max_inputs=MAX_INPUTS,
+        max_actions=MAX_ACTIONS,
+        driver=run_troop_training_native,
+    )
+
+

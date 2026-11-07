@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-import json
-from pathlib import Path
 import re
 from typing import Iterable, Mapping
 
@@ -105,7 +103,7 @@ class TroopTrainingConfig:
 
 
 def default_troop_training_config() -> TroopTrainingConfig:
-    """Overrideable general-use profile used by the CLI when no config is supplied."""
+    """Return the approved fixed service profile for all four troop variants."""
 
     return TroopTrainingConfig(
         fighter=TrainingConfig(target_tier=8, quantity=None, quantity_mode="current_max", training_policy="continuous", allow_resource_boxes=True),
@@ -255,12 +253,13 @@ class TroopWorkflowState:
     base_resource_state: tuple[ResourceReading, ...] = ()
     warehouse_resource_state: tuple[ResourceReading, ...] = ()
     queue_state: str = "empty"
+    queue_generation: int = 0
+    last_confirmed_start_action_key: str | None = None
     training_duration_seconds: int | None = None
     expected_completion_timestamp: datetime | None = None
     completion_claim_state: str = "not_ready"
     training_policy: str = "once_daily"
     daily_initiation_state: str = "not_started"
-    daily_progress_state: str = "unknown"
     last_successful_training: datetime | None = None
     last_claim_state: str = "none"
     last_dispatch_state: str = "none"
@@ -297,10 +296,25 @@ def parse_quantity(text: str) -> int | None:
     return quantity if quantity >= 0 else None
 
 
+def resource_readings_exact(resources: Iterable[ResourceReading], *, source: str = "base") -> bool:
+    values = tuple(resources)
+    return (
+        len(values) == len(RESOURCE_NAMES)
+        and tuple(resource.name for resource in values) == RESOURCE_NAMES
+        and all(
+            resource.source == source
+            and type(resource.held) is int
+            and resource.held >= 0
+            and type(resource.required) is int
+            and resource.required >= 0
+            for resource in values
+        )
+    )
+
+
 def all_base_resources_sufficient(resources: Iterable[ResourceReading]) -> bool:
     values = tuple(resources)
-    return bool(values) and all(resource.source == "base" and resource.status == "sufficient" for resource in values)
-
+    return resource_readings_exact(values) and all(resource.held >= resource.required for resource in values)
 
 def expected_completion_timestamp(dispatched_at: datetime, duration_seconds: int) -> datetime:
     if dispatched_at.tzinfo is None:
@@ -317,20 +331,37 @@ def make_action_key(troop_type: str, reset_identity: str, frame_sha256: str, suf
 
 
 class TrainingController:
-    """Pure deterministic authorization and reconciliation for one reset cycle."""
+    """Pure per-run authorization with durable quota state injected by the caller."""
 
-    _daily_initiations: set[tuple[str, str]] = set()
-
-    def __init__(self, config: TroopTrainingConfig, *, reset_identity: str, persistence_path: Path | None = None):
+    def __init__(
+        self,
+        config: TroopTrainingConfig,
+        *,
+        reset_identity: str,
+        prior_daily_initiations: Iterable[str] = (),
+        queue_generations: Mapping[str, int] | None = None,
+        pending_start_action_keys: Mapping[str, str] | None = None,
+    ) -> None:
         config.validate()
-        if not reset_identity.strip():
+        if not isinstance(reset_identity, str) or not reset_identity.strip():
             raise TrainingContractError("reset identity is required")
+        initiated = frozenset(prior_daily_initiations)
+        if any(type(item) is not str or item not in TROOP_TYPES for item in initiated):
+            raise TrainingContractError("prior daily initiation has an unknown troop type")
+        generations = dict(queue_generations or {})
+        if set(generations) - set(TROOP_TYPES) or any(
+            type(value) is not int or value < 0 for value in generations.values()
+        ):
+            raise TrainingContractError("queue generations must be nonnegative per-variant integers")
+        pending_starts = dict(pending_start_action_keys or {})
+        if set(pending_starts) - set(TROOP_TYPES) or any(
+            type(value) is not str or not value.strip() or any(character.isspace() for character in value)
+            for value in pending_starts.values()
+        ):
+            raise TrainingContractError("pending start keys must be non-empty per-variant action keys")
         self.config = config
         self.reset_identity = reset_identity
-        self.persistence_path = Path(persistence_path) if persistence_path is not None else None
-        self._persistence_error = False
-        persisted_initiations = self._load_daily_initiations()
-        self._daily_initiations.update(persisted_initiations)
+        self.pending_start_action_keys = pending_starts
         self.states = {
             troop_type: TroopWorkflowState(
                 troop_type=troop_type,
@@ -343,63 +374,28 @@ class TrainingController:
                 resolved_quantity=None,
                 allow_resource_boxes=config.for_type(troop_type).allow_resource_boxes,
                 training_policy=config.for_type(troop_type).training_policy,
-                daily_initiation_state=("initiated" if (reset_identity, troop_type) in self._daily_initiations or (reset_identity, troop_type) in persisted_initiations else "not_started"),
+                daily_initiation_state="initiated" if troop_type in initiated else "not_started",
+                queue_generation=generations.get(troop_type, 0),
             )
             for troop_type in TROOP_TYPES
         }
         self._used_action_keys: set[str] = set()
         self._claimed_batches: set[tuple[str, str, str]] = set()
 
-    def _load_daily_initiations(self) -> set[tuple[str, str]]:
-        if self.persistence_path is None or not self.persistence_path.exists():
-            return set()
-        if not self.persistence_path.is_file():
-            self._persistence_error = True
-            return set()
-        try:
-            payload = json.loads(self.persistence_path.read_text(encoding="utf-8"))
-            if not isinstance(payload, dict) or not isinstance(payload.get("daily_initiations"), list):
-                raise ValueError("invalid daily initiation persistence schema")
-            if any(not isinstance(item, dict) for item in payload["daily_initiations"]):
-                raise ValueError("invalid daily initiation persistence entry")
-            if any(
-                not isinstance(item.get("reset_identity"), str)
-                or not item.get("reset_identity", "").strip()
-                or item.get("troop_type") not in TROOP_TYPES
-                for item in payload["daily_initiations"]
-            ):
-                raise ValueError("invalid daily initiation persistence entry")
-            return {(item["reset_identity"], item["troop_type"]) for item in payload["daily_initiations"]}
-        except (OSError, ValueError, TypeError):
-            self._persistence_error = True
-            return set()
-
-    def _persist_daily_initiation(self, troop_type: str) -> bool:
-        if self.persistence_path is None:
-            return True
-        entries = sorted(self._daily_initiations | {(self.reset_identity, troop_type)})
-        payload = {"daily_initiations": [{"reset_identity": reset, "troop_type": troop} for reset, troop in entries]}
-        try:
-            self.persistence_path.parent.mkdir(parents=True, exist_ok=True)
-            self.persistence_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-            return True
-        except OSError:
-            return False
-
     def _mark_daily_satisfied(self, troop_type: str) -> bool:
-        config = self.config.for_type(troop_type)
-        if config.training_policy != "once_daily":
+        if self.config.for_type(troop_type).training_policy != "once_daily":
             return True
-        if not self._persist_daily_initiation(troop_type):
-            return False
-        self._daily_initiations.add((self.reset_identity, troop_type))
         state = self.states[troop_type]
         self.states[troop_type] = replace(state, daily_initiation_state="initiated")
         return True
 
     def plan_tier(self, observation: TrainingScreenObservation, troop_type: str) -> str:
         config = self.config.for_type(troop_type)
-        if not observation.recognized or observation.troop_type != troop_type:
+        if (
+            not observation.recognized
+            or observation.troop_type != troop_type
+            or observation.facility_identity != FACILITY_BY_TYPE[troop_type]
+        ):
             return "reject_unknown_training_screen"
         if observation.overlay_state != "none":
             return "reject_overlay"
@@ -455,22 +451,24 @@ class TrainingController:
         config = self.config.for_type(troop_type)
         if self.plan_tier(observation, troop_type) != "tier_selected":
             return "reject_tier_not_selected"
+        maximum = observation.quantity_maximum
+        if type(maximum) is not int or maximum <= 0:
+            return "reject_numeric_capacity_unresolved"
         if config.quantity_mode == "current_max":
-            if observation.quantity_maximum is None or observation.quantity_maximum <= 0:
-                return "reject_current_maximum_unresolved"
-            if observation.selected_quantity != observation.quantity_maximum:
-                return "enter_current_maximum"
+            if type(observation.selected_quantity) is not int or observation.selected_quantity != maximum:
+                return "enter_current_max"
             return "quantity_verified"
         if observation.selected_quantity != config.quantity:
             return "enter_exact_quantity"
-        if observation.quantity_maximum is not None and config.quantity > observation.quantity_maximum:
+        if config.quantity is None or config.quantity > maximum:
             return "reject_quantity_above_maximum"
         return "quantity_verified"
 
     def resolved_quantity(self, observation: TrainingScreenObservation, troop_type: str) -> int | None:
         config = self.config.for_type(troop_type)
         if config.quantity_mode == "current_max":
-            return observation.quantity_maximum if observation.quantity_maximum and observation.quantity_maximum > 0 else None
+            maximum = observation.quantity_maximum
+            return maximum if type(maximum) is int and maximum > 0 else None
         return config.quantity
 
     def plan_training(self, observation: TrainingScreenObservation, troop_type: str) -> str:
@@ -481,10 +479,18 @@ class TrainingController:
             return "reject_quantity_or_tier"
         if observation.queue_active:
             return "reject_active_queue"
+        if observation.completion_ready:
+            return "reject_completed_queue_requires_claim"
+        if (
+            observation.queue_label is not None
+            or observation.queue_troop_type is not None
+            or observation.queue_tier is not None
+            or observation.queue_quantity is not None
+            or observation.diagnostics.get("duration_source") in {"queue_band", "queue_timer_band"}
+        ):
+            return "reject_ambiguous_queue_state"
         if config.training_policy == "once_daily" and self.states[troop_type].daily_initiation_state == "initiated":
             return "reject_once_daily_already_initiated"
-        if config.training_policy == "once_daily" and self._persistence_error:
-            return "reject_daily_persistence_unresolved"
         if observation.normal_train_target is None or observation.training_duration_seconds is None or observation.training_duration_seconds <= 0:
             return "reject_normal_train_or_duration"
         if observation.train_now_target is not None and observation.normal_train_target == observation.train_now_target:
@@ -494,17 +500,14 @@ class TrainingController:
             pass
         if observation.premium_popup or any(item in observation.forbidden_controls for item in ("premium", "purchase", "speedup", "resource_item")):
             return "reject_forbidden_control"
-        if not observation.resources:
+        if not resource_readings_exact(observation.resources):
             return "reject_unknown_resources"
         if not all_base_resources_sufficient(observation.resources):
             if observation.warehouse_popup and observation.warehouse_confirm_target is not None and not observation.resource_shortage:
-                return "warehouse_confirmation_required"
-            # A known base shortage may proceed once to the normal Train control.  The live
-            # successor must then prove an exact warehouse-only confirmation before any second
-            # input.  Unknown resources and any forbidden source remain blocked above.
-            if all(resource.held is not None and resource.required is not None for resource in observation.resources):
-                return "authorize_normal_train_expected_warehouse"
-            return "reject_resource_sufficiency"
+                return "defer_warehouse_confirmation_authority_unavailable"
+            if troop_type in {"fighter", "vehicle"} and config.allow_resource_boxes:
+                return "defer_resource_shortage_effect_authority_unavailable"
+            return "defer_resource_shortage_resource_boxes_disabled"
         return "authorize_normal_train"
 
     def reconcile_active_queue(self, observation: TrainingScreenObservation, troop_type: str) -> str:
@@ -528,12 +531,25 @@ class TrainingController:
         ):
             return "reject_active_queue_label_mismatch"
         if config.quantity_mode == "current_max":
-            expected = observation.queue_quantity if observation.queue_quantity > 0 else None
-            if expected is None or observation.selected_quantity != observation.queue_quantity:
+            maximum = observation.quantity_maximum
+            expected = observation.queue_quantity
+            if (
+                type(maximum) is not int
+                or maximum <= 0
+                or expected != maximum
+                or observation.selected_quantity != maximum
+            ):
                 return "reject_active_queue_quantity"
         else:
             expected = self.resolved_quantity(observation, troop_type)
-            if expected is None or observation.selected_quantity != expected or observation.queue_quantity != expected:
+            maximum = observation.quantity_maximum
+            if (
+                expected is None
+                or type(maximum) is not int
+                or maximum < expected
+                or observation.selected_quantity != expected
+                or observation.queue_quantity != expected
+            ):
                 return "reject_active_queue_quantity"
         if observation.training_duration_seconds is None or observation.training_duration_seconds <= 0:
             return "reject_active_queue_timer_or_tier"
@@ -544,6 +560,7 @@ class TrainingController:
             selected_quantity=expected,
             resolved_quantity=expected,
             queue_state="active",
+            last_confirmed_start_action_key=self.pending_start_action_keys.get(troop_type),
             training_duration_seconds=observation.training_duration_seconds,
             expected_completion_timestamp=completion_at,
             next_eligible_timestamp=completion_at,
@@ -578,7 +595,7 @@ class TrainingController:
         # incomplete; only the non-consequential Cancel target is available in this branch.
         if not config.allow_resource_boxes:
             return "reject_resource_boxes_disabled"
-        if self.plan_training(before, troop_type) != "authorize_normal_train_expected_warehouse":
+        if self.plan_training(before, troop_type) != "defer_resource_shortage_effect_authority_unavailable":
             return "reject_resource_box_continuation_not_expected"
         before_resources = before.resources_by_name()
         after_resources = {resource.name: resource for resource in popup.resources_after_use}
@@ -591,48 +608,45 @@ class TrainingController:
             after = after_resources[name]
             if before_required is None or after.required != before_required or after.status != "sufficient":
                 return "reject_resource_box_amount_mismatch"
-        return "authorize_resource_box_confirmation"
-
-    def prove_resource_boxes_applied(
-        self,
-        before: TrainingScreenObservation,
-        popup: AutoUseResourcePopupObservation,
-        after: TrainingScreenObservation,
-        troop_type: str,
-    ) -> bool:
-        """Prove resource acquisition when Auto Use returns queue-empty instead of training."""
-
-        if self.plan_resource_box_continuation(before, popup, troop_type) != "authorize_resource_box_confirmation":
-            return False
-        if (
-            not after.recognized
-            or after.troop_type != troop_type
-            or after.selected_tier != before.selected_tier
-            or after.queue_active
-        ):
-            return False
-        before_resources = before.resources_by_name()
-        popup_resources = {resource.name: resource for resource in popup.resources_after_use}
-        after_resources = after.resources_by_name()
-        if set(before_resources) != set(RESOURCE_NAMES) or set(after_resources) != set(RESOURCE_NAMES):
-            return False
-        increase_seen = False
-        for name in RESOURCE_NAMES:
-            before_held = before_resources[name].held
-            popup_held = popup_resources[name].held
-            after_held = after_resources[name].held
-            if before_held is None or popup_held is None or after_held != popup_held or after_held < before_held:
-                return False
-            increase_seen = increase_seen or after_held > before_held
-        return increase_seen
+        # The recognized popup and projected resource totals do not identify
+        # the consumed box count or authorize its effect.
+        return "defer_resource_box_effect_authority_unavailable"
 
     def plan_claim(self, observation: TrainingScreenObservation, *, action_key: str) -> str:
-        if not observation.recognized or not observation.troop_type or not observation.completion_ready:
+        if (
+            not observation.recognized
+            or observation.troop_type not in TROOP_TYPES
+            or not observation.completion_ready
+        ):
             return "reject_claim_not_ready"
-        batch_id = observation.completion_batch_id
-        if not batch_id:
+        troop_type = observation.troop_type
+        config = self.config.for_type(troop_type)
+        state = self.states[troop_type]
+        start_action_key = self.pending_start_action_keys.get(troop_type)
+        if (
+            not start_action_key
+            or observation.completion_batch_id != start_action_key
+            or state.queue_generation <= 0
+        ):
             return "reject_claim_identity_unknown"
-        identity = (observation.troop_type, self.reset_identity, batch_id)
+        if (
+            observation.facility_identity != FACILITY_BY_TYPE[troop_type]
+            or observation.selected_tier != config.target_tier
+            or type(observation.quantity_maximum) is not int
+            or observation.quantity_maximum <= 0
+        ):
+            return "reject_claim_configuration_mismatch"
+        if config.quantity_mode == "current_max":
+            quantity_matches = observation.selected_quantity == observation.quantity_maximum
+        else:
+            quantity_matches = (
+                observation.selected_quantity == config.quantity
+                and config.quantity is not None
+                and config.quantity <= observation.quantity_maximum
+            )
+        if type(observation.selected_quantity) is not int or observation.selected_quantity <= 0 or not quantity_matches:
+            return "reject_claim_quantity_mismatch"
+        identity = (troop_type, self.reset_identity, start_action_key)
         if identity in self._claimed_batches or action_key in self._used_action_keys:
             return "reject_duplicate_claim"
         self._used_action_keys.add(action_key)
@@ -647,8 +661,6 @@ class TrainingController:
         if not batch_id:
             return False
         self._claimed_batches.add((before.troop_type or "", self.reset_identity, batch_id))
-        if self.config.for_type(before.troop_type or "").training_policy == "once_daily" and not self._mark_daily_satisfied(before.troop_type or ""):
-            return False
         state = self.states[before.troop_type or ""]
         self.states[before.troop_type or ""] = replace(state, last_claim_state="confirmed", completion_claim_state="claimed")
         return True
@@ -664,16 +676,14 @@ class TrainingController:
     ) -> TroopWorkflowState:
         if action_key in self._used_action_keys:
             raise TrainingContractError("duplicate training action key")
-        if self.plan_training(observation, troop_type) not in {
-            "authorize_normal_train",
-            "authorize_normal_train_expected_warehouse",
-        }:
+        if self.plan_training(observation, troop_type) != "authorize_normal_train":
             raise TrainingContractError("training preconditions are not authorizeable")
         resolved_quantity = self.resolved_quantity(observation, troop_type)
         if not post.recognized or not post.queue_active or post.training_duration_seconds is None or post.training_duration_seconds <= 0:
             raise TrainingContractError("positive active queue postcondition is required")
         if (
-            post.queue_label is None
+            not isinstance(post.queue_label, str)
+            or not post.queue_label.strip()
             or post.queue_troop_type is None
             or post.queue_tier is None
             or post.queue_quantity is None
@@ -681,7 +691,7 @@ class TrainingController:
             raise TrainingContractError("exact active queue label postcondition is required")
         if post.troop_type != troop_type or post.facility_identity != FACILITY_BY_TYPE[troop_type]:
             raise TrainingContractError("active queue postcondition has mismatched troop or facility")
-        if post.queue_label is not None and (
+        if (
             post.queue_troop_type != troop_type
             or post.queue_tier != self.config.for_type(troop_type).target_tier
             or post.queue_quantity != resolved_quantity
@@ -691,7 +701,22 @@ class TrainingController:
             raise TrainingContractError("active queue postcondition has mismatched tier")
         if resolved_quantity is None or post.selected_quantity != resolved_quantity:
             raise TrainingContractError("active queue postcondition has mismatched quantity")
-        self._used_action_keys.add(action_key)
+        maximum = post.quantity_maximum
+        if type(maximum) is not int or maximum <= 0:
+            raise TrainingContractError("numeric post-training capacity is required")
+        if (
+            self.config.for_type(troop_type).quantity_mode == "current_max"
+            and maximum != resolved_quantity
+        ) or (
+            self.config.for_type(troop_type).quantity_mode == "fixed"
+            and resolved_quantity is not None
+            and maximum < resolved_quantity
+        ):
+            raise TrainingContractError("post-training capacity does not match the configured quantity")
+        if not resource_readings_exact(post.resources):
+            raise TrainingContractError("exact post-training resource readings are required")
+        if tuple(item.required for item in post.resources) != tuple(item.required for item in observation.resources):
+            raise TrainingContractError("post-training ordinary resource cost changed")
         done_at = expected_completion_timestamp(dispatched_at, post.training_duration_seconds)
         config = self.config.for_type(troop_type)
         previous = self.states[troop_type]
@@ -702,11 +727,12 @@ class TrainingController:
             resolved_quantity=resolved_quantity,
             base_resource_state=post.resources,
             queue_state="active",
+            queue_generation=previous.queue_generation + 1,
+            last_confirmed_start_action_key=action_key,
             training_duration_seconds=post.training_duration_seconds,
             expected_completion_timestamp=done_at,
             training_policy=config.training_policy,
             daily_initiation_state="initiated" if config.training_policy == "once_daily" else previous.daily_initiation_state,
-            daily_progress_state="initiated",
             last_successful_training=dispatched_at,
             last_dispatch_state="confirmed",
             last_postcondition_state="active_queue_confirmed",
@@ -714,9 +740,6 @@ class TrainingController:
             duplicate_action_keys=previous.duplicate_action_keys + (action_key,),
             frame_hashes=previous.frame_hashes + tuple(item for item in (observation.frame_sha256, post.frame_sha256) if item),
         )
-        if config.training_policy == "once_daily":
-            if not self._mark_daily_satisfied(troop_type):
-                raise TrainingContractError("once_daily initiation persistence failed closed")
         self.states[troop_type] = updated
         return updated
 
@@ -733,17 +756,6 @@ class TrainingController:
             return TrainingSchedulerState(troop_type, "WAIT_CLAIM_RECONCILIATION", state.next_eligible_timestamp)
         return TrainingSchedulerState(troop_type, "READY", now)
 
-    def aggregate_daily(self) -> dict[str, object]:
-        return {
-            "fighter": self.states["fighter"].daily_progress_state,
-            "shooter": self.states["shooter"].daily_progress_state,
-            "rider": self.states["rider"].daily_progress_state,
-            "vehicle": self.states["vehicle"].daily_progress_state,
-            "total_training_initiations_completed": sum(
-                state.last_dispatch_state == "confirmed" for state in self.states.values()
-            ),
-            "claim_separate_and_dormant": True,
-        }
 
 
 def daily_progress_from_text(text: str, *, frame_sha256: str = "") -> tuple[DailyTrainingProgress, ...]:

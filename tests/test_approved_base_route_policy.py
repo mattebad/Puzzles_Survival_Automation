@@ -19,6 +19,9 @@ from automation_service.registry import (
     FOOD_FARM_BOOST_FLOW_ID as FOOD_FARM,
     FOOD_FARM_BOOST_PRODUCT_ID as FARM_PRODUCT,
     FOOD_FARM_BOOST_PRODUCT_REVISION as FARM_REVISION,
+    HALL_OF_WAR_FLOW_ID as HALL,
+    HALL_OF_WAR_PRODUCT_ID as HALL_PRODUCT,
+    HALL_OF_WAR_PRODUCT_REVISION as HALL_REVISION,
     HERO_DUEL_FLOW_ID as HERO_DUEL,
     HERO_DUEL_PRODUCT_ID as HERO_PRODUCT,
     HERO_DUEL_PRODUCT_REVISION as HERO_REVISION,
@@ -30,10 +33,13 @@ from automation_service.registry import (
     NANOWEAPON_PRODUCT_ID as NANOWEAPON_PRODUCT,
     NANOWEAPON_PRODUCT_REVISION as NANOWEAPON_REVISION,
     RUINS_FLOW_ID as RUINS,
+    TROOP_TRAINING_FLOW_ID as TRAINING,
     RECOMMENDED_RESEARCH_PRODUCT_ID as RESEARCH_PRODUCT,
     RECOMMENDED_RESEARCH_PRODUCT_REVISION as RESEARCH_REVISION,
     RUINS_PRODUCT_ID as RUINS_PRODUCT,
     RUINS_PRODUCT_REVISION as RUINS_REVISION,
+    TROOP_TRAINING_PRODUCT_ID as TRAINING_PRODUCT,
+    TROOP_TRAINING_PRODUCT_REVISION as TRAINING_REVISION,
 )
 from safe_action_core.models import ActionClass, PolicyDecision
 from safe_action_core.policy import CentralPolicy
@@ -43,12 +49,14 @@ from tests.support.safe_action import TEST_TASK_ID, observation, request as base
 
 DAY = "game-day-2026-07-15"
 FRAME = "a" * 64
+COST_ROI = "c" * 64
+LOSS_ROI = "d" * 64
 OTHER_TASK = "OTHER-SUPERVISED-TASK"
 
 POLICY = CentralPolicy(
     {
         DONATION, ALLIANCE_SHOP, DAILY_SHOPS, NANO_PRODUCTION, NANOWEAPON,
-        RESEARCH, HELP, RUINS_PRODUCT, HERO_DUEL, FOOD_FARM,
+        RESEARCH, TRAINING, HELP, RUINS_PRODUCT, HERO_DUEL, FOOD_FARM, HALL,
         TEST_TASK_ID, OTHER_TASK,
     }
 )
@@ -381,8 +389,77 @@ def hero_request(action):
     )
 
 
+def training_start_request(variant):
+    configs = {
+        "fighter": ("fighter_camp", 8, "current_max", "current_max", "continuous", True, 150),
+        "vehicle": ("vehicle_depot", 1, "current_max", "current_max", "continuous", True, 120),
+        "shooter": ("shooter_camp", 8, "fixed", "250", "once_daily", False, 250),
+        "rider": ("rider_camp", 1, "fixed", "250", "once_daily", False, 250),
+    }
+    facility, tier, mode, configured, policy, boxes, quantity = configs[variant]
+    maximum = quantity
+    scope, account, server = "bluestacks_slot_1", "account_a", "server_a"
+    runtime_hash = hashlib.sha256(f"{scope}\0{account}\0{server}".encode("utf-8")).hexdigest()
+    reset_hash = hashlib.sha256(DAY.encode("utf-8")).hexdigest()
+    generation = 4
+    key = f"troop-training:{runtime_hash}:{reset_hash}:{variant}:g{generation}:start"
+    costs = (
+        "resource.food.held=500", "resource.food.required=10",
+        "resource.wood.held=500", "resource.wood.required=10",
+        "resource.steel.held=500", "resource.steel.required=10",
+        "resource.gas.held=500", "resource.gas.required=10",
+    )
+    tokens = (
+        f"troop_training_product={TRAINING_PRODUCT}", f"troop_training_product_revision={TRAINING_REVISION}",
+        f"runtime_scope={scope}", f"account_id={account}", f"server_id={server}",
+        f"runtime_identity_sha256={runtime_hash}", f"game_day_id={DAY}", "approved_profile=true",
+        f"variant={variant}", f"facility_identity={facility}", f"troop_type={variant}", f"tier={tier}",
+        f"quantity_mode={mode}", f"configured_quantity={configured}", f"selected_quantity={quantity}",
+        f"quantity_maximum={maximum}", f"training_policy={policy}", f"allow_resource_boxes={str(boxes).lower()}",
+        "queue_state=positively_empty", f"queue_generation={generation}",
+        f"per_reset_variant_start_count={3 if policy == 'continuous' else 0}",
+        "saved_commander_talent_preset=Training", "saved_commander_talent_preset_verified=true",
+    ) + costs + ("forbidden_controls=none", "overlay=none")
+    total = 40
+    return route_request(
+        task=TRAINING, action="TROOP_TRAINING_START", action_class=ActionClass.SPEND_OR_STRATEGIC,
+        kind="troop_training_start", subject=variant, source="TROOP_TRAINING_SCREEN",
+        target=f"troop_training:normal_train:{variant}", control="TRAIN", consequence="troop_training_start",
+        post=f"active_queue_confirmed:{variant}:{tier}:{quantity}:positive_current_timer",
+        cost_type="ordinary_game_resources", cost=total, quantity=quantity, resource="food+wood+steel+gas",
+        maximum=total, free=False, preconditions=tokens, action_key=key,
+    )
 
 
+def training_claim_request():
+    variant, facility, tier, mode, configured, quantity = "fighter", "fighter_camp", 8, "current_max", "current_max", 150
+    scope, account, server = "bluestacks_slot_1", "account_a", "server_a"
+    runtime_hash = hashlib.sha256(f"{scope}\0{account}\0{server}".encode("utf-8")).hexdigest()
+    start_reset = "game-day-2026-07-14"
+    reset_hash = hashlib.sha256(start_reset.encode("utf-8")).hexdigest()
+    generation = 4
+    batch = f"troop-training:{runtime_hash}:{reset_hash}:{variant}:g{generation}:start"
+    tokens = (
+        f"troop_training_product={TRAINING_PRODUCT}", f"troop_training_product_revision={TRAINING_REVISION}",
+        "approved_profile=true", f"runtime_scope={scope}", f"account_id={account}", f"server_id={server}",
+        f"runtime_identity_sha256={runtime_hash}", f"variant={variant}", f"facility_identity={facility}",
+        f"troop_type={variant}", f"tier={tier}", f"quantity_mode={mode}", f"configured_quantity={configured}",
+        f"selected_quantity={quantity}", "completed_batch_ready=true", f"completed_batch_id={batch}",
+        f"confirmed_start_action_key={batch}", f"confirmed_start_reset_id={start_reset}",
+        f"completed_batch_troop_type={variant}", f"completed_batch_tier={tier}",
+        f"completed_batch_quantity={quantity}", "queue_state=positively_completed",
+        f"queue_generation={generation}", "per_reset_variant_start_count=0",
+        "per_reset_variant_claim_count=2", f"reset_id={DAY}", "overlay=none", "forbidden_controls=none",
+    )
+    post = f"TROOP_TRAINING_BATCH_CLAIMED:{variant}:{batch}"
+    return route_request(
+        task=TRAINING, action="TROOP_TRAINING_COMPLETED_BATCH_CLAIM",
+        action_class=ActionClass.ZERO_COST_CONSEQUENTIAL, kind="TROOP_TRAINING_COMPLETED_BATCH_CLAIM",
+        subject="TROOP_TRAINING_COMPLETED_BATCH_CLAIM", source="TROOP_TRAINING_SCREEN",
+        target=f"troop_training:completed_batch_claim:{variant}", control=f"tab:{variant}:claim-completed",
+        consequence="claim_zero_cost_reward", post=post, cost_type="none", cost=0, quantity=1,
+        resource=None, maximum=0, free=True, preconditions=tokens, action_key=f"{batch}:claim",
+    )
 
 
 def help_request(all=False):
@@ -471,8 +548,51 @@ def farm_boost_request(diamonds=False):
     )
 
 
+def hall_dispatch_request(*, proof=True, loss=True, frame=FRAME):
+    reset = DAY
+    cost_roi, loss_roi = COST_ROI, LOSS_ROI
+    tokens = (
+        f"hall_of_war_product={HALL_PRODUCT}", f"hall_of_war_product_revision={HALL_REVISION}",
+        f"hall_of_war_reset={reset}", "current_reset_id_bound_to_game_day_id", "challenge_action_ordinal=1",
+        "challenge_action_key_binds_attempt_ordinal_one_for_current_reset",
+        "exact_zombie_zero_page_and_today_highest_damage_zero", "challenge_attempt_ready_and_not_busy_or_cooling_down",
+        "saved_military_preset_verified", "troop_set_1_saved_identity_selected_not_edit_or_quick_select",
+        "troop_set_1_application_toast_verified", "five_hero_slots_populated",
+        "current_troop_count_exactly_matches_visible_capacity_and_positive",
+        f"dispatch_cost_source_frame={frame}", f"hall_of_war_explicit_zero_cost={cost_roi}",
+        "troop_loss_effect=explicit_no_loss" if loss else "troop_loss_effect=unknown",
+        f"troop_loss_effect_source_frame={frame}", f"hall_of_war_no_loss_rule={loss_roi}",
+        "one_dispatch_transport_remaining",
+    )
+    hashes = (("hall_of_war_explicit_zero_cost", cost_roi), ("hall_of_war_no_loss_rule", loss_roi)) if proof else ()
+    return route_request(
+        task=HALL, action="HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH", action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+        kind="HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH", subject=None, source="HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH",
+        target="hall-of-war:zombie-zero:dispatch", control="DISPATCH", consequence="hall_of_war_zombie_zero_attempt",
+        post="HALL_OF_WAR_ZOMBIE_ZERO_HISTORY_HIGH_RESULT", cost_type="none", cost=0, quantity=1,
+        resource=None, maximum=0, free=True, preconditions=tokens, roi_hashes=hashes,
+        action_key=f"hall-of-war:dispatch:daily:{DAY}:attempt-1:{'a' * 64}",
+    )
 
 
+def hall_reward_request():
+    tokens = (
+        f"hall_of_war_product={HALL_PRODUCT}", f"hall_of_war_product_revision={HALL_REVISION}",
+        f"hall_of_war_reset={DAY}", "current_reset_id_bound_to_game_day_id", "daily_reward_claim_ordinal=1",
+        "reward_action_key_independent_from_challenge_key_and_binds_current_reset",
+        "same_reset_zombie_zero_participation_proven_by_confirmed_dispatch_or_exact_positive_today_highest_damage",
+        "exact_zombie_zero_daily_reward_row_identity", "current_reward_row_explicitly_glowing_and_enabled",
+        "claimed_label_and_green_checkmarks_absent", "one_reward_claim_transport_remaining",
+    )
+    return route_request(
+        task=HALL, action="HALL_OF_WAR_ZOMBIE_ZERO_DAILY_REWARD_CLAIM",
+        action_class=ActionClass.ZERO_COST_CONSEQUENTIAL, kind="HALL_OF_WAR_ZOMBIE_ZERO_DAILY_REWARD_CLAIM",
+        subject=None, source="HALL_OF_WAR_ZOMBIE_ZERO_DAILY_REWARD_READY",
+        target="hall-of-war:zombie-zero:daily-reward-row", control="CLAIM",
+        consequence="hall_of_war_daily_reward_claim", post="HALL_OF_WAR_ZOMBIE_ZERO_DAILY_REWARD_CLAIMED_CHECKMARKS",
+        cost_type="none", cost=0, quantity=1, resource=None, maximum=0, free=True, preconditions=tokens,
+        action_key=f"hall-of-war:reward:daily:{DAY}:claim-1:{'b' * 64}",
+    )
 
 
 class ApprovedBaseRoutePolicyTests(unittest.TestCase):
@@ -625,6 +745,38 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         tokens[4] = "hero_duel_pass_balance_before=-1"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
 
+    def test_troop_training_fixed_configs_claim_and_box_denial(self):
+        for variant in ("fighter", "vehicle", "shooter", "rider"):
+            with self.subTest(variant=variant):
+                self.assert_authorized(training_start_request(variant))
+                box = replace(
+                    training_start_request(variant),
+                    semantic_action="TROOP_TRAINING_RESOURCE_BOX_CONTINUATION",
+                )
+                result = POLICY.evaluate(box)
+                self.assertEqual(result.decision, PolicyDecision.DENY, variant)
+                self.assertEqual(result.reason_code, "TROOP_TRAINING_BOX_COST_UNPROVEN", variant)
+        self.assert_authorized(training_claim_request())
+        req = training_start_request("shooter")
+        tokens = list(req.semantic_preconditions)
+        tokens[14] = "selected_quantity=251"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens),
+                                  observation=replace(req.observation, quantity=251)))
+        tokens = list(req.semantic_preconditions)
+        tokens[20] = "per_reset_variant_start_count=1"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        tokens = list(req.semantic_preconditions)
+        tokens[19] = "queue_generation=5"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        req = training_claim_request()
+        self.assert_authorized(replace(req, semantic_preconditions=tuple(
+            "per_reset_variant_claim_count=1" if token.startswith("per_reset_variant_claim_count=") else token
+            for token in req.semantic_preconditions
+        )))
+        self.assert_denied(replace(req, action_key="unrelated:claim"))
+        tokens = list(req.semantic_preconditions)
+        tokens[16] = "confirmed_start_action_key=unrelated:start"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
 
     def test_free_alliance_help_individual_and_complete_help_all(self):
         self.assert_authorized(help_request())
@@ -663,6 +815,23 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         tokens[5] = "current_collection_balance_before=food=100,wood=200,steel=300"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
 
+    def test_hall_dispatch_requires_current_roi_hashes_and_explicit_no_loss_rule(self):
+        self.assert_authorized(hall_dispatch_request())
+        self.assert_authorized(hall_reward_request())
+        self.assert_denied(hall_dispatch_request(proof=False))
+        self.assert_denied(hall_dispatch_request(loss=False))
+        req = hall_dispatch_request()
+        tokens = list(req.semantic_preconditions)
+        tokens[13] = f"dispatch_cost_source_frame={'b' * 64}"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        hashes = (("hall_of_war_explicit_zero_cost", "e" * 64), ("hall_of_war_no_loss_rule", LOSS_ROI))
+        self.assert_denied(replace(req, observation=replace(req.observation, critical_roi_hashes=hashes)))
+        self.assert_denied(replace(req, action_key=req.action_key.replace(DAY, "game-day-2026-07-14")))
+        req = hall_reward_request()
+        self.assert_denied(replace(req, action_key=req.action_key.replace("hall-of-war:reward", "hall-of-war:dispatch")))
+        tokens = list(req.semantic_preconditions)
+        tokens[8] = "current_reward_row_explicitly_glowing_and_enabled=false"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
 
     def test_navigation_only_route_requests_use_generic_freshness_cost_and_binding_gates(self):
         req = navigation_request()

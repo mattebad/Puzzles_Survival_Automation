@@ -4,6 +4,8 @@ from subprocess import CompletedProcess, TimeoutExpired
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+import hashlib
+import time
 from unittest.mock import patch
 
 from scripts.bluestacks_adb_readiness import (
@@ -13,6 +15,22 @@ from scripts.bluestacks_adb_readiness import (
 )
 from scripts import bluestacks_flow_collector as collector
 from scripts import pnsctl
+from automation_service.recruitment import recruitment_reset
+from automation_service.registry import TROOP_TRAINING_FLOW_ID
+from automation_service.troop_training import (
+    make_training_start_action_key,
+    training_identity_digest,
+)
+from safe_action_core.models import (
+    ActionClass,
+    ActionIntent,
+    PolicyDecision,
+    PolicyResult,
+)
+from safe_action_core.store import SafetyStore
+from scripts import navigation_development_boundary as boundary
+from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tasks.runtime_identity import resource_fixed_runtime_binding
 from tasks.runtime_identity import BLUESTACKS_SERIAL
 
 
@@ -154,6 +172,143 @@ class BlueStacksADBReadinessTests(unittest.TestCase):
         self.assertEqual(run.call_args.args[0], ["HD-Adb.exe", "devices", "-l"])
         self.assertEqual(devices[0].serial, "emulator-5554")
 
+
+class CanonicalTrainingRecoveryHistoryTests(unittest.TestCase):
+    def test_history_candidate_comes_from_read_only_canonical_sqlite(self):
+        with TemporaryDirectory() as directory:
+            database = Path(directory) / "actions.sqlite3"
+            now = time.time()
+            reset_id = recruitment_reset(now)
+            binding = resource_fixed_runtime_binding()
+            identity = training_identity_digest(
+                binding.runtime_scope,
+                binding.account_id,
+                binding.server_id,
+            )
+            action_key = make_training_start_action_key(
+                identity,
+                reset_id,
+                "fighter",
+                1,
+            )
+            intent = ActionIntent(
+                action_id="training-start",
+                action_key=action_key,
+                task_id=TROOP_TRAINING_FLOW_ID,
+                semantic_action="TROOP_TRAINING_START",
+                source_state="TRAINING",
+                target_identity="training-start",
+                target_roi=(100, 100, 200, 200),
+                source_frame_sha256="a" * 64,
+                source_frame_captured_at=time.monotonic(),
+                runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
+                game_day_id=reset_id,
+                expected_postcondition="exact_active_training_queue",
+                consequence="training_start",
+                cost_type="none",
+                cost_amount=0.0,
+                quantity=1,
+                evidence_refs=("synthetic:test-only",),
+                consequential=True,
+                action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+            )
+            store = SafetyStore(database)
+            store.prepare_action(
+                intent,
+                PolicyResult(
+                    PolicyDecision.AUTHORIZE,
+                    "test-authorized",
+                    "",
+                    now,
+                    {},
+                ),
+                now,
+            )
+            store.close()
+            before = hashlib.sha256(database.read_bytes()).hexdigest()
+
+            with patch.object(boundary, "CANONICAL_ACTION_STORE_PATH", database):
+                history = pnsctl._troop_training_recovery_history()
+
+            self.assertEqual(hashlib.sha256(database.read_bytes()).hexdigest(), before)
+            self.assertIsNotNone(history)
+            self.assertEqual(history["task_id"], TROOP_TRAINING_FLOW_ID)
+            self.assertEqual(history["action_ids"], ["training-start"])
+            self.assertEqual(history["action_keys"], [action_key])
+            self.assertEqual(history["pending_statuses"], ["prepared"])
+            self.assertEqual(
+                history["source"],
+                "canonical_sqlite_action_and_resource_history",
+            )
+
+    def test_recover_home_gates_released_training_on_canonical_history(self):
+        queue = {"active_flow_id": TROOP_TRAINING_FLOW_ID}
+        lease = {
+            "active_flow": TROOP_TRAINING_FLOW_ID,
+            "active_stage": "evidence_review",
+            "runtime_ownership_state": "released",
+            "unresolved_action_state": "unresolved",
+        }
+        history = {
+            "action_ids": ["training-start"],
+            "pending_statuses": ["unresolved"],
+        }
+        with (
+            patch.object(
+                pnsctl,
+                "_load_flow_delivery_state",
+                return_value=(queue, lease),
+            ),
+            patch.object(
+                pnsctl,
+                "_troop_training_recovery_history",
+                return_value=history,
+            ) as canonical_history,
+            patch.object(
+                pnsctl,
+                "_run_troop_training_return_home",
+                return_value='{"status":"navigation_complete"}',
+            ) as native_recovery,
+        ):
+            result = pnsctl.bluestacks_recover_home()
+
+        self.assertEqual(result, '{"status":"navigation_complete"}')
+        canonical_history.assert_called_once()
+        native_recovery.assert_called_once_with(
+            queue,
+            lease,
+            history_required=True,
+            runtime_input_lock=None,
+            checkpoint=None,
+        )
+
+    def test_released_training_recovery_fails_closed_without_canonical_history(self):
+        queue = {"active_flow_id": TROOP_TRAINING_FLOW_ID}
+        lease = {
+            "active_flow": TROOP_TRAINING_FLOW_ID,
+            "active_stage": "evidence_review",
+            "runtime_ownership_state": "released",
+            "unresolved_action_state": "clear",
+        }
+        with (
+            patch.object(
+                pnsctl,
+                "_load_flow_delivery_state",
+                return_value=(queue, lease),
+            ),
+            patch.object(
+                pnsctl,
+                "_troop_training_recovery_history",
+                return_value=None,
+            ),
+            patch.object(pnsctl, "_run_troop_training_return_home") as native_recovery,
+            self.assertRaisesRegex(
+                pnsctl.OperatorError,
+                "canonical SQLite action/resource history",
+            ),
+        ):
+            pnsctl.bluestacks_recover_home()
+        native_recovery.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()
