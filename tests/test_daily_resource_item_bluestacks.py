@@ -108,6 +108,27 @@ def _military_selected_bag_frame() -> np.ndarray:
 
 
 class DailyResourceItemRecognitionTests(unittest.TestCase):
+    @requires_tesseract
+    def test_actual_native_inset_bag_binds_one_food_not_adjacent_use_or_bulk(self):
+        # Unmodified #66 canary successor before any Use; not acceptance evidence.
+        frame = cv2.imread(str(
+            PORTABLE_FIXTURES / "native-bag-resource66-before-use-20261107.png"
+        ))
+        self.assertIsNotNone(frame)
+        self.assertTrue(route._recognize_bag(frame)["recognized"])
+        ready = route.recognize_food_item_in_resources(frame)
+        self.assertTrue(route.resource_item_authorizeable(ready), ready)
+        self.assertEqual((ready.item_name, ready.owned_quantity, ready.quantity), ("1K Food", 129810, 1))
+        self.assertTrue(ready.bulk_visible)
+        self.assertTrue(ready.bulk_disjoint_from_use)
+
+        # Counterfactual only in test memory: other Use controls remain visible.
+        missing = frame.copy()
+        left, top, right, bottom = ready.target_roi
+        missing[top:bottom, left:right] = (29, 29, 29)
+        rejected = route.recognize_food_item_in_resources(missing)
+        self.assertFalse(route.resource_item_authorizeable(rejected))
+
     def test_exact_measured_card_authorizes_one_food_use(self):
         measured = {
             "proven": True,

@@ -22,6 +22,9 @@ The #66 supervised canaries exposed borrowed-scope and competing-controller-leas
 ResourceEffectAuthority now owns its sole Core lease; the existing route session fences its exact
 scope through the real canonical input lock. Both failed receipts remain unchanged. Finished-route
 live acceptance still requires current proof (`evidence_required`).
+The next canary sent one Bag navigation and zero Use calls, then stopped on an unrecognized
+successor. Recognition now covers that actual native inset menu and low-contrast item card;
+the finished item-decrement/Home scenario remains unaccepted. No identical Bag retry was sent.
 
 Nano building entry reuses the shared Home Atlas pan dispatcher with its native runtime,
 fresh capture identities, lease checks and bounded pans. Each confirmed pan is followed
