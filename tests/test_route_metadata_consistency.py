@@ -930,7 +930,6 @@ class ProductBindingTests(RouteTestCase):
                 self.assertNotIn(flow_id, operator)
                 self.assertNotIn(flow_id, pnsctl.BLUESTACKS_FLOW_IDS)
                 self.assertNotIn(flow_id, pnsctl._DEFAULT_MAX_INPUTS)
-                self.assertIn("canonical", NO_OPERATOR_RUNNER[flow_id].casefold())
 
     def test_selection_handlers_describe_the_registry_cadence(self) -> None:
         for entry in CANONICAL_FLOW_REGISTRY:

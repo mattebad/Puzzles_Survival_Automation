@@ -11,18 +11,8 @@
       "nano_parts": 100,
       "craft_mode": "CRAFT",
       "target_identity": "nanoweapon-craft-normal",
-      "target_roi": [
-        250,
-        760,
-        550,
-        840
-      ],
-      "panel_bounds": [
-        120,
-        180,
-        680,
-        1100
-      ],
+      "target_roi": [250, 760, 550, 840],
+      "panel_bounds": [120, 180, 680, 1100],
       "control_class": "CRAFT",
       "craft_ready": true,
       "duration_policy_approved": true,
@@ -34,23 +24,21 @@
       "craft_result_visible": false,
       "result_identity": "",
       "craft_timer_active": false,
-      "game_day_id": "daily-test-1",
-      "target_provenance": "bluestacks-native",
-      "source_frame_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "evidence_refs": [
-        "synthetic:nanoweapon-normal-craft"
-      ],
-      "overlay_state": "none",
-      "reset_guard_active": false,
-      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
-      "recognized": true,
       "active_craft_count": 0,
       "craft_enabled": true,
       "starts_this_reset": 0,
       "claim_visible": false,
       "recipe_selection_mode": "normal_recipe",
       "craft_timer_seconds_remaining": 0,
-      "prior_material_production_reconciled": true
+      "prior_material_production_reconciled": true,
+      "game_day_id": "daily-test-1",
+      "target_provenance": "bluestacks-native",
+      "source_frame_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "evidence_refs": ["synthetic:nanoweapon-normal-craft"],
+      "overlay_state": "none",
+      "reset_guard_active": false,
+      "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+      "recognized": true
     },
     "material_production_negative": {
       "screen_state": "NANOWEAPON",
@@ -63,18 +51,8 @@
       "nano_parts": 100,
       "craft_mode": "MATERIAL_PRODUCTION",
       "target_identity": "nanoweapon-material-production",
-      "target_roi": [
-        250,
-        760,
-        550,
-        840
-      ],
-      "panel_bounds": [
-        120,
-        180,
-        680,
-        1100
-      ],
+      "target_roi": [250, 760, 550, 840],
+      "panel_bounds": [120, 180, 680, 1100],
       "control_class": "PRODUCE",
       "craft_ready": true,
       "duration_policy_approved": true,
@@ -89,9 +67,7 @@
       "game_day_id": "daily-test-1",
       "target_provenance": "bluestacks-native",
       "source_frame_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "evidence_refs": [
-        "synthetic:nanoweapon-material-production"
-      ],
+      "evidence_refs": ["synthetic:nanoweapon-material-production"],
       "overlay_state": "none",
       "reset_guard_active": false,
       "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
@@ -108,18 +84,8 @@
       "nano_parts": 100,
       "craft_mode": "CRAFT",
       "target_identity": "nanoweapon-craft-free",
-      "target_roi": [
-        250,
-        760,
-        550,
-        840
-      ],
-      "panel_bounds": [
-        120,
-        180,
-        680,
-        1100
-      ],
+      "target_roi": [250, 760, 550, 840],
+      "panel_bounds": [120, 180, 680, 1100],
       "control_class": "CRAFT",
       "craft_ready": true,
       "duration_policy_approved": true,
@@ -134,9 +100,7 @@
       "game_day_id": "daily-test-1",
       "target_provenance": "gnbots-static-reference",
       "source_frame_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "evidence_refs": [
-        "docs/research/gnbots-static-reference"
-      ],
+      "evidence_refs": ["docs/research/gnbots-static-reference"],
       "overlay_state": "none",
       "reset_guard_active": false,
       "runtime_profile_id": "pns-bluestacks-5-p64-800x1280-v1",

@@ -1182,11 +1182,13 @@ class AutomationService:
                             NANO_MATERIAL_PRODUCTION_FLOW_ID: nano_material_production_next_due,
                             NANOWEAPON_FLOW_ID: nanoweapon_next_due,
                         }[flow_id](result, identity, facts.now_utc_epoch)
+                        # Maintenance success retains its proven timer rather than
+                        # completing the scheduler occurrence as a daily action.
                         normalized_route_outcome = NormalizedOutcome.DEFERRED
                         normalized_route_reason = (
-                            f"{prefix}_DEFERRED"
-                            if result.get("status") == "deferred"
-                            else f"{prefix}_PASS_VERIFIED"
+                            f"{prefix}_PASS_VERIFIED"
+                            if result.get("status") == "completed"
+                            else f"{prefix}_DEFERRED"
                         )
                     else:
                         due = {
@@ -1484,11 +1486,6 @@ class AutomationService:
                                 )
                                 if flow is None:
                                     continue
-                    projection = RecurrenceProjection(
-                        entry.descriptor.recurrence_class or RecurrenceClass.COOLDOWN,
-                        observed_at_utc=now,
-                        next_eligible_at=None if operator_request_id is not None else flow.next_due_at_utc,
-                    )
                     if entry.flow_id == CAMPAIGN_FLOW_ID:
                         # A restart before due must not connect to the device.
                         if flow.next_due_at_utc is not None and flow.next_due_at_utc > now:
@@ -1500,6 +1497,12 @@ class AutomationService:
                             next_eligible_at=flow.next_due_at_utc,
                             generation=str(flow.next_occurrence_key),
                             observation_pending=True,
+                        )
+                    else:
+                        projection = RecurrenceProjection(
+                            entry.descriptor.recurrence_class or RecurrenceClass.COOLDOWN,
+                            observed_at_utc=now,
+                            next_eligible_at=None if operator_request_id is not None else flow.next_due_at_utc,
                         )
                     facts = SchedulerFacts(
                         account_id, server_id, recruitment_reset(now), now,

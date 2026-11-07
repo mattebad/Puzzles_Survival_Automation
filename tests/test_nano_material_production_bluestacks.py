@@ -319,10 +319,7 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
         context = self._context(state="home")
         context.session.initial_observation = SimpleNamespace(frame_sha256="already-bound")
 
-        class _Atlas:
-            @staticmethod
-            def lookup_building(_building_id):
-                return SimpleNamespace()
+        atlas = route._load_atlas(route.DEFAULT_ATLAS)
 
         class _Localizer:
             def __init__(self, _atlas, _path):
@@ -343,7 +340,7 @@ class NanoMaterialProductionNativeSmokeTests(unittest.TestCase):
             )
 
         with (
-            mock.patch.object(route, "_load_atlas", return_value=_Atlas()),
+            mock.patch.object(route, "_load_atlas", return_value=atlas),
             mock.patch.object(route, "BlueStacksHomeLocalizer", _Localizer),
             mock.patch.object(route, "bind_visible_building", side_effect=bind_home),
             mock.patch.object(
