@@ -115,30 +115,23 @@ the scheduler/facade consumer checks are recorded separately; their counts are n
 
 The fixed native composition binds fifteen canonical routes: Nova, Recruitment, Campaign,
 Bioenhancer, Supply, Ultimate, Enhancement, Personal Might, Daily Rewards, Resource Item,
-Ruins, Alliance Help, Alliance Donation, Alliance Shop, and Daily Shops. The sixteenth fixed
-flow spec is `world_map_navigation`, which is selection-only and has no `serve --flow`. The
-ordinary registered selectors remain non-consuming; passing `--flow` alone does not enable a
-route.
+Ruins, Alliance Help, Alliance Donation, Alliance Shop and Daily Shops. The sixteenth fixed
+spec is navigation-only `world_map_navigation`, with no `serve --flow`. Passing `--flow` alone
+never enables a route.
 
-Batch B adds canonical-only `ruins` and `alliance-help`; Batch C adds canonical-only
-`alliance-donation`, `alliance-shop`, and `daily-shops`. Their code specs are registered, while
-the legacy production posture and SQLite runtime controls remain disabled. Current native
-acceptance for these routes is `evidence_required`; no donation quota run or purchase-effect
-acceptance is claimed. The donation information probe is not route acceptance. Alliance Shop
-requires one affordable allowlisted Weekly offer or the exact one-star Other fallback, quantity
-one total. Daily Shops allows at most one purchase action on each tab, bounding an exact current
-three-star Chip or Module offer by its observed stock and affordability; both tabs require paired
-item/currency effects.
+B adds Ruins/Help; C adds Donation, Alliance Shop and Daily Shops. These are implemented and
+offline-proven, not newly live-accepted; production and SQLite runtime controls remain disabled.
+Donations count actual successful HOT-tech donations, not ranking points. Alliance Shop requires
+one affordable allowlisted Weekly offer or the exact one-star Other fallback, quantity one total.
+Daily Shops bounds each approved three-star Chip/Module tab purchase by observed stock and
+affordability, with paired item/currency effects. No purchase-effect native acceptance is claimed.
 
-The supplied Nov 6 DailyQuest image shows one positively glowing 30-point chest, four other
-chests closed, 30 total points, and no aggregate Claim. Daily policy handles five categories
-individually when visibly glowing, with no 150-point minimum. A native pass with zero ready
-chests may complete without an aggregate Claim; after an aggregate Claim is confirmed, it
-requires fresh evidence that all five chests are static. Complete zero-ready scans can close at
-freshly verified Home, either without an aggregate Claim or after its confirmed effect. A ready
-chest still requires same-chest claimed/opened successor evidence; no full live acceptance is
-asserted. Resource Item's offline adapter/service checks pass; current live acceptance remains
-`evidence_required`.
+Daily performs at most one current aggregate Claim, then separately claims glowing chests with
+same-slot `Claimed` and canonical journal confirmation. Restart-stable reset/slot keys protect
+effects; UNKNOWN stops without identical retry, and already-claimed manual work is skipped.
+Complete zero-ready scans return to verified Home. The owner-authorized November 7 single-chest
+investigation supplied actual ready/Claimed pixels, not completed-route acceptance. Current native
+acceptance for all these new routes remains `evidence_required`.
 Existing individual effect/Home acceptance, uninterrupted Enhancement proof, independent recruit
 timers, and cadence scope are historical context in [`BACKLOG.md`](../BACKLOG.md), not active
 sequencing. The current planning authority is tracker #53, with volatile state in the handoff.

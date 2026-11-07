@@ -31,7 +31,8 @@ from scripts.daily_row_claim_bluestacks import (
 )
 from tasks.home_nav_recognition import (
     NAV_STRIP_BOX,
-    _load_template as _load_home_nav_template,
+    HOME_CORRELATION_THRESHOLD,
+    matching_nav_template,
     recognize_home_nav,
 )
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
@@ -1420,15 +1421,14 @@ def _home_bag_target(
 
     if not isinstance(frame, np.ndarray) or frame.shape[:2] != (NATIVE_HEIGHT, NATIVE_WIDTH):
         return None
-    recognition = recognize_home_nav(frame)
-    if not recognition.is_home or not recognition.native_ok:
+    try:
+        template, correlation = matching_nav_template(frame)
+    except ValueError:
+        return None
+    if correlation < HOME_CORRELATION_THRESHOLD:
         return None
     tokens = _ocr_tokens(frame, ocr or _default_ocr)
     if _ocr_overlay_markers(tokens):
-        return None
-    try:
-        template = _load_home_nav_template()
-    except Exception:
         return None
     nav_x0, nav_y0, nav_x1, nav_y1 = NAV_STRIP_BOX
     bag_x0, bag_y0, bag_x1, bag_y1 = HOME_BAG_ICON_ROI
@@ -1457,13 +1457,18 @@ def _home_bag_target(
         template_patch,
         cv2.TM_CCOEFF_NORMED,
     )
-    match_points = np.argwhere(matches >= HOME_BAG_TEMPLATE_CORRELATION_THRESHOLD)
+    # Adjacent correlation hits are one detection, not separate Bag controls.
+    # A second disconnected response remains ambiguous and fails closed.
+    components, _labels = cv2.connectedComponents(
+        (matches >= HOME_BAG_TEMPLATE_CORRELATION_THRESHOLD).astype(np.uint8),
+        connectivity=8,
+    )
+    _minimum, _maximum, _minimum_location, maximum_location = cv2.minMaxLoc(matches)
     expected_x = bag_x0 - nav_x0
     expected_y = bag_y0 - nav_y0
     if (
-        len(match_points) != 1
-        or int(match_points[0][0]) != expected_y
-        or int(match_points[0][1]) != expected_x
+        components != 2
+        or maximum_location != (expected_x, expected_y)
     ):
         return None
     return HOME_BAG_ICON_ROI

@@ -1,0 +1,24 @@
+{
+  "schema": "native-home-footer-source-v1",
+  "classification": "Authorized zero-input native Home observation; not claim or route acceptance",
+  "template": {
+    "path": "tasks/assets/home_nav/800x1280/home_nav_strip_compact.png",
+    "sha256": "e01d5abc0f77a4628c05c99779cf93fec9ef57078edf5f1438335dba64058821",
+    "source_capture": ".local-captures/development-sessions/daily54-current-owner-navigation-20261107T070618109542Z/runtime/daily54-current-owner-navigation-20261107T070618256891Z/frames/0001-home-source.png",
+    "source_sha256": "288d7f5750d7a587b08362f18b836846abdc87e539063df80df53eb551d8f409",
+    "crop_box": [
+      0,
+      1213,
+      800,
+      1280
+    ]
+  },
+  "independent_replay": {
+    "path": "tests/fixtures/daily_rewards_native/native-home-compact-footer.png",
+    "sha256": "d943c6da9755445e4b488cc0c13b9e071746294f6ba1b1c0d815cc11b4b08f76",
+    "source_capture": ".local-captures/development-sessions/observe-20261107T065532870061Z/observe.png"
+  },
+  "source_captures_preserved": true,
+  "correlation_threshold_changed": false,
+  "existing_mapped_tap_points_changed": false
+}
