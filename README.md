@@ -11,6 +11,11 @@ The owner-authorized #54 observation is exactly one manual chest tap with zero s
 `Claimed` is its recognition basis. Keep the raw `UNKNOWN` record unchanged. This is not combined
 route live acceptance (`evidence_required`).
 
+Nano building entry reuses the shared Home Atlas pan dispatcher with its native runtime,
+fresh capture identities, lease checks and bounded pans. Each confirmed pan is followed
+by a fresh mapped binding; an unknown result stops without an identical retry.
+
+
 ## Routes
 
 The service code registers each route in `automation_service/registry.py`. Each row below is one
