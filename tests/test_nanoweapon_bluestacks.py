@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from itertools import count
 import hashlib
 import tempfile
 from types import SimpleNamespace
@@ -238,6 +239,8 @@ class _Session:
 
 
 class _Context:
+    _invocations = count(1)
+
     def __init__(
         self,
         root: Path,
@@ -270,7 +273,7 @@ class _Context:
             partial_start=partial_start,
             unknown_after_claim=unknown_after_claim,
         )
-        self.invocation_id = f"smoke-{id(self)}"
+        self.invocation_id = f"smoke-{next(self._invocations)}"
         self.session = _Session(self.runtime, self.owner, self.invocation_id)
         self.action_store = store or SafetyStore(root / "action-store.sqlite")
         self._owns_store = store is None
@@ -348,6 +351,15 @@ class NanoweaponNativeSmokeTests(unittest.TestCase):
             patcher.stop()
         self.temp.cleanup()
 
+    def _seed_previous_start(self, context, reset="game-day-2026-11-05"):
+        previous = _Context(
+            self.root, craft_state="craft_idle", identity_reset=reset,
+            store=context.action_store,
+        )
+        result = route.run_nanoweapon_in_context(previous, occurrence_key=previous.occurrence_key)
+        self.assertEqual(result["craft_start_transport_calls"], 1)
+        return previous
+
     def test_same_visit_production_then_claim_and_exact_normal_start(self):
         context = _Context(
             self.root,
@@ -355,6 +367,7 @@ class NanoweaponNativeSmokeTests(unittest.TestCase):
             production_state="production_idle",
         )
         try:
+            self._seed_previous_start(context)
             binding = route.create_service_binding(lambda **values: values)
             result = binding["driver"](context, {})
             consequential = [action for action in context.runtime.actions if action[2]]
@@ -387,7 +400,8 @@ class NanoweaponNativeSmokeTests(unittest.TestCase):
                 production_actions[0][1],
                 f"{production.PRODUCT_ID}|{context.occurrence_key}|start",
             )
-            self.assertTrue(all(f":{context.identity.reset_id}:" in action[1] for action in craft_actions))
+            self.assertIn(":claim-instance:game-day-2026-11-05:", craft_actions[0][1])
+            self.assertIn(f":start:{context.identity.reset_id}:", craft_actions[1][1])
             self.assertEqual(result["native_occurrence_key"], context.occurrence_key)
             self.assertEqual(result["production_occurrence_key"], context.occurrence_key)
             self.assertEqual(
@@ -542,6 +556,7 @@ class NanoweaponNativeSmokeTests(unittest.TestCase):
     def test_unknown_claim_successor_stops_before_normal_start(self):
         context = _Context(self.root, craft_state="craft_claim", unknown_after_claim=True)
         try:
+            self._seed_previous_start(context)
             result = route.run_nanoweapon_in_context(context, occurrence_key=context.occurrence_key)
             self.assertEqual(result["status"], "unresolved")
             self.assertIsNone(result["next_eligible_at"])
@@ -556,6 +571,14 @@ class NanoweaponNativeSmokeTests(unittest.TestCase):
                 [action[0] for action in context.runtime.actions if action[2]],
                 ["CLAIM_NANOWEAPON_COMPLETED"],
             )
+            restarted = _Context(
+                self.root, craft_state="craft_claim", store=context.action_store,
+                identity_reset="game-day-2026-11-07",
+            )
+            retry = route.run_nanoweapon_in_context(restarted, occurrence_key=restarted.occurrence_key)
+            self.assertEqual(retry["status"], "unresolved")
+            self.assertEqual(retry["craft_claim_transport_calls"], 0)
+            self.assertFalse(any(action[2] for action in restarted.runtime.actions))
         finally:
             context.close()
 
@@ -573,6 +596,119 @@ class NanoweaponNativeSmokeTests(unittest.TestCase):
             self.assertEqual(result["nanoweapon_dispatch_count"], 0)
             self.assertEqual(result["next_eligible_at"], context.utc_clock() + 300)
             self.assertTrue(result["terminal_home_verified"])
+        finally:
+            context.close()
+
+    def test_two_completions_in_one_reset_survive_database_reopen(self):
+        first = _Context(self.root, craft_state="craft_claim")
+        try:
+            self._seed_previous_start(first)
+            result = route.run_nanoweapon_in_context(first, occurrence_key=first.occurrence_key)
+            self.assertEqual(result["craft_claim_transport_calls"], 1)
+            self.assertEqual(result["craft_start_transport_calls"], 1)
+            original = first.action_store.list_actions_for_task(route.FLOW_ID)
+        finally:
+            first.close()
+        reopened = SafetyStore(self.root / "action-store.sqlite")
+        try:
+            second = _Context(
+                self.root, balance=150, craft_state="craft_claim", store=reopened,
+            )
+            result = route.run_nanoweapon_in_context(second, occurrence_key=second.occurrence_key)
+            self.assertEqual(result["status"], "deferred")
+            self.assertEqual(result["craft_claim_transport_calls"], 1)
+            self.assertEqual(result["craft_start_transport_calls"], 0)
+            self.assertFalse(result["effect_reconciliation_required"])
+            records = reopened.list_actions_for_task(route.FLOW_ID)
+            claims = [row for row in records if row["semantic_action"] == "claim_completed_nanoweapon"]
+            self.assertEqual(len(claims), 2)
+            self.assertEqual(len({row["action_key"] for row in claims}), 2)
+            for row in original:
+                self.assertEqual(reopened.get_action_by_key(row["action_key"]), row)
+            for reset in ("game-day-2026-11-06", "game-day-2026-11-07"):
+                duplicate = _Context(
+                    self.root, balance=150, craft_state="craft_claim", store=reopened,
+                    identity_reset=reset,
+                )
+                result = route.run_nanoweapon_in_context(duplicate, occurrence_key=duplicate.occurrence_key)
+                self.assertEqual(result["status"], "blocked")
+                self.assertEqual(result["craft_claim_transport_calls"], 0)
+                self.assertEqual(result["craft_start_transport_calls"], 0)
+                self.assertFalse(result["effect_reconciliation_required"])
+                self.assertEqual(
+                    {row["action_key"] for row in reopened.list_actions_for_task(route.FLOW_ID) if row["consequential"]},
+                    {row["action_key"] for row in records if row["consequential"]},
+                )
+        finally:
+            reopened.close()
+
+    def test_legacy_claim_history_is_retained_and_old_unclaimed_start_is_claimable(self):
+        context = _Context(self.root, balance=80, craft_state="craft_claim")
+        try:
+            self._seed_previous_start(context, "game-day-2026-11-01")
+            context._utc += 10
+            legacy_key = route._action_key(
+                "claim", reset_id=context.identity.reset_id, identity=context.identity,
+                result_identity="completed-normal-craft",
+            )
+            # Exercise the former persisted key format through the real executor.
+            with mock.patch.object(route, "_claim_instance_key", return_value=legacy_key):
+                result = route.run_nanoweapon_in_context(context, occurrence_key=context.occurrence_key)
+            self.assertEqual(result["craft_claim_transport_calls"], 1)
+            self.assertEqual(result["craft_start_transport_calls"], 0)
+            legacy = context.action_store.get_action_by_key(legacy_key)
+            self.assertEqual(legacy["final_status"], "confirmed")
+            current = _Context(
+                self.root, craft_state="craft_idle", store=context.action_store,
+            )
+            current._utc += 20
+            result = route.run_nanoweapon_in_context(current, occurrence_key=current.occurrence_key)
+            self.assertEqual(result["craft_start_transport_calls"], 1)
+            completed = _Context(
+                self.root, balance=150, craft_state="craft_claim", store=context.action_store,
+            )
+            completed._utc += 30
+            result = route.run_nanoweapon_in_context(completed, occurrence_key=completed.occurrence_key)
+            self.assertEqual(result["craft_claim_transport_calls"], 1)
+            self.assertEqual(result["craft_start_transport_calls"], 0)
+            self.assertFalse(result["effect_reconciliation_required"])
+            self.assertEqual(context.action_store.get_action_by_key(legacy_key), legacy)
+            self.assertEqual(
+                len([
+                    row for row in context.action_store.list_actions_for_task(route.FLOW_ID)
+                    if row["semantic_action"] == "claim_completed_nanoweapon"
+                ]),
+                2,
+            )
+        finally:
+            context.close()
+
+    def test_unjournaled_manual_completion_requires_evidence_without_consequential_input(self):
+        context = _Context(self.root, craft_state="craft_claim")
+        try:
+            result = route.run_nanoweapon_in_context(context, occurrence_key=context.occurrence_key)
+            self.assertEqual(result["status"], "blocked")
+            self.assertTrue(result["terminal_home_verified"])
+            self.assertEqual(result["craft_claim_transport_calls"], 0)
+            self.assertFalse(result["effect_reconciliation_required"])
+            self.assertFalse(any(row["consequential"] for row in
+                                 context.action_store.list_actions_for_task(route.FLOW_ID)))
+        finally:
+            context.close()
+
+    def test_multiple_unclaimed_old_starts_are_ambiguous_not_guessed(self):
+        context = _Context(self.root, craft_state="craft_claim")
+        try:
+            self._seed_previous_start(context, "game-day-2026-11-03")
+            self._seed_previous_start(context, "game-day-2026-11-04")
+            before = context.action_store.list_actions_for_task(route.FLOW_ID)
+            result = route.run_nanoweapon_in_context(context, occurrence_key=context.occurrence_key)
+            self.assertEqual(result["status"], "blocked")
+            self.assertTrue(result["terminal_home_verified"])
+            self.assertEqual(result["craft_claim_transport_calls"], 0)
+            for row in before:
+                self.assertEqual(context.action_store.get_action_by_key(row["action_key"]), row)
+            self.assertFalse(any(action[2] for action in context.runtime.actions))
         finally:
             context.close()
 

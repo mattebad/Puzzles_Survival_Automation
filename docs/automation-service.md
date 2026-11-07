@@ -155,6 +155,13 @@ and the existing twelve operator routes remain. Production is a zero-resource, s
 maintenance in the same visit before at most one Normal Craft start/reset: 100 Nano Parts,
 43,200 seconds. Exclusive Craft, Daily/D02 ownership and points attribution remain prohibited.
 Registration is composition only; production registration and SQLite runtime controls stay disabled.
+Normal Craft completion claims bind to the unique outstanding confirmed craft-start instance,
+not a reusable reset-only claim key. A completed older craft can therefore be claimed before
+the current reset's one permitted start without suppressing a distinct future completion.
+Navigation recognition remains read-only; craft-instance state is bound after verified arrival.
+Native/Core replay covers completed claim, current start, durable duplicate prevention and
+fresh Home return. This offline proof is not live timer or completion acceptance.
+
 
 Batch E adds canonical-only Hero Duel, Recommended Research, and Food Farm Boost routes with fixed
 native bindings and no legacy operator rows; the existing twelve operator routes remain unchanged.

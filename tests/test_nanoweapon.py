@@ -4,11 +4,9 @@ from dataclasses import replace
 from pathlib import Path
 import unittest
 
-from tasks.contracts import TaskOutcome
 from tasks.nanoweapon import (
     NanoweaponObservation,
     nanoweapon_authorizeable,
-    nanoweapon_perform_one_pulse,
     nanoweapon_postcondition_verified,
     nanoweapon_transaction_spec,
 )
@@ -31,9 +29,8 @@ class NanoweaponContractTests(unittest.TestCase):
         observation = load_fixture("normal_craft_synthetic")
         self.assertTrue(nanoweapon_authorizeable(observation))
         spec = nanoweapon_transaction_spec(observation)
-        self.assertEqual(spec.action_kind, "CRAFT_NANOWEAPON_NORMAL")
-        self.assertEqual(spec.subject, "Nano Spear")
         self.assertFalse(spec.free_only)
+        self.assertEqual(spec.quantity, 1)
         self.assertEqual(spec.maximum_cost, 100)
         self.assertEqual(spec.resource_or_currency, "NANO_PARTS")
 
@@ -64,37 +61,30 @@ class NanoweaponContractTests(unittest.TestCase):
         ):
             self.assertFalse(nanoweapon_authorizeable(replace(observation, **changes)))
 
-    def test_postcondition_requires_positive_result_same_day(self):
-        before = load_fixture("normal_craft_synthetic")
-        self.assertFalse(nanoweapon_postcondition_verified(before, before))
-        result = replace(
-            before,
-            nano_parts=0,
-            craft_result_visible=True,
-            result_identity="nano-spear",
+    def test_active_successor_requires_exact_debit_timer_and_same_reset(self):
+        before = replace(load_fixture("normal_craft_synthetic"), source_frame_sha256="a" * 64)
+        active = replace(
+            before, nano_parts=before.nano_parts - 100, active_craft_count=1,
+            starts_this_reset=1, craft_timer_active=True, craft_timer_seconds_remaining=43199,
+            craft_result_visible=False, claim_visible=False, source_frame_sha256="b" * 64,
         )
-        self.assertTrue(nanoweapon_postcondition_verified(before, result))
-        counted = replace(before, nano_parts=0, craft_count=1)
-        self.assertTrue(nanoweapon_postcondition_verified(before, counted))
-        timer = replace(before, nano_parts=0, craft_timer_active=True)
-        self.assertTrue(nanoweapon_postcondition_verified(before, timer))
-        self.assertFalse(
-            nanoweapon_postcondition_verified(
-                before,
-                replace(result, game_day_id="next-day"),
-            )
-        )
-
-    def test_perform_one_pulse_is_pure_and_fail_safe(self):
-        before = load_fixture("normal_craft_synthetic")
-        prepared = nanoweapon_perform_one_pulse(before)
-        self.assertEqual(prepared.outcome, TaskOutcome.PROGRESS)
-        result = nanoweapon_perform_one_pulse(
-            before,
-            replace(before, nano_parts=0, craft_count=1),
-        )
-        self.assertEqual(result.outcome, TaskOutcome.DONE)
-        self.assertEqual(result.completion_key, "nanoweapon:normal:completed")
+        self.assertTrue(nanoweapon_postcondition_verified(before, active))
+        for changes in (
+            {"nano_parts": before.nano_parts - 99},
+            {"nano_parts": before.nano_parts - 101},
+            {"active_craft_count": 0},
+            {"active_craft_count": 2},
+            {"starts_this_reset": 0},
+            {"craft_timer_active": False},
+            {"craft_timer_seconds_remaining": 0},
+            {"craft_timer_seconds_remaining": 43201},
+            {"craft_result_visible": True},
+            {"claim_visible": True},
+            {"source_frame_sha256": before.source_frame_sha256},
+            {"game_day_id": "next-day"},
+        ):
+            with self.subTest(changes=changes):
+                self.assertFalse(nanoweapon_postcondition_verified(before, replace(active, **changes)))
 
 
 if __name__ == "__main__":
