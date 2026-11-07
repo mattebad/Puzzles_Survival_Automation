@@ -108,12 +108,12 @@ UNKNOWN effects require inspection without identical retry. Finish at verified H
 prior manual/canonical work or counters to manufacture acceptance. The historical manual chest
 observation is recognition evidence, not acceptance of this finished combined route.
 
-Resource Item (`serve --flow resource-item`) binds its Resource controller and dispatch fence to
-the actual held canonical input-lock owner/invocation, including when the native route borrows that
-lock. Its action-store lease remains route-owned; neither fence is weakened. Supply the fixed
-BlueStacks `--adb` path and serial explicitly. The first supervised #66 run stopped before Use on
-the old owner mismatch; retain that failed receipt and inspect its zero-effect evidence through
-canonical state/authority before any new attempt. Do not clear an UNKNOWN effect or daily counter.
+Resource Item (`serve --flow resource-item`) leaves its sole Core controller lease with
+ResourceEffectAuthority; the shared native bridge must not acquire a competing lease. Its existing
+DevelopmentSession fences the exact route owner/invocation through the real canonical input lock
+and checkpoint, including borrowed ownership. Supply the fixed BlueStacks `--adb` path and serial
+explicitly. Retain pre-Use failure receipts and inspect their no-dispatch evidence through canonical
+state/authority before any fresh invocation; never clear an UNKNOWN effect or daily counter.
 
 ## Canonical governance references
 

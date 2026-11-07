@@ -2717,4 +2717,5 @@ def create_service_binding(make_native_route_binding: Callable[..., Any]) -> Any
         driver=_run_service_native_route,
         lease_seconds=3600.0,
         action_store_factory=open_resource_action_store,
+        driver_manages_action_lease=True,
     )

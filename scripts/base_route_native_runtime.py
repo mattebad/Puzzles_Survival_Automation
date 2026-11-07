@@ -64,6 +64,7 @@ class _BindingConfig:
     driver: NativeRouteDriver
     validator: NativeRouteValidator | None
     action_store_factory: ActionStoreFactory | None
+    driver_manages_action_lease: bool
 
 
 class _NativeRouteContext:
@@ -473,8 +474,9 @@ class _BoundNativeRoute:
                 )
                 if store.has_action_block():
                     raise NativeExecutionError("native canonical unresolved action requires inspection")
-                store.acquire_lease(owner, request.utc_clock(), self._config.lease_seconds)
-                leased = True
+                if not self._config.driver_manages_action_lease:
+                    store.acquire_lease(owner, request.utc_clock(), self._config.lease_seconds)
+                    leased = True
                 checkpoint()
                 runtime = LocalBlueStacksRuntime.connect(
                     adb=request.adb,
@@ -564,6 +566,7 @@ def make_native_route_binding(
     validator: NativeRouteValidator | None = None,
     lease_seconds: float = 3600.0,
     action_store_factory: ActionStoreFactory | None = None,
+    driver_manages_action_lease: bool = False,
 ) -> _BoundNativeRoute:
     """Create a device-free fixed binding for one service route's native driver."""
 
@@ -591,6 +594,8 @@ def make_native_route_binding(
         raise ValueError("native route binding requires a fixed driver and callable validator")
     if action_store_factory is not None and not callable(action_store_factory):
         raise ValueError("native route action_store_factory must be callable")
+    if type(driver_manages_action_lease) is not bool:
+        raise ValueError("native route driver_manages_action_lease must be boolean")
     config = _BindingConfig(
         flow_id=flow_id,
         product_id=product_id,
@@ -604,5 +609,6 @@ def make_native_route_binding(
         driver=driver,
         validator=validator,
         action_store_factory=action_store_factory,
+        driver_manages_action_lease=driver_manages_action_lease,
     )
     return _BoundNativeRoute(config)

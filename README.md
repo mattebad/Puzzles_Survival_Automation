@@ -18,10 +18,10 @@ The owner-authorized #54 observation was exactly one manual chest tap with zero 
 `Claimed` is its recognition basis. Preserve the raw `UNKNOWN` record unchanged; this one-chest
 observation is not combined native route live acceptance (`evidence_required`).
 
-The #66 supervised canary stopped before Use on a borrowed input-lock identity mismatch.
-The Resource controller/fence now binds the actual canonical input operator; the route keeps
-its own action-store lease. That failure receipt is retained, and finished-route live acceptance
-still requires inspection and a fresh authorized run (`evidence_required`).
+The #66 supervised canaries exposed borrowed-scope and competing-controller-lease failures before Use.
+ResourceEffectAuthority now owns its sole Core lease; the existing route session fences its exact
+scope through the real canonical input lock. Both failed receipts remain unchanged. Finished-route
+live acceptance still requires current proof (`evidence_required`).
 
 Nano building entry reuses the shared Home Atlas pan dispatcher with its native runtime,
 fresh capture identities, lease checks and bounded pans. Each confirmed pan is followed

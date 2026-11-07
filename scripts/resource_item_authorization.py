@@ -650,25 +650,18 @@ def build_resource_runtime_components(
         RESOURCE_RECURRENCE_POLICY_REVISION,
         RESOURCE_TARGET_VARIANT,
     )
-    from scripts.navigation_development_boundary import DevelopmentSessionError
+    from scripts.navigation_development_boundary import DevelopmentSession
 
-    if not hasattr(session, "runtime_input_lock"):
-        raise ResourceItemAuthorizationError("DevelopmentSession cannot expose its held runtime lock")
-    try:
-        runtime_lock = session.runtime_input_lock
-    except DevelopmentSessionError as exc:
-        raise ResourceItemAuthorizationError(
-            "Resource authority requires the entered DevelopmentSession"
-        ) from exc
-    owner = str(getattr(session, "owner", "") or "")
-    session_invocation_id = str(getattr(session, "invocation_id", "") or "")
-    if not owner or not session_invocation_id:
+    if not isinstance(session, DevelopmentSession):
+        raise ResourceItemAuthorizationError("Resource authority requires an entered DevelopmentSession")
+    # The existing session fences its exact route scope through the same live
+    # canonical input lock. ResourceEffectAuthority owns the sole Core lease.
+    runtime_lock = session
+    owner = session.owner
+    invocation_id = session.invocation_id
+    if not owner or not invocation_id:
         raise ResourceItemAuthorizationError("Resource authority requires exact owner and invocation")
-    # Borrowed native sessions retain their route action-store lease owner,
-    # while the Resource controller/fence belongs to the actual input operator.
-    runtime_owner = runtime_lock.owner
-    invocation_id = runtime_lock.invocation_id
-    runtime_lock.assert_held(runtime_owner, invocation_id)
+    runtime_lock.assert_held(owner, invocation_id)
     reset_identity = resource_reset_identity(verified_identity, deadline_payload)
     authorization_window = ResourceAuthorizationWindow(
         reset_deadline_utc=resource_identity_timestamp(
@@ -705,7 +698,7 @@ def build_resource_runtime_components(
         authority = ResourceEffectAuthority(store)
         now = time.monotonic()
         controller_lease = authority.acquire_resource_controller_lease(
-            owner_id=runtime_owner,
+            owner_id=owner,
             now=now,
             ttl_seconds=600.0,
             mode="execute",
@@ -734,7 +727,7 @@ def build_resource_runtime_components(
                 )
             if requested_action_key != ITEM_USE_ACTION_KEY:
                 raise ResourceItemAuthorizationError("Resource preparation action key is not exact")
-            runtime_lock.assert_held(runtime_owner, invocation_id)
+            runtime_lock.assert_held(owner, invocation_id)
             now = time.monotonic()
             authority.ensure_static_utc_reset_identity(reset_identity)
             occurrence = authority.create_resource_occurrence(

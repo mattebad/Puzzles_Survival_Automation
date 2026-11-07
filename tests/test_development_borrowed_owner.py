@@ -98,10 +98,14 @@ class DevelopmentBorrowedOwnerTests(unittest.TestCase):
     def test_lost_owner_prevents_capture_and_nested_session_is_still_denied(self):
         self.owner.acquire()
         with self.session() as session:
+            with self.assertRaises(boundary.DevelopmentSessionError):
+                session.assert_held(self.owner.owner, self.owner.invocation_id)
             with self.assertRaisesRegex(boundary.DevelopmentSessionError, "nested"):
                 with boundary.DevelopmentSession(owner="nested", invocation_id="nested", session_directory=self.root / "nested"):
                     self.fail("nested session admitted")
             self.owner.release()
+            with self.assertRaises(boundary.NavigationBoundaryError):
+                session.assert_held(session.owner, session.invocation_id)
             capture = Mock()
             with self.assertRaises(boundary.NavigationBoundaryError):
                 session.observe(capture, label="denied")
