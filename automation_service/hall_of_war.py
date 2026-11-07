@@ -37,6 +37,7 @@ PRODUCT_REVISION = HALL_OF_WAR_PRODUCT_REVISION
 PROFILE_ID = HALL_OF_WAR_PROFILE_ID
 MAX_INPUTS = HALL_OF_WAR_MAX_INPUTS
 MAX_ACTIONS = 2
+RECHECK_SECONDS = 300.0
 
 
 class HallOfWarExecutionHandler:
@@ -489,15 +490,17 @@ class HallOfWarRunner:
 
 
 def hall_of_war_next_due(result: Mapping[str, object], identity: SchedulerIdentity, started_at: float) -> float | None:
-    """Only known same-reset terminal states pin the next run to the real UTC reset."""
+    """Use the real reset or a bounded policy re-observation of known deferrals."""
     if not isinstance(identity, SchedulerIdentity) or identity.task_id != PRODUCT_ID:
         raise ValueError("Hall of War outcome requires its exact scheduler identity")
     started = _epoch(started_at, "start time")
     completed = _epoch(result.get("completed_at_utc"), "completion time")
     if completed < started or recruitment_reset(completed) != identity.reset_id:
         raise ValueError("Hall of War outcome is outside its claimed reset window")
+    deadline = derive_static_utc_reset(datetime.fromtimestamp(completed, timezone.utc)).reset_deadline_utc.timestamp()
     if result.get("status") == "complete_for_reset" or result.get("challenge_status") == "deferred_unexplained_prior_same_reset_use":
-        return derive_static_utc_reset(datetime.fromtimestamp(completed, timezone.utc)).reset_deadline_utc.timestamp()
-    # No cooldown number is exposed by the observed UI, so busy/deferred pulses do
-    # not receive a fabricated wake time here.
+        return deadline
+    if result.get("status") == "deferred":
+        # This is a policy recheck, not a claimed game cooldown or an unknown-effect retry.
+        return min(completed + RECHECK_SECONDS, deadline)
     return None
