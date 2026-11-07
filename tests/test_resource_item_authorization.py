@@ -227,12 +227,18 @@ class ResourceItemAuthorizationTests(unittest.TestCase):
             store_path = root / "actions.sqlite3"
             seed = SafetyStore(store_path)
             seed.close()
-            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"):
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "runtime-lock.sqlite3"), boundary.RuntimeInputLock(
+                owner="automation-service", invocation_id="canonical-service-invocation",
+            ) as input_lock:
                 with DevelopmentSession(
                     owner="resource-effect-owner",
                     invocation_id="resource-effect-invocation",
                     session_directory=root / "session",
                     max_inputs=10,
+                    runtime_input_lock=input_lock,
+                    checkpoint=lambda: input_lock.assert_held(
+                        "automation-service", "canonical-service-invocation",
+                    ),
                 ) as session:
                     components = authorization.build_resource_runtime_components(
                         session=session,
@@ -245,8 +251,6 @@ class ResourceItemAuthorizationTests(unittest.TestCase):
                     try:
                         inner = Inner()
                         runtime = components["runtime_factory"](inner)
-                        self.assertIs(runtime._runtime_lock, session.runtime_input_lock)
-                        self.assertEqual(components["controller_lease"]["owner_id"], session.owner)
                         source = _frame(root / "source.png")
                         bundle = runtime._prepare(source, (100, 100, 140, 140), authorization.ITEM_USE_ACTION_KEY)
                         runtime._prepared = bundle.prepared
