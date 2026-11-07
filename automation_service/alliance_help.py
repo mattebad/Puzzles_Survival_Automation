@@ -299,16 +299,29 @@ def _validate_successful_dispatches(result: Mapping[str, Any], count: int) -> in
         if (type(before_balance) is not int or type(before_limit) is not int
                 or not isinstance(evidence, list) or len(evidence) < 2):
             raise ValueError("Alliance Help request result lacks a bound coin counter or stable frames")
-        if any(not isinstance(frame, Mapping) or frame.get("selected_request_absent") is not True
-               or frame.get("screen_state") != SOURCE_STATE or frame.get("source_fresh") is not True
-               or frame.get("overlay_clear") is not True for frame in evidence):
+        def absent_on_help(frame: Mapping[str, Any]) -> bool:
+            return (frame.get("selected_request_absent") is True
+                    and frame.get("screen_state") == SOURCE_STATE
+                    and frame.get("source_fresh") is True
+                    and frame.get("overlay_clear") is True)
+
+        # The native boundary retains pending captures before the positive
+        # transition. Only a positive frame followed by the final stable
+        # successor establishes success; earlier evidence must remain intact.
+        if any(not isinstance(frame, Mapping) for frame in evidence):
+            raise ValueError("Alliance Help request result evidence is malformed")
+        stable = evidence[-1]
+        if not absent_on_help(stable):
             raise ValueError("Alliance Help selected request disappearance is ambiguous")
-        positive = [frame for frame in evidence if frame.get("success_message") is True
+        positive = [frame for frame in evidence[:-1] if absent_on_help(frame)
+                    and frame.get("success_message") is True
                     and type(frame.get("daily_alliance_coin_balance")) is int
-                    and frame.get("daily_alliance_coin_balance") > before_balance
-                    and frame.get("daily_alliance_coin_limit") == before_limit]
+                    and 0 <= before_balance < frame["daily_alliance_coin_balance"] <= before_limit
+                    and frame.get("daily_alliance_coin_limit") == before_limit
+                    and stable.get("daily_alliance_coin_balance") == frame["daily_alliance_coin_balance"]
+                    and stable.get("daily_alliance_coin_limit") == before_limit]
         if not positive:
-            raise ValueError("Alliance Help request lacks its exact success toast and positive same-cap coin delta")
+            raise ValueError("Alliance Help request lacks its exact success toast and stable positive same-cap coin delta")
     if set(dispatch_by_key) != {action.get("action_key") for action in confirmed}:
         raise ValueError("Alliance Help includes a dispatch without one confirmed request result")
     return calls
