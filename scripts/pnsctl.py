@@ -43,6 +43,9 @@ from automation_service.registry import (  # noqa: E402
     RUINS_FLOW_ID,
     NANO_MATERIAL_PRODUCTION_FLOW_ID,
     NANOWEAPON_FLOW_ID,
+    HERO_DUEL_FLOW_ID,
+    RECOMMENDED_RESEARCH_FLOW_ID,
+    FOOD_FARM_BOOST_FLOW_ID,
     SUPPLY_FLOW_ID,
     ULTIMATE_FLOW_ID,
     WORLD_FLOW_ID,
@@ -285,6 +288,15 @@ def _native_service_route_bindings() -> Mapping[str, NativeRouteBoundary]:
     from scripts.nanoweapon_bluestacks import (
         create_service_binding as create_nanoweapon_binding,
     )
+    from scripts.hero_duel_bluestacks import (
+        create_service_binding as create_hero_duel_binding,
+    )
+    from scripts.recommended_research_bluestacks import (
+        create_service_binding as create_recommended_research_binding,
+    )
+    from scripts.food_farm_boost_bluestacks import (
+        create_service_binding as create_food_farm_boost_binding,
+    )
 
     return {
         DAILY_REWARDS_FLOW_ID: create_daily_rewards_binding(
@@ -306,6 +318,9 @@ def _native_service_route_bindings() -> Mapping[str, NativeRouteBoundary]:
             make_native_route_binding
         ),
         NANOWEAPON_FLOW_ID: create_nanoweapon_binding(make_native_route_binding),
+        HERO_DUEL_FLOW_ID: create_hero_duel_binding(make_native_route_binding),
+        RECOMMENDED_RESEARCH_FLOW_ID: create_recommended_research_binding(make_native_route_binding),
+        FOOD_FARM_BOOST_FLOW_ID: create_food_farm_boost_binding(make_native_route_binding),
     }
 
 

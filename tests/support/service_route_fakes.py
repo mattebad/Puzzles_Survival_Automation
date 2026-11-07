@@ -53,7 +53,48 @@ from tasks.nano_material_production import (
 )
 from tasks.nanoweapon import NANO_PARTS_REQUIRED, NORMAL_CRAFT_DURATION_SECONDS
 from tasks.scheduler_task_result import SchedulerIdentity
-
+from automation_service.hero_duel import (
+    FLOW_ID as HERO_DUEL_FLOW_ID,
+    MAX_ACTIONS as HERO_DUEL_MAX_ACTIONS,
+    MAX_INPUTS as HERO_DUEL_MAX_INPUTS,
+    PROFILE_ID as HERO_DUEL_PROFILE_ID,
+    PRODUCT_ID as HERO_DUEL_PRODUCT_ID,
+    PRODUCT_REVISION as HERO_DUEL_PRODUCT_REVISION,
+    HeroDuelRunner,
+)
+from automation_service.recommended_research import (
+    FLOW_ID as RECOMMENDED_RESEARCH_FLOW_ID,
+    MAX_ACTIONS as RECOMMENDED_RESEARCH_MAX_ACTIONS,
+    PROFILE_ID as RECOMMENDED_RESEARCH_PROFILE_ID,
+    MAX_INPUTS as RECOMMENDED_RESEARCH_MAX_INPUTS,
+    PRODUCT_ID as RECOMMENDED_RESEARCH_PRODUCT_ID,
+    PRODUCT_REVISION as RECOMMENDED_RESEARCH_PRODUCT_REVISION,
+    RecommendedResearchRunner,
+)
+from automation_service.food_farm_boost import (
+    FLOW_ID as FOOD_FARM_BOOST_FLOW_ID,
+    MAX_ACTIONS as FOOD_FARM_BOOST_MAX_ACTIONS,
+    MAX_INPUTS as FOOD_FARM_BOOST_MAX_INPUTS,
+    PROFILE_ID as FOOD_FARM_BOOST_PROFILE_ID,
+    PRODUCT_ID as FOOD_FARM_BOOST_PRODUCT_ID,
+    PRODUCT_REVISION as FOOD_FARM_BOOST_PRODUCT_REVISION,
+    FoodFarmBoostRunner,
+)
+from automation_service.native_execution import NativeRouteOutcome
+from scripts import navigation_development_boundary as boundary
+from safe_action_core.resource_effect_authority import (
+    ResourceEffectAuthority, ResourceOccurrenceIdentity,
+)
+from scripts.bioenhancer_free_research_route import parse_free_research_cooldown
+from scripts.bluestacks_native_runtime import CapturedNativeFrame
+from tasks.noahs_tavern_recruit_maintenance import NoahMaintenanceState
+from tasks.hero_duel_disabled import hero_duel_action_key
+from tasks.runtime_identity import FIXED_RUNTIME_SCOPE
+from tasks.resource_boost_disabled import food_farm_boost_daily_action_key
+from tasks.runtime_identity import (
+    BLUESTACKS_SERIAL, derive_resource_runtime_identity, derive_static_utc_reset,
+    resource_fixed_runtime_binding,
+)
 from tasks.alliance_help import (
     CONSEQUENCE as ALLIANCE_HELP_CONSEQUENCE, DAILY_REQUEST_LIMIT,
     INDIVIDUAL_TARGET_IDENTITY, POSTCONDITION as ALLIANCE_HELP_POSTCONDITION,
@@ -61,6 +102,8 @@ from tasks.alliance_help import (
     SOURCE_STATE as ALLIANCE_HELP_SOURCE_STATE, alliance_help_action_key,
 )
 from tasks.ruins_challenge import KNOWN_CHALLENGE_IDENTITIES
+from tasks.tech_upgrade_disabled import RESEARCH_RESOURCES as _RESEARCH_RESOURCES
+from tests.support.service_stop import VirtualStop
 from automation_service.service import ServiceError
 from automation_service.supply import (
     PRODUCT_ID as SUPPLY_PRODUCT_ID, PRODUCT_REVISION as SUPPLY_PRODUCT_REVISION,
@@ -69,16 +112,7 @@ from automation_service.supply import (
 from automation_service.ultimate import (
     PRODUCT_ID as ULTIMATE_PRODUCT_ID, PROFILE_ID as ULTIMATE_PROFILE_ID, UltimateRunnerError,
 )
-from scripts import navigation_development_boundary as boundary
-from safe_action_core.resource_effect_authority import (
-    ResourceEffectAuthority, ResourceOccurrenceIdentity,
-)
-from scripts.bioenhancer_free_research_route import parse_free_research_cooldown
-from scripts.bluestacks_native_runtime import CapturedNativeFrame
-from tasks.noahs_tavern_recruit_maintenance import NoahMaintenanceState
-from tasks.runtime_identity import (
-    derive_resource_runtime_identity, derive_static_utc_reset, resource_fixed_runtime_binding,
-)
+
 
 
 class GuardedSupplyRunner:
@@ -2165,3 +2199,729 @@ class GuardedNanoweaponRunner:
         if error is not None:
             raise GuardedRoutePartialResultError(str(error), result) from error
         return result
+
+
+_E_HOME_FRAME = {
+    "frame_path": "synthetic-e-home.png",
+    "frame_sha256": hashlib.sha256(b"synthetic-e-home").hexdigest(),
+}
+
+
+def _hero_duel_cycle_proof(identity, event_identity: str, ordinal: int, opponent: str) -> dict:
+    reset_id = identity.reset_id
+    key = {
+        "runtime_scope": FIXED_RUNTIME_SCOPE,
+        "account_id": identity.account_id,
+        "server_id": identity.server_id,
+        "game_day_id": reset_id,
+        "ordinal": ordinal,
+    }
+    free_before = 4 - ordinal
+    return {
+        "ordinal": ordinal,
+        "reset_id": reset_id,
+        "event_identity": event_identity,
+        "listed_opponent_display": opponent,
+        "entry_action_key": hero_duel_action_key(
+            **key, action_kind="hero_duel_free_entry",
+        ),
+        "flee_action_key": hero_duel_action_key(
+            **key, action_kind="hero_duel_flee",
+        ),
+        "free_before": free_before,
+        "free_after": free_before - 1,
+        "pass_before": 123,
+        "pass_after": 123,
+        "wave_text": "Wave 1/1",
+        "battle_board_verified": True,
+        "exit_confirmed": True,
+        "flee_confirmed": True,
+        "loss_result_seen": True,
+        "tap_to_continue_confirmed": True,
+        "result_frame_sha256": hashlib.sha256(
+            f"hero-duel-result-{ordinal}".encode(),
+        ).hexdigest(),
+    }
+
+
+def _hero_duel_native_result(
+    identity, input_count: int, *, observed_at: float,
+    attempted: bool = False, interrupted: bool = False,
+) -> dict:
+    event_identity = f"survival_{identity.reset_id}_ends_28333333"
+    committed_ordinals = [] if attempted or interrupted else [1, 2, 3]
+    selected_opponents = [
+        f"Free opponent {ordinal}" for ordinal in range(1, (1 if attempted else 3) + 1)
+    ] if not interrupted else []
+    proofs = [
+        _hero_duel_cycle_proof(
+            identity, event_identity, ordinal, selected_opponents[ordinal - 1],
+        )
+        for ordinal in committed_ordinals
+    ]
+    dispatches = 1 if attempted else 0 if interrupted else 3
+    return {
+        "flow_id": HERO_DUEL_FLOW_ID,
+        "product_id": HERO_DUEL_PRODUCT_ID,
+        "product_revision": HERO_DUEL_PRODUCT_REVISION,
+        "status": (
+            "reconciliation_required" if attempted
+            else "blocked" if interrupted else "complete_for_reset"
+        ),
+        "reason": (
+            "hero_duel_entry_successor_unknown" if attempted
+            else "hero_duel_pre_entry_interrupted" if interrupted
+            else "three_free_loss_cycles_home_verified"
+        ),
+        "runtime_profile_id": HERO_DUEL_PROFILE_ID,
+        "reset_id": identity.reset_id,
+        "hero_duel_event_identity": event_identity if not interrupted else None,
+        "current_event_active": not interrupted,
+        "initial_free_entries_remaining": 3 if not interrupted else None,
+        "ui_inferred_prior_uses": 0 if not interrupted else None,
+        "initial_pass_balance": 123 if not interrupted else None,
+        "expected_defense_hero_ids": [] if interrupted else [
+            "ulrik", "mccarty", "meyers", "marlowe", "ephraim",
+        ],
+        "defense_save_confirmed": not interrupted,
+        "selected_listed_opponents": selected_opponents,
+        "duel_dispatch_count": dispatches,
+        "entry_transport_calls": dispatches,
+        "flee_transport_calls": 0 if attempted or interrupted else 3,
+        "defense_save_transport_calls": int(not interrupted),
+        "defense_selection_transport_calls": 0 if interrupted else 5,
+        "flee_confirmed_count": 0 if attempted or interrupted else 3,
+        "committed_action_count": len(proofs),
+        "canonical_confirmed_cycle_ordinals": committed_ordinals,
+        "cycle_proofs": proofs,
+        "final_free_entries_remaining": 0 if not attempted and not interrupted else None,
+        "final_pass_balance": 123 if not attempted and not interrupted else None,
+        "availability_observed_at_utc": observed_at if not attempted and not interrupted else None,
+        "total_input_count": input_count,
+        "input_accounting_verified": True,
+        "terminal_home_verified": not attempted and not interrupted,
+        "terminal_home_frame": (
+            dict(_E_HOME_FRAME) if not attempted and not interrupted else None
+        ),
+        "effect_reconciliation_required": attempted,
+        "identical_retry_denied": attempted,
+        "accounting_verified": True,
+        "no_work": False,
+    }
+
+
+def _research_selection_evidence() -> dict:
+    return {
+        "recommendation_position": 1,
+        "queue2_activate_tapped": False,
+        "prerequisites_known": True,
+        "prerequisites_met": True,
+        "prerequisite_evidence": ["research-center-lv-24"],
+        "requirements_scrolled": True,
+        "research_start_visible": True,
+        "control_class": "RESEARCH_START",
+        "research_now_diamonds": 714,
+        "research_now_target_identity": "research-now-diamonds",
+        "research_now_tapped": False,
+        "overlay_state": "none_observed",
+    }
+
+
+def _research_native_result(
+    stop: VirtualStop, identity, input_count: int, *, mode: str = "completed",
+) -> dict:
+    completed_at = stop.now
+    base = {
+        "flow_id": RECOMMENDED_RESEARCH_FLOW_ID,
+        "product_id": RECOMMENDED_RESEARCH_PRODUCT_ID,
+        "product_revision": RECOMMENDED_RESEARCH_PRODUCT_REVISION,
+        "status": mode,
+        "reason": "recommended_research_native_result",
+        "terminal_home_verified": True,
+        "terminal_home_frame": dict(_E_HOME_FRAME),
+        "terminal_home_frame_sha256": _E_HOME_FRAME["frame_sha256"],
+        "research_transport_calls": 0,
+        "committed_action_count": 0,
+        "total_action_count": 0,
+        "total_input_count": input_count,
+        "input_count": input_count,
+        "session_input_count": input_count,
+        "runtime_input_count": input_count,
+        "accounting_verified": True,
+        "effect_reconciliation_required": False,
+        "identical_retry_denied": mode == "already_complete",
+        "time_basis": "utc",
+        "completed_at_utc": completed_at,
+        "next_due_utc": None,
+        "game_day_id": identity.reset_id,
+    }
+    if mode == "unresolved":
+        return {
+            **base,
+            "status": "unresolved",
+            "reason": "research_start_dispatched_successor_unknown",
+            "research_transport_calls": 1,
+            "total_action_count": 1,
+            "terminal_home_verified": False,
+            "terminal_home_frame": None,
+            "terminal_home_frame_sha256": None,
+            "effect_reconciliation_required": True,
+            "identical_retry_denied": True,
+        }
+    if mode == "deferred_busy":
+        return {
+            **base,
+            "status": "deferred",
+            "queue1_state": "busy",
+            "queue1_remaining_seconds": 731,
+            "next_due_utc": completed_at + 731,
+            "identical_retry_denied": False,
+        }
+    if mode == "deferred_shortage":
+        costs = {"food": 100, "wood": 20, "steel": 0, "gas": 0}
+        balances = {"food": 20, "wood": 80, "steel": 10, "gas": 10}
+        return {
+            **base,
+            **_research_selection_evidence(),
+            "status": "deferred",
+            "queue1_state": "idle",
+            "queue1_remaining_seconds": None,
+            "observation_interval_seconds": 300,
+            "next_due_utc": completed_at + 300,
+            "first_recommendation_identity": "troop-load-ii",
+            "target_identity": "recommended-research:troop-load-ii:detail-research-button",
+            "exact_resource_costs": costs,
+            "exact_resource_balances": balances,
+            "shortages": [{"resource": "food", "shortage": 80}],
+            "identical_retry_denied": False,
+        }
+    if mode == "blocked":
+        return {
+            **base,
+            "status": "blocked",
+            "terminal_home_verified": False,
+            "terminal_home_frame": None,
+            "terminal_home_frame_sha256": None,
+        }
+    if mode == "already_complete":
+        return {**base, "status": mode, "already_confirmed": True}
+
+    costs = {"food": 100, "wood": 20, "steel": 15, "gas": 5}
+    prebalances = {"food": 3_003_682, "wood": 757_050, "steel": 129_702, "gas": 47_775}
+    balances = {key: prebalances[key] - costs[key] for key in _RESEARCH_RESOURCES}
+    target = "recommended-research:troop-load-ii:detail-research-button"
+    return {
+        **base,
+        **_research_selection_evidence(),
+        "status": "completed",
+        "completed": True,
+        "start_semantically_verified": True,
+        "queue1_state": "idle",
+        "queue1_remaining_seconds": None,
+        "research_transport_calls": 1,
+        "committed_action_count": 1,
+        "total_action_count": 1,
+        "first_recommendation_identity": "troop-load-ii",
+        "active_technology": "troop-load-ii",
+        "target_identity": target,
+        "remaining_seconds": 3_600,
+        "research_duration_seconds": 21_413,
+        "next_due_utc": completed_at + 3_600,
+        "exact_resource_costs": costs,
+        "exact_resource_prebalances": prebalances,
+        "exact_resource_balances": balances,
+        "start_action": {
+            "target_identity": target,
+            "source_frame": "frames/research-start-source.png",
+            "successor_frame": "frames/research-active-successor.png",
+        },
+        "identical_retry_denied": True,
+    }
+
+
+def _food_farm_native_result(
+    identity, occurrence_key: str, input_count: int, *, mode: str = "completed",
+    collection_attempted: bool = True, collection_confirmed: bool = True,
+    boost_attempted: bool = True, boost_confirmed: bool = True,
+) -> dict:
+    farm_identity = "home.building.farm.02"
+    before = {"food": 1000, "wood": 200, "steel": 50, "gas": 20}
+    after = {"food": 1300, "wood": 260, "steel": 65, "gas": 23}
+    action_key = {
+        "runtime_scope": FIXED_RUNTIME_SCOPE,
+        "account_id": identity.account_id,
+        "server_id": identity.server_id,
+        "reset_id": identity.reset_id,
+    }
+    collection_key = food_farm_boost_daily_action_key(
+        **action_key, phase="collection", collection_occurrence_id="1",
+    )
+    boost_key = food_farm_boost_daily_action_key(**action_key, phase="boost")
+    collection_observed = collection_attempted and collection_confirmed
+    base = {
+        "status": mode,
+        "reason": "FOOD_FARM_NATIVE_RESULT",
+        "farm_identity": farm_identity,
+        "reset_id": identity.reset_id,
+        "collection_transport_calls": int(collection_attempted),
+        "collection_count": int(collection_confirmed),
+        "collection_effect_accounted": collection_confirmed,
+        "collection_occurrence_key": occurrence_key,
+        "boost_occurrence_key": boost_key,
+        "collection_action_key": collection_key,
+        "boost_action_key": boost_key,
+        "collection_balances_before": dict(before) if collection_attempted else None,
+        "collection_balances_after": dict(after) if collection_observed else None,
+        "collection_deltas": {
+            key: after[key] - before[key] for key in _RESEARCH_RESOURCES
+        } if collection_observed else None,
+        "boost_transport_calls": int(boost_attempted),
+        "food_farm_dispatch_count": int(collection_attempted) + int(boost_attempted),
+        "effect_reconciliation_required": False,
+        "identical_retry_denied": False,
+        "terminal_home_verified": True,
+        "terminal_home_frame_sha256": _E_HOME_FRAME["frame_sha256"],
+        "terminal_home_frame": _E_HOME_FRAME["frame_path"],
+        "total_input_count": input_count,
+        "input_count": input_count,
+        "session_input_count": input_count,
+        "runtime_input_count": input_count,
+        "accounting_verified": True,
+    }
+    if collection_attempted:
+        base["collection_action"] = {
+            "status": "confirmed" if collection_confirmed else "unresolved",
+            "reason": "FOOD_FARM_COLLECTION_RECONCILED" if collection_confirmed
+            else "FOOD_FARM_COLLECTION_REQUIRES_RECONCILIATION",
+            "action_key": collection_key,
+            "journal_status": "CONFIRMED" if collection_confirmed else "UNRESOLVED",
+            "transport_calls": 1,
+            "effect_reconciliation_required": not collection_confirmed,
+            "successor_frame": "frames/e-farm-collection-successor.png" if collection_confirmed else None,
+            "successor_sha256": "a" * 64 if collection_confirmed else None,
+        }
+    if boost_attempted:
+        base["boost_action"] = {
+            "status": "confirmed" if boost_confirmed else "unresolved",
+            "reason": "FOOD_FARM_BOOST_CONFIRMED_WITH_POSITIVE_TIMER" if boost_confirmed
+            else "FOOD_FARM_BOOST_REQUIRES_RECONCILIATION",
+            "action_key": boost_key,
+            "journal_status": "CONFIRMED" if boost_confirmed else "UNRESOLVED",
+            "transport_calls": 1,
+            "effect_reconciliation_required": not boost_confirmed,
+            "successor_frame": "frames/e-farm-boost-successor.png" if boost_confirmed else None,
+            "successor_sha256": "b" * 64 if boost_confirmed else None,
+        }
+    if mode == "unresolved":
+        return {
+            **base,
+            "status": "unresolved",
+            "reason": "FOOD_FARM_COLLECTION_REQUIRES_RECONCILIATION",
+            "collection_count": 0,
+            "collection_balances_after": None,
+            "collection_deltas": None,
+            "collection_effect_accounted": False,
+            "boost_transport_calls": 0,
+            "food_farm_dispatch_count": 1,
+            "effect_reconciliation_required": True,
+            "identical_retry_denied": True,
+            "terminal_home_verified": False,
+            "terminal_home_frame": None,
+            "terminal_home_frame_sha256": None,
+        }
+    if mode == "collection_replay_blocked":
+        return {
+            **base,
+            "status": "blocked",
+            "reason": "FOOD_FARM_COLLECTION_REQUIRES_RECONCILIATION",
+            "collection_transport_calls": 0,
+            "collection_count": 0,
+            "collection_effect_accounted": False,
+            "boost_transport_calls": 0,
+            "food_farm_dispatch_count": 0,
+            "effect_reconciliation_required": True,
+            "identical_retry_denied": True,
+            "terminal_home_verified": False,
+            "terminal_home_frame": None,
+            "terminal_home_frame_sha256": None,
+        }
+    if mode == "boost_unresolved":
+        return {
+            **base,
+            "status": "unresolved",
+            "reason": "FOOD_FARM_BOOST_REQUIRES_RECONCILIATION",
+            "effect_reconciliation_required": True,
+            "identical_retry_denied": True,
+        }
+    if mode == "boost_replay_blocked":
+        return {
+            **base,
+            "status": "blocked",
+            "reason": "FOOD_FARM_BOOST_REQUIRES_RECONCILIATION",
+            "collection_transport_calls": 0,
+            "boost_transport_calls": 0,
+            "food_farm_dispatch_count": 0,
+            "effect_reconciliation_required": True,
+            "identical_retry_denied": True,
+            "terminal_home_verified": False,
+            "terminal_home_frame": None,
+            "terminal_home_frame_sha256": None,
+        }
+    if mode == "already_active":
+        return {
+            **base,
+            "status": "already_active",
+            "collection_transport_calls": 0,
+            "collection_count": 0,
+            "collection_balances_before": None,
+            "collection_balances_after": None,
+            "collection_deltas": None,
+            "collection_effect_accounted": False,
+            "boost_transport_calls": 0,
+            "food_farm_dispatch_count": 0,
+            "boost_decision": "already_active",
+            "active_remaining_seconds": 3_600,
+            "active_timer_farm_identity": farm_identity,
+        }
+    if mode == "diamond_guard":
+        return {
+            **base,
+            "status": "blocked",
+            "reason": "FOOD_FARM_DIAMOND_CONFIRMATION_EVIDENCE_REQUIRED",
+            "boost_transport_calls": 0,
+            "food_farm_dispatch_count": int(collection_attempted),
+            "boost_decision": "diamonds",
+        }
+    if mode == "blocked":
+        return {
+            **base,
+            "status": "blocked",
+            "collection_transport_calls": 0,
+            "collection_count": 0,
+            "collection_effect_accounted": False,
+            "boost_transport_calls": 0,
+            "food_farm_dispatch_count": 0,
+            "terminal_home_verified": False,
+            "terminal_home_frame": None,
+            "terminal_home_frame_sha256": None,
+        }
+    if mode == "already_complete":
+        return {
+            **base,
+            "status": "already_complete",
+            "collection_transport_calls": 0,
+            "boost_transport_calls": 0,
+            "food_farm_dispatch_count": 0,
+            "boost_decision": "owned_item",
+            "boost_duration_seconds": 86_400,
+            "prior_boost_confirmation": {
+                "confirmed": True, "frame_sha256": "c" * 64,
+            },
+            "prior_boost_confirmation_farm_identity": farm_identity,
+            "prior_boost_confirmation_duration_seconds": 86_400,
+        }
+    result = {
+        **base,
+        "status": "completed",
+        "boost_decision": "owned_item",
+        "boost_duration_seconds": 86_400,
+        "boost_timer_remaining_seconds": 86_390,
+        "boost_timer_farm_identity": farm_identity,
+    }
+    return result
+
+class _GuardedENativeBoundary:
+    """NativeRouteOutcome fake that checkpoints every counted input and keeps DTO attempts exact."""
+
+    def __init__(self, owner, flow_id: str, result_builder, input_budget: int):
+        self.owner, self.flow_id = owner, flow_id
+        self.result_builder, self.input_budget = result_builder, input_budget
+        self.max_inputs = input_budget
+        (
+            self.product_id, self.product_revision,
+            self.runtime_profile_id, self.max_actions,
+        ) = {
+            HERO_DUEL_FLOW_ID: (
+                HERO_DUEL_PRODUCT_ID, HERO_DUEL_PRODUCT_REVISION,
+                HERO_DUEL_PROFILE_ID, HERO_DUEL_MAX_ACTIONS,
+            ),
+            RECOMMENDED_RESEARCH_FLOW_ID: (
+                RECOMMENDED_RESEARCH_PRODUCT_ID, RECOMMENDED_RESEARCH_PRODUCT_REVISION,
+                RECOMMENDED_RESEARCH_PROFILE_ID, RECOMMENDED_RESEARCH_MAX_ACTIONS,
+            ),
+            FOOD_FARM_BOOST_FLOW_ID: (
+                FOOD_FARM_BOOST_PRODUCT_ID, FOOD_FARM_BOOST_PRODUCT_REVISION,
+                FOOD_FARM_BOOST_PROFILE_ID, FOOD_FARM_BOOST_MAX_ACTIONS,
+            ),
+        }[flow_id]
+        self.requests = []
+
+    def run(self, request):
+        self.requests.append(request)
+        self.owner.native_occurrence_keys.append(request.occurrence_key)
+        self.owner.current_occurrence_key = request.occurrence_key
+        count, failure = 0, None
+        try:
+            request.runtime_input_lock.assert_held(
+                request.runtime_input_lock.owner, request.runtime_input_lock.invocation_id,
+            )
+            request.validate_identity()
+            planned = (
+                self.owner.partial_input_count if self.owner.partial
+                else self.owner.input_count
+            )
+            if planned > self.input_budget:
+                raise ValueError("fake native input scenario exceeds route budget")
+            for index in range(planned):
+                request.checkpoint()
+                self.owner.inputs.append((request.identity.reset_id, index))
+                count += 1
+                if self.owner.on_input is not None:
+                    self.owner.on_input(index)
+        except Exception as exc:
+            failure = f"{type(exc).__name__}:{exc}"
+
+        explicit_partial = self.owner.partial and failure is None
+        failure = failure or (
+            f"{self.flow_id.lower()}_native_successor_unknown" if explicit_partial else None
+        )
+        result = self.result_builder(
+            request.identity, self.owner.stop, count,
+            explicit_partial=explicit_partial,
+            interrupted=failure is not None and not explicit_partial,
+            owner=self.owner,
+        )
+        successful = failure is None
+        outcome = NativeRouteOutcome(
+            flow_id=self.flow_id,
+            native_result=result if successful else {},
+            partial_result=None if successful else result,
+            failure=failure,
+            invocation_id=f"offline-{self.flow_id.lower()}",
+            session_directory=str(request.output_directory),
+            startup_recovery=None,
+            input_count=count,
+            session_input_count=count,
+            runtime_input_count=count,
+            accounting_verified=True,
+        )
+        self.owner.last_native_outcome = outcome
+        return outcome
+
+
+class _GuardedEAdapterRunner:
+    """Service-facing observer for a real adapter around a fake native DTO boundary."""
+
+    def __init__(self, stop, output_directory, flow_id, input_count, partial_input_count, max_inputs, result_builder, adapter):
+        self.stop, self.output_directory = stop, output_directory
+        self.flow_id, self.input_count = flow_id, input_count
+        self.partial_input_count, self.max_inputs = partial_input_count, max_inputs
+        self.partial = False
+        self.calls, self.inputs, self.occurrence_keys = [], [], []
+        self.native_occurrence_keys = []
+        self.last_identity = self.last_result = self.last_native_outcome = None
+        self.on_entry = self.on_input = None
+        self.attempted_actions = self.confirmed_actions = 0
+        boundary = _GuardedENativeBoundary(self, flow_id, result_builder, max_inputs)
+        self.adapter = adapter(boundary)
+
+    @property
+    def actions(self):
+        return self.attempted_actions
+
+    @property
+    def effects(self):
+        return self.confirmed_actions
+
+    def __call__(self, identity, previous_reset_id, checkpoint, *, runtime_input_lock, occurrence_key):
+        checkpoint()
+        runtime_input_lock.assert_held(runtime_input_lock.owner, runtime_input_lock.invocation_id)
+        self.calls.append((identity, previous_reset_id))
+        self.occurrence_keys.append(occurrence_key)
+        self.last_identity = identity
+        if self.on_entry is not None:
+            self.on_entry()
+        try:
+            result = self.adapter(
+                identity, previous_reset_id, checkpoint,
+                runtime_input_lock=runtime_input_lock, occurrence_key=occurrence_key,
+            )
+        except Exception as exc:
+            partial = getattr(exc, "partial_result", None)
+            self.last_result = dict(partial) if isinstance(partial, dict) else {}
+            self._record_counts(self.last_result)
+            raise
+        self.last_result = self._result_mapping(result)
+        self._record_counts(self.last_result)
+        return result
+
+    @staticmethod
+    def _result_mapping(result):
+        if isinstance(result, dict):
+            return dict(result)
+        consequence = getattr(result, "consequence", None)
+        if isinstance(consequence, dict):
+            native = consequence.get("native_result")
+            return dict(native) if isinstance(native, dict) else dict(consequence)
+        observed = getattr(result, "observed_progress", None)
+        return dict(observed) if isinstance(observed, dict) else {}
+
+    def _record_counts(self, result):
+        attempted_fields = {
+            HERO_DUEL_FLOW_ID: "duel_dispatch_count",
+            RECOMMENDED_RESEARCH_FLOW_ID: "research_transport_calls",
+            FOOD_FARM_BOOST_FLOW_ID: "food_farm_dispatch_count",
+        }
+        committed = result.get("committed_action_count", 0)
+        if self.flow_id == FOOD_FARM_BOOST_FLOW_ID:
+            boost_action = result.get("boost_action")
+            boost_confirmed = (
+                isinstance(boost_action, dict) and boost_action.get("status") == "confirmed"
+            )
+            committed = int(result.get("collection_count", 0) == 1) + int(boost_confirmed)
+        attempted = result.get(attempted_fields[self.flow_id], 0)
+        self.attempted_actions = attempted if type(attempted) is int else 0
+        self.confirmed_actions = committed if type(committed) is int else 0
+
+
+def _hero_duel_result_builder(identity, stop, input_count, *, explicit_partial, interrupted, owner):
+    return _hero_duel_native_result(
+        identity, input_count, observed_at=stop.now,
+        attempted=explicit_partial, interrupted=interrupted,
+    )
+
+
+def _research_result_builder(identity, stop, input_count, *, explicit_partial, interrupted, owner):
+    mode = (
+        "unresolved" if explicit_partial else "blocked" if interrupted
+        else "already_complete" if identity.reset_id in owner.completed_resets
+        else owner.research_mode
+    )
+    result = _research_native_result(stop, identity, input_count, mode=mode)
+    if mode == "completed":
+        owner.completed_resets.add(identity.reset_id)
+    return result
+
+
+def _food_farm_result_builder(identity, stop, input_count, *, explicit_partial, interrupted, owner):
+    reset_id = identity.reset_id
+    occurrence_key = owner.current_occurrence_key
+    if explicit_partial:
+        owner.collection_unresolved_resets.add(reset_id)
+        return _food_farm_native_result(
+            identity, occurrence_key, input_count, mode="unresolved",
+            collection_attempted=True, collection_confirmed=False,
+            boost_attempted=False, boost_confirmed=False,
+        )
+    if interrupted:
+        return _food_farm_native_result(
+            identity, occurrence_key, input_count, mode="blocked",
+            collection_attempted=False, collection_confirmed=False,
+            boost_attempted=False, boost_confirmed=False,
+        )
+    if reset_id in owner.collection_unresolved_resets:
+        return _food_farm_native_result(
+            identity, occurrence_key, input_count, mode="collection_replay_blocked",
+            collection_attempted=False, collection_confirmed=False,
+            boost_attempted=False, boost_confirmed=False,
+        )
+    if reset_id in owner.boost_unresolved_resets:
+        return _food_farm_native_result(
+            identity, occurrence_key, input_count, mode="boost_replay_blocked",
+            collection_attempted=False, collection_confirmed=True,
+            boost_attempted=False, boost_confirmed=False,
+        )
+    if reset_id in owner.boost_completed_resets:
+        return _food_farm_native_result(
+            identity, occurrence_key, input_count, mode="already_complete",
+            collection_attempted=False, collection_confirmed=True,
+            boost_attempted=False, boost_confirmed=False,
+        )
+    if owner.collection_already_confirmed and owner.collection_confirmation_reset_id is None:
+        owner.collection_confirmation_reset_id = reset_id
+        owner.collection_confirmed_resets.add(reset_id)
+    collection_confirmed = reset_id in owner.collection_confirmed_resets
+    mode = owner.farm_mode
+    if mode == "already_active":
+        return _food_farm_native_result(
+            identity, occurrence_key, input_count, mode=mode,
+            collection_attempted=False, collection_confirmed=False,
+            boost_attempted=False, boost_confirmed=False,
+        )
+    collection_attempted = not collection_confirmed
+    if mode == "boost_unresolved":
+        result = _food_farm_native_result(
+            identity, occurrence_key, input_count, mode=mode,
+            collection_attempted=collection_attempted, collection_confirmed=True,
+            boost_attempted=True, boost_confirmed=False,
+        )
+        owner.collection_confirmed_resets.add(reset_id)
+        owner.collection_confirmation_reset_id = reset_id
+        owner.collection_already_confirmed = True
+        owner.boost_unresolved_resets.add(reset_id)
+        return result
+    if mode == "diamond_guard":
+        result = _food_farm_native_result(
+            identity, occurrence_key, input_count, mode=mode,
+            collection_attempted=collection_attempted, collection_confirmed=True,
+            boost_attempted=False, boost_confirmed=False,
+        )
+        owner.collection_confirmed_resets.add(reset_id)
+        owner.collection_confirmation_reset_id = reset_id
+        owner.collection_already_confirmed = True
+        return result
+    result = _food_farm_native_result(
+        identity, occurrence_key, input_count, mode=mode,
+        collection_attempted=collection_attempted, collection_confirmed=True,
+        boost_attempted=True, boost_confirmed=True,
+    )
+    owner.collection_confirmed_resets.add(reset_id)
+    owner.collection_confirmation_reset_id = reset_id
+    owner.collection_already_confirmed = True
+    owner.boost_completed_resets.add(reset_id)
+    return result
+
+
+class GuardedHeroDuelRunner(_GuardedEAdapterRunner):
+    def __init__(self, stop, output_directory):
+        super().__init__(
+            stop, output_directory, HERO_DUEL_FLOW_ID, 20, 11,
+            HERO_DUEL_MAX_INPUTS, _hero_duel_result_builder,
+            lambda native: HeroDuelRunner(
+                native=native, output_directory=output_directory,
+                serial=BLUESTACKS_SERIAL, utc_clock=lambda: stop.now,
+            ),
+        )
+
+
+class GuardedRecommendedResearchRunner(_GuardedEAdapterRunner):
+    def __init__(self, stop, output_directory):
+        super().__init__(
+            stop, output_directory, RECOMMENDED_RESEARCH_FLOW_ID, 5, 8,
+            RECOMMENDED_RESEARCH_MAX_INPUTS, _research_result_builder,
+            lambda native: RecommendedResearchRunner(
+                native=native, output_directory=output_directory,
+                serial=BLUESTACKS_SERIAL, utc_clock=lambda: stop.now,
+            ),
+        )
+        self.research_mode = "completed"
+        self.completed_resets = set()
+
+
+class GuardedFoodFarmBoostRunner(_GuardedEAdapterRunner):
+    def __init__(self, stop, output_directory):
+        super().__init__(
+            stop, output_directory, FOOD_FARM_BOOST_FLOW_ID, 4, 3,
+            FOOD_FARM_BOOST_MAX_INPUTS, _food_farm_result_builder,
+            lambda native: FoodFarmBoostRunner(
+                native=native, output_directory=output_directory,
+                serial=BLUESTACKS_SERIAL, utc_clock=lambda: stop.now,
+            ),
+        )
+        self.farm_mode = "completed"
+        self.collection_already_confirmed = False
+        self.collection_confirmed_resets = set()
+        self.collection_confirmation_reset_id = None
+        self.collection_unresolved_resets = set()
+        self.boost_unresolved_resets = set()
+        self.boost_completed_resets = set()

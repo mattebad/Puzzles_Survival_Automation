@@ -14,6 +14,9 @@ from automation_service.registry import (
     CANONICAL_FLOW_REGISTRY,
     NANO_MATERIAL_PRODUCTION_FLOW_ID,
     NANOWEAPON_FLOW_ID,
+    HERO_DUEL_FLOW_ID,
+    RECOMMENDED_RESEARCH_FLOW_ID,
+    FOOD_FARM_BOOST_FLOW_ID,
     canonical_entry,
     servable_flow_names,
 )
@@ -201,11 +204,14 @@ class OperatorCliTests(unittest.TestCase):
             payload = (asset_root / asset["path"]).read_bytes()
             self.assertEqual(hashlib.sha256(payload).hexdigest(), asset["sha256"])
 
-    def test_batch_d_routes_are_canonical_service_only_and_disabled(self):
-        self.assertEqual(len(CANONICAL_FLOW_REGISTRY), 18)
-        self.assertEqual(len(servable_flow_names()), 17)
+    def test_batch_d_and_e_routes_are_canonical_service_only_and_disabled(self):
+        self.assertEqual(len(CANONICAL_FLOW_REGISTRY), 21)
+        self.assertEqual(len(servable_flow_names()), 20)
         material = canonical_entry(NANO_MATERIAL_PRODUCTION_FLOW_ID)
         weapon = canonical_entry(NANOWEAPON_FLOW_ID)
+        hero = canonical_entry(HERO_DUEL_FLOW_ID)
+        research = canonical_entry(RECOMMENDED_RESEARCH_FLOW_ID)
+        farm = canonical_entry(FOOD_FARM_BOOST_FLOW_ID)
         self.assertEqual(
             (material.descriptor.family, material.descriptor.variant, material.descriptor.cadence,
              material.descriptor.reset_scoped, material.max_inputs),
@@ -217,15 +223,65 @@ class OperatorCliTests(unittest.TestCase):
             ("nanoweapon", "normal_craft_100_nano_parts", "cooldown_pulse", True,
              "nanoweapon_normal_craft-v2", 22),
         )
-        self.assertFalse(material.spec.default_enabled)
-        self.assertFalse(weapon.spec.default_enabled)
+        self.assertEqual(
+            (hero.descriptor.family, hero.descriptor.variant, hero.descriptor.cadence,
+             hero.descriptor.reset_scoped, hero.product_revision, hero.max_inputs),
+            ("hero_duel", "up_to_three_free_entry_flee_cycles", "cooldown_pulse", True,
+             "hero_duel-v2", 64),
+        )
+        self.assertEqual(
+            (research.descriptor.family, research.descriptor.variant, research.descriptor.cadence,
+             research.descriptor.reset_scoped, research.product_revision, research.max_inputs),
+            ("recommended_research", "first_displayed_recommendation_idle_affordable_start",
+             "cooldown_pulse", True, "recommended_research-v1", 24),
+        )
+        self.assertEqual(
+            (farm.descriptor.family, farm.descriptor.variant, farm.descriptor.cadence,
+             farm.descriptor.reset_scoped, farm.product_revision, farm.max_inputs),
+            ("food_farm_boost", "one_daily_food_farm_boost", "cooldown_pulse", True,
+             "food_farm_output_boost-v1", 16),
+        )
+        for entry, product_id, handler_id, cli_name in (
+            (hero, "hero_duel", "hero_duel_execution_handler", "hero-duel"),
+            (
+                research,
+                "recommended_research",
+                "recommended_research_execution_handler",
+                "recommended-research",
+            ),
+            (
+                farm,
+                "food_farm_output_boost",
+                "food_farm_boost_execution_handler",
+                "food-farm-boost",
+            ),
+        ):
+            self.assertEqual(
+                (
+                    entry.registration.product_id,
+                    entry.handler_id,
+                    entry.cli_name,
+                    entry.registration.mode,
+                    entry.registration.registration_status,
+                    entry.registration.scheduler_eligible,
+                ),
+                (product_id, handler_id, cli_name, "phase_canary", "REGISTERED", True),
+            )
+        for entry in (material, weapon, hero, research, farm):
+            self.assertFalse(entry.spec.default_enabled)
 
         disabled = json.loads(
             (Path(__file__).resolve().parents[1] / "tasks" /
              "flow_delivery_disabled_production_registry.json").read_text(encoding="utf-8")
         )["flows"]
         operator = pnsctl._load_bluestacks_flow_registry()
-        for flow_id in (NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID):
+        for flow_id in (
+            NANO_MATERIAL_PRODUCTION_FLOW_ID,
+            NANOWEAPON_FLOW_ID,
+            HERO_DUEL_FLOW_ID,
+            RECOMMENDED_RESEARCH_FLOW_ID,
+            FOOD_FARM_BOOST_FLOW_ID,
+        ):
             with self.subTest(flow_id=flow_id):
                 self.assertNotIn(flow_id, operator)
                 self.assertEqual(

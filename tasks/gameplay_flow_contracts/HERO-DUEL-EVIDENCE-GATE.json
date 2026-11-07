@@ -1,9 +1,9 @@
 {
   "schema_version": 2,
   "flow_id": "HERO-DUEL-EVIDENCE-GATE",
-  "product_purpose": "Observe one bounded Hero Duel participation candidate without authorizing PvP entry, lineup change, combat, or resource spend.",
+  "product_purpose": "From canonical Home, complete at most three confirmed free Hero Duel–Survival entry/exit cycles per reset. Save the first five current eligible defense heroes; retain a complete valid independent attack lineup and fill only missing eligible slots; exit each loaded battle and Flee without requiring a win.",
   "trigger_cadence_type": "evidence_gated",
-  "reset_scope": "up to three candidates per reset after explicit product decision",
+  "reset_scope": "at_most_three_confirmed_cycles_per_daily_reset",
   "required_starting_context": [
     "home_canonical"
   ],
@@ -16,140 +16,334 @@
   ],
   "recognized_states": [
     "home_canonical",
-    "hero_duel",
-    "participation_observation",
+    "arena",
+    "hero_duel_survival",
+    "emergency_details",
+    "defense_lineup",
+    "defense_saved",
+    "duel_overview",
+    "challenge_upsell",
+    "opponent_list",
+    "attack_lineup",
+    "attack_lineup_verified",
+    "battle_loaded",
+    "flee_warning",
+    "loss_result",
+    "cycle_confirmed",
+    "event_exhausted",
     "blocked"
   ],
   "transition_contracts": [
     {
-      "transition_id": "observe_hero_duel_route",
+      "transition_id": "enter_arena",
       "from": "home_canonical",
-      "to": "hero_duel",
-      "planner": "HeroDuelEvidenceGate",
-      "permitted_input": null,
+      "to": "arena",
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": "current-frame-bound Arena navigation from canonical Home",
       "postconditions": [
-        "Hero Duel route remains an offline observation contract",
-        "no navigation or PvP input is authorized"
+        "the current Arena screen is positively recognized",
+        "no other PvP mode or event is selected"
       ],
-      "terminal_outcomes": [
-        "blocked"
-      ],
-      "evidence_gate_id": "hero_duel_replay"
+      "terminal_outcomes": ["blocked", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
-      "transition_id": "observe_hero_duel_candidate",
-      "from": "hero_duel",
-      "to": "participation_observation",
-      "planner": "HeroDuelEvidenceGate",
+      "transition_id": "select_survival_event",
+      "from": "arena",
+      "to": "hero_duel_survival",
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": "select the exact current Hero Duel–Survival event",
+      "postconditions": [
+        "current event identity and active state are bound",
+        "Hero Duel–Glory is not treated as the same event",
+        "Emergency Details exclusions are read from the current event"
+      ],
+      "terminal_outcomes": ["blocked", "deferred", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
+    },
+    {
+      "transition_id": "resolve_current_event_details",
+      "from": "emergency_details",
+      "to": "hero_duel_survival",
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": "dismiss only the current recognized informational Emergency Details popup",
+      "postconditions": [
+        "current event identity remains Hero Duel–Survival",
+        "the event's prohibited heroes remain bound as current exclusions"
+      ],
+      "terminal_outcomes": ["blocked", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
+    },
+    {
+      "transition_id": "save_first_five_defense_heroes",
+      "from": "hero_duel_survival",
+      "to": "defense_saved",
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": "select the first five eligible displayed defense heroes and use Save Form when a save is required",
+      "postconditions": [
+        "all five slots contain the first five currently eligible heroes, skipping current exclusions",
+        "the Save Form acknowledgement is positively observed before opponents are used"
+      ],
+      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
+    },
+    {
+      "transition_id": "open_current_opponents",
+      "from": "defense_saved",
+      "to": "duel_overview",
+      "planner": "HeroDuelNativeFlow",
       "permitted_input": null,
       "postconditions": [
-        "current event, active state, free opponent, Join control, and attempts are recognized",
-        "participation successor and completion progress evidence are captured"
+        "the exact active Survival overview is recognized",
+        "available free entries and current pass balance are read"
       ],
-      "terminal_outcomes": [
-        "blocked"
+      "terminal_outcomes": ["deferred", "blocked", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
+    },
+    {
+      "transition_id": "continue_free_challenge_path",
+      "from": "duel_overview",
+      "to": "opponent_list",
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": "use current Challenge and only Challenge Now if the free-path upsell is shown; never Activate",
+      "postconditions": [
+        "a current listed opponent with an explicit Free control is recognized",
+        "no premium, purchase, refresh, or paid entry control is used"
       ],
-      "evidence_gate_id": "hero_duel_replay"
+      "terminal_outcomes": ["deferred", "blocked", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
+    },
+    {
+      "transition_id": "select_listed_free_opponent",
+      "from": "opponent_list",
+      "to": "attack_lineup",
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": "select one currently listed opponent with an explicit Free control",
+      "postconditions": [
+        "the selected opponent remains bound to the current event and free allowance",
+        "the independent attack lineup is shown"
+      ],
+      "terminal_outcomes": ["blocked", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
+    },
+    {
+      "transition_id": "verify_attack_formation",
+      "from": "attack_lineup",
+      "to": "attack_lineup_verified",
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": "fill only missing attack slots from the first five current eligible heroes and leave a complete valid lineup unchanged",
+      "postconditions": [
+        "the attack formation independently contains five current eligible heroes",
+        "a complete valid attack formation is not cleared or needlessly replaced"
+      ],
+      "terminal_outcomes": ["blocked", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
+    },
+    {
+      "transition_id": "dispatch_one_free_entry",
+      "from": "attack_lineup_verified",
+      "to": "battle_loaded",
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": "Challenge the selected listed opponent only with current exact zero-cost Free evidence",
+      "postconditions": [
+        "event identity, reset, free allowance, pass balance, and cycle ordinal are bound",
+        "a positively recognized loaded Wave 1/1 battle is required",
+        "entry transport alone is not a confirmed cycle"
+      ],
+      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
+    },
+    {
+      "transition_id": "exit_loaded_battle",
+      "from": "battle_loaded",
+      "to": "flee_warning",
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": "use the recognized normal Exit control immediately after the loaded battle is observed",
+      "postconditions": [
+        "no combat action or battle loop occurs",
+        "the current Flee warning and Flee control are recognized"
+      ],
+      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
+    },
+    {
+      "transition_id": "flee_current_cycle",
+      "from": "flee_warning",
+      "to": "loss_result",
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": "select Flee on the current warning and never Fight",
+      "postconditions": [
+        "a current loss/result screen is recognized",
+        "the current event, reset, cycle ordinal, and participation successor remain bound"
+      ],
+      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
+    },
+    {
+      "transition_id": "continue_loss_result",
+      "from": "loss_result",
+      "to": "cycle_confirmed",
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": "continue the current loss result without selecting Buy Now or another reward",
+      "postconditions": [
+        "current participation/attempt evidence positively confirms this entry/exit cycle",
+        "confirmed cycle progress is durably reconciled before another entry"
+      ],
+      "terminal_outcomes": ["action_performed", "blocked", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
+    },
+    {
+      "transition_id": "stop_when_no_free_entries",
+      "from": "duel_overview",
+      "to": "event_exhausted",
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "the current event positively shows no eligible free entries",
+        "no paid entry or attempt refresh is substituted"
+      ],
+      "terminal_outcomes": ["deferred", "blocked"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
     },
     {
       "transition_id": "return_canonical_home",
-      "from": "participation_observation",
+      "from": "cycle_confirmed",
       "to": "home_canonical",
-      "planner": "HeroDuelEvidenceGate",
-      "permitted_input": null,
+      "planner": "HeroDuelNativeFlow",
+      "permitted_input": "use only route-owned source-bound return navigation to canonical Home",
       "postconditions": [
-        "canonical Home remains the required terminal state"
+        "canonical Home is positively recognized",
+        "no identical unresolved input is retried"
       ],
-      "terminal_outcomes": [
-        "blocked"
-      ],
-      "evidence_gate_id": "hero_duel_replay"
+      "terminal_outcomes": ["blocked", "manual_required"],
+      "evidence_gate_id": "hero_duel_native_acceptance"
     }
   ],
-  "permitted_inputs": [],
-  "consequential_action_class": "hero_duel_candidate_observation",
+  "permitted_inputs": [
+    "current-frame-bound Arena navigation from canonical Home",
+    "select the exact current Hero Duel–Survival event",
+    "dismiss only the current recognized informational Emergency Details popup",
+    "select the first five eligible displayed defense heroes and use Save Form when a save is required",
+    "use current Challenge and only Challenge Now if the free-path upsell is shown; never Activate",
+    "select one currently listed opponent with an explicit Free control",
+    "fill only missing attack slots from the first five current eligible heroes and leave a complete valid lineup unchanged",
+    "Challenge the selected listed opponent only with current exact zero-cost Free evidence",
+    "use the recognized normal Exit control immediately after the loaded battle is observed",
+    "select Flee on the current warning and never Fight",
+    "continue the current loss result without selecting Buy Now or another reward",
+    "use only route-owned source-bound return navigation to canonical Home"
+  ],
+  "consequential_action_class": "hero_duel_free_entry_and_flee",
   "cost_quantity_requirements": {
-    "free_only": false,
-    "maximum_cost": null,
+    "free_only": true,
+    "maximum_cost": 0,
     "quantity": 1,
-    "resource_or_currency": "NO_PVP_RESOURCE_SPEND",
-    "notes": "Current event, free-opponent state, attempts, and participation result are unresolved; no PvP entry, lineup change, combat, or resource spend is authorized."
+    "resource_or_currency": "NO_RESOURCE_SPEND",
+    "notes": "Each entry is one exact current Free action costing zero resources; confirm at most three participation cycles per reset. An unknown or nonzero cost is prohibited."
   },
-  "completion_identity": "hero-duel:candidate:observed",
+  "completion_identity": "hero-duel:confirmed-free-entry-flee-cycle:daily-reset",
   "terminal_outcomes": [
     "deferred",
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "Keep candidate dormant until product allowlist and native Hero Duel evidence are current; never schedule or register this flow.",
-  "bounded_recovery_behavior": "Stop on unknown event, opponent, attempts, Join state, combat, loss consequence, completion progress, or terminal Home state; preserve blocked disposition.",
+  "cooldown_deferred_behavior": "Defer when the current event has no eligible free entry, preserve confirmed cycle proofs, and stop at three confirmed cycles per reset; never substitute paid entry or another event.",
+  "bounded_recovery_behavior": "Stop on unknown or changed event, event exclusions, free cost, opponent, allowance, lineup, battle, Exit/Flee/result, participation successor, or Home. Never retry an uncertain entry; preserve every confirmed ordinal and settle its effect before another cycle.",
   "evidence_requirements": [
-    "Current native Hero Duel event, active state, free opponent, Join control, and attempts are missing.",
-    "Current participation result, completion successor, and bounded three-candidate progress evidence are missing.",
-    "Canonical Home return and production-controller route/session proof are missing."
+    "A current source-bound native acceptance must demonstrate defense Save Form, independent attack lineup, exact free cost, loaded battle Exit/Flee, loss continuation, and participation successor.",
+    "Acceptance must prove at most three confirmed cycle ordinals per reset or stop when current free entries are exhausted, with attempt-versus-confirmed counts durably reconciled.",
+    "Current end-to-end replay/native evidence for event identity and canonical Home is missing; the observed single investigation cycle is not three-cycle route acceptance."
   ],
   "evidence_gates": [
     {
-      "gate_id": "hero_duel_replay",
+      "gate_id": "hero_duel_native_acceptance",
       "status": "evidence_required",
       "blocks": [
-        "observe_hero_duel_route",
-        "observe_hero_duel_candidate",
-        "return_canonical_home"
+        "enter_arena",
+        "select_survival_event",
+        "resolve_current_event_details",
+        "save_first_five_defense_heroes",
+        "open_current_opponents",
+        "continue_free_challenge_path",
+        "select_listed_free_opponent",
+        "verify_attack_formation",
+        "dispatch_one_free_entry",
+        "exit_loaded_battle",
+        "flee_current_cycle",
+        "continue_loss_result",
+        "stop_when_no_free_entries",
+        "return_canonical_home",
+        "hero_duel_bounded_participation"
       ],
       "required_evidence": [
-        "hash-bound native Hero Duel event corpus",
-        "production-controller positive route/session replay"
+        "hash-bound native route capture/replay covering a confirmed entry/flee/result successor",
+        "source-bound evidence for first-five-eligible defense and independent attack formation behavior",
+        "reset-scoped three-cycle quota proof or positive event-exhaustion evidence",
+        "attempt-versus-confirmed effect reconciliation and canonical Home"
       ],
       "permitted_inputs": []
     }
   ],
   "scenarios": [
     {
-      "scenario_id": "hero_duel_production",
+      "scenario_id": "hero_duel_bounded_participation",
       "mode": "blocked_until_evidence",
       "start_state": "home_canonical",
       "terminal_state": "blocked",
       "permitted_inputs": [],
       "forbidden_inputs": [],
       "required_transitions": [
-        "observe_hero_duel_route",
-        "observe_hero_duel_candidate",
+        "enter_arena",
+        "select_survival_event",
+        "resolve_current_event_details",
+        "save_first_five_defense_heroes",
+        "open_current_opponents",
+        "continue_free_challenge_path",
+        "select_listed_free_opponent",
+        "verify_attack_formation",
+        "dispatch_one_free_entry",
+        "exit_loaded_battle",
+        "flee_current_cycle",
+        "continue_loss_result",
         "return_canonical_home"
       ],
-      "evidence_gate_ids": [
-        "hero_duel_replay"
-      ]
+      "evidence_gate_ids": ["hero_duel_native_acceptance"]
     }
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "hero_duel_native_event",
+      "fixture_id": "hero_duel_three_cycle_or_exhaustion",
       "status": "required_evidence",
       "path": null,
-      "notes": "Synthetic disabled-PvP arithmetic does not establish current event, free opponent, Join state, attempts, or participation authorization."
+      "notes": "A synthetic policy fixture or the one prior investigation cycle does not prove the bounded route's three confirmed cycles, reset persistence, or event exhaustion."
     }
   ],
   "unsupported_or_manual_only_states": [
-    "Join",
-    "PvP entry",
-    "combat dispatch",
-    "lineup change",
-    "attack",
-    "loss consequence",
-    "premium opponent",
-    "unknown event",
-    "ambiguous event",
+    "Hero Duel–Glory",
+    "unknown or changed event",
     "inactive event",
-    "unknown opponent",
-    "unknown attempts",
-    "insufficient attempts",
+    "unknown or nonzero entry cost",
+    "premium prompt",
+    "Activate",
+    "Refresh",
+    "unknown or prohibited hero identity",
+    "fewer than five eligible defense heroes",
+    "unclear or unsaved defense formation",
+    "unknown opponent or Free control",
+    "ambiguous attack lineup",
+    "Fight",
+    "combat loop",
+    "unknown battle or exit state",
+    "unknown Flee warning or result",
+    "unknown participation successor",
+    "unknown cycle ordinal or reset",
+    "unknown or ambiguous terminal Home",
     "registration",
     "scheduler"
   ],
-  "implementation_status": "contract_only",
+  "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
-  "offline_proof_state": "current",
+  "offline_proof_state": "evidence_required",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "evidence_required",
   "product_policy_refs": [
@@ -162,11 +356,11 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r17",
-    "product_authority_digest": "874c5fa56867cf47dbff7673adbe4cf6715a2fc55c022a35e3bdc7e9f2b08fd4",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r18",
+    "product_authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528",
     "product_record_id": "hero_duel",
-    "product_record_revision": "hero_duel-v1",
-    "product_record_digest": "1548299f91f76c377167b8a0bef74c62d241886c3198753eb5dd65cb3c9efc12",
+    "product_record_revision": "hero_duel-v2",
+    "product_record_digest": "6eef740d0ef6f726966573dd2886404a8a3c08d68c5ecac31833c3e32262e63c",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
@@ -178,9 +372,7 @@
     "package_id": "com.global.ztmslg",
     "home_authority": "HOME_CANONICAL",
     "terminal_home_authority": "HOME_CANONICAL",
-    "accepted_home_authorities": [
-      "HOME_CANONICAL"
-    ],
+    "accepted_home_authorities": ["HOME_CANONICAL"],
     "selected_daily_prerequisite": false
   }
 }

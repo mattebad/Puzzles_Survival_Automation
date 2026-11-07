@@ -1544,6 +1544,7 @@ def bind_or_pan_mapped_home_building(
             return frame, binding, None
     return None, None, "mapped_home_building_not_found_within_pan_limit"
 
+
 def navigate_pan_execution_payload(
     issued,
     execution,

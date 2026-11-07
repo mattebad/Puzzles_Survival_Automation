@@ -181,8 +181,8 @@
   "registration_state": "disabled",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r17",
-    "product_authority_digest": "874c5fa56867cf47dbff7673adbe4cf6715a2fc55c022a35e3bdc7e9f2b08fd4",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r18",
+    "product_authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528",
     "product_record_id": "supply_depot",
     "product_record_revision": "supply_depot-v2",
     "product_record_digest": "8e83ec05a3fee83474170eb27a157533a98b162bb6374460108c0b099b0e0412",

@@ -168,6 +168,26 @@ Existing layout exceptions:
   registration remains separate from production posture and SQLite controls: both routes stay
   runtime-disabled with live acceptance `evidence_required`; no live acceptance is claimed.
 
+* **Batch E Hero Duel, Recommended Research, and Food Farm Boost**: canonical-service-only routes
+  with fixed native bindings and no operator rows; preserve the existing twelve legacy operator
+  choices until Batch F. Product approval does not enable production registration or runtime
+  controls: each route remains disabled and `evidence_required`. Offline route contracts and native
+  scenarios model durable attempts separately from confirmed resource effects, restart/partial/
+  unknown outcomes, and no identical retry after unresolved effects. Hero Duel requires three
+  reset-scoped free entry/Flee cycles, a saved and verified first-five defense lineup, and all-five
+  eligible attack lineup with battle/Exit/Flee/result evidence; a win is not
+  required. Research considers only the first displayed ordinary-queue recommendation when idle and
+  affordable; it freshly binds the mapped Home Atlas Research dome. If HUD obscures the target, safely
+  pan/rebind or defer, never punch through the HUD. Research Now diamonds, Queue 2, substitutes, boxes
+  and gathering remain prohibited. Food Farm reconciles incidental multi-building collection, then
+  prefers an exact matching owned item. Consider a diamond option only after inventory is observed
+  exactly zero and the exact current price is within the approved ceiling, with confirmation/effect
+  proof; unknown inventory is not zero. Item action cost 1 is not a total-inventory claim and global
+  Food Output Boost is prohibited. Current manual evidence is narrower than acceptance: Hero Duel has
+  one free loss cycle and five eligible defense heroes observed; Research had no start/timer proof;
+  Food Farm had one owned-item boost with a positive timer and incidental multi-building collection,
+  while total inventory and the premium branch remain unproven. These are not route-level acceptance.
+
 * **Campaign budgets**: the service route budget (`CAMPAIGN_MAX_INPUTS`, a whole AP drain) is a different
   fact from the single-battle development-session ceiling in `pnsctl`; the test lists the difference.
 

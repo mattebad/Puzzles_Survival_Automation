@@ -96,13 +96,22 @@
         }
       },
       "interaction_eligible": true,
-      "navigation_anchor": [1246.7, 976.1],
-      "interaction_anchor": [1246.7, 976.1],
+      "navigation_anchor": [
+        1246.7,
+        976.1
+      ],
+      "interaction_anchor": [
+        1246.7,
+        976.1
+      ],
       "platform_binding_policy": {
         "bluestacks": {
           "allow_safe_subregion_at_camera_edge": true,
           "label": "Supply Depot",
-          "minimum_safe_subregion": [55, 55],
+          "minimum_safe_subregion": [
+            55,
+            55
+          ],
           "visual_signature": "orange-blue helicopter, circular pad, cargo crates"
         }
       },
@@ -210,19 +219,19 @@
       ],
       "polygon": [
         [
-          820,
+          933,
           779
         ],
         [
-          990,
+          1103,
           779
         ],
         [
-          990,
+          1103,
           969
         ],
         [
-          820,
+          933,
           969
         ]
       ],
@@ -233,13 +242,21 @@
       },
       "semantic_id": "home.building.research_center",
       "semantic_proof": [
-        "visible Research Center label and radar-dome geometry"
+        "visible Research Center label and radar-dome geometry",
+        "retained binding source gh72-76-step-20261106T225637718601Z:0001-home.building.research_center-immediate-before sha256=1d81a02a1f9f9639bdb1275b87abdf3587a8aa4211f91610f60c0a3374edc6a5",
+        "retained binding source gh72-76-step-20261106T225637718601Z:0002-home.building.research_center-immediate-post sha256=a82c3da82d3f16c02904437c1596e59f05d1a772ed3bf14cf50ad8a22ba6eb89",
+        "retained binding source gh72-76-step-20261106T225637718601Z:0003-settled-successor sha256=65bfb71df5c5bc31a629cbc4b05dbe494c97dc16776b6f48c23063dc7b5d818d",
+        "retained binding source gh72-76-step-20261106T225637718601Z:0004-terminal sha256=73bbd200a9b4f7df98a2088fd54fab994d2ebddbf5ca2ec5f3ae136e33fd5e8e"
       ],
       "supporting_source_frames": [
         "viewport-008",
         "viewport-009",
         "viewport-010",
-        "viewport-011"
+        "viewport-011",
+        "retained:gh72-76-step-20261106T225637718601Z:0001-home.building.research_center-immediate-before",
+        "retained:gh72-76-step-20261106T225637718601Z:0002-home.building.research_center-immediate-post",
+        "retained:gh72-76-step-20261106T225637718601Z:0003-settled-successor",
+        "retained:gh72-76-step-20261106T225637718601Z:0004-terminal"
       ],
       "visibility_constraints": []
     },
@@ -771,7 +788,10 @@
         }
       },
       "semantic_id": "home.building.research_lab",
-      "interaction_anchor": [835, 520],
+      "interaction_anchor": [
+        835,
+        520
+      ],
       "semantic_proof": [
         "visible Research Lab label and blue globe geometry in completed BlueStacks atlas"
       ],
@@ -911,7 +931,10 @@
         "right-boundary troop staging facility"
       ],
       "interaction_eligible": false,
-      "navigation_anchor": [1367, 902.5],
+      "navigation_anchor": [
+        1367,
+        902.5
+      ],
       "platform_binding_policy": {
         "bluestacks": {
           "actionable": false,
@@ -920,10 +943,22 @@
         }
       },
       "polygon": [
-        [1287, 845],
-        [1447, 845],
-        [1447, 960],
-        [1287, 960]
+        [
+          1287,
+          845
+        ],
+        [
+          1447,
+          845
+        ],
+        [
+          1447,
+          960
+        ],
+        [
+          1287,
+          960
+        ]
       ],
       "recognition": {
         "bluestacks": {
@@ -1056,7 +1091,10 @@
         }
       },
       "semantic_id": "home.building.noahs_tavern",
-      "interaction_anchor": [355, 757.5],
+      "interaction_anchor": [
+        355,
+        757.5
+      ],
       "semantic_proof": [
         "visible Noah's Tavern label in completed BlueStacks atlas"
       ],

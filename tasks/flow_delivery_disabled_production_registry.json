@@ -130,7 +130,27 @@
       "scheduler_eligible": false,
       "supported_profiles": []
     },
+    "FOOD-FARM-OUTPUT-BOOST-DAILY-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
     "GATHERING-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "HERO-DUEL-EVIDENCE-GATE": {
       "mode": "disabled",
       "product_id": null,
       "product_revision": null,
@@ -181,6 +201,16 @@
       "supported_profiles": []
     },
     "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
+    "RECOMMENDED-RESEARCH-BLUESTACKS-INTEGRATION": {
       "mode": "disabled",
       "product_id": null,
       "product_revision": null,

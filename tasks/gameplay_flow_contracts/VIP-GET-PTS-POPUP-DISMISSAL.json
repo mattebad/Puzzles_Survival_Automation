@@ -173,8 +173,8 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r17",
-    "product_authority_digest": "874c5fa56867cf47dbff7673adbe4cf6715a2fc55c022a35e3bdc7e9f2b08fd4",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r18",
+    "product_authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528",
     "product_record_id": "vip_points_popup_dismissal",
     "product_record_revision": "vip_points_popup_dismissal-v1",
     "product_record_digest": "8a404595f42795568e9fa469a9e5b91f3dce6a542e70218f7956ab338d5b4a60",

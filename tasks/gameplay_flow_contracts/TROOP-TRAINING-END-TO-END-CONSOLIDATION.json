@@ -286,8 +286,8 @@
   "recovery_behavior": "observe-only or safe canonical Home return; never retry unresolved Train",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r17",
-    "product_authority_digest": "874c5fa56867cf47dbff7673adbe4cf6715a2fc55c022a35e3bdc7e9f2b08fd4",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r18",
+    "product_authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528",
     "product_record_id": "troop_training",
     "product_record_revision": "troop_training-v2",
     "product_record_digest": "5cc24fffa0a7d3bf14a7f25bb19964a9475c204f6fa19e38b6aad3899cdd8fce",

@@ -39,12 +39,41 @@ RETIRED_BLISS_PROFILE_ID = json.loads(
 RETIRED_BLISS_PROVENANCE = "bliss-native"
 
 
-def _load(filename: str, name: str, observation_type):
+def _synthetic_hero_duel_observation():
+    return hero_duel_disabled.HeroDuelObservation(
+        screen_state="hero_duel_overview",
+        source_frame_sha256="b" * 64,
+        event_identity="synthetic-hero-duel-survival",
+        event_variant=hero_duel_disabled.HERO_DUEL_SURVIVAL,
+        event_active=True,
+        target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
+        evidence_refs=("synthetic:profile-hero-duel",),
+    )
+
+
+def _load(filename: str | None, name: str, observation_type):
+    if filename is None:
+        return _synthetic_hero_duel_observation()
     payload = json.loads((FIXTURES / filename).read_text(encoding="utf-8"))["observations"][name]
     for key in ("target_roi", "panel_bounds", "evidence_refs"):
         if key in payload:
             payload[key] = tuple(payload[key])
+    if observation_type is tech_upgrade_disabled.TechUpgradeObservation:
+        payload["prerequisite_evidence"] = tuple(payload["prerequisite_evidence"])
+        payload["resource_rows"] = tuple(
+            tech_upgrade_disabled.ResearchResourceRow(**row)
+            for row in payload["resource_rows"]
+        )
     return observation_type(**payload)
+
+
+def _tech_upgrade_profile_authorizeable(observation):
+    listing = _load(
+        "phase_e_disabled_tech_upgrade_observations.json",
+        "list",
+        tech_upgrade_disabled.RecommendedResearchListObservation,
+    )
+    return tech_upgrade_disabled.tech_upgrade_authorizeable(observation, listing)
 
 
 # (fixture file, fixture name, observation type, predicate)
@@ -66,8 +95,9 @@ CASES = {
                          free_recruitment.free_recruitment_authorizeable),
     "gathering": ("phase_e_gathering_observations.json", "wood_valid",
                   gathering.GatheringObservation, gathering.gathering_authorizeable),
-    "hero_duel": ("phase_e_disabled_hero_duel_observations.json", "valid",
-                  hero_duel_disabled.HeroDuelObservation, hero_duel_disabled.hero_duel_authorizeable),
+    "hero_duel": (None, "current_survival",
+                  hero_duel_disabled.HeroDuelObservation,
+                  hero_duel_disabled.hero_duel_current_survival),
     "hero_upgrade": ("phase_e_disabled_hero_upgrade_observations.json", "valid",
                      hero_upgrade_disabled.HeroUpgradeObservation,
                      hero_upgrade_disabled.hero_upgrade_authorizeable),
@@ -86,7 +116,7 @@ CASES = {
                      supply_depot.SupplyDepotObservation, supply_depot.supply_depot_authorizeable),
     "tech_upgrade": ("phase_e_disabled_tech_upgrade_observations.json", "valid",
                      tech_upgrade_disabled.TechUpgradeObservation,
-                     tech_upgrade_disabled.tech_upgrade_authorizeable),
+                     _tech_upgrade_profile_authorizeable),
     "training": ("phase_e_disabled_training_observations.json", "fighter_valid",
                  training_disabled.TrainingObservation, training_disabled.training_queue_authorizeable),
     "zombie_lair": ("phase_e_zombie_lair_observations.json", "lair_synthetic",

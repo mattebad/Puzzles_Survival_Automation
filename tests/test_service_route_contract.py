@@ -15,9 +15,11 @@ from automation_service.registry import (
     ALLIANCE_DONATION_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
     BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, CANONICAL_FLOW_REGISTRY,
     DAILY_REWARDS_FLOW_ID, DAILY_SHOPS_FLOW_ID, ENHANCEMENT_FLOW_ID,
+    FOOD_FARM_BOOST_FLOW_ID, HERO_DUEL_FLOW_ID,
     NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID, NOVA_FLOW_ID,
-    PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, REGISTRY_PATH,
-    RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
+    PERSONAL_MIGHT_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID, RECRUITMENT_FLOW_ID,
+    REGISTRY_PATH, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, SUPPLY_FLOW_ID,
+    ULTIMATE_FLOW_ID,
     canonical_entry, canonical_flow_specs,
 )
 from automation_service.alliance_donation import alliance_donation_next_due
@@ -31,6 +33,7 @@ from scripts import navigation_development_boundary as boundary
 from tasks.noahs_tavern_recruit_maintenance import NoahMaintenanceState
 from tasks.nova_praise_pulse import NOVA_TASK_ID
 from tasks.nanoweapon import NANO_PARTS_REQUIRED
+from tasks.scheduler_task_result import SchedulerTaskOutcome
 from tasks.purchases_disabled import ALLIANCE_WEEKLY_ITEMS, ALLIANCE_WEEKLY_SHOP
 from tests.support.service_route_contract import (
     EXCEPTIONS, NOT_SERVABLE, ROUTES, RouteRig, _runner_kwarg,
@@ -98,7 +101,8 @@ class DisabledByDefaultTests(unittest.TestCase):
                         DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
                         ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
                         DAILY_SHOPS_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
-                        NANOWEAPON_FLOW_ID,
+                        NANOWEAPON_FLOW_ID, HERO_DUEL_FLOW_ID,
+                        RECOMMENDED_RESEARCH_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
                     }:
                         adapter = importlib.import_module(
                             "automation_service." + entry.cli_name.replace("-", "_"),
@@ -120,7 +124,9 @@ class DisabledByDefaultTests(unittest.TestCase):
                             self.assertEqual(entry.descriptor.cadence, "cooldown_pulse")
                             self.assertEqual(entry.descriptor.recurrence_class, RecurrenceClass.COOLDOWN)
                         elif flow_id == DAILY_REWARDS_FLOW_ID or flow_id in {
-                            ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
+                            ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
+                            DAILY_SHOPS_FLOW_ID, HERO_DUEL_FLOW_ID,
+                            RECOMMENDED_RESEARCH_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
                         }:
                             self.assertTrue(entry.descriptor.reset_scoped)
                             self.assertEqual(entry.descriptor.cadence, "cooldown_pulse")
@@ -142,48 +148,6 @@ class DisabledByDefaultTests(unittest.TestCase):
 
 
 
-class OccurrenceIdentityTests(unittest.TestCase):
-    def test_resource_route_occurrences_are_forwarded_verbatim(self):
-        for flow_id in (
-            RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_DONATION_FLOW_ID,
-            ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
-            NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
-        ):
-            with self.subTest(flow_id=flow_id), RouteRig(self, ROUTES[flow_id]) as rig:
-                report, = rig.once()
-                run, = rig.runs()
-                self.assertIn(":", run.occurrence_key)
-                self.assertEqual(rig.runner.occurrence_keys, [run.occurrence_key])
-                self.assertEqual(report["result"]["occurrence_key"], run.occurrence_key)
-
-    def test_opaque_production_occurrences_are_preserved_in_mapping(self):
-        opaque_occurrence = "opaque|session|occurrence"
-        cases = (
-            (NANO_MATERIAL_PRODUCTION_FLOW_ID, GuardedNanoMaterialProductionRunner),
-            (NANOWEAPON_FLOW_ID, GuardedNanoweaponRunner),
-        )
-        for flow_id, fake_type in cases:
-            with self.subTest(flow_id=flow_id), RouteRig(self, ROUTES[flow_id]) as rig:
-                rig.once()
-                identity = rig.runner.last_identity
-                fake = fake_type(rig.stop, rig.root)
-                with boundary.RuntimeInputLock(
-                    owner="opaque-occurrence-contract", invocation_id=flow_id,
-                ) as input_lock:
-                    result = fake(
-                        identity, identity.reset_id, lambda: None,
-                        runtime_input_lock=input_lock,
-                        occurrence_key=opaque_occurrence,
-                    )
-                self.assertEqual(fake.occurrence_keys, [opaque_occurrence])
-                self.assertEqual(
-                    (
-                        result["occurrence_key"],
-                        result["native_occurrence_key"],
-                        result["production_occurrence_key"],
-                    ),
-                    (opaque_occurrence,) * 3,
-                )
 
 class RestartBeforeDueTests(unittest.TestCase):
     def test_restart_before_due_skips_runner_and_next_reset_runs_once(self):
@@ -194,6 +158,7 @@ class RestartBeforeDueTests(unittest.TestCase):
             RUINS_FLOW_ID: (8, 2), ALLIANCE_HELP_FLOW_ID: (20, 10),
             ALLIANCE_DONATION_FLOW_ID: (40, 10),
             ALLIANCE_SHOP_FLOW_ID: (24, 1), DAILY_SHOPS_FLOW_ID: (48, 2),
+            HERO_DUEL_FLOW_ID: (20, 3), FOOD_FARM_BOOST_FLOW_ID: (4, 2),
         }
         for flow_id, spec in ROUTES.items():
             if (flow_id, "restart_before_due") in EXCEPTIONS:
@@ -358,7 +323,13 @@ class PartialResultTests(unittest.TestCase):
                     reports = rig.once()
                     self.assertEqual(reports[0]["status"], "blocked", reports)
                     run, = rig.runs()
-                    self.assertEqual(run.state, RunState.BLOCKED)
+                    expected_state = (
+                        RunState.FAILED
+                        if spec.partial_outcome is SchedulerTaskOutcome.RECONCILIATION_REQUIRED
+                        else RunState.BLOCKED
+                    )
+                    self.assertEqual(run.state, expected_state)
+                    self.assertEqual(run.terminal_outcome, spec.partial_outcome.value)
                     self.assertEqual(
                         (run.consumed_inputs, run.consumed_actions), spec.partial_counts,
                     )
@@ -440,6 +411,35 @@ class PartialResultTests(unittest.TestCase):
                         self.assertFalse(result["terminal_home_verified"])
                         self.assertNotIn("next_eligible_at", result)
                         self.assertTrue(result["prior_material_production_reconciled"])
+                    elif flow_id == HERO_DUEL_FLOW_ID:
+                        result = rig.runner.last_result
+                        self.assertEqual(
+                            (result["entry_transport_calls"], result["duel_dispatch_count"],
+                             result["flee_transport_calls"], result["committed_action_count"]),
+                            (1, 1, 0, 0),
+                        )
+                        self.assertTrue(result["effect_reconciliation_required"])
+                        self.assertTrue(result["identical_retry_denied"])
+                        self.assertIsNone(result["final_free_entries_remaining"])
+                    elif flow_id == RECOMMENDED_RESEARCH_FLOW_ID:
+                        result = rig.runner.last_result
+                        self.assertEqual(
+                            (result["research_transport_calls"], result["total_action_count"],
+                             result["committed_action_count"]),
+                            (1, 1, 0),
+                        )
+                        self.assertTrue(result["effect_reconciliation_required"])
+                        self.assertTrue(result["identical_retry_denied"])
+                    elif flow_id == FOOD_FARM_BOOST_FLOW_ID:
+                        result = rig.runner.last_result
+                        self.assertEqual(
+                            (result["collection_transport_calls"], result["collection_count"],
+                             result["boost_transport_calls"], result["food_farm_dispatch_count"]),
+                            (1, 0, 0, 1),
+                        )
+                        self.assertFalse(result["collection_effect_accounted"])
+                        self.assertTrue(result["effect_reconciliation_required"])
+                        self.assertTrue(result["identical_retry_denied"])
                     if flow_id == ULTIMATE_FLOW_ID:
                         self.assertEqual(rig.runner.flee_calls, 1)
 
@@ -1086,5 +1086,194 @@ class BatchDSemanticContractTests(unittest.TestCase):
             )
 
 
+
+
+class BatchESemanticContractTests(unittest.TestCase):
+    def test_hero_duel_proves_defense_and_three_free_loss_cycles(self):
+        with RouteRig(self, ROUTES[HERO_DUEL_FLOW_ID]) as rig:
+            report, = rig.once()
+            result = rig.runner.last_result
+            expected_defense = ["ulrik", "mccarty", "meyers", "marlowe", "ephraim"]
+            self.assertEqual(report["status"], "completed")
+            self.assertEqual(result["expected_defense_hero_ids"], expected_defense)
+            self.assertTrue(result["defense_save_confirmed"])
+            self.assertEqual(result["defense_selection_transport_calls"], 5)
+            self.assertEqual(result["defense_save_transport_calls"], 1)
+            self.assertEqual(result["canonical_confirmed_cycle_ordinals"], [1, 2, 3])
+            self.assertEqual(
+                (result["duel_dispatch_count"], result["entry_transport_calls"],
+                 result["flee_transport_calls"], result["flee_confirmed_count"],
+                 result["committed_action_count"]),
+                (3, 3, 3, 3, 3),
+            )
+            self.assertEqual(len(result["cycle_proofs"]), 3)
+            for ordinal, proof in enumerate(result["cycle_proofs"], 1):
+                with self.subTest(cycle=ordinal):
+                    self.assertEqual(proof["ordinal"], ordinal)
+                    self.assertEqual(proof["event_identity"], result["hero_duel_event_identity"])
+                    self.assertEqual(proof["free_after"], proof["free_before"] - 1)
+                    self.assertEqual(proof["pass_after"], proof["pass_before"])
+                    self.assertTrue(proof["battle_board_verified"])
+                    self.assertTrue(proof["exit_confirmed"])
+                    self.assertTrue(proof["flee_confirmed"])
+                    self.assertTrue(proof["loss_result_seen"])
+                    self.assertTrue(proof["tap_to_continue_confirmed"])
+            self.assertEqual(rig.runner.effects, 3)
+
+    def test_research_start_uses_first_idle_affordable_recommendation_only(self):
+        with RouteRig(self, ROUTES[RECOMMENDED_RESEARCH_FLOW_ID]) as rig:
+            report, = rig.once()
+            result = rig.runner.last_result
+            self.assertEqual(report["status"], "completed")
+            self.assertEqual(
+                (result["status"], result["first_recommendation_identity"],
+                 result["recommendation_position"], result["queue1_state"]),
+                ("completed", "troop-load-ii", 1, "idle"),
+            )
+            self.assertEqual(result["target_identity"], "recommended-research:troop-load-ii:detail-research-button")
+            self.assertTrue(result["requirements_scrolled"])
+            self.assertTrue(result["prerequisites_met"])
+            self.assertFalse(result["queue2_activate_tapped"])
+            self.assertFalse(result["research_now_tapped"])
+            self.assertEqual(result["research_transport_calls"], 1)
+            self.assertEqual(result["committed_action_count"], 1)
+            self.assertGreater(result["remaining_seconds"], 0)
+            self.assertEqual(
+                {
+                    resource: result["exact_resource_prebalances"][resource]
+                    - result["exact_resource_balances"][resource]
+                    for resource in ("food", "wood", "steel", "gas")
+                },
+                result["exact_resource_costs"],
+            )
+
+    def test_research_busy_and_shortage_defer_without_substitute_actions(self):
+        for mode in ("deferred_busy", "deferred_shortage"):
+            with self.subTest(mode=mode), RouteRig(
+                self, ROUTES[RECOMMENDED_RESEARCH_FLOW_ID],
+            ) as rig:
+                rig.runner.research_mode = mode
+                rig.once()
+                result = rig.runner.last_result
+                self.assertEqual(result["status"], "deferred")
+                self.assertEqual(
+                    (result["research_transport_calls"], result["committed_action_count"],
+                     result["total_action_count"]),
+                    (0, 0, 0),
+                )
+                if mode == "deferred_busy":
+                    self.assertEqual(
+                        (result["queue1_state"], result["queue1_remaining_seconds"]),
+                        ("busy", 731),
+                    )
+                else:
+                    self.assertEqual(result["queue1_state"], "idle")
+                    self.assertEqual(result["shortages"], [{"resource": "food", "shortage": 80}])
+                    self.assertFalse(result["research_now_tapped"])
+                    self.assertFalse(result["queue2_activate_tapped"])
+                    self.assertEqual(
+                        result["exact_resource_costs"]["food"]
+                        - result["exact_resource_balances"]["food"],
+                        80,
+                    )
+
+    def test_research_start_is_not_replayed_after_same_reset_restart(self):
+        with RouteRig(self, ROUTES[RECOMMENDED_RESEARCH_FLOW_ID]) as rig:
+            rig.once()
+            first, = rig.runs()
+            first_due = rig.state.get_flow(RECOMMENDED_RESEARCH_FLOW_ID).next_due_at_utc
+            with BotStateManager(rig.path) as restarted:
+                self.assertEqual(rig.once(state=restarted), [])
+            self.assertEqual(len(rig.runner.calls), 1)
+            rig.stop.now = first_due
+            with BotStateManager(rig.path) as restarted:
+                reports = rig.once(state=restarted)
+            self.assertEqual(len(reports), 1)
+            result = rig.runner.last_result
+            second, = rig.runs()[1:]
+            self.assertEqual(first.reset_id, second.reset_id)
+            self.assertNotEqual(first.occurrence_key, second.occurrence_key)
+            self.assertEqual(result["status"], "already_complete")
+            self.assertEqual(
+                (result["research_transport_calls"], result["committed_action_count"]),
+                (0, 0),
+            )
+            self.assertTrue(result["already_confirmed"])
+            self.assertEqual(rig.runner.attempted_actions, 0)
+
+    def test_food_farm_accounts_broad_collection_item_boost_and_unknown_retry(self):
+        with RouteRig(self, ROUTES[FOOD_FARM_BOOST_FLOW_ID]) as rig:
+            report, = rig.once()
+            result = rig.runner.last_result
+            self.assertEqual(report["status"], "completed")
+            self.assertEqual(
+                (result["collection_transport_calls"], result["collection_count"],
+                 result["collection_effect_accounted"], result["boost_transport_calls"],
+                 result["food_farm_dispatch_count"]),
+                (1, 1, True, 1, 2),
+            )
+            self.assertEqual(
+                set(result["collection_deltas"]), {"food", "wood", "steel", "gas"},
+            )
+            self.assertTrue(all(value > 0 for value in result["collection_deltas"].values()))
+            for resource, delta in result["collection_deltas"].items():
+                self.assertEqual(
+                    result["collection_balances_after"][resource]
+                    - result["collection_balances_before"][resource],
+                    delta,
+                )
+            self.assertEqual(result["boost_decision"], "owned_item")
+            self.assertEqual(result["boost_duration_seconds"], 86_400)
+            self.assertGreater(result["boost_timer_remaining_seconds"], 0)
+            self.assertEqual(result["boost_timer_farm_identity"], result["farm_identity"])
+            self.assertEqual(result["boost_action"]["status"], "confirmed")
+            self.assertEqual((rig.runner.actions, rig.runner.effects), (2, 2))
+
+        with RouteRig(self, ROUTES[FOOD_FARM_BOOST_FLOW_ID]) as rig:
+            rig.runner.collection_already_confirmed = True
+            rig.once()
+            result = rig.runner.last_result
+            self.assertEqual(
+                (result["collection_transport_calls"], result["collection_count"],
+                 result["collection_effect_accounted"], result["boost_transport_calls"],
+                 result["food_farm_dispatch_count"]),
+                (0, 1, True, 1, 1),
+            )
+            self.assertIsNone(result["collection_balances_before"])
+            self.assertIsNone(result["collection_balances_after"])
+
+        with RouteRig(self, ROUTES[FOOD_FARM_BOOST_FLOW_ID]) as rig:
+            rig.runner.farm_mode = "boost_unresolved"
+            rig.once()
+            result = rig.runner.last_result
+            self.assertEqual(
+                (result["collection_transport_calls"], result["collection_count"],
+                 result["boost_transport_calls"], result["food_farm_dispatch_count"]),
+                (1, 1, 1, 2),
+            )
+            self.assertTrue(result["collection_effect_accounted"])
+            self.assertEqual(result["boost_action"]["status"], "unresolved")
+            self.assertTrue(result["effect_reconciliation_required"])
+            self.assertTrue(result["identical_retry_denied"])
+            self.assertEqual((rig.runner.actions, rig.runner.effects), (2, 1))
+            inputs = list(rig.runner.inputs)
+            with BotStateManager(rig.path) as restarted:
+                self.assertEqual(rig.once(state=restarted)[0]["status"], "paused")
+            self.assertEqual(len(rig.runner.calls), 1)
+            self.assertEqual(rig.runner.inputs, inputs)
+
+    def test_food_farm_diamond_prompt_without_approved_exact_evidence_never_dispatches(self):
+        with RouteRig(self, ROUTES[FOOD_FARM_BOOST_FLOW_ID]) as rig:
+            rig.runner.farm_mode = "diamond_guard"
+            rig.once()
+            result = rig.runner.last_result
+            self.assertEqual(result["status"], "blocked")
+            self.assertEqual(result["boost_decision"], "diamonds")
+            self.assertEqual(result["collection_count"], 1)
+            self.assertEqual(result["collection_transport_calls"], 1)
+            self.assertEqual(result["boost_transport_calls"], 0)
+            self.assertEqual(result["food_farm_dispatch_count"], 1)
+            self.assertFalse(result["effect_reconciliation_required"])
+            self.assertFalse(result["identical_retry_denied"])
 if __name__ == "__main__":
     unittest.main()

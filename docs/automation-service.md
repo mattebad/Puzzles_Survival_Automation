@@ -27,7 +27,7 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
 - The legacy production registry remains disabled in
   `tasks/flow_delivery_disabled_production_registry.json`; it records the disabled
   `NOT_REGISTERED` posture and is separate from canonical service admission. The canonical code
-  registry has eighteen fixed flow specs, which report `REGISTERED`; this is composition only.
+  registry has twenty-one fixed flow specs, which report `REGISTERED`; this is composition only.
   SQLite service/flow enablement is separate, defaults off, and is restored off after bounded tests.
 - Campaign selection remains non-consuming. Explicit native service composition installs
   the Campaign runner behind canonical claims and dispatch fences, reusing destination policy,
@@ -107,18 +107,18 @@ The normal Campaign launch shape is:
 python scripts/pnsctl.py automation-service --mode supervised --adapter bluestacks --state-path .local-orchestrator/bot-state.sqlite3 serve --live --flow campaign --campaign-stage 1-15-9 --campaign-cadence-seconds 300 --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 --account-id primary-account --server-id primary-server --output-directory .local-captures/automation-service-live
 ```
 
-Repeat `--flow` for other named routes; the README gives the complete seventeen-route command. Argument order does not
+Repeat `--flow` for other named routes; the README gives the complete 20-route command. Argument order does not
 choose scheduler order; due eligibility and existing controls do. The disabled-gates canonical CLI
 proof produced zero captures and zero new runs, so it is control evidence only and does not promote
 native route acceptance. Facade checks, the ordinary one-battle live-entrypoint retirement, and
 the scheduler/facade consumer checks are recorded separately; their counts are not additive.
 
-The fixed native composition binds seventeen canonical routes: Nova, Recruitment, Campaign,
+The fixed native composition binds 20 canonical routes: Nova, Recruitment, Campaign,
 Bioenhancer, Supply, Ultimate, Enhancement, Personal Might, Daily Rewards, Resource Item,
 Ruins, Alliance Help, Alliance Donation, Alliance Shop, Daily Shops, Nano Material Production,
-and Nanoweapon. The eighteenth fixed flow spec is `world_map_navigation`, which is selection-only
-and has no `serve --flow`. The ordinary registered selectors remain non-consuming; passing
-`--flow` alone does not enable a route.
+Nanoweapon, Hero Duel, Recommended Research, and Food Farm Boost. The 21st fixed flow spec
+is `world_map_navigation`, which is selection-only and has no `serve --flow`. The ordinary registered
+selectors remain non-consuming; passing `--flow` alone does not enable a route.
 
 B adds Ruins/Help; C adds Donation, Alliance Shop and Daily Shops. These are implemented and
 offline-proven, not newly live-accepted; production and SQLite runtime controls remain disabled.
@@ -134,12 +134,28 @@ maintenance in the same visit before at most one Normal Craft start/reset: 100 N
 43,200 seconds. Exclusive Craft, Daily/D02 ownership and points attribution remain prohibited.
 Registration is composition only; production registration and SQLite runtime controls stay disabled.
 
+Batch E adds canonical-only Hero Duel, Recommended Research, and Food Farm Boost routes with fixed
+native bindings and no legacy operator rows; the existing twelve operator routes remain unchanged.
+All three are explicitly product-approved, but code composition is not production registration or
+runtime enablement. Their runtime controls remain off and current live acceptance is
+`evidence_required`. Hero Duel investigation recorded five eligible defense heroes and one free
+entry/Flee/loss/result cycle, not the required three reset-scoped cycles and lineup/battle acceptance.
+Research binds the mapped Home Atlas Research dome from fresh localization. If HUD obscures the
+target, safely pan/rebind or defer; never tap through the HUD. The idle first recommendation was
+inspected, but no research start or timer was verified. Farm accounts for incidental multi-building
+collection effects and prefers an exact owned-item boost. A diamond alternative requires exact
+observed zero inventory, an exact current offer within the approved price ceiling, and confirmation/
+effect proof; unknown inventory is not zero. One owned-item boost and positive timer were observed;
+total inventory and the exact premium branch remain unproven. None of this raw investigation is
+route-level live acceptance.
+
 Daily performs at most one current aggregate Claim, then separately claims glowing chests with
 same-slot `Claimed` and canonical journal confirmation. Restart-stable reset/slot keys protect
 effects; UNKNOWN stops without identical retry, and already-claimed manual work is skipped.
-Complete zero-ready scans return to verified Home. The owner-authorized November 7 single-chest
-investigation supplied actual ready/Claimed pixels, not completed-route acceptance. Current native
-acceptance for all these new routes remains `evidence_required`.
+Complete zero-ready scans return to verified Home. The owner-authorized November 7 #54 observation
+was exactly one manual chest tap at zero spend; `glowing` to `Claimed` is its recognition basis.
+Keep the raw `UNKNOWN` record unchanged; this one-chest observation is not completed-route
+acceptance. Current native acceptance for all these new routes remains `evidence_required`.
 Existing individual effect/Home acceptance, uninterrupted Enhancement proof, independent recruit
 timers, and cadence scope are historical context in [`BACKLOG.md`](../BACKLOG.md), not active
 sequencing. The current planning authority is tracker #53, with volatile state in the handoff.

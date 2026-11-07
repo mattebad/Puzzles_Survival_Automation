@@ -101,6 +101,7 @@ class _RoutePanSession:
             status="completed" if state == "HOME_BASE" else "unknown", state=state,
         )
 
+
 class _PanCase:
     def __init__(self, directory: Path, atlas, localizer) -> None:
         self.runtime = _NativeFixtureRuntime(directory)
