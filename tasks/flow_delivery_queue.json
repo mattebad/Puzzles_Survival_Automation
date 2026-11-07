@@ -2290,28 +2290,50 @@
       "title": "Complete Ruins Challenge gameplay through the canonical Home Atlas",
       "kind": "gameplay_flow",
       "priority": 9,
-      "status": "completed",
+      "status": "evidence_required",
       "backlog_task_id": "DQ-FLOW-RUINS-CHALLENGE-BLUESTACKS",
       "dependencies": [],
       "implementation_entrypoints": [
+        "automation_service/ruins.py",
+        "automation_service/native_execution.py",
+        "automation_service/registry.py",
+        "automation_service/service.py",
+        "automation_service/cli.py",
+        "scripts/base_route_native_runtime.py",
+        "scripts/bluestacks_native_runtime.py",
+        "scripts/navigation_development_boundary.py",
         "scripts/ruins_challenge_bluestacks.py",
-        "scripts/flow_delivery_ruins_challenge_bluestacks.py",
         "scripts/pnsctl.py",
+        "tasks/ruins_challenge.py",
         "tasks/ruins_challenge_runtime.py",
+        "tasks/ruins_challenge_continuation.py",
         "tasks/ruins_challenge_vision.py",
         "scripts/home_atlas_bluestacks.py",
-        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/product_authority.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/flow_delivery_disabled_production_registry.json",
         "tasks/gameplay_flow_contracts/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION.json",
-        "docs/agent/CURRENT_HANDOFF.md"
+        "tasks/flow_delivery_queue.json",
+        "tests/test_service_ruins.py",
+        "tests/test_ruins_challenge.py",
+        "tests/test_ruins_challenge_replay.py",
+        "tests/test_bluestacks_integrated_routes.py",
+        "tests/test_product_authority.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_pnsctl_canonical_serve.py"
       ],
-      "navigation_model": "dedicated_route_to_canonical_home_atlas",
+      "navigation_model": "canonical_service_home_atlas_challenge_then_independent_green_ready_chests",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "Navigation-only Home to the recognized Ruins destination, one revalidated safe exit, and recognized canonical Home return; no Challenge, combat, chest, reward, Exchange, or purchase action is authorized.",
-      "consequence_policy": "Navigation-only route. Retained Challenge, NPC Dispatch, Continue, and chest evidence is historical and non-authorizing; Cash Mall, Exchange, rewards, and purchases remain unsupported.",
-      "product_policy_status": "navigation_only_validation",
-      "registration_status": "NOT_REGISTERED",
-      "scheduler_eligibility": false,
+      "live_validation_scope": "Canonical fixed code spec is REGISTERED; this queue's production_registration=NOT_REGISTERED refers only to the separate disabled legacy production posture, while scheduler_enabled=false keeps runtime disabled. No live attempt is authorized. One bounded current-day Home-to-Ruins visit attempts only the current zero-cost NPC challenge first, then independently observes and claims each visibly green-ready stage chest category. A challenge that is unavailable does not suppress ready chest claims, and participation need not win. Confirm every consequential result separately and return to canonical Home. No Daily aggregate Claim, milestone Claim, Shop, Exchange, purchase, or arbitrary input is in scope; no current native acceptance is recorded.",
+      "consequence_policy": "Keep challenge participation, each green-ready chest-category claim, Daily aggregate Claim, milestone Claim, and Shop actions separate. Unknown consequential effects block identical retry. Never require challenge success before independently eligible chests; no purchase, Exchange, Daily Claim, or milestone Claim.",
+      "product_policy_status": "supervised_consequential_validation",
+      "production_registration": "NOT_REGISTERED",
+      "scheduler_enabled": false,
       "maximum_live_attempts": 14,
+      "maximum_inputs": 48,
+      "maximum_live_inputs": 48,
       "live_attempt_count": 10,
       "live_attempts": [
         {
@@ -2437,10 +2459,17 @@
       ],
       "focused_tests": [
         "tests/test_ruins_challenge.py",
+        "tests/test_ruins_challenge_replay.py",
+        "tests/test_service_ruins.py",
         "tests/test_bluestacks_integrated_routes.py",
         "tests/test_home_atlas.py",
         "tests/test_home_atlas_verified_route.py",
-        "tests/test_development_session.py"
+        "tests/test_navigation_development_boundary.py",
+        "tests/test_product_authority.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_pnsctl_canonical_serve.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
@@ -2449,9 +2478,9 @@
         "result_reconciliation_latency_seconds",
         "home_recovery_latency_seconds"
       ],
-      "blocked_reason": "",
-      "next_concrete_action": "None for this completed atomic flow; Noah's Tavern is the first ready flow and remains unstarted.",
-      "last_completed_stage": "completed",
+      "blocked_reason": "No current native acceptance is recorded; the canonical service cutover still requires focused offline review and separate, explicitly authorized route-specific live evidence.",
+      "next_concrete_action": "Complete the focused offline contract review after shared integration; remain disabled and evidence_required until separately authorized current native challenge/chest proof is accepted.",
+      "last_completed_stage": "implementation",
       "last_commit": null,
       "completion_session": {
         "development_session": ".local-captures/development-sessions/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION-20260812T013704091274Z",
@@ -2632,58 +2661,76 @@
       },
       "artifact_root": ".local-captures/flow-delivery/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
       "acceptance_criteria": [
-        "replace direct building binding and repeated Back recovery with canonical Home Atlas navigation and safe exit",
-        "one current-day zero-cost challenge with explicit result/progress reconciliation and canonical Home return"
+        "attempt the current zero-cost NPC challenge first and accept any positively recognized participation result, including a loss",
+        "observe every chest category independently and claim only visibly green-ready categories, even when the challenge is unavailable",
+        "preserve per-reset/per-category confirmed claims and block unresolved effects without identical retries",
+        "return to canonical Home; keep Daily Claim, milestone Claim, Shop, Exchange, and purchase ownership separate"
       ],
       "scope_prohibitions": [
-        "chest validation remains a separate ordinary-gameplay pass from combat",
+        "no challenge-win prerequisite for independently green-ready chest claims",
+        "no ordinary Daily Claim or milestone Claim",
         "Exchange, Mall, Cash Mall, and purchase actions are prohibited",
         "no production registration change",
         "no gameplay scheduler mutation",
         "no composition activation",
         "no M6 activation",
         "Bliss remains unchanged",
-        "no arbitrary BlueStacks input outside authorized live validation"
+        "unknown consequential effects block identical retry",
+        "no arbitrary BlueStacks input outside separately authorized live validation"
       ],
       "reference_docs": [
         "docs/ruins-challenge.md",
-        "docs/agent/prompts/daily-quest/dq-flow-ruins-challenge-bluestacks.md"
+        "docs/adding-a-route.md",
+        "docs/automation-service.md",
+        "README.md"
       ],
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
-        "scripts/bluestacks_flow_collector.py",
+        "automation_service/ruins.py",
+        "automation_service/native_execution.py",
+        "scripts/base_route_native_runtime.py",
         "scripts/bluestacks_native_runtime.py",
         "scripts/navigation_development_boundary.py",
         "scripts/ruins_challenge_bluestacks.py",
-        "scripts/flow_delivery_ruins_challenge_bluestacks.py",
         "scripts/pnsctl.py",
+        "tasks/ruins_challenge.py",
         "tasks/ruins_challenge_runtime.py",
+        "tasks/ruins_challenge_continuation.py",
         "tasks/ruins_challenge_vision.py",
         "scripts/home_atlas_bluestacks.py",
-        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/flow_delivery_disabled_production_registry.json",
+        "tasks/flow_delivery_queue.json",
         "tasks/gameplay_flow_contracts/RUINS-CHALLENGE-HOME-ATLAS-MIGRATION.json",
+        "tests/test_service_ruins.py",
         "tests/test_ruins_challenge.py",
-        "tests/test_home_atlas_verified_route.py",
-        "tests/test_campaign_atlas_collector.py",
-        "tests/test_navigation_development_boundary.py",
-        "docs/agent/CURRENT_HANDOFF.md"
+        "tests/test_ruins_challenge_replay.py",
+        "tests/test_bluestacks_integrated_routes.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py"
       ],
       "live_validation_scenarios": [
         {
-          "id": "ruins-current-day-zero-cost-challenge-home-roundtrip",
+          "id": "ruins-current-day-challenge-and-independent-ready-chests-home-roundtrip",
           "mode": "gameplay"
         }
       ],
       "required_terminal_states": [
-        "challenge_progress_reconciled_home",
+        "challenge_and_ready_chests_reconciled_home",
+        "challenge_unavailable_with_ready_chests_reconciled_home",
         "blocked_fail_closed"
       ],
       "completion_tests": [
         "tests/test_ruins_challenge.py",
+        "tests/test_ruins_challenge_replay.py",
+        "tests/test_service_ruins.py",
         "tests/test_bluestacks_integrated_routes.py",
-        "tests/test_home_atlas.py",
         "tests/test_home_atlas_verified_route.py",
-        "tests/test_development_session.py"
+        "tests/test_product_authority.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_pnsctl_canonical_serve.py"
       ],
       "consequential_stage_policy": {
         "challenge_selection": "ordinary",
@@ -4511,6 +4558,114 @@
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/VIP-GET-PTS-POPUP-DISMISSAL"
+    },
+    {
+      "flow_id": "ALLIANCE-HELP-TEN-FREE-REQUESTS",
+      "title": "Preserve ten successful free Alliance Help requests per reset",
+      "kind": "gameplay_flow",
+      "priority": 10,
+      "status": "evidence_required",
+      "production_registration": "NOT_REGISTERED",
+      "scheduler_enabled": false,
+      "backlog_task_id": "ALLIANCE-HELP-TEN-FREE-REQUESTS",
+      "dependencies": [],
+      "implementation_entrypoints": [
+        "automation_service/alliance_help.py",
+        "automation_service/native_execution.py",
+        "automation_service/registry.py",
+        "automation_service/service.py",
+        "automation_service/cli.py",
+        "scripts/base_route_native_runtime.py",
+        "scripts/bluestacks_native_runtime.py",
+        "scripts/alliance_help_bluestacks.py",
+        "scripts/pnsctl.py",
+        "tasks/alliance_help.py",
+        "tasks/product_authority.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/flow_delivery_disabled_production_registry.json",
+        "tasks/gameplay_flow_contracts/ALLIANCE-HELP-TEN-FREE-REQUESTS.json",
+        "tasks/flow_delivery_queue.json",
+        "tests/test_service_alliance_help.py",
+        "tests/test_alliance_help_bluestacks.py",
+        "tests/test_bluestacks_integrated_routes.py",
+        "tests/test_product_authority.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_pnsctl_canonical_serve.py"
+      ],
+      "navigation_model": "canonical_service_alliance_help_requests_with_safe_home_return",
+      "requires_bluestacks_live": true,
+      "live_validation_scope": "Canonical fixed code spec is REGISTERED; this queue's production_registration=NOT_REGISTERED refers only to the separate disabled legacy production posture, while scheduler_enabled=false keeps runtime disabled. No live attempt is authorized. Within a separately authorized route-specific attempt, confirm only actual successful free Help requests toward a ten-request reset quota; preserve partial durable quota, use Help All only when the exact number of successful requests is known, and return to canonical Home.",
+      "consequence_policy": "One successful free Help request counts as one actual request, not one tap. Unknown consequential results block identical retry; no paid action, Daily attribution, or unrelated claim is in scope.",
+      "product_policy_status": "supervised_consequential_validation",
+      "maximum_live_attempts": 0,
+      "maximum_inputs": 20,
+      "maximum_live_inputs": 20,
+      "live_attempt_count": 0,
+      "live_attempts": [],
+      "focused_tests": [
+        "tests/test_service_alliance_help.py",
+        "tests/test_alliance_help_bluestacks.py",
+        "tests/test_bluestacks_integrated_routes.py",
+        "tests/test_product_authority.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_pnsctl_canonical_serve.py"
+      ],
+      "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
+      "performance_metrics_required": [
+        "runtime_input_count",
+        "help_transport_calls",
+        "confirmed_help_request_count",
+        "home_recovery_latency_seconds"
+      ],
+      "blocked_reason": "The canonical route has no current native live acceptance; shared offline contract review and separately authorized route-specific evidence remain required.",
+      "next_concrete_action": "Complete focused offline integration review; keep runtime disabled and evidence_required until separately authorized current native validation is accepted.",
+      "last_completed_stage": "implementation",
+      "last_commit": null,
+      "artifact_root": ".local-captures/flow-delivery/ALLIANCE-HELP-TEN-FREE-REQUESTS",
+      "acceptance_criteria": [
+        "record ten actual successful free Help requests per reset, not ten taps",
+        "only treat Help All as meaningful when its exact successful request count is known",
+        "preserve partial durable quota across runs and block unresolved effects without identical retry",
+        "return to canonical Home without paid action or Daily attribution"
+      ],
+      "scope_prohibitions": [
+        "no paid Help or currency spend",
+        "no Help All when the exact request count is unknown",
+        "no identical retry after an unknown consequential effect",
+        "no Daily Claim, milestone Claim, or points attribution",
+        "no production registration or scheduler eligibility",
+        "no arbitrary BlueStacks input outside separately authorized live validation"
+      ],
+      "reference_docs": [
+        "docs/adding-a-route.md",
+        "docs/automation-service.md",
+        "README.md"
+      ],
+      "live_validation_scenarios": [
+        {
+          "id": "alliance-help-ten-successful-free-requests-home-roundtrip",
+          "mode": "supervised_consequential_validation"
+        }
+      ],
+      "required_terminal_states": [
+        "complete_for_reset",
+        "partial_quota_preserved",
+        "blocked_fail_closed",
+        "unresolved_no_retry"
+      ],
+      "completion_tests": [
+        "tests/test_service_alliance_help.py",
+        "tests/test_alliance_help_bluestacks.py",
+        "tests/test_bluestacks_integrated_routes.py",
+        "tests/test_product_authority.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py"
+      ]
     }
   ]
 }

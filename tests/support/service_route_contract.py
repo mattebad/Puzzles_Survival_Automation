@@ -9,22 +9,23 @@ from typing import Any, Callable
 from unittest.mock import patch
 
 from automation_service.registry import (
-    BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, DAILY_REWARDS_FLOW_ID,
-    ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID,
-    RECRUITMENT_FLOW_ID, RESOURCE_ITEM_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
-    WORLD_FLOW_ID, canonical_entry,
+    ALLIANCE_HELP_FLOW_ID, BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID,
+    DAILY_REWARDS_FLOW_ID, ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID,
+    PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
+    RUINS_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, WORLD_FLOW_ID,
+    canonical_entry,
 )
 from automation_service.service import AutomationService
 from automation_service.state import BotStateManager
+from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
 from scripts import navigation_development_boundary as boundary
 from tests.support.service_route_fakes import (
-    GuardedBioenhancerRunner, GuardedCampaignRunner, GuardedDailyRewardsRunner,
-    GuardedEnhancementRunner, GuardedNovaRunner, GuardedPersonalMightRunner,
-    GuardedRecruitmentRunner, GuardedResourceItemRunner, GuardedSupplyRunner,
-    GuardedUltimateRunner,
+    GuardedAllianceHelpRunner, GuardedBioenhancerRunner, GuardedCampaignRunner,
+    GuardedDailyRewardsRunner, GuardedEnhancementRunner, GuardedNovaRunner,
+    GuardedPersonalMightRunner, GuardedRecruitmentRunner, GuardedResourceItemRunner,
+    GuardedRuinsRunner, GuardedSupplyRunner, GuardedUltimateRunner,
 )
 from tests.support.service_stop import VirtualStop
-from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,14 @@ def _bioenhancer_partial(runner):
     runner.consume = True
     runner.fault = "partial"
 
+
+
+def _ruins_partial(runner):
+    runner.partial = True
+
+
+def _alliance_help_partial(runner):
+    runner.partial = True
 
 def _work_by_default(runner):
     """The fake's initial state already exercises a resource-affecting run."""
@@ -105,6 +114,14 @@ ROUTES = {
         RESOURCE_ITEM_FLOW_ID, lambda stop, root: GuardedResourceItemRunner(stop),
         _work_by_default, lambda runner: setattr(runner, "partial", True),
         (3, 1), (1, 0), 4,
+    ),
+    RUINS_FLOW_ID: RouteSpec(
+        RUINS_FLOW_ID, GuardedRuinsRunner, _work_by_default, _ruins_partial,
+        (4, 1), (1, 0), 8,
+    ),
+    ALLIANCE_HELP_FLOW_ID: RouteSpec(
+        ALLIANCE_HELP_FLOW_ID, GuardedAllianceHelpRunner,
+        _work_by_default, _alliance_help_partial, (5, 3), (1, 0), 20,
     ),
 }
 
@@ -162,7 +179,9 @@ class RouteRig:
             ))
         self.stop = VirtualStop(1_800_000_000.0)
         self.account_id, self.server_id = "account", "server"
-        if spec.flow_id in {DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
+        if spec.flow_id in {
+            DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID,
+        }:
             from datetime import datetime, timezone
             backend = derive_resource_runtime_identity(
                 resource_fixed_runtime_binding(),

@@ -17,6 +17,8 @@ ROUTE_BOUNDARIES = {
     "personal-might": "tests.test_service_personal_might.ServicePersonalMightTests.test_real_boundary_one_praise_then_current_day_gray_repeat_no_praise",
     "resource-item": "tests.test_resource_item_authorization.ResourceItemAuthorizationTests.test_unknown_transport_is_reserved_and_observe_only_reconcile_is_idempotent",
     "daily-rewards": "tests.test_service_daily_rewards.DailyRewardsServiceTests.test_canonical_runner_executes_combined_native_route_with_exact_effect_accounting",
+    "ruins": "tests.test_service_ruins.RuinsServiceTests.test_unknown_effect_reobserves_and_is_never_reported_as_done",
+    "alliance-help": "tests.test_alliance_help_bluestacks.AllianceHelpSemanticsTests.test_production_route_fake_replay_confirms_ten_then_closes_home",
 }
 
 # Native Home/Back admission uses different OCR backend builds on the two CI
@@ -238,6 +240,7 @@ FAMILIES = {
     "daily_row_claim": ("daily_row_claim", "daily_rewards", "available_daily_claim"),
     "ultimate": ("ultimate",),
     "ruins": ("ruins",),
+    "alliance_help": ("alliance_help",),
     "troop": ("troop", "training"),
     "world": ("world", "stamina", "zombie_lair"),
     "gathering": ("gathering",),

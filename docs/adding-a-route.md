@@ -14,7 +14,7 @@ focused tests as its behavior changes.
 | Family, variant, cadence, reset scope, priority, recurrence | `CANONICAL_FLOW_REGISTRY` entry | every handler and adapter `describe()` returns `canonical_entry(flow_id).descriptor`; the test compares them |
 | `serve --flow` name | `cli_name` on the registry entry | `serve --flow` choices, `AutomationService.serve` allowed set, runner lookup (`<cli_name>_runner`), reason-code prefix; README table and example are checked |
 | Product id, product revision, handler id, profile, mode | `_FIXED_BINDINGS` in `registry.py` | descriptor, adapter `PRODUCT_ID`/`PRODUCT_REVISION`, scheduler admission facts |
-| Total input budget of one run | `max_inputs` on the registry entry, spelled once as `<ROUTE>_MAX_INPUTS` | adapter and native budget copies import it; `pnsctl._DEFAULT_MAX_INPUTS` covers only retained operator routes. Development-only routes keep their budget in their `flow_delivery_*` module. |
+| Total input budget of one run | `max_inputs` on the registry entry, spelled once as `<ROUTE>_MAX_INPUTS` | adapter and native budget copies import it; `pnsctl._DEFAULT_MAX_INPUTS` covers only retained operator routes. Development-only Troop Training and Campaign Atlas budgets remain in their `flow_delivery_*` modules. |
 | Operator runner / validator / recovery ids, when present | `tasks/flow_delivery_bluestacks_registry.json` | `pnsctl.BLUESTACKS_FLOW_IDS` equals this registry's flow set. Canonical-service-only routes have an explicit checked `NO_OPERATOR_RUNNER` reason instead. |
 | Gameplay semantics (states, transitions, permitted inputs, evidence gates) | `tasks/gameplay_flow_contracts/<FLOW_ID>.json` | schema-validated; the optional `product_authority_binding` is validated against the product policy |
 | Product record (purpose, recurrence, forbidden actions) | `tasks/flow_delivery_product_policy.json` `product_records` | contract bindings check `record_revision` and digest |
@@ -33,8 +33,9 @@ asserts the *relation* between them:
   development-session runner. A route may be a service route without one (Nova since #35).
 * **Disabled-production registry**: legacy posture that every flow is `NOT_REGISTERED`/`disabled`. The
   canonical scheduler does not read it; it must still list every routed flow.
-* **Queue**: planning and history. It never authorizes a route, so it must never claim
-  `REGISTERED`; its `live_attempts` and receipts are history and are never rewritten or checked for paths.
+* **Queue**: planning and history. It never authorizes a route or claims canonical `REGISTERED`; its
+  existing `production_registration`/`scheduler_enabled` fields describe disabled legacy production posture only.
+  Its `live_attempts` and receipts are history and are never rewritten or checked for paths.
 * **Contracts and product policy**: product semantics and approvals. A contract may exist for a flow that
   is not routed (blocked or contract-only flows).
 * **`safe_action_core.policy`**: `CAMPAIGN_AP_FLOW_ID` and `CAMPAIGN_AP_PRODUCT_REVISION` are a second
@@ -76,7 +77,8 @@ Product *revision* has two vocabularies that are intentionally not compared: the
    `_register_checked_in_bluestacks_handlers()` and `_DEFAULT_MAX_INPUTS`.
 7. **JSON authorities**: disabled-production entry (`disabled`, all `null`); a
    contract in `tasks/gameplay_flow_contracts/`; a product-policy record + contract binding if
-   approved; a queue record with `registration_state: NOT_REGISTERED` and existing paths.
+   approved; a queue record with existing paths and the A-schema `production_registration:
+   NOT_REGISTERED` (legacy disabled-production posture) and `scheduler_enabled: false` fields.
    Add an operator registry entry only for a retained development runner. Service-only routes
    require the explicit metadata-test exception, not a no-op operator triple.
 8. **Docs**: one README route-table row, the `--flow` in the README example, the counts in
@@ -122,14 +124,22 @@ Existing layout exceptions:
 * **Ultimate, Campaign AP, Enhancement**: adapters import their native runner (`bluestacks_ultimate_challenge`,
   `bluestacks_campaign_ap`, `flow_delivery_enhancement_bluestacks`) rather than a `<route>_route` module.
 * **World navigation**: registered selection stub only (no adapter, no `cli_name`).
-* **Development-only flows** (Troop Training, Ruins, Campaign Atlas):
-  operator wrapper and contract, no service adapter and no registry entry; their budgets live in their
-  `flow_delivery_*` module.
+* **Development-only flows** (Troop Training and Campaign Atlas):
+  retained operator wrappers and contracts, no service adapter or code-registry entry; their budgets
+  live in their `flow_delivery_*` modules.
 * **Batch A Daily Rewards and Resource Item**: canonical service routes with fixed native bindings;
   their former development wrappers/operator rows are retired and must not be reintroduced as a
-  second dispatch path. Both remain runtime-disabled and `evidence_required` until current native
-  acceptance; Daily has a genuine ready-glow example but still lacks a same-chest claimed/opened
-  successor needed to admit chest execution.
+  second dispatch path. Both remain runtime-disabled and `evidence_required`. The supplied Nov 6
+  DailyQuest image shows one 30-point glowing chest, four closed chests, 30 points, and no aggregate
+  Claim. Policy handles each of five chest categories independently when glowing, with no 150-point
+  minimum; native readiness is recognized, but chest input is blocked by missing same-chest successor evidence.
+* **Batch B Ruins and Alliance Help**: canonical-service-only routes with registered fixed specs and
+  injected native bindings; no legacy operator runner or operator-registry row. Queue `NOT_REGISTERED`
+  refers only to disabled legacy production posture; SQLite service/flow controls remain off. Both
+  are `evidence_required`, with no current native live acceptance claimed. Ruins attempts the current
+  zero-cost challenge first, then independent green-ready overview chests even if it is unavailable;
+  Help counts actual successful free requests, preserves partial quota, and uses Help All only when
+  the exact request count is known.
 * **Campaign budgets**: the service route budget (`CAMPAIGN_MAX_INPUTS`, a whole AP drain) is a different
   fact from the single-battle development-session ceiling in `pnsctl`; the test lists the difference.
 
@@ -162,12 +172,13 @@ screen-level ambiguity that can collapse provenance, worker and deadline failure
 
 The owners above were established by migrating the existing routes onto them (descriptors, input
 budgets, `--flow` names, pnsctl flow ids, the missing Personal Might queue record, 74 dead queue paths),
-and `tests/test_route_metadata_consistency.py` was broken one copy at a time to prove each fact class fails
-with a readable message (see the #34 ticket). The checklist has not yet been exercised by building a
-brand-new route; the next route is its real test.
+and `tests/test_route_metadata_consistency.py` was previously broken one copy at a time to prove each
+fact class fails with a readable message (see the #34 ticket).
 
-The shared service contract is implemented and offline-proven with transport patched out. It exercises
-default controls, restart gating, ownership, partial accounting, generation changes, interruption
-signals, execution reset guards and cross-route selection. It is not live acceptance and grants no
-runtime authority. Recruitment's existing API default when `flow_ids` is omitted remains an explicit
+The shared service contract covers default controls, restart gating, ownership, partial accounting,
+generation changes, interruption signals, execution reset guards and cross-route selection. Batch B
+adds cases for the real service manager that preserve persisted opaque occurrence keys and partial
+actual counts while exercising borrowed-owner/generation fences and unknown-effect no-retry behavior.
+This coverage description does not state that the focused checks ran or that live acceptance occurred.
+Recruitment's existing API default when `flow_ids` is omitted remains an explicit
 production-gap exception; the contract still checks explicit `serve --flow` parsing for every route.

@@ -28,6 +28,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 from automation_service.registry import (  # noqa: E402
+    ALLIANCE_HELP_FLOW_ID,
     BIOENHANCER_FLOW_ID,
     CAMPAIGN_FLOW_ID,
     DAILY_REWARDS_FLOW_ID,
@@ -36,6 +37,7 @@ from automation_service.registry import (  # noqa: E402
     PERSONAL_MIGHT_FLOW_ID,
     RECRUITMENT_FLOW_ID,
     RESOURCE_ITEM_FLOW_ID,
+    RUINS_FLOW_ID,
     SUPPLY_FLOW_ID,
     ULTIMATE_FLOW_ID,
     WORLD_FLOW_ID,
@@ -46,7 +48,6 @@ from scripts import (  # noqa: E402
     flow_delivery_campaign_bluestacks,
     flow_delivery_personal_might_bluestacks,
     flow_delivery_recruitment_bluestacks,
-    flow_delivery_ruins_challenge_bluestacks,
     flow_delivery_supply_depot_bluestacks,
     flow_delivery_troop_training_bluestacks,
     flow_delivery_ultimate_challenge_bluestacks,
@@ -85,7 +86,6 @@ DEVELOPMENT_CHECKPOINT_PATHS = (
 # route's flow_delivery module (development-only routes); pnsctl only aliases them.
 RECRUITMENT_MAINTENANCE_FLOW_ID = RECRUITMENT_FLOW_ID
 CAMPAIGN_AP_FLOW_ID = CAMPAIGN_FLOW_ID
-RUINS_FLOW_ID = flow_delivery_ruins_challenge_bluestacks.FLOW_ID
 TROOP_TRAINING_FLOW_ID = flow_delivery_troop_training_bluestacks.FLOW_ID
 CAMPAIGN_PROVING_FLOW_ID = flow_delivery_campaign_bluestacks.PROVING_FLOW_ID
 # The Campaign development session budget is its own fact: it is not the service route cap.
@@ -138,12 +138,6 @@ def _register_checked_in_bluestacks_handlers() -> None:
         from flow_delivery_ultimate_challenge_bluestacks import (
             register as register_ultimate_challenge,
         )
-    try:
-        from scripts.flow_delivery_ruins_challenge_bluestacks import (
-            register as register_ruins,
-        )
-    except ImportError:
-        from flow_delivery_ruins_challenge_bluestacks import register as register_ruins
     try:
         from scripts.flow_delivery_troop_training_bluestacks import (
             register as register_troop_training,
@@ -216,11 +210,6 @@ def _register_checked_in_bluestacks_handlers() -> None:
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,
     )
-    register_ruins(
-        _BLUESTACKS_FLOW_RUNNERS,
-        _BLUESTACKS_EVIDENCE_VALIDATORS,
-        _BLUESTACKS_RECOVERY_HANDLERS,
-    )
     register_troop_training(
         _BLUESTACKS_FLOW_RUNNERS,
         _BLUESTACKS_EVIDENCE_VALIDATORS,
@@ -262,13 +251,19 @@ _register_checked_in_bluestacks_handlers()
 
 
 def _native_service_route_bindings() -> Mapping[str, NativeRouteBoundary]:
-    """Build fixed, device-free native bindings for the integrated Batch A routes."""
+    """Build device-free native bindings for fixed canonical service routes."""
     from scripts.base_route_native_runtime import make_native_route_binding
     from scripts.daily_resource_item_bluestacks import (
         create_service_binding as create_resource_item_binding,
     )
     from scripts.daily_row_claim_bluestacks import (
         create_service_binding as create_daily_rewards_binding,
+    )
+    from scripts.ruins_challenge_bluestacks import (
+        create_service_binding as create_ruins_binding,
+    )
+    from scripts.alliance_help_bluestacks import (
+        create_service_binding as create_alliance_help_binding,
     )
 
     return {
@@ -278,6 +273,8 @@ def _native_service_route_bindings() -> Mapping[str, NativeRouteBoundary]:
         RESOURCE_ITEM_FLOW_ID: create_resource_item_binding(
             make_native_route_binding
         ),
+        RUINS_FLOW_ID: create_ruins_binding(make_native_route_binding),
+        ALLIANCE_HELP_FLOW_ID: create_alliance_help_binding(make_native_route_binding),
     }
 
 
@@ -1842,8 +1839,6 @@ def development_session_run_flow(
     recovery_only: bool = False,
     search_entry_only: bool = False,
     recovery_session: Path | None = None,
-    chests_only: bool = False,
-    chest_continuation: Path | str | None = None,
     enhancement_variant: str = "gear",
     delegated_receipt: Path | None = None,
     agent_identity: str | None = None,
@@ -1903,15 +1898,9 @@ def development_session_run_flow(
         )
         delegated_scope = delegated_runtime_context(delegated_context)
 
-    ruins_reset_identity: str | None = None
-    ruins_current_day: str | None = None
-    ruins_package_id: str | None = None
-    ruins_runtime_profile_id: str | None = None
     troop_training_reset_identity: str | None = None
     enhancement_reset_identity: str | None = None
 
-    if chest_continuation is not None:
-        chest_continuation = Path(chest_continuation)
 
     if flow_id not in BLUESTACKS_FLOW_IDS:
         raise OperatorError("flow ID is not in the checked-in runtime allowlist")
@@ -1936,11 +1925,6 @@ def development_session_run_flow(
         ):
             raise OperatorError("Ultimate recovery requires --recovery-session")
         if (
-            flow_id == RUINS_FLOW_ID
-            and recovery_session is None
-        ):
-            raise OperatorError("Ruins recovery requires --recovery-session")
-        if (
             flow_id == PERSONAL_MIGHT_FLOW_ID
             and recovery_session is None
         ):
@@ -1948,7 +1932,6 @@ def development_session_run_flow(
         if flow_id not in {
             CAMPAIGN_AP_FLOW_ID,
             ULTIMATE_FLOW_ID,
-            RUINS_FLOW_ID,
             TROOP_TRAINING_FLOW_ID,
             ENHANCEMENT_FLOW_ID,
             WORLD_FLOW_ID,
@@ -1957,42 +1940,7 @@ def development_session_run_flow(
             raise OperatorError(
                 "recovery-only is unsupported for this development flow"
             )
-    if chests_only and flow_id != RUINS_FLOW_ID:
-        raise OperatorError(
-            "chests-only is supported only for the Ruins Challenge flow"
-        )
-    if chests_only and recovery_only:
-        raise OperatorError(
-            "Ruins chests-only and recovery-only modes are mutually exclusive"
-        )
-    if (
-        chest_continuation is not None
-        and flow_id != RUINS_FLOW_ID
-    ):
-        raise OperatorError(
-            "--chest-continuation is supported only for the Ruins Challenge flow"
-        )
-    if chest_continuation is not None and not chests_only:
-        raise OperatorError("--chest-continuation requires --chests-only")
-    if chest_continuation is not None and not chest_continuation.is_file():
-        raise OperatorError("Ruins chest continuation file is unavailable")
-    if flow_id == RUINS_FLOW_ID:
-        # Bind the child route's reset/day identity once, before singleton
-        # ownership or runtime observation, so a midnight boundary cannot make
-        # a previously validated continuation mismatch during execution.
-        from tasks.ruins_challenge_continuation import (
-            PACKAGE_ID as CONTINUATION_PACKAGE_ID,
-            RUNTIME_PROFILE_ID as CONTINUATION_RUNTIME_PROFILE_ID,
-        )
-
-        identity_now = datetime.now(timezone.utc)
-        ruins_reset_identity = (
-            f"local-{identity_now.date().isoformat()}-ruins-home-atlas"
-        )
-        ruins_current_day = identity_now.astimezone().strftime("%a")
-        ruins_package_id = CONTINUATION_PACKAGE_ID
-        ruins_runtime_profile_id = CONTINUATION_RUNTIME_PROFILE_ID
-    elif flow_id == TROOP_TRAINING_FLOW_ID:
+    if flow_id == TROOP_TRAINING_FLOW_ID:
         # Reset-scoped training state is bound once for this development session.
         # The child route receives this exact value; it must not derive a second
         # identity after runtime ownership or observation begins.
@@ -2010,26 +1958,6 @@ def development_session_run_flow(
         enhancement_reset_identity = (
             f"local-{identity_now.date().isoformat()}-enhancement-family"
         )
-    if chest_continuation is not None:
-        from tasks.ruins_challenge_continuation import (
-            FLOW_ID as CONTINUATION_FLOW_ID,
-            RuinsContinuationError,
-            load_continuation,
-        )
-
-        try:
-            load_continuation(
-                chest_continuation,
-                expected_flow_id=CONTINUATION_FLOW_ID,
-                expected_reset_identity=ruins_reset_identity,
-                expected_current_day=ruins_current_day,
-                expected_runtime_profile_id=CONTINUATION_RUNTIME_PROFILE_ID,
-                expected_package_id=CONTINUATION_PACKAGE_ID,
-            )
-        except RuinsContinuationError as exc:
-            raise OperatorError(
-                f"Ruins chest continuation rejected: {exc.reason}"
-            ) from exc
     registration_snapshot = None
     if (
         flow_id in {
@@ -2235,14 +2163,6 @@ def development_session_run_flow(
                 "recovery_session": str(recovery_session)
                 if recovery_session is not None
                 else None,
-                "chests_only": chests_only,
-                "chest_continuation": str(chest_continuation)
-                if chest_continuation is not None
-                else None,
-                "ruins_reset_identity": ruins_reset_identity,
-                "ruins_current_day": ruins_current_day,
-                "ruins_package_id": ruins_package_id,
-                "ruins_runtime_profile_id": ruins_runtime_profile_id,
                 "troop_training_reset_identity": troop_training_reset_identity,
                 "troop_training_recovery_only": (
                     recovery_only
@@ -2441,9 +2361,6 @@ def development_session_run_flow(
                 "total_input_count": dispatch_count,
                 "startup_recovery_result": startup_recovery_result,
                 "max_inputs": max_inputs,
-                "chest_continuation": str(chest_continuation)
-                if chest_continuation is not None
-                else None,
                 "runtime_observation": observation,
                 "initial_observation": initial_observation.to_mapping(),
                 "initial_frame_sha256": initial_observation.frame_sha256,
@@ -3043,8 +2960,6 @@ def parser() -> argparse.ArgumentParser:
     development_mode.add_argument("--recovery-only", action="store_true")
     development_mode.add_argument("--search-entry-only", action="store_true")
     development_run.add_argument("--recovery-session", type=Path, default=None)
-    development_run.add_argument("--chests-only", action="store_true")
-    development_run.add_argument("--chest-continuation", type=Path, default=None)
     development_run.add_argument(
         "--enhancement-variant",
         choices=("gear", "chip", "module"),
@@ -3214,8 +3129,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                     recovery_only=bool(args.recovery_only),
                     search_entry_only=bool(args.search_entry_only),
                     recovery_session=args.recovery_session,
-                    chests_only=bool(args.chests_only),
-                    chest_continuation=args.chest_continuation,
                     enhancement_variant=args.enhancement_variant,
                     delegated_receipt=args.delegated_receipt,
                     agent_identity=args.agent_identity,

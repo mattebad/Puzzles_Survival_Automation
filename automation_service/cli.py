@@ -22,7 +22,14 @@ from .adapters import AdapterError, FakeDeviceAdapter, ReplayDeviceAdapter
 from .contracts import SchedulerFacts, ServiceMode
 from .native_execution import NativeRouteBoundary
 from .operations import OperationsService, structured_summary
-from .registry import DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID, canonical_flow_specs, servable_flow_names
+from .registry import (
+    ALLIANCE_HELP_FLOW_ID,
+    DAILY_REWARDS_FLOW_ID,
+    RESOURCE_ITEM_FLOW_ID,
+    RUINS_FLOW_ID,
+    canonical_flow_specs,
+    servable_flow_names,
+)
 from .service import AutomationService, ServiceError
 from .state import BotStateManager, StateBusyError, resolve_state_path
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
@@ -468,6 +475,8 @@ def main(
                 personal_might_runner = None
                 daily_rewards_runner = None
                 resource_item_runner = None
+                ruins_runner = None
+                alliance_help_runner = None
                 selected = args.flow
                 if native_serve:
                     from .recruitment import RecruitmentRunner
@@ -480,6 +489,8 @@ def main(
                     from .personal_might import PersonalMightRunner
                     from .daily_rewards import DailyRewardsRunner
                     from .resource_item import ResourceItemRunner
+                    from .ruins import RuinsRunner
+                    from .alliance_help import AllianceHelpRunner
 
                     if "recruitment" in selected:
                         runner = RecruitmentRunner(
@@ -539,6 +550,22 @@ def main(
                             output_directory=args.output_directory or state_path.parent / "resource-item-sessions",
                             native=native_route_bindings[RESOURCE_ITEM_FLOW_ID],
                         )
+                    if "ruins" in selected:
+                        if native_route_bindings is None or RUINS_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("ruins native binding is supplied by scripts/pnsctl.py automation-service")
+                        ruins_runner = RuinsRunner(
+                            native=native_route_bindings[RUINS_FLOW_ID],
+                            output_directory=args.output_directory or state_path.parent / "ruins-sessions",
+                        )
+                    if "alliance-help" in selected:
+                        if native_route_bindings is None or ALLIANCE_HELP_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("alliance-help native binding is supplied by scripts/pnsctl.py automation-service")
+                        alliance_help_runner = AllianceHelpRunner(
+                            adb=args.adb,
+                            serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "alliance-help-sessions",
+                            native=native_route_bindings[ALLIANCE_HELP_FLOW_ID],
+                        )
                 service_startup = None
                 if native_serve:
                     if application_startup is None:
@@ -563,6 +590,8 @@ def main(
                     daily_rewards_runner=daily_rewards_runner,
                     resource_item_runner=resource_item_runner,
                     application_startup=service_startup,
+                    ruins_runner=ruins_runner,
+                    alliance_help_runner=alliance_help_runner,
                 )
                 if native_serve:
                     flow_names = servable_flow_names()

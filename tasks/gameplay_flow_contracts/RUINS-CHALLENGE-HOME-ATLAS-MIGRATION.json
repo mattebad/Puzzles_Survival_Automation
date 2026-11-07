@@ -1,11 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "flow_id": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
-  "product_purpose": "Navigation-only Home Atlas recognition of Ruins followed by a safe exit to canonical Home.",
-  "trigger_cadence_type": "eligibility_pulse",
+  "product_purpose": "From canonical Home, use a bounded 48-input and 13-action Ruins visit: attempt the current allowlisted zero-cost NPC challenge first, then claim each independently green-ready Stage Overview chest category. A recognized loss may count as participation; challenge unavailability does not suppress ready chest collection.",
+  "trigger_cadence_type": "cooldown_pulse",
   "reset_scope": "daily_reset",
   "required_starting_context": [
-    "home_localized"
+    "home_canonical"
   ],
   "shared_primitive_dependencies": [
     {
@@ -15,70 +15,342 @@
     }
   ],
   "recognized_states": [
-    "home_localized",
-    "ruins_challenge_recognized",
-    "home_returned"
+    "home_canonical",
+    "ruins_challenge_surface",
+    "challenge_available",
+    "challenge_unavailable",
+    "challenge_result_reconciled",
+    "stage_overview",
+    "green_ready_category",
+    "category_claimed",
+    "effect_reconciliation_required",
+    "home_returned",
+    "blocked",
+    "manual_required"
   ],
-  "state_transitions": [
+  "transition_contracts": [
     {
-      "from": "home_localized",
-      "to": "ruins_challenge_recognized",
-      "via": "current_frame_home_atlas_ruins_binding",
-      "notes": "Navigation only; the Challenge surface is recognized but never entered."
+      "transition_id": "open-ruins-challenge",
+      "from": "home_canonical",
+      "to": "ruins_challenge_surface",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": "open_ruins_from_current_home_atlas_binding",
+      "postconditions": [
+        "fresh canonical Home source and current-frame Ruins binding",
+        "positively recognized Ruins Challenge surface successor"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     },
     {
-      "from": "ruins_challenge_recognized",
+      "transition_id": "bind-current-allowlisted-challenge",
+      "from": "ruins_challenge_surface",
+      "to": "challenge_available",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "current day and exact allowlisted NPC identity are positively bound",
+        "zero cost and Attack or Dispatch control are positively recognized"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "record-current-challenge-unavailable",
+      "from": "ruins_challenge_surface",
+      "to": "challenge_unavailable",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "challenge is positively recognized unavailable for the current day",
+        "no challenge result is fabricated or inferred"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "dispatch-allowlisted-zero-cost-challenge",
+      "from": "challenge_available",
+      "to": "challenge_result_reconciled",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": "one_current_allowlisted_zero_cost_attack_or_dispatch",
+      "postconditions": [
+        "one current-day exact NPC Attack or Dispatch only",
+        "positive same-challenge result is recognized; a recognized loss may count as participation",
+        "dispatch alone is not success proof"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "ruins-current-native-acceptance"
+    },
+    {
+      "transition_id": "preserve-unknown-challenge-effect",
+      "from": "challenge_available",
+      "to": "effect_reconciliation_required",
+      "planner": "fail_closed_without_input",
+      "permitted_input": null,
+      "postconditions": [
+        "unknown challenge effect remains unresolved across restart",
+        "identical challenge retry is denied"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "ruins-current-native-acceptance"
+    },
+    {
+      "transition_id": "open-overview-after-challenge-result",
+      "from": "challenge_result_reconciled",
+      "to": "stage_overview",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": "open_stage_overview_after_challenge_or_unavailability",
+      "postconditions": [
+        "current Stage Overview is positively recognized after the challenge result"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "open-overview-after-unavailable-challenge",
+      "from": "challenge_unavailable",
+      "to": "stage_overview",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": "open_stage_overview_after_challenge_or_unavailability",
+      "postconditions": [
+        "current Stage Overview is positively recognized without inventing a challenge result",
+        "independently green-ready chest categories remain eligible"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "bind-one-green-ready-category",
+      "from": "stage_overview",
+      "to": "green_ready_category",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "exact chest category is separately observed green and ready on the current overview",
+        "non-green or unknown categories are not claimed"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "claim-one-green-ready-category",
+      "from": "green_ready_category",
+      "to": "category_claimed",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": "claim_one_current_green_ready_stage_category",
+      "postconditions": [
+        "one exact positively green-ready category claim",
+        "positive same-category claim successor is verified and persisted"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "ruins-current-native-acceptance"
+    },
+    {
+      "transition_id": "preserve-unknown-chest-effect",
+      "from": "green_ready_category",
+      "to": "effect_reconciliation_required",
+      "planner": "fail_closed_without_input",
+      "permitted_input": null,
+      "postconditions": [
+        "unknown effect is persisted for this category and reset",
+        "this category's identical claim retry is denied across restart"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "ruins-current-native-acceptance"
+    },
+    {
+      "transition_id": "inspect-next-overview-category",
+      "from": "category_claimed",
+      "to": "stage_overview",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "each remaining category is inspected independently",
+        "confirmed categories and unresolved categories remain distinct"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "return-home-after-overview",
+      "from": "stage_overview",
       "to": "home_returned",
-      "via": "revalidated_safe_exit",
-      "notes": "One safe navigation exit must produce a recognized Home successor."
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "no independently green-ready unprocessed category remains",
+        "canonical Home is positively recognized"
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "deferred",
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "return-home-after-unknown-effect",
+      "from": "effect_reconciliation_required",
+      "to": "home_returned",
+      "planner": "scripts/ruins_challenge_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "canonical Home is positively recognized without repeating the unresolved challenge or category action"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
     }
   ],
   "permitted_inputs": [
-    "navigation_only_home_atlas_ruins_tap",
-    "navigation_only_safe_exit"
+    "open_ruins_from_current_home_atlas_binding",
+    "one_current_allowlisted_zero_cost_attack_or_dispatch",
+    "open_stage_overview_after_challenge_or_unavailability",
+    "claim_one_current_green_ready_stage_category",
+    "safe_return_to_canonical_home"
   ],
-  "local_postconditions": [
-    "recognized_ruins_challenge",
-    "recognized_home_returned",
-    "resource_delta_zero"
-  ],
-  "consequential_action_class": "none_declared",
+  "consequential_action_class": "zero_cost_npc_challenge_and_green_ready_stage_chest_claims",
   "cost_quantity_requirements": {
     "free_only": true,
-    "maximum_cost": null,
+    "maximum_cost": 0,
     "quantity": null,
     "resource_or_currency": null,
-    "notes": "Challenge, combat, chest, reward, Exchange, and purchase surfaces remain historical non-authorizing evidence."
+    "notes": "Challenge cost is zero; each separately observed green-ready chest category is claimed once. There is no route-wide quantity-one limit."
   },
-  "completion_identity": "ruins-challenge-home-atlas-migration:navigation-only-complete",
+  "completion_identity": "ruins-challenge-and-ready-stage-chests:current-reset-per-category-successors",
   "terminal_outcomes": [
+    "action_performed",
+    "deferred",
     "complete_for_reset",
-    "blocked"
+    "already_complete",
+    "blocked",
+    "manual_required"
   ],
-  "cooldown_deferred_behavior": "not_applicable_navigation_only",
-  "bounded_recovery_behavior": "one_revalidated_safe_exit_then_block",
+  "cooldown_deferred_behavior": "Cooldown pulses are scoped to the daily reset. Durable challenge and per-category action state, including confirmed partial chest progress, survives restart. If the challenge is unavailable, continue to the Stage Overview without fabricating a result; an unknown consequential effect remains unresolved and is not retried identically.",
+  "bounded_recovery_behavior": "Persist unknown challenge and chest effects independently across restart and deny the identical action retry. Continue only independently authorized green-ready categories when no unresolved consequential effect blocks them; return to canonical Home only after positive Home recognition.",
+  "product_policy_refs": [
+    {
+      "policy_id": "unknown-consequence",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "premium-spending",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "purchases-donations-upgrades-pvp-speedups",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
   "evidence_requirements": [
-    "fresh native 800x1280 Home source and current-frame home.building.ruins binding",
-    "fresh recognized Ruins Challenge screen",
-    "immediate-before and immediate-post evidence for the one safe exit",
-    "recognized canonical Home successor with zero resource delta"
+    "Current native BlueStacks evidence must bind the current day, exact allowlisted NPC, zero cost, Attack or Dispatch control, immediate-before and result successors, then the Stage Overview.",
+    "Each chest category requires its own green-ready observation, claim dispatch and same-category positive successor; unresolved state and confirmed claims must survive restart independently.",
+    "Offline SQLite durability proof and current per-category native evidence are distinct. No current native acceptance is claimed; registration and scheduler admission remain disabled.",
+    "The route is bounded to 48 total inputs and 13 action calls; Daily, points, ordinary Claim, milestone Claim, Shop, Exchange, paid challenge, AP/stamina and arbitrary combat are outside scope.",
+    "Only the route's own verified native results establish success; no Daily provider, D02, objective ownership, or points attribution is used."
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "ruins-current-native-acceptance",
+      "status": "evidence_required",
+      "blocks": [
+        "dispatch-allowlisted-zero-cost-challenge",
+        "preserve-unknown-challenge-effect",
+        "claim-one-green-ready-category",
+        "preserve-unknown-chest-effect",
+        "ruins-native-service-acceptance"
+      ],
+      "required_evidence": [
+        "current native BlueStacks source, immediate-before, transport, immediate-after, semantic result, and canonical Home",
+        "current-day exact NPC identity, zero cost, and Attack or Dispatch authorization",
+        "per-category green-ready evidence and durable positive/unknown successors across restart"
+      ],
+      "permitted_inputs": []
+    }
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "flow_entry",
+      "fixture_id": "ruins-per-category-offline-sqlite-restart",
       "status": "required_evidence",
       "path": null,
-      "notes": "Live evidence is retained by the approved pnsctl flow runner."
+      "notes": "Offline durable-state proof and current native BlueStacks proof are separate evidence classes."
+    },
+    {
+      "fixture_id": "ruins-current-native-service-acceptance",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "No live/native acceptance is claimed by policy approval or a retained navigation-only contract."
     }
   ],
-  "live_validation_scenarios": [
+  "scenarios": [
     {
-      "id": "ruins-challenge-nav-home-roundtrip",
-      "mode": "navigation_only",
-      "notes": "Challenge, combat, chest, Exchange, purchase, reward, and resource actions remain prohibited."
+      "scenario_id": "ruins-native-service-acceptance",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "open_ruins_from_current_home_atlas_binding",
+        "one_current_allowlisted_zero_cost_attack_or_dispatch",
+        "open_stage_overview_after_challenge_or_unavailability",
+        "claim_one_current_green_ready_stage_category",
+        "safe_return_to_canonical_home"
+      ],
+      "required_transitions": [],
+      "evidence_gate_ids": [
+        "ruins-current-native-acceptance"
+      ],
+      "notes": "Current per-category BlueStacks evidence is required. Offline SQLite proof is separate; no live acceptance or scheduler enablement is claimed."
     }
   ],
   "unsupported_or_manual_only_states": [
+    "paid_or_unknown_challenge_cost",
+    "unknown_or_ambiguous_npc_identity",
+    "unknown_challenge_result",
+    "unknown_chest_category_or_successor",
+    "non-green_or_unready_chest",
+    "ordinary_daily_claim",
+    "milestone_claim",
+    "ruins_shop_or_exchange",
+    "AP_or_stamina_spend",
+    "arbitrary_combat",
     "login",
     "captcha",
     "tutorial",
@@ -89,7 +361,34 @@
   ],
   "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
+  "offline_proof_state": "evidence_required",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r15",
+    "product_authority_digest": "aec4f9a360a390715aaff4e5ad0dba4ccc23d22202e7bcc75057a33f1775222f",
+    "product_record_id": "ruins_challenge",
+    "product_record_revision": "ruins_challenge-v1",
+    "product_record_digest": "ab0d46c7e4bbb60e9a176ab53cca1afbe28c2888f0e5f48a7e0ba0d181afa55e",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_READY",
+      "HOME_LOCALIZED",
+      "HOME_CANONICAL"
+    ],
+    "selected_daily_prerequisite": false
+  },
   "registration_state": "disabled",
-  "production_eligible": false,
-  "scheduler_eligibility": false
+  "production_eligible": false
 }

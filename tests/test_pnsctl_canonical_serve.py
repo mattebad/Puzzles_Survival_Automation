@@ -12,8 +12,10 @@ from unittest.mock import Mock, patch
 from automation_service import cli
 from automation_service.registry import (
     DAILY_REWARDS_FLOW_ID,
+    ALLIANCE_HELP_FLOW_ID,
     RESOURCE_ITEM_FLOW_ID,
     canonical_flow_specs,
+    RUINS_FLOW_ID,
 )
 from automation_service.state import BotStateManager
 from scripts import navigation_development_boundary as boundary
@@ -41,6 +43,8 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                     "personal-might",
                     "daily-rewards",
                     "resource-item",
+                    "ruins",
+                    "alliance-help",
                 ):
                     argv.extend(["--flow", flow])
                 argv.extend(["--campaign-stage", "1-15-9", "--campaign-cadence-seconds", "300",
@@ -48,7 +52,7 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                              "--account-id", "account", "--server-id", "server", "--output-directory", "captures with spaces"])
                 parsed = cli.build_parser().parse_args(argv[1:])
                 self.assertEqual(parsed.mode, "supervised")
-                self.assertEqual(len(parsed.flow), 10)
+                self.assertEqual(len(parsed.flow), 12)
                 with patch.object(cli, "main", return_value=17) as canonical:
                     self.assertEqual(pnsctl.main(argv), 17)
                 canonical.assert_called_once()
@@ -61,7 +65,12 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                 native_bindings = kwargs["native_route_bindings"]
                 self.assertEqual(
                     set(native_bindings),
-                    {DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID},
+                    {
+                        DAILY_REWARDS_FLOW_ID,
+                        RESOURCE_ITEM_FLOW_ID,
+                        RUINS_FLOW_ID,
+                        ALLIANCE_HELP_FLOW_ID,
+                    },
                 )
                 self.assertTrue(
                     all(callable(binding.run) for binding in native_bindings.values())
@@ -86,7 +95,14 @@ class CanonicalServeFacadeTests(unittest.TestCase):
         connect.assert_not_called()
         resource_store.assert_not_called()
         action_store.assert_not_called()
-        for option in ("--live", "--flow", "--campaign-stage", "--campaign-cadence-seconds"):
+        for option in (
+            "--live",
+            "--flow",
+            "--campaign-stage",
+            "--campaign-cadence-seconds",
+            "ruins",
+            "alliance-help",
+        ):
             self.assertIn(option, output.getvalue())
         with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as error:
             pnsctl.main(["automation-service", "--help"])

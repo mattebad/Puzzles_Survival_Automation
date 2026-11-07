@@ -25,9 +25,10 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
   and can dispatch only through `SafeActionExecutor` with a bound core request/capability. The
   service CLI has no arbitrary ADB, coordinate, shell, tap, remote, or automatic endpoint.
 - The legacy production registry remains disabled in
-  `tasks/flow_delivery_disabled_production_registry.json`; canonical service admission does
-  not read by that file. Its eleven fixed flow specs report `REGISTERED`. SQLite service/flow
-  enablement is separate, defaults off, and is restored off after the bounded tests.
+  `tasks/flow_delivery_disabled_production_registry.json`; it records the disabled
+  `NOT_REGISTERED` posture and is separate from canonical service admission. The canonical code
+  registry has thirteen fixed flow specs, which report `REGISTERED`; this is composition only.
+  SQLite service/flow enablement is separate, defaults off, and is restored off after bounded tests.
 - Campaign selection remains non-consuming. Explicit native service composition installs
   the Campaign runner behind canonical claims and dispatch fences, reusing destination policy,
   Atlas navigation, and `tasks.campaign_auto_battle` contracts. It spends affordable AP through
@@ -106,19 +107,26 @@ The normal Campaign launch shape is:
 python scripts/pnsctl.py automation-service --mode supervised --adapter bluestacks --state-path .local-orchestrator/bot-state.sqlite3 serve --live --flow campaign --campaign-stage 1-15-9 --campaign-cadence-seconds 300 --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 --account-id primary-account --server-id primary-server --output-directory .local-captures/automation-service-live
 ```
 
-Repeat `--flow` for other named routes; the README gives the complete ten-route command. Argument order does not
+Repeat `--flow` for other named routes; the README gives the complete twelve-route command. Argument order does not
 choose scheduler order; due eligibility and existing controls do. The disabled-gates canonical CLI
 proof produced zero captures and zero new runs, so it is control evidence only and does not promote
 native route acceptance. Facade checks, the ordinary one-battle live-entrypoint retirement, and
 the scheduler/facade consumer checks are recorded separately; their counts are not additive.
 
-The fixed native composition binds ten canonical routes: Nova, Recruitment, Campaign,
-Bioenhancer, Supply, Ultimate, Enhancement, Personal Might, Daily Rewards, and Resource Item.
-The ordinary registered selectors remain non-consuming; passing `--flow` alone does not enable
-them. The owner supplied a genuine 30-point glowing-chest image; a same-chest claimed/opened
-successor is still missing, so chest dispatch and full native completion remain `evidence_required`.
-Offline adapter and canonical service checks pass; neither route has new live acceptance.
-Both routes remain production/runtime disabled.
+The fixed native composition binds twelve canonical routes: Nova, Recruitment, Campaign,
+Bioenhancer, Supply, Ultimate, Enhancement, Personal Might, Daily Rewards, Resource Item,
+Ruins, and Alliance Help. The thirteenth fixed flow spec is `world_map_navigation`, which is
+selection-only and has no `serve --flow`. The ordinary registered selectors remain non-consuming;
+passing `--flow` alone does not enable a route.
+
+Batch B adds canonical-only `ruins` and `alliance-help` service routes. Their fixed code specs are
+registered, while the legacy production posture and runtime controls remain disabled; both are
+`evidence_required`, with no current native live acceptance claimed. The supplied Nov 6 DailyQuest
+image shows one positively glowing 30-point chest, four other chests closed, 30 total points, and
+no aggregate Claim. Daily policy handles five categories individually when visibly glowing,
+with no 150-point minimum. Its native guard observes readiness but blocks ready-chest input until
+same-chest claimed/opened successor evidence is admitted; no full native acceptance is asserted.
+Resource Item's offline adapter/service checks pass; current live acceptance remains `evidence_required`.
 Existing individual effect/Home acceptance, uninterrupted Enhancement proof, independent recruit
 timers, and cadence scope are maintained in [`BACKLOG.md`](../BACKLOG.md), with volatile state in
 the handoff.

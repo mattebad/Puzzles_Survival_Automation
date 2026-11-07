@@ -30,14 +30,10 @@ import unittest
 from automation_service import state as state_module
 from automation_service.cli import build_parser
 from automation_service.registry import (
-    CAMPAIGN_FLOW_ID,
-    DAILY_REWARDS_FLOW_ID,
-    RESOURCE_ITEM_FLOW_ID,
-    CAMPAIGN_PRODUCT_REVISION,
-    CANONICAL_FLOW_REGISTRY,
-    load_disabled_registry,
-    canonical_entry,
-    servable_flow_names,
+    ALLIANCE_HELP_FLOW_ID, ALLIANCE_HELP_PROFILE_ID, CAMPAIGN_FLOW_ID,
+    CAMPAIGN_PRODUCT_REVISION, CANONICAL_FLOW_REGISTRY, DAILY_REWARDS_FLOW_ID,
+    RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, RUINS_PROFILE_ID,
+    load_disabled_registry, canonical_entry, servable_flow_names,
 )
 from automation_service.service import AutomationService, _runner_attribute
 from safe_action_core import policy as safe_policy
@@ -60,21 +56,21 @@ OLD_CAMPAIGN_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
 # --- explicit, reasoned exceptions -------------------------------------------------------------
 
 # Service routes that have no operator-registry runner. Nova's wrapper was retired in #35;
-# Batch A retired Daily Row Claim and Daily Resource Item wrappers in favor of canonical
-# service bindings. These routes must not regain a second development-session authority.
+# Batch A retired Daily Row Claim and Daily Resource Item wrappers, while Batch B retires
+# the Ruins wrapper. These routes have one canonical service authority, not a second runner.
 NO_OPERATOR_RUNNER = {
     "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": "operator runner retired in #35; canonical serve is the only runner",
     DAILY_REWARDS_FLOW_ID: "Daily Row Claim wrapper retired in Batch A; canonical serve uses its fixed native binding",
     RESOURCE_ITEM_FLOW_ID: "Daily Resource Item wrapper retired in Batch A; canonical serve uses its fixed native binding",
+    RUINS_FLOW_ID: "Ruins operator wrapper retired in Batch B; canonical serve uses its fixed native binding",
+    ALLIANCE_HELP_FLOW_ID: "Alliance Help is canonical-service-only and has no operator wrapper",
 }
 
-# Operator-registry flows with no development-session input default in ``pnsctl._DEFAULT_MAX_INPUTS``
-# (they use the 12 fallback or their own cap): world, ruins and the Campaign navigation/atlas slices.
+# Retained operator-registry flows with no development-session input default in ``pnsctl._DEFAULT_MAX_INPUTS``.
 NO_DEFAULT_MAX_INPUTS = {
     "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE": "own route cap in its flow_delivery module",
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": "own route cap in its flow_delivery module",
     "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION": "survey budget is queue/contract owned (272 navigation inputs)",
-    "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION": "own route cap in its flow_delivery module",
     "WORLD-MAP-NAVIGATION-FOUNDATION": "MAX_ROUTE_INPUTS in world_map_navigation_bluestacks",
 }
 
@@ -122,7 +118,6 @@ OLD_CAMPAIGN_ID_PREFIXES = {
 _SCAN_SUFFIXES = {".py", ".json", ".md", ".ps1", ".yml", ".yaml", ".txt", ".toml"}
 _SCAN_SKIP_DIRS = {".git", "evidence", ".local-captures", ".local-orchestrator", ".venv", "__pycache__", "node_modules"}
 
-# Service routes whose execution handler is built with (snapshot, execute); module -> class.
 EXECUTION_HANDLERS = {
     "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": ("automation_service.nova", "NovaExecutionHandler"),
     "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE": ("automation_service.recruitment", "RecruitmentExecutionHandler"),
@@ -134,6 +129,54 @@ EXECUTION_HANDLERS = {
     "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION": ("automation_service.personal_might", "PersonalMightExecutionHandler"),
     DAILY_REWARDS_FLOW_ID: ("automation_service.daily_rewards", "DailyRewardsExecutionHandler"),
     RESOURCE_ITEM_FLOW_ID: ("automation_service.resource_item", "ResourceItemExecutionHandler"),
+    RUINS_FLOW_ID: ("automation_service.ruins", "RuinsExecutionHandler"),
+    ALLIANCE_HELP_FLOW_ID: ("automation_service.alliance_help", "AllianceHelpExecutionHandler"),
+}
+
+
+B_FIXED_RELATIONSHIPS = {
+    RUINS_FLOW_ID: {
+        "cli_name": "ruins",
+        "family": "ruins_challenge",
+        "variant": "challenge_then_green_chests",
+        "product_id": "ruins_challenge",
+        "product_revision": "ruins_challenge-v1",
+        "handler_id": "ruins_execution_handler",
+        "profile_id": RUINS_PROFILE_ID,
+        "mode": "phase_canary",
+        "max_inputs": 48,
+        "max_actions": 13,
+        "adapter": ("automation_service.ruins", "RuinsExecutionHandler"),
+        "native": ("scripts.ruins_challenge_bluestacks", {
+            "RUINS_FLOW_ID": RUINS_FLOW_ID,
+            "RUINS_PRODUCT_ID": "ruins_challenge",
+            "RUINS_PRODUCT_REVISION": "ruins_challenge-v1",
+            "RUINS_PROFILE_ID": RUINS_PROFILE_ID,
+            "MAX_INPUTS": 48,
+            "MAX_ACTIONS": 13,
+        }),
+    },
+    ALLIANCE_HELP_FLOW_ID: {
+        "cli_name": "alliance-help",
+        "family": "alliance_help",
+        "variant": "ten_successful_free_requests",
+        "product_id": "alliance_help",
+        "product_revision": "alliance_help-v1",
+        "handler_id": "alliance_help_execution_handler",
+        "profile_id": ALLIANCE_HELP_PROFILE_ID,
+        "mode": "phase_canary",
+        "max_inputs": 20,
+        "max_actions": 10,
+        "adapter": ("automation_service.alliance_help", "AllianceHelpExecutionHandler"),
+        "native": ("scripts.alliance_help_bluestacks", {
+            "FLOW_ID": ALLIANCE_HELP_FLOW_ID,
+            "PRODUCT_ID": "alliance_help",
+            "PRODUCT_REVISION": "alliance_help-v1",
+            "PROFILE_ID": ALLIANCE_HELP_PROFILE_ID,
+            "MAX_INPUTS": 20,
+            "MAX_ACTIONS": 10,
+        }),
+    },
 }
 
 # Every non-registry copy of a service route's input budget: (module, attribute).
@@ -153,6 +196,7 @@ MAX_INPUT_COPIES = {
     RESOURCE_ITEM_FLOW_ID: [
         ("scripts.daily_resource_item_bluestacks", "MAX_ROUTE_INPUTS"),
     ],
+    ALLIANCE_HELP_FLOW_ID: [("scripts.alliance_help_bluestacks", "MAX_INPUTS")],
 }
 
 _NUMBER_WORDS = {
@@ -331,6 +375,49 @@ class ProductBindingTests(RouteTestCase):
                 for constant, value in (("PRODUCT_ID", entry.product_id), ("PRODUCT_REVISION", entry.product_revision)):
                     if hasattr(module, constant):
                         self.assertEqual(getattr(module, constant), value, f"{module_name}.{constant} drifted from the registry")
+
+    def test_batch_b_fixed_relationships_and_canonical_only_retirement(self) -> None:
+        self.assertEqual(set(B_FIXED_RELATIONSHIPS), {RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID})
+        self.assertNotIn(RUINS_FLOW_ID, MAX_INPUT_COPIES)
+        operator = _operator_ids()
+        for flow_id, expected in B_FIXED_RELATIONSHIPS.items():
+            with self.subTest(flow_id=flow_id):
+                entry = canonical_entry(flow_id)
+                self.assertEqual(entry.cli_name, expected["cli_name"])
+                self.assertEqual(entry.descriptor.family, expected["family"])
+                self.assertEqual(
+                    (entry.product_id, entry.product_revision, entry.handler_id),
+                    (expected["product_id"], expected["product_revision"], expected["handler_id"]),
+                )
+                self.assertEqual(
+                    (entry.registration.production_handler, entry.registration.profile, entry.registration.mode),
+                    (expected["handler_id"], expected["profile_id"], expected["mode"]),
+                )
+                self.assertEqual(
+                    (entry.registration.registration_status, entry.registration.scheduler_eligible),
+                    ("REGISTERED", True),
+                )
+                self.assertEqual(
+                    (entry.max_inputs, entry.descriptor.variant, entry.descriptor.cadence, entry.descriptor.reset_scoped),
+                    (expected["max_inputs"], expected["variant"], "cooldown_pulse", True),
+                )
+                adapter_module, class_name = expected["adapter"]
+                adapter = import_module(adapter_module)
+                self.assertEqual(
+                    (adapter.PRODUCT_ID, adapter.PRODUCT_REVISION, adapter.PROFILE_ID,
+                     adapter.MAX_INPUTS, adapter.MAX_ACTIONS),
+                    (expected["product_id"], expected["product_revision"], expected["profile_id"],
+                     expected["max_inputs"], expected["max_actions"]),
+                )
+                self.assertEqual(getattr(adapter, class_name).max_inputs, expected["max_inputs"])
+                native_module, native_facts = expected["native"]
+                native = import_module(native_module)
+                for attribute, value in native_facts.items():
+                    self.assertEqual(getattr(native, attribute), value, f"{native_module}.{attribute} drifted")
+                self.assertNotIn(flow_id, operator)
+                self.assertNotIn(flow_id, pnsctl.BLUESTACKS_FLOW_IDS)
+                self.assertNotIn(flow_id, pnsctl._DEFAULT_MAX_INPUTS)
+                self.assertIn("canonical", NO_OPERATOR_RUNNER[flow_id].casefold())
 
     def test_selection_handlers_describe_the_registry_cadence(self) -> None:
         for entry in CANONICAL_FLOW_REGISTRY:

@@ -154,20 +154,6 @@ class BlueStacksADBReadinessTests(unittest.TestCase):
         self.assertEqual(run.call_args.args[0], ["HD-Adb.exe", "devices", "-l"])
         self.assertEqual(devices[0].serial, "emulator-5554")
 
-    def test_development_cli_parses_optional_ruins_continuation(self) -> None:
-        parsed = pnsctl.parser().parse_args(
-            [
-                "development-session",
-                "run-flow",
-                "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
-                "--chests-only",
-                "--chest-continuation",
-                "checkpoint.json",
-            ]
-        )
-        self.assertEqual(parsed.chest_continuation, Path("checkpoint.json"))
-        self.assertTrue(parsed.chests_only)
-
 
 if __name__ == "__main__":
     unittest.main()

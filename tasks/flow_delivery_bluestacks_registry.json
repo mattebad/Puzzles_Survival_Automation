@@ -39,12 +39,6 @@
         "recovery_handler": "ultimate_challenge_daily_recovery",
       "consequence_class": "consequential"
     },
-    "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION": {
-      "runner": "ruins_challenge_home_atlas_runner",
-      "evidence_validator": "ruins_challenge_home_atlas_evidence",
-      "recovery_handler": "ruins_challenge_home_atlas_recovery",
-      "consequence_class": "navigation_only"
-    },
     "TROOP-TRAINING-END-TO-END-CONSOLIDATION": {
       "runner": "troop_training_consolidation_runner",
       "evidence_validator": "troop_training_consolidation_evidence",

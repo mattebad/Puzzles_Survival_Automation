@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r14"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r15"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -55,6 +55,8 @@ RECORD_TYPES = frozenset(
         "gathering_resources",
         "zombie_lair",
         "ruins_shop_purchase",
+        "ruins_challenge",
+        "alliance_help",
         "rare_earth_shop_purchase",
         "alliance_shop_purchase",
         "hero_upgrade",
@@ -81,6 +83,8 @@ RECORD_IDS = frozenset(
         "gathering_resources",
         "zombie_lair",
         "ruins_shop_purchase",
+        "ruins_challenge",
+        "alliance_help",
         "rare_earth_shop_purchase",
         "alliance_shop_purchase",
         "hero_upgrade",
@@ -311,6 +315,8 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "gathering_resources": "WORLD",
         "zombie_lair": "ZOMBIE_LAIR",
         "ruins_shop_purchase": "RUINS_SHOP",
+        "ruins_challenge": "RUINS",
+        "alliance_help": "ALLIANCE",
         "rare_earth_shop_purchase": "RARE_EARTH_SHOP",
         "alliance_shop_purchase": "ALLIANCE_SHOP",
         "hero_upgrade": "HERO",
@@ -349,6 +355,8 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "gathering_resources": "gathering_resources",
         "zombie_lair": "zombie_lair",
         "ruins_shop_purchase": "ruins_shop_purchase",
+        "ruins_challenge": "ruins_challenge",
+        "alliance_help": "alliance_help",
         "rare_earth_shop_purchase": "rare_earth_shop_purchase",
         "alliance_shop_purchase": "alliance_shop_purchase",
         "hero_upgrade": "hero_upgrade",
@@ -2574,6 +2582,185 @@ def _validate_bioenhancer_research_record(record: Mapping[str, Any]) -> None:
             raise ProductAuthorityError(f"Bioenhancer must forbid {marker} actions")
 
 
+def _validate_ruins_challenge_record(record: Mapping[str, Any]) -> None:
+    """Validate reset-scoped Ruins challenge and independent ready-chest rules."""
+    if record["record_revision"] != "ruins_challenge-v1":
+        raise ProductAuthorityError("Ruins Challenge product record revision is frozen")
+
+    if record["objective"] != "ruins_challenge_and_ready_stage_chest_maintenance":
+        raise ProductAuthorityError("Ruins objective must bind its challenge and chest visit")
+    if record["action"] != "dispatch_current_zero_cost_npc_challenge_then_claim_green_ready_stage_chests":
+        raise ProductAuthorityError("Ruins action must attempt the current challenge first")
+    if record["recurrence"] != "reset_scoped_cooldown_pulse":
+        raise ProductAuthorityError("Ruins recurrence must be a reset-scoped cooldown pulse")
+    route = record["semantic_entry_route"]
+    if (
+        route.get("source_home_authorities")
+        != ["HOME_READY", "HOME_LOCALIZED", "HOME_CANONICAL"]
+        or route.get("route") != ["RUINS", "CHALLENGE"]
+    ):
+        raise ProductAuthorityError("Ruins route must bind Home to the Challenge surface")
+    target = record.get("target")
+    if not isinstance(target, Mapping) or any(
+        target.get(key) != value
+        for key, value in {
+            "kind": "ruins_challenge",
+            "challenge_identity": "current_allowlisted_npc",
+            "challenge_control": "Attack/Dispatch",
+            "challenge_eligibility": "current_day_current_zero_cost_npc_only",
+            "challenge_quantity": 1,
+            "challenge_reset_scoped": True,
+            "overview": "Stage Overview",
+            "chest_categories": "each_independently_observed_category",
+            "chest_eligibility": "visible_green_ready",
+            "chest_claims_per_category_per_reset": 1,
+            "challenge_unavailable_behavior": "continue_to_independently_ready_overview_chests",
+        }.items()
+    ):
+        raise ProductAuthorityError(
+            "Ruins target must bind one current free NPC challenge and green-ready categories"
+        )
+    quantity_cost = record.get("quantity_cost")
+    if not isinstance(quantity_cost, Mapping) or quantity_cost.get("quantity") is not None:
+        raise ProductAuthorityError("Ruins quantity must remain per-action, not one route-wide claim")
+    cost = quantity_cost.get("cost")
+    if not isinstance(cost, Mapping) or any(
+        cost.get(key) != value
+        for key, value in {
+            "kind": "zero_cost_npc_challenge_and_green_ready_stage_chests",
+            "amount": 0,
+            "unit": "NPC challenge or stage chest",
+            "free_only": True,
+        }.items()
+    ):
+        raise ProductAuthorityError("Ruins challenge and ready chests must be zero-cost only")
+    effect = record["semantic_effect"]
+    required_effects = {
+        "effect_ordinal": 1,
+        "reset_scope": "daily_reset",
+        "challenge_before_overview": True,
+        "current_day_and_exact_npc_required": True,
+        "zero_cost_and_attack_dispatch_required": True,
+        "attempt_limit_per_reset": 1,
+        "positive_result_for_same_challenge_required": True,
+        "recognized_loss_counts_as_participation": True,
+        "challenge_unavailable_does_not_block_chest_maintenance": True,
+        "challenge_unavailability_does_not_fabricate_a_result": True,
+        "challenge_success_not_required_for_ready_chests": True,
+        "overview_categories_observed_independently": True,
+        "only_green_ready_category_claimed": True,
+        "category_successor_required": True,
+        "per_category_claim_and_unknown_state_persisted": True,
+        "unknown_consequential_effects_block_restart_retry": True,
+        "dispatch_is_not_success_proof": True,
+        "daily_screen_required": False,
+        "daily_provider_required": False,
+        "objective_attribution": False,
+        "points_attribution": False,
+        "identical_retry": False,
+    }
+    if any(effect.get(key) != value for key, value in required_effects.items()):
+        raise ProductAuthorityError(
+            "Ruins effect must keep challenge participation and each ready chest independent"
+        )
+    ownership = record["daily_ownership"]
+    if any(
+        ownership.get(key) is not None
+        for key in ("daily_owner", "point_credit_trigger")
+    ):
+        raise ProductAuthorityError("Ruins must not assign Daily ownership or point credit")
+    if record["terminal_requirement"].get("return_required") is not True:
+        raise ProductAuthorityError("Ruins must return to canonical Home")
+
+
+def _validate_alliance_help_record(record: Mapping[str, Any]) -> None:
+    """Validate ten reset-scoped free Help requests with durable partial progress."""
+    if record["record_revision"] != "alliance_help-v1":
+        raise ProductAuthorityError("Alliance Help product record revision is frozen")
+
+    if record["objective"] != "alliance_help_ten_free_requests":
+        raise ProductAuthorityError("Alliance Help objective must count ten free requests")
+    if record["action"] != "complete_current_free_alliance_help_requests":
+        raise ProductAuthorityError("Alliance Help action must complete actual free requests")
+    if record["recurrence"] != "reset_scoped_cooldown_pulse":
+        raise ProductAuthorityError("Alliance Help recurrence must be a reset-scoped cooldown pulse")
+    route = record["semantic_entry_route"]
+    if (
+        route.get("source_home_authorities")
+        != ["HOME_READY", "HOME_LOCALIZED", "HOME_CANONICAL"]
+        or route.get("route") != ["ALLIANCE", "HELP"]
+    ):
+        raise ProductAuthorityError("Alliance Help route must bind Home to the Help surface")
+    target = record.get("target")
+    if not isinstance(target, Mapping) or any(
+        target.get(key) != value
+        for key, value in {
+            "kind": "alliance_help",
+            "source": "fresh_current_alliance_help_screen",
+            "help_all_control": "Help All",
+            "help_all_count_rule": "exact_current_eligible_free_request_count_known",
+            "individual_control": "Help",
+            "individual_request_ceiling": 10,
+            "request_unit": "successfully_completed_free_request",
+            "stop_when": "ten_successful_requests_or_free_help_disappears",
+            "reset_scoped_progress": True,
+        }.items()
+    ):
+        raise ProductAuthorityError(
+            "Alliance Help target must bind the exact free Help All or individual request"
+        )
+    quantity_cost = record.get("quantity_cost")
+    if not isinstance(quantity_cost, Mapping) or quantity_cost.get("quantity") != 10:
+        raise ProductAuthorityError("Alliance Help quota must be ten successful requests")
+    cost = quantity_cost.get("cost")
+    if not isinstance(cost, Mapping) or any(
+        cost.get(key) != value
+        for key, value in {
+            "kind": "zero_cost_free_alliance_help",
+            "amount": 0,
+            "unit": "Help request",
+            "free_only": True,
+        }.items()
+    ):
+        raise ProductAuthorityError("Alliance Help must be free and zero-cost")
+    effect = record["semantic_effect"]
+    required_effects = {
+        "effect_ordinal": 1,
+        "reset_scope": "daily_reset",
+        "successful_request_ceiling": 10,
+        "success_unit": "one_positive_same_request_successor",
+        "help_all_requires_exact_request_count_known": True,
+        "individual_help_one_request_at_a_time": True,
+        "confirmed_partial_quota_persisted_across_restart": True,
+        "transport_call_is_not_success": True,
+        "static_help_screen_is_not_success": True,
+        "stop_after_ten_successful_requests": True,
+        "stop_when_free_help_disappears": True,
+        "unknown_target_or_cost_blocks_dispatch": True,
+        "unknown_overlay_or_stale_source_blocks_dispatch": True,
+        "unknown_successor_persisted_and_identical_retry_denied": True,
+        "payment_purchase_donation_and_gameplay_claim_allowed": False,
+        "dispatch_is_not_success_proof": True,
+        "daily_screen_required": False,
+        "daily_provider_required": False,
+        "objective_attribution": False,
+        "points_attribution": False,
+        "identical_retry": False,
+    }
+    if any(effect.get(key) != value for key, value in required_effects.items()):
+        raise ProductAuthorityError(
+            "Alliance Help effect must require ten positive free request successors"
+        )
+    ownership = record["daily_ownership"]
+    if any(
+        ownership.get(key) is not None
+        for key in ("daily_owner", "point_credit_trigger")
+    ):
+        raise ProductAuthorityError("Alliance Help must not assign Daily ownership or point credit")
+    if record["terminal_requirement"].get("return_required") is not True:
+        raise ProductAuthorityError("Alliance Help must return to canonical Home")
+
+
 def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
     record_id, record_type = _validate_common_record(record)
     if record_type == "resource_item":
@@ -2618,6 +2805,10 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_world_map_navigation_record(record)
     elif record_type == "campaign_ap":
         _validate_campaign_ap_record(record)
+    elif record_type == "ruins_challenge":
+        _validate_ruins_challenge_record(record)
+    elif record_type == "alliance_help":
+        _validate_alliance_help_record(record)
     else:
         _validate_bioenhancer_research_record(record)
     return dict(record)
@@ -2799,8 +2990,8 @@ def _records(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     records = payload.get(PRODUCT_RECORDS_FIELD)
     if records is None:
         records = payload.get("representative_product_records")
-    if not isinstance(records, list) or len(records) != 22:
-        raise ProductAuthorityError("product authority requires exactly twenty-two records")
+    if not isinstance(records, list):
+        raise ProductAuthorityError("product authority records must be a list")
     return records
 
 
@@ -3148,6 +3339,22 @@ def validate_contract_product_authority_binding(
         raise ProductAuthorityError(
             "VIP popup dismissal flow must bind the VIP popup record"
         )
+    if record_id == "ruins_challenge" and flow_id != (
+        "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
+    ):
+        raise ProductAuthorityError("Ruins Challenge record is reserved for the Ruins route")
+    if record_id != "ruins_challenge" and flow_id == (
+        "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
+    ):
+        raise ProductAuthorityError("Ruins route must bind the Ruins Challenge record")
+    if record_id == "alliance_help" and flow_id != (
+        "ALLIANCE-HELP-TEN-FREE-REQUESTS"
+    ):
+        raise ProductAuthorityError("Alliance Help record is reserved for the Help route")
+    if record_id != "alliance_help" and flow_id == (
+        "ALLIANCE-HELP-TEN-FREE-REQUESTS"
+    ):
+        raise ProductAuthorityError("Alliance Help route must bind the Alliance Help record")
     if binding["product_record_revision"] != record["record_revision"]:
         raise ProductAuthorityError("contract references stale product record revision")
     if binding["product_record_digest"] != record["record_digest"]:

@@ -307,6 +307,35 @@ class OperatorCliTests(unittest.TestCase):
                     route["recovery_handler"], pnsctl._BLUESTACKS_RECOVERY_HANDLERS
                 )
 
+    def test_canonical_ruins_is_not_a_legacy_development_operator(self):
+        registry = pnsctl._load_bluestacks_flow_registry()
+        self.assertEqual(len(pnsctl.BLUESTACKS_FLOW_IDS), 12)
+        self.assertNotIn(pnsctl.RUINS_FLOW_ID, pnsctl.BLUESTACKS_FLOW_IDS)
+        self.assertNotIn(pnsctl.RUINS_FLOW_ID, registry)
+        self.assertFalse(
+            any(
+                name.startswith("ruins_challenge_home_atlas_")
+                for name in pnsctl._BLUESTACKS_FLOW_RUNNERS
+            )
+        )
+
+        root = pnsctl.parser()
+        root_commands = next(
+            action
+            for action in root._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+        development = root_commands.choices["development-session"]
+        development_commands = next(
+            action
+            for action in development._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+        run_flow = development_commands.choices["run-flow"]
+        argument_destinations = {action.dest for action in run_flow._actions}
+        self.assertNotIn("chests_only", argument_destinations)
+        self.assertNotIn("chest_continuation", argument_destinations)
+
     def test_flow_commands_offer_exactly_the_selectable_flow_ids(self):
         selectable = set(pnsctl.BLUESTACKS_FLOW_IDS)
         for argv in (["development-session", "run-flow"],):

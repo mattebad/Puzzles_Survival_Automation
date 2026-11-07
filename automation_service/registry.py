@@ -122,6 +122,20 @@ RESOURCE_ITEM_HANDLER_ID = "resource_item_execution_handler"
 RESOURCE_ITEM_PROFILE_ID = WORLD_PROFILE_ID
 RESOURCE_ITEM_PHASE_MODE = "phase_canary"
 RESOURCE_ITEM_MAX_INPUTS = 10
+RUINS_FLOW_ID = "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
+RUINS_PRODUCT_ID = "ruins_challenge"
+RUINS_PRODUCT_REVISION = "ruins_challenge-v1"
+RUINS_HANDLER_ID = "ruins_execution_handler"
+RUINS_PROFILE_ID = WORLD_PROFILE_ID
+RUINS_PHASE_MODE = "phase_canary"
+RUINS_MAX_INPUTS = 48
+ALLIANCE_HELP_FLOW_ID = "ALLIANCE-HELP-TEN-FREE-REQUESTS"
+ALLIANCE_HELP_PRODUCT_ID = "alliance_help"
+ALLIANCE_HELP_PRODUCT_REVISION = "alliance_help-v1"
+ALLIANCE_HELP_HANDLER_ID = "alliance_help_execution_handler"
+ALLIANCE_HELP_PROFILE_ID = WORLD_PROFILE_ID
+ALLIANCE_HELP_PHASE_MODE = "phase_canary"
+ALLIANCE_HELP_MAX_INPUTS = 20
 
 
 _FIXED_BINDINGS = {
@@ -232,6 +246,26 @@ _FIXED_BINDINGS = {
         "production_handler": RESOURCE_ITEM_HANDLER_ID,
         "profile": RESOURCE_ITEM_PROFILE_ID,
         "mode": RESOURCE_ITEM_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    RUINS_FLOW_ID: {
+        "flow_id": RUINS_FLOW_ID,
+        "product_id": RUINS_PRODUCT_ID,
+        "product_revision": RUINS_PRODUCT_REVISION,
+        "production_handler": RUINS_HANDLER_ID,
+        "profile": RUINS_PROFILE_ID,
+        "mode": RUINS_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    ALLIANCE_HELP_FLOW_ID: {
+        "flow_id": ALLIANCE_HELP_FLOW_ID,
+        "product_id": ALLIANCE_HELP_PRODUCT_ID,
+        "product_revision": ALLIANCE_HELP_PRODUCT_REVISION,
+        "production_handler": ALLIANCE_HELP_HANDLER_ID,
+        "profile": ALLIANCE_HELP_PROFILE_ID,
+        "mode": ALLIANCE_HELP_PHASE_MODE,
         "registration_status": "REGISTERED",
         "scheduler_eligible": True,
     },
@@ -422,7 +456,17 @@ class CanonicalFlowRegistration:
     def build_handler(self) -> Any:
         """Instantiate the fixed handler without importing handlers at module load."""
 
-        if self.flow_id in {BIOENHANCER_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
+        if self.flow_id in {
+            BIOENHANCER_FLOW_ID,
+            SUPPLY_FLOW_ID,
+            ULTIMATE_FLOW_ID,
+            ENHANCEMENT_FLOW_ID,
+            PERSONAL_MIGHT_FLOW_ID,
+            DAILY_REWARDS_FLOW_ID,
+            RESOURCE_ITEM_FLOW_ID,
+            RUINS_FLOW_ID,
+            ALLIANCE_HELP_FLOW_ID,
+        }:
             # Only explicit supervised serve installs its executor and held-owner
             # checkpoint. Generic composition must never create native authority.
             from .handlers import DisabledHandler
@@ -602,6 +646,24 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         family="resource_item",
         variant="one_owned_1k_food",
         cadence="daily_once_per_reset",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        RUINS_FLOW_ID,
+        max_inputs=RUINS_MAX_INPUTS,
+        cli_name="ruins",
+        family="ruins_challenge",
+        variant="challenge_then_green_chests",
+        cadence="cooldown_pulse",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        ALLIANCE_HELP_FLOW_ID,
+        max_inputs=ALLIANCE_HELP_MAX_INPUTS,
+        cli_name="alliance-help",
+        family="alliance_help",
+        variant="ten_successful_free_requests",
+        cadence="cooldown_pulse",
         observation_only_completion=True,
     ),
 )
@@ -1089,6 +1151,20 @@ __all__ = [
     "RESOURCE_ITEM_PROFILE_ID",
     "RESOURCE_ITEM_PHASE_MODE",
     "RESOURCE_ITEM_MAX_INPUTS",
+    "RUINS_FLOW_ID",
+    "RUINS_PRODUCT_ID",
+    "RUINS_PRODUCT_REVISION",
+    "RUINS_HANDLER_ID",
+    "RUINS_PROFILE_ID",
+    "RUINS_PHASE_MODE",
+    "RUINS_MAX_INPUTS",
+    "ALLIANCE_HELP_FLOW_ID",
+    "ALLIANCE_HELP_PRODUCT_ID",
+    "ALLIANCE_HELP_PRODUCT_REVISION",
+    "ALLIANCE_HELP_HANDLER_ID",
+    "ALLIANCE_HELP_PROFILE_ID",
+    "ALLIANCE_HELP_PHASE_MODE",
+    "ALLIANCE_HELP_MAX_INPUTS",
     "consume_registered_entry",
     "consume_world_registration",
     "consume_nova_registration",

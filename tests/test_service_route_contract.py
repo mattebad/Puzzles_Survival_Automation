@@ -11,10 +11,10 @@ from unittest.mock import patch
 from automation_service.cli import build_parser
 from automation_service.contracts import RecurrenceClass
 from automation_service.registry import (
-    BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, CANONICAL_FLOW_REGISTRY,
-    DAILY_REWARDS_FLOW_ID, ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID,
-    PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, REGISTRY_PATH,
-    RESOURCE_ITEM_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
+    ALLIANCE_HELP_FLOW_ID, BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID,
+    CANONICAL_FLOW_REGISTRY, DAILY_REWARDS_FLOW_ID, ENHANCEMENT_FLOW_ID,
+    NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, REGISTRY_PATH,
+    RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
     RegisteredDispatchSnapshot, canonical_entry, canonical_flow_specs,
 )
 from automation_service.service import ServiceError
@@ -120,12 +120,24 @@ class DisabledByDefaultTests(unittest.TestCase):
                     self.assertEqual(rig.runner.calls, [])
 
 
+
+class OccurrenceIdentityTests(unittest.TestCase):
+    def test_b_routes_forward_the_persisted_opaque_occurrence_key_verbatim(self):
+        for flow_id in (RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID):
+            with self.subTest(flow_id=flow_id), RouteRig(self, ROUTES[flow_id]) as rig:
+                report, = rig.once()
+                run, = rig.runs()
+                self.assertIn(":", run.occurrence_key)
+                self.assertEqual(rig.runner.occurrence_keys, [run.occurrence_key])
+                self.assertEqual(report["result"]["occurrence_key"], run.occurrence_key)
+
 class RestartBeforeDueTests(unittest.TestCase):
     def test_restart_before_due_skips_runner_and_next_reset_runs_once(self):
         work_counts = {
             SUPPLY_FLOW_ID: (4, 1), ULTIMATE_FLOW_ID: (4, 1),
             ENHANCEMENT_FLOW_ID: (6, 3), PERSONAL_MIGHT_FLOW_ID: (6, 1),
             RESOURCE_ITEM_FLOW_ID: (4, 1),
+            RUINS_FLOW_ID: (8, 2), ALLIANCE_HELP_FLOW_ID: (20, 10),
         }
         for flow_id, spec in ROUTES.items():
             if (flow_id, "restart_before_due") in EXCEPTIONS:
@@ -180,6 +192,7 @@ class BorrowedOwnerTests(unittest.TestCase):
         borrowed = {
             SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID,
             BIOENHANCER_FLOW_ID, DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
+            RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID,
         }
         for flow_id, spec in ROUTES.items():
             with self.subTest(route=flow_id):
@@ -218,13 +231,38 @@ class BorrowedOwnerTests(unittest.TestCase):
                         if flow_id in {DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
                             run, = rig.runs()
                             self.assertEqual(run.consumed_actions, 1)
-                            transport_field = (
-                                "reward_claim_transport_calls"
-                                if flow_id == DAILY_REWARDS_FLOW_ID
-                                else "item_use_transport_calls"
-                            )
-                            self.assertEqual(reports[0]["result"][transport_field], 1)
-                            self.assertEqual(reports[0]["result"]["committed_action_count"], 1)
+                        if flow_id in {RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID}:
+                            run, = rig.runs()
+                            action_budgets = {
+                                RUINS_FLOW_ID: 13, ALLIANCE_HELP_FLOW_ID: 10,
+                            }
+                            self.assertEqual(run.max_actions, action_budgets[flow_id])
+                            self.assertLessEqual(run.consumed_actions, action_budgets[flow_id])
+                        if flow_id in {
+                            DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
+                            RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID,
+                        }:
+                            run, = rig.runs()
+                            transport_fields = {
+                                DAILY_REWARDS_FLOW_ID: "reward_claim_transport_calls",
+                                RESOURCE_ITEM_FLOW_ID: "item_use_transport_calls",
+                                RUINS_FLOW_ID: "ruins_dispatch_count",
+                                ALLIANCE_HELP_FLOW_ID: "help_transport_calls",
+                            }
+                            expected_calls = {
+                                DAILY_REWARDS_FLOW_ID: 1,
+                                RESOURCE_ITEM_FLOW_ID: 1,
+                                RUINS_FLOW_ID: 2,
+                                ALLIANCE_HELP_FLOW_ID: 10,
+                            }
+                            result = reports[0]["result"]
+                            expected = expected_calls[flow_id]
+                            self.assertEqual(result[transport_fields[flow_id]], expected)
+                            self.assertEqual(run.consumed_actions, expected)
+                            if flow_id == RUINS_FLOW_ID:
+                                self.assertEqual(result["actions_completed"], expected)
+                            else:
+                                self.assertEqual(result["committed_action_count"], expected)
                         if flow_id in borrowed:
                             self.assertEqual(acquired.call_count, 1)
                     with boundary.RuntimeInputLock(owner="next-owner", invocation_id="after-serve"):
@@ -266,6 +304,18 @@ class PartialResultTests(unittest.TestCase):
                             reports[0]["result"]["item_use_transport_calls"], 1,
                         )
                         self.assertEqual(reports[0]["result"]["committed_action_count"], 0)
+                    elif flow_id == RUINS_FLOW_ID:
+                        result = reports[0]["result"]
+                        self.assertEqual(result["challenge_transport_calls"], 1)
+                        self.assertEqual(result["chest_claim_transport_calls"], 0)
+                        self.assertEqual(result["ruins_dispatch_count"], 1)
+                    elif flow_id == ALLIANCE_HELP_FLOW_ID:
+                        result = reports[0]["result"]
+                        self.assertEqual(result["help_transport_calls"], 3)
+                        self.assertEqual(result["confirmed_request_count"], 2)
+                        self.assertEqual(result["committed_action_count"], 2)
+                        self.assertTrue(result["effect_reconciliation_required"])
+                        self.assertTrue(result["identical_retry_denied"])
                     if flow_id == ULTIMATE_FLOW_ID:
                         self.assertEqual(rig.runner.flee_calls, 1)
                     if flow_id == ENHANCEMENT_FLOW_ID:
