@@ -5,19 +5,20 @@ BlueStacks instance. A supervised service checks which daily or cooldown routes 
 at a time, verifies each result from the screen, and returns to the game's Home screen before
 the next one.
 
-**Status:** Batches A/B add canonical-only Daily Rewards, Resource Item, Ruins and Alliance Help.
-All remain runtime-disabled and `evidence_required` for current native acceptance.
+**Status:** Batches A-C add canonical-only Daily Rewards, Resource Item, Ruins, Alliance Help,
+Alliance Donation, Alliance Shop and Daily Shops. Code registration is separate from runtime
+enablement: all remain disabled and `evidence_required` for current native acceptance.
 Daily claims individually glowing chests with explicit same-slot `Claimed` proof, not a 150-point gate.
-One authorized manual chest claim supplied actual before/after recognition basis, not completed-route acceptance.
-The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical live evidence, not current
-execution authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
+One authorized manual claim supplied real before/after recognition basis, not finished-route acceptance.
+The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical evidence, not execution
+authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
 [`BACKLOG.md`](BACKLOG.md) retains durable history.
 
 ## Routes
 
 The service code registers each route in `automation_service/registry.py`. Each row below is one
-registration: twelve executable `serve --flow` routes plus one navigation-only flow spec. The
-`serve --flow` argument takes the name in the first column where present.
+registration: fifteen executable `serve --flow` routes plus one navigation-only flow spec
+(sixteen fixed flow specs total). The `serve --flow` argument takes the name in the first column where present.
 
 | `serve --flow` | Registry family | What it does |
 | --- | --- | --- |
@@ -33,6 +34,9 @@ registration: twelve executable `serve --flow` routes plus one navigation-only f
 | `resource-item` | `resource_item` | One owned 1K Food item use per reset with exact decrement; runtime disabled and current native acceptance remains evidence_required. |
 | `ruins` | `ruins_challenge` | Current zero-cost NPC challenge first, then independently claim each green-ready overview chest; unavailable challenge does not suppress ready chests and participation need not win. Runtime disabled; evidence_required; no current live acceptance. |
 | `alliance-help` | `alliance_help` | Ten actual successful free Help requests per reset, not ten taps; preserve partial quota and use Help All only when its exact request count is known. Runtime disabled; evidence_required; no current live acceptance. |
+| `alliance-donation` | `alliance_donation` | Up to ten confirmed ordinary-resource donations to the automatically selected Alliance Tech per reset; preserve partial progress and defer only on observed attempt/resource unavailability. Unknown effects block identical retry. Runtime disabled; evidence_required; no current live acceptance. |
+| `alliance-shop` | `alliance_shop` | One currently affordable allowlisted Weekly Offer, or one exact Other one-star Gear fallback if no preferred offer is affordable; quantity one total. Require paired item/currency effects and canonical Home. Runtime disabled; evidence_required; no current live purchase acceptance. |
+| `daily-shops` | `daily_shops` | One visit to Ruins Shop and Rare Earth Shop; one purchase action per exact three-star tab, capped by current stock and affordability. Preserve confirmed tabs and verify numeric quantity/total plus paired effects. Runtime disabled; evidence_required; no current live purchase acceptance. |
 | none (navigation-only) | `world_map_navigation` | Registered but never executed by `serve`. |
 
 The `world_map_navigation` registration is navigation-only (registry variant `navigation_only`).
@@ -99,6 +103,7 @@ $runtimeBinding = .\.venv\Scripts\python.exe -c "import json; from tasks.runtime
   --flow nova --flow recruitment --flow campaign --flow bioenhancer `
   --flow supply --flow ultimate --flow enhancement --flow personal-might `
   --flow daily-rewards --flow resource-item --flow ruins --flow alliance-help `
+  --flow alliance-donation --flow alliance-shop --flow daily-shops `
   --campaign-stage 1-15-9 --campaign-cadence-seconds 300 `
   --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 `
   --account-id $runtimeBinding.account_id --server-id $runtimeBinding.server_id `

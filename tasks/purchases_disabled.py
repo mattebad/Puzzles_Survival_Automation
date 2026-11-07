@@ -1,12 +1,14 @@
-"""Offline parameterized model for disabled Daily shop purchases.
+"""Offline purchase policy and paired-effect arithmetic for exact Daily shop offers.
 
-Box, Ruins Shop, Rare Earth Shop, and Alliance Shop retain distinct Daily identities. Offer,
-currency, and successor arithmetic are replayable, but purchase dispatch remains blocked by policy.
+This module selects only the approved shop products; service policy and canonical
+action storage remain the dispatch authorities.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 import re
 from typing import Optional
 
@@ -162,3 +164,291 @@ def purchase_disabled_dispatch(observation: PurchaseObservation) -> TaskResult:
         state=PURCHASE_SCREEN,
         details={"dispatch_count": 0},
     )
+
+
+# These rules decide whether a currently observed offer is inside the approved
+# product envelope. They do not grant dispatch authority.
+ALLIANCE_WEEKLY_SHOP = "Weekly Offers"
+ALLIANCE_OTHER_SHOP = "Other"
+ALLIANCE_CURRENCY = "Alliance Coins"
+ALLIANCE_WEEKLY_ITEMS = (
+    "Joy Coin",
+    "Timed Recruit Coin",
+    "Bioenhance Scheme",
+)
+ALLIANCE_FALLBACK_ITEM = "1★ Gear Enhance Material"
+RUINS_SHOP = "Ruins Shop"
+RARE_EARTH_SHOP = "Rare Earth Shop"
+RUINS_CHIP_ITEM = "3★ Chip Enhance Material"
+RARE_EARTH_MODULE_ITEM = "3★ Module Enhance Material"
+RUINS_CURRENCY = "Ruins Coins"
+RARE_EARTH_CURRENCY = "Rare Earth"
+
+
+@dataclass(frozen=True)
+class ShopOffer:
+    """One exact current row; absent/unknown OCR must not be represented as a row."""
+
+    shop_identity: str
+    item_identity: str
+    currency_identity: str
+    unit_price: Optional[int]
+    balance: Optional[int]
+    stock: Optional[int]
+    item_quantity: Optional[int]
+    rarity: Optional[int] = None
+    available: Optional[bool] = None
+    premium: bool = False
+    recognized: bool = True
+    offer_identity: str = ""
+
+
+@dataclass(frozen=True)
+class AlliancePurchaseChoice:
+    status: str
+    reason: str
+    offer: Optional[ShopOffer] = None
+    quantity: int = 0
+
+
+def _known_nonnegative(value: object) -> bool:
+    return type(value) is int and value >= 0
+
+
+def _known_positive(value: object) -> bool:
+    return type(value) is int and value > 0
+
+
+def alliance_shop_choice(
+    weekly_offers: tuple[ShopOffer, ...],
+    fallback_offer: Optional[ShopOffer],
+    *,
+    weekly_inventory_complete: bool,
+    fallback_inventory_complete: bool,
+) -> AlliancePurchaseChoice:
+    """Select one exact affordable Weekly offer, else only the exact Other fallback."""
+
+    if not weekly_inventory_complete:
+        return AlliancePurchaseChoice("blocked", "WEEKLY_INVENTORY_INCOMPLETE")
+    if type(weekly_offers) is not tuple or any(type(row) is not ShopOffer for row in weekly_offers):
+        return AlliancePurchaseChoice("blocked", "WEEKLY_OFFER_EVIDENCE_INVALID")
+    matched: dict[str, ShopOffer] = {}
+    for row in weekly_offers:
+        if row.item_identity not in ALLIANCE_WEEKLY_ITEMS:
+            continue
+        if row.item_identity in matched:
+            return AlliancePurchaseChoice("blocked", "PREFERRED_OFFER_AMBIGUOUS")
+        if (
+            not row.recognized
+            or row.shop_identity != ALLIANCE_WEEKLY_SHOP
+            or row.currency_identity != ALLIANCE_CURRENCY
+            or row.premium
+            or type(row.available) is not bool
+            or not _known_positive(row.unit_price)
+            or not _known_nonnegative(row.balance)
+            or not _known_nonnegative(row.stock)
+            or not _known_nonnegative(row.item_quantity)
+            or row.available != (row.stock > 0)
+        ):
+            return AlliancePurchaseChoice("blocked", "PREFERRED_OFFER_EVIDENCE_CHANGED")
+        matched[row.item_identity] = row
+    for item in ALLIANCE_WEEKLY_ITEMS:
+        row = matched.get(item)
+        if row is not None and row.available and row.balance >= row.unit_price:
+            return AlliancePurchaseChoice("selected", "AFFORDABLE_PREFERRED_OFFER", row, 1)
+    if not fallback_inventory_complete:
+        return AlliancePurchaseChoice("blocked", "FALLBACK_INVENTORY_INCOMPLETE")
+    if fallback_offer is None:
+        return AlliancePurchaseChoice("deferred", "NO_AFFORDABLE_ALLOWLISTED_OFFER")
+    row = fallback_offer
+    if (
+        type(row) is not ShopOffer
+        or not row.recognized
+        or row.shop_identity != ALLIANCE_OTHER_SHOP
+        or row.item_identity != ALLIANCE_FALLBACK_ITEM
+        or row.currency_identity != ALLIANCE_CURRENCY
+        or row.rarity != 1
+        or row.premium
+        or type(row.available) is not bool
+        or not _known_positive(row.unit_price)
+        or not _known_nonnegative(row.balance)
+        or not _known_nonnegative(row.stock)
+        or not _known_nonnegative(row.item_quantity)
+        or row.available != (row.stock > 0)
+    ):
+        return AlliancePurchaseChoice("blocked", "FALLBACK_OFFER_EVIDENCE_CHANGED")
+    if not row.available or row.balance < row.unit_price:
+        return AlliancePurchaseChoice("deferred", "NO_AFFORDABLE_ALLOWLISTED_OFFER")
+    return AlliancePurchaseChoice("selected", "AFFORDABLE_EXACT_FALLBACK", row, 1)
+
+
+def daily_shop_quantity(offer: ShopOffer, *, shop_identity: str) -> Optional[int]:
+    """Return the live affordability/stock cap, or None for unrecognized evidence."""
+
+    expected = {
+        RUINS_SHOP: (RUINS_CHIP_ITEM, RUINS_CURRENCY),
+        RARE_EARTH_SHOP: (RARE_EARTH_MODULE_ITEM, RARE_EARTH_CURRENCY),
+    }.get(shop_identity)
+    if (
+        expected is None
+        or type(offer) is not ShopOffer
+        or not offer.recognized
+        or offer.shop_identity != shop_identity
+        or offer.item_identity != expected[0]
+        or offer.currency_identity != expected[1]
+        or offer.rarity != 3
+        or offer.premium
+        or type(offer.available) is not bool
+        or not _known_positive(offer.unit_price)
+        or not _known_nonnegative(offer.balance)
+        or not _known_nonnegative(offer.stock)
+        or not _known_nonnegative(offer.item_quantity)
+        or offer.available != (offer.stock > 0)
+    ):
+        return None
+    return min(offer.stock, offer.balance // offer.unit_price)
+
+
+def purchase_dialog_matches(
+    offer: ShopOffer,
+    *,
+    quantity: int,
+    selected_quantity: Optional[int],
+    displayed_total: Optional[int],
+    shop_identity: Optional[str] = None,
+) -> bool:
+    """Require the numeric dialog quantity and total, never slider position."""
+
+    if (
+        type(offer) is not ShopOffer
+        or type(quantity) is not int
+        or quantity <= 0
+        or type(selected_quantity) is not int
+        or not _known_positive(offer.unit_price)
+        or shop_identity is not None and offer.shop_identity != shop_identity
+    ):
+        return False
+    if offer.shop_identity in {RUINS_SHOP, RARE_EARTH_SHOP}:
+        maximum = daily_shop_quantity(offer, shop_identity=offer.shop_identity)
+    elif (
+        offer.shop_identity == ALLIANCE_WEEKLY_SHOP
+        and offer.item_identity in ALLIANCE_WEEKLY_ITEMS
+        and offer.currency_identity == ALLIANCE_CURRENCY
+        and offer.recognized
+        and not offer.premium
+        and offer.available is True
+        and _known_nonnegative(offer.balance)
+        and _known_nonnegative(offer.stock)
+        and _known_nonnegative(offer.item_quantity)
+        and offer.stock > 0
+        and offer.balance >= offer.unit_price
+    ):
+        maximum = 1
+    elif (
+        offer.shop_identity == ALLIANCE_OTHER_SHOP
+        and offer.item_identity == ALLIANCE_FALLBACK_ITEM
+        and offer.currency_identity == ALLIANCE_CURRENCY
+        and offer.rarity == 1
+        and offer.recognized
+        and not offer.premium
+        and offer.available is True
+        and _known_nonnegative(offer.balance)
+        and _known_nonnegative(offer.stock)
+        and _known_nonnegative(offer.item_quantity)
+        and offer.stock > 0
+        and offer.balance >= offer.unit_price
+    ):
+        maximum = 1
+    else:
+        return False
+    if maximum is None:
+        return False
+    return bool(
+        quantity <= maximum
+        and selected_quantity == quantity
+        and type(displayed_total) is int
+        and displayed_total == quantity * offer.unit_price
+    )
+
+
+def purchase_effect_verified(
+    offer: ShopOffer,
+    *,
+    quantity: int,
+    selected_quantity: Optional[int],
+    displayed_total: Optional[int],
+    currency_after: Optional[int],
+    stock_after: Optional[int],
+    item_quantity_after: Optional[int],
+    item_identity_after: str,
+    currency_identity_after: str,
+    tab_successor_verified: bool,
+    terminal_home_verified: bool,
+    inner_buy_dispatched: bool,
+) -> bool:
+    """Reconcile the exact item and currency effects with both semantic successors."""
+
+    if (
+        type(offer) is not ShopOffer
+        or not _known_nonnegative(offer.balance)
+        or not _known_nonnegative(offer.stock)
+        or not _known_nonnegative(offer.item_quantity)
+        or not _known_positive(offer.unit_price)
+        or type(quantity) is not int
+        or quantity <= 0
+        or not purchase_dialog_matches(
+            offer, quantity=quantity, selected_quantity=selected_quantity,
+            displayed_total=displayed_total,
+        )
+        or not _known_nonnegative(currency_after)
+        or not _known_nonnegative(stock_after)
+        or not _known_nonnegative(item_quantity_after)
+        or type(item_identity_after) is not str
+        or type(currency_identity_after) is not str
+    ):
+        return False
+    return bool(
+        inner_buy_dispatched is True
+        and tab_successor_verified is True
+        and terminal_home_verified is True
+        and item_identity_after == offer.item_identity
+        and currency_identity_after == offer.currency_identity
+        and currency_after == offer.balance - quantity * offer.unit_price
+        and stock_after == offer.stock - quantity
+        and item_quantity_after == offer.item_quantity + quantity
+    )
+
+
+def canonical_purchase_action_key(
+    flow_id: str,
+    product_id: str,
+    identity: object,
+    component: str,
+) -> str:
+    """Build a durable per-reset purchase key, independent of service pulse and screen."""
+
+    account_id = getattr(identity, "account_id", None)
+    server_id = getattr(identity, "server_id", None)
+    reset_id = getattr(identity, "reset_id", None)
+    task_id = getattr(identity, "task_id", None)
+    if (
+        not isinstance(flow_id, str)
+        or not flow_id.strip()
+        or not isinstance(product_id, str)
+        or not product_id.strip()
+        or not isinstance(component, str)
+        or not re.fullmatch(r"[a-z][a-z0-9_]*", component)
+        or task_id != product_id
+        or not all(
+            isinstance(value, str) and value.strip()
+            for value in (account_id, server_id, reset_id)
+        )
+    ):
+        raise ValueError("canonical purchase key requires its exact route and reset identity")
+    binding = json.dumps(
+        [flow_id, product_id, account_id, server_id, reset_id, component],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    digest = hashlib.sha256(binding).hexdigest()
+    return f"shop-purchase:v1:{component}:{digest}"

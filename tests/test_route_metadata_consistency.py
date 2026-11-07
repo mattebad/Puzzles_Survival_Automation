@@ -29,9 +29,12 @@ import unittest
 
 from automation_service import state as state_module
 from automation_service.cli import build_parser
+from automation_service.contracts import RecurrenceClass
 from automation_service.registry import (
-    ALLIANCE_HELP_FLOW_ID, ALLIANCE_HELP_PROFILE_ID, CAMPAIGN_FLOW_ID,
-    CAMPAIGN_PRODUCT_REVISION, CANONICAL_FLOW_REGISTRY, DAILY_REWARDS_FLOW_ID,
+    ALLIANCE_DONATION_FLOW_ID, ALLIANCE_DONATION_PROFILE_ID, ALLIANCE_HELP_FLOW_ID,
+    ALLIANCE_HELP_PROFILE_ID, ALLIANCE_SHOP_FLOW_ID, ALLIANCE_SHOP_PROFILE_ID,
+    CAMPAIGN_FLOW_ID, CAMPAIGN_PRODUCT_REVISION, CANONICAL_FLOW_REGISTRY,
+    DAILY_REWARDS_FLOW_ID, DAILY_SHOPS_FLOW_ID, DAILY_SHOPS_PROFILE_ID,
     RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, RUINS_PROFILE_ID,
     load_disabled_registry, canonical_entry, servable_flow_names,
 )
@@ -55,15 +58,15 @@ OLD_CAMPAIGN_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
 
 # --- explicit, reasoned exceptions -------------------------------------------------------------
 
-# Service routes that have no operator-registry runner. Nova's wrapper was retired in #35;
-# Batch A retired Daily Row Claim and Daily Resource Item wrappers, while Batch B retires
-# the Ruins wrapper. These routes have one canonical service authority, not a second runner.
 NO_OPERATOR_RUNNER = {
     "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": "operator runner retired in #35; canonical serve is the only runner",
     DAILY_REWARDS_FLOW_ID: "Daily Row Claim wrapper retired in Batch A; canonical serve uses its fixed native binding",
     RESOURCE_ITEM_FLOW_ID: "Daily Resource Item wrapper retired in Batch A; canonical serve uses its fixed native binding",
     RUINS_FLOW_ID: "Ruins operator wrapper retired in Batch B; canonical serve uses its fixed native binding",
     ALLIANCE_HELP_FLOW_ID: "Alliance Help is canonical-service-only and has no operator wrapper",
+    ALLIANCE_DONATION_FLOW_ID: "Alliance Donation is canonical-service-only and has no operator wrapper",
+    ALLIANCE_SHOP_FLOW_ID: "Alliance Shop is canonical-service-only and has no operator wrapper",
+    DAILY_SHOPS_FLOW_ID: "Daily Shops is canonical-service-only and has no operator wrapper",
 }
 
 # Retained operator-registry flows with no development-session input default in ``pnsctl._DEFAULT_MAX_INPUTS``.
@@ -131,6 +134,9 @@ EXECUTION_HANDLERS = {
     RESOURCE_ITEM_FLOW_ID: ("automation_service.resource_item", "ResourceItemExecutionHandler"),
     RUINS_FLOW_ID: ("automation_service.ruins", "RuinsExecutionHandler"),
     ALLIANCE_HELP_FLOW_ID: ("automation_service.alliance_help", "AllianceHelpExecutionHandler"),
+    ALLIANCE_DONATION_FLOW_ID: ("automation_service.alliance_donation", "AllianceDonationExecutionHandler"),
+    ALLIANCE_SHOP_FLOW_ID: ("automation_service.alliance_shop", "AllianceShopExecutionHandler"),
+    DAILY_SHOPS_FLOW_ID: ("automation_service.daily_shops", "DailyShopsExecutionHandler"),
 }
 
 
@@ -178,6 +184,66 @@ B_FIXED_RELATIONSHIPS = {
         }),
     },
 }
+C_FIXED_RELATIONSHIPS = {
+    ALLIANCE_DONATION_FLOW_ID: {
+        "cli_name": "alliance-donation",
+        "family": "alliance_donation",
+        "variant": "ten_hot_donations",
+        "product_id": "alliance_donation",
+        "product_revision": "alliance_donation-v1",
+        "handler_id": "alliance_donation_execution_handler",
+        "profile_id": ALLIANCE_DONATION_PROFILE_ID,
+        "max_inputs": 40,
+        "max_actions": 10,
+        "adapter": ("automation_service.alliance_donation", "AllianceDonationExecutionHandler"),
+        "native": ("scripts.alliance_donation_bluestacks", {
+            "FLOW_ID": ALLIANCE_DONATION_FLOW_ID,
+            "PRODUCT_ID": "alliance_donation",
+            "PRODUCT_REVISION": "alliance_donation-v1",
+            "PROFILE_ID": ALLIANCE_DONATION_PROFILE_ID,
+            "MAX_INPUTS": 40,
+            "MAX_DONATIONS_PER_RESET": 10,
+        }),
+    },
+    ALLIANCE_SHOP_FLOW_ID: {
+        "cli_name": "alliance-shop",
+        "family": "alliance_shop",
+        "variant": "one_weekly_or_other",
+        "product_id": "alliance_shop_purchase",
+        "product_revision": "alliance_shop_purchase-v2",
+        "handler_id": "alliance_shop_execution_handler",
+        "profile_id": ALLIANCE_SHOP_PROFILE_ID,
+        "max_inputs": 24,
+        "max_actions": 1,
+        "adapter": ("automation_service.alliance_shop", "AllianceShopExecutionHandler"),
+        "native": ("scripts.alliance_shop_bluestacks", {
+            "FLOW_ID": ALLIANCE_SHOP_FLOW_ID,
+            "PRODUCT_ID": "alliance_shop_purchase",
+            "PRODUCT_REVISION": "alliance_shop_purchase-v2",
+            "MAX_INPUTS": 24,
+        }),
+    },
+    DAILY_SHOPS_FLOW_ID: {
+        "cli_name": "daily-shops",
+        "family": "daily_shops",
+        "variant": "ruins_and_rare_earth_max",
+        "product_id": "daily_shops_purchase",
+        "product_revision": "daily_shops_purchase-v1",
+        "handler_id": "daily_shops_execution_handler",
+        "profile_id": DAILY_SHOPS_PROFILE_ID,
+        "max_inputs": 48,
+        "max_actions": 2,
+        "adapter": ("automation_service.daily_shops", "DailyShopsExecutionHandler"),
+        "native": ("scripts.daily_shops_bluestacks", {
+            "FLOW_ID": DAILY_SHOPS_FLOW_ID,
+            "PRODUCT_ID": "daily_shops_purchase",
+            "PRODUCT_REVISION": "daily_shops_purchase-v1",
+            "MAX_INPUTS": 48,
+            "MAX_ACTIONS": 2,
+        }),
+    },
+}
+
 
 # Every non-registry copy of a service route's input budget: (module, attribute).
 MAX_INPUT_COPIES = {
@@ -197,11 +263,24 @@ MAX_INPUT_COPIES = {
         ("scripts.daily_resource_item_bluestacks", "MAX_ROUTE_INPUTS"),
     ],
     ALLIANCE_HELP_FLOW_ID: [("scripts.alliance_help_bluestacks", "MAX_INPUTS")],
+    ALLIANCE_DONATION_FLOW_ID: [
+        ("automation_service.alliance_donation", "MAX_INPUTS"),
+        ("scripts.alliance_donation_bluestacks", "MAX_INPUTS"),
+    ],
+    ALLIANCE_SHOP_FLOW_ID: [
+        ("automation_service.alliance_shop", "MAX_INPUTS"),
+        ("scripts.alliance_shop_bluestacks", "MAX_INPUTS"),
+    ],
+    DAILY_SHOPS_FLOW_ID: [
+        ("automation_service.daily_shops", "MAX_INPUTS"),
+        ("scripts.daily_shops_bluestacks", "MAX_INPUTS"),
+    ],
 }
 
 _NUMBER_WORDS = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
     "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
+    "fourteen": 14, "fifteen": 15, "sixteen": 16,
 }
 
 
@@ -410,6 +489,88 @@ class ProductBindingTests(RouteTestCase):
                      expected["max_inputs"], expected["max_actions"]),
                 )
                 self.assertEqual(getattr(adapter, class_name).max_inputs, expected["max_inputs"])
+                native_module, native_facts = expected["native"]
+                native = import_module(native_module)
+                for attribute, value in native_facts.items():
+                    self.assertEqual(getattr(native, attribute), value, f"{native_module}.{attribute} drifted")
+                self.assertNotIn(flow_id, operator)
+                self.assertNotIn(flow_id, pnsctl.BLUESTACKS_FLOW_IDS)
+                self.assertNotIn(flow_id, pnsctl._DEFAULT_MAX_INPUTS)
+                self.assertIn("canonical", NO_OPERATOR_RUNNER[flow_id].casefold())
+
+    def test_batch_c_routes_keep_frozen_identities_and_no_operator_runners(self) -> None:
+        self.assertEqual(set(C_FIXED_RELATIONSHIPS), {
+            ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
+        })
+        operator = _operator_ids()
+        self.assertEqual(len(operator), 12, "Batch C adds canonical-only service routes, not operator runners")
+        queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
+        for flow_id, expected in C_FIXED_RELATIONSHIPS.items():
+            queue_record = queue[flow_id]
+            with self.subTest(flow_id=flow_id):
+                entry = canonical_entry(flow_id)
+                self.assertEqual(
+                    (
+                        queue_record["status"], queue_record["production_registration"],
+                        queue_record["scheduler_enabled"], queue_record["product_policy_status"],
+                    ),
+                    ("evidence_required", "NOT_REGISTERED", False, "explicitly_approved"),
+                )
+                self.assertEqual(
+                    (
+                        queue_record["maximum_inputs"], queue_record["maximum_live_inputs"],
+                        queue_record["maximum_live_attempts"], queue_record["live_attempt_count"],
+                    ),
+                    (expected["max_inputs"], expected["max_inputs"], 0, 0),
+                )
+                self.assertEqual(queue_record["live_attempts"], [])
+                adapter_module, _ = expected["adapter"]
+                native_module, _ = expected["native"]
+                required_paths = {
+                    adapter_module.replace(".", "/") + ".py",
+                    native_module.replace(".", "/") + ".py",
+                    f"tests/test_service_{expected['family']}.py",
+                    f"tests/test_{native_module.rsplit('.', 1)[-1]}.py",
+                    "tests/test_service_route_contract.py",
+                    "tests/test_route_metadata_consistency.py",
+                }
+                self.assertTrue(
+                    required_paths <= (
+                        set(queue_record["implementation_entrypoints"])
+                        | set(queue_record["focused_tests"])
+                    ),
+                )
+                self.assertEqual(entry.cli_name, expected["cli_name"])
+                self.assertEqual(entry.descriptor.family, expected["family"])
+                self.assertEqual(entry.descriptor.variant, expected["variant"])
+                self.assertEqual(
+                    (entry.product_id, entry.product_revision, entry.handler_id),
+                    (expected["product_id"], expected["product_revision"], expected["handler_id"]),
+                )
+                self.assertEqual(
+                    (entry.registration.production_handler, entry.registration.profile, entry.registration.mode),
+                    (expected["handler_id"], expected["profile_id"], "phase_canary"),
+                )
+                self.assertEqual(
+                    (entry.registration.registration_status, entry.registration.scheduler_eligible),
+                    ("REGISTERED", True),
+                )
+                self.assertEqual(
+                    (entry.max_inputs, entry.descriptor.cadence, entry.descriptor.reset_scoped,
+                     entry.descriptor.recurrence_class),
+                    (expected["max_inputs"], "cooldown_pulse", True, RecurrenceClass.COOLDOWN),
+                )
+                adapter_module, class_name = expected["adapter"]
+                adapter = import_module(adapter_module)
+                self.assertEqual(
+                    (adapter.PRODUCT_ID, adapter.PRODUCT_REVISION, adapter.PROFILE_ID,
+                     adapter.MAX_INPUTS, adapter.MAX_ACTIONS),
+                    (expected["product_id"], expected["product_revision"], expected["profile_id"],
+                     expected["max_inputs"], expected["max_actions"]),
+                )
+                handler = getattr(adapter, class_name)
+                self.assertEqual(handler.max_inputs, expected["max_inputs"])
+                self.assertEqual(handler.max_actions, expected["max_actions"])
                 native_module, native_facts = expected["native"]
                 native = import_module(native_module)
                 for attribute, value in native_facts.items():

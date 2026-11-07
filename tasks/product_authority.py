@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r15"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r16"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -59,6 +59,8 @@ RECORD_TYPES = frozenset(
         "alliance_help",
         "rare_earth_shop_purchase",
         "alliance_shop_purchase",
+        "alliance_donation",
+        "daily_shops_purchase",
         "hero_upgrade",
         "hero_duel",
         "nanoweapon_normal_craft",
@@ -87,6 +89,8 @@ RECORD_IDS = frozenset(
         "alliance_help",
         "rare_earth_shop_purchase",
         "alliance_shop_purchase",
+        "alliance_donation",
+        "daily_shops_purchase",
         "hero_upgrade",
         "hero_duel",
         "nanoweapon_normal_craft",
@@ -318,6 +322,8 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "ruins_challenge": "RUINS",
         "alliance_help": "ALLIANCE",
         "rare_earth_shop_purchase": "RARE_EARTH_SHOP",
+        "alliance_donation": "ALLIANCE_TECH",
+        "daily_shops_purchase": "RUINS_SHOP",
         "alliance_shop_purchase": "ALLIANCE_SHOP",
         "hero_upgrade": "HERO",
         "hero_duel": "HERO_DUEL",
@@ -359,6 +365,8 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "alliance_help": "alliance_help",
         "rare_earth_shop_purchase": "rare_earth_shop_purchase",
         "alliance_shop_purchase": "alliance_shop_purchase",
+        "alliance_donation": "alliance_donation",
+        "daily_shops_purchase": "daily_shops_purchase",
         "hero_upgrade": "hero_upgrade",
         "hero_duel": "hero_duel",
         "nanoweapon_normal_craft": "nanoweapon_normal_craft",
@@ -1588,105 +1596,303 @@ def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
 
 
 def _validate_alliance_shop_purchase_record(record: Mapping[str, Any]) -> None:
-    """Validate an unresolved, non-dispatch Alliance Shop candidate."""
+    """Validate the approved one-item Alliance Shop product envelope."""
 
-    if record["objective"] != "alliance_shop_purchase":
-        raise ProductAuthorityError(
-            "Alliance Shop record objective must be alliance_shop_purchase"
-        )
-    if record["action"] != "observe_one_alliance_shop_purchase_candidate":
-        raise ProductAuthorityError(
-            "Alliance Shop action must remain observation-only until product approval"
-        )
-    if record["recurrence"] != "daily_reset_scoped":
-        raise ProductAuthorityError(
-            "Alliance Shop recurrence must be daily_reset_scoped"
-        )
+    if (
+        record["objective"] != "alliance_shop_purchase"
+        or record["action"] != "select_one_current_allowlisted_alliance_offer"
+        or record["recurrence"] != "daily_reset_scoped"
+    ):
+        raise ProductAuthorityError("Alliance Shop must use its reset-scoped one-item objective")
     route = record["semantic_entry_route"]
     if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
         "route"
     ) != ["ALLIANCE_SHOP"]:
-        raise ProductAuthorityError(
-            "Alliance Shop entry route must bind canonical Home to Alliance Shop"
-        )
+        raise ProductAuthorityError("Alliance Shop entry route must bind canonical Home")
     target = record["target"]
-    if (
-        not isinstance(target, Mapping)
-        or target.get("kind") != "alliance_shop_purchase"
-        or target.get("shop") != "ALLIANCE_SHOP"
-        or target.get("candidate_item") != "unknown_current_alliance_shop_item"
-        or target.get("candidate_currency")
-        != "unknown_current_joy_coin_or_alliance_coin"
-        or target.get("candidate_cost") is not None
-        or target.get("quantity") != 1
-        or target.get("policy_status") != "unresolved_user_decision"
-        or target.get("purchase_dispatch_allowed") is not False
-        or target.get("terminal_home") != "HOME_CANONICAL"
-    ):
-        raise ProductAuthorityError(
-            "Alliance Shop target must preserve unknown item and cost bounds"
+    if not isinstance(target, Mapping) or target != {
+        "kind": "alliance_shop_purchase",
+        "preferred_shop": "Weekly Offers",
+        "preferred_items": ["Joy Coin", "Timed Recruit Coin", "Bioenhance Scheme"],
+        "preferred_currency": "Alliance Coins",
+        "fallback_shop": "Other",
+        "fallback_item": "1★ Gear Enhance Material",
+        "fallback_rarity": 1,
+        "fallback_currency": "Alliance Coins",
+        "maximum_quantity_total": 1,
+        "unaffordable_preferred_permits_fallback": True,
+        "premium_allowed": False,
+        "cash_purchase_allowed": False,
+        "alternative_currency_allowed": False,
+        "policy_status": "explicitly_approved",
+        "purchase_dispatch_allowed": False,
+        "terminal_home": "HOME_CANONICAL",
+    }:
+        raise ProductAuthorityError("Alliance Shop allowlist or one-item fallback changed")
+    if type(target["fallback_rarity"]) is not int or type(
+        target["maximum_quantity_total"]
+    ) is not int:
+        raise ProductAuthorityError("Alliance Shop quantity and rarity bounds must be integers")
+    if any(
+        type(target[field]) is not bool
+        for field in (
+            "unaffordable_preferred_permits_fallback",
+            "premium_allowed",
+            "cash_purchase_allowed",
+            "alternative_currency_allowed",
+            "purchase_dispatch_allowed",
         )
+    ):
+        raise ProductAuthorityError("Alliance Shop approval and spending limits must be booleans")
     quantity_cost = record["quantity_cost"]
     cost = quantity_cost.get("cost")
     if (
         quantity_cost.get("quantity") != 1
+        or type(quantity_cost.get("quantity")) is not int
         or not isinstance(cost, Mapping)
-        or cost.get("kind") != "unresolved_currency_cost"
+        or cost.get("kind") != "current_observed_currency_cost"
         or cost.get("amount") is not None
-        or cost.get("unit") != "UNKNOWN_CURRENT_JOY_COIN_OR_ALLIANCE_COIN"
+        or cost.get("unit") != "Alliance Coins"
         or cost.get("free_only") is not False
     ):
-        raise ProductAuthorityError(
-            "Alliance Shop candidate must keep unknown cost fail-closed"
-        )
+        raise ProductAuthorityError("Alliance Shop must bind exact current cost evidence")
     effect = record["semantic_effect"]
     required_effects = {
-        "effect_ordinal": 1,
-        "offer_observation_successor_required": True,
-        "exact_item_evidence_required": True,
-        "exact_currency_evidence_required": True,
-        "exact_cost_evidence_required": True,
-        "balance_evidence_required": True,
-        "quantity_one_required": True,
+        "exact_current_weekly_inventory_required": True,
+        "exact_current_fallback_inventory_required": True,
+        "preferred_offer_priority_is_source_allowlist_order": True,
+        "preferred_offer_must_be_current_and_affordable": True,
+        "unaffordable_preferred_offer_falls_through_to_exact_fallback": True,
+        "fallback_only_when_no_affordable_preferred_offer": True,
+        "fallback_offer_must_be_current_and_affordable": True,
+        "no_affordable_fallback_yields_no_purchase": True,
+        "changed_or_ambiguous_offer_blocks": True,
+        "premium_purchase_allowed": False,
+        "cash_purchase_allowed": False,
+        "alternative_currency_allowed": False,
+        "daily_screen_or_points_inspection_required": False,
+        "one_quantity_total_across_both_paths": 1,
+        "fresh_numeric_quantity_and_total_required_before_inner_buy": True,
+        "exact_current_item_currency_cost_balance_stock_and_availability_required": True,
         "purchase_dispatch_allowed": False,
-        "currency_delta_required_for_purchase_proof": True,
-        "item_delta_required_for_purchase_proof": True,
-        "canonical_home_successor_required": True,
+        "paired_currency_and_item_successors_required": True,
         "dispatch_is_not_success_proof": True,
+        "canonical_home_successor_required": True,
         "daily_ownership": "none",
         "identical_retry": False,
     }
-    if any(effect.get(key) != value for key, value in required_effects.items()):
-        raise ProductAuthorityError(
-            "Alliance Shop candidate must stay evidence-gated and non-dispatching"
-        )
+    if any(
+        effect.get(key) != value
+        or (type(value) is bool and type(effect.get(key)) is not bool)
+        or (type(value) is int and type(effect.get(key)) is not int)
+        for key, value in required_effects.items()
+    ):
+        raise ProductAuthorityError("Alliance Shop purchase semantics exceed the approved envelope")
     terminal = record["terminal_requirement"]
     if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
         "return_required"
     ) is not True:
-        raise ProductAuthorityError(
-            "Alliance Shop terminal requirement must return to canonical Home"
-        )
-    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
-    for marker in (
-        "buy",
-        "purchase dispatch",
-        "currency spend",
-        "premium offer",
-        "unknown item",
-        "ambiguous item",
-        "unknown cost",
-        "ambiguous cost",
-        "unknown currency",
-        "insufficient balance",
-        "identical retry",
-        "real-money",
-    ):
-        if marker not in forbidden:
-            raise ProductAuthorityError(
-                f"Alliance Shop candidate must forbid {marker} actions"
-            )
+        raise ProductAuthorityError("Alliance Shop must return to canonical Home")
 
+
+def _validate_alliance_donation_record(record: Mapping[str, Any]) -> None:
+    """Validate ten reset-scoped actual donations to the automatically selected HOT Tech."""
+
+    if (
+        record["objective"] != "alliance_tech_donation"
+        or record["action"] != "make_one_individually_reconciled_ordinary_donation"
+        or record["recurrence"] != "daily_reset_scoped"
+    ):
+        raise ProductAuthorityError("Alliance Donation must use its reset-scoped action")
+    route = record["semantic_entry_route"]
+    if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
+        "route"
+    ) != ["ALLIANCE_TECH"]:
+        raise ProductAuthorityError("Alliance Donation must start at canonical Home")
+    target = record["target"]
+    if not isinstance(target, Mapping) or target != {
+        "kind": "alliance_tech_donation",
+        "technology_selection": "game_automatically_selected_hot_tech",
+        "rebind_current_hot_target_before_each_action": True,
+        "daily_action_limit": 10,
+        "ordinary_donation_quantity": 1,
+        "ordinary_resource_only": True,
+        "available_attempts_required": True,
+        "consecutive_available_attempts_allowed": True,
+        "attempts_regenerate": 1,
+        "attempt_regeneration_seconds": 1800,
+        "stored_attempt_cap": 20,
+        "unbounded_hold_allowed": False,
+        "policy_status": "explicitly_approved",
+        "terminal_home": "HOME_CANONICAL",
+    }:
+        raise ProductAuthorityError("Alliance Donation quota, target, or attempt bounds changed")
+    for field in ("daily_action_limit", "ordinary_donation_quantity", "attempts_regenerate",
+                  "attempt_regeneration_seconds", "stored_attempt_cap"):
+        if type(target[field]) is not int:
+            raise ProductAuthorityError(f"Alliance Donation {field} must be an integer")
+    if any(
+        type(target[field]) is not bool
+        for field in (
+            "rebind_current_hot_target_before_each_action",
+            "ordinary_resource_only",
+            "available_attempts_required",
+            "consecutive_available_attempts_allowed",
+            "unbounded_hold_allowed",
+        )
+    ):
+        raise ProductAuthorityError("Alliance Donation availability and hold limits must be booleans")
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != 1
+        or type(quantity_cost.get("quantity")) is not int
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "current_observed_ordinary_resource_cost"
+        or cost.get("amount") is not None
+        or cost.get("unit") != "CURRENT_ORDINARY_RESOURCE"
+        or cost.get("free_only") is not False
+    ):
+        raise ProductAuthorityError("Alliance Donation must require a freshly observed ordinary cost")
+    effect = record["semantic_effect"]
+    required_effects = {
+        "current_hot_target_and_exact_resource_cost_and_balance_required": True,
+        "one_confirmed_action_requires_one_consumed_attempt": True,
+        "one_confirmed_action_requires_exact_ordinary_resource_spend": True,
+        "one_confirmed_action_requires_positive_current_tech_progress": True,
+        "count_only_distinct_effect_confirmed_actions": True,
+        "daily_success_limit": 10,
+        "available_attempts_may_be_spent_consecutively": True,
+        "wait_required_while_attempts_remain": False,
+        "regeneration_is_not_a_between_action_cooldown": True,
+        "press_and_hold_donation_allowed": False,
+        "ranking_or_reward_point_counters_are_success_gates": False,
+        "daily_screen_or_points_inspection_required": False,
+        "dispatch_is_not_success_proof": True,
+        "completion_readiness_uses_own_confirmed_action_target": True,
+        "canonical_home_successor_required": True,
+        "daily_ownership": "none",
+        "identical_retry": False,
+    }
+    if any(
+        effect.get(key) != value
+        or (type(value) is bool and type(effect.get(key)) is not bool)
+        or (type(value) is int and type(effect.get(key)) is not int)
+        for key, value in required_effects.items()
+    ):
+        raise ProductAuthorityError("Alliance Donation action counting exceeds its approved limits")
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError("Alliance Donation must return to canonical Home")
+
+
+def _validate_daily_shops_purchase_record(record: Mapping[str, Any]) -> None:
+    """Validate the one-visit, independent Ruins and Rare Earth purchase envelope."""
+
+    if (
+        record["objective"] != "daily_shops_purchase"
+        or record["action"] != "purchase_current_affordable_allowlisted_daily_shop_stock"
+        or record["recurrence"] != "daily_reset_scoped"
+    ):
+        raise ProductAuthorityError("Daily Shops must use its reset-scoped combined objective")
+    route = record["semantic_entry_route"]
+    if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
+        "route"
+    ) != ["RUINS", "EXCHANGE", "RUINS_SHOP", "RARE_EARTH_SHOP"]:
+        raise ProductAuthorityError("Daily Shops must visit both tabs from the Ruins shop screen")
+    target = record["target"]
+    expected_shops = [
+        {
+            "shop": "RUINS_SHOP",
+            "tab": "Ruins Shop",
+            "item": "3★ Chip Enhance Material",
+            "rarity": 3,
+            "currency": "Ruins Coins",
+            "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))",
+        },
+        {
+            "shop": "RARE_EARTH_SHOP",
+            "tab": "Rare Earth Shop",
+            "item": "3★ Module Enhance Material",
+            "rarity": 3,
+            "currency": "Rare Earth",
+            "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))",
+        },
+    ]
+    if not isinstance(target, Mapping) or target != {
+        "kind": "daily_shops_purchase",
+        "shops": expected_shops,
+        "one_visit_for_both_tabs": True,
+        "one_purchase_selection_per_tab": True,
+        "current_price_balance_and_stock_required_per_tab": True,
+        "numeric_quantity_and_total_reread_before_inner_buy": True,
+        "per_tab_result_independent": True,
+        "maximum_quantity_is_current_stock_and_affordability_min": True,
+        "premium_allowed": False,
+        "policy_status": "explicitly_approved",
+        "purchase_dispatch_allowed": False,
+        "terminal_home": "HOME_CANONICAL",
+    }:
+        raise ProductAuthorityError("Daily Shops item identities or numeric quantity bounds changed")
+    for shop in expected_shops:
+        if type(shop["rarity"]) is not int:
+            raise ProductAuthorityError("Daily Shops rarity must be an integer")
+    for field in (
+        "one_visit_for_both_tabs",
+        "one_purchase_selection_per_tab",
+        "current_price_balance_and_stock_required_per_tab",
+        "numeric_quantity_and_total_reread_before_inner_buy",
+        "per_tab_result_independent",
+        "maximum_quantity_is_current_stock_and_affordability_min",
+        "premium_allowed",
+        "purchase_dispatch_allowed",
+    ):
+        if type(target[field]) is not bool:
+            raise ProductAuthorityError(f"Daily Shops {field} must be a boolean")
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != "computed_per_tab"
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "current_observed_currency_cost"
+        or cost.get("amount") is not None
+        or cost.get("unit") != "CURRENT_TAB_CURRENCY"
+        or cost.get("free_only") is not False
+    ):
+        raise ProductAuthorityError("Daily Shops must use current per-tab currency cost evidence")
+    effect = record["semantic_effect"]
+    required_effects = {
+        "both_tabs_evaluated_in_one_visit": True,
+        "per_tab_result_is_independent": True,
+        "tab_quantity_is_min_stock_and_affordability": True,
+        "quantity_must_equal_current_affordable_stock_cap": True,
+        "zero_affordable_or_unavailable_tab_is_skipped": True,
+        "numeric_quantity_and_total_must_match_before_inner_buy": True,
+        "changed_or_ambiguous_tab_blocks_without_substitution": True,
+        "premium_purchase_allowed": False,
+        "tab_status_and_item_currency_effects_reconciled_separately": True,
+        "uncertain_tab_effect_is_not_retried": True,
+        "current_native_gameplay_effect_is_only_readiness_basis": True,
+        "daily_screen_or_points_inspection_required": False,
+        "daily_ownership": "none",
+        "purchase_dispatch_allowed": False,
+        "canonical_home_successor_required": True,
+        "dispatch_is_not_success_proof": True,
+        "identical_retry": False,
+    }
+    if any(
+        effect.get(key) != value
+        or (type(value) is bool and type(effect.get(key)) is not bool)
+        for key, value in required_effects.items()
+    ):
+        raise ProductAuthorityError("Daily Shops tab semantics exceed the approved envelope")
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError("Daily Shops must return to canonical Home")
 
 def _validate_rare_earth_shop_purchase_record(record: Mapping[str, Any]) -> None:
     """Validate an unresolved, non-dispatch Rare Earth Shop candidate."""
@@ -2793,6 +2999,10 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_hero_upgrade_record(record)
     elif record_type == "alliance_shop_purchase":
         _validate_alliance_shop_purchase_record(record)
+    elif record_type == "alliance_donation":
+        _validate_alliance_donation_record(record)
+    elif record_type == "daily_shops_purchase":
+        _validate_daily_shops_purchase_record(record)
     elif record_type == "ruins_shop_purchase":
         _validate_ruins_shop_purchase_record(record)
     elif record_type == "nanoweapon_normal_craft":
@@ -3355,6 +3565,19 @@ def validate_contract_product_authority_binding(
         "ALLIANCE-HELP-TEN-FREE-REQUESTS"
     ):
         raise ProductAuthorityError("Alliance Help route must bind the Alliance Help record")
+    for reserved_id, reserved_flow in (
+        ("alliance_shop_purchase", "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE"),
+        ("alliance_donation", "ALLIANCE-TECH-DONATION-BLUESTACKS-INTEGRATION"),
+        ("daily_shops_purchase", "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE"),
+    ):
+        if record_id == reserved_id and flow_id != reserved_flow:
+            raise ProductAuthorityError(
+                f"{reserved_id} record is reserved for {reserved_flow}"
+            )
+        if record_id != reserved_id and flow_id == reserved_flow:
+            raise ProductAuthorityError(
+                f"{reserved_flow} must bind the {reserved_id} record"
+            )
     if binding["product_record_revision"] != record["record_revision"]:
         raise ProductAuthorityError("contract references stale product record revision")
     if binding["product_record_digest"] != record["record_digest"]:

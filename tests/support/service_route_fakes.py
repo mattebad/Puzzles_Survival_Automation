@@ -23,15 +23,28 @@ from automation_service.enhancement import (
 )
 from automation_service.recruitment import recruitment_reset
 from automation_service.registry import (
-    ALLIANCE_HELP_FLOW_ID, ALLIANCE_HELP_MAX_INPUTS, ALLIANCE_HELP_PRODUCT_ID,
-    ALLIANCE_HELP_PRODUCT_REVISION,
-    BIOENHANCER_FLOW_ID, CAMPAIGN_PROFILE_ID, DAILY_REWARDS_FLOW_ID,
-    DAILY_REWARDS_PROFILE_ID, DAILY_REWARDS_PRODUCT_ID, DAILY_REWARDS_PRODUCT_REVISION,
-    ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
-    RESOURCE_ITEM_MAX_INPUTS, RESOURCE_ITEM_PRODUCT_ID, RESOURCE_ITEM_PRODUCT_REVISION,
-    RECRUITMENT_FLOW_ID, RUINS_FLOW_ID, RUINS_PRODUCT_ID, RUINS_PRODUCT_REVISION,
-    SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
+    ALLIANCE_DONATION_FLOW_ID, ALLIANCE_DONATION_MAX_INPUTS,
+    ALLIANCE_DONATION_PRODUCT_ID, ALLIANCE_DONATION_PRODUCT_REVISION,
+    ALLIANCE_DONATION_PROFILE_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_HELP_MAX_INPUTS,
+    ALLIANCE_HELP_PRODUCT_ID, ALLIANCE_HELP_PRODUCT_REVISION,
+    ALLIANCE_SHOP_FLOW_ID, ALLIANCE_SHOP_MAX_INPUTS, ALLIANCE_SHOP_PRODUCT_ID,
+    ALLIANCE_SHOP_PRODUCT_REVISION, ALLIANCE_SHOP_PROFILE_ID, BIOENHANCER_FLOW_ID,
+    CAMPAIGN_PROFILE_ID, DAILY_REWARDS_FLOW_ID, DAILY_REWARDS_PROFILE_ID,
+    DAILY_REWARDS_PRODUCT_ID, DAILY_REWARDS_PRODUCT_REVISION, DAILY_SHOPS_FLOW_ID,
+    DAILY_SHOPS_MAX_INPUTS, DAILY_SHOPS_PRODUCT_ID, DAILY_SHOPS_PRODUCT_REVISION,
+    DAILY_SHOPS_PROFILE_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID,
+    RESOURCE_ITEM_FLOW_ID, RESOURCE_ITEM_MAX_INPUTS, RESOURCE_ITEM_PRODUCT_ID,
+    RESOURCE_ITEM_PRODUCT_REVISION, RECRUITMENT_FLOW_ID, RUINS_FLOW_ID,
+    RUINS_PRODUCT_ID, RUINS_PRODUCT_REVISION, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
 )
+from tasks.purchases_disabled import (
+    ALLIANCE_CURRENCY, ALLIANCE_FALLBACK_ITEM, ALLIANCE_OTHER_SHOP,
+    ALLIANCE_WEEKLY_SHOP, RARE_EARTH_CURRENCY, RARE_EARTH_MODULE_ITEM,
+    RARE_EARTH_SHOP, RUINS_CHIP_ITEM, RUINS_CURRENCY, RUINS_SHOP,
+    ALLIANCE_WEEKLY_ITEMS, ShopOffer, alliance_shop_choice,
+    canonical_purchase_action_key,
+)
+from tasks.scheduler_task_result import SchedulerIdentity
 
 from tasks.alliance_help import (
     CONSEQUENCE as ALLIANCE_HELP_CONSEQUENCE, DAILY_REQUEST_LIMIT,
@@ -1213,3 +1226,477 @@ class GuardedAllianceHelpRunner:
                 if error is None else None
             ),
         }
+
+
+_C_EVIDENCE_SHA256 = "a" * 64
+
+
+def _guarded_c_payload(
+    *, flow_id, product_id, product_revision, profile_id, identity, previous_reset,
+    occurrence_key, stop, started_at, input_count, max_inputs, max_actions,
+    status, error=None, effect_unknown=False,
+):
+    """Build the fixed native Mapping envelope shared by the Batch C adapters."""
+    backend = derive_resource_runtime_identity(
+        resource_fixed_runtime_binding(),
+        datetime.fromtimestamp(stop.now, timezone.utc),
+    )
+    backend_identity = {
+        "runtime_scope": backend.runtime_scope,
+        "account_id": backend.account_id,
+        "server_id": backend.server_id,
+        "backend_reset_id": backend.reset_id,
+        "runtime_binding_digest": backend.runtime_binding_digest,
+        "reset_start_utc": backend.reset_start_utc,
+        "reset_deadline_utc": backend.reset_deadline_utc,
+    }
+    return {
+        "status": status,
+        "flow_id": flow_id,
+        "product_id": product_id,
+        "product_revision": product_revision,
+        "task_id": product_id,
+        "account_id": identity.account_id,
+        "server_id": identity.server_id,
+        "reset_id": identity.reset_id,
+        "scheduler_reset_id": identity.reset_id,
+        "previous_reset_id": previous_reset,
+        "occurrence_key": occurrence_key,
+        "runtime_profile_id": profile_id,
+        "time_basis": "utc",
+        "started_at_utc": started_at,
+        "completed_at_utc": stop.now,
+        "backend_identity": backend_identity,
+        "input_count": input_count,
+        "total_input_count": input_count,
+        "session_input_count": input_count,
+        "runtime_input_count": input_count,
+        "max_inputs": max_inputs,
+        "max_actions": max_actions,
+        "native_execution_verified": error is None,
+        "native_failure": None if error is None else str(error),
+        "accounting_verified": True,
+        "terminal_home_verified": error is None,
+        "effect_reconciliation_required": effect_unknown,
+        "identical_retry_denied": effect_unknown,
+    }
+
+
+class GuardedAllianceDonationRunner:
+    """Mapping-shaped donation fake with attempted and confirmed ordinals kept separate."""
+
+    ACTION_INPUTS = tuple(range(4, 14))
+
+    def __init__(self, stop, output):
+        self.stop, self.output = stop, output
+        self.calls, self.inputs, self.occurrence_keys = [], [], []
+        self.confirmed_ordinals = []
+        self.reset_id = None
+        self.partial = False
+        self.defer_after = None
+        self.defer_reason = "no_attempts"
+        self.on_input = self.on_entry = None
+        self.last_result = None
+        self.last_identity = None
+
+    @property
+    def effects(self):
+        return len(self.confirmed_ordinals)
+
+    def __call__(self, identity, previous_reset, checkpoint, *,
+                 runtime_input_lock, occurrence_key):
+        checkpoint()
+        runtime_input_lock.assert_held(
+            runtime_input_lock.owner, runtime_input_lock.invocation_id,
+        )
+        self.calls.append((identity, previous_reset))
+        self.occurrence_keys.append(occurrence_key)
+        if identity.reset_id != self.reset_id:
+            self.reset_id = identity.reset_id
+            self.confirmed_ordinals = []
+        self.last_identity = identity
+        if self.on_entry:
+            self.on_entry()
+
+        started = self.stop.now
+        input_count = transport_calls = committed = 0
+        error = None
+        unknown = False
+        deferred = False
+        needed = 10 - len(self.confirmed_ordinals)
+        try:
+            for index in range(ALLIANCE_DONATION_MAX_INPUTS):
+                checkpoint()
+                self.inputs.append((identity.reset_id, index, "donation-route-input"))
+                input_count += 1
+                if index in self.ACTION_INPUTS and committed < needed:
+                    transport_calls += 1
+                    if self.partial and transport_calls == 3:
+                        unknown = True
+                        error = RuntimeError("donation successor is unknown after transport")
+                        break
+                    committed += 1
+                    self.confirmed_ordinals.append(len(self.confirmed_ordinals) + 1)
+                if self.on_input:
+                    self.on_input(index)
+                if self.defer_after is not None and committed >= self.defer_after:
+                    deferred = True
+                    break
+        except Exception as exc:
+            error = exc
+
+        status = (
+            "reconciliation_required" if unknown
+            else "blocked" if error
+            else "deferred" if deferred or len(self.confirmed_ordinals) < 10
+            else "complete_for_reset"
+        )
+        result = _guarded_c_payload(
+            flow_id=ALLIANCE_DONATION_FLOW_ID,
+            product_id=ALLIANCE_DONATION_PRODUCT_ID,
+            product_revision=ALLIANCE_DONATION_PRODUCT_REVISION,
+            profile_id=ALLIANCE_DONATION_PROFILE_ID,
+            identity=identity, previous_reset=previous_reset,
+            occurrence_key=occurrence_key, stop=self.stop, started_at=started,
+            input_count=input_count, max_inputs=ALLIANCE_DONATION_MAX_INPUTS,
+            max_actions=10, status=status, error=error, effect_unknown=unknown,
+        )
+        result.update(
+            terminal_status="completed" if error is None else status,
+            donation_transport_calls=transport_calls,
+            committed_action_count=committed,
+            daily_committed_action_count=len(self.confirmed_ordinals),
+            evidence_refs=("alliance-donation-home.png",),
+            terminal_frame_sha256=_C_EVIDENCE_SHA256,
+        )
+        if deferred and error is None:
+            observed = self.stop.now
+            reason = self.defer_reason
+            source = "observed_attempt_timer" if reason == "no_attempts" else "safe_resource_recheck"
+            result.update(
+                reason=reason,
+                availability_evidence={
+                    "tech_identity": "current automatic HOT target",
+                    "game_day_id": identity.reset_id,
+                    "source_frame_sha256": _C_EVIDENCE_SHA256,
+                    "evidence_ref": "alliance-donation-availability.png",
+                    "reason": reason,
+                    "available_attempts": 0 if reason == "no_attempts" else 20,
+                    "attempt_capacity": 20,
+                    "observed_at_utc": observed,
+                    "next_eligibility_source": source,
+                    "next_attempt_available_in_seconds": 1800 if reason == "no_attempts" else None,
+                    "resource_identity": "STEEL" if reason == "insufficient_resource" else None,
+                    "resource_balance": 500 if reason == "insufficient_resource" else None,
+                    "donation_amount": 1000 if reason == "insufficient_resource" else None,
+                },
+                next_eligible_at=observed + (1800 if reason == "no_attempts" else 300),
+            )
+        self.last_result = result
+        if error is not None:
+            raise GuardedRoutePartialResultError(str(error), result) from error
+        return result
+
+
+class GuardedAllianceShopRunner:
+    """Mapping-shaped one-purchase fake using the exact fallback result contract."""
+
+    PURCHASE_INPUT = 12
+
+    def __init__(self, stop, output):
+        self.stop, self.output = stop, output
+        self.calls, self.inputs, self.occurrence_keys = [], [], []
+        self.actions = 0
+        self.partial = False
+        self.on_input = self.on_entry = None
+        self.selection_choice = None
+        self.last_result = None
+        self.last_identity = None
+
+    @property
+    def effects(self):
+        return self.actions
+
+    def __call__(self, identity, previous_reset, checkpoint, *,
+                 runtime_input_lock, occurrence_key):
+        checkpoint()
+        runtime_input_lock.assert_held(
+            runtime_input_lock.owner, runtime_input_lock.invocation_id,
+        )
+        self.calls.append((identity, previous_reset))
+        self.occurrence_keys.append(occurrence_key)
+        self.last_identity = identity
+        if self.on_entry:
+            self.on_entry()
+
+        started = self.stop.now
+        weekly_offer = ShopOffer(
+            shop_identity=ALLIANCE_WEEKLY_SHOP,
+            item_identity=ALLIANCE_WEEKLY_ITEMS[0],
+            currency_identity=ALLIANCE_CURRENCY,
+            unit_price=1000, balance=0, stock=12, item_quantity=0,
+            available=True, offer_identity="weekly:joy-coin",
+        )
+        fallback_offer = ShopOffer(
+            shop_identity=ALLIANCE_OTHER_SHOP,
+            item_identity=ALLIANCE_FALLBACK_ITEM,
+            currency_identity=ALLIANCE_CURRENCY,
+            unit_price=1000, balance=79999, stock=10055, item_quantity=11052,
+            rarity=1, available=True,
+            offer_identity="other:one-star-gear-enhance-material",
+        )
+        choice = alliance_shop_choice(
+            (weekly_offer,), fallback_offer,
+            weekly_inventory_complete=True, fallback_inventory_complete=True,
+        )
+        self.selection_choice = choice
+        selected_offer = choice.offer
+
+        def offer_readiness(offer):
+            return {
+                "shop_identity": offer.shop_identity,
+                "item_identity": offer.item_identity,
+                "currency_identity": offer.currency_identity,
+                "unit_price": offer.unit_price,
+                "balance": offer.balance,
+                "stock": offer.stock,
+                "rarity": offer.rarity,
+                "available": offer.available,
+                "premium": offer.premium,
+                "recognized": offer.recognized,
+                "offer_identity": offer.offer_identity,
+            }
+
+        selection_evidence = {
+            "weekly_inventory": {
+                "complete": True, "reason": "",
+                "frame_refs": ("alliance-weekly-offers.png",),
+                "frame_sha256s": (_C_EVIDENCE_SHA256,),
+            },
+            "weekly_offers": (offer_readiness(weekly_offer),),
+            "fallback_inventory": {
+                "complete": True, "reason": "",
+                "frame_refs": ("alliance-other-offers.png",),
+                "frame_sha256s": (_C_EVIDENCE_SHA256,),
+            },
+            "fallback_offer": offer_readiness(fallback_offer),
+        }
+        input_count = transport_calls = committed = 0
+        error = None
+        unknown = False
+        try:
+            for index in range(ALLIANCE_SHOP_MAX_INPUTS):
+                checkpoint()
+                self.inputs.append((identity.reset_id, index, "alliance-shop-input"))
+                input_count += 1
+                if index == self.PURCHASE_INPUT:
+                    transport_calls = 1
+                    if self.partial:
+                        unknown = True
+                        error = RuntimeError("Alliance Shop purchase successor is unknown")
+                        break
+                    committed = 1
+                    self.actions += 1
+                if self.on_input:
+                    self.on_input(index)
+        except Exception as exc:
+            error = exc
+
+        status = "unresolved" if unknown else "blocked" if error else "complete_for_reset"
+        result = _guarded_c_payload(
+            flow_id=ALLIANCE_SHOP_FLOW_ID,
+            product_id=ALLIANCE_SHOP_PRODUCT_ID,
+            product_revision=ALLIANCE_SHOP_PRODUCT_REVISION,
+            profile_id=ALLIANCE_SHOP_PROFILE_ID,
+            identity=identity, previous_reset=previous_reset,
+            occurrence_key=occurrence_key, stop=self.stop, started_at=started,
+            input_count=input_count, max_inputs=ALLIANCE_SHOP_MAX_INPUTS,
+            max_actions=1, status=status, error=error, effect_unknown=unknown,
+        )
+        result.update(
+            purchase_transport_calls=transport_calls,
+            committed_action_count=committed,
+            prior_confirmed_action_count=0,
+            offer_effect_verified=committed == 1 and error is None,
+            selected_offer=({
+                "shop_identity": selected_offer.shop_identity,
+                "offer_identity": selected_offer.offer_identity,
+                "item_identity": selected_offer.item_identity,
+                "currency_identity": selected_offer.currency_identity,
+                "rarity": selected_offer.rarity,
+                "unit_price": selected_offer.unit_price,
+                "balance_before": selected_offer.balance,
+                "stock_before": selected_offer.stock,
+                "item_quantity_before": selected_offer.item_quantity,
+                "quantity": choice.quantity,
+                "total": selected_offer.unit_price * choice.quantity,
+            } if transport_calls else None),
+            selection_evidence=selection_evidence,
+            source_frame={
+                "frame_path": "alliance-shop-home.png",
+                "frame_sha256": _C_EVIDENCE_SHA256,
+            },
+        )
+        self.last_result = result
+        if error is not None:
+            raise GuardedRoutePartialResultError(str(error), result) from error
+        return result
+
+
+class GuardedDailyShopsRunner:
+    """Mapping-shaped per-tab fake preserving confirmed purchases across service pulses."""
+
+    ACTION_INPUTS = {"ruins": 12, "rare_earth": 24}
+
+    def __init__(self, stop, output):
+        self.stop, self.output = stop, output
+        self.calls, self.inputs, self.occurrence_keys = [], [], []
+        self.confirmed_tabs = set()
+        self.reset_id = None
+        self.actions = 0
+        self.partial = False
+        self.rare_earth_unaffordable = False
+        self.on_input = self.on_entry = None
+        self.last_result = None
+        self.last_identity = None
+
+    @property
+    def effects(self):
+        return self.actions
+
+    def __call__(self, identity, previous_reset, checkpoint, *,
+                 runtime_input_lock, occurrence_key):
+        checkpoint()
+        runtime_input_lock.assert_held(
+            runtime_input_lock.owner, runtime_input_lock.invocation_id,
+        )
+        self.calls.append((identity, previous_reset))
+        self.occurrence_keys.append(occurrence_key)
+        if identity.reset_id != self.reset_id:
+            self.reset_id = identity.reset_id
+            self.confirmed_tabs = set()
+        self.last_identity = identity
+        if self.on_entry:
+            self.on_entry()
+
+        started = self.stop.now
+        input_count = transport_calls = committed = 0
+        error = None
+        unknown = False
+        rows = {}
+        try:
+            for index in range(DAILY_SHOPS_MAX_INPUTS):
+                checkpoint()
+                self.inputs.append((identity.reset_id, index, "daily-shops-input"))
+                input_count += 1
+                tab = "ruins" if index == self.ACTION_INPUTS["ruins"] else (
+                    "rare_earth" if index == self.ACTION_INPUTS["rare_earth"] else None
+                )
+                if tab is not None:
+                    if tab in self.confirmed_tabs:
+                        rows[tab] = self._tab_result(
+                            identity, tab, status="already_confirmed",
+                        )
+                    elif tab == "rare_earth" and self.rare_earth_unaffordable:
+                        rows[tab] = self._tab_result(identity, tab, status="deferred")
+                    else:
+                        transport_calls += 1
+                        if self.partial and tab == "rare_earth":
+                            unknown = True
+                            rows[tab] = self._tab_result(
+                                identity, tab, status="unresolved",
+                            )
+                            error = RuntimeError("Daily Shops second-tab successor is unknown")
+                            break
+                        committed += 1
+                        self.actions += 1
+                        self.confirmed_tabs.add(tab)
+                        rows[tab] = self._tab_result(identity, tab, status="confirmed")
+                if self.on_input:
+                    self.on_input(index)
+        except Exception as exc:
+            error = exc
+
+        # Both tabs always have a canonical per-reset result, including on early interruption.
+        for tab in ("ruins", "rare_earth"):
+            rows.setdefault(tab, self._tab_result(
+                identity, tab,
+                status="already_confirmed" if tab in self.confirmed_tabs else "blocked",
+            ))
+        status = (
+            "unresolved" if unknown
+            else "blocked" if error
+            else "deferred" if any(row["status"] == "deferred" for row in rows.values())
+            else "complete_for_reset"
+        )
+        result = _guarded_c_payload(
+            flow_id=DAILY_SHOPS_FLOW_ID,
+            product_id=DAILY_SHOPS_PRODUCT_ID,
+            product_revision=DAILY_SHOPS_PRODUCT_REVISION,
+            profile_id=DAILY_SHOPS_PROFILE_ID,
+            identity=identity, previous_reset=previous_reset,
+            occurrence_key=occurrence_key, stop=self.stop, started_at=started,
+            input_count=input_count, max_inputs=DAILY_SHOPS_MAX_INPUTS,
+            max_actions=2, status=status, error=error, effect_unknown=unknown,
+        )
+        result.update(
+            purchase_transport_calls=transport_calls,
+            committed_action_count=committed,
+            tab_results=rows,
+            source_frame={
+                "frame_path": "daily-shops-home.png",
+                "frame_sha256": _C_EVIDENCE_SHA256,
+            },
+        )
+        self.last_result = result
+        if error is not None:
+            raise GuardedRoutePartialResultError(str(error), result) from error
+        return result
+
+    @staticmethod
+    def _tab_result(identity, tab, *, status):
+        if tab == "ruins":
+            shop, item, currency = RUINS_SHOP, RUINS_CHIP_ITEM, RUINS_CURRENCY
+            component, price, balance, stock, item_count = (
+                "ruins_shop", 15, 16649, 100, 4,
+            )
+            quantity = 100
+        else:
+            shop, item, currency = RARE_EARTH_SHOP, RARE_EARTH_MODULE_ITEM, RARE_EARTH_CURRENCY
+            component, price, balance, stock, item_count = (
+                "rare_earth_shop", 13800, 211995, 20, 4,
+            )
+            quantity = 15
+        key_identity = SchedulerIdentity(
+            identity.account_id, identity.server_id, identity.reset_id,
+            DAILY_SHOPS_PRODUCT_ID,
+        )
+        confirmed = status in {"confirmed", "already_confirmed"}
+        deferred = status == "deferred"
+        if deferred:
+            balance, quantity, total = 0, 0, None
+        else:
+            total = quantity * price if confirmed else None
+        row = {
+            "status": status,
+            "effect_verified": confirmed,
+            "action_key": canonical_purchase_action_key(
+                DAILY_SHOPS_FLOW_ID, DAILY_SHOPS_PRODUCT_ID, key_identity, component,
+            ),
+            "shop_identity": shop,
+            "item_identity": item,
+            "currency_identity": currency,
+            "rarity": 3,
+            "offer_identity": f"{component}:current-offer",
+            "unit_price": price,
+            "balance_before": balance,
+            "stock_before": stock,
+            "item_quantity_before": item_count,
+            "quantity": quantity,
+            "total": total,
+            "source_frame_ref": f"{component}-offer.png",
+            "source_frame_sha256": _C_EVIDENCE_SHA256,
+        }
+        if deferred:
+            row["reason"] = "TAB_NO_AFFORDABLE_STOCK"
+        return row

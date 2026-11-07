@@ -7,10 +7,26 @@ import unittest
 
 from tasks.contracts import TaskOutcome
 from tasks.purchases_disabled import (
+    ALLIANCE_CURRENCY,
+    ALLIANCE_FALLBACK_ITEM,
+    ALLIANCE_OTHER_SHOP,
+    ALLIANCE_WEEKLY_SHOP,
     PurchaseObservation,
+    RARE_EARTH_CURRENCY,
+    RARE_EARTH_MODULE_ITEM,
+    RARE_EARTH_SHOP,
+    RUINS_CHIP_ITEM,
+    RUINS_CURRENCY,
+    RUINS_SHOP,
+    ShopOffer,
+    alliance_shop_choice,
+    daily_shop_quantity,
     purchase_authorizeable,
+    purchase_dialog_matches,
     purchase_disabled_dispatch,
+    purchase_effect_verified,
     purchase_postcondition_verified,
+    canonical_purchase_action_key,
 )
 from tests.support.observations import load_observation
 
@@ -128,6 +144,264 @@ class DisabledPurchaseContractTests(unittest.TestCase):
                 row["current_runtime_registration_status"], "NOT_REGISTERED"
             )
             self.assertFalse(row["scheduler_eligibility"])
+
+
+
+
+def shop_offer(shop, item, currency, price, balance, stock, item_quantity, *,
+               rarity=None, available=None, premium=False, recognized=True):
+    return ShopOffer(
+        shop_identity=shop,
+        item_identity=item,
+        currency_identity=currency,
+        unit_price=price,
+        balance=balance,
+        stock=stock,
+        item_quantity=item_quantity,
+        rarity=rarity,
+        available=(stock > 0 if available is None else available),
+        premium=premium,
+        recognized=recognized,
+    )
+
+
+class ApprovedPurchasePolicyTests(unittest.TestCase):
+    def test_alliance_selects_one_exact_affordable_weekly_offer(self):
+        preferred = shop_offer(
+            ALLIANCE_WEEKLY_SHOP, "Bioenhance Scheme", ALLIANCE_CURRENCY,
+            37, 100, 4, 8,
+        )
+        fallback = shop_offer(
+            ALLIANCE_OTHER_SHOP, ALLIANCE_FALLBACK_ITEM, ALLIANCE_CURRENCY,
+            9, 100, 10, 3, rarity=1,
+        )
+        choice = alliance_shop_choice(
+            (preferred,), fallback,
+            weekly_inventory_complete=True,
+            fallback_inventory_complete=True,
+        )
+        self.assertEqual((choice.status, choice.offer, choice.quantity),
+                         ("selected", preferred, 1))
+        self.assertEqual(choice.reason, "AFFORDABLE_PREFERRED_OFFER")
+
+    def test_unaffordable_or_sold_out_weekly_reaches_only_other_fallback(self):
+        fallback = shop_offer(
+            ALLIANCE_OTHER_SHOP, ALLIANCE_FALLBACK_ITEM, ALLIANCE_CURRENCY,
+            7, 10, 6, 2, rarity=1,
+        )
+        for preferred in (
+            shop_offer(ALLIANCE_WEEKLY_SHOP, "Timed Recruit Coin", ALLIANCE_CURRENCY,
+                       11, 10, 2, 0),
+            shop_offer(ALLIANCE_WEEKLY_SHOP, "Bioenhance Scheme", ALLIANCE_CURRENCY,
+                       11, 10, 0, 0, available=False),
+        ):
+            choice = alliance_shop_choice(
+                (preferred,), fallback,
+                weekly_inventory_complete=True,
+                fallback_inventory_complete=True,
+            )
+            self.assertEqual((choice.status, choice.offer, choice.quantity),
+                             ("selected", fallback, 1))
+            self.assertEqual(choice.reason, "AFFORDABLE_EXACT_FALLBACK")
+
+    def test_alliance_rejects_unknown_alternate_and_premium_preferred_evidence(self):
+        fallback = shop_offer(
+            ALLIANCE_OTHER_SHOP, ALLIANCE_FALLBACK_ITEM, ALLIANCE_CURRENCY,
+            7, 10, 6, 2, rarity=1,
+        )
+        for changed in (
+            shop_offer(ALLIANCE_WEEKLY_SHOP, "Timed Recruit Coin", "Diamonds",
+                       1, 50, 2, 0),
+            shop_offer(ALLIANCE_WEEKLY_SHOP, "Bioenhance Scheme", ALLIANCE_CURRENCY,
+                       7, 10, 2, 0, premium=True),
+            shop_offer(ALLIANCE_WEEKLY_SHOP, "Joy Coin", ALLIANCE_CURRENCY,
+                       None, 10, 2, 0),
+        ):
+            choice = alliance_shop_choice(
+                (changed,), fallback,
+                weekly_inventory_complete=True,
+                fallback_inventory_complete=True,
+            )
+            self.assertEqual(choice.status, "blocked")
+        excluded = shop_offer(
+            ALLIANCE_WEEKLY_SHOP, "Int. Recruit Coin", "Diamonds",
+            1, 50, 2, 0,
+        )
+        choice = alliance_shop_choice(
+            (excluded,), fallback,
+            weekly_inventory_complete=True,
+            fallback_inventory_complete=True,
+        )
+        self.assertEqual((choice.status, choice.offer), ("selected", fallback))
+
+    def test_alliance_inventory_ambiguity_and_fallback_limits_fail_closed(self):
+        valid = shop_offer(
+            ALLIANCE_WEEKLY_SHOP, "Joy Coin", ALLIANCE_CURRENCY,
+            7, 10, 1, 0,
+        )
+        fallback = shop_offer(
+            ALLIANCE_OTHER_SHOP, ALLIANCE_FALLBACK_ITEM, ALLIANCE_CURRENCY,
+            7, 10, 1, 0, rarity=1,
+        )
+        for choice in (
+            alliance_shop_choice(
+                (valid,), fallback,
+                weekly_inventory_complete=False,
+                fallback_inventory_complete=True,
+            ),
+            alliance_shop_choice(
+                (replace(valid, recognized=False),), fallback,
+                weekly_inventory_complete=True,
+                fallback_inventory_complete=True,
+            ),
+            alliance_shop_choice(
+                (valid, valid), fallback,
+                weekly_inventory_complete=True,
+                fallback_inventory_complete=True,
+            ),
+            alliance_shop_choice(
+                (), None,
+                weekly_inventory_complete=True,
+                fallback_inventory_complete=True,
+            ),
+            alliance_shop_choice(
+                (), replace(fallback, currency_identity="Diamonds"),
+                weekly_inventory_complete=True,
+                fallback_inventory_complete=True,
+            ),
+        ):
+            self.assertIn(choice.status, {"blocked", "deferred"})
+        self.assertEqual(
+            alliance_shop_choice(
+                (), fallback,
+                weekly_inventory_complete=True,
+                fallback_inventory_complete=True,
+            ).quantity,
+            1,
+        )
+
+    def test_daily_shop_maximum_is_exact_stock_and_affordability_minimum(self):
+        stock_limited = shop_offer(
+            RUINS_SHOP, RUINS_CHIP_ITEM, RUINS_CURRENCY, 13, 1000, 4, 2,
+            rarity=3,
+        )
+        balance_limited = shop_offer(
+            RARE_EARTH_SHOP, RARE_EARTH_MODULE_ITEM, RARE_EARTH_CURRENCY,
+            13, 85, 20, 1, rarity=3,
+        )
+        self.assertEqual(daily_shop_quantity(stock_limited, shop_identity=RUINS_SHOP), 4)
+        self.assertEqual(daily_shop_quantity(balance_limited, shop_identity=RARE_EARTH_SHOP), 6)
+        self.assertEqual(
+            daily_shop_quantity(
+                replace(balance_limited, balance=0),
+                shop_identity=RARE_EARTH_SHOP,
+            ),
+            0,
+        )
+        self.assertEqual(
+            daily_shop_quantity(
+                replace(stock_limited, stock=0, available=False),
+                shop_identity=RUINS_SHOP,
+            ),
+            0,
+        )
+
+    def test_daily_shop_rejects_wrong_item_rarity_currency_and_uncertain_cost(self):
+        valid = shop_offer(
+            RARE_EARTH_SHOP, RARE_EARTH_MODULE_ITEM, RARE_EARTH_CURRENCY,
+            13, 85, 20, 0, rarity=3,
+        )
+        for changed in (
+            replace(valid, item_identity="Module Promoter"),
+            replace(valid, rarity=2),
+            replace(valid, currency_identity="Diamonds"),
+            replace(valid, unit_price=None),
+            replace(valid, available=False),
+            replace(valid, premium=True),
+            replace(valid, recognized=False),
+        ):
+            self.assertIsNone(daily_shop_quantity(changed, shop_identity=RARE_EARTH_SHOP))
+        self.assertIsNone(daily_shop_quantity(valid, shop_identity=RUINS_SHOP))
+
+    def test_numeric_quantity_total_and_paired_effects_are_required(self):
+        offer = shop_offer(
+            RUINS_SHOP, RUINS_CHIP_ITEM, RUINS_CURRENCY,
+            13, 85, 20, 10, rarity=3,
+        )
+        self.assertTrue(purchase_dialog_matches(
+            offer, quantity=6, selected_quantity=6, displayed_total=78,
+        ))
+        self.assertFalse(purchase_dialog_matches(
+            offer, quantity=6, selected_quantity=5, displayed_total=65,
+        ))
+        self.assertFalse(purchase_dialog_matches(
+            offer, quantity=6, selected_quantity=6, displayed_total=77,
+        ))
+        proof = dict(
+            quantity=6,
+            selected_quantity=6,
+            displayed_total=78,
+            currency_after=7,
+            stock_after=14,
+            item_quantity_after=16,
+            item_identity_after=RUINS_CHIP_ITEM,
+            currency_identity_after=RUINS_CURRENCY,
+            tab_successor_verified=True,
+            terminal_home_verified=True,
+            inner_buy_dispatched=True,
+        )
+        self.assertTrue(purchase_effect_verified(offer, **proof))
+        for changed in (
+            {"currency_after": 6},
+            {"stock_after": 13},
+            {"item_quantity_after": 15},
+            {"item_identity_after": "different item"},
+            {"currency_identity_after": "Diamonds"},
+            {"tab_successor_verified": False},
+            {"terminal_home_verified": False},
+            {"inner_buy_dispatched": False},
+        ):
+            self.assertFalse(purchase_effect_verified(offer, **(proof | changed)))
+    def test_canonical_action_keys_are_reset_scoped_not_pulse_scoped(self):
+        class Identity:
+            account_id = "account-a"
+            server_id = "server-a"
+            reset_id = "game-day-2030-01-02"
+            task_id = "daily_shops_purchase"
+
+        identity = Identity()
+        key = canonical_purchase_action_key(
+            "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE",
+            "daily_shops_purchase",
+            identity,
+            "ruins_shop",
+        )
+        self.assertEqual(
+            key,
+            canonical_purchase_action_key(
+                "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE",
+                "daily_shops_purchase",
+                identity,
+                "ruins_shop",
+            ),
+        )
+        identity.reset_id = "game-day-2030-01-03"
+        self.assertNotEqual(
+            key,
+            canonical_purchase_action_key(
+                "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE",
+                "daily_shops_purchase",
+                identity,
+                "ruins_shop",
+            ),
+        )
+        with self.assertRaises(ValueError):
+            canonical_purchase_action_key(
+                "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE",
+                "daily_shops_purchase",
+                identity,
+                "Rare Earth",
+            )
 
 
 if __name__ == "__main__":

@@ -1,9 +1,9 @@
 {
   "schema_version": 2,
   "flow_id": "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE",
-  "product_purpose": "Observe one bounded Alliance Shop purchase candidate without authorizing Buy or currency spend.",
-  "trigger_cadence_type": "evidence_gated",
-  "reset_scope": "one candidate per reset after explicit product decision",
+  "product_purpose": "Select at most one quantity-one current Alliance Shop purchase from the exact preferred allowlist, falling back only to the exact Other one-star Gear Enhance Material when no preferred offer is affordable.",
+  "trigger_cadence_type": "cooldown_pulse",
+  "reset_scope": "daily_reset",
   "required_starting_context": [
     "home_canonical"
   ],
@@ -17,138 +17,311 @@
   "recognized_states": [
     "home_canonical",
     "alliance_shop",
-    "offer_observation",
-    "blocked"
+    "weekly_inventory_current",
+    "preferred_offer_affordable",
+    "preferred_offer_unaffordable_or_absent",
+    "fallback_offer_current",
+    "numeric_quantity_verified",
+    "purchase_effect_pending",
+    "purchase_effect_verified",
+    "no_affordable_offer",
+    "home_returned",
+    "blocked",
+    "manual_required"
   ],
   "transition_contracts": [
     {
-      "transition_id": "observe_alliance_shop_route",
+      "transition_id": "open_alliance_shop",
       "from": "home_canonical",
       "to": "alliance_shop",
-      "planner": "AllianceShopPurchaseEvidenceGate",
-      "permitted_input": null,
+      "planner": "scripts/alliance_shop_bluestacks.py",
+      "permitted_input": "open_alliance_shop_from_current_home",
       "postconditions": [
-        "Alliance Shop route remains an offline observation contract",
-        "no navigation input is authorized"
+        "current Alliance Shop screen and route source are positively recognized"
       ],
       "terminal_outcomes": [
-        "blocked"
+        "blocked",
+        "manual_required"
       ],
-      "evidence_gate_id": "alliance_native_offer_replay"
+      "evidence_gate_id": "alliance_shop_current_native_acceptance"
     },
     {
-      "transition_id": "observe_allowlisted_candidate",
+      "transition_id": "bind_complete_weekly_inventory",
       "from": "alliance_shop",
-      "to": "offer_observation",
-      "planner": "AllianceShopPurchaseEvidenceGate",
+      "to": "weekly_inventory_current",
+      "planner": "scripts/alliance_shop_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "current Joy Coin offer identity and availability are recognized",
-        "current currency, exact cost, fallback item, and fallback cost are recognized",
-        "sufficient balance, quantity one, and item/currency successor evidence are captured"
+        "complete current Weekly Offers inventory is checked against Joy Coin, Timed Recruit Coin, and Bioenhance Scheme in source allowlist order",
+        "only Alliance Coins are accepted as the currency"
       ],
       "terminal_outcomes": [
-        "blocked"
+        "blocked",
+        "manual_required"
       ],
-      "evidence_gate_id": "alliance_native_offer_replay"
+      "evidence_gate_id": "alliance_shop_current_native_acceptance"
+    },
+    {
+      "transition_id": "select_affordable_preferred_offer",
+      "from": "weekly_inventory_current",
+      "to": "preferred_offer_affordable",
+      "planner": "scripts/alliance_shop_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "one exact current preferred offer is available and affordable for quantity one",
+        "current item, currency, unit cost, balance, stock, and availability are all bound"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_shop_current_native_acceptance"
+    },
+    {
+      "transition_id": "no_affordable_preferred_offer",
+      "from": "weekly_inventory_current",
+      "to": "preferred_offer_unaffordable_or_absent",
+      "planner": "scripts/alliance_shop_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "complete current preferred inventory has no present and affordable exact allowlisted item"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_shop_current_native_acceptance"
+    },
+    {
+      "transition_id": "evaluate_exact_fallback",
+      "from": "preferred_offer_unaffordable_or_absent",
+      "to": "fallback_offer_current",
+      "planner": "scripts/alliance_shop_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "fallback is considered only after no preferred allowlisted offer is affordable",
+        "only Other, 1★ Gear Enhance Material, and Alliance Coins are accepted"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_shop_current_native_acceptance"
+    },
+    {
+      "transition_id": "verify_numeric_purchase_quantity",
+      "from": "preferred_offer_affordable",
+      "to": "numeric_quantity_verified",
+      "planner": "scripts/alliance_shop_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "quantity is numerically reread as one and displayed total equals the current exact unit cost",
+        "the inner Buy control is separately bound from the non-consuming outer offer row"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_shop_current_native_acceptance"
+    },
+    {
+      "transition_id": "verify_fallback_quantity",
+      "from": "fallback_offer_current",
+      "to": "numeric_quantity_verified",
+      "planner": "scripts/alliance_shop_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "exact fallback is affordable and available",
+        "quantity is numerically reread as one and displayed total equals current exact unit cost"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_shop_current_native_acceptance"
+    },
+    {
+      "transition_id": "buy_one_preferred_or_fallback",
+      "from": "numeric_quantity_verified",
+      "to": "purchase_effect_pending",
+      "planner": "scripts/alliance_shop_bluestacks.py",
+      "permitted_input": "buy_one_current_exact_affordable_allowlisted_offer",
+      "postconditions": [
+        "no more than one quantity is purchased in total",
+        "the chosen current offer is either one preferred Weekly item or the one exact Other fallback, never both",
+        "dispatch alone is not purchase success"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_shop_current_native_acceptance"
+    },
+    {
+      "transition_id": "reconcile_paired_purchase_effect",
+      "from": "purchase_effect_pending",
+      "to": "purchase_effect_verified",
+      "planner": "scripts/alliance_shop_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "exact item increase and matching Alliance Coin decrease are both current and positively verified",
+        "unknown effect is not retried identically"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_shop_current_native_acceptance"
     },
     {
       "transition_id": "return_canonical_home",
-      "from": "offer_observation",
-      "to": "home_canonical",
-      "planner": "AllianceShopPurchaseEvidenceGate",
-      "permitted_input": null,
+      "from": "purchase_effect_verified",
+      "to": "home_returned",
+      "planner": "scripts/alliance_shop_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
       "postconditions": [
-        "canonical Home remains the required terminal state"
+        "canonical Home is positively recognized"
       ],
       "terminal_outcomes": [
-        "blocked"
+        "action_performed",
+        "blocked",
+        "manual_required"
       ],
-      "evidence_gate_id": "alliance_native_offer_replay"
+      "evidence_gate_id": "alliance_shop_current_native_acceptance"
     }
   ],
-  "permitted_inputs": [],
-  "consequential_action_class": "alliance_shop_purchase_candidate_observation",
+  "permitted_inputs": [
+    "open_alliance_shop_from_current_home",
+    "buy_one_current_exact_affordable_allowlisted_offer",
+    "safe_return_to_canonical_home"
+  ],
+  "consequential_action_class": "alliance_shop_purchase",
   "cost_quantity_requirements": {
     "free_only": false,
     "maximum_cost": null,
     "quantity": 1,
-    "resource_or_currency": "UNKNOWN_CURRENT_JOY_COIN_OR_ALLIANCE_COIN",
-    "notes": "Current offer, currency, fallback item, and cost are unresolved; no Buy dispatch or currency spend is authorized."
+    "resource_or_currency": "Alliance Coins",
+    "notes": "The exact live unit price and balance are read from the current offer; no rotating cost or reset time is guessed. Product approval is not runtime dispatch authority."
   },
-  "completion_identity": "alliance-shop:purchase:candidate-observed",
+  "completion_identity": "alliance-shop:one-allowlisted-quantity-one-purchase-per-reset",
   "terminal_outcomes": [
+    "action_performed",
     "deferred",
+    "complete_for_reset",
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "Keep candidate dormant until product allowlist and native offer evidence are current; never schedule or register this flow.",
-  "bounded_recovery_behavior": "Stop on unknown shop, offer, item, currency, cost, balance, quantity, successor, or terminal Home state; preserve blocked disposition.",
+  "cooldown_deferred_behavior": "Recheck current availability and the exact visible offer on a configured pulse. Never infer a weekly refresh time or permit a second purchase in the same reset.",
+  "bounded_recovery_behavior": "Stop on incomplete inventory, unknown or changed item/currency/cost/balance/stock, ambiguity, unaffordable fallback, quantity mismatch, unknown effect, or noncanonical terminal state. Preserve an uncertain effect and do not retry it.",
   "evidence_requirements": [
-    "Current native Alliance Shop target, Joy Coin offer, availability, and fallback item are missing.",
-    "Current currency identity, exact offer cost, fallback cost, sufficient balance, quantity-one, item delta, currency delta, and successor evidence are missing.",
-    "Canonical Home return and production-controller route/session proof are missing."
+    "Current complete Weekly Offers and Other inventories, exact allowlisted item identity, Alliance Coin unit cost/balance, availability, stock, and numeric quantity-one dialog evidence.",
+    "A bounded current native purchase successor with paired Alliance Coin decrease and exact item increase; no purchase was part of product approval.",
+    "Current canonical Home return and controller authorization remain required; registration stays disabled."
   ],
   "evidence_gates": [
     {
-      "gate_id": "alliance_native_offer_replay",
+      "gate_id": "alliance_shop_current_native_acceptance",
       "status": "evidence_required",
       "blocks": [
-        "observe_alliance_shop_route",
-        "observe_allowlisted_candidate",
+        "open_alliance_shop",
+        "bind_complete_weekly_inventory",
+        "select_affordable_preferred_offer",
+        "no_affordable_preferred_offer",
+        "evaluate_exact_fallback",
+        "verify_numeric_purchase_quantity",
+        "verify_fallback_quantity",
+        "buy_one_preferred_or_fallback",
+        "reconcile_paired_purchase_effect",
         "return_canonical_home"
       ],
       "required_evidence": [
-        "hash-bound native Alliance Shop offer corpus",
-        "production-controller positive route/session replay"
+        "current production-route source, offer, non-consuming dialog, inner-Buy, transport, immediate successor, effect, and terminal Home bindings",
+        "complete current allowlist inventory and no-work evidence, including numeric unaffordable preferred rows and exact fallback evidence",
+        "paired current item and Alliance Coin effects plus unknown-result no-retry behavior"
       ],
       "permitted_inputs": []
     }
   ],
   "scenarios": [
     {
-      "scenario_id": "alliance_shop_purchase_production",
+      "scenario_id": "alliance_shop_preferred_purchase_production",
       "mode": "blocked_until_evidence",
       "start_state": "home_canonical",
       "terminal_state": "blocked",
       "permitted_inputs": [],
-      "forbidden_inputs": [],
+      "forbidden_inputs": [
+        "buy_one_current_exact_affordable_allowlisted_offer"
+      ],
       "required_transitions": [
-        "observe_alliance_shop_route",
-        "observe_allowlisted_candidate",
+        "open_alliance_shop",
+        "bind_complete_weekly_inventory",
+        "select_affordable_preferred_offer",
+        "verify_numeric_purchase_quantity",
+        "buy_one_preferred_or_fallback",
+        "reconcile_paired_purchase_effect",
         "return_canonical_home"
       ],
       "evidence_gate_ids": [
-        "alliance_native_offer_replay"
-      ]
+        "alliance_shop_current_native_acceptance"
+      ],
+      "notes": "This branch purchases one affordable exact preferred Weekly item only. Product approval does not enable registration or runtime dispatch."
+    },
+    {
+      "scenario_id": "alliance_shop_fallback_purchase_production",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "buy_one_current_exact_affordable_allowlisted_offer"
+      ],
+      "required_transitions": [
+        "open_alliance_shop",
+        "bind_complete_weekly_inventory",
+        "no_affordable_preferred_offer",
+        "evaluate_exact_fallback",
+        "verify_fallback_quantity",
+        "buy_one_preferred_or_fallback",
+        "reconcile_paired_purchase_effect",
+        "return_canonical_home"
+      ],
+      "evidence_gate_ids": [
+        "alliance_shop_current_native_acceptance"
+      ],
+      "notes": "This branch selects the exact one-star Other fallback only after complete current Weekly inventory proves no preferred offer affordable. Product approval does not enable registration or runtime dispatch."
     }
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "alliance_native_offer",
+      "fixture_id": "alliance_shop_current_native_acceptance",
       "status": "required_evidence",
       "path": null,
-      "notes": "Synthetic disabled-purchase arithmetic does not establish current Joy Coin offer, fallback item, currency, or exact cost authority."
+      "notes": "Offline selection arithmetic does not establish current offers or a successful paired native purchase effect."
     }
   ],
   "unsupported_or_manual_only_states": [
-    "Buy",
-    "currency spend",
-    "unknown item",
-    "ambiguous item",
-    "unknown cost",
-    "unknown currency",
-    "unknown Joy Coin offer",
-    "unknown Alliance-coin fallback",
-    "insufficient balance",
+    "unallowlisted item",
+    "unknown or alternative currency",
+    "Int. Recruit Coin",
+    "premium offer or currency",
+    "real-money confirmation",
+    "ambiguous item, price, balance, stock, or availability",
     "quantity greater than one",
-    "purchase confirmation",
+    "buying preferred and fallback together",
+    "purchase after uncertain effect",
+    "unaffordable fallback",
+    "Daily or points attribution",
     "registration",
     "scheduler"
   ],
   "implementation_status": "contract_only",
   "proof_state": "evidence_required",
-  "offline_proof_state": "current",
+  "offline_proof_state": "evidence_required",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "evidence_required",
   "product_policy_refs": [
@@ -161,11 +334,11 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r15",
-    "product_authority_digest": "aec4f9a360a390715aaff4e5ad0dba4ccc23d22202e7bcc75057a33f1775222f",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r16",
+    "product_authority_digest": "87382f4dc6829c577f8dd13b16517b8aa69cdc51f0ab9d7760749fceaa970a28",
     "product_record_id": "alliance_shop_purchase",
-    "product_record_revision": "alliance_shop_purchase-v1",
-    "product_record_digest": "98c96f0ffc299f9fe2be981ced97e8ff3a387f00562b7799902d4cb2f96e8bef",
+    "product_record_revision": "alliance_shop_purchase-v2",
+    "product_record_digest": "ecb5d83a4c31de3ef748eddbf9f542d3fc9bccdd695bf6fe8e87bc516465ad80",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

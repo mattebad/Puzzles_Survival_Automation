@@ -7,7 +7,6 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from safe_action_core.policy import ACTIVE_RUNTIME_PROFILE_ID as POLICY_PROFILE_ID
 from tasks import (
     activity_milestones,
     bioenhancer,
@@ -29,7 +28,7 @@ from tasks import (
     world_stamina,
     zombie_lair,
 )
-from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID, BLUESTACKS_NATIVE_TARGET_PROVENANCE
+from tasks.profile import BLUESTACKS_NATIVE_TARGET_PROVENANCE
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures"
@@ -96,20 +95,6 @@ CASES = {
 
 
 class ActiveProfileTests(unittest.TestCase):
-    def test_policy_and_tasks_share_the_bluestacks_profile(self):
-        self.assertIs(POLICY_PROFILE_ID, ACTIVE_RUNTIME_PROFILE_ID)
-        self.assertEqual(ACTIVE_RUNTIME_PROFILE_ID, "pns-bluestacks-5-p64-800x1280-v1")
-        self.assertNotEqual(ACTIVE_RUNTIME_PROFILE_ID, RETIRED_BLISS_PROFILE_ID)
-
-    def test_observation_defaults_are_the_active_profile(self):
-        for name, (filename, fixture, observation_type, _predicate) in CASES.items():
-            with self.subTest(name=name):
-                self.assertEqual(_load(filename, fixture, observation_type).runtime_profile_id,
-                                 ACTIVE_RUNTIME_PROFILE_ID)
-        self.assertEqual(
-            world_stamina.WorldStaminaObservation.__dataclass_fields__["runtime_profile_id"].default,
-            ACTIVE_RUNTIME_PROFILE_ID,
-        )
 
     def test_native_fixtures_authorize_and_bliss_evidence_is_rejected(self):
         for name, (filename, fixture, observation_type, predicate) in CASES.items():

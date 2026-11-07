@@ -90,30 +90,172 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(scenario["mode"], "blocked_until_evidence")
         self.assertEqual(scenario["permitted_inputs"], [])
         self.assertEqual(contract["product_authority_binding"]["product_record_id"], "rare_earth_shop_purchase")
-    def test_alliance_shop_contract_is_observation_only_and_unknown_offer_fails_closed(self):
+    def test_alliance_shop_contract_binds_approved_one_item_choice_but_stays_disabled(self):
         contract = load_flow_contract("ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE")
+        binding = contract["product_authority_binding"]
         self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(
             contract["product_policy_refs"][0]["policy_id"],
             "alliance-shop-purchase-policy",
         )
-        self.assertEqual(contract["permitted_inputs"], [])
+        self.assertEqual(binding["product_record_id"], "alliance_shop_purchase")
+        self.assertEqual(binding["product_record_revision"], "alliance_shop_purchase-v2")
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
         self.assertIsNone(contract["cost_quantity_requirements"]["maximum_cost"])
         self.assertEqual(
             contract["cost_quantity_requirements"]["resource_or_currency"],
-            "UNKNOWN_CURRENT_JOY_COIN_OR_ALLIANCE_COIN",
+            "Alliance Coins",
         )
-        self.assertEqual(contract["implementation_status"], "contract_only")
+        transitions = {
+            item["transition_id"]: item for item in contract["transition_contracts"]
+        }
+        self.assertEqual(
+            transitions["no_affordable_preferred_offer"]["from"],
+            "weekly_inventory_current",
+        )
+        self.assertEqual(
+            transitions["no_affordable_preferred_offer"]["to"],
+            "preferred_offer_unaffordable_or_absent",
+        )
+        self.assertEqual(
+            transitions["evaluate_exact_fallback"]["from"],
+            "preferred_offer_unaffordable_or_absent",
+        )
+        self.assertEqual(contract["evidence_gates"][0]["status"], "evidence_required")
+        self.assertEqual(contract["evidence_gates"][0]["permitted_inputs"], [])
+        self.assertEqual(contract["registration_state"], "disabled")
         self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertFalse(contract["production_eligible"])
+
+        scenarios = {item["scenario_id"]: item for item in contract["scenarios"]}
+        self.assertEqual(
+            scenarios["alliance_shop_preferred_purchase_production"]["required_transitions"],
+            [
+                "open_alliance_shop",
+                "bind_complete_weekly_inventory",
+                "select_affordable_preferred_offer",
+                "verify_numeric_purchase_quantity",
+                "buy_one_preferred_or_fallback",
+                "reconcile_paired_purchase_effect",
+                "return_canonical_home",
+            ],
+        )
+        self.assertEqual(
+            scenarios["alliance_shop_fallback_purchase_production"]["required_transitions"],
+            [
+                "open_alliance_shop",
+                "bind_complete_weekly_inventory",
+                "no_affordable_preferred_offer",
+                "evaluate_exact_fallback",
+                "verify_fallback_quantity",
+                "buy_one_preferred_or_fallback",
+                "reconcile_paired_purchase_effect",
+                "return_canonical_home",
+            ],
+        )
+        self.assertTrue(
+            all(item["mode"] == "blocked_until_evidence" for item in scenarios.values())
+        )
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])
-        scenario = contract["scenarios"][0]
-        self.assertEqual(scenario["mode"], "blocked_until_evidence")
-        self.assertEqual(scenario["permitted_inputs"], [])
-        self.assertEqual(
-            contract["product_authority_binding"]["product_record_id"],
-            "alliance_shop_purchase",
+
+    def test_alliance_donation_contract_tracks_actual_reset_scoped_actions(self):
+        contract = load_flow_contract(
+            "ALLIANCE-TECH-DONATION-BLUESTACKS-INTEGRATION"
         )
+        binding = contract["product_authority_binding"]
+        self.assertEqual(binding["product_record_id"], "alliance_donation")
+        self.assertEqual(binding["product_record_revision"], "alliance_donation-v1")
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(contract["trigger_cadence_type"], "cooldown_pulse")
+        self.assertEqual(contract["reset_scope"], "daily_reset")
+        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
+        self.assertEqual(
+            contract["cost_quantity_requirements"]["resource_or_currency"],
+            "CURRENT_ORDINARY_RESOURCE",
+        )
+        transitions = {
+            item["transition_id"]: item for item in contract["transition_contracts"]
+        }
+        self.assertEqual(
+            transitions["dispatch_one_donation"]["to"],
+            "donation_effect_pending",
+        )
+        self.assertEqual(
+            transitions["commit_one_positive_donation_effect"]["from"],
+            "donation_effect_pending",
+        )
+        self.assertEqual(
+            transitions["stop_at_ten_confirmed_actions"]["to"],
+            "quota_reached",
+        )
+        self.assertIn("no_attempt_available", contract["recognized_states"])
+        self.assertIn("quota_partial_persisted", contract["recognized_states"])
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertFalse(contract["production_eligible"])
+
+    def test_daily_shops_contract_retains_independent_two_tab_partial_results(self):
+        contract = load_flow_contract("DAILY-SHOPS-PURCHASE-EVIDENCE-GATE")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(binding["product_record_id"], "daily_shops_purchase")
+        self.assertEqual(binding["product_record_revision"], "daily_shops_purchase-v1")
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertIsNone(contract["cost_quantity_requirements"]["quantity"])
+        self.assertEqual(
+            contract["cost_quantity_requirements"]["resource_or_currency"],
+            "CURRENT_TAB_CURRENCY",
+        )
+        transitions = {
+            item["transition_id"]: item for item in contract["transition_contracts"]
+        }
+        self.assertEqual(
+            transitions["skip_zero_or_unavailable_tab"]["to"],
+            "zero_quantity_tab_skipped",
+        )
+        self.assertEqual(
+            transitions["continue_after_ruins_tab_skipped"]["from"],
+            "zero_quantity_tab_skipped",
+        )
+        self.assertEqual(
+            transitions["continue_after_ruins_tab_skipped"]["to"],
+            "rare_earth_tab_current",
+        )
+        self.assertEqual(
+            transitions["skip_zero_or_unavailable_rare_earth_tab"]["to"],
+            "rare_earth_tab_result_recorded",
+        )
+        self.assertIn("ruins_tab_result_recorded", contract["recognized_states"])
+        self.assertIn("rare_earth_tab_result_recorded", contract["recognized_states"])
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertFalse(contract["production_eligible"])
+
+        partial = next(
+            item
+            for item in contract["scenarios"]
+            if item["scenario_id"] == "daily_shops_partial_two_tab_visit"
+        )
+        self.assertEqual(
+            partial["required_transitions"],
+            [
+                "open_ruins_from_current_home",
+                "open_shared_shop_exchange",
+                "bind_ruins_tab_offer_and_quantity",
+                "skip_zero_or_unavailable_tab",
+                "continue_after_ruins_tab_skipped",
+                "bind_rare_earth_offer_and_quantity",
+                "verify_rare_earth_numeric_quantity_and_total",
+                "buy_rare_earth_verified_quantity",
+                "record_rare_earth_tab_result",
+                "return_canonical_home_after_both_tabs",
+            ],
+        )
+        self.assertEqual(partial["permitted_inputs"], [])
+        self.assertEqual(partial["mode"], "blocked_until_evidence")
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
 
     def test_hero_upgrade_contract_is_observation_only_and_wali_semantics_fail_closed(self):
         contract = load_flow_contract("HERO-UPGRADE-EVIDENCE-GATE")

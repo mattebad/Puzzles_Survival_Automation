@@ -24,6 +24,9 @@ from .native_execution import NativeRouteBoundary
 from .operations import OperationsService, structured_summary
 from .registry import (
     ALLIANCE_HELP_FLOW_ID,
+    ALLIANCE_DONATION_FLOW_ID,
+    ALLIANCE_SHOP_FLOW_ID,
+    DAILY_SHOPS_FLOW_ID,
     DAILY_REWARDS_FLOW_ID,
     RESOURCE_ITEM_FLOW_ID,
     RUINS_FLOW_ID,
@@ -477,6 +480,9 @@ def main(
                 resource_item_runner = None
                 ruins_runner = None
                 alliance_help_runner = None
+                alliance_donation_runner = None
+                alliance_shop_runner = None
+                daily_shops_runner = None
                 selected = args.flow
                 if native_serve:
                     from .recruitment import RecruitmentRunner
@@ -491,6 +497,9 @@ def main(
                     from .resource_item import ResourceItemRunner
                     from .ruins import RuinsRunner
                     from .alliance_help import AllianceHelpRunner
+                    from .alliance_donation import AllianceDonationRunner
+                    from .alliance_shop import AllianceShopRunner
+                    from .daily_shops import DailyShopsRunner
 
                     if "recruitment" in selected:
                         runner = RecruitmentRunner(
@@ -566,6 +575,33 @@ def main(
                             output_directory=args.output_directory or state_path.parent / "alliance-help-sessions",
                             native=native_route_bindings[ALLIANCE_HELP_FLOW_ID],
                         )
+                    if "alliance-donation" in selected:
+                        if native_route_bindings is None or ALLIANCE_DONATION_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("alliance-donation native binding is supplied by scripts/pnsctl.py automation-service")
+                        alliance_donation_runner = AllianceDonationRunner(
+                            adb=args.adb,
+                            serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "alliance-donation-sessions",
+                            native=native_route_bindings[ALLIANCE_DONATION_FLOW_ID],
+                        )
+                    if "alliance-shop" in selected:
+                        if native_route_bindings is None or ALLIANCE_SHOP_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("alliance-shop native binding is supplied by scripts/pnsctl.py automation-service")
+                        alliance_shop_runner = AllianceShopRunner(
+                            adb=args.adb,
+                            serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "alliance-shop-sessions",
+                            native=native_route_bindings[ALLIANCE_SHOP_FLOW_ID],
+                        )
+                    if "daily-shops" in selected:
+                        if native_route_bindings is None or DAILY_SHOPS_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("daily-shops native binding is supplied by scripts/pnsctl.py automation-service")
+                        daily_shops_runner = DailyShopsRunner(
+                            adb=args.adb,
+                            serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "daily-shops-sessions",
+                            native=native_route_bindings[DAILY_SHOPS_FLOW_ID],
+                        )
                 service_startup = None
                 if native_serve:
                     if application_startup is None:
@@ -592,6 +628,9 @@ def main(
                     application_startup=service_startup,
                     ruins_runner=ruins_runner,
                     alliance_help_runner=alliance_help_runner,
+                    alliance_donation_runner=alliance_donation_runner,
+                    alliance_shop_runner=alliance_shop_runner,
+                    daily_shops_runner=daily_shops_runner,
                 )
                 if native_serve:
                     flow_names = servable_flow_names()

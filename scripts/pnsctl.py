@@ -29,6 +29,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 from automation_service.registry import (  # noqa: E402
     ALLIANCE_HELP_FLOW_ID,
+    ALLIANCE_DONATION_FLOW_ID,
+    ALLIANCE_SHOP_FLOW_ID,
+    DAILY_SHOPS_FLOW_ID,
     BIOENHANCER_FLOW_ID,
     CAMPAIGN_FLOW_ID,
     DAILY_REWARDS_FLOW_ID,
@@ -265,6 +268,15 @@ def _native_service_route_bindings() -> Mapping[str, NativeRouteBoundary]:
     from scripts.alliance_help_bluestacks import (
         create_service_binding as create_alliance_help_binding,
     )
+    from scripts.alliance_donation_bluestacks import (
+        create_service_binding as create_alliance_donation_binding,
+    )
+    from scripts.alliance_shop_bluestacks import (
+        create_service_binding as create_alliance_shop_binding,
+    )
+    from scripts.daily_shops_bluestacks import (
+        create_service_binding as create_daily_shops_binding,
+    )
 
     return {
         DAILY_REWARDS_FLOW_ID: create_daily_rewards_binding(
@@ -275,6 +287,15 @@ def _native_service_route_bindings() -> Mapping[str, NativeRouteBoundary]:
         ),
         RUINS_FLOW_ID: create_ruins_binding(make_native_route_binding),
         ALLIANCE_HELP_FLOW_ID: create_alliance_help_binding(make_native_route_binding),
+        ALLIANCE_DONATION_FLOW_ID: create_alliance_donation_binding(
+            make_native_route_binding
+        ),
+        ALLIANCE_SHOP_FLOW_ID: create_alliance_shop_binding(
+            make_native_route_binding
+        ),
+        DAILY_SHOPS_FLOW_ID: create_daily_shops_binding(
+            make_native_route_binding
+        ),
     }
 
 
