@@ -40,11 +40,14 @@ from automation_service.registry import (
     RUINS_PRODUCT_REVISION as RUINS_REVISION,
     TROOP_TRAINING_PRODUCT_ID as TRAINING_PRODUCT,
     TROOP_TRAINING_PRODUCT_REVISION as TRAINING_REVISION,
+    WALI_UPGRADE_FLOW_ID as WALI_UPGRADE,
 )
 from safe_action_core.models import ActionClass, PolicyDecision
 from safe_action_core.policy import CentralPolicy
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tests.support.safe_action import TEST_TASK_ID, observation, request as base_request
+from tasks.hero_upgrade_disabled import HeroUpgradeObservation, hero_evolution_spec, hero_upgrade_spec
+from tasks.profile import BLUESTACKS_NATIVE_TARGET_PROVENANCE
 
 
 DAY = "game-day-2026-07-15"
@@ -880,6 +883,97 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         self.assert_denied(generic)
         unknown_route_action = replace(donation_request(), semantic_action="UNAPPROVED_ROUTE_ACTION")
         self.assert_denied(unknown_route_action)
+
+
+class WaliUpgradePolicyTests(unittest.TestCase):
+    def _request(self, *, evolution=False):
+        current = HeroUpgradeObservation(
+            screen_state="HERO_EVOLUTION_PREVIEW" if evolution else "HERO",
+            hero_identity="Wali", hero_selected=True,
+            current_level=10 if evolution else 5, evolution_cap=10,
+            material_costs={"ANTISERUM": 200, "COMBAT_MANUAL_I": 30} if evolution else {"ANTISERUM": 100},
+            material_balances={"ANTISERUM": 1000, "COMBAT_MANUAL_I": 50} if evolution else {"ANTISERUM": 1000},
+            target_identity="hero-evolve" if evolution else "hero-upgrade",
+            target_roi=(100, 1140, 350, 1220), panel_bounds=(44, 100, 756, 1250),
+            control_class="EVOLVE" if evolution else "UPGRADE",
+            game_day_id=DAY, confirmed_upgrades=0, next_evolution_cap=30 if evolution else None,
+            material_rows_complete=True, stable_selected_state=True,
+            normal_upgrade_visible=not evolution, normal_single_upgrade=not evolution,
+            evolution_control_visible=evolution,
+            target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
+            source_frame_sha256=FRAME, evidence_refs=("synthetic:wali-core-policy",),
+        )
+        spec = hero_evolution_spec(current) if evolution else hero_upgrade_spec(current)
+        req = route_request(
+            task=WALI_UPGRADE, action=spec.action_kind, action_class=ActionClass.SPEND_OR_STRATEGIC,
+            kind=spec.action_kind, subject=spec.subject, source=spec.expected_source_screen,
+            target=current.target_identity, control=current.control_class,
+            consequence="evolve_wali_with_standard_materials" if evolution else "upgrade_wali_single_level",
+            post="WALI_STANDARD_EVOLUTION_WITH_EXACT_MATERIAL_USE" if evolution else "WALI_SINGLE_LEVEL_WITH_EXACT_ANTISERUM_DEBIT",
+            cost_type="standard_hero_evolution_material_bundle" if evolution else "ANTISERUM",
+            cost=1 if evolution else current.material_costs["ANTISERUM"], quantity=spec.quantity,
+            resource=spec.resource_or_currency, maximum=spec.maximum_cost, free=spec.free_only,
+            preconditions=spec.semantic_preconditions,
+        )
+        quote = json.dumps([req.action_key, list(spec.semantic_preconditions)], ensure_ascii=True, separators=(",", ":"))
+        return replace(
+            req, observation=replace(req.observation, target_roi=current.target_roi),
+            action_id="wali-upgrade:" + hashlib.sha256(quote.encode("utf-8")).hexdigest(),
+            semantic_postconditions=spec.semantic_postconditions,
+        )
+
+    @staticmethod
+    def _with_preconditions(request, tokens):
+        quote = json.dumps([request.action_key, list(tokens)], ensure_ascii=True, separators=(",", ":"))
+        return replace(
+            request, semantic_preconditions=tokens,
+            action_id="wali-upgrade:" + hashlib.sha256(quote.encode("utf-8")).hexdigest(),
+        )
+
+    def test_single_normal_and_exact_standard_vector_are_admitted_but_not_bulk_or_reset(self):
+        policy = CentralPolicy({WALI_UPGRADE})
+        for evolution in (False, True):
+            req = self._request(evolution=evolution)
+            self.assertEqual(policy.evaluate(req).decision, PolicyDecision.AUTHORIZE)
+            for changed in (
+                replace(req, subject="Ulrik"),
+                replace(req, semantic_action="HERO_RESET_150_DIAMONDS", action_kind="HERO_RESET_150_DIAMONDS"),
+                replace(req, observation=replace(req.observation, target_identity="hero-upgrade-to-level", control_class="UPGRADE_BULK")),
+                replace(req, allowed_confirmation_dialogs=("premium_reset",)),
+                replace(req, observation=replace(req.observation, quantity=True)),
+            ):
+                with self.subTest(evolution=evolution, action=changed.semantic_action, target=changed.observation.target_identity):
+                    self.assertNotEqual(policy.evaluate(changed).decision, PolicyDecision.AUTHORIZE)
+            quota = list(req.semantic_preconditions)
+            quota[3:5] = ["confirmed_upgrades=3", "next_upgrade_ordinal=4"]
+            self.assertNotEqual(policy.evaluate(self._with_preconditions(req, tuple(quota))).decision, PolicyDecision.AUTHORIZE)
+
+    def test_foreign_or_unaffordable_manual_vector_never_becomes_an_unbounded_spend(self):
+        policy = CentralPolicy({WALI_UPGRADE})
+        req = self._request(evolution=True)
+        foreign = tuple(token.replace("COMBAT_MANUAL_I", "DIAMONDS") for token in req.semantic_preconditions)
+        shortage = tuple("material_balance.COMBAT_MANUAL_I=29" if token.startswith("material_balance.COMBAT_MANUAL_I=") else token for token in req.semantic_preconditions)
+        for tokens in (foreign, shortage):
+            with self.subTest(tokens=tokens):
+                self.assertNotEqual(policy.evaluate(self._with_preconditions(req, tokens)).decision, PolicyDecision.AUTHORIZE)
+
+    def test_issued_capability_rejects_a_changed_current_material_vector(self):
+        for update_quote in (False, True):
+            with self.subTest(update_bound_quote=update_quote):
+                policy = CentralPolicy({WALI_UPGRADE})
+                req = replace(self._request(evolution=True), runtime_session_id="wali-policy-session")
+                issued = policy.issue_capability(req)
+                self.assertTrue(issued.authorized, issued.reason_code)
+                changed = tuple("material_cost.COMBAT_MANUAL_I=31" if token.startswith("material_cost.COMBAT_MANUAL_I=") else token for token in req.semantic_preconditions)
+                action_id = req.action_id
+                if update_quote:
+                    quote = json.dumps([req.action_key, list(changed)], ensure_ascii=True, separators=(",", ":"))
+                    action_id = "wali-upgrade:" + hashlib.sha256(quote.encode("utf-8")).hexdigest()
+                consumed = policy.consume_capability(
+                    issued.capability,
+                    replace(req, action_id=action_id, policy_phase="pre_dispatch", semantic_preconditions=changed),
+                )
+                self.assertFalse(consumed.allow_dispatch)
 
 
 if __name__ == "__main__":

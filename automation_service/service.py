@@ -74,6 +74,7 @@ from .registry import (
     FOOD_FARM_BOOST_FLOW_ID,
     HALL_OF_WAR_FLOW_ID,
     TROOP_TRAINING_FLOW_ID,
+    WALI_UPGRADE_FLOW_ID,
     RegisteredDispatchSnapshot,
     SUPPLY_FLOW_ID,
     ULTIMATE_FLOW_ID,
@@ -427,6 +428,7 @@ class AutomationService:
         application_startup=None,
         hall_of_war_runner=None,
         troop_training_runner=None,
+        wali_upgrade_runner=None,
     ) -> None:
         if state_manager is not None and state is not None and state_manager is not state:
             raise ServiceError("state and state_manager must refer to one authority")
@@ -461,6 +463,7 @@ class AutomationService:
         self.alliance_help_runner = alliance_help_runner
         self.hall_of_war_runner = hall_of_war_runner
         self.troop_training_runner = troop_training_runner
+        self.wali_upgrade_runner = wali_upgrade_runner
         if application_startup is not None and not callable(application_startup):
             raise ServiceError("application startup must be callable")
         self.application_startup = application_startup
@@ -499,6 +502,7 @@ class AutomationService:
                 self.daily_shops_runner,
                 self.hall_of_war_runner,
                 self.troop_training_runner,
+                self.wali_upgrade_runner,
             )
         ) and not isinstance(
             self.adapter, SupervisedBlueStacksAdapter
@@ -783,6 +787,11 @@ class AutomationService:
             PRODUCT_ID as TROOP_TRAINING_TASK_ID,
             troop_training_next_due,
         )
+        from .wali_upgrade import (
+            WaliUpgradeExecutionHandler,
+            PRODUCT_ID as WALI_UPGRADE_TASK_ID,
+            wali_upgrade_next_due,
+        )
 
         if self.mode is not ServiceMode.SUPERVISED or self.state is None:
             raise ServiceError("serve requires an explicitly configured native runner")
@@ -842,6 +851,7 @@ class AutomationService:
                     FOOD_FARM_BOOST_FLOW_ID: FOOD_FARM_BOOST_TASK_ID,
                     HALL_OF_WAR_FLOW_ID: HALL_OF_WAR_TASK_ID,
                     TROOP_TRAINING_FLOW_ID: TROOP_TRAINING_TASK_ID,
+                    WALI_UPGRADE_FLOW_ID: WALI_UPGRADE_TASK_ID,
                 }[flow_id]
                 identity = SchedulerIdentity(account_id, server_id, facts.reset_id, task_id)
                 previous_reset = previous_resets.get(flow_id)
@@ -917,6 +927,7 @@ class AutomationService:
                     FOOD_FARM_BOOST_FLOW_ID: "food_farm_dispatch_count",
                     HALL_OF_WAR_FLOW_ID: "hall_of_war_dispatch_count",
                     TROOP_TRAINING_FLOW_ID: "training_dispatch_count",
+                    WALI_UPGRADE_FLOW_ID: "total_action_count",
                 }[flow_id]
 
                 def record_consumption():
@@ -992,6 +1003,7 @@ class AutomationService:
                             FOOD_FARM_BOOST_FLOW_ID,
                             HALL_OF_WAR_FLOW_ID,
                             TROOP_TRAINING_FLOW_ID,
+                            WALI_UPGRADE_FLOW_ID,
                         }
                         else {}
                     )
@@ -1010,6 +1022,7 @@ class AutomationService:
                         FOOD_FARM_BOOST_FLOW_ID,
                         HALL_OF_WAR_FLOW_ID,
                         TROOP_TRAINING_FLOW_ID,
+                        WALI_UPGRADE_FLOW_ID,
                     }:
                         options["occurrence_key"] = run.occurrence_key
                     if operator_request_id is not None:
@@ -1216,7 +1229,7 @@ class AutomationService:
                             if result.get("status") == "completed"
                             else f"{prefix}_DEFERRED"
                         )
-                    elif flow_id in {HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID}:
+                    elif flow_id in {HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID, WALI_UPGRADE_FLOW_ID}:
                         route_status = result.get("status")
                         effect_unknown = (
                             route_status in {"unresolved", "reconciliation_required"}
@@ -1248,7 +1261,10 @@ class AutomationService:
                             )
                         else:
                             due = (
-                                troop_training_next_due(result, identity, facts.now_utc_epoch)
+                                {
+                                    TROOP_TRAINING_FLOW_ID: troop_training_next_due,
+                                    WALI_UPGRADE_FLOW_ID: wali_upgrade_next_due,
+                                }[flow_id](result, identity, facts.now_utc_epoch)
                                 if route_status in {"completed", "deferred", "partial"}
                                 else None
                             )
@@ -1500,6 +1516,7 @@ class AutomationService:
                     FOOD_FARM_BOOST_FLOW_ID: FoodFarmBoostExecutionHandler,
                     HALL_OF_WAR_FLOW_ID: HallOfWarExecutionHandler,
                     TROOP_TRAINING_FLOW_ID: TroopTrainingExecutionHandler,
+                    WALI_UPGRADE_FLOW_ID: WaliUpgradeExecutionHandler,
                 }[entry.flow_id]
                 options = (
                     {"stage": self.campaign_runner.stage}
@@ -1515,6 +1532,7 @@ class AutomationService:
                         NANO_MATERIAL_PRODUCTION_FLOW_ID,
                         NANOWEAPON_FLOW_ID,
                         HERO_DUEL_FLOW_ID,
+                        WALI_UPGRADE_FLOW_ID,
                         RECOMMENDED_RESEARCH_FLOW_ID,
                         FOOD_FARM_BOOST_FLOW_ID,
                     }

@@ -107,18 +107,40 @@ The normal Campaign launch shape is:
 python scripts/pnsctl.py automation-service --mode supervised --adapter bluestacks --state-path .local-orchestrator/bot-state.sqlite3 serve --live --flow campaign --campaign-stage 1-15-9 --campaign-cadence-seconds 300 --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 --account-id primary-account --server-id primary-server --output-directory .local-captures/automation-service-live
 ```
 
-Repeat `--flow` for other named routes; the README gives the complete 22-route command. Argument order does not
+Repeat `--flow` for other named routes; the README gives the complete 23-route command. Argument order does not
 choose scheduler order; due eligibility and existing controls do. The disabled-gates canonical CLI
 proof produced zero captures and zero new runs, so it is control evidence only and does not promote
 native route acceptance. Facade checks, the ordinary one-battle live-entrypoint retirement, and
 the scheduler/facade consumer checks are recorded separately; their counts are not additive.
 
-The fixed native composition binds 22 canonical routes: Nova, Recruitment, Campaign,
+The fixed native composition binds 23 canonical routes: Nova, Recruitment, Campaign,
 Bioenhancer, Supply, Ultimate, Enhancement, Personal Might, Daily Rewards, Resource Item,
 Ruins, Alliance Help, Alliance Donation, Alliance Shop, Daily Shops, Nano Material Production,
-Nanoweapon, Hero Duel, Recommended Research, Food Farm Boost, Hall of War, and Troop Training.
-The 23rd fixed flow spec is `world_map_navigation`, which is selection-only and has no `serve --flow`.
+Nanoweapon, Hero Duel, Recommended Research, Food Farm Boost, Hall of War, Troop Training,
+and Wali Upgrade. The 24th fixed flow spec is `world_map_navigation`, which is selection-only
+and has no `serve --flow`.
 The ordinary registered selectors remain non-consuming; passing `--flow` alone does not enable a route.
+
+Conditional #74 uses `serve --flow wali-upgrade` through the same supported `pnsctl`
+boundary, fixed native composition and canonical SQLite action journal. Only three confirmed
+single normal Wali upgrades consume the reset quota; a standard evolution's automatic level
+does not. Costs, balances, selected hero and displayed cap are read afresh. A named manual-use
+toast is retained as usage evidence with its own frame, not invented as a numeric inventory
+decrement; the settled cap/level and exact Antiserum debit are independently required.
+Normal Upgrade's separate bulk row is recognized, never pressed. At most one non-spending
+Back per pending single action reveals details or the recognized roster plus current Wali
+reselection; an unknown dismissal stops without another Back or spending input. Physical
+navigation accounting is separate from confirmed normal actions. The full current quote is
+bound through the capability's action ID, without changing the reset/ordinal action key.
+Actual native binding/SDK/runtime/Core/temp-SQLite replay verified three singles across
+evolution, current per-level quotes, partial shortage/resume and durable unknown/no retry.
+Historical desktop-derived pixels recognize the bulk row and settled Wali detail quote;
+compressed historical evolution-preview quotes remain incomplete and fail closed. Neither
+those images nor synthetic execution establish current native acceptance.
+Insufficient materials defer, confirmed prefixes persist, and unknown effects forbid identical
+retry. Product approval is not runtime enablement. The Campaign block and final 150-diamond
+Reset confirmation are unverified, so no Reset input is admitted. Original manual investigation
+is not a completed native acceptance run; permanent controls remain disabled.
 
 B adds Ruins/Help; C adds Donation, Alliance Shop and Daily Shops. These are implemented and
 offline-proven, not newly live-accepted; production and SQLite runtime controls remain disabled.

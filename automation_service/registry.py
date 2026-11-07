@@ -207,6 +207,13 @@ TROOP_TRAINING_HANDLER_ID = "troop_training_execution_handler"
 TROOP_TRAINING_PROFILE_ID = WORLD_PROFILE_ID
 TROOP_TRAINING_PHASE_MODE = "phase_canary"
 TROOP_TRAINING_MAX_INPUTS = 96
+WALI_UPGRADE_FLOW_ID = "HERO-UPGRADE-EVIDENCE-GATE"
+WALI_UPGRADE_PRODUCT_ID = "hero_upgrade"
+WALI_UPGRADE_PRODUCT_REVISION = "hero_upgrade-v3"
+WALI_UPGRADE_HANDLER_ID = "wali_upgrade_execution_handler"
+WALI_UPGRADE_PROFILE_ID = WORLD_PROFILE_ID
+WALI_UPGRADE_PHASE_MODE = "phase_canary"
+WALI_UPGRADE_MAX_INPUTS = 48
 
 
 _FIXED_BINDINGS = {
@@ -440,6 +447,16 @@ _FIXED_BINDINGS = {
         "registration_status": "REGISTERED",
         "scheduler_eligible": True,
     },
+    WALI_UPGRADE_FLOW_ID: {
+        "flow_id": WALI_UPGRADE_FLOW_ID,
+        "product_id": WALI_UPGRADE_PRODUCT_ID,
+        "product_revision": WALI_UPGRADE_PRODUCT_REVISION,
+        "production_handler": WALI_UPGRADE_HANDLER_ID,
+        "profile": WALI_UPGRADE_PROFILE_ID,
+        "mode": WALI_UPGRADE_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
 }
 
 # Entry fields are deliberately closed.  Runtime, queue, target, and scheduler
@@ -647,6 +664,7 @@ class CanonicalFlowRegistration:
             FOOD_FARM_BOOST_FLOW_ID,
             HALL_OF_WAR_FLOW_ID,
             TROOP_TRAINING_FLOW_ID,
+            WALI_UPGRADE_FLOW_ID,
         }:
             # Only explicit supervised serve installs its executor and held-owner
             # checkpoint. Generic composition must never create native authority.
@@ -935,6 +953,15 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         family="troop_training",
         variant="four_fixed_training_variants",
         cadence="timer",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        WALI_UPGRADE_FLOW_ID,
+        max_inputs=WALI_UPGRADE_MAX_INPUTS,
+        cli_name="wali-upgrade",
+        family="wali_upgrade",
+        variant="three_single_level_upgrades_with_standard_evolution",
+        cadence="cooldown_pulse",
         observation_only_completion=True,
     ),
 )
@@ -1492,6 +1519,13 @@ __all__ = [
     'FOOD_FARM_BOOST_PROFILE_ID',
     'FOOD_FARM_BOOST_PHASE_MODE',
     'FOOD_FARM_BOOST_MAX_INPUTS',
+    "WALI_UPGRADE_FLOW_ID",
+    "WALI_UPGRADE_PRODUCT_ID",
+    "WALI_UPGRADE_PRODUCT_REVISION",
+    "WALI_UPGRADE_HANDLER_ID",
+    "WALI_UPGRADE_PROFILE_ID",
+    "WALI_UPGRADE_PHASE_MODE",
+    "WALI_UPGRADE_MAX_INPUTS",
     "consume_registered_entry",
     "consume_world_registration",
     "consume_nova_registration",

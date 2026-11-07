@@ -41,6 +41,7 @@ from automation_service.registry import (
     NANOWEAPON_FLOW_ID, NANOWEAPON_PROFILE_ID, RECOMMENDED_RESEARCH_FLOW_ID,
     RECOMMENDED_RESEARCH_PROFILE_ID, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID,
     RUINS_PROFILE_ID, TROOP_TRAINING_FLOW_ID,
+    WALI_UPGRADE_FLOW_ID,
     load_disabled_registry, canonical_entry, servable_flow_names,
 )
 from automation_service.service import AutomationService, _runner_attribute
@@ -78,6 +79,7 @@ NO_OPERATOR_RUNNER = {
     FOOD_FARM_BOOST_FLOW_ID: "Food Farm Boost is canonical-service-only and has no operator wrapper",
     HALL_OF_WAR_FLOW_ID: "Hall of War is canonical-service-only and has no operator wrapper",
     TROOP_TRAINING_FLOW_ID: "Troop Training legacy runner/validator retired in Batch F; canonical serve uses its fixed native binding",
+    WALI_UPGRADE_FLOW_ID: "Wali is canonical-service-only and has no operator wrapper",
 }
 
 # Retained operator-registry flows with no development-session input default in ``pnsctl._DEFAULT_MAX_INPUTS``.
@@ -161,6 +163,7 @@ EXECUTION_HANDLERS = {
     ),
     HALL_OF_WAR_FLOW_ID: ("automation_service.hall_of_war", "HallOfWarExecutionHandler"),
     TROOP_TRAINING_FLOW_ID: ("automation_service.troop_training", "TroopTrainingExecutionHandler"),
+    WALI_UPGRADE_FLOW_ID: ("automation_service.wali_upgrade", "WaliUpgradeExecutionHandler"),
 }
 
 
@@ -455,6 +458,10 @@ MAX_INPUT_COPIES = {
     TROOP_TRAINING_FLOW_ID: [
         ("automation_service.troop_training", "MAX_INPUTS"),
         ("scripts.troop_training_bluestacks", "MAX_INPUTS"),
+    ],
+    WALI_UPGRADE_FLOW_ID: [
+        ("automation_service.wali_upgrade", "MAX_INPUTS"),
+        ("scripts.wali_upgrade_bluestacks", "MAX_INPUTS"),
     ],
 }
 

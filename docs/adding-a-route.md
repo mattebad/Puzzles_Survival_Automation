@@ -208,6 +208,26 @@ Existing layout exceptions:
   separate Commander route. Historical legacy Training evidence does not establish canonical
   live acceptance.
 
+* **Conditional Wali Upgrade (#74)**: canonical-service-only `wali-upgrade`, using the existing
+  `tasks/hero_upgrade_disabled.py` semantic owner despite its historical filename. The fixed
+  native binding, adapter and Core admission allow only exact selected-Wali single normal
+  upgrades and current affordable standard evolution behind canonical authorization and
+  freshness fences. Normal ordinals 1–3 are reset-scoped; evolution-cap keys are separate,
+  and its automatic level never resets or increments that quota. Preserve transient named
+  manual-use receipts and the settled successor as distinct frames; do not manufacture numeric
+  spend receipts from quoted costs. Bulk leveling, Enhance, boxes and premium materials are
+  prohibited. The unverified Campaign/150-diamond Reset path has no admitted input. The legacy
+  operator `bluestacks verify-flow` is not this service-only route's validation entrypoint;
+  the canonical native boundary validates its semantic result and action journal. Keep
+  current live authorization, route acceptance and disabled deployment posture distinct.
+  A normal Upgrade opens a separate bulk row. One route-owned, non-spending Back per pending
+  single action may reveal the current detail screen or the recognized roster, followed only
+  by current named Wali reselection. Unknown dismissal stops without another Back or Upgrade.
+  These navigation inputs count against the physical budget, not the three-action quota.
+  The complete current quote is hashed into the capability-bound action ID while the action
+  key retains its stable reset/ordinal identity; changing a quoted balance or cost invalidates admission.
+
+
 * **Campaign budgets**: the service route budget (`CAMPAIGN_MAX_INPUTS`, a whole AP drain) is a different
   fact from the single-battle development-session ceiling in `pnsctl`; the test lists the difference.
 

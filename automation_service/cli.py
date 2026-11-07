@@ -37,6 +37,7 @@ from .registry import (
     RUINS_FLOW_ID,
     HALL_OF_WAR_FLOW_ID,
     TROOP_TRAINING_FLOW_ID,
+    WALI_UPGRADE_FLOW_ID,
     canonical_flow_specs,
     servable_flow_names,
 )
@@ -497,6 +498,7 @@ def main(
                 daily_shops_runner = None
                 hall_of_war_runner = None
                 troop_training_runner = None
+                wali_upgrade_runner = None
                 selected = args.flow
                 if native_serve:
                     from .recruitment import RecruitmentRunner
@@ -521,6 +523,7 @@ def main(
                     from .food_farm_boost import FoodFarmBoostRunner
                     from .hall_of_war import HallOfWarRunner
                     from .troop_training import TroopTrainingRunner
+                    from .wali_upgrade import WaliUpgradeRunner
 
                     if "recruitment" in selected:
                         runner = RecruitmentRunner(
@@ -686,6 +689,15 @@ def main(
                             output_directory=args.output_directory or state_path.parent / "troop-training-sessions",
                             native=native_route_bindings[TROOP_TRAINING_FLOW_ID],
                         )
+                    if "wali-upgrade" in selected:
+                        if native_route_bindings is None or WALI_UPGRADE_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("wali-upgrade native binding is supplied by scripts/pnsctl.py automation-service")
+                        wali_upgrade_runner = WaliUpgradeRunner(
+                            adb=args.adb,
+                            serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "wali-upgrade-sessions",
+                            native=native_route_bindings[WALI_UPGRADE_FLOW_ID],
+                        )
                 service_startup = None
                 if native_serve:
                     if application_startup is None:
@@ -722,6 +734,7 @@ def main(
                     food_farm_boost_runner=food_farm_boost_runner,
                     hall_of_war_runner=hall_of_war_runner,
                     troop_training_runner=troop_training_runner,
+                    wali_upgrade_runner=wali_upgrade_runner,
                 )
                 if native_serve:
                     flow_names = servable_flow_names()

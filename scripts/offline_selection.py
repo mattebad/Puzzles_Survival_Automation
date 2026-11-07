@@ -29,6 +29,7 @@ ROUTE_BOUNDARIES = {
     "food-farm-boost": "tests.test_service_food_farm_boost.FoodFarmBoostServiceTests.test_positive_timer_completion_counts_boost_and_collection_separately",
     "hall-of-war": "tests.test_service_route_contract.BatchFSemanticContractTests.test_hall_dispatch_reward_and_prior_use_are_distinct",
     "troop-training": "tests.test_service_route_contract.BatchFSemanticContractTests.test_training_resource_and_timer_transitions_match_native_actions",
+    "wali-upgrade": "tests.test_service_wali_upgrade.WaliServiceTests.test_standard_evolution_preserves_the_three_normal_upgrade_quota_after_restart",
 }
 
 
@@ -145,8 +146,6 @@ WINDOWS_BASELINE = (
     "tests.test_purchases_disabled.DisabledPurchaseContractTests.test_matrix_keeps_all_purchase_variants_disabled_and_dormant",
     "tests.test_stamina_disabled.DisabledStaminaContractTests.test_disabled_policy_blocks_every_positive_dispatch_request",
     "tests.test_stamina_disabled.DisabledStaminaContractTests.test_matrix_keeps_stamina_unregistered_and_scheduler_dormant",
-    "tests.test_hero_upgrade_disabled.DisabledHeroUpgradeContractTests.test_disabled_policy_blocks_dispatch_and_keeps_claim_separate",
-    "tests.test_hero_upgrade_disabled.DisabledHeroUpgradeContractTests.test_matrix_keeps_hero_upgrade_disabled_and_dormant",
     "tests.test_speedup_disabled.DisabledSpeedupContractTests.test_disabled_policy_blocks_dispatch_and_keeps_claim_separate",
     "tests.test_speedup_disabled.DisabledSpeedupContractTests.test_matrix_keeps_speedup_disabled_and_dormant",
     "tests.test_tech_upgrade_disabled.DisabledTechUpgradeContractTests.test_disabled_policy_blocks_dispatch_and_keeps_claim_separate",
@@ -260,6 +259,7 @@ FAMILIES = {
     "world": ("world", "stamina", "zombie_lair"),
     "gathering": ("gathering",),
     "hall_of_war": ("hall_of_war",),
+    "wali_upgrade": ("wali_upgrade", "hero_upgrade"),
 }
 
 

@@ -375,27 +375,46 @@
     },
     {
       "policy_id": "hero-upgrade-policy",
-      "scope": "hero_upgrade.daily",
+      "scope": "hero_upgrade.reset",
       "status": "explicitly_approved",
-      "decision": "Hero Upgrade product semantics are approved for exactly three Wali upgrades per reset. Use standard hero material first. One 150-diamond reset exception is allowed only when needed, at most once per reset. Exact Wali identity, selected state, level, standard-material amount, balance, semantic successor, progress, and canonical Home evidence are required before any runtime admission; current native evidence and route implementation remain missing, so dispatch stays disabled.",
+      "decision": "Exactly three confirmed single Wali normal level upgrades per reset are approved; at the displayed cap, one standard evolution may support remaining normal upgrades but its automatic level change does not count. Permit dispatch only through exact guarded normal/evolution inputs with current explicit authorization, a canonical supervised claim, active route lease/input lock, fresh source/generation fence, exact current costs, and a positive settled successor. Do not hardcode levels, cap ladders, or prices. Actual service registration, enablement, and scheduling remain off; live acceptance remains evidence_required. The Campaign/reset/150-diamond path remains operationally blocked because the exact Campaign block and final confirmation are unproven.",
       "candidate_hero": "Wali",
-      "candidate_material": "standard_hero_material",
-      "candidate_amount": null,
-      "diamond_reset_exception": {
-        "allowed": true,
-        "amount": 150,
-        "unit": "DIAMONDS",
-        "only_when_needed": true,
-        "maximum_per_reset": 1
-      },
-      "daily_completion_target": 3,
-      "upgrade_dispatch_allowed": false,
+      "normal_upgrade_count_per_reset": 3,
+      "normal_upgrade_kind": "single_level",
+      "normal_upgrade_material": "ANTISERUM",
+      "standard_evolution_materials": [
+        "ANTISERUM",
+        "COMBAT_MANUAL_I",
+        "COMBAT_MANUAL_II",
+        "COMBAT_MANUAL_III",
+        "COMBAT_MANUAL_IV",
+        "COMBAT_MANUAL_V"
+      ],
+      "evolution_only_at_displayed_cap": true,
+      "evolution_counts_toward_normal_upgrade_count": false,
+      "upgrade_dispatch_allowed": true,
+      "approved_action_kinds": [
+        "HERO_UPGRADE_SINGLE",
+        "HERO_EVOLUTION_STANDARD"
+      ],
       "evidence_state": "evidence_required",
-      "runtime_admission": "disabled_until_native_evidence_and_route_admission",
+      "runtime_admission": "canonical_supervised_claim_and_current_explicit_authorization_required",
+      "current_explicit_authorization_required": true,
+      "canonical_supervised_claim_required": true,
       "registration_status": "NOT_REGISTERED",
       "scheduler_eligibility": false,
       "terminal_state": "home_canonical",
-      "source": "execution_matrix_and_explicit_user_direction"
+      "daily_prerequisite_required": false,
+      "daily_ownership": null,
+      "points_credit_required": false,
+      "reset_campaign_diamond_path": {
+        "status": "evidence_required",
+        "operationally_blocked": true,
+        "campaign_block_proven": false,
+        "final_150_diamond_confirmation_proven": false,
+        "dispatch_allowed": false
+      },
+      "source": "issue-74-owner-direction-and-frozen-evidence-contract"
     },
     {
       "policy_id": "alliance-shop-purchase-policy",
@@ -617,7 +636,7 @@
     {"policy_id": "daily-control-cost-boundary", "scope": "global.daily_control_costs", "status": "explicitly_approved", "decision": "Universal Daily control safety boundary: premium/cash purchases, paid or ambiguous controls, refills, 10x controls, and item-backed substitutes are prohibited. Route-approved resource, AP, and stamina effects remain governed by their own R/P ticket and are not globally forbidden.", "prohibited_controls": ["premium_purchase", "cash_purchase", "paid_control", "ambiguous_control", "refill", "10x", "item_backed_substitute"], "premium_allowed": false, "cash_allowed": false, "paid_allowed": false, "ambiguous_allowed": false, "refill_allowed": false, "ten_x_allowed": false, "item_backed_substitute_allowed": false, "unknown_cost_allowed": false, "route_owned_effects_globally_forbidden": false, "route_owner_ticket_required": true, "governing_owner_ticket_families": ["REC-R*", "REC-P*"], "dispatch_authority": null, "source": "REC-D01_explicit_cost_boundary"},
     {"policy_id": "current-positive-completion-postcondition", "scope": "global.completion_semantics", "status": "explicitly_approved", "decision": "Training and march completion require a current positive postcondition. Queue, timer, outbound, return, or other projected state alone never proves completion.", "applies_to": ["training", "march"], "current_positive_postcondition_required": true, "queue_projection_is_completion": false, "timer_projection_is_completion": false, "outbound_projection_is_completion": false, "return_projection_is_completion": false, "dispatch_is_completion": false, "source": "REC-D01_explicit_completion_boundary"}
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r19",
+  "authority_revision": "flow-delivery-product-authority-v2-r20",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -1909,7 +1928,7 @@
     {
       "record_id": "hero_upgrade",
       "record_type": "hero_upgrade",
-      "purpose": "Record approved three-per-reset Wali Hero Upgrade semantics while keeping runtime dispatch disabled until native evidence and route admission.",
+      "purpose": "Record approved guarded Wali normal upgrades and standard evolution while keeping actual service registration/scheduling disabled and the unproven Campaign/reset diamond path blocked.",
       "recurrence": "daily_reset_scoped",
       "semantic_entry_route": {
         "source_home_authorities": [
@@ -1921,83 +1940,118 @@
         ]
       },
       "objective": "upgrade_hero",
-      "action": "observe_one_hero_upgrade_candidate",
+      "action": "upgrade_one_wali_normal_level_with_standard_evolution_support",
       "target": {
         "kind": "hero_upgrade",
         "hero_identity": "Wali",
         "hero_selected": true,
         "current_level": null,
-        "target_level": null,
-        "target_identity": "HERO_UPGRADE",
-        "candidate_material": "standard_hero_material",
-        "candidate_amount": null,
-        "candidate_balance": null,
-        "daily_progress_before": 0,
-        "daily_completion_target": 3,
+        "evolution_cap": null,
+        "next_evolution_cap": null,
+        "target_identity": "hero-upgrade",
+        "normal_upgrade_material": "ANTISERUM",
+        "standard_evolution_materials": [
+          "ANTISERUM",
+          "COMBAT_MANUAL_I",
+          "COMBAT_MANUAL_II",
+          "COMBAT_MANUAL_III",
+          "COMBAT_MANUAL_IV",
+          "COMBAT_MANUAL_V"
+        ],
+        "normal_single_upgrade": true,
+        "normal_upgrade_count_per_reset": 3,
+        "evolution_only_at_displayed_cap": true,
+        "evolution_level_change_counts_as_normal_upgrade": false,
         "policy_status": "explicitly_approved",
-        "upgrade_dispatch_allowed": false,
+        "upgrade_dispatch_allowed": true,
+        "approved_action_kinds": [
+          "HERO_UPGRADE_SINGLE",
+          "HERO_EVOLUTION_STANDARD"
+        ],
         "terminal_home": "HOME_CANONICAL"
       },
       "quantity_cost": {
         "quantity": 1,
-        "cost": {
-          "kind": "standard_hero_material_first",
+        "normal_upgrade": {
+          "action": "single_level",
+          "material": "ANTISERUM",
           "amount": null,
-          "unit": "STANDARD_HERO_MATERIAL",
+          "current_observation_required": true,
           "free_only": false
         },
-        "diamond_reset_exception": {
-          "allowed": true,
-          "amount": 150,
-          "unit": "DIAMONDS",
-          "only_when_needed": true,
-          "maximum_per_reset": 1
+        "standard_evolution": {
+          "action": "one_standard_evolution",
+          "materials": [
+            "ANTISERUM",
+            "COMBAT_MANUAL_I",
+            "COMBAT_MANUAL_II",
+            "COMBAT_MANUAL_III",
+            "COMBAT_MANUAL_IV",
+            "COMBAT_MANUAL_V"
+          ],
+          "exact_current_vector_required": true,
+          "free_only": false
+        },
+        "reset_campaign_diamond_path": {
+          "evidence_required": true,
+          "operationally_blocked": true,
+          "campaign_block_proven": false,
+          "final_150_diamond_confirmation_proven": false,
+          "reset_action_excluded": true
         }
       },
       "semantic_effect": {
-        "effect_ordinal": 1,
-        "exact_hero_evidence_required": true,
-        "exact_level_evidence_required": true,
-        "exact_material_evidence_required": true,
-        "exact_cost_evidence_required": true,
-        "balance_evidence_required": true,
-        "level_successor_required": true,
-        "daily_progress_successor_required": true,
-        "daily_progress_maximum": 3,
-        "standard_material_first": true,
-        "diamond_reset_exception_allowed": true,
-        "diamond_reset_exception_amount": 150,
-        "diamond_reset_exception_only_when_needed": true,
-        "diamond_reset_exception_maximum_per_reset": 1,
-        "upgrade_dispatch_allowed": false,
+        "normal_upgrade_count_per_reset": 3,
+        "exact_selected_wali_evidence_required": true,
+        "stable_level_and_displayed_cap_required": true,
+        "exact_current_material_vector_and_balance_required": true,
+        "normal_single_level_successor_required": true,
+        "exact_antiserum_debit_required": true,
+        "evolution_only_at_displayed_cap": true,
+        "evolution_automatic_level_not_counted": true,
+        "evolution_manual_decrement_numeric_receipt_or_named_usage_toast_required": true,
+        "evolution_named_toast_requires_exact_quoted_cost_and_unique_cap_transition": true,
+        "evolution_antiserum_debit_required": true,
+        "confirmed_normal_count_persists_through_evolution_and_restart": true,
+        "daily_progress_successor_required": false,
+        "daily_ownership": "none",
+        "points_credit_required": false,
+        "reset_campaign_diamond_path": {
+          "evidence_required": true,
+          "operationally_blocked": true,
+          "campaign_block_proven": false,
+          "final_150_diamond_confirmation_proven": false,
+          "reset_action_excluded": true
+        },
+        "upgrade_dispatch_allowed": true,
+        "approved_action_kinds": [
+          "HERO_UPGRADE_SINGLE",
+          "HERO_EVOLUTION_STANDARD"
+        ],
+        "current_explicit_authorization_required": true,
+        "canonical_supervised_claim_required": true,
         "native_evidence_required": true,
-        "material_delta_required_for_upgrade_proof": true,
-        "hero_level_delta_required_for_upgrade_proof": true,
         "canonical_home_successor_required": true,
         "dispatch_is_not_success_proof": true,
-        "daily_ownership": "none",
         "identical_retry": false
       },
       "forbidden_actions": [
-        "Upgrade dispatch before native evidence and route admission",
+        "bulk upgrade",
+        "normal upgrades above three per reset",
+        "counting automatic evolution levels toward the normal-upgrade quota",
         "premium material",
-        "premium currency outside the 150-diamond reset exception",
-        "unknown hero",
-        "ambiguous hero",
-        "unknown level",
-        "ambiguous level",
-        "unknown material",
-        "ambiguous material",
-        "unknown cost",
-        "ambiguous cost",
+        "premium currency",
+        "unknown or ambiguous hero",
+        "unknown or ambiguous level",
+        "unknown or ambiguous displayed cap",
+        "unknown or ambiguous material",
+        "unknown or ambiguous cost",
         "insufficient material balance",
-        "unbounded diamond spend",
-        "diamond reset without need",
-        "diamond reset above 150",
-        "repeated 150-diamond reset exception",
-        "daily progress greater than three",
-        "hero level delta without material delta",
-        "material delta without hero level successor",
+        "reset/campaign path without exact evidence",
+        "150-diamond path before exact Campaign block and final confirmation evidence",
+        "Daily prerequisite",
+        "D02 prerequisite",
+        "points prerequisite",
         "identical retry",
         "real-money confirmation"
       ],
@@ -2009,7 +2063,7 @@
         "daily_owner": null,
         "point_credit_trigger": null,
         "selected_daily_prerequisite": false,
-        "notes": "Hero Upgrade product semantics own three Wali upgrades per reset; aggregate_daily_claim remains the sole ordinary Claim owner."
+        "notes": "Wali upgrade ownership is reset-scoped and separate from Daily, D02, or points credit; Hero Upgrade is not a prerequisite for or owner of aggregate_daily_claim."
       },
       "authority_references": [
         {
@@ -2023,8 +2077,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "hero_upgrade-v2",
-      "record_digest": "3eaddcecb4a075404bfc1ccfbcc8a55ba09bd167a89604646878a12f9822306f"
+      "record_revision": "hero_upgrade-v3",
+      "record_digest": "0cadd4f28e0d4a035e70f91e2ac910b4639d4eed6bc0347dd98f77d8a9d9527d"
     },
     {
       "record_id": "alliance_shop_purchase",
@@ -3548,5 +3602,5 @@
       "record_digest": "3ed8f746336bfa3a0544591b42e8cea832ee3a0b10d10dda54cedcf390c57d78"
     }
   ],
-  "authority_digest": "a343f9f592ad18fa367b2d3e82be179866677fd3278cdc0cb4e31f54fae79057"
+  "authority_digest": "a451cb1b252e982eb412e8b9e0583bfe111c38c26f728952e81b56aeb1f60972"
 }

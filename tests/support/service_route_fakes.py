@@ -7,7 +7,7 @@ real runner produces.  No fake touches a device; all hooks are optional.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import hashlib
 import json
 
@@ -104,6 +104,17 @@ from automation_service.troop_training import (
     make_training_start_action_key,
     training_identity_digest,
 )
+from automation_service.wali_upgrade import (
+    FLOW_ID as WALI_UPGRADE_FLOW_ID,
+    MAX_ACTIONS as WALI_UPGRADE_MAX_ACTIONS,
+    MAX_INPUTS as WALI_UPGRADE_MAX_INPUTS,
+    PROFILE_ID as WALI_UPGRADE_PROFILE_ID,
+    PRODUCT_ID as WALI_UPGRADE_PRODUCT_ID,
+    PRODUCT_REVISION as WALI_UPGRADE_PRODUCT_REVISION,
+    WaliUpgradeRunner,
+)
+from tasks.hero_upgrade_disabled import HeroUpgradeObservation
+from tasks.profile import BLUESTACKS_NATIVE_TARGET_PROVENANCE
 from automation_service.native_execution import NativeRouteOutcome
 from scripts import navigation_development_boundary as boundary
 from safe_action_core.resource_effect_authority import (
@@ -2688,6 +2699,10 @@ class _GuardedENativeBoundary:
                 TROOP_TRAINING_ADAPTER_PRODUCT_ID, TROOP_TRAINING_ADAPTER_PRODUCT_REVISION,
                 TROOP_TRAINING_ADAPTER_PROFILE_ID, TROOP_TRAINING_MAX_ACTIONS,
             ),
+            WALI_UPGRADE_FLOW_ID: (
+                WALI_UPGRADE_PRODUCT_ID, WALI_UPGRADE_PRODUCT_REVISION,
+                WALI_UPGRADE_PROFILE_ID, WALI_UPGRADE_MAX_ACTIONS,
+            ),
         }[flow_id]
         self.requests = []
 
@@ -2808,6 +2823,7 @@ class _GuardedEAdapterRunner:
             FOOD_FARM_BOOST_FLOW_ID: "food_farm_dispatch_count",
             HALL_OF_WAR_FLOW_ID: "hall_of_war_dispatch_count",
             TROOP_TRAINING_FLOW_ID: "training_dispatch_count",
+            WALI_UPGRADE_FLOW_ID: "total_action_count",
         }
         committed = result.get("committed_action_count", 0)
         if self.flow_id == FOOD_FARM_BOOST_FLOW_ID:
@@ -3402,3 +3418,102 @@ class GuardedTroopTrainingRunner(_GuardedEAdapterRunner):
         )
         self.training_mode = "completed"
         self.completed_resets = set()
+
+
+def _wali_observation(game_day_id, *, level, cap, confirmed, balance, phase):
+    """Synthetic semantic model, not a retained native capture."""
+    return HeroUpgradeObservation(
+        screen_state="HERO", hero_identity="Wali", hero_selected=True,
+        current_level=level, evolution_cap=cap,
+        material_costs={"ANTISERUM": 100}, material_balances={"ANTISERUM": balance},
+        target_identity="hero-upgrade", target_roi=(100, 1140, 350, 1220),
+        panel_bounds=(44, 100, 756, 1250), control_class="UPGRADE",
+        game_day_id=game_day_id, confirmed_upgrades=confirmed,
+        material_rows_complete=True, stable_selected_state=True,
+        normal_upgrade_visible=True, normal_single_upgrade=True,
+        target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
+        source_frame_sha256=hashlib.sha256(phase.encode()).hexdigest(),
+        evidence_refs=(f"synthetic:wali:{phase}",),
+    )
+
+
+def _wali_upgrade_result_builder(identity, stop, input_count, *, explicit_partial, interrupted, owner):
+    prior = owner.confirmed_by_reset.get(identity.reset_id, 0)
+    defer_prefix = owner.wali_mode == "deferred_prefix"
+    count = 0 if interrupted else min(1, 3 - prior) if explicit_partial or defer_prefix else 3 - prior
+    with_evolution = owner.wali_mode == "standard_evolution" and not explicit_partial and not interrupted and prior == 0
+    upgrades, evolutions = [], []
+    level, cap, balance = (9, 10, 1000) if with_evolution else (5 + prior, 30, 1000)
+    for index in range(count):
+        ordinal = prior + index + 1
+        key = f"wali:{identity.account_id}:{identity.server_id}:{identity.reset_id}:normal:{ordinal}"
+        before = _wali_observation(
+            identity.reset_id, level=level, cap=cap, confirmed=ordinal - 1,
+            balance=balance, phase=f"{key}:before",
+        )
+        level, balance = level + 1, balance - 100
+        after = _wali_observation(
+            identity.reset_id, level=level, cap=cap, confirmed=ordinal,
+            balance=balance, phase=f"{key}:after",
+        )
+        upgrades.append({"action_key": key, "before": asdict(before), "after": asdict(after), "semantic_verified": True})
+        if with_evolution and index == 0:
+            evolution_key = f"wali:{identity.account_id}:{identity.server_id}:{identity.reset_id}:evolution:{cap}"
+            evolution_before = replace(
+                after, screen_state="HERO_EVOLUTION_PREVIEW", target_identity="hero-evolve",
+                target_roi=(280, 900, 520, 980), control_class="EVOLVE",
+                material_costs={"ANTISERUM": 200, "COMBAT_MANUAL_I": 30},
+                material_balances={"ANTISERUM": balance, "COMBAT_MANUAL_I": 50},
+                next_evolution_cap=30, normal_upgrade_visible=False, normal_single_upgrade=False,
+                evolution_control_visible=True,
+                source_frame_sha256=hashlib.sha256(f"{evolution_key}:before".encode()).hexdigest(),
+                evidence_refs=(f"synthetic:wali:{evolution_key}:before",),
+            )
+            level, cap, balance = level + 1, 30, balance - 200
+            evolution_after = replace(
+                _wali_observation(
+                    identity.reset_id, level=level, cap=cap, confirmed=ordinal,
+                    balance=balance, phase=f"{evolution_key}:after",
+                ),
+                material_usage_receipts=("COMBAT_MANUAL_I",),
+                evidence_refs=(f"synthetic:wali:{evolution_key}:usage-toast", f"synthetic:wali:{evolution_key}:settled"),
+            )
+            evolutions.append({
+                "action_key": evolution_key, "before": asdict(evolution_before),
+                "after": asdict(evolution_after), "semantic_verified": True,
+            })
+    committed = count + len(evolutions)
+    attempts = committed + int(explicit_partial)
+    if not interrupted:
+        owner.confirmed_by_reset[identity.reset_id] = prior + count
+    home = {"frame_path": "frames/wali-home.png", "frame_sha256": "c" * 64}
+    return {
+        "status": "unknown" if explicit_partial else "blocked" if interrupted else "deferred" if defer_prefix and prior + count < 3 else "completed",
+        "reason": "synthetic_wali_unknown_successor" if explicit_partial else "synthetic_wali_partial_deferral" if defer_prefix else "synthetic_wali_route",
+        "hero_identity": "Wali", "game_day_id": identity.reset_id,
+        "occurrence_key": owner.current_occurrence_key,
+        "prior_confirmed_upgrades": prior, "confirmed_upgrades": prior + count,
+        "level_upgrade_committed_count": count, "evolution_committed_count": len(evolutions),
+        "committed_action_count": committed,
+        "upgrade_transport_calls": count + int(explicit_partial),
+        "evolution_transport_calls": len(evolutions), "total_action_count": attempts,
+        "input_actions": input_count, "level_upgrades": upgrades, "evolutions": evolutions,
+        "unknown_action_sent": explicit_partial, "identical_retry_denied": explicit_partial,
+        "terminal_home_verified": not interrupted and not explicit_partial,
+        "terminal_home_frame": home, "terminal_home_frame_sha256": home["frame_sha256"],
+        "evidence_refs": ("synthetic:wali:terminal",),
+        "campaign_reset_evidence_required": True, "reset_transport_calls": 0, "reset_count_unchanged": True,
+    }
+
+
+class GuardedWaliUpgradeRunner(_GuardedEAdapterRunner):
+    def __init__(self, stop, output_directory):
+        super().__init__(
+            stop, output_directory, WALI_UPGRADE_FLOW_ID, 12, 8,
+            WALI_UPGRADE_MAX_INPUTS, _wali_upgrade_result_builder,
+            lambda native: WaliUpgradeRunner(
+                native=native, output_directory=output_directory, utc_clock=lambda: stop.now,
+            ),
+        )
+        self.wali_mode = "single_upgrades"
+        self.confirmed_by_reset: dict[str, int] = {}

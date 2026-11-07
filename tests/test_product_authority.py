@@ -446,7 +446,7 @@ class ProductAuthorityTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
                 validate_product_record(changed)
 
-    def test_hero_upgrade_candidate_keeps_approved_semantics_fail_closed(self) -> None:
+    def test_hero_upgrade_policy_allows_three_normal_levels_with_evidence_gated_evolution(self) -> None:
         record = self.records["hero_upgrade"]
         policy = next(
             item
@@ -454,54 +454,142 @@ class ProductAuthorityTests(unittest.TestCase):
             if item["policy_id"] == "hero-upgrade-policy"
         )
         self.assertEqual(policy["status"], "explicitly_approved")
-        self.assertFalse(policy["upgrade_dispatch_allowed"])
+        self.assertTrue(policy["upgrade_dispatch_allowed"])
+        self.assertEqual(
+            policy["approved_action_kinds"],
+            ["HERO_UPGRADE_SINGLE", "HERO_EVOLUTION_STANDARD"],
+        )
+        self.assertEqual(
+            policy["runtime_admission"],
+            "canonical_supervised_claim_and_current_explicit_authorization_required",
+        )
+        self.assertTrue(policy["current_explicit_authorization_required"])
+        self.assertTrue(policy["canonical_supervised_claim_required"])
+        self.assertEqual(policy["registration_status"], "NOT_REGISTERED")
+        self.assertFalse(policy["scheduler_eligibility"])
         self.assertEqual(policy["candidate_hero"], "Wali")
-        self.assertEqual(policy["diamond_reset_exception"]["amount"], 150)
-        self.assertTrue(policy["diamond_reset_exception"]["only_when_needed"])
+        self.assertEqual(policy["normal_upgrade_count_per_reset"], 3)
+        self.assertEqual(policy["normal_upgrade_kind"], "single_level")
+        self.assertEqual(policy["normal_upgrade_material"], "ANTISERUM")
+        self.assertTrue(policy["evolution_only_at_displayed_cap"])
+        self.assertFalse(policy["evolution_counts_toward_normal_upgrade_count"])
+        self.assertEqual(policy["evidence_state"], "evidence_required")
+        self.assertFalse(policy["scheduler_eligibility"])
+        reset_path = policy["reset_campaign_diamond_path"]
+        self.assertEqual(reset_path["status"], "evidence_required")
+        self.assertTrue(reset_path["operationally_blocked"])
+        self.assertFalse(reset_path["campaign_block_proven"])
+        self.assertFalse(reset_path["final_150_diamond_confirmation_proven"])
+        self.assertFalse(reset_path["dispatch_allowed"])
+
         self.assertEqual(record["record_type"], "hero_upgrade")
-        self.assertEqual(record["record_revision"], "hero_upgrade-v2")
+        self.assertEqual(record["record_revision"], "hero_upgrade-v3")
         self.assertEqual(record["semantic_entry_route"]["route"], ["HERO"])
         target = record["target"]
         self.assertEqual(target["hero_identity"], "Wali")
         self.assertIsNone(target["current_level"])
-        self.assertIsNone(target["target_level"])
-        self.assertEqual(target["candidate_material"], "standard_hero_material")
-        self.assertIsNone(target["candidate_amount"])
-        self.assertIsNone(target["candidate_balance"])
-        self.assertEqual(target["daily_completion_target"], 3)
+        self.assertIsNone(target["evolution_cap"])
+        self.assertIsNone(target["next_evolution_cap"])
+        self.assertEqual(target["normal_upgrade_material"], "ANTISERUM")
+        self.assertEqual(target["normal_upgrade_count_per_reset"], 3)
+        self.assertTrue(target["normal_single_upgrade"])
+        self.assertTrue(target["evolution_only_at_displayed_cap"])
+        self.assertFalse(target["evolution_level_change_counts_as_normal_upgrade"])
         self.assertEqual(target["policy_status"], "explicitly_approved")
-        self.assertFalse(target["upgrade_dispatch_allowed"])
-        cost = record["quantity_cost"]["cost"]
-        self.assertIsNone(cost["amount"])
-        self.assertEqual(cost["kind"], "standard_hero_material_first")
-        self.assertEqual(cost["unit"], "STANDARD_HERO_MATERIAL")
-        self.assertFalse(cost["free_only"])
-        exception = record["quantity_cost"]["diamond_reset_exception"]
-        self.assertEqual(exception["amount"], 150)
-        self.assertTrue(exception["only_when_needed"])
-        self.assertEqual(exception["maximum_per_reset"], 1)
+        self.assertTrue(target["upgrade_dispatch_allowed"])
+        self.assertEqual(
+            target["approved_action_kinds"],
+            ["HERO_UPGRADE_SINGLE", "HERO_EVOLUTION_STANDARD"],
+        )
+        self.assertEqual(
+            target["standard_evolution_materials"],
+            [
+                "ANTISERUM",
+                "COMBAT_MANUAL_I",
+                "COMBAT_MANUAL_II",
+                "COMBAT_MANUAL_III",
+                "COMBAT_MANUAL_IV",
+                "COMBAT_MANUAL_V",
+            ],
+        )
+        cost = record["quantity_cost"]
+        self.assertEqual(cost["quantity"], 1)
+        self.assertIsNone(cost["normal_upgrade"]["amount"])
+        self.assertTrue(cost["normal_upgrade"]["current_observation_required"])
+        self.assertEqual(cost["normal_upgrade"]["material"], "ANTISERUM")
+        self.assertFalse(cost["normal_upgrade"]["free_only"])
+        self.assertTrue(cost["standard_evolution"]["exact_current_vector_required"])
+        self.assertFalse(cost["standard_evolution"]["free_only"])
+        self.assertTrue(cost["reset_campaign_diamond_path"]["operationally_blocked"])
         effect = record["semantic_effect"]
-        self.assertTrue(effect["exact_hero_evidence_required"])
-        self.assertTrue(effect["exact_level_evidence_required"])
-        self.assertTrue(effect["exact_material_evidence_required"])
-        self.assertTrue(effect["standard_material_first"])
-        self.assertTrue(effect["native_evidence_required"])
-        self.assertFalse(effect["upgrade_dispatch_allowed"])
-        self.assertTrue(effect["canonical_home_successor_required"])
+        self.assertTrue(effect["exact_selected_wali_evidence_required"])
+        self.assertTrue(effect["exact_current_material_vector_and_balance_required"])
+        self.assertTrue(effect["normal_single_level_successor_required"])
+        self.assertTrue(effect["exact_antiserum_debit_required"])
+        self.assertTrue(effect["evolution_automatic_level_not_counted"])
+        self.assertTrue(effect["evolution_manual_decrement_numeric_receipt_or_named_usage_toast_required"])
+        self.assertTrue(effect["confirmed_normal_count_persists_through_evolution_and_restart"])
+        self.assertFalse(effect["daily_progress_successor_required"])
+        self.assertFalse(effect["points_credit_required"])
+        self.assertTrue(effect["upgrade_dispatch_allowed"])
+        self.assertEqual(
+            effect["approved_action_kinds"],
+            ["HERO_UPGRADE_SINGLE", "HERO_EVOLUTION_STANDARD"],
+        )
+        self.assertTrue(effect["current_explicit_authorization_required"])
+        self.assertTrue(effect["canonical_supervised_claim_required"])
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
         forbidden = json.dumps(record["forbidden_actions"]).casefold()
         for marker in (
-            "upgrade dispatch before native evidence",
+            "bulk upgrade",
             "premium material",
-            "premium currency outside the 150-diamond reset exception",
-            "unknown hero",
-            "unknown material",
-            "unknown cost",
-            "unbounded diamond spend",
-            "repeated 150-diamond reset exception",
+            "premium currency",
+            "unknown or ambiguous hero",
+            "unknown or ambiguous material",
+            "unknown or ambiguous cost",
+            "reset/campaign path without exact evidence",
+            "150-diamond path before exact campaign block and final confirmation evidence",
+            "daily prerequisite",
+            "d02 prerequisite",
+            "points prerequisite",
+            "identical retry",
         ):
             self.assertIn(marker, forbidden)
-        self.assertNotIn('"upgrade"', forbidden)
-        self.assertNotIn("material spend", forbidden)
+
+        mutations = (
+            lambda changed: changed["target"].__setitem__("normal_upgrade_count_per_reset", 2),
+            lambda changed: changed["target"]["approved_action_kinds"].append("HERO_UPGRADE_BULK"),
+            lambda changed: changed["target"].__setitem__("evolution_level_change_counts_as_normal_upgrade", True),
+            lambda changed: changed["quantity_cost"]["reset_campaign_diamond_path"].__setitem__(
+                "dispatch_allowed", True
+            ),
+            lambda changed: changed["semantic_effect"].__setitem__(
+                "confirmed_normal_count_persists_through_evolution_and_restart", False
+            ),
+            lambda changed: changed["semantic_effect"].__setitem__(
+                "current_explicit_authorization_required", False
+            ),
+            lambda changed: changed["daily_ownership"].__setitem__(
+                "selected_daily_prerequisite", True
+            ),
+        )
+        for mutate in mutations:
+            changed = deepcopy(record)
+            mutate(changed)
+            changed["record_digest"] = record_digest(changed)
+            with self.subTest(mutate=mutate), self.assertRaises(ProductAuthorityError):
+                validate_product_record(changed)
+
+        changed_authority = deepcopy(self.authority)
+        changed_policy = next(
+            item
+            for item in changed_authority["policies"]
+            if item["policy_id"] == "hero-upgrade-policy"
+        )
+        changed_policy["reset_campaign_diamond_path"]["final_150_diamond_confirmation_proven"] = True
+        changed_authority["authority_digest"] = authority_digest(changed_authority)
+        with self.assertRaises(ProductAuthorityError):
+            validate_product_authority(changed_authority)
 
     def test_gathering_validator_rejects_validation_recurrence_or_daily_coupling(self) -> None:
         record = self.records["gathering_resources"]

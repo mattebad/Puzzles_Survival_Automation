@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r19"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r20"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -1873,137 +1873,187 @@ def _validate_hall_of_war_zombie_zero_record(record: Mapping[str, Any]) -> None:
             raise ProductAuthorityError(f"Hall of War must forbid {marker}")
 
 def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
-    """Validate approved Wali upgrade semantics with dispatch still disabled."""
+    """Validate bounded Wali semantics separately from runtime route admission."""
 
-    if record["objective"] != "upgrade_hero":
-        raise ProductAuthorityError(
-            "Hero Upgrade record objective must be upgrade_hero"
-        )
-    if record["action"] != "observe_one_hero_upgrade_candidate":
-        raise ProductAuthorityError(
-            "Hero Upgrade action must remain observation-only until native evidence and route admission"
-        )
-    if record["recurrence"] != "daily_reset_scoped":
-        raise ProductAuthorityError(
-            "Hero Upgrade recurrence must be daily_reset_scoped"
-        )
+    if (
+        record["objective"] != "upgrade_hero"
+        or record["action"] != "upgrade_one_wali_normal_level_with_standard_evolution_support"
+        or record["recurrence"] != "daily_reset_scoped"
+        or record["record_revision"] != "hero_upgrade-v3"
+    ):
+        raise ProductAuthorityError("Hero Upgrade must use the approved v3 reset-scoped action")
     route = record["semantic_entry_route"]
     if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
         "route"
     ) != ["HERO"]:
-        raise ProductAuthorityError(
-            "Hero Upgrade entry route must bind canonical Home to Hero"
-        )
-    target = record["target"]
-    if (
-        not isinstance(target, Mapping)
-        or target.get("kind") != "hero_upgrade"
-        or target.get("hero_identity") != "Wali"
-        or target.get("hero_selected") is not True
-        or target.get("current_level") is not None
-        or target.get("target_level") is not None
-        or target.get("target_identity") != "HERO_UPGRADE"
-        or target.get("candidate_material") != "standard_hero_material"
-        or target.get("candidate_amount") is not None
-        or target.get("candidate_balance") is not None
-        or target.get("daily_progress_before") != 0
-        or target.get("daily_completion_target") != 3
-        or target.get("policy_status") != "explicitly_approved"
-        or target.get("upgrade_dispatch_allowed") is not False
-        or target.get("terminal_home") != "HOME_CANONICAL"
-    ):
-        raise ProductAuthorityError(
-            "Hero Upgrade target must preserve unknown hero, level, and material bounds"
-        )
-    quantity_cost = record["quantity_cost"]
-    cost = quantity_cost.get("cost")
-    if (
-        quantity_cost.get("quantity") != 1
-        or not isinstance(cost, Mapping)
-        or cost.get("kind") != "standard_hero_material_first"
-        or cost.get("amount") is not None
-        or cost.get("unit") != "STANDARD_HERO_MATERIAL"
-        or cost.get("free_only") is not False
-    ):
-        raise ProductAuthorityError(
-            "Hero Upgrade must use standard hero material first with exact cost evidence required"
-        )
-    exception = quantity_cost.get("diamond_reset_exception")
-    if (
-        not isinstance(exception, Mapping)
-        or exception.get("allowed") is not True
-        or exception.get("amount") != 150
-        or exception.get("unit") != "DIAMONDS"
-        or exception.get("only_when_needed") is not True
-        or exception.get("maximum_per_reset") != 1
-    ):
-        raise ProductAuthorityError(
-            "Hero Upgrade must bound one needed 150-diamond reset exception per reset"
-        )
-    effect = record["semantic_effect"]
-    required_effects = {
-        "effect_ordinal": 1,
-        "exact_hero_evidence_required": True,
-        "exact_level_evidence_required": True,
-        "exact_material_evidence_required": True,
-        "exact_cost_evidence_required": True,
-        "balance_evidence_required": True,
-        "level_successor_required": True,
-        "daily_progress_successor_required": True,
-        "daily_progress_maximum": 3,
-        "standard_material_first": True,
-        "diamond_reset_exception_allowed": True,
-        "diamond_reset_exception_amount": 150,
-        "diamond_reset_exception_only_when_needed": True,
-        "diamond_reset_exception_maximum_per_reset": 1,
-        "upgrade_dispatch_allowed": False,
+        raise ProductAuthorityError("Hero Upgrade entry route must bind canonical Home to Hero")
+    manuals = [
+        "COMBAT_MANUAL_I",
+        "COMBAT_MANUAL_II",
+        "COMBAT_MANUAL_III",
+        "COMBAT_MANUAL_IV",
+        "COMBAT_MANUAL_V",
+    ]
+    expected_target = {
+        "kind": "hero_upgrade",
+        "hero_identity": "Wali",
+        "hero_selected": True,
+        "current_level": None,
+        "evolution_cap": None,
+        "next_evolution_cap": None,
+        "target_identity": "hero-upgrade",
+        "normal_upgrade_material": "ANTISERUM",
+        "standard_evolution_materials": ["ANTISERUM", *manuals],
+        "normal_single_upgrade": True,
+        "normal_upgrade_count_per_reset": 3,
+        "evolution_only_at_displayed_cap": True,
+        "evolution_level_change_counts_as_normal_upgrade": False,
+        "policy_status": "explicitly_approved",
+        "upgrade_dispatch_allowed": True,
+        "approved_action_kinds": ["HERO_UPGRADE_SINGLE", "HERO_EVOLUTION_STANDARD"],
+        "terminal_home": "HOME_CANONICAL",
+    }
+    if record["target"] != expected_target:
+        raise ProductAuthorityError("Hero Upgrade target or standard-material semantics changed")
+    blocked_reset_path = {
+        "evidence_required": True,
+        "operationally_blocked": True,
+        "campaign_block_proven": False,
+        "final_150_diamond_confirmation_proven": False,
+        "reset_action_excluded": True,
+    }
+    expected_cost = {
+        "quantity": 1,
+        "normal_upgrade": {
+            "action": "single_level",
+            "material": "ANTISERUM",
+            "amount": None,
+            "current_observation_required": True,
+            "free_only": False,
+        },
+        "standard_evolution": {
+            "action": "one_standard_evolution",
+            "materials": ["ANTISERUM", *manuals],
+            "exact_current_vector_required": True,
+            "free_only": False,
+        },
+        "reset_campaign_diamond_path": blocked_reset_path,
+    }
+    if record["quantity_cost"] != expected_cost:
+        raise ProductAuthorityError("Hero Upgrade costs must use current exact standard material evidence")
+    expected_effect = {
+        "normal_upgrade_count_per_reset": 3,
+        "exact_selected_wali_evidence_required": True,
+        "stable_level_and_displayed_cap_required": True,
+        "exact_current_material_vector_and_balance_required": True,
+        "normal_single_level_successor_required": True,
+        "exact_antiserum_debit_required": True,
+        "evolution_only_at_displayed_cap": True,
+        "evolution_automatic_level_not_counted": True,
+        "evolution_manual_decrement_numeric_receipt_or_named_usage_toast_required": True,
+        "evolution_named_toast_requires_exact_quoted_cost_and_unique_cap_transition": True,
+        "evolution_antiserum_debit_required": True,
+        "confirmed_normal_count_persists_through_evolution_and_restart": True,
+        "daily_progress_successor_required": False,
+        "daily_ownership": "none",
+        "points_credit_required": False,
+        "reset_campaign_diamond_path": blocked_reset_path,
+        "upgrade_dispatch_allowed": True,
+        "approved_action_kinds": ["HERO_UPGRADE_SINGLE", "HERO_EVOLUTION_STANDARD"],
+        "current_explicit_authorization_required": True,
+        "canonical_supervised_claim_required": True,
         "native_evidence_required": True,
-        "material_delta_required_for_upgrade_proof": True,
-        "hero_level_delta_required_for_upgrade_proof": True,
         "canonical_home_successor_required": True,
         "dispatch_is_not_success_proof": True,
-        "daily_ownership": "none",
         "identical_retry": False,
     }
-    if any(effect.get(key) != value for key, value in required_effects.items()):
-        raise ProductAuthorityError(
-            "Hero Upgrade candidate must stay evidence-gated and non-dispatching"
-        )
+    if record["semantic_effect"] != expected_effect:
+        raise ProductAuthorityError("Hero Upgrade effect must preserve exact transitions and evidence gates")
     terminal = record["terminal_requirement"]
     if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
         "return_required"
     ) is not True:
-        raise ProductAuthorityError(
-            "Hero Upgrade terminal requirement must return to canonical Home"
-        )
+        raise ProductAuthorityError("Hero Upgrade terminal requirement must return to canonical Home")
+    ownership = record["daily_ownership"]
+    if (
+        ownership.get("daily_owner") is not None
+        or ownership.get("point_credit_trigger") is not None
+        or ownership.get("selected_daily_prerequisite") is not False
+    ):
+        raise ProductAuthorityError("Hero Upgrade must not depend on Daily, D02, or points")
     forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
     for marker in (
-        "upgrade dispatch before native evidence and route admission",
+        "bulk upgrade",
+        "normal upgrades above three per reset",
+        "counting automatic evolution levels toward the normal-upgrade quota",
         "premium material",
-        "premium currency outside the 150-diamond reset exception",
-        "unknown hero",
-        "ambiguous hero",
-        "unknown level",
-        "ambiguous level",
-        "unknown material",
-        "ambiguous material",
-        "unknown cost",
-        "ambiguous cost",
+        "premium currency",
+        "unknown or ambiguous hero",
+        "unknown or ambiguous level",
+        "unknown or ambiguous displayed cap",
+        "unknown or ambiguous material",
+        "unknown or ambiguous cost",
         "insufficient material balance",
-        "unbounded diamond spend",
-        "diamond reset without need",
-        "diamond reset above 150",
-        "repeated 150-diamond reset exception",
-        "daily progress greater than three",
-        "hero level delta without material delta",
-        "material delta without hero level successor",
+        "reset/campaign path without exact evidence",
+        "150-diamond path before exact campaign block and final confirmation evidence",
+        "daily prerequisite",
+        "d02 prerequisite",
+        "points prerequisite",
         "identical retry",
-        "real-money",
+        "real-money confirmation",
     ):
         if marker not in forbidden:
-            raise ProductAuthorityError(
-                f"Hero Upgrade candidate must forbid {marker} actions"
-            )
+            raise ProductAuthorityError(f"Hero Upgrade must forbid {marker}")
+
+
+def _validate_hero_upgrade_decision_policy(payload: Mapping[str, Any]) -> None:
+    """Keep product authorization separate from disabled service registration."""
+
+    policies = {
+        policy["policy_id"]: policy
+        for policy in payload["policies"]
+        if isinstance(policy, Mapping)
+    }
+    policy = policies.get("hero-upgrade-policy")
+    expected = {
+        "scope": "hero_upgrade.reset",
+        "status": "explicitly_approved",
+        "candidate_hero": "Wali",
+        "normal_upgrade_count_per_reset": 3,
+        "normal_upgrade_kind": "single_level",
+        "normal_upgrade_material": "ANTISERUM",
+        "standard_evolution_materials": [
+            "ANTISERUM",
+            "COMBAT_MANUAL_I",
+            "COMBAT_MANUAL_II",
+            "COMBAT_MANUAL_III",
+            "COMBAT_MANUAL_IV",
+            "COMBAT_MANUAL_V",
+        ],
+        "evolution_only_at_displayed_cap": True,
+        "evolution_counts_toward_normal_upgrade_count": False,
+        "upgrade_dispatch_allowed": True,
+        "approved_action_kinds": ["HERO_UPGRADE_SINGLE", "HERO_EVOLUTION_STANDARD"],
+        "evidence_state": "evidence_required",
+        "runtime_admission": "canonical_supervised_claim_and_current_explicit_authorization_required",
+        "current_explicit_authorization_required": True,
+        "canonical_supervised_claim_required": True,
+        "registration_status": "NOT_REGISTERED",
+        "scheduler_eligibility": False,
+        "terminal_state": "home_canonical",
+        "daily_prerequisite_required": False,
+        "daily_ownership": None,
+        "points_credit_required": False,
+        "reset_campaign_diamond_path": {
+            "status": "evidence_required",
+            "operationally_blocked": True,
+            "campaign_block_proven": False,
+            "final_150_diamond_confirmation_proven": False,
+            "dispatch_allowed": False,
+        },
+    }
+    if policy is None or any(policy.get(key) != value for key, value in expected.items()):
+        raise ProductAuthorityError("approved Wali product policy has invalid typed facts")
 
 
 def _validate_alliance_shop_purchase_record(record: Mapping[str, Any]) -> None:
@@ -3804,6 +3854,7 @@ def validate_product_authority(payload: Mapping[str, Any]) -> dict[str, Any]:
     validate_daily_reset_policy(payload)
     _validate_d01_boundary_policies(payload)
     _validate_e_product_decision_policies(payload)
+    _validate_hero_upgrade_decision_policy(payload)
     _validate_f_product_decision_policies(payload)
     seen: set[str] = set()
     records_by_id: dict[str, Mapping[str, Any]] = {}

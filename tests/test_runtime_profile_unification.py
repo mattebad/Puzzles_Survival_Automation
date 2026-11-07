@@ -51,8 +51,25 @@ def _synthetic_hero_duel_observation():
     )
 
 
+def _synthetic_wali_upgrade_observation():
+    return hero_upgrade_disabled.HeroUpgradeObservation(
+        screen_state="HERO", hero_identity="Wali", hero_selected=True,
+        current_level=5, evolution_cap=10,
+        material_costs={"ANTISERUM": 100}, material_balances={"ANTISERUM": 500},
+        target_identity="hero-upgrade", target_roi=(100, 1140, 350, 1220),
+        panel_bounds=(44, 820, 756, 1250), control_class="UPGRADE",
+        game_day_id="synthetic-profile-day", confirmed_upgrades=0,
+        material_rows_complete=True, stable_selected_state=True,
+        normal_upgrade_visible=True, normal_single_upgrade=True,
+        target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
+        source_frame_sha256="c" * 64, evidence_refs=("synthetic:profile-wali",),
+    )
+
+
 def _load(filename: str | None, name: str, observation_type):
     if filename is None:
+        if observation_type is hero_upgrade_disabled.HeroUpgradeObservation:
+            return _synthetic_wali_upgrade_observation()
         return _synthetic_hero_duel_observation()
     payload = json.loads((FIXTURES / filename).read_text(encoding="utf-8"))["observations"][name]
     for key in ("target_roi", "panel_bounds", "evidence_refs"):
@@ -98,7 +115,7 @@ CASES = {
     "hero_duel": (None, "current_survival",
                   hero_duel_disabled.HeroDuelObservation,
                   hero_duel_disabled.hero_duel_current_survival),
-    "hero_upgrade": ("phase_e_disabled_hero_upgrade_observations.json", "valid",
+    "hero_upgrade": (None, "current_wali",
                      hero_upgrade_disabled.HeroUpgradeObservation,
                      hero_upgrade_disabled.hero_upgrade_authorizeable),
     "nanoweapon": ("phase_e_nanoweapon_observations.json", "normal_craft_synthetic",
