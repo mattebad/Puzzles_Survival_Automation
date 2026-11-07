@@ -594,7 +594,16 @@ class RuinsIntegratedRoute:
                     and next_observation.reset_identity == self.reset_identity
                     and post_recognition.target(target_identity) is None
                     and delta == modal.medal_amount
-                    and (next_row is None or next_row.chest_state == RuinsChestState.CLAIMED)
+                    # Native vision leaves a spent, still-visible chest UNKNOWN.
+                    # The exact modal reward delta plus disappearance of its bound
+                    # green target reconciles this action, not an OCR-only CLAIMED label.
+                    and next_row is not None
+                    and next_row.recognized
+                    and self._fully_visible_chest_row(next_row)
+                    and next_row.reset_identity == row.reset_identity
+                    and next_row.availability == RuinsAvailability.UNAVAILABLE
+                    and next_row.challenge_control == RuinsControlState.HIDDEN
+                    and next_row.chest_state in {RuinsChestState.UNKNOWN, RuinsChestState.CLAIMED}
                 )
                 facts["captures"].append((post_capture, post_recognition, delta, proven))
                 return RUINS_CHEST_CLAIM_POSTCONDITION if proven else "unknown"
@@ -629,15 +638,10 @@ class RuinsIntegratedRoute:
                     post_recognition,
                 )
             post_capture, post_recognition, reward_delta, _proven = captures[-1]
-            after = post_recognition.observation.row(row.identity)
-            if after is None:
-                after = replace(
-                    row,
-                    chest_state=RuinsChestState.CLAIMED,
-                    source_frame_sha256=post_capture.sha256,
-                )
-            else:
-                after = replace(after, chest_state=RuinsChestState.CLAIMED)
+            after = replace(
+                post_recognition.observation.row(row.identity),
+                chest_state=RuinsChestState.CLAIMED,
+            )
             reconciled = self.controller.reconcile_chest(row, after, action_key=action_key)
             if reconciled.kind != "chest_reconciled":
                 self.unresolved_action = True

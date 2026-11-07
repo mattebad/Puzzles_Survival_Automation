@@ -13,6 +13,7 @@ import numpy as np
 
 from safe_action_core import SafetyStore
 from scripts import alliance_help_bluestacks as route
+from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime, box_center
 from tasks.alliance_help import (
     CONSEQUENCE, DAILY_REQUEST_LIMIT, HELP_ALL_TARGET_IDENTITY,
     INDIVIDUAL_TARGET_IDENTITY, POSTCONDITION, SEMANTIC_ACTION, SOURCE_STATE,
@@ -315,6 +316,8 @@ class _ReplayRuntime:
         self.input_count = 0
         self.help_taps = 0
         self.suppress_effects = False
+        self.delayed_success = False
+        self.pending_effect = False
         self.frame_actions = set()
         self.frame_keys = {}
         self.snapshots = {}
@@ -346,6 +349,9 @@ class _ReplayRuntime:
         self.frame_keys[id(frame)] = digest
         self.snapshots[digest] = SimpleNamespace(state=self.state, requests=tuple(self.requests),
             coin=self.coin, toast=bool(toast), capture_count=self.capture_count)
+        if self.pending_effect:
+            self.pending_effect = False
+            self._confirm_help()
         return captured
 
     def snapshot(self, frame):
@@ -355,7 +361,7 @@ class _ReplayRuntime:
         if target_roi is None or len(target_roi) != 4:
             raise ValueError("replay refuses unbound target")
         self.input_count += 1
-        self.frame_actions.add((before.sha256, target_identity, action_key))
+        self.frame_actions.add((before.sha256, target_identity, target_roi))
         if target_identity == "home-nav-alliance":
             self.state = "alliance"
         elif target_identity == "alliance-menu-help":
@@ -365,9 +371,10 @@ class _ReplayRuntime:
             if self.state != "help" or not self.requests:
                 raise ValueError("replay individual Help target is no longer current")
             if not self.suppress_effects:
-                self.requests.pop(0)
-                self.coin += 1000
-                self.toast_remaining = 1
+                if self.delayed_success:
+                    self.pending_effect = True
+                else:
+                    self._confirm_help()
         elif target_identity == "alliance-help-back":
             if self.state == "help":
                 self.state = "alliance"
@@ -377,6 +384,11 @@ class _ReplayRuntime:
                 raise ValueError("replay Back target has no recognized source")
         else:
             raise ValueError(f"replay refuses target {target_identity}")
+
+    def _confirm_help(self):
+        self.requests.pop(0)
+        self.coin += 1000
+        self.toast_remaining = 1
 
     def observe(self, frame, *, captured_at, frame_sha256, now=None, **_kwargs):
         saved = self.snapshots[frame_sha256]
@@ -395,6 +407,40 @@ class _ReplayRuntime:
 
     def reconcile(self, _action_key, _status, _captured, _reason):
         return None
+
+
+class _NativeReplayRuntime(LocalBlueStacksRuntime):
+    """Real native guards, fingerprints, keys, events and tap transport; offline device."""
+
+    def __init__(self, scene, session):
+        self.scene = scene
+        targets = {
+            box_center((639, 1243, 647, 1251)): ("home-nav-alliance", (639, 1243, 647, 1251)),
+            box_center((180, 500, 300, 560)): ("alliance-menu-help", (180, 500, 300, 560)),
+            box_center((550, 260, 680, 310)): (INDIVIDUAL_TARGET_IDENTITY, (550, 260, 680, 310)),
+            box_center((45, 8, 160, 58)): ("alliance-help-back", (45, 8, 160, 58)),
+        }
+
+        def dispatch_tap(point):
+            target, roi = targets[point]
+            scene.tap(SimpleNamespace(sha256="offline-device"),
+                target_identity=target, target_roi=roi,
+                action_key=f"device-input-{scene.input_count}")
+
+        super().__init__(SimpleNamespace(dispatch_tap=dispatch_tap),
+            session.session_directory, execute=True)
+        self.max_inputs = route.MAX_INPUTS
+        self.clock = scene.clock
+
+    def capture(self, label="capture"):
+        return self.scene.capture(label)
+
+    def measure_foreground_package(self):
+        return self.scene.measure_foreground_package()
+
+    @property
+    def help_taps(self):
+        return self.scene.help_taps
 
 
 class _ReplaySession:
@@ -427,28 +473,36 @@ class _ReplaySession:
 
 
 def _run_replay_route(directory: Path, *, requests: int, suppress_effects: bool = False,
-                      store_path: Path | None = None):
+                      store_path: Path | None = None, native_dispatch: bool = False,
+                      delayed_success: bool = False):
     directory.mkdir(parents=True, exist_ok=True)
     now = 1_800_000_000.0
     identity = derive_resource_runtime_identity(resource_fixed_runtime_binding(),
         datetime.fromtimestamp(now, timezone.utc))
     store = SafetyStore(store_path or directory / "actions.sqlite3")
     session = _ReplaySession(directory / "native-session", owner="alliance-help-replay")
-    store.acquire_lease(session.owner, now, 3600)
-    runtime = _ReplayRuntime(session.session_directory, session)
+    try:
+        store.acquire_lease(session.owner, now, 3600)
+    except BaseException:
+        store.close()
+        raise
+    scene = _ReplayRuntime(session.session_directory, session)
+    runtime = _NativeReplayRuntime(scene, session) if native_dispatch else scene
     session.runtime = runtime
-    runtime.requests = [f"{index:024x}" for index in range(requests)]
-    runtime.suppress_effects = suppress_effects
+    scene.requests = [f"{index:024x}" for index in range(requests)]
+    scene.suppress_effects = suppress_effects
+    scene.delayed_success = delayed_success
     patches = (
-        patch.object(route, "_home", side_effect=lambda frame: runtime.snapshot(frame).state == "home"),
+        patch.object(route, "_home", side_effect=lambda frame: scene.snapshot(frame).state == "home"),
         patch.object(route, "_home_alliance_target",
             side_effect=lambda frame: (639, 1243, 647, 1251)
-                if runtime.snapshot(frame).state == "home" else None),
+                if scene.snapshot(frame).state == "home" else None),
         patch.object(route, "_alliance_menu",
-            side_effect=lambda frame: runtime.snapshot(frame).state == "alliance"),
+            side_effect=lambda frame: scene.snapshot(frame).state == "alliance"),
         patch.object(route, "_menu_help_target", return_value=(180, 500, 300, 560)),
         patch.object(route, "_back_target", return_value=(45, 8, 160, 58)),
-        patch.object(route, "recognize_help_screen", runtime.observe),
+        patch.object(route, "recognize_help_screen", scene.observe),
+        patch("scripts.bluestacks_native_runtime.time.monotonic", side_effect=scene.clock.now),
     )
     try:
         for item in patches:
@@ -457,7 +511,7 @@ def _run_replay_route(directory: Path, *, requests: int, suppress_effects: bool 
             session=session, runtime=runtime, store=store, identity=identity,
             validate_identity=lambda: None, occurrence_key="occ:v1:" + "b" * 64,
             settle_seconds=0, monotonic_clock=runtime.clock.now,
-            utc_clock=lambda: now, observer=runtime.observe,
+            utc_clock=lambda: now, observer=scene.observe,
             scheduler_reset_id=f"game-day-{datetime.fromtimestamp(now, timezone.utc).date().isoformat()}",
         )
         action_blocked = store.has_action_block()

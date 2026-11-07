@@ -191,6 +191,8 @@ def _run_native_fake_visit(
     challenge_available: bool = True,
     wrong_reward_modal: bool = False,
     modal_reward_delta_mismatch: bool = False,
+    retain_claimed_target: bool = False,
+    hide_claimed_row: bool = False,
 ):
     reset_identity = "game-day-2026-07-16"
     current_day = "Thu"
@@ -244,9 +246,11 @@ def _run_native_fake_visit(
         rows = []
         targets = []
         for identity in KNOWN_CHALLENGE_IDENTITIES:
+            if hide_claimed_row and identity in runtime.claimed:
+                continue
             is_challenge = identity == "Nova Challenge" and challenge_available
             chest_state = (
-                RuinsChestState.CLAIMED
+                RuinsChestState.UNKNOWN
                 if identity in runtime.claimed or identity not in ready_categories
                 else RuinsChestState.AVAILABLE
             )
@@ -268,7 +272,9 @@ def _run_native_fake_visit(
             rows.append(row)
             if is_challenge:
                 targets.append((f"challenge:{identity}", (560, 290, 780, 390)))
-            if chest_state == RuinsChestState.AVAILABLE:
+            if chest_state == RuinsChestState.AVAILABLE or (
+                retain_claimed_target and identity in runtime.claimed
+            ):
                 targets.append((f"chest:{identity}", (600, 230, 780, 380)))
         observation = RuinsScreenObservation(
             True,
@@ -508,6 +514,8 @@ class RuinsChallengeReplayTests(unittest.TestCase):
         self.assertEqual(route.chest_coverage["Tech Challenge"], "already claimed")
         self.assertTrue(route.terminal_home_verified)
         self.assertEqual(len(runtime.consequential_targets), 3)
+        self.assertEqual(runtime.consequential_targets,
+            ["ruins-dispatch", "ruins-reward-claim", "ruins-reward-claim"])
         self.assertEqual(executor.transport_calls_by_category, {"challenge": 1, "chest": 2})
 
     def test_production_route_offline_unavailable_challenge_keeps_ready_chests(self):
@@ -548,6 +556,29 @@ class RuinsChallengeReplayTests(unittest.TestCase):
         self.assertEqual(runtime.consequential_targets, ["ruins-dispatch"])
         self.assertEqual(executor.transport_calls_by_category, {"challenge": 1, "chest": 0})
         self.assertEqual(route.newly_claimed_chests, [])
+
+    def test_native_visible_unknown_row_reconciles_only_with_exact_owned_successor(self):
+        # These rows use vision's actual UNKNOWN post-claim presentation, not
+        # a synthetic CLAIMED label; the sibling stays independently ready.
+        route, runtime, _executor, outcome = _run_native_fake_visit(self.root)
+        self.assertEqual(outcome.status, "completed")
+        self.assertEqual(route.resource_delta, 33)
+        self.assertEqual(route.chest_claim_transport_calls, 2)
+        self.assertEqual([item["identity"] for item in route.newly_claimed_chests],
+            ["Hero Challenge", "Weapon Trial"])
+        self.assertEqual(runtime.consequential_targets[0], "ruins-dispatch")
+
+    def test_exact_medals_without_category_or_target_disappearance_stays_unknown(self):
+        for options in ({"retain_claimed_target": True}, {"hide_claimed_row": True}):
+            with self.subTest(options=options):
+                route, runtime, _executor, outcome = _run_native_fake_visit(self.root, **options)
+                self.assertEqual(outcome.status, "unresolved")
+                self.assertTrue(route.unresolved_action)
+                self.assertEqual(route.chest_claim_transport_calls, 1)
+                self.assertEqual(route.newly_claimed_chests, [])
+                self.assertEqual(route.resource_delta, 0)
+                self.assertEqual(runtime.consequential_targets,
+                    ["ruins-dispatch", "ruins-reward-claim"])
 
     def test_production_route_keeps_medal_delta_mismatch_unresolved(self):
         route, runtime, executor, outcome = _run_native_fake_visit(

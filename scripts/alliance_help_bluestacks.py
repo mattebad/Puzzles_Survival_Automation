@@ -537,6 +537,7 @@ class AllianceHelpActionBoundary:
         transport_calls = 0
         dispatch_input_start: int | None = None
         semantic_success = False
+        dispatch_evidence: list[dict[str, Any]] = []
 
         def recapture():
             nonlocal recapture_returned
@@ -600,6 +601,22 @@ class AllianceHelpActionBoundary:
                 return settled
             return self.runtime.capture(f'alliance-help-result-settled-{ordinal:02d}-2')
 
+        def dispatch_help(before: Any) -> None:
+            start = self.runtime.input_count
+            try:
+                self.runtime.tap(before,
+                    target_identity=INDIVIDUAL_TARGET_IDENTITY,
+                    target_roi=dispatch_plan.target_roi, action_key=action_key,
+                    action_class='free_action', consequential=False)
+            finally:
+                if self.runtime.input_count > start:
+                    dispatch_evidence.append({
+                        "immediate_before_sha256": before.sha256,
+                        "target_identity": INDIVIDUAL_TARGET_IDENTITY,
+                        "target_roi": dispatch_plan.target_roi,
+                        "action_key": action_key,
+                    })
+
         def transport(_intent: Any):
             nonlocal transport_calls, dispatch_input_start
             self.validate_identity()
@@ -609,10 +626,7 @@ class AllianceHelpActionBoundary:
                 outcome = self.session.run_action(
                     action_class='free_action', label=f'alliance-help-request-{ordinal:02d}',
                     capture=single_immediate,
-                    dispatch=lambda before: self.runtime.tap(before,
-                        target_identity=INDIVIDUAL_TARGET_IDENTITY,
-                        target_roi=immediate_plan.target_roi, action_key=action_key,
-                        action_class='free_action', consequential=False),
+                    dispatch=dispatch_help,
                     recognize=lambda after: successor(after),
                     settled_successor=settled_successor, consequence_class=CONSEQUENCE)
             finally:
@@ -659,6 +673,7 @@ class AllianceHelpActionBoundary:
         return {**base,
             "status": "confirmed" if verified else "reconciliation_required" if transport_calls or result_action.get("final_status") in {"input_sent", "unresolved"} else "blocked",
             "reason": execution.reason, "help_transport_calls": transport_calls,
+            "help_dispatch_evidence": dispatch_evidence,
             "committed_action_count": 1 if verified else 0,
             "verified_request_count": 1 if verified else 0,
             "effect_reconciliation_required": bool(transport_calls and not verified),
@@ -871,15 +886,23 @@ def run_alliance_help(
     result["max_inputs"] = MAX_INPUTS
     result["max_actions"] = MAX_ACTIONS
     native_calls = getattr(runtime, "frame_actions", None)
+    dispatch_evidence = [
+        dispatch for action in result.get("request_actions", ())
+        for dispatch in action.get("help_dispatch_evidence", ())
+    ]
     dispatch_accounting_valid = isinstance(native_calls, set) and all(
-        isinstance(item, tuple) and len(item) == 3 for item in native_calls)
+        isinstance(item, tuple) and len(item) == 3
+        and isinstance(item[2], tuple) and len(item[2]) == 4
+        for item in native_calls)
     if dispatch_accounting_valid:
-        help_dispatches = sorted(item for item in native_calls
-            if item[1] in {INDIVIDUAL_TARGET_IDENTITY, HELP_ALL_TARGET_IDENTITY})
+        help_dispatches = {item for item in native_calls
+            if item[1] in {INDIVIDUAL_TARGET_IDENTITY, HELP_ALL_TARGET_IDENTITY}}
+        dispatch_accounting_valid = (
+            len(dispatch_evidence) == len(help_dispatches)
+            and {(item["immediate_before_sha256"], item["target_identity"], item["target_roi"])
+                 for item in dispatch_evidence} == help_dispatches)
         measured_help_calls = len(help_dispatches)
-        result["help_dispatch_evidence"] = [
-            {"immediate_before_sha256": item[0], "target_identity": item[1], "action_key": item[2]}
-            for item in help_dispatches]
+        result["help_dispatch_evidence"] = dispatch_evidence
         result["help_transport_calls"] = measured_help_calls
     else:
         result["help_dispatch_evidence"] = []
