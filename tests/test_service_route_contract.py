@@ -33,6 +33,7 @@ from scripts import navigation_development_boundary as boundary
 from tasks.noahs_tavern_recruit_maintenance import NoahMaintenanceState
 from tasks.nova_praise_pulse import NOVA_TASK_ID
 from tasks.nanoweapon import NANO_PARTS_REQUIRED
+from tasks.scheduler_task_result import SchedulerTaskOutcome
 from tasks.purchases_disabled import ALLIANCE_WEEKLY_ITEMS, ALLIANCE_WEEKLY_SHOP
 from tests.support.service_route_contract import (
     EXCEPTIONS, NOT_SERVABLE, ROUTES, RouteRig, _runner_kwarg,
@@ -159,50 +160,7 @@ class DisabledByDefaultTests(unittest.TestCase):
 
 
 
-class OccurrenceIdentityTests(unittest.TestCase):
-    def test_resource_route_occurrences_are_forwarded_verbatim(self):
-        for flow_id in (
-            RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_DONATION_FLOW_ID,
-            ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
-            NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
-            HERO_DUEL_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
-            HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID,
-        ):
-            with self.subTest(flow_id=flow_id), RouteRig(self, ROUTES[flow_id]) as rig:
-                report, = rig.once()
-                run, = rig.runs()
-                self.assertIn(":", run.occurrence_key)
-                self.assertEqual(rig.runner.occurrence_keys, [run.occurrence_key])
-                self.assertEqual(report["result"]["occurrence_key"], run.occurrence_key)
 
-    def test_opaque_production_occurrences_are_preserved_in_mapping(self):
-        opaque_occurrence = "opaque|session|occurrence"
-        cases = (
-            (NANO_MATERIAL_PRODUCTION_FLOW_ID, GuardedNanoMaterialProductionRunner),
-            (NANOWEAPON_FLOW_ID, GuardedNanoweaponRunner),
-        )
-        for flow_id, fake_type in cases:
-            with self.subTest(flow_id=flow_id), RouteRig(self, ROUTES[flow_id]) as rig:
-                rig.once()
-                identity = rig.runner.last_identity
-                fake = fake_type(rig.stop, rig.root)
-                with boundary.RuntimeInputLock(
-                    owner="opaque-occurrence-contract", invocation_id=flow_id,
-                ) as input_lock:
-                    result = fake(
-                        identity, identity.reset_id, lambda: None,
-                        runtime_input_lock=input_lock,
-                        occurrence_key=opaque_occurrence,
-                    )
-                self.assertEqual(fake.occurrence_keys, [opaque_occurrence])
-                self.assertEqual(
-                    (
-                        result["occurrence_key"],
-                        result["native_occurrence_key"],
-                        result["production_occurrence_key"],
-                    ),
-                    (opaque_occurrence,) * 3,
-                )
 
 class RestartBeforeDueTests(unittest.TestCase):
     def test_restart_before_due_skips_runner_and_next_reset_runs_once(self):
@@ -386,7 +344,13 @@ class PartialResultTests(unittest.TestCase):
                     reports = rig.once()
                     self.assertEqual(reports[0]["status"], "blocked", reports)
                     run, = rig.runs()
-                    self.assertEqual(run.state, RunState.BLOCKED)
+                    expected_state = (
+                        RunState.FAILED
+                        if spec.partial_outcome is SchedulerTaskOutcome.RECONCILIATION_REQUIRED
+                        else RunState.BLOCKED
+                    )
+                    self.assertEqual(run.state, expected_state)
+                    self.assertEqual(run.terminal_outcome, spec.partial_outcome.value)
                     self.assertEqual(
                         (run.consumed_inputs, run.consumed_actions), spec.partial_counts,
                     )

@@ -174,7 +174,7 @@ Existing layout exceptions:
   production registration or runtime controls: each route remains disabled and `evidence_required`.
   Offline route contracts and native scenarios model durable attempts separately from confirmed
   resource effects, restart/partial/unknown outcomes, and no identical retry after unresolved effects.
-  Hero Duel requires three reset-scoped free entry/Flee cycles, a saved and verified first-five defense
+  Hero Duel requires three reset-scoped free entry/Flee cycles, a saved and verified first-five defense lineup, and all-five
   eligible attack lineup with battle/Exit/Flee/result evidence; a win is not
   required. Research considers only the first displayed ordinary-queue recommendation when idle and
   affordable; it freshly binds the mapped Home Atlas Research dome. If HUD obscures the target, safely

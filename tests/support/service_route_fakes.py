@@ -55,8 +55,11 @@ from tasks.purchases_disabled import (
 from tasks.nano_material_production import (
     NANO_MATERIAL_PRODUCTION_DURATION_SECONDS, NANO_MATERIAL_PRODUCTION_TARGET,
 )
+from tasks.nanoweapon import NANO_PARTS_REQUIRED, NORMAL_CRAFT_DURATION_SECONDS
+from tasks.scheduler_task_result import SchedulerIdentity
 from automation_service.hero_duel import (
     FLOW_ID as HERO_DUEL_FLOW_ID,
+    MAX_ACTIONS as HERO_DUEL_MAX_ACTIONS,
     MAX_INPUTS as HERO_DUEL_MAX_INPUTS,
     PROFILE_ID as HERO_DUEL_PROFILE_ID,
     PRODUCT_ID as HERO_DUEL_PRODUCT_ID,
@@ -65,6 +68,8 @@ from automation_service.hero_duel import (
 )
 from automation_service.recommended_research import (
     FLOW_ID as RECOMMENDED_RESEARCH_FLOW_ID,
+    MAX_ACTIONS as RECOMMENDED_RESEARCH_MAX_ACTIONS,
+    PROFILE_ID as RECOMMENDED_RESEARCH_PROFILE_ID,
     MAX_INPUTS as RECOMMENDED_RESEARCH_MAX_INPUTS,
     PRODUCT_ID as RECOMMENDED_RESEARCH_PRODUCT_ID,
     PRODUCT_REVISION as RECOMMENDED_RESEARCH_PRODUCT_REVISION,
@@ -72,6 +77,7 @@ from automation_service.recommended_research import (
 )
 from automation_service.food_farm_boost import (
     FLOW_ID as FOOD_FARM_BOOST_FLOW_ID,
+    MAX_ACTIONS as FOOD_FARM_BOOST_MAX_ACTIONS,
     MAX_INPUTS as FOOD_FARM_BOOST_MAX_INPUTS,
     PROFILE_ID as FOOD_FARM_BOOST_PROFILE_ID,
     PRODUCT_ID as FOOD_FARM_BOOST_PRODUCT_ID,
@@ -122,6 +128,8 @@ from tasks.alliance_help import (
     SOURCE_STATE as ALLIANCE_HELP_SOURCE_STATE, alliance_help_action_key,
 )
 from tasks.ruins_challenge import KNOWN_CHALLENGE_IDENTITIES
+from tasks.tech_upgrade_disabled import RESEARCH_RESOURCES as _RESEARCH_RESOURCES
+from tests.support.service_stop import VirtualStop
 from automation_service.service import ServiceError
 from automation_service.supply import (
     PRODUCT_ID as SUPPLY_PRODUCT_ID, PRODUCT_REVISION as SUPPLY_PRODUCT_REVISION,
@@ -2216,6 +2224,15 @@ class GuardedNanoweaponRunner:
         self.last_result = result
         if error is not None:
             raise GuardedRoutePartialResultError(str(error), result) from error
+        return result
+
+
+_E_HOME_FRAME = {
+    "frame_path": "synthetic-e-home.png",
+    "frame_sha256": hashlib.sha256(b"synthetic-e-home").hexdigest(),
+}
+
+
 def _hero_duel_cycle_proof(identity, event_identity: str, ordinal: int, opponent: str) -> dict:
     reset_id = identity.reset_id
     key = {
@@ -2645,6 +2662,24 @@ class _GuardedENativeBoundary:
     def __init__(self, owner, flow_id: str, result_builder, input_budget: int):
         self.owner, self.flow_id = owner, flow_id
         self.result_builder, self.input_budget = result_builder, input_budget
+        self.max_inputs = input_budget
+        (
+            self.product_id, self.product_revision,
+            self.runtime_profile_id, self.max_actions,
+        ) = {
+            HERO_DUEL_FLOW_ID: (
+                HERO_DUEL_PRODUCT_ID, HERO_DUEL_PRODUCT_REVISION,
+                HERO_DUEL_PROFILE_ID, HERO_DUEL_MAX_ACTIONS,
+            ),
+            RECOMMENDED_RESEARCH_FLOW_ID: (
+                RECOMMENDED_RESEARCH_PRODUCT_ID, RECOMMENDED_RESEARCH_PRODUCT_REVISION,
+                RECOMMENDED_RESEARCH_PROFILE_ID, RECOMMENDED_RESEARCH_MAX_ACTIONS,
+            ),
+            FOOD_FARM_BOOST_FLOW_ID: (
+                FOOD_FARM_BOOST_PRODUCT_ID, FOOD_FARM_BOOST_PRODUCT_REVISION,
+                FOOD_FARM_BOOST_PROFILE_ID, FOOD_FARM_BOOST_MAX_ACTIONS,
+            ),
+        }[flow_id]
         self.requests = []
 
     def run(self, request):

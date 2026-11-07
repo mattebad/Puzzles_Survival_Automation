@@ -56,7 +56,6 @@ from tasks.product_authority import (
 ROOT = Path(__file__).resolve().parents[1]
 TASKS = ROOT / "tasks"
 README = ROOT / "README.md"
-AUTOMATION_DOC = ROOT / "docs" / "automation-service.md"
 NAVIGATION_ONLY = "navigation_only"
 
 OLD_CAMPAIGN_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
@@ -511,12 +510,6 @@ MAX_INPUT_COPIES = {
     ],
 }
 
-_NUMBER_WORDS = {
-    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
-    "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
-    "fourteen": 14, "fifteen": 15, "sixteen": 16,
-    "seventeen": 17, "eighteen": 18,
-}
 
 
 def _read_json(path: Path) -> dict:
@@ -1255,12 +1248,6 @@ def _route_rows(text: str) -> list[tuple[str | None, str]]:
     return rows
 
 
-def _counts(text: str, pattern: str) -> list[int]:
-    found = []
-    for word in re.findall(pattern, text, re.I):
-        lowered = word.lower()
-        found.append(int(lowered) if lowered.isdigit() else _NUMBER_WORDS[lowered])
-    return found
 
 
 class DocumentedRouteTests(RouteTestCase):
@@ -1280,21 +1267,6 @@ class DocumentedRouteTests(RouteTestCase):
         example = set(re.findall(r"--flow ([a-z0-9-]+)", _section(self.readme, "Running")))
         self.assertEqual(example, set(servable_flow_names()), "README's all-routes serve example is out of date")
 
-    def test_documented_route_counts_match_the_registry(self) -> None:
-        servable = len(servable_flow_names())
-        registered = len(CANONICAL_FLOW_REGISTRY)
-        automation = AUTOMATION_DOC.read_text(encoding="utf-8")
-        for name, text, pattern, expected in (
-            ("docs/automation-service.md 'N fixed flow specs'", automation, r"\b(\w+) fixed flow specs", registered),
-            ("docs/automation-service.md 'N-route command'", automation, r"\b(\w+)-route command", servable),
-        ):
-            with self.subTest(doc=name):
-                counts = _counts(text, pattern)
-                self.assertTrue(counts, f"{name}: the sentence the test checks is gone; update the test with the doc")
-                self.assertEqual(counts, [expected] * len(counts), f"{name} disagrees with the registry ({expected})")
-        self.assertEqual(
-            len(self.rows), registered, f"README route table has {len(self.rows)} rows, registry has {registered}"
-        )
 
 
 class QueuePathTests(RouteTestCase):

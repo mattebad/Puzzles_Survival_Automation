@@ -899,6 +899,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         family="hero_duel",
         variant="up_to_three_free_entry_flee_cycles",
         cadence="cooldown_pulse",
+        observation_only_completion=True,
     ),
     _canonical_registration(
         RECOMMENDED_RESEARCH_FLOW_ID,
@@ -907,6 +908,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         family="recommended_research",
         variant="first_displayed_recommendation_idle_affordable_start",
         cadence="cooldown_pulse",
+        observation_only_completion=True,
     ),
     _canonical_registration(
         FOOD_FARM_BOOST_FLOW_ID,
@@ -915,6 +917,7 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         family="food_farm_boost",
         variant="one_daily_food_farm_boost",
         cadence="cooldown_pulse",
+        observation_only_completion=True,
     ),
     _canonical_registration(
         HALL_OF_WAR_FLOW_ID,

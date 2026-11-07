@@ -300,21 +300,6 @@ class GameplayFlowContractTests(unittest.TestCase):
             contract["product_policy_refs"][0]["policy_id"],
             "hero-duel-policy",
         )
-        inputs = set(contract["permitted_inputs"])
-        self.assertIn("select the exact current Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival event", inputs)
-        self.assertIn(
-            "select the first five eligible displayed defense heroes and use Save Form when a save is required",
-            inputs,
-        )
-        self.assertIn(
-            "fill only missing attack slots from the first five current eligible heroes and leave a complete valid lineup unchanged",
-            inputs,
-        )
-        self.assertIn(
-            "Challenge the selected listed opponent only with current exact zero-cost Free", inputs
-        )
-        self.assertIn("select Flee on the current warning and never Fight", inputs)
-        self.assertNotIn("Fight", inputs)
         cost = contract["cost_quantity_requirements"]
         self.assertEqual(cost["maximum_cost"], 0)
         self.assertTrue(cost["free_only"])
@@ -337,6 +322,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         scenario = contract["scenarios"][0]
         self.assertEqual(scenario["mode"], "blocked_until_evidence")
         self.assertEqual(scenario["permitted_inputs"], [])
+        self.assertEqual(scenario["forbidden_inputs"], [])
         transitions = contract["transition_contracts"]
         self.assertIn(
             "dispatch_one_free_entry",

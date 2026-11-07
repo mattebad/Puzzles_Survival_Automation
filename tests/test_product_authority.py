@@ -105,6 +105,21 @@ class ProductAuthorityTests(unittest.TestCase):
         )
         validate_product_authority(self.authority)
 
+    def test_record_type_discriminator_is_bound_to_record_identity(self) -> None:
+        for record_id, wrong_type in (
+            ("use_resource_item", "supply_depot"),
+            ("recommended_research", "food_farm_output_boost"),
+            ("food_farm_output_boost", "recommended_research"),
+        ):
+            changed = deepcopy(self.records[record_id])
+            changed["record_type"] = wrong_type
+            changed["record_digest"] = record_digest(changed)
+            with self.subTest(record_id=record_id), self.assertRaisesRegex(
+                ProductAuthorityError, "id/type discriminator mismatch"
+            ):
+                validate_product_record(changed)
+
+
     def test_aggregate_daily_claim_is_batch_scoped_and_the_only_selected_daily_owner(self) -> None:
         record = self.records["aggregate_daily_claim"]
         self.assertEqual(record["record_type"], "aggregate_daily_claim")

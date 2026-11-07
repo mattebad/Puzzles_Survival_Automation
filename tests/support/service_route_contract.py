@@ -20,6 +20,7 @@ from automation_service.registry import (
 from automation_service.service import AutomationService
 from automation_service.state import BotStateManager
 from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
+from tasks.scheduler_task_result import SchedulerTaskOutcome
 from scripts import navigation_development_boundary as boundary
 from tests.support.service_route_fakes import (
     GuardedAllianceDonationRunner, GuardedAllianceHelpRunner,
@@ -43,6 +44,7 @@ class RouteSpec:
     partial_counts: tuple[int, int]
     generation_counts: tuple[int, int]
     first_inputs: int
+    partial_outcome: SchedulerTaskOutcome = SchedulerTaskOutcome.BLOCKED
 
 
 def _supply_partial(runner):
@@ -175,10 +177,12 @@ ROUTES = {
         RECOMMENDED_RESEARCH_FLOW_ID,
         lambda stop, root: GuardedRecommendedResearchRunner(stop, root),
         _work_by_default, _e_route_partial, (8, 1), (1, 0), 5,
+        partial_outcome=SchedulerTaskOutcome.RECONCILIATION_REQUIRED,
     ),
     FOOD_FARM_BOOST_FLOW_ID: RouteSpec(
         FOOD_FARM_BOOST_FLOW_ID, lambda stop, root: GuardedFoodFarmBoostRunner(stop, root),
         _work_by_default, _e_route_partial, (3, 1), (1, 0), 4,
+        partial_outcome=SchedulerTaskOutcome.RECONCILIATION_REQUIRED,
     ),
     HALL_OF_WAR_FLOW_ID: RouteSpec(
         HALL_OF_WAR_FLOW_ID, lambda stop, root: GuardedHallOfWarRunner(stop, root),
