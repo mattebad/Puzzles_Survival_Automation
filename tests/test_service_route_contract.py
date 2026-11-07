@@ -11,12 +11,16 @@ from unittest.mock import patch
 from automation_service.cli import build_parser
 from automation_service.contracts import RecurrenceClass
 from automation_service.registry import (
-    ALLIANCE_HELP_FLOW_ID, BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID,
-    CANONICAL_FLOW_REGISTRY, DAILY_REWARDS_FLOW_ID, ENHANCEMENT_FLOW_ID,
+    ALLIANCE_DONATION_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
+    BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, CANONICAL_FLOW_REGISTRY,
+    DAILY_REWARDS_FLOW_ID, DAILY_SHOPS_FLOW_ID, ENHANCEMENT_FLOW_ID,
     NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, REGISTRY_PATH,
     RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
-    RegisteredDispatchSnapshot, canonical_entry, canonical_flow_specs,
+    canonical_entry, canonical_flow_specs,
 )
+from automation_service.alliance_donation import alliance_donation_next_due
+from automation_service.alliance_shop import alliance_shop_next_due
+from automation_service.daily_shops import daily_shops_next_due
 from automation_service.service import ServiceError
 from automation_service.state import BotStateManager, RunState
 from scripts import navigation_development_boundary as boundary
@@ -75,11 +79,6 @@ class DisabledByDefaultTests(unittest.TestCase):
                 with RouteRig(self, spec) as rig:
                     entry = canonical_entry(flow_id)
                     self.assertFalse(entry.spec.default_enabled)
-                    self.assertTrue(entry.build_handler().selection_only)
-                    self.assertEqual(
-                        RegisteredDispatchSnapshot.from_mapping(entry.registration.to_mapping()),
-                        entry.registration,
-                    )
                     self.assertEqual(
                         parser.parse_args(["serve", "--flow", entry.cli_name]).flow,
                         [entry.cli_name],
@@ -88,6 +87,8 @@ class DisabledByDefaultTests(unittest.TestCase):
                         SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID,
                         PERSONAL_MIGHT_FLOW_ID, BIOENHANCER_FLOW_ID,
                         DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
+                        ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
+                        DAILY_SHOPS_FLOW_ID,
                     }:
                         adapter = importlib.import_module(
                             "automation_service." + entry.cli_name.replace("-", "_"),
@@ -100,7 +101,9 @@ class DisabledByDefaultTests(unittest.TestCase):
                             self.assertEqual(entry.product_revision, "bioenhancer_research-v1")
                             self.assertFalse(entry.descriptor.reset_scoped)
                             self.assertEqual(entry.descriptor.cadence, "cooldown_pulse")
-                        elif flow_id == DAILY_REWARDS_FLOW_ID:
+                        elif flow_id == DAILY_REWARDS_FLOW_ID or flow_id in {
+                            ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
+                        }:
                             self.assertTrue(entry.descriptor.reset_scoped)
                             self.assertEqual(entry.descriptor.cadence, "cooldown_pulse")
                             self.assertEqual(entry.descriptor.recurrence_class, RecurrenceClass.COOLDOWN)
@@ -123,7 +126,10 @@ class DisabledByDefaultTests(unittest.TestCase):
 
 class OccurrenceIdentityTests(unittest.TestCase):
     def test_b_routes_forward_the_persisted_opaque_occurrence_key_verbatim(self):
-        for flow_id in (RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID):
+        for flow_id in (
+            RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_DONATION_FLOW_ID,
+            ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
+        ):
             with self.subTest(flow_id=flow_id), RouteRig(self, ROUTES[flow_id]) as rig:
                 report, = rig.once()
                 run, = rig.runs()
@@ -138,6 +144,8 @@ class RestartBeforeDueTests(unittest.TestCase):
             ENHANCEMENT_FLOW_ID: (6, 3), PERSONAL_MIGHT_FLOW_ID: (6, 1),
             RESOURCE_ITEM_FLOW_ID: (4, 1),
             RUINS_FLOW_ID: (8, 2), ALLIANCE_HELP_FLOW_ID: (20, 10),
+            ALLIANCE_DONATION_FLOW_ID: (40, 10),
+            ALLIANCE_SHOP_FLOW_ID: (24, 1), DAILY_SHOPS_FLOW_ID: (48, 2),
         }
         for flow_id, spec in ROUTES.items():
             if (flow_id, "restart_before_due") in EXCEPTIONS:
@@ -192,7 +200,8 @@ class BorrowedOwnerTests(unittest.TestCase):
         borrowed = {
             SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID,
             BIOENHANCER_FLOW_ID, DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
-            RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID,
+            RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_DONATION_FLOW_ID,
+            ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
         }
         for flow_id, spec in ROUTES.items():
             with self.subTest(route=flow_id):
@@ -231,16 +240,23 @@ class BorrowedOwnerTests(unittest.TestCase):
                         if flow_id in {DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
                             run, = rig.runs()
                             self.assertEqual(run.consumed_actions, 1)
-                        if flow_id in {RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID}:
+                        if flow_id in {
+                            RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_DONATION_FLOW_ID,
+                            ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
+                        }:
                             run, = rig.runs()
                             action_budgets = {
                                 RUINS_FLOW_ID: 13, ALLIANCE_HELP_FLOW_ID: 10,
+                                ALLIANCE_DONATION_FLOW_ID: 10, ALLIANCE_SHOP_FLOW_ID: 1,
+                                DAILY_SHOPS_FLOW_ID: 2,
                             }
                             self.assertEqual(run.max_actions, action_budgets[flow_id])
                             self.assertLessEqual(run.consumed_actions, action_budgets[flow_id])
                         if flow_id in {
                             DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
                             RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID,
+                            ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
+                            DAILY_SHOPS_FLOW_ID,
                         }:
                             run, = rig.runs()
                             transport_fields = {
@@ -248,12 +264,18 @@ class BorrowedOwnerTests(unittest.TestCase):
                                 RESOURCE_ITEM_FLOW_ID: "item_use_transport_calls",
                                 RUINS_FLOW_ID: "ruins_dispatch_count",
                                 ALLIANCE_HELP_FLOW_ID: "help_transport_calls",
+                                ALLIANCE_DONATION_FLOW_ID: "donation_transport_calls",
+                                ALLIANCE_SHOP_FLOW_ID: "purchase_transport_calls",
+                                DAILY_SHOPS_FLOW_ID: "purchase_transport_calls",
                             }
                             expected_calls = {
                                 DAILY_REWARDS_FLOW_ID: 1,
                                 RESOURCE_ITEM_FLOW_ID: 1,
                                 RUINS_FLOW_ID: 2,
                                 ALLIANCE_HELP_FLOW_ID: 10,
+                                ALLIANCE_DONATION_FLOW_ID: 10,
+                                ALLIANCE_SHOP_FLOW_ID: 1,
+                                DAILY_SHOPS_FLOW_ID: 2,
                             }
                             result = reports[0]["result"]
                             expected = expected_calls[flow_id]
@@ -314,6 +336,24 @@ class PartialResultTests(unittest.TestCase):
                         self.assertEqual(result["help_transport_calls"], 3)
                         self.assertEqual(result["confirmed_request_count"], 2)
                         self.assertEqual(result["committed_action_count"], 2)
+                        self.assertTrue(result["effect_reconciliation_required"])
+                        self.assertTrue(result["identical_retry_denied"])
+                    elif flow_id in {
+                        ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
+                    }:
+                        result = reports[0]["result"]
+                        attempted_field = (
+                            "donation_transport_calls"
+                            if flow_id == ALLIANCE_DONATION_FLOW_ID
+                            else "purchase_transport_calls"
+                        )
+                        expected_attempts, expected_confirmed = {
+                            ALLIANCE_DONATION_FLOW_ID: (3, 2),
+                            ALLIANCE_SHOP_FLOW_ID: (1, 0),
+                            DAILY_SHOPS_FLOW_ID: (2, 1),
+                        }[flow_id]
+                        self.assertEqual(result[attempted_field], expected_attempts)
+                        self.assertEqual(result["committed_action_count"], expected_confirmed)
                         self.assertTrue(result["effect_reconciliation_required"])
                         self.assertTrue(result["identical_retry_denied"])
                     if flow_id == ULTIMATE_FLOW_ID:
@@ -597,6 +637,155 @@ class MultiRouteTests(unittest.TestCase):
             self.assertEqual(rig.runner.inputs, [])
             self.assertEqual({run.flow_id for run in rig.runs()}, {NOVA_FLOW_ID, RECRUITMENT_FLOW_ID})
 
+
+class BatchCSemanticContractTests(unittest.TestCase):
+    def test_donation_retains_confirmed_prefix_across_restart_until_attempts_return(self):
+        for reason, interval in (("no_attempts", 1800), ("insufficient_resource", 300)):
+            with self.subTest(reason=reason), RouteRig(
+                self, ROUTES[ALLIANCE_DONATION_FLOW_ID],
+            ) as rig:
+                runner = rig.runner
+                runner.defer_after = 2
+                runner.defer_reason = reason
+                rig.once()
+                result = runner.last_result
+                self.assertEqual(
+                    (result["donation_transport_calls"], result["committed_action_count"],
+                     result["daily_committed_action_count"]),
+                    (2, 2, 2),
+                )
+                self.assertEqual(result["status"], "deferred")
+                due = alliance_donation_next_due(
+                    result, runner.last_identity, result["started_at_utc"],
+                )
+                self.assertEqual(due, rig.stop.now + interval)
+                with BotStateManager(rig.path) as restarted:
+                    self.assertEqual(rig.once(state=restarted), [])
+                self.assertEqual(len(runner.calls), 1)
+                runner.defer_after = None
+                rig.stop.now = due
+                rig.once()
+                resumed = runner.last_result
+                self.assertEqual(
+                    (resumed["donation_transport_calls"], resumed["committed_action_count"],
+                     resumed["daily_committed_action_count"]),
+                    (8, 8, 10),
+                )
+                self.assertEqual(runner.confirmed_ordinals, list(range(1, 11)))
+                self.assertEqual(len(set(runner.confirmed_ordinals)), 10)
+
+    def test_alliance_shop_fallback_mapping_is_one_exact_purchase_with_numeric_guards(self):
+        with RouteRig(self, ROUTES[ALLIANCE_SHOP_FLOW_ID]) as rig:
+            rig.once()
+            runner = rig.runner
+            result = runner.last_result
+            offer = result["selected_offer"]
+            self.assertEqual(
+                (result["purchase_transport_calls"], result["committed_action_count"]),
+                (1, 1),
+            )
+            self.assertEqual(
+                (offer["shop_identity"], offer["item_identity"], offer["rarity"],
+                 offer["quantity"], offer["unit_price"], offer["total"],
+                 offer["balance_before"]),
+                ("Other", "1★ Gear Enhance Material", 1, 1, 1000, 1000, 79999),
+            )
+            self.assertEqual(
+                alliance_shop_next_due(result, runner.last_identity, result["started_at_utc"]),
+                (int(rig.stop.now) // 86400 + 1) * 86400,
+            )
+            for field, value in (("quantity", 2), ("total", 999)):
+                with self.subTest(field=field):
+                    invalid = dict(result)
+                    invalid["selected_offer"] = dict(offer, **{field: value})
+                    with self.assertRaises(ValueError):
+                        alliance_shop_next_due(
+                            invalid, runner.last_identity, result["started_at_utc"],
+                        )
+
+    def test_daily_shop_shortage_resumes_other_tab_without_rebuy_and_checks_quantity_total(self):
+        with RouteRig(self, ROUTES[DAILY_SHOPS_FLOW_ID]) as rig:
+            runner = rig.runner
+            runner.rare_earth_unaffordable = True
+            rig.once()
+            first = runner.last_result
+            self.assertEqual(first["status"], "deferred")
+            self.assertEqual(first["tab_results"]["ruins"]["status"], "confirmed")
+            self.assertEqual(first["tab_results"]["rare_earth"]["status"], "deferred")
+            self.assertEqual(
+                (first["purchase_transport_calls"], first["committed_action_count"]),
+                (1, 1),
+            )
+            due = daily_shops_next_due(
+                first, runner.last_identity, first["started_at_utc"],
+            )
+            self.assertEqual(due, rig.stop.now + 300)
+            runner.rare_earth_unaffordable = False
+            with BotStateManager(rig.path) as restarted:
+                self.assertEqual(rig.once(state=restarted), [])
+            self.assertEqual(len(runner.calls), 1)
+            rig.stop.now = due
+            rig.once()
+            resumed = runner.last_result
+            self.assertEqual(
+                (resumed["tab_results"]["ruins"]["status"],
+                 resumed["tab_results"]["rare_earth"]["status"]),
+                ("already_confirmed", "confirmed"),
+            )
+            self.assertEqual(
+                (resumed["purchase_transport_calls"], resumed["committed_action_count"]),
+                (1, 1),
+            )
+            self.assertEqual(
+                daily_shops_next_due(
+                    resumed, runner.last_identity, resumed["started_at_utc"],
+                ),
+                (int(rig.stop.now) // 86400 + 1) * 86400,
+            )
+            for field, value in (("quantity", 99), ("total", 1499)):
+                with self.subTest(tab="ruins", field=field):
+                    invalid = dict(first)
+                    invalid["tab_results"] = {
+                        name: dict(row) for name, row in first["tab_results"].items()
+                    }
+                    invalid["tab_results"]["ruins"][field] = value
+                    with self.assertRaises(ValueError):
+                        daily_shops_next_due(
+                            invalid, runner.last_identity, first["started_at_utc"],
+                        )
+            for field, value in (("quantity", 14), ("total", 206999)):
+                with self.subTest(tab="rare_earth", field=field):
+                    invalid = dict(resumed)
+                    invalid["tab_results"] = {
+                        name: dict(row) for name, row in resumed["tab_results"].items()
+                    }
+                    invalid["tab_results"]["rare_earth"][field] = value
+                    with self.assertRaises(ValueError):
+                        daily_shops_next_due(
+                            invalid, runner.last_identity, resumed["started_at_utc"],
+                        )
+
+    def test_c_unknown_dispatches_keep_attempts_distinct_from_confirmed_actions(self):
+        cases = (
+            (ALLIANCE_DONATION_FLOW_ID, "donation_transport_calls", 3, 2),
+            (ALLIANCE_SHOP_FLOW_ID, "purchase_transport_calls", 1, 0),
+            (DAILY_SHOPS_FLOW_ID, "purchase_transport_calls", 2, 1),
+        )
+        for flow_id, calls_field, attempts, committed in cases:
+            with self.subTest(flow_id=flow_id), RouteRig(self, ROUTES[flow_id]) as rig:
+                spec = ROUTES[flow_id]
+                spec.partial(rig.runner)
+                report, = rig.once()
+                self.assertEqual(report["status"], "blocked", report)
+                result = rig.runner.last_result
+                self.assertEqual(result[calls_field], attempts)
+                self.assertEqual(result["committed_action_count"], committed)
+                self.assertTrue(result["effect_reconciliation_required"])
+                self.assertTrue(result["identical_retry_denied"])
+                with BotStateManager(rig.path) as restarted:
+                    self.assertEqual(rig.once(state=restarted)[0]["status"], "paused")
+                self.assertEqual(len(rig.runner.calls), 1)
+                self.assertEqual(len(rig.runner.inputs), spec.partial_counts[0])
 
 if __name__ == "__main__":
     unittest.main()

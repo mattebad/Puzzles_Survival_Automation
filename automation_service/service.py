@@ -64,6 +64,9 @@ from .registry import (
     RESOURCE_ITEM_FLOW_ID,
     RUINS_FLOW_ID,
     ALLIANCE_HELP_FLOW_ID,
+    ALLIANCE_DONATION_FLOW_ID,
+    ALLIANCE_SHOP_FLOW_ID,
+    DAILY_SHOPS_FLOW_ID,
     RegisteredDispatchSnapshot,
     SUPPLY_FLOW_ID,
     ULTIMATE_FLOW_ID,
@@ -405,6 +408,9 @@ class AutomationService:
         daily_rewards_runner=None,
         resource_item_runner=None,
         ruins_runner=None,
+        alliance_donation_runner=None,
+        alliance_shop_runner=None,
+        daily_shops_runner=None,
         alliance_help_runner=None,
         application_startup=None,
     ) -> None:
@@ -430,6 +436,9 @@ class AutomationService:
         self.daily_rewards_runner = daily_rewards_runner
         self.resource_item_runner = resource_item_runner
         self.ruins_runner = ruins_runner
+        self.alliance_donation_runner = alliance_donation_runner
+        self.alliance_shop_runner = alliance_shop_runner
+        self.daily_shops_runner = daily_shops_runner
         self.alliance_help_runner = alliance_help_runner
         if application_startup is not None and not callable(application_startup):
             raise ServiceError("application startup must be callable")
@@ -459,6 +468,9 @@ class AutomationService:
                 self.resource_item_runner,
                 self.ruins_runner,
                 self.alliance_help_runner,
+                self.alliance_donation_runner,
+                self.alliance_shop_runner,
+                self.daily_shops_runner,
             )
         ) and not isinstance(
             self.adapter, SupervisedBlueStacksAdapter
@@ -694,6 +706,22 @@ class AutomationService:
             PRODUCT_ID as ALLIANCE_HELP_TASK_ID,
             normalize_alliance_help_result,
         )
+        from .alliance_donation import (
+            AllianceDonationExecutionHandler,
+            MAX_ACTIONS as ALLIANCE_DONATION_MAX_ACTIONS,
+            PRODUCT_ID as ALLIANCE_DONATION_TASK_ID,
+            alliance_donation_next_due,
+        )
+        from .alliance_shop import (
+            AllianceShopExecutionHandler,
+            PRODUCT_ID as ALLIANCE_SHOP_TASK_ID,
+            alliance_shop_next_due,
+        )
+        from .daily_shops import (
+            DailyShopsExecutionHandler,
+            PRODUCT_ID as DAILY_SHOPS_TASK_ID,
+            daily_shops_next_due,
+        )
 
         if self.mode is not ServiceMode.SUPERVISED or self.state is None:
             raise ServiceError("serve requires an explicitly configured native runner")
@@ -743,6 +771,9 @@ class AutomationService:
                     RESOURCE_ITEM_FLOW_ID: RESOURCE_ITEM_TASK_ID,
                     RUINS_FLOW_ID: RUINS_TASK_ID,
                     ALLIANCE_HELP_FLOW_ID: ALLIANCE_HELP_TASK_ID,
+                    ALLIANCE_DONATION_FLOW_ID: ALLIANCE_DONATION_TASK_ID,
+                    ALLIANCE_SHOP_FLOW_ID: ALLIANCE_SHOP_TASK_ID,
+                    DAILY_SHOPS_FLOW_ID: DAILY_SHOPS_TASK_ID,
                 }[flow_id]
                 identity = SchedulerIdentity(account_id, server_id, facts.reset_id, task_id)
                 previous_reset = previous_resets.get(flow_id)
@@ -808,6 +839,9 @@ class AutomationService:
                     RESOURCE_ITEM_FLOW_ID: "item_use_transport_calls",
                     RUINS_FLOW_ID: "ruins_dispatch_count",
                     ALLIANCE_HELP_FLOW_ID: "help_transport_calls",
+                    ALLIANCE_DONATION_FLOW_ID: "donation_transport_calls",
+                    ALLIANCE_SHOP_FLOW_ID: "purchase_transport_calls",
+                    DAILY_SHOPS_FLOW_ID: "purchase_transport_calls",
                 }[flow_id]
 
                 def record_consumption():
@@ -873,6 +907,9 @@ class AutomationService:
                             RESOURCE_ITEM_FLOW_ID,
                             RUINS_FLOW_ID,
                             ALLIANCE_HELP_FLOW_ID,
+                            ALLIANCE_DONATION_FLOW_ID,
+                            ALLIANCE_SHOP_FLOW_ID,
+                            DAILY_SHOPS_FLOW_ID,
                         }
                         else {}
                     )
@@ -881,6 +918,9 @@ class AutomationService:
                         RESOURCE_ITEM_FLOW_ID,
                         RUINS_FLOW_ID,
                         ALLIANCE_HELP_FLOW_ID,
+                        ALLIANCE_DONATION_FLOW_ID,
+                        ALLIANCE_SHOP_FLOW_ID,
+                        DAILY_SHOPS_FLOW_ID,
                     }:
                         options["occurrence_key"] = run.occurrence_key
                     if operator_request_id is not None:
@@ -894,6 +934,11 @@ class AutomationService:
                                       system_launch_count=startup_result.get("system_launch_count"))
                     executor_results[flow_id] = result
                     consumed_actions = record_consumption()
+                    normalized_route_outcome = None
+                    normalized_route_reason = None
+                    normalized_route_actions = result.get("committed_action_count")
+                    if type(normalized_route_actions) is not int or normalized_route_actions < 0:
+                        normalized_route_actions = 0
                     if flow_id == RESOURCE_ITEM_FLOW_ID:
                         due = resource_item_next_due(
                             result, identity, facts.now_utc_epoch, run.occurrence_key,
@@ -905,6 +950,111 @@ class AutomationService:
                             result, identity, facts.now_utc_epoch,
                         )
                         due = normalized_help.next_eligible_at
+                    elif flow_id == ALLIANCE_DONATION_FLOW_ID:
+                        status = result.get("status")
+                        unknown = (
+                            status == "reconciliation_required"
+                            or result.get("effect_reconciliation_required") is True
+                            or result.get("identical_retry_denied") is True
+                        )
+                        if unknown:
+                            due = None
+                            normalized_route_outcome = NormalizedOutcome.RECONCILIATION_REQUIRED
+                            normalized_route_reason = f"{prefix}_EFFECT_REQUIRES_RECONCILIATION"
+                        elif status in {"complete_for_reset", "deferred"}:
+                            due = alliance_donation_next_due(
+                                result, identity, facts.now_utc_epoch,
+                            )
+                            normalized_route_outcome = (
+                                NormalizedOutcome.DEFERRED
+                                if status == "deferred"
+                                else NormalizedOutcome.ALREADY_COMPLETE
+                                if normalized_route_actions == 0
+                                and result.get("daily_committed_action_count")
+                                == ALLIANCE_DONATION_MAX_ACTIONS
+                                else NormalizedOutcome.COMPLETE_FOR_RESET
+                            )
+                            normalized_route_reason = (
+                                f"{prefix}_DEFERRED"
+                                if status == "deferred"
+                                else f"{prefix}_PASS_VERIFIED"
+                            )
+                        else:
+                            due = None
+                            normalized_route_outcome = NormalizedOutcome.BLOCKED
+                            normalized_route_reason = f"{prefix}_ROUTE_BLOCKED"
+                    elif flow_id == ALLIANCE_SHOP_FLOW_ID:
+                        status = result.get("status")
+                        unknown = (
+                            status == "unresolved"
+                            or result.get("effect_reconciliation_required") is True
+                            or result.get("identical_retry_denied") is True
+                        )
+                        if unknown:
+                            due = None
+                            normalized_route_outcome = NormalizedOutcome.RECONCILIATION_REQUIRED
+                            normalized_route_reason = f"{prefix}_EFFECT_REQUIRES_RECONCILIATION"
+                        elif status in {"complete_for_reset", "deferred"}:
+                            due = alliance_shop_next_due(
+                                result, identity, facts.now_utc_epoch,
+                            )
+                            normalized_route_outcome = (
+                                NormalizedOutcome.DEFERRED
+                                if status == "deferred"
+                                else NormalizedOutcome.ALREADY_COMPLETE
+                                if result.get("native_status") == "already_complete"
+                                else NormalizedOutcome.COMPLETE_FOR_RESET
+                            )
+                            normalized_route_reason = (
+                                f"{prefix}_DEFERRED"
+                                if status == "deferred"
+                                else f"{prefix}_PASS_VERIFIED"
+                            )
+                        else:
+                            due = None
+                            normalized_route_outcome = NormalizedOutcome.BLOCKED
+                            normalized_route_reason = f"{prefix}_ROUTE_BLOCKED"
+                    elif flow_id == DAILY_SHOPS_FLOW_ID:
+                        status = result.get("status")
+                        unknown = (
+                            status == "unresolved"
+                            or result.get("effect_reconciliation_required") is True
+                            or result.get("identical_retry_denied") is True
+                        )
+                        if unknown:
+                            due = None
+                            normalized_route_outcome = NormalizedOutcome.RECONCILIATION_REQUIRED
+                            normalized_route_reason = f"{prefix}_EFFECT_REQUIRES_RECONCILIATION"
+                        elif status in {"complete_for_reset", "deferred"}:
+                            due = daily_shops_next_due(
+                                result, identity, facts.now_utc_epoch,
+                            )
+                            tabs = result.get("tab_results")
+                            already_complete = (
+                                isinstance(tabs, dict)
+                                and set(tabs) == {"ruins", "rare_earth"}
+                                and all(
+                                    isinstance(row, dict)
+                                    and row.get("status") == "already_confirmed"
+                                    for row in tabs.values()
+                                )
+                            )
+                            normalized_route_outcome = (
+                                NormalizedOutcome.DEFERRED
+                                if status == "deferred"
+                                else NormalizedOutcome.ALREADY_COMPLETE
+                                if already_complete
+                                else NormalizedOutcome.COMPLETE_FOR_RESET
+                            )
+                            normalized_route_reason = (
+                                f"{prefix}_DEFERRED"
+                                if status == "deferred"
+                                else f"{prefix}_PASS_VERIFIED"
+                            )
+                        else:
+                            due = None
+                            normalized_route_outcome = NormalizedOutcome.BLOCKED
+                            normalized_route_reason = f"{prefix}_ROUTE_BLOCKED"
                     else:
                         due = {
                             RECRUITMENT_FLOW_ID: recruitment_next_due,
@@ -918,6 +1068,23 @@ class AutomationService:
                             DAILY_REWARDS_FLOW_ID: daily_rewards_next_due,
                         }[flow_id](result, identity, facts.now_utc_epoch)
                     checkpoint()
+                    if normalized_route_outcome is not None:
+                        return NormalizedResult(
+                            normalized_route_outcome,
+                            normalized_route_reason,
+                            action_count=normalized_route_actions,
+                            verified=normalized_route_outcome in {
+                                NormalizedOutcome.COMPLETE_FOR_RESET,
+                                NormalizedOutcome.ALREADY_COMPLETE,
+                                NormalizedOutcome.DEFERRED,
+                            },
+                            next_eligible_at=due,
+                            observed_progress=result,
+                            consequence={
+                                "attempted_action_count": consumed_actions,
+                                "committed_action_count": normalized_route_actions,
+                            },
+                        )
                     if flow_id == ALLIANCE_HELP_FLOW_ID:
                         help_outcome = normalized_help.outcome
                         if (
@@ -1112,9 +1279,24 @@ class AutomationService:
                     RESOURCE_ITEM_FLOW_ID: ResourceItemExecutionHandler,
                     RUINS_FLOW_ID: RuinsExecutionHandler,
                     ALLIANCE_HELP_FLOW_ID: AllianceHelpExecutionHandler,
+                    ALLIANCE_DONATION_FLOW_ID: AllianceDonationExecutionHandler,
+                    ALLIANCE_SHOP_FLOW_ID: AllianceShopExecutionHandler,
+                    DAILY_SHOPS_FLOW_ID: DailyShopsExecutionHandler,
                 }[entry.flow_id]
-                options = ({"stage": self.campaign_runner.stage} if entry.flow_id == CAMPAIGN_FLOW_ID
-                           else {"flow_spec": entry.spec} if entry.flow_id in {ULTIMATE_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, DAILY_REWARDS_FLOW_ID} else {})
+                options = (
+                    {"stage": self.campaign_runner.stage}
+                    if entry.flow_id == CAMPAIGN_FLOW_ID
+                    else {"flow_spec": entry.spec}
+                    if entry.flow_id in {
+                        ULTIMATE_FLOW_ID,
+                        PERSONAL_MIGHT_FLOW_ID,
+                        DAILY_REWARDS_FLOW_ID,
+                        ALLIANCE_DONATION_FLOW_ID,
+                        ALLIANCE_SHOP_FLOW_ID,
+                        DAILY_SHOPS_FLOW_ID,
+                    }
+                    else {}
+                )
                 handlers[entry.flow_id] = handler_type(entry.registration, execute, **options)
                 if entry.flow_id in {
                     SUPPLY_FLOW_ID,

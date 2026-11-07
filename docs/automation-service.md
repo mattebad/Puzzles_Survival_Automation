@@ -27,7 +27,7 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
 - The legacy production registry remains disabled in
   `tasks/flow_delivery_disabled_production_registry.json`; it records the disabled
   `NOT_REGISTERED` posture and is separate from canonical service admission. The canonical code
-  registry has thirteen fixed flow specs, which report `REGISTERED`; this is composition only.
+  registry has sixteen fixed flow specs, which report `REGISTERED`; this is composition only.
   SQLite service/flow enablement is separate, defaults off, and is restored off after bounded tests.
 - Campaign selection remains non-consuming. Explicit native service composition installs
   the Campaign runner behind canonical claims and dispatch fences, reusing destination policy,
@@ -107,31 +107,41 @@ The normal Campaign launch shape is:
 python scripts/pnsctl.py automation-service --mode supervised --adapter bluestacks --state-path .local-orchestrator/bot-state.sqlite3 serve --live --flow campaign --campaign-stage 1-15-9 --campaign-cadence-seconds 300 --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 --account-id primary-account --server-id primary-server --output-directory .local-captures/automation-service-live
 ```
 
-Repeat `--flow` for other named routes; the README gives the complete twelve-route command. Argument order does not
+Repeat `--flow` for other named routes; the README gives the complete fifteen-route command. Argument order does not
 choose scheduler order; due eligibility and existing controls do. The disabled-gates canonical CLI
 proof produced zero captures and zero new runs, so it is control evidence only and does not promote
 native route acceptance. Facade checks, the ordinary one-battle live-entrypoint retirement, and
 the scheduler/facade consumer checks are recorded separately; their counts are not additive.
 
-The fixed native composition binds twelve canonical routes: Nova, Recruitment, Campaign,
+The fixed native composition binds fifteen canonical routes: Nova, Recruitment, Campaign,
 Bioenhancer, Supply, Ultimate, Enhancement, Personal Might, Daily Rewards, Resource Item,
-Ruins, and Alliance Help. The thirteenth fixed flow spec is `world_map_navigation`, which is
-selection-only and has no `serve --flow`. The ordinary registered selectors remain non-consuming;
-passing `--flow` alone does not enable a route.
+Ruins, Alliance Help, Alliance Donation, Alliance Shop, and Daily Shops. The sixteenth fixed
+flow spec is `world_map_navigation`, which is selection-only and has no `serve --flow`. The
+ordinary registered selectors remain non-consuming; passing `--flow` alone does not enable a
+route.
 
-Batch B adds canonical-only `ruins` and `alliance-help` service routes. Their fixed code specs are
-registered, while the legacy production posture and runtime controls remain disabled; both are
-`evidence_required`, with no current native live acceptance claimed. The supplied Nov 6 DailyQuest
-image shows one positively glowing 30-point chest, four other chests closed, 30 total points, and
-no aggregate Claim. Daily policy handles five categories individually when visibly glowing,
-with no 150-point minimum. Its native guard observes readiness but blocks ready-chest input until
-same-chest claimed/opened successor evidence is admitted; no full native acceptance is asserted.
-Complete zero-ready scans can close at freshly verified Home, either without an aggregate Claim
-or after its confirmed effect. Resource Item's offline adapter/service checks pass; current live
-acceptance remains `evidence_required`.
+Batch B adds canonical-only `ruins` and `alliance-help`; Batch C adds canonical-only
+`alliance-donation`, `alliance-shop`, and `daily-shops`. Their code specs are registered, while
+the legacy production posture and SQLite runtime controls remain disabled. Current native
+acceptance for these routes is `evidence_required`; no donation quota run or purchase-effect
+acceptance is claimed. The donation information probe is not route acceptance. Alliance Shop
+requires one affordable allowlisted Weekly offer or the exact one-star Other fallback, quantity
+one total. Daily Shops allows at most one purchase action on each tab, bounding an exact current
+three-star Chip or Module offer by its observed stock and affordability; both tabs require paired
+item/currency effects.
+
+The supplied Nov 6 DailyQuest image shows one positively glowing 30-point chest, four other
+chests closed, 30 total points, and no aggregate Claim. Daily policy handles five categories
+individually when visibly glowing, with no 150-point minimum. A native pass with zero ready
+chests may complete without an aggregate Claim; after an aggregate Claim is confirmed, it
+requires fresh evidence that all five chests are static. Complete zero-ready scans can close at
+freshly verified Home, either without an aggregate Claim or after its confirmed effect. A ready
+chest still requires same-chest claimed/opened successor evidence; no full live acceptance is
+asserted. Resource Item's offline adapter/service checks pass; current live acceptance remains
+`evidence_required`.
 Existing individual effect/Home acceptance, uninterrupted Enhancement proof, independent recruit
-timers, and cadence scope are maintained in [`BACKLOG.md`](../BACKLOG.md), with volatile state in
-the handoff.
+timers, and cadence scope are historical context in [`BACKLOG.md`](../BACKLOG.md), not active
+sequencing. The current planning authority is tracker #53, with volatile state in the handoff.
 
 Before invoking a due native runner, the owning service checks the foreground. A healthy game is
 left in its current context for route-owned recognition. An exact known BlueStacks launcher can

@@ -5,28 +5,32 @@ Current owner direction and route planning live in [tracker #53](https://github.
 
 - **Verified starting point:** `origin/main` and original workspace HEAD were
   `c6f0e2fba509dacde136226a7519568550f6b066` at task startup; do not reuse merged branches.
-- **Review branch:** `impl/base-route-batch-b-20261107`, stacked on batch A in a separate worktree.
-  Batch B integrates #69/#56 through the canonical service and retires their obsolete operator paths.
-- **Offline checks:** 353 focused route/integration tests and the device-free `scripts/check.py`
-  set (401 tests) pass after the final batch A changes were incorporated. Supported `pnsctl`
-  help surfaces and the read-only Ruins replay help pass with repository `PYTHONPATH` unset.
-- **Ruins:** an allowed challenge is evaluated first; independently ready overview chests remain
-  eligible in the same visit even without a win. A fake native replay confirmed a loss plus
-  two ready chests. Unknown chest results retain their unresolved provenance and stop retries.
-- **Alliance Help:** successful individual requests and verified Help All coverage count toward
-  ten requests per reset, not ten button taps. Partial completion and UNKNOWN stop durably.
-- **Persistence smoke:** canonical service runs against temporary SQLite recorded Ruins and
-  Help completion; reopening before their due times produced no new run or repeated effect.
-- **Acceptance:** #69/#56 are implemented and offline-proven, not live-accepted. Current
-  authorized native runs with complete evidence and same-reset reconciliation remain required.
-- **Daily evidence gap:** the owner-supplied raw image recognizes all five chests, with only the
-  first glowing. No same-chest claimed/opened successor is admitted; chest input remains blocked.
-  Complete zero-ready scans, including after a confirmed aggregate Claim, can close at verified
-  Home. A fake replay exercised the native zero-Claim path with one bounded navigation input.
+- **Review branch:** `impl/base-route-batch-c-20261107`, stacked on batch B in a separate worktree.
+  Batch C integrates #77/#73/#72 through the canonical service; runtime registration is not enablement.
+- **Offline checks:** 286 focused route, authority, metadata, service-contract and startup tests
+  pass. The device-free `scripts/check.py` gate passed 404 tests. Four executable help surfaces
+  pass with repository `PYTHONPATH` unset.
+- **Donations:** count ten confirmed individual HOT-tech donations per reset; preserve partial
+  completion and regenerated-attempt deferral. Ranking points and bonuses are not counts.
+- **Alliance Shop:** one affordable exact Weekly allowlisted item, otherwise one Other 1-star
+  Gear Enhance Material. The adapter requires fresh complete Weekly/fallback selection evidence;
+  an unaffordable preferred offer does not end fallback evaluation.
+- **Daily Shops:** visit both Ruins and Rare Earth tabs, maximize affordable approved material
+  quantity within current stock, and re-read numeric quantity/total before each inner Buy.
+  Per-tab receipts and UNKNOWN/no-identical-retry remain independent.
+- **Persistence smoke:** actual canonical Service with temporary SQLite and guarded fake runners
+  committed donation/shop/tab effects of 10/1/2. Reopening before due times produced zero new runs.
+- **Acceptance:** C routes are implemented and offline-proven, not live-accepted. Actual shop
+  debit/successor scenarios remain `evidence_required`; no historical price is a runtime constant.
+- **Daily current evidence:** the authorized parent claimed exactly one glowing first chest on
+  November 7 and retained its open/Claimed successor. This is investigative source material,
+  not finished-route acceptance; same-reset manual work must not be repeated. The native A
+  follow-up is isolated on its own review branch.
 - **Resource Item:** exactly one positively identified owned 1K Food item, with owned decrement
   by one; no Food-balance OCR or Daily ownership. Current native acceptance is `evidence_required`.
-- **Runtime posture:** no live authorization or attempt, deployment, PR merge, or runtime enablement
-  was performed. Startup state recorded service OFF/emergency stop and all nine original flows OFF.
+- **Runtime posture:** the bounded #54 canary temporarily enabled only its authorized controls;
+  service and all eleven controls were restored OFF. No scheduling deployment or PR merge.
+  Raw source evidence and unrelated user files remain preserved; authorized runtime history is retained.
   Original protected state/evidence hashes were unchanged at the last preservation check.
 - **Historical handoff:** the [November 2 pre-merge snapshot](../archive/current-handoff-astra-premerge-20261102.md)
   remains historical; its PR #16 publication/CI instructions are complete or obsolete.

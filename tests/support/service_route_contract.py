@@ -9,8 +9,9 @@ from typing import Any, Callable
 from unittest.mock import patch
 
 from automation_service.registry import (
-    ALLIANCE_HELP_FLOW_ID, BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID,
-    DAILY_REWARDS_FLOW_ID, ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID,
+    ALLIANCE_DONATION_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
+    BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, DAILY_REWARDS_FLOW_ID,
+    DAILY_SHOPS_FLOW_ID, ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID,
     PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
     RUINS_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, WORLD_FLOW_ID,
     canonical_entry,
@@ -20,10 +21,12 @@ from automation_service.state import BotStateManager
 from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
 from scripts import navigation_development_boundary as boundary
 from tests.support.service_route_fakes import (
-    GuardedAllianceHelpRunner, GuardedBioenhancerRunner, GuardedCampaignRunner,
-    GuardedDailyRewardsRunner, GuardedEnhancementRunner, GuardedNovaRunner,
-    GuardedPersonalMightRunner, GuardedRecruitmentRunner, GuardedResourceItemRunner,
-    GuardedRuinsRunner, GuardedSupplyRunner, GuardedUltimateRunner,
+    GuardedAllianceDonationRunner, GuardedAllianceHelpRunner,
+    GuardedAllianceShopRunner, GuardedBioenhancerRunner,
+    GuardedCampaignRunner, GuardedDailyRewardsRunner, GuardedDailyShopsRunner,
+    GuardedEnhancementRunner, GuardedNovaRunner, GuardedPersonalMightRunner,
+    GuardedRecruitmentRunner, GuardedResourceItemRunner, GuardedRuinsRunner,
+    GuardedSupplyRunner, GuardedUltimateRunner,
 )
 from tests.support.service_stop import VirtualStop
 
@@ -123,6 +126,27 @@ ROUTES = {
         ALLIANCE_HELP_FLOW_ID, GuardedAllianceHelpRunner,
         _work_by_default, _alliance_help_partial, (5, 3), (1, 0), 20,
     ),
+    ALLIANCE_DONATION_FLOW_ID: RouteSpec(
+        ALLIANCE_DONATION_FLOW_ID,
+        lambda stop, root: GuardedAllianceDonationRunner(stop, root),
+        _work_by_default,
+        lambda runner: setattr(runner, "partial", True),
+        (7, 3), (1, 0), 40,
+    ),
+    ALLIANCE_SHOP_FLOW_ID: RouteSpec(
+        ALLIANCE_SHOP_FLOW_ID,
+        lambda stop, root: GuardedAllianceShopRunner(stop, root),
+        _work_by_default,
+        lambda runner: setattr(runner, "partial", True),
+        (13, 1), (1, 0), 24,
+    ),
+    DAILY_SHOPS_FLOW_ID: RouteSpec(
+        DAILY_SHOPS_FLOW_ID,
+        lambda stop, root: GuardedDailyShopsRunner(stop, root),
+        _work_by_default,
+        lambda runner: setattr(runner, "partial", True),
+        (25, 2), (1, 0), 48,
+    ),
 }
 
 NOT_SERVABLE = {
@@ -180,7 +204,9 @@ class RouteRig:
         self.stop = VirtualStop(1_800_000_000.0)
         self.account_id, self.server_id = "account", "server"
         if spec.flow_id in {
-            DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID,
+            ALLIANCE_DONATION_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
+            DAILY_REWARDS_FLOW_ID, DAILY_SHOPS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
+            RUINS_FLOW_ID,
         }:
             from datetime import datetime, timezone
             backend = derive_resource_runtime_identity(

@@ -19,6 +19,9 @@ ROUTE_BOUNDARIES = {
     "daily-rewards": "tests.test_service_daily_rewards.DailyRewardsServiceTests.test_canonical_runner_executes_combined_native_route_with_exact_effect_accounting",
     "ruins": "tests.test_service_ruins.RuinsServiceTests.test_unknown_effect_reobserves_and_is_never_reported_as_done",
     "alliance-help": "tests.test_alliance_help_bluestacks.AllianceHelpSemanticsTests.test_production_route_fake_replay_confirms_ten_then_closes_home",
+    "alliance-donation": "tests.test_service_alliance_donation.AllianceDonationServiceAdapterTests.test_partial_quota_restarts_from_durable_count_and_observed_timer",
+    "alliance-shop": "tests.test_alliance_shop_bluestacks.AllianceShopNativeReplayTests.test_unaffordable_preferred_offer_falls_back_to_exact_other_item",
+    "daily-shops": "tests.test_daily_shops_bluestacks.DailyShopsNativeReplayTests.test_uses_live_stock_and_affordability_maximum_for_each_tab",
 }
 
 # Native Home/Back admission uses different OCR backend builds on the two CI
@@ -241,6 +244,9 @@ FAMILIES = {
     "ultimate": ("ultimate",),
     "ruins": ("ruins",),
     "alliance_help": ("alliance_help",),
+    "alliance_donation": ("alliance_donation",),
+    "alliance_shop": ("alliance_shop",),
+    "daily_shops": ("daily_shops",),
     "troop": ("troop", "training"),
     "world": ("world", "stamina", "zombie_lair"),
     "gathering": ("gathering",),

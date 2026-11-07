@@ -5,20 +5,22 @@ BlueStacks instance. A supervised service checks which daily or cooldown routes 
 at a time, verifies each result from the screen, and returns to the game's Home screen before
 the next one.
 
-**Status:** Batches A/B add canonical-only Daily Rewards, Resource Item, Ruins, and Alliance Help
-integration. Code registration is separate from runtime enablement: all remain runtime-disabled,
-with current live acceptance `evidence_required`. Complete zero-ready Daily scans can return to
-verified Home, including after a confirmed aggregate Claim. The supplied image proves five-chest
-readiness; ready-chest execution still requires a same-chest claimed/opened successor. The
-[November 2 report](docs/bluestacks-route-status-20261102.md) is historical live evidence, not current
-execution authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
+**Status:** Batches A-C add canonical-only Daily Rewards, Resource Item, Ruins, Alliance Help,
+Alliance Donation, Alliance Shop, and Daily Shops integration. Code registration is separate
+from runtime enablement: these routes remain runtime-disabled with current live acceptance
+`evidence_required`. Daily's supplied image proves five-chest readiness. A native pass with zero
+ready chests can return to verified Home without aggregate Claim; after a confirmed aggregate Claim,
+fresh evidence that all five chests are static is required before Home. A ready chest still needs a same-chest claimed/opened
+successor. The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical live
+evidence, not current execution authority. Current planning is in
+[tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
 [`BACKLOG.md`](BACKLOG.md) retains durable history.
 
 ## Routes
 
 The service code registers each route in `automation_service/registry.py`. Each row below is one
-registration: twelve executable `serve --flow` routes plus one navigation-only flow spec. The
-`serve --flow` argument takes the name in the first column where present.
+registration: fifteen executable `serve --flow` routes plus one navigation-only flow spec
+(sixteen fixed flow specs total). The `serve --flow` argument takes the name in the first column where present.
 
 | `serve --flow` | Registry family | What it does |
 | --- | --- | --- |
@@ -30,10 +32,13 @@ registration: twelve executable `serve --flow` routes plus one navigation-only f
 | `ultimate` | `ultimate_challenge_daily` | One Ultimate Challenge entry, then Flee, once per daily reset. |
 | `enhancement` | `enhancement_family` | Gear, Chip and Module enhancement once each in a single Profile visit, once per daily reset. |
 | `personal-might` | `personal_might_praise` | One Personal Might Praise, once per daily reset. |
-| `daily-rewards` | `daily_rewards` | Aggregate Claim plus up to five individually glowing chests; no 150-point minimum. The supplied Nov 6 image shows one 30-point glow, four closed chests, 30 points, and no aggregate Claim. Same-chest claimed/opened-successor native proof remains `evidence_required`; runtime disabled. |
+| `daily-rewards` | `daily_rewards` | Aggregate Claim plus up to five individually glowing chests; no 150-point minimum. The supplied Nov 6 image shows one 30-point glow, four closed chests, 30 points, and no aggregate Claim. A zero-ready native pass can complete without Claim; a claimed aggregate batch requires fresh five-static proof. Ready-chest successor proof remains `evidence_required`; runtime disabled. |
 | `resource-item` | `resource_item` | One owned 1K Food item use per reset with exact decrement; runtime disabled and current native acceptance remains evidence_required. |
 | `ruins` | `ruins_challenge` | Current zero-cost NPC challenge first, then independently claim each green-ready overview chest; unavailable challenge does not suppress ready chests and participation need not win. Runtime disabled; evidence_required; no current live acceptance. |
 | `alliance-help` | `alliance_help` | Ten actual successful free Help requests per reset, not ten taps; preserve partial quota and use Help All only when its exact request count is known. Runtime disabled; evidence_required; no current live acceptance. |
+| `alliance-donation` | `alliance_donation` | Up to ten confirmed ordinary-resource donations to the automatically selected Alliance Tech per reset; preserve partial progress and defer only on observed attempt/resource unavailability. Unknown effects block identical retry. Runtime disabled; evidence_required; no current live acceptance. |
+| `alliance-shop` | `alliance_shop` | One currently affordable allowlisted Weekly Offer, or one exact Other one-star Gear fallback if no preferred offer is affordable; quantity one total. Require paired item/currency effects and canonical Home. Runtime disabled; evidence_required; no current live purchase acceptance. |
+| `daily-shops` | `daily_shops` | One visit to Ruins Shop and Rare Earth Shop; one purchase action per exact three-star tab, capped by current stock and affordability. Preserve confirmed tabs and verify numeric quantity/total plus paired effects. Runtime disabled; evidence_required; no current live purchase acceptance. |
 | none (navigation-only) | `world_map_navigation` | Registered but never executed by `serve`. |
 
 The `world_map_navigation` registration is navigation-only (registry variant `navigation_only`).
@@ -98,6 +103,7 @@ Run everything through `scripts/pnsctl.py`. This serves all routes from the tabl
   --flow nova --flow recruitment --flow campaign --flow bioenhancer `
   --flow supply --flow ultimate --flow enhancement --flow personal-might `
   --flow daily-rewards --flow resource-item --flow ruins --flow alliance-help `
+  --flow alliance-donation --flow alliance-shop --flow daily-shops `
   --campaign-stage 1-15-9 --campaign-cadence-seconds 300 `
   --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 `
   --account-id primary-account --server-id primary-server `

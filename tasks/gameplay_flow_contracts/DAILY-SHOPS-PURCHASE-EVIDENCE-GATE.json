@@ -1,0 +1,461 @@
+{
+  "schema_version": 2,
+  "flow_id": "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE",
+  "product_purpose": "In one current visit, independently evaluate Ruins Shop 3★ Chip Enhance Material and Rare Earth Shop 3★ Module Enhance Material, selecting only the observed stock-and-affordability maximum for each tab.",
+  "trigger_cadence_type": "cooldown_pulse",
+  "reset_scope": "daily_reset",
+  "required_starting_context": [
+    "home_canonical"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_canonical",
+    "ruins_overview",
+    "exchange_screen",
+    "shared_shop_ruins_tab",
+    "ruins_offer_current",
+    "ruins_quantity_verified",
+    "ruins_effect_pending",
+    "ruins_tab_result_recorded",
+    "rare_earth_tab_current",
+    "rare_earth_offer_current",
+    "rare_earth_quantity_verified",
+    "rare_earth_effect_pending",
+    "rare_earth_tab_result_recorded",
+    "zero_quantity_tab_skipped",
+    "independent_partial_results",
+    "home_returned",
+    "blocked",
+    "manual_required"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "open_ruins_from_current_home",
+      "from": "home_canonical",
+      "to": "ruins_overview",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": "open_ruins_from_current_home",
+      "postconditions": [
+        "current Ruins route and source are positively recognized without challenge or reward-claim input"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "open_shared_shop_exchange",
+      "from": "ruins_overview",
+      "to": "exchange_screen",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": "open_exchange_from_current_ruins_overview",
+      "postconditions": [
+        "current Ruins overview source and shared Shop destination are positively recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "bind_ruins_tab_offer_and_quantity",
+      "from": "exchange_screen",
+      "to": "ruins_offer_current",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "Ruins Shop exact 3★ Chip Enhance Material, current Ruins Coins unit price, balance, availability, and stock are rebound",
+        "maximum quantity is min(current stock, floor(current balance/current unit price))"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "verify_ruins_numeric_quantity_and_total",
+      "from": "ruins_offer_current",
+      "to": "ruins_quantity_verified",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "selected quantity equals min(current stock, floor(current balance/current unit price))",
+        "numeric quantity and displayed total are reread immediately before the separate inner Buy"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "buy_ruins_verified_quantity",
+      "from": "ruins_quantity_verified",
+      "to": "ruins_effect_pending",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": "buy_current_verified_ruins_chip_quantity",
+      "postconditions": [
+        "the inner Buy quantity and total still match the exact current Ruins offer",
+        "dispatch alone is not purchase success"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "record_ruins_tab_result",
+      "from": "ruins_effect_pending",
+      "to": "ruins_tab_result_recorded",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "Ruins tab action_key, status, effect_verified, quantity, total, and current source reference/hash are retained",
+        "a purchase requires paired exact item increase and matching Ruins Coins decrease; uncertain effects are not retried"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "switch_to_adjacent_rare_earth_tab",
+      "from": "ruins_tab_result_recorded",
+      "to": "rare_earth_tab_current",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": "switch_to_adjacent_rare_earth_shop_tab",
+      "postconditions": [
+        "the same shared Shop view is retained and the adjacent Rare Earth Shop tab is current"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "bind_rare_earth_offer_and_quantity",
+      "from": "rare_earth_tab_current",
+      "to": "rare_earth_offer_current",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "Rare Earth Shop exact 3★ Module Enhance Material, current Rare Earth unit price, balance, availability, and stock are rebound",
+        "maximum quantity is min(current stock, floor(current balance/current unit price))"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "verify_rare_earth_numeric_quantity_and_total",
+      "from": "rare_earth_offer_current",
+      "to": "rare_earth_quantity_verified",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "selected quantity equals min(current stock, floor(current balance/current unit price))",
+        "numeric quantity and displayed total are reread immediately before the separate inner Buy"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "buy_rare_earth_verified_quantity",
+      "from": "rare_earth_quantity_verified",
+      "to": "rare_earth_effect_pending",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": "buy_current_verified_rare_earth_module_quantity",
+      "postconditions": [
+        "the inner Buy quantity and total still match the exact current Rare Earth offer",
+        "dispatch alone is not purchase success"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "record_rare_earth_tab_result",
+      "from": "rare_earth_effect_pending",
+      "to": "rare_earth_tab_result_recorded",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "Rare Earth tab action_key, status, effect_verified, quantity, total, and current source reference/hash are retained",
+        "a purchase requires paired exact item increase and matching Rare Earth decrease; uncertain effects are not retried"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "skip_zero_or_unavailable_tab",
+      "from": "ruins_offer_current",
+      "to": "zero_quantity_tab_skipped",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "unavailable, sold-out, or zero-affordability offer is positively recognized and no purchase is dispatched",
+        "the independent result for the other tab remains eligible"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "continue_after_ruins_tab_skipped",
+      "from": "zero_quantity_tab_skipped",
+      "to": "rare_earth_tab_current",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": "switch_to_adjacent_rare_earth_shop_tab",
+      "postconditions": [
+        "Ruins tab no-work result remains independent and Rare Earth evaluation proceeds in the same visit"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "skip_zero_or_unavailable_rare_earth_tab",
+      "from": "rare_earth_offer_current",
+      "to": "rare_earth_tab_result_recorded",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "unavailable, sold-out, or zero-affordability Rare Earth offer is positively recognized without purchase",
+        "the independent Ruins tab result remains preserved"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    },
+    {
+      "transition_id": "return_canonical_home_after_both_tabs",
+      "from": "rare_earth_tab_result_recorded",
+      "to": "home_returned",
+      "planner": "scripts/daily_shops_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "both tab results are independently retained and canonical Home is positively recognized"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily_shops_current_native_acceptance"
+    }
+  ],
+  "permitted_inputs": [
+    "open_ruins_from_current_home",
+    "open_exchange_from_current_ruins_overview",
+    "buy_current_verified_ruins_chip_quantity",
+    "switch_to_adjacent_rare_earth_shop_tab",
+    "buy_current_verified_rare_earth_module_quantity",
+    "safe_return_to_canonical_home"
+  ],
+  "consequential_action_class": "current_affordable_daily_shop_purchases",
+  "cost_quantity_requirements": {
+    "free_only": false,
+    "maximum_cost": null,
+    "quantity": null,
+    "resource_or_currency": "CURRENT_TAB_CURRENCY",
+    "notes": "Each tab uses its current exact unit price, balance, and stock. No historical price, balance, stock, or quantity is reused."
+  },
+  "completion_identity": "daily-shops:ruins-chip-and-rare-earth-module-current-affordable-stock",
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "complete_for_reset",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "One route visit evaluates both tabs. A zero-quantity or unavailable tab is skipped without preventing the other tab result; re-enter only on a configured pulse and rebind all current evidence.",
+  "bounded_recovery_behavior": "Stop the affected tab on unknown item, rarity, currency, unit price, balance, stock, quantity, total, or unresolved effect. Never substitute, exceed the formula cap, or retry an uncertain purchase. Continue the other tab only when its source and result remain independently current and safe.",
+  "evidence_requirements": [
+    "Current source reference/hash for each tab and exact item/rarity/currency/unit-price/balance/stock/availability observations.",
+    "Numeric selected quantity and total are reread immediately before each inner Buy; slider position is never quantity proof.",
+    "Per-tab action_key, status, effect_verified, numeric quantity/total, source reference/hash, and paired exact item/currency effects or positive no-work result are retained.",
+    "Only current native gameplay success establishes readiness; no D02 screen or points attribution is inspected."
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "daily_shops_current_native_acceptance",
+      "status": "evidence_required",
+      "blocks": [
+        "open_ruins_from_current_home",
+        "open_shared_shop_exchange",
+        "bind_ruins_tab_offer_and_quantity",
+        "verify_ruins_numeric_quantity_and_total",
+        "buy_ruins_verified_quantity",
+        "record_ruins_tab_result",
+        "switch_to_adjacent_rare_earth_tab",
+        "bind_rare_earth_offer_and_quantity",
+        "verify_rare_earth_numeric_quantity_and_total",
+        "buy_rare_earth_verified_quantity",
+        "record_rare_earth_tab_result",
+        "skip_zero_or_unavailable_tab",
+        "continue_after_ruins_tab_skipped",
+        "skip_zero_or_unavailable_rare_earth_tab",
+        "return_canonical_home_after_both_tabs"
+      ],
+      "required_evidence": [
+        "current production-route source, exact current offer, numeric quantity/total, inner Buy, transport, immediate successor, and terminal Home bindings for each tab",
+        "paired current item and currency effects or a positive tab-local unavailable/zero-affordability result",
+        "independent partial two-tab outcomes and no-retry behavior after uncertain effect"
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "daily_shops_native_service_acceptance",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "buy_current_verified_ruins_chip_quantity",
+        "buy_current_verified_rare_earth_module_quantity"
+      ],
+      "required_transitions": [
+        "open_ruins_from_current_home",
+        "open_shared_shop_exchange",
+        "bind_ruins_tab_offer_and_quantity",
+        "verify_ruins_numeric_quantity_and_total",
+        "buy_ruins_verified_quantity",
+        "record_ruins_tab_result",
+        "switch_to_adjacent_rare_earth_tab",
+        "bind_rare_earth_offer_and_quantity",
+        "verify_rare_earth_numeric_quantity_and_total",
+        "buy_rare_earth_verified_quantity",
+        "record_rare_earth_tab_result",
+        "return_canonical_home_after_both_tabs"
+      ],
+      "evidence_gate_ids": [
+        "daily_shops_current_native_acceptance"
+      ],
+      "notes": "Current native proof and operator authorization remain required; registration stays disabled."
+    },
+    {
+      "scenario_id": "daily_shops_partial_two_tab_visit",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "buy_current_verified_ruins_chip_quantity",
+        "buy_current_verified_rare_earth_module_quantity"
+      ],
+      "required_transitions": [
+        "open_ruins_from_current_home",
+        "open_shared_shop_exchange",
+        "bind_ruins_tab_offer_and_quantity",
+        "skip_zero_or_unavailable_tab",
+        "continue_after_ruins_tab_skipped",
+        "bind_rare_earth_offer_and_quantity",
+        "verify_rare_earth_numeric_quantity_and_total",
+        "buy_rare_earth_verified_quantity",
+        "record_rare_earth_tab_result",
+        "return_canonical_home_after_both_tabs"
+      ],
+      "evidence_gate_ids": [
+        "daily_shops_current_native_acceptance"
+      ],
+      "notes": "A positive Ruins no-work result is retained while Rare Earth has an independent current purchase result in the same visit; native proof and operator authorization remain required."
+    }
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "daily_shops_current_native_acceptance",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Investigation dialogs establish numeric navigation and quantity information only; they contain no purchase-success proof."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "item other than current three-star Chip Enhance Material or three-star Module Enhance Material",
+    "unknown or changed rarity, currency, price, balance, stock, or availability",
+    "quantity above current stock or affordability formula",
+    "slider endpoint as numeric quantity proof",
+    "inner Buy without fresh matching quantity and total",
+    "premium purchase",
+    "item or currency delta without paired effect",
+    "identical retry after uncertain effect",
+    "Daily screen or points attribution",
+    "registration",
+    "scheduler"
+  ],
+  "implementation_status": "contract_only",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "evidence_required",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "product_policy_refs": [
+    {
+      "policy_id": "daily-shops-purchase-policy",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
+  "registration_state": "disabled",
+  "production_eligible": false,
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r16",
+    "product_authority_digest": "87382f4dc6829c577f8dd13b16517b8aa69cdc51f0ab9d7760749fceaa970a28",
+    "product_record_id": "daily_shops_purchase",
+    "product_record_revision": "daily_shops_purchase-v1",
+    "product_record_digest": "4938325d72f7ac359a96716b78f9c4826feef2e611f3249f4bf16bed32b9c6c5",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ],
+    "selected_daily_prerequisite": false
+  }
+}

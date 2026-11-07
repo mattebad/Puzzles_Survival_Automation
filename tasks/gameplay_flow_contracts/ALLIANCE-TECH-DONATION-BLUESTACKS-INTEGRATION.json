@@ -1,0 +1,365 @@
+{
+  "schema_version": 2,
+  "flow_id": "ALLIANCE-TECH-DONATION-BLUESTACKS-INTEGRATION",
+  "product_purpose": "Complete at most ten distinct, effect-confirmed ordinary donations per daily reset to the game's automatically selected HOT Alliance Tech.",
+  "trigger_cadence_type": "cooldown_pulse",
+  "reset_scope": "daily_reset",
+  "required_starting_context": [
+    "home_canonical"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_canonical",
+    "alliance_tech",
+    "hot_target_current",
+    "ordinary_donation_ready",
+    "no_attempt_available",
+    "donation_effect_pending",
+    "donation_committed",
+    "quota_partial_persisted",
+    "quota_reached",
+    "effect_reconciliation_required",
+    "home_returned",
+    "blocked",
+    "manual_required"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "open_alliance_tech",
+      "from": "home_canonical",
+      "to": "alliance_tech",
+      "planner": "scripts/alliance_donation_bluestacks.py",
+      "permitted_input": "open_alliance_tech_from_current_home",
+      "postconditions": [
+        "current Alliance Tech page and source are positively recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_donation_current_native_acceptance"
+    },
+    {
+      "transition_id": "bind_automatic_hot_target_and_ordinary_cost",
+      "from": "alliance_tech",
+      "to": "hot_target_current",
+      "planner": "scripts/alliance_donation_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "the game's automatically selected current HOT Tech is positively identified and rebound before every action",
+        "ordinary Donate control, exact current resource cost, current balance, and available attempts are fresh"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_donation_current_native_acceptance"
+    },
+    {
+      "transition_id": "defer_without_available_attempt",
+      "from": "hot_target_current",
+      "to": "no_attempt_available",
+      "planner": "scripts/alliance_donation_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "zero currently available attempts are positively observed",
+        "the current observed timer or an explicit safe recheck policy controls deferral; no deadline is fabricated"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ],
+      "evidence_gate_id": "alliance_donation_current_native_acceptance"
+    },
+    {
+      "transition_id": "return_home_after_attempt_exhaustion",
+      "from": "no_attempt_available",
+      "to": "home_returned",
+      "planner": "scripts/alliance_donation_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "canonical Home is positively recognized after a current no-attempt deferral"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_donation_current_native_acceptance"
+    },
+    {
+      "transition_id": "bind_one_ordinary_donation",
+      "from": "hot_target_current",
+      "to": "ordinary_donation_ready",
+      "planner": "scripts/alliance_donation_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "one ordinary-resource Donate action is currently enabled for the exact current cost and balance",
+        "remaining current-reset quota is positive and the current attempt count is positive"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_donation_current_native_acceptance"
+    },
+    {
+      "transition_id": "dispatch_one_donation",
+      "from": "ordinary_donation_ready",
+      "to": "donation_effect_pending",
+      "planner": "scripts/alliance_donation_bluestacks.py",
+      "permitted_input": "donate_one_current_ordinary_hot_tech_action",
+      "postconditions": [
+        "one separately bounded ordinary donation input is sent, never an unbounded press-and-hold",
+        "transport call increments only attempted-dispatch accounting and is not a committed action"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_donation_current_native_acceptance"
+    },
+    {
+      "transition_id": "commit_one_positive_donation_effect",
+      "from": "donation_effect_pending",
+      "to": "donation_committed",
+      "planner": "scripts/alliance_donation_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "one current attempt is consumed with the exact ordinary-resource spend and positive current Tech progress successor",
+        "only this positive semantic effect increments committed_action_count and durable daily_committed_action_count",
+        "Bonus or reward multipliers never increment the action count twice"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_donation_current_native_acceptance"
+    },
+    {
+      "transition_id": "preserve_partial_quota",
+      "from": "donation_committed",
+      "to": "quota_partial_persisted",
+      "planner": "scripts/alliance_donation_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "confirmed action count is durably reset-scoped across restart",
+        "the next action rebinds target, current cost, balance, and available attempts"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ],
+      "evidence_gate_id": "alliance_donation_current_native_acceptance"
+    },
+    {
+      "transition_id": "return_home_after_partial_quota",
+      "from": "quota_partial_persisted",
+      "to": "home_returned",
+      "planner": "scripts/alliance_donation_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "confirmed partial quota remains persisted and canonical Home is positively recognized"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_donation_current_native_acceptance"
+    },
+    {
+      "transition_id": "stop_at_ten_confirmed_actions",
+      "from": "donation_committed",
+      "to": "quota_reached",
+      "planner": "scripts/alliance_donation_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "exactly ten actual distinct donations have positive current action effects",
+        "no Daily, ranking, or reward-point counter inspection is required"
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset"
+      ],
+      "evidence_gate_id": "alliance_donation_current_native_acceptance"
+    },
+    {
+      "transition_id": "preserve_unknown_donation_effect",
+      "from": "donation_effect_pending",
+      "to": "effect_reconciliation_required",
+      "planner": "fail_closed_without_input",
+      "permitted_input": null,
+      "postconditions": [
+        "unresolved action effect is durably preserved and never counted as success",
+        "identical donation retry is denied"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "return_canonical_home",
+      "from": "quota_reached",
+      "to": "home_returned",
+      "planner": "scripts/alliance_donation_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "canonical Home is positively recognized"
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance_donation_current_native_acceptance"
+    }
+  ],
+  "permitted_inputs": [
+    "open_alliance_tech_from_current_home",
+    "safe_return_to_canonical_home",
+    "donate_one_current_ordinary_hot_tech_action"
+  ],
+  "consequential_action_class": "ordinary_alliance_tech_donation",
+  "cost_quantity_requirements": {
+    "free_only": false,
+    "maximum_cost": null,
+    "quantity": 1,
+    "resource_or_currency": "CURRENT_ORDINARY_RESOURCE",
+    "notes": "Each action requires the current exact ordinary-resource cost and balance. The reset quota is ten confirmed actions; per-action quantity is one."
+  },
+  "completion_identity": "alliance-donation:ten-confirmed-ordinary-hot-tech-actions-per-reset",
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "complete_for_reset",
+    "already_complete",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "One attempt regenerates every 1800 seconds up to 20 stored attempts. Spend currently available attempts consecutively without a between-action wait. When none remain, use the currently observed timer or an explicit safe recheck policy; never fabricate a due time or alter the ten-action target.",
+  "bounded_recovery_behavior": "Stop on changed HOT target, unknown cost/balance/attempts, premium control, stale source, or unresolved effect. Preserve confirmed partial count and unresolved effects across restart, deny identical retries, and return only through recognized safe navigation.",
+  "evidence_requirements": [
+    "Fresh current HOT Tech identity, ordinary Donate control, exact resource cost and balance, availability count, and immediate-before source reference/hash for every action.",
+    "Current native effect evidence must bind one consumed attempt, exact ordinary-resource spend, positive current Tech progress, immediate successor reference/hash, and canonical Home.",
+    "Native outcomes distinguish donation_transport_calls from committed_action_count and durable daily_committed_action_count; availability_evidence and next_eligible_at are based only on current observation.",
+    "No ranking or reward-point counters, Daily screen, D02, or point attribution is used as action success evidence."
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "alliance_donation_current_native_acceptance",
+      "status": "evidence_required",
+      "blocks": [
+        "open_alliance_tech",
+        "bind_automatic_hot_target_and_ordinary_cost",
+        "defer_without_available_attempt",
+        "return_home_after_attempt_exhaustion",
+        "return_home_after_partial_quota",
+        "bind_one_ordinary_donation",
+        "dispatch_one_donation",
+        "commit_one_positive_donation_effect",
+        "preserve_partial_quota",
+        "stop_at_ten_confirmed_actions",
+        "return_canonical_home"
+      ],
+      "required_evidence": [
+        "current production-route source, immediate-before, transport, immediate-after, semantic donation effect, and terminal Home bindings",
+        "ten distinct committed action effects with durable partial progress and no overshoot despite available stored attempts",
+        "attempt regeneration/cap behavior, consecutive available actions, current no-attempt deferral, and unknown-result no-retry"
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "alliance_donation_native_service_acceptance",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "donate_one_current_ordinary_hot_tech_action"
+      ],
+      "required_transitions": [
+        "open_alliance_tech",
+        "bind_automatic_hot_target_and_ordinary_cost",
+        "bind_one_ordinary_donation",
+        "dispatch_one_donation",
+        "commit_one_positive_donation_effect",
+        "preserve_partial_quota",
+        "stop_at_ten_confirmed_actions",
+        "return_canonical_home"
+      ],
+      "evidence_gate_ids": [
+        "alliance_donation_current_native_acceptance"
+      ],
+      "notes": "Product approval sets the ten-action envelope only; registration and runtime dispatch remain disabled pending native acceptance."
+    }
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "alliance_donation_current_native_acceptance",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "No live acceptance or execution is claimed by this product record or contract."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "non-HOT or manually selected technology",
+    "unknown or changed ordinary resource cost",
+    "premium or diamond Donate control",
+    "resource boxes, refills, or forced reset",
+    "unbounded press-and-hold",
+    "ranking points or reward-point counter as action count",
+    "Daily screen or points inspection",
+    "transport calls counted as committed actions",
+    "repeated identical donation after unknown effect",
+    "overshoot beyond ten confirmed actions",
+    "registration",
+    "scheduler"
+  ],
+  "implementation_status": "contract_only",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "evidence_required",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "product_policy_refs": [
+    {
+      "policy_id": "alliance-technology-donation-policy",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
+  "registration_state": "disabled",
+  "production_eligible": false,
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r16",
+    "product_authority_digest": "87382f4dc6829c577f8dd13b16517b8aa69cdc51f0ab9d7760749fceaa970a28",
+    "product_record_id": "alliance_donation",
+    "product_record_revision": "alliance_donation-v1",
+    "product_record_digest": "b26c59422b0c8c10eda6a60b0db1b9295be78d1d40bd7c82d1cdba768632e878",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ],
+    "selected_daily_prerequisite": false
+  }
+}

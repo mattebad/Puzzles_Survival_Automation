@@ -13,6 +13,9 @@ from automation_service import cli
 from automation_service.registry import (
     DAILY_REWARDS_FLOW_ID,
     ALLIANCE_HELP_FLOW_ID,
+    ALLIANCE_DONATION_FLOW_ID,
+    ALLIANCE_SHOP_FLOW_ID,
+    DAILY_SHOPS_FLOW_ID,
     RESOURCE_ITEM_FLOW_ID,
     canonical_flow_specs,
     RUINS_FLOW_ID,
@@ -45,6 +48,9 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                     "resource-item",
                     "ruins",
                     "alliance-help",
+                    "alliance-donation",
+                    "alliance-shop",
+                    "daily-shops",
                 ):
                     argv.extend(["--flow", flow])
                 argv.extend(["--campaign-stage", "1-15-9", "--campaign-cadence-seconds", "300",
@@ -52,7 +58,7 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                              "--account-id", "account", "--server-id", "server", "--output-directory", "captures with spaces"])
                 parsed = cli.build_parser().parse_args(argv[1:])
                 self.assertEqual(parsed.mode, "supervised")
-                self.assertEqual(len(parsed.flow), 12)
+                self.assertEqual(len(parsed.flow), 15)
                 with patch.object(cli, "main", return_value=17) as canonical:
                     self.assertEqual(pnsctl.main(argv), 17)
                 canonical.assert_called_once()
@@ -70,6 +76,9 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                         RESOURCE_ITEM_FLOW_ID,
                         RUINS_FLOW_ID,
                         ALLIANCE_HELP_FLOW_ID,
+                        ALLIANCE_DONATION_FLOW_ID,
+                        ALLIANCE_SHOP_FLOW_ID,
+                        DAILY_SHOPS_FLOW_ID,
                     },
                 )
                 self.assertTrue(

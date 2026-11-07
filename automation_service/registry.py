@@ -136,6 +136,27 @@ ALLIANCE_HELP_HANDLER_ID = "alliance_help_execution_handler"
 ALLIANCE_HELP_PROFILE_ID = WORLD_PROFILE_ID
 ALLIANCE_HELP_PHASE_MODE = "phase_canary"
 ALLIANCE_HELP_MAX_INPUTS = 20
+ALLIANCE_DONATION_FLOW_ID = "ALLIANCE-TECH-DONATION-BLUESTACKS-INTEGRATION"
+ALLIANCE_DONATION_PRODUCT_ID = "alliance_donation"
+ALLIANCE_DONATION_PRODUCT_REVISION = "alliance_donation-v1"
+ALLIANCE_DONATION_HANDLER_ID = "alliance_donation_execution_handler"
+ALLIANCE_DONATION_PROFILE_ID = WORLD_PROFILE_ID
+ALLIANCE_DONATION_PHASE_MODE = "phase_canary"
+ALLIANCE_DONATION_MAX_INPUTS = 40
+ALLIANCE_SHOP_FLOW_ID = "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE"
+ALLIANCE_SHOP_PRODUCT_ID = "alliance_shop_purchase"
+ALLIANCE_SHOP_PRODUCT_REVISION = "alliance_shop_purchase-v2"
+ALLIANCE_SHOP_HANDLER_ID = "alliance_shop_execution_handler"
+ALLIANCE_SHOP_PROFILE_ID = WORLD_PROFILE_ID
+ALLIANCE_SHOP_PHASE_MODE = "phase_canary"
+ALLIANCE_SHOP_MAX_INPUTS = 24
+DAILY_SHOPS_FLOW_ID = "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE"
+DAILY_SHOPS_PRODUCT_ID = "daily_shops_purchase"
+DAILY_SHOPS_PRODUCT_REVISION = "daily_shops_purchase-v1"
+DAILY_SHOPS_HANDLER_ID = "daily_shops_execution_handler"
+DAILY_SHOPS_PROFILE_ID = WORLD_PROFILE_ID
+DAILY_SHOPS_PHASE_MODE = "phase_canary"
+DAILY_SHOPS_MAX_INPUTS = 48
 
 
 _FIXED_BINDINGS = {
@@ -266,6 +287,36 @@ _FIXED_BINDINGS = {
         "production_handler": ALLIANCE_HELP_HANDLER_ID,
         "profile": ALLIANCE_HELP_PROFILE_ID,
         "mode": ALLIANCE_HELP_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    ALLIANCE_DONATION_FLOW_ID: {
+        "flow_id": ALLIANCE_DONATION_FLOW_ID,
+        "product_id": ALLIANCE_DONATION_PRODUCT_ID,
+        "product_revision": ALLIANCE_DONATION_PRODUCT_REVISION,
+        "production_handler": ALLIANCE_DONATION_HANDLER_ID,
+        "profile": ALLIANCE_DONATION_PROFILE_ID,
+        "mode": ALLIANCE_DONATION_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    ALLIANCE_SHOP_FLOW_ID: {
+        "flow_id": ALLIANCE_SHOP_FLOW_ID,
+        "product_id": ALLIANCE_SHOP_PRODUCT_ID,
+        "product_revision": ALLIANCE_SHOP_PRODUCT_REVISION,
+        "production_handler": ALLIANCE_SHOP_HANDLER_ID,
+        "profile": ALLIANCE_SHOP_PROFILE_ID,
+        "mode": ALLIANCE_SHOP_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    DAILY_SHOPS_FLOW_ID: {
+        "flow_id": DAILY_SHOPS_FLOW_ID,
+        "product_id": DAILY_SHOPS_PRODUCT_ID,
+        "product_revision": DAILY_SHOPS_PRODUCT_REVISION,
+        "production_handler": DAILY_SHOPS_HANDLER_ID,
+        "profile": DAILY_SHOPS_PROFILE_ID,
+        "mode": DAILY_SHOPS_PHASE_MODE,
         "registration_status": "REGISTERED",
         "scheduler_eligible": True,
     },
@@ -466,6 +517,9 @@ class CanonicalFlowRegistration:
             RESOURCE_ITEM_FLOW_ID,
             RUINS_FLOW_ID,
             ALLIANCE_HELP_FLOW_ID,
+            ALLIANCE_DONATION_FLOW_ID,
+            ALLIANCE_SHOP_FLOW_ID,
+            DAILY_SHOPS_FLOW_ID,
         }:
             # Only explicit supervised serve installs its executor and held-owner
             # checkpoint. Generic composition must never create native authority.
@@ -663,6 +717,33 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         cli_name="alliance-help",
         family="alliance_help",
         variant="ten_successful_free_requests",
+        cadence="cooldown_pulse",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        ALLIANCE_DONATION_FLOW_ID,
+        max_inputs=ALLIANCE_DONATION_MAX_INPUTS,
+        cli_name="alliance-donation",
+        family="alliance_donation",
+        variant="ten_hot_donations",
+        cadence="cooldown_pulse",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        ALLIANCE_SHOP_FLOW_ID,
+        max_inputs=ALLIANCE_SHOP_MAX_INPUTS,
+        cli_name="alliance-shop",
+        family="alliance_shop",
+        variant="one_weekly_or_other",
+        cadence="cooldown_pulse",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        DAILY_SHOPS_FLOW_ID,
+        max_inputs=DAILY_SHOPS_MAX_INPUTS,
+        cli_name="daily-shops",
+        family="daily_shops",
+        variant="ruins_and_rare_earth_max",
         cadence="cooldown_pulse",
         observation_only_completion=True,
     ),
@@ -1165,6 +1246,27 @@ __all__ = [
     "ALLIANCE_HELP_PROFILE_ID",
     "ALLIANCE_HELP_PHASE_MODE",
     "ALLIANCE_HELP_MAX_INPUTS",
+    "ALLIANCE_DONATION_FLOW_ID",
+    "ALLIANCE_DONATION_PRODUCT_ID",
+    "ALLIANCE_DONATION_PRODUCT_REVISION",
+    "ALLIANCE_DONATION_HANDLER_ID",
+    "ALLIANCE_DONATION_PROFILE_ID",
+    "ALLIANCE_DONATION_PHASE_MODE",
+    "ALLIANCE_DONATION_MAX_INPUTS",
+    "ALLIANCE_SHOP_FLOW_ID",
+    "ALLIANCE_SHOP_PRODUCT_ID",
+    "ALLIANCE_SHOP_PRODUCT_REVISION",
+    "ALLIANCE_SHOP_HANDLER_ID",
+    "ALLIANCE_SHOP_PROFILE_ID",
+    "ALLIANCE_SHOP_PHASE_MODE",
+    "ALLIANCE_SHOP_MAX_INPUTS",
+    "DAILY_SHOPS_FLOW_ID",
+    "DAILY_SHOPS_PRODUCT_ID",
+    "DAILY_SHOPS_PRODUCT_REVISION",
+    "DAILY_SHOPS_HANDLER_ID",
+    "DAILY_SHOPS_PROFILE_ID",
+    "DAILY_SHOPS_PHASE_MODE",
+    "DAILY_SHOPS_MAX_INPUTS",
     "consume_registered_entry",
     "consume_world_registration",
     "consume_nova_registration",

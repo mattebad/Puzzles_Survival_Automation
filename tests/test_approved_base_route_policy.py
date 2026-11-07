@@ -1,12 +1,21 @@
 from __future__ import annotations
+
 import hashlib
+
 import json
+
 import unittest
+
 from dataclasses import replace
-from automation_service.registry import ALLIANCE_HELP_FLOW_ID as HELP, ALLIANCE_HELP_PRODUCT_ID as HELP_PRODUCT, ALLIANCE_HELP_PRODUCT_REVISION as HELP_REVISION, RUINS_FLOW_ID as RUINS, RUINS_PRODUCT_ID as RUINS_PRODUCT, RUINS_PRODUCT_REVISION as RUINS_REVISION
+
+from automation_service.registry import ALLIANCE_DONATION_FLOW_ID as DONATION, ALLIANCE_DONATION_PRODUCT_ID as DONATION_PRODUCT, ALLIANCE_DONATION_PRODUCT_REVISION as DONATION_REVISION, ALLIANCE_HELP_FLOW_ID as HELP, ALLIANCE_HELP_PRODUCT_ID as HELP_PRODUCT, ALLIANCE_HELP_PRODUCT_REVISION as HELP_REVISION, ALLIANCE_SHOP_FLOW_ID as ALLIANCE_SHOP, ALLIANCE_SHOP_PRODUCT_REVISION as ALLIANCE_SHOP_REVISION, DAILY_SHOPS_FLOW_ID as DAILY_SHOPS, DAILY_SHOPS_PRODUCT_REVISION as DAILY_SHOPS_REVISION, RUINS_FLOW_ID as RUINS, RUINS_PRODUCT_ID as RUINS_PRODUCT, RUINS_PRODUCT_REVISION as RUINS_REVISION
+
 from safe_action_core.models import ActionClass, PolicyDecision
+
 from safe_action_core.policy import CentralPolicy
+
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+
 from tests.support.safe_action import TEST_TASK_ID, observation, request as base_request
 
 DAY = "game-day-2026-07-15"
@@ -87,6 +96,71 @@ def route_request(
         semantic_postconditions=(post,),
     )
 
+def donation_request():
+    cost = 25
+    tokens = (
+        f"alliance_donation_product={DONATION_PRODUCT}",
+        f"alliance_donation_product_revision={DONATION_REVISION}",
+        f"alliance_donation_game_day={DAY}",
+        "alliance_donation_hot_marker=true",
+        "alliance_donation_target=tech_alpha",
+        "alliance_donation_attempts=1/20",
+        "alliance_donation_balance=100",
+        "alliance_donation_resource=FOOD",
+        f"alliance_donation_cost={cost}",
+        "alliance_donation_quantity=1",
+        "alliance_donation_single_tap=true",
+        "alliance_donation_no_premium=true",
+        "alliance_donation_no_refill=true",
+        "alliance_donation_no_hold=true",
+        "alliance_donation_daily_action_count=0",
+    )
+    return route_request(
+        task=DONATION, action="DONATE_ALLIANCE_TECH", action_class=ActionClass.SPEND_OR_STRATEGIC,
+        kind=DONATION_REVISION, subject="tech_alpha", source="ALLIANCE_TECH_DONATION_PANEL",
+        target="alliance-tech:ordinary-donate", control="DONATE", consequence="alliance_tech_donation_effect",
+        post="ALLIANCE_TECH_DONATION_CONFIRMED", cost_type="ordinary_resource", cost=cost, quantity=1,
+        resource="FOOD", maximum=cost, free=False, preconditions=tokens,
+    )
+
+def alliance_shop_request(item="joy_coin", shop="weekly_offers", currency="ALLIANCE_COINS", price=12, balance=80, quantity=1):
+    stock = 3
+    total = price * quantity
+    tokens = (
+        f"shop={shop}", f"item={item}", f"currency={currency}", f"unit_price={price}",
+        f"stock={stock}", f"balance={balance}", f"quantity={quantity}", f"total={total}",
+        f"alliance_shop_reset_id={DAY}", "alliance_shop_action_ordinal=1",
+        "alliance_shop_action_count_before=0", "alliance_shop_action_limit=1",
+    )
+    source = "ALLIANCE_SHOP_WEEKLY_QUANTITY_DIALOG" if shop == "weekly_offers" else "ALLIANCE_SHOP_OTHER_QUANTITY_DIALOG"
+    return route_request(
+        task=ALLIANCE_SHOP, action="PURCHASE_ALLIANCE_SHOP_OFFER", action_class=ActionClass.SPEND_OR_STRATEGIC,
+        kind=ALLIANCE_SHOP_REVISION, subject=item, source=source, target="alliance-shop:inner-buy",
+        control="BUY", consequence="alliance_shop_purchase", post="ALLIANCE_SHOP_PURCHASE_RECONCILED",
+        cost_type="ALLIANCE_COINS", cost=total, quantity=quantity, resource=currency, maximum=total,
+        free=False, preconditions=tokens,
+    )
+
+def daily_shop_request(item="3_star_chip_enhance_material", shop="ruins_shop", currency="RUINS_COINS", price=4, stock=8, balance=21, quantity=5):
+    total = price * quantity
+    rare = item == "3_star_module_enhance_material"
+    source = "RARE_EARTH_SHOP_QUANTITY_DIALOG" if rare else "RUINS_SHOP_QUANTITY_DIALOG"
+    target = "daily-shops:rare-earth:inner-buy" if rare else "daily-shops:ruins:inner-buy"
+    post = "RARE_EARTH_SHOP_PURCHASE_RECONCILED" if rare else "RUINS_SHOP_PURCHASE_RECONCILED"
+    tokens = (
+        f"shop={shop}", f"item={item}", "rarity=3", f"currency={currency}",
+        f"unit_price={price}", f"stock={stock}", f"balance={balance}",
+        f"quantity={quantity}", f"total={total}", f"daily_shops_reset_id={DAY}",
+        f"daily_shops_tab={shop}", "daily_shops_tab_action_ordinal=1",
+        "daily_shops_tab_action_count_before=0", "daily_shops_tab_action_limit=1",
+    )
+    return route_request(
+        task=DAILY_SHOPS, action="PURCHASE_DAILY_SHOP_MATERIAL", action_class=ActionClass.SPEND_OR_STRATEGIC,
+        kind=DAILY_SHOPS_REVISION, subject=item, source=source, target=target, control="BUY",
+        consequence="daily_shops_purchase", post=post, cost_type=currency, cost=total,
+        quantity=quantity, resource=currency, maximum=total, free=False, preconditions=tokens,
+    )
+
 def ruins_challenge_request():
     tokens = (
         f"ruins_product={RUINS_PRODUCT}", f"ruins_product_revision={RUINS_REVISION}",
@@ -154,7 +228,7 @@ def help_request(all=False):
         quantity=quantity, resource=None, maximum=0, free=True, preconditions=tokens,
     )
 
-POLICY = CentralPolicy({HELP, RUINS_PRODUCT, TEST_TASK_ID, OTHER_TASK})
+POLICY = CentralPolicy({DONATION, ALLIANCE_SHOP, DAILY_SHOPS, HELP, RUINS_PRODUCT, TEST_TASK_ID, OTHER_TASK})
 
 class ApprovedBaseRoutePolicyTests(unittest.TestCase):
     def assert_authorized(self, req):
@@ -163,6 +237,60 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
 
     def assert_denied(self, req):
         self.assertEqual(POLICY.evaluate(req).decision, PolicyDecision.DENY)
+
+    def test_alliance_donation_requires_exact_ordinary_resource_tuple(self):
+        req = donation_request()
+        self.assert_authorized(req)
+        tokens = list(req.semantic_preconditions)
+        tokens[1] = "alliance_donation_product_revision=alliance_donation-v2"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        self.assert_denied(replace(req, resource_or_currency="DIAMONDS"))
+        self.assert_denied(replace(req, observation=replace(req.observation, cost_amount=26), maximum_cost=26))
+        self.assert_denied(replace(req, task_id=OTHER_TASK))
+        self.assert_denied(replace(req, semantic_action="PURCHASE_ALLIANCE_SHOP_OFFER"))
+        tokens = list(req.semantic_preconditions)
+        tokens[11] = "alliance_donation_no_premium=false"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+
+    def test_alliance_shop_allowlist_currency_and_quantity_are_exact(self):
+        for item, shop in (
+            ("joy_coin", "weekly_offers"), ("timed_recruit_coin", "weekly_offers"),
+            ("bioenhance_scheme", "weekly_offers"), ("one_star_gear_enhance_material", "other"),
+        ):
+            with self.subTest(item=item):
+                self.assert_authorized(alliance_shop_request(item=item, shop=shop))
+        req = alliance_shop_request()
+        self.assert_denied(replace(req, subject="premium_pack"))
+        self.assert_denied(replace(req, resource_or_currency="DIAMONDS"))
+        self.assert_denied(replace(req, observation=replace(req.observation, cost_amount=13), maximum_cost=13))
+        tokens = list(req.semantic_preconditions)
+        tokens[2] = "currency=DIAMONDS"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        tokens = list(req.semantic_preconditions)
+        tokens[6] = "quantity=2"
+        tokens[7] = "total=24"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        tokens = list(req.semantic_preconditions)
+        tokens[1] = "item=unknown_item"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+
+    def test_daily_shop_quantity_is_exact_affordable_stock_maximum(self):
+        self.assert_authorized(daily_shop_request())
+        self.assert_authorized(daily_shop_request(
+            item="3_star_module_enhance_material", shop="rare_earth_shop", currency="RARE_EARTH",
+            price=7, stock=4, balance=35, quantity=4,
+        ))
+        req = daily_shop_request()
+        tokens = list(req.semantic_preconditions)
+        tokens[7] = "quantity=4"
+        tokens[8] = "total=16"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens),
+                                  observation=replace(req.observation, quantity=4, cost_amount=16), maximum_cost=16))
+        self.assert_denied(replace(req, resource_or_currency="DIAMONDS"))
+        tokens = list(req.semantic_preconditions)
+        tokens[3] = "currency=DIAMONDS"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        self.assert_denied(replace(req, subject="premium_pack"))
 
     def test_ruins_zero_cost_challenge_and_same_category_chest(self):
         self.assert_authorized(ruins_challenge_request())
@@ -203,3 +331,6 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         tokens[4] = "alliance_help_request_count=11"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens),
                                   observation=replace(req.observation, quantity=11)))
+
+if __name__ == "__main__":
+    unittest.main()

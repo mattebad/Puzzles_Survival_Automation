@@ -296,15 +296,71 @@
     {
       "policy_id": "alliance-shop-purchase-policy",
       "scope": "alliance_shop.purchase",
-      "status": "unresolved_user_decision",
-      "decision": "Do not authorize an Alliance Shop purchase. Current Joy Coin offer/cost/availability and Alliance-coin fallback identities, costs, balances, successor, and canonical Home evidence remain unresolved; no Buy dispatch is permitted.",
-      "candidate_item": "unknown_current_alliance_shop_item",
-      "candidate_currency": "unknown_current_joy_coin_or_alliance_coin",
-      "candidate_cost": null,
-      "quantity": 1,
+      "status": "explicitly_approved",
+      "decision": "One current quantity-one purchase from the exact Weekly Offers allowlist is approved; when no matching preferred offer is present and affordable, only the exact Other one-star Gear Enhance Material may be used. This static product decision does not authorize runtime dispatch.",
+      "preferred_shop": "Weekly Offers",
+      "preferred_items": [
+        "Joy Coin",
+        "Timed Recruit Coin",
+        "Bioenhance Scheme"
+      ],
+      "preferred_currency": "Alliance Coins",
+      "fallback_shop": "Other",
+      "fallback_item": "1★ Gear Enhance Material",
+      "fallback_rarity": 1,
+      "fallback_currency": "Alliance Coins",
+      "maximum_quantity_total": 1,
+      "unaffordable_preferred_permits_fallback": true,
+      "premium_allowed": false,
+      "cash_purchase_allowed": false,
+      "alternative_currency_allowed": false,
       "purchase_dispatch_allowed": false,
-      "terminal_state": "home_canonical",
-      "source": "flow_delivery_queue:alliance-shop-purchase"
+      "source": "tasks/purchases_disabled.py:ALLIANCE_WEEKLY_ITEMS"
+    },
+    {
+      "policy_id": "alliance-technology-donation-policy",
+      "scope": "alliance_tech.donation",
+      "status": "explicitly_approved",
+      "decision": "Make at most ten individually confirmed ordinary-resource donations per daily reset to the game's automatically selected HOT Tech. Existing available attempts may be spent consecutively; one attempt regenerates every 1800 seconds up to 20 stored attempts. No ranking/reward-point counters, unbounded hold, premium spend, or Daily/points inspection grants success.",
+      "target": "game_automatically_selected_hot_tech",
+      "ordinary_resource_only": true,
+      "quantity_per_action": 1,
+      "maximum_confirmed_actions_per_reset": 10,
+      "attempts_regenerate": 1,
+      "attempt_regeneration_seconds": 1800,
+      "stored_attempt_cap": 20,
+      "consecutive_available_attempts_allowed": true,
+      "unbounded_hold_allowed": false,
+      "ranking_or_reward_point_counters_are_success_gates": false,
+      "purchase_dispatch_allowed": false,
+      "source": "base-route-issue-77"
+    },
+    {
+      "policy_id": "daily-shops-purchase-policy",
+      "scope": "daily_shops.purchase",
+      "status": "explicitly_approved",
+      "decision": "During one visit, independently evaluate Ruins Shop 3★ Chip Enhance Material and Rare Earth Shop 3★ Module Enhance Material. Each tab's quantity must equal min(current stock, floor(current balance/current unit price)); reread the numeric quantity and total before its inner Buy. Preserve per-tab results; the static product decision does not authorize runtime dispatch or Daily/points attribution.",
+      "shops": [
+        {
+          "shop": "RUINS_SHOP",
+          "item": "3★ Chip Enhance Material",
+          "rarity": 3,
+          "currency": "Ruins Coins"
+        },
+        {
+          "shop": "RARE_EARTH_SHOP",
+          "item": "3★ Module Enhance Material",
+          "rarity": 3,
+          "currency": "Rare Earth"
+        }
+      ],
+      "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))",
+      "quantity_must_equal_current_affordable_stock_cap": true,
+      "premium_allowed": false,
+      "one_visit_for_both_tabs": true,
+      "per_tab_result_independent": true,
+      "purchase_dispatch_allowed": false,
+      "source": "base-route-issue-72"
     },
     {
       "policy_id": "rare-earth-shop-purchase-policy",
@@ -418,8 +474,8 @@
     {
       "policy_id": "purchases-donations-upgrades-pvp-speedups",
       "scope": "global.policy_disabled_actions",
-      "status": "prohibited",
-      "decision": "Purchases, donations, upgrades, PvP, and speedups remain policy-disabled.",
+      "status": "explicitly_approved",
+      "decision": "Default-deny purchases, donations, upgrades, PvP, and speedups unless an exact dedicated product policy explicitly approves that product envelope. Product approval remains static and never authorizes runtime input or overrides route admission.",
       "source": "execution_matrix_and_explicit_user_direction"
     },
     {
@@ -452,7 +508,7 @@
     {"policy_id": "daily-control-cost-boundary", "scope": "global.daily_control_costs", "status": "explicitly_approved", "decision": "Universal Daily control safety boundary: premium/cash purchases, paid or ambiguous controls, refills, 10x controls, and item-backed substitutes are prohibited. Route-approved resource, AP, and stamina effects remain governed by their own R/P ticket and are not globally forbidden.", "prohibited_controls": ["premium_purchase", "cash_purchase", "paid_control", "ambiguous_control", "refill", "10x", "item_backed_substitute"], "premium_allowed": false, "cash_allowed": false, "paid_allowed": false, "ambiguous_allowed": false, "refill_allowed": false, "ten_x_allowed": false, "item_backed_substitute_allowed": false, "unknown_cost_allowed": false, "route_owned_effects_globally_forbidden": false, "route_owner_ticket_required": true, "governing_owner_ticket_families": ["REC-R*", "REC-P*"], "dispatch_authority": null, "source": "REC-D01_explicit_cost_boundary"},
     {"policy_id": "current-positive-completion-postcondition", "scope": "global.completion_semantics", "status": "explicitly_approved", "decision": "Training and march completion require a current positive postcondition. Queue, timer, outbound, return, or other projected state alone never proves completion.", "applies_to": ["training", "march"], "current_positive_postcondition_required": true, "queue_projection_is_completion": false, "timer_projection_is_completion": false, "outbound_projection_is_completion": false, "return_projection_is_completion": false, "dispatch_is_completion": false, "source": "REC-D01_explicit_completion_boundary"}
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r15",
+  "authority_revision": "flow-delivery-product-authority-v2-r16",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -1471,7 +1527,7 @@
     {
       "record_id": "alliance_shop_purchase",
       "record_type": "alliance_shop_purchase",
-      "purpose": "Record an unresolved, evidence-gated Alliance Shop purchase candidate without authorizing currency spend or Buy dispatch.",
+      "purpose": "Approve one quantity-one Alliance Shop purchase from the exact current Weekly Offers allowlist, falling back only to the exact Other one-star Gear Enhance Material when no preferred offer is affordable. Product approval does not authorize runtime dispatch.",
       "recurrence": "daily_reset_scoped",
       "semantic_entry_route": {
         "source_home_authorities": [
@@ -1483,58 +1539,76 @@
         ]
       },
       "objective": "alliance_shop_purchase",
-      "action": "observe_one_alliance_shop_purchase_candidate",
+      "action": "select_one_current_allowlisted_alliance_offer",
       "target": {
         "kind": "alliance_shop_purchase",
-        "shop": "ALLIANCE_SHOP",
-        "candidate_item": "unknown_current_alliance_shop_item",
-        "candidate_currency": "unknown_current_joy_coin_or_alliance_coin",
-        "candidate_cost": null,
-        "quantity": 1,
-        "policy_status": "unresolved_user_decision",
+        "preferred_shop": "Weekly Offers",
+        "preferred_items": [
+          "Joy Coin",
+          "Timed Recruit Coin",
+          "Bioenhance Scheme"
+        ],
+        "preferred_currency": "Alliance Coins",
+        "fallback_shop": "Other",
+        "fallback_item": "1★ Gear Enhance Material",
+        "fallback_rarity": 1,
+        "fallback_currency": "Alliance Coins",
+        "maximum_quantity_total": 1,
+        "unaffordable_preferred_permits_fallback": true,
+        "premium_allowed": false,
+        "cash_purchase_allowed": false,
+        "alternative_currency_allowed": false,
+        "policy_status": "explicitly_approved",
         "purchase_dispatch_allowed": false,
         "terminal_home": "HOME_CANONICAL"
       },
       "quantity_cost": {
         "quantity": 1,
         "cost": {
-          "kind": "unresolved_currency_cost",
+          "kind": "current_observed_currency_cost",
           "amount": null,
-          "unit": "UNKNOWN_CURRENT_JOY_COIN_OR_ALLIANCE_COIN",
+          "unit": "Alliance Coins",
           "free_only": false
         }
       },
       "semantic_effect": {
         "effect_ordinal": 1,
-        "offer_observation_successor_required": true,
-        "exact_item_evidence_required": true,
-        "exact_currency_evidence_required": true,
-        "exact_cost_evidence_required": true,
-        "balance_evidence_required": true,
-        "quantity_one_required": true,
+        "exact_current_weekly_inventory_required": true,
+        "exact_current_fallback_inventory_required": true,
+        "preferred_offer_priority_is_source_allowlist_order": true,
+        "preferred_offer_must_be_current_and_affordable": true,
+        "unaffordable_preferred_offer_falls_through_to_exact_fallback": true,
+        "fallback_only_when_no_affordable_preferred_offer": true,
+        "fallback_offer_must_be_current_and_affordable": true,
+        "no_affordable_fallback_yields_no_purchase": true,
+        "changed_or_ambiguous_offer_blocks": true,
+        "premium_purchase_allowed": false,
+        "cash_purchase_allowed": false,
+        "alternative_currency_allowed": false,
+        "daily_screen_or_points_inspection_required": false,
+        "one_quantity_total_across_both_paths": 1,
+        "fresh_numeric_quantity_and_total_required_before_inner_buy": true,
+        "exact_current_item_currency_cost_balance_stock_and_availability_required": true,
         "purchase_dispatch_allowed": false,
-        "currency_delta_required_for_purchase_proof": true,
-        "item_delta_required_for_purchase_proof": true,
+        "paired_currency_and_item_successors_required": true,
         "canonical_home_successor_required": true,
         "dispatch_is_not_success_proof": true,
         "daily_ownership": "none",
         "identical_retry": false
       },
       "forbidden_actions": [
-        "Buy",
-        "purchase dispatch",
-        "currency spend",
-        "premium offer",
         "unknown item",
-        "ambiguous item",
         "unknown currency",
-        "ambiguous currency",
         "unknown cost",
+        "ambiguous item",
+        "ambiguous currency",
         "ambiguous cost",
-        "insufficient balance",
+        "premium currency or offer",
         "quantity greater than one",
+        "buy both preferred and fallback",
+        "unaffordable fallback purchase",
         "currency delta without item successor",
-        "item successor without currency delta",
+        "item delta without currency delta",
         "identical retry",
         "real-money confirmation"
       ],
@@ -1546,22 +1620,241 @@
         "daily_owner": null,
         "point_credit_trigger": null,
         "selected_daily_prerequisite": false,
-        "notes": "Alliance Shop candidate remains unresolved and owns no Daily Claim or points."
+        "notes": "Alliance Shop product success has no Daily ownership or points attribution."
       },
       "authority_references": [
         {
-          "reference_id": "user-direction:alliance-shop-no-dispatch-until-allowlist",
+          "reference_id": "user-direction:alliance-shop-one-allowlisted-weekly-or-fallback",
           "reference_kind": "user_direction",
           "immutable": true
         },
         {
-          "reference_id": "native-authority:bluestacks-alliance-shop-offer-surface",
+          "reference_id": "native-authority:alliance-shop-exact-offer-identities",
           "reference_kind": "native_authority",
           "immutable": true
         }
       ],
-      "record_revision": "alliance_shop_purchase-v1",
-      "record_digest": "98c96f0ffc299f9fe2be981ced97e8ff3a387f00562b7799902d4cb2f96e8bef"
+      "record_revision": "alliance_shop_purchase-v2",
+      "record_digest": "ecb5d83a4c31de3ef748eddbf9f542d3fc9bccdd695bf6fe8e87bc516465ad80"
+    },
+    {
+      "record_id": "alliance_donation",
+      "record_type": "alliance_donation",
+      "purpose": "Approve up to ten individually confirmed ordinary-resource donations per daily reset to the game's automatically selected HOT Alliance Tech; record only actual positive donation effects.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "ALLIANCE_TECH",
+        "route": [
+          "ALLIANCE_TECH"
+        ]
+      },
+      "objective": "alliance_tech_donation",
+      "action": "make_one_individually_reconciled_ordinary_donation",
+      "target": {
+        "kind": "alliance_tech_donation",
+        "technology_selection": "game_automatically_selected_hot_tech",
+        "rebind_current_hot_target_before_each_action": true,
+        "daily_action_limit": 10,
+        "ordinary_donation_quantity": 1,
+        "ordinary_resource_only": true,
+        "available_attempts_required": true,
+        "consecutive_available_attempts_allowed": true,
+        "attempts_regenerate": 1,
+        "attempt_regeneration_seconds": 1800,
+        "stored_attempt_cap": 20,
+        "unbounded_hold_allowed": false,
+        "policy_status": "explicitly_approved",
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "current_observed_ordinary_resource_cost",
+          "amount": null,
+          "unit": "CURRENT_ORDINARY_RESOURCE",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "current_hot_target_and_exact_resource_cost_and_balance_required": true,
+        "one_confirmed_action_requires_one_consumed_attempt": true,
+        "one_confirmed_action_requires_exact_ordinary_resource_spend": true,
+        "one_confirmed_action_requires_positive_current_tech_progress": true,
+        "count_only_distinct_effect_confirmed_actions": true,
+        "daily_success_limit": 10,
+        "available_attempts_may_be_spent_consecutively": true,
+        "wait_required_while_attempts_remain": false,
+        "regeneration_is_not_a_between_action_cooldown": true,
+        "press_and_hold_donation_allowed": false,
+        "ranking_or_reward_point_counters_are_success_gates": false,
+        "daily_screen_or_points_inspection_required": false,
+        "dispatch_is_not_success_proof": true,
+        "completion_readiness_uses_own_confirmed_action_target": true,
+        "canonical_home_successor_required": true,
+        "daily_ownership": "none",
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "premium donation",
+        "diamond donation",
+        "ranking points",
+        "reward point counter",
+        "press-and-hold",
+        "unbounded hold",
+        "daily screen",
+        "points attribution",
+        "repeated identical donation",
+        "action count from transport",
+        "resource boxes or refills"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Donation action readiness is based on this route's ten actual confirmed actions, not Daily or points attribution."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:alliance-donation-ten-actual-actions",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:alliance-tech-ordinary-donation-attempts",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "alliance_donation-v1",
+      "record_digest": "b26c59422b0c8c10eda6a60b0db1b9295be78d1d40bd7c82d1cdba768632e878"
+    },
+    {
+      "record_id": "daily_shops_purchase",
+      "record_type": "daily_shops_purchase",
+      "purpose": "Approve one visit that independently purchases the current affordable stock of the exact three-star Chip and Module shop items, bounded by observed stock and currency affordability.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": [
+          "HOME_CANONICAL"
+        ],
+        "target": "RUINS_SHOP",
+        "route": [
+          "RUINS",
+          "EXCHANGE",
+          "RUINS_SHOP",
+          "RARE_EARTH_SHOP"
+        ]
+      },
+      "objective": "daily_shops_purchase",
+      "action": "purchase_current_affordable_allowlisted_daily_shop_stock",
+      "target": {
+        "kind": "daily_shops_purchase",
+        "shops": [
+          {
+            "shop": "RUINS_SHOP",
+            "tab": "Ruins Shop",
+            "item": "3★ Chip Enhance Material",
+            "rarity": 3,
+            "currency": "Ruins Coins",
+            "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))"
+          },
+          {
+            "shop": "RARE_EARTH_SHOP",
+            "tab": "Rare Earth Shop",
+            "item": "3★ Module Enhance Material",
+            "rarity": 3,
+            "currency": "Rare Earth",
+            "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))"
+          }
+        ],
+        "one_visit_for_both_tabs": true,
+        "one_purchase_selection_per_tab": true,
+        "current_price_balance_and_stock_required_per_tab": true,
+        "numeric_quantity_and_total_reread_before_inner_buy": true,
+        "per_tab_result_independent": true,
+        "maximum_quantity_is_current_stock_and_affordability_min": true,
+        "premium_allowed": false,
+        "policy_status": "explicitly_approved",
+        "purchase_dispatch_allowed": false,
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": "computed_per_tab",
+        "cost": {
+          "kind": "current_observed_currency_cost",
+          "amount": null,
+          "unit": "CURRENT_TAB_CURRENCY",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "effect_ordinal": 1,
+        "both_tabs_evaluated_in_one_visit": true,
+        "per_tab_result_is_independent": true,
+        "tab_quantity_is_min_stock_and_affordability": true,
+        "quantity_must_equal_current_affordable_stock_cap": true,
+        "changed_or_ambiguous_tab_blocks_without_substitution": true,
+        "premium_purchase_allowed": false,
+        "zero_affordable_or_unavailable_tab_is_skipped": true,
+        "numeric_quantity_and_total_must_match_before_inner_buy": true,
+        "tab_status_and_item_currency_effects_reconciled_separately": true,
+        "uncertain_tab_effect_is_not_retried": true,
+        "current_native_gameplay_effect_is_only_readiness_basis": true,
+        "daily_screen_or_points_inspection_required": false,
+        "daily_ownership": "none",
+        "purchase_dispatch_allowed": false,
+        "canonical_home_successor_required": true,
+        "dispatch_is_not_success_proof": true,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "unknown item",
+        "substitute item",
+        "unknown unit price",
+        "unknown balance",
+        "unknown stock",
+        "slider position as quantity",
+        "quantity above stock",
+        "quantity above affordability",
+        "daily screen",
+        "points attribution",
+        "identical retry after uncertain effect",
+        "premium purchase",
+        "currency delta without matching item successor",
+        "item successor without matching currency delta"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Neither tab owns selected-Daily completion or points attribution; native route effects alone determine readiness."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:daily-shops-current-affordable-stock",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:ruins-and-rare-earth-shop-offers",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "daily_shops_purchase-v1",
+      "record_digest": "4938325d72f7ac359a96716b78f9c4826feef2e611f3249f4bf16bed32b9c6c5"
     },
     {
       "record_id": "rare_earth_shop_purchase",
@@ -2742,5 +3035,5 @@
       "record_digest": "3ed8f746336bfa3a0544591b42e8cea832ee3a0b10d10dda54cedcf390c57d78"
     }
   ],
-  "authority_digest": "aec4f9a360a390715aaff4e5ad0dba4ccc23d22202e7bcc75057a33f1775222f"
+  "authority_digest": "87382f4dc6829c577f8dd13b16517b8aa69cdc51f0ab9d7760749fceaa970a28"
 }

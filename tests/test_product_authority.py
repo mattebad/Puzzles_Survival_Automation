@@ -34,6 +34,23 @@ from tasks.product_authority import (
     validate_product_authority,
     validate_product_record,
 )
+from tasks.purchases_disabled import (
+    ALLIANCE_CURRENCY,
+    ALLIANCE_FALLBACK_ITEM,
+    ALLIANCE_OTHER_SHOP,
+    ALLIANCE_WEEKLY_ITEMS,
+    ALLIANCE_WEEKLY_SHOP,
+    RARE_EARTH_CURRENCY,
+    RARE_EARTH_MODULE_ITEM,
+    RARE_EARTH_SHOP,
+    RUINS_CHIP_ITEM,
+    RUINS_CURRENCY,
+    RUINS_SHOP,
+    ShopOffer,
+    alliance_shop_choice,
+    daily_shop_quantity,
+    purchase_dialog_matches,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +90,8 @@ class ProductAuthorityTests(unittest.TestCase):
                 "alliance_help",
                 "rare_earth_shop_purchase",
                 "alliance_shop_purchase",
+                "alliance_donation",
+                "daily_shops_purchase",
                 "hero_upgrade",
                 "hero_duel",
                 "nanoweapon_normal_craft",
@@ -140,6 +159,8 @@ class ProductAuthorityTests(unittest.TestCase):
             "alliance_help",
             "rare_earth_shop_purchase",
             "alliance_shop_purchase",
+            "alliance_donation",
+            "daily_shops_purchase",
             "hero_upgrade",
             "hero_duel",
             "nanoweapon_normal_craft",
@@ -188,50 +209,221 @@ class ProductAuthorityTests(unittest.TestCase):
         ):
             self.assertIn(marker, forbidden)
 
-    def test_alliance_shop_candidate_keeps_unknown_offer_fail_closed(self) -> None:
+    def test_alliance_shop_approval_binds_exact_allowlist_and_one_item_fallback(self) -> None:
         record = self.records["alliance_shop_purchase"]
         policy = next(
             item
             for item in self.authority["policies"]
             if item["policy_id"] == "alliance-shop-purchase-policy"
         )
-        self.assertEqual(policy["status"], "unresolved_user_decision")
+        self.assertEqual(policy["status"], "explicitly_approved")
         self.assertFalse(policy["purchase_dispatch_allowed"])
-        self.assertEqual(record["record_type"], "alliance_shop_purchase")
-        self.assertEqual(record["semantic_entry_route"]["route"], ["ALLIANCE_SHOP"])
+        self.assertEqual(record["record_revision"], "alliance_shop_purchase-v2")
         target = record["target"]
-        self.assertEqual(target["candidate_item"], "unknown_current_alliance_shop_item")
-        self.assertEqual(
-            target["candidate_currency"],
-            "unknown_current_joy_coin_or_alliance_coin",
-        )
-        self.assertIsNone(target["candidate_cost"])
-        self.assertEqual(target["quantity"], 1)
-        self.assertEqual(target["policy_status"], "unresolved_user_decision")
+        self.assertEqual(target["preferred_items"], list(ALLIANCE_WEEKLY_ITEMS))
+        self.assertEqual(target["preferred_shop"], ALLIANCE_WEEKLY_SHOP)
+        self.assertEqual(target["preferred_currency"], ALLIANCE_CURRENCY)
+        self.assertEqual(target["fallback_shop"], ALLIANCE_OTHER_SHOP)
+        self.assertEqual(target["fallback_item"], ALLIANCE_FALLBACK_ITEM)
+        self.assertEqual(target["fallback_rarity"], 1)
+        self.assertEqual(target["maximum_quantity_total"], 1)
+        self.assertTrue(target["unaffordable_preferred_permits_fallback"])
         self.assertFalse(target["purchase_dispatch_allowed"])
-        cost = record["quantity_cost"]["cost"]
-        self.assertIsNone(cost["amount"])
-        self.assertEqual(cost["unit"], "UNKNOWN_CURRENT_JOY_COIN_OR_ALLIANCE_COIN")
-        self.assertFalse(cost["free_only"])
-        effect = record["semantic_effect"]
-        self.assertTrue(effect["exact_item_evidence_required"])
-        self.assertTrue(effect["exact_currency_evidence_required"])
-        self.assertTrue(effect["exact_cost_evidence_required"])
-        self.assertTrue(effect["balance_evidence_required"])
-        self.assertFalse(effect["purchase_dispatch_allowed"])
-        self.assertTrue(effect["canonical_home_successor_required"])
-        self.assertFalse(effect["identical_retry"])
+        self.assertFalse(target["premium_allowed"])
+        self.assertFalse(target["cash_purchase_allowed"])
+        self.assertFalse(target["alternative_currency_allowed"])
+        self.assertIsNone(record["quantity_cost"]["cost"]["amount"])
         self.assertIsNone(record["daily_ownership"]["daily_owner"])
-        forbidden = json.dumps(record["forbidden_actions"]).casefold()
-        for marker in (
-            "unknown item",
-            "unknown cost",
-            "unknown currency",
-            "purchase dispatch",
-            "currency spend",
-            "insufficient balance",
-        ):
-            self.assertIn(marker, forbidden)
+        self.assertIsNone(record["daily_ownership"]["point_credit_trigger"])
+
+    def test_alliance_shop_typed_fallback_and_quantity_guards_fail_closed(self) -> None:
+        mutations = (
+            ("preferred_allowlist", lambda changed: changed["target"]["preferred_items"].__setitem__(1, "Int. Recruit Coin")),
+            ("multiple_items", lambda changed: changed["target"].__setitem__("maximum_quantity_total", 2)),
+            ("fallback_gate", lambda changed: changed["target"].__setitem__("unaffordable_preferred_permits_fallback", False)),
+            ("fallback_affordability", lambda changed: changed["semantic_effect"].__setitem__("fallback_offer_must_be_current_and_affordable", False)),
+            ("unaffordable_fallback", lambda changed: changed["semantic_effect"].__setitem__("no_affordable_fallback_yields_no_purchase", False)),
+            ("premium", lambda changed: changed["target"].__setitem__("premium_allowed", True)),
+            ("daily_gate", lambda changed: changed["semantic_effect"].__setitem__("daily_screen_or_points_inspection_required", True)),
+        )
+        for field, mutate in mutations:
+            changed = deepcopy(self.records["alliance_shop_purchase"])
+            mutate(changed)
+            changed["record_digest"] = record_digest(changed)
+            with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
+                validate_product_record(changed)
+
+    def test_alliance_choice_uses_fallback_for_unaffordable_preferred_and_never_exceeds_one(self) -> None:
+        weekly = ShopOffer(
+            ALLIANCE_WEEKLY_SHOP,
+            "Bioenhance Scheme",
+            ALLIANCE_CURRENCY,
+            8,
+            7,
+            5,
+            29,
+            available=True,
+        )
+        fallback = ShopOffer(
+            ALLIANCE_OTHER_SHOP,
+            ALLIANCE_FALLBACK_ITEM,
+            ALLIANCE_CURRENCY,
+            3,
+            100,
+            10,
+            11,
+            rarity=1,
+            available=True,
+        )
+        choice = alliance_shop_choice(
+            (weekly,),
+            fallback,
+            weekly_inventory_complete=True,
+            fallback_inventory_complete=True,
+        )
+        self.assertEqual(choice.status, "selected")
+        self.assertEqual(choice.reason, "AFFORDABLE_EXACT_FALLBACK")
+        self.assertEqual(choice.offer, fallback)
+        self.assertEqual(choice.quantity, 1)
+        self.assertTrue(
+            purchase_dialog_matches(
+                fallback,
+                quantity=1,
+                selected_quantity=1,
+                displayed_total=3,
+            )
+        )
+        self.assertFalse(
+            purchase_dialog_matches(
+                fallback,
+                quantity=2,
+                selected_quantity=2,
+                displayed_total=6,
+            )
+        )
+        unaffordable_fallback = ShopOffer(
+            ALLIANCE_OTHER_SHOP,
+            ALLIANCE_FALLBACK_ITEM,
+            ALLIANCE_CURRENCY,
+            3,
+            2,
+            10,
+            11,
+            rarity=1,
+            available=True,
+        )
+        deferred = alliance_shop_choice(
+            (weekly,),
+            unaffordable_fallback,
+            weekly_inventory_complete=True,
+            fallback_inventory_complete=True,
+        )
+        self.assertEqual(deferred.status, "deferred")
+        self.assertIsNone(deferred.offer)
+
+    def test_alliance_donation_limits_and_success_transitions_are_typed(self) -> None:
+        record = self.records["alliance_donation"]
+        target = record["target"]
+        effect = record["semantic_effect"]
+        self.assertEqual(record["record_type"], "alliance_donation")
+        self.assertEqual(record["record_revision"], "alliance_donation-v1")
+        self.assertEqual(target["technology_selection"], "game_automatically_selected_hot_tech")
+        self.assertEqual(target["daily_action_limit"], 10)
+        self.assertEqual(target["attempts_regenerate"], 1)
+        self.assertEqual(target["attempt_regeneration_seconds"], 1_800)
+        self.assertEqual(target["stored_attempt_cap"], 20)
+        self.assertTrue(target["consecutive_available_attempts_allowed"])
+        self.assertFalse(target["unbounded_hold_allowed"])
+        self.assertEqual(effect["daily_success_limit"], 10)
+        self.assertTrue(effect["one_confirmed_action_requires_one_consumed_attempt"])
+        self.assertTrue(effect["one_confirmed_action_requires_positive_current_tech_progress"])
+        self.assertFalse(effect["wait_required_while_attempts_remain"])
+        self.assertFalse(effect["ranking_or_reward_point_counters_are_success_gates"])
+        self.assertFalse(effect["daily_screen_or_points_inspection_required"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        mutations = (
+            ("resource_spend", lambda changed: changed["semantic_effect"].__setitem__("one_confirmed_action_requires_exact_ordinary_resource_spend", False)),
+            ("quota", lambda changed: changed["target"].__setitem__("daily_action_limit", 11)),
+            ("regen", lambda changed: changed["target"].__setitem__("attempt_regeneration_seconds", 900)),
+            ("attempt_cap", lambda changed: changed["target"].__setitem__("stored_attempt_cap", 21)),
+            ("no_consecutive", lambda changed: changed["target"].__setitem__("consecutive_available_attempts_allowed", False)),
+            ("unbounded_hold", lambda changed: changed["target"].__setitem__("unbounded_hold_allowed", True)),
+            ("count_transport", lambda changed: changed["semantic_effect"].__setitem__("count_only_distinct_effect_confirmed_actions", False)),
+            ("rank_gate", lambda changed: changed["semantic_effect"].__setitem__("ranking_or_reward_point_counters_are_success_gates", True)),
+            ("daily_gate", lambda changed: changed["semantic_effect"].__setitem__("daily_screen_or_points_inspection_required", True)),
+        )
+        for field, mutate in mutations:
+            changed = deepcopy(record)
+            mutate(changed)
+            changed["record_digest"] = record_digest(changed)
+            with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
+                validate_product_record(changed)
+
+    def test_daily_shops_bound_both_tabs_and_live_numeric_affordability(self) -> None:
+        record = self.records["daily_shops_purchase"]
+        shops = record["target"]["shops"]
+        self.assertEqual(record["record_type"], "daily_shops_purchase")
+        self.assertEqual(record["record_revision"], "daily_shops_purchase-v1")
+        self.assertEqual(
+            [(shop["shop"], shop["item"], shop["rarity"], shop["currency"]) for shop in shops],
+            [
+                ("RUINS_SHOP", RUINS_CHIP_ITEM, 3, RUINS_CURRENCY),
+                ("RARE_EARTH_SHOP", RARE_EARTH_MODULE_ITEM, 3, RARE_EARTH_CURRENCY),
+            ],
+        )
+        self.assertTrue(record["target"]["one_visit_for_both_tabs"])
+        self.assertTrue(record["target"]["per_tab_result_independent"])
+        self.assertTrue(record["target"]["maximum_quantity_is_current_stock_and_affordability_min"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["both_tabs_evaluated_in_one_visit"])
+        self.assertTrue(effect["per_tab_result_is_independent"])
+        self.assertTrue(effect["quantity_must_equal_current_affordable_stock_cap"])
+        self.assertFalse(effect["daily_screen_or_points_inspection_required"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        ruins = ShopOffer(
+            RUINS_SHOP, RUINS_CHIP_ITEM, RUINS_CURRENCY,
+            7, 100, 4, 0, rarity=3, available=True,
+        )
+        rare_earth = ShopOffer(
+            RARE_EARTH_SHOP, RARE_EARTH_MODULE_ITEM, RARE_EARTH_CURRENCY,
+            9, 22, 20, 0, rarity=3, available=True,
+        )
+        self.assertEqual(daily_shop_quantity(ruins, shop_identity=RUINS_SHOP), 4)
+        self.assertEqual(daily_shop_quantity(rare_earth, shop_identity=RARE_EARTH_SHOP), 2)
+        self.assertTrue(
+            purchase_dialog_matches(
+                rare_earth,
+                quantity=2,
+                selected_quantity=2,
+                displayed_total=18,
+                shop_identity=RARE_EARTH_SHOP,
+            )
+        )
+        self.assertFalse(
+            purchase_dialog_matches(
+                rare_earth,
+                quantity=3,
+                selected_quantity=3,
+                displayed_total=27,
+            )
+        )
+        mutations = (
+            ("wrong_item", lambda changed: changed["target"]["shops"][1].__setitem__("item", "Module Promoter")),
+            ("wrong_rarity", lambda changed: changed["target"]["shops"][0].__setitem__("rarity", 1)),
+            ("stock_only_cap", lambda changed: changed["target"]["shops"][1].__setitem__("quantity_formula", "current_stock")),
+            ("shared_tab_result", lambda changed: changed["target"].__setitem__("per_tab_result_independent", False)),
+            ("skip_buy_without_numeric", lambda changed: changed["semantic_effect"].__setitem__("numeric_quantity_and_total_must_match_before_inner_buy", False)),
+            ("daily_attribution", lambda changed: changed["daily_ownership"].__setitem__("daily_owner", "daily_shops_purchase")),
+            ("less_than_current_cap", lambda changed: changed["semantic_effect"].__setitem__("quantity_must_equal_current_affordable_stock_cap", False)),
+            ("premium", lambda changed: changed["target"].__setitem__("premium_allowed", True)),
+            ("changed_offer", lambda changed: changed["semantic_effect"].__setitem__("changed_or_ambiguous_tab_blocks_without_substitution", False)),
+        )
+        for field, mutate in mutations:
+            changed = deepcopy(record)
+            mutate(changed)
+            changed["record_digest"] = record_digest(changed)
+            with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
+                validate_product_record(changed)
 
     def test_hero_upgrade_candidate_keeps_approved_semantics_fail_closed(self) -> None:
         record = self.records["hero_upgrade"]

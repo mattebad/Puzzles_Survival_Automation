@@ -46,6 +46,9 @@ Product *revision* has two vocabularies that are intentionally not compared: the
 `SchedulerFacts.product_revision`, `automation_service/scheduler.py`), while the policy
 `record_revision` versions the policy record and is only matched by contract bindings.
 
+Tracker #53 is the current planning authority. `BACKLOG.md` retains durable history and is not
+the active route sequence.
+
 ## Checklist for a new service route
 
 1. **Native route** (offline-testable, no ADB at import): semantics and recognition in `tasks/<route>.py`
@@ -132,7 +135,10 @@ Existing layout exceptions:
   second dispatch path. Both remain runtime-disabled and `evidence_required`. The supplied Nov 6
   DailyQuest image shows one 30-point glowing chest, four closed chests, 30 points, and no aggregate
   Claim. Policy handles each of five chest categories independently when glowing, with no 150-point
-  minimum; native readiness is recognized, but chest input is blocked by missing same-chest successor evidence.
+  minimum. A native pass with zero ready chests can complete without an aggregate Claim; after a
+  confirmed aggregate Claim, it requires fresh proof that all five chests are static. A ready chest
+  still requires its same-chest claimed/opened successor; current native readiness is not live
+  completion acceptance.
 * **Batch B Ruins and Alliance Help**: canonical-service-only routes with registered fixed specs and
   injected native bindings; no legacy operator runner or operator-registry row. Queue `NOT_REGISTERED`
   refers only to disabled legacy production posture; SQLite service/flow controls remain off. Both
@@ -140,6 +146,17 @@ Existing layout exceptions:
   zero-cost challenge first, then independent green-ready overview chests even if it is unavailable;
   Help counts actual successful free requests, preserves partial quota, and uses Help All only when
   the exact request count is known.
+* **Batch C Alliance Donation, Alliance Shop, and Daily Shops**: canonical-service-only routes with
+  fixed native bindings; they add no legacy operator registry entries. `REGISTERED` describes code
+  composition only; production posture and SQLite runtime controls remain disabled, and current
+  native acceptance remains `evidence_required`. Donation is capped at ten semantically confirmed
+  actions per reset; attempted transport calls remain separate from confirmed actions, and an
+  unknown effect blocks an identical retry. Alliance Shop selects one affordable allowlisted Weekly
+  offer or the exact one-star Other fallback, never both. Daily Shops handles the exact three-star
+  Ruins Chip and Rare Earth Module tabs independently, at most one purchase action per tab, capped
+  by current stock and affordability. Preserve one tab's confirmed purchase across a later pulse.
+  No current donation quota or purchase-effect live acceptance is claimed; the single donation information probe is not route
+  acceptance.
 * **Campaign budgets**: the service route budget (`CAMPAIGN_MAX_INPUTS`, a whole AP drain) is a different
   fact from the single-battle development-session ceiling in `pnsctl`; the test lists the difference.
 
@@ -176,9 +193,11 @@ and `tests/test_route_metadata_consistency.py` was previously broken one copy at
 fact class fails with a readable message (see the #34 ticket).
 
 The shared service contract covers default controls, restart gating, ownership, partial accounting,
-generation changes, interruption signals, execution reset guards and cross-route selection. Batch B
-adds cases for the real service manager that preserve persisted opaque occurrence keys and partial
-actual counts while exercising borrowed-owner/generation fences and unknown-effect no-retry behavior.
-This coverage description does not state that the focused checks ran or that live acceptance occurred.
+generation changes, interruption signals, execution reset guards and cross-route selection. B and
+C add cases for the real service manager that preserve opaque occurrence keys and actual counts,
+exercise borrowed-owner/generation/lease fences, and deny identical retries after unknown effects.
+C baselines distinguish attempted purchase/donation transports from semantically confirmed actions,
+preserve donation progress across an availability defer, and resume a confirmed Daily Shops tab
+without repurchasing it. The documentation does not claim focused checks or live acceptance ran.
 Recruitment's existing API default when `flow_ids` is omitted remains an explicit
 production-gap exception; the contract still checks explicit `serve --flow` parsing for every route.
