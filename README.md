@@ -7,8 +7,9 @@ the next one.
 
 **Status:** Batches A/B add canonical-only Daily Rewards, Resource Item, Ruins, and Alliance Help
 integration. Code registration is separate from runtime enablement: all remain runtime-disabled,
-with current live acceptance `evidence_required`. Daily's supplied image proves five-chest readiness;
-ready-chest execution still requires a same-chest claimed/opened successor. The
+with current live acceptance `evidence_required`. Complete zero-ready Daily scans can return to
+verified Home, including after a confirmed aggregate Claim. The supplied image proves five-chest
+readiness; ready-chest execution still requires a same-chest claimed/opened successor. The
 [November 2 report](docs/bluestacks-route-status-20261102.md) is historical live evidence, not current
 execution authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
 [`BACKLOG.md`](BACKLOG.md) retains durable history.

@@ -126,7 +126,9 @@ image shows one positively glowing 30-point chest, four other chests closed, 30 
 no aggregate Claim. Daily policy handles five categories individually when visibly glowing,
 with no 150-point minimum. Its native guard observes readiness but blocks ready-chest input until
 same-chest claimed/opened successor evidence is admitted; no full native acceptance is asserted.
-Resource Item's offline adapter/service checks pass; current live acceptance remains `evidence_required`.
+Complete zero-ready scans can close at freshly verified Home, either without an aggregate Claim
+or after its confirmed effect. Resource Item's offline adapter/service checks pass; current live
+acceptance remains `evidence_required`.
 Existing individual effect/Home acceptance, uninterrupted Enhancement proof, independent recruit
 timers, and cadence scope are maintained in [`BACKLOG.md`](../BACKLOG.md), with volatile state in
 the handoff.

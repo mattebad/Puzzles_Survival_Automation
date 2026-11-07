@@ -1431,5 +1431,208 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
         self.assertIn("claimed, opened, or removed", result["reason"])
 
 
+    def _run_fake_static_zero_claim_route(
+        self,
+        root: Path,
+        *,
+        return_home: bool,
+    ) -> tuple[dict[str, object], object, object]:
+        _payload, native_image, native_recognition = self._native_daily_frame()
+        native_scan = daily.recognize_daily_milestone_chests(
+            native_image,
+            native_recognition,
+            source_frame_sha256="a" * 64,
+        )
+        first, second = native_scan["milestones"][:2]
+        fake_image = native_image.copy()
+        x0, y0, x1, y1 = first["target_roi"]
+        sx0, sy0, sx1, sy1 = second["target_roi"]
+        self.assertEqual((x1 - x0, y1 - y0), (sx1 - sx0, sy1 - sy0))
+        # Explicit fake counterfactual: copy one static chest over the glowing slot.
+        fake_image[y0:y1, x0:x1] = native_image[sy0:sy1, sx0:sx1]
+        fake_recognition = daily.DailyRowClaimRecognizer().recognize_daily_claim(
+            fake_image,
+            observed_utc="2026-11-06T21:46:23Z",
+        )
+        self.assertTrue(fake_recognition.recognized)
+        self.assertTrue(fake_recognition.visual_evidence["zero_claim_scan_proven"])
+        fake_payload_ok, fake_payload = cv2.imencode(".png", fake_image)
+        self.assertTrue(fake_payload_ok)
+        fake_sha = hashlib.sha256(fake_payload.tobytes()).hexdigest()
+        fake_scan = daily.recognize_daily_milestone_chests(
+            fake_image,
+            fake_recognition,
+            source_frame_sha256=fake_sha,
+        )
+        self.assertEqual(fake_scan["status"], "observed")
+        self.assertEqual(fake_scan["ready_chest_count"], 0)
+        self.assertEqual(
+            [chest["milestone_state"] for chest in fake_scan["milestones"]],
+            ["not_ready"] * 5,
+        )
+
+        home_image = np.zeros((1280, 800, 3), dtype=np.uint8)
+        unknown_image = np.full((1280, 800, 3), 19, dtype=np.uint8)
+        session_directory = root / "native-session"
+        session_directory.mkdir(parents=True)
+
+        class FakeRuntime:
+            execute = True
+            frame_max_age_seconds = 30.0
+
+            def __init__(self) -> None:
+                self.current_image = fake_image
+                self.input_count = 0
+                self.frame_actions: list[object] = []
+
+            def capture(self, label: str) -> CapturedNativeFrame:
+                return _frame(session_directory, label, image=self.current_image)
+
+            def back(self, _source, *, action_key: str, target_identity: str) -> None:
+                self.input_count += 1
+                self.current_image = home_image if return_home else unknown_image
+
+            @staticmethod
+            def measure_device_state() -> str:
+                return "device"
+
+            @staticmethod
+            def measure_foreground_package() -> str:
+                return "com.global.ztmslg"
+
+        class FakeSession:
+            def __init__(self, runtime: FakeRuntime) -> None:
+                self.runtime = runtime
+                self.input_count = 0
+                self.actions: list[dict[str, object]] = []
+                self.session_directory = session_directory
+
+            def observe(self, capture, *, label: str) -> CapturedNativeFrame:
+                return capture(label)
+
+            def run_action(self, **kwargs):
+                before = kwargs["capture"](f"{kwargs['label']}-immediate-before")
+                if kwargs.get("authorize") is not None:
+                    kwargs["authorize"](before)
+                self.input_count += 1
+                kwargs["dispatch"](before)
+                after = kwargs["capture"](f"{kwargs['label']}-immediate-post")
+                state = kwargs["recognize"](after)
+                if state == daily.UNKNOWN_STATE and kwargs.get("settled_successor"):
+                    after = kwargs["settled_successor"]()
+                    state = kwargs["recognize"](after)
+                status = "completed" if state != daily.UNKNOWN_STATE else "unknown"
+                self.actions.append({"label": kwargs["label"], "state": state})
+                return SimpleNamespace(status=status, reason="replay")
+
+        runtime = FakeRuntime()
+        session = FakeSession(runtime)
+        initial_home = _frame(
+            session_directory,
+            "fake-initial-home",
+            image=home_image,
+        )
+
+        class FakeRouteRecognizer(daily.DailyRowClaimRecognizer):
+            def recognize_home(self, frame: np.ndarray) -> daily.FrameRecognition:
+                if frame is home_image:
+                    return daily.FrameRecognition(
+                        daily.HOME_STATE,
+                        True,
+                        daily.HOME_QUEST_IDENTITY,
+                        (120, 1100, 240, 1200),
+                    )
+                return super().recognize_home(frame)
+
+        context = SimpleNamespace(
+            validate_identity=lambda: None,
+            accounting=lambda: SimpleNamespace(
+                input_count=session.input_count,
+                verified=session.input_count == runtime.input_count,
+            ),
+            runtime=runtime,
+            session=session,
+            action_store=object(),
+            initial_frame=initial_home,
+            is_clean_home=lambda frame: frame is home_image,
+            bind_initial_observation=lambda *_args, **_kwargs: None,
+            utc_clock=time.time,
+            monotonic_clock=time.monotonic,
+            flow_id="daily-rewards-test",
+            identity=SimpleNamespace(
+                account_id="account",
+                server_id="server",
+                reset_id="reset",
+                task_id="daily-rewards-test",
+            ),
+            occurrence_key="occ:v1:daily-rewards-test",
+            invocation_id="daily-rewards-test",
+            owner="daily-rewards-test",
+            settle_seconds=0.0,
+        )
+        with patch.object(
+            daily,
+            "DailyRowClaimRecognizer",
+            FakeRouteRecognizer,
+        ), patch.object(
+            daily,
+            "run_daily_row_reconnaissance",
+            return_value={"status": "observed"},
+        ):
+            result = daily.run_daily_rewards_from_home(
+                context,
+                {"observation_interval_seconds": 3600},
+            )
+        return result, runtime, session
+
+    def test_fake_static_zero_claim_replay_requires_verified_home_and_projects_no_work(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result, runtime, session = self._run_fake_static_zero_claim_route(
+                Path(tmp),
+                return_home=True,
+            )
+
+        self.assertEqual(result["status"], "completed")
+        self.assertTrue(result["no_work"])
+        self.assertTrue(result["terminal_home_verified"])
+        self.assertTrue(result["accounting_verified"])
+        self.assertEqual(result["total_action_count"], 0)
+        self.assertEqual(result["aggregate_claim"]["status"], "none")
+        self.assertEqual(result["milestone_scan"]["status"], "verified")
+        self.assertEqual(result["milestone_scan"]["ready_chest_count"], 0)
+        self.assertEqual(result["milestone_scan"]["ready_chest_keys"], [])
+        static_keys = result["milestone_scan"]["static_or_locked_chest_keys"]
+        self.assertEqual(len(static_keys), 5)
+        self.assertEqual(len(set(static_keys)), 5)
+        self.assertEqual(
+            result["no_work_evidence"]["static_or_locked_chest_keys"],
+            static_keys,
+        )
+        self.assertEqual(
+            result["no_work_evidence"]["source_frame_sha256"],
+            result["milestone_scan"]["source_frame_sha256"],
+        )
+        self.assertEqual(result["no_work_evidence"]["ordinary_claim_controls"], 0)
+        self.assertEqual(runtime.input_count, session.input_count)
+
+    def test_fake_static_zero_claim_replay_does_not_invent_home_on_unknown_successor(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result, runtime, session = self._run_fake_static_zero_claim_route(
+                Path(tmp),
+                return_home=False,
+            )
+
+        self.assertNotEqual(result["status"], "completed")
+        self.assertFalse(result["no_work"])
+        self.assertFalse(result["terminal_home_verified"])
+        self.assertNotIn("terminal_home_frame", result)
+        self.assertIn("clean Home return", result["reason"])
+        self.assertEqual(runtime.input_count, session.input_count)
+
+
 if __name__ == "__main__":
     unittest.main()
