@@ -229,6 +229,10 @@ persists its original deadline (at most 90 seconds), one Confirm intent and at m
 game launch across processes, routes and UTC resets. Intent is committed before transport. Persistent
 or unknown outcomes stop without an identical retry or budget renewal. No force-stop, resource spend,
 login handling or generic Confirm is authorized.
+After Confirm, dismissal may first expose the interrupted screen with a loading spinner.
+That unknown successor permits observation only until the original deadline, not another input
+or readiness. Manual states and unrelated modals still stop immediately.
+
 
 A successful reconnect still needs fresh clean Home or an exact owned startup overlay. The service
 records its actual game input separately from system launch and zero route actions, defers that claim,
@@ -243,8 +247,22 @@ never silently cleared.
 For standalone operator qualification with all controls disabled and no service owner/run, use
 `python scripts/pnsctl.py development-session recover-network --live --yes` under current explicit
 authorization. It requires the existing canonical database and records its bounded result/captures.
-The retained November 7 dialog is recognition evidence only: Confirm's real successor/relaunch and
-finished-route recovery remain `evidence_required`; no live input or scheduling enablement is claimed.
+The authorized November 7 native canary sent exactly one Confirm, zero launches and zero spend.
+Its immediate successor was the Daily Quest screen plus a loading spinner, so the old guard
+stopped as `unexpected_successor`. The source, immediate-before, transport, after and terminal
+records remain under `recover-network-20261107T205836212809Z`. A later zero-input observation
+showed Home outside the original deadline; it does not make that canary accepted.
+Actual-capture replay now proves bounded observation through loading to Home offline.
+Finished native recovery, launcher and recovered-route acceptance remain `evidence_required`.
+
+For explicit operator inspection of that returned zero-cost navigation only, use
+`python scripts/pnsctl.py development-session recover-network --inspect-only --live --yes`.
+The same disabled-control/exclusive-owner admission applies. No input or launch is possible.
+Two fresh Home captures, the exact own Confirm record, returned transport, no relaunch, and
+no uncertain gameplay effect are required. Existing Core reconciliation and the canonical
+episode transition record the inspection; they never clear an uncertain consequential action.
+The original source, deadline, counters and raw failed receipt are retained. The new receipt
+states `original_canary_accepted=false` and requires a fresh invocation, not replay of old work.
 
 If UTC reset changes during startup before the native runner enters, a genuine checkpoint reset
 signal can defer the old claim with zero gameplay consumption. Owner, control, clock, lease,

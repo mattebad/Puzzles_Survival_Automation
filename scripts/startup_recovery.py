@@ -1833,8 +1833,12 @@ def recover_network_disconnect(
             clear = not (after.get("recognized") or after.get("blocking_unknown_modal"))
             acknowledged = clear and observed in connected_contexts | {"BLUESTACKS_LAUNCHER"} and budget_open()
             holder["context"] = observed
-            if acknowledged or not after.get("recognized") or (
-                utc_clock() >= episode.deadline_at_utc or monotonic_clock() >= mono_deadline
+            # Removing the popup can first expose a loading frame over the
+            # interrupted route. Observe only; never resend Confirm or infer
+            # readiness from dismissal. Manual/other-modal states stop now.
+            if acknowledged or observed == "MANUAL_REQUIRED" or after.get("blocking_unknown_modal") or (
+                index == polls - 1
+                or utc_clock() >= episode.deadline_at_utc or monotonic_clock() >= mono_deadline
             ):
                 return (Observation(
                     frame_sha256=post.sha256,
@@ -1883,3 +1887,114 @@ def recover_network_disconnect(
         record("RECOVERED", "network_connected_context_verified")
         return finish("recovered", "network_connected_context_verified")
     return launch_known_launcher()
+
+
+def inspect_network_disconnect_context(
+    runtime: LocalBlueStacksRuntime, *, state_manager: BotStateManager,
+    action_store: SafetyStore, owner: str, checkpoint: Callable[[], None],
+    observe_context: Callable[[CapturedNativeFrame], str], scope_key: str,
+    authorization: str, utc_clock: Callable[[], float] = time.time,
+) -> dict[str, object]:
+    """Explicit zero-input inspection, never acceptance of the original run.
+
+    Only a returned, zero-cost Confirm with no relaunch can be reconciled.
+    Its original deadline, counters, source and raw receipt remain unchanged.
+    Ordinary recovery never calls this path or silently resolves UNKNOWN.
+    """
+    if not isinstance(authorization, str) or not authorization.strip():
+        raise ValueError("current network inspection authorization is required")
+    if runtime.input_count != 0 or runtime.max_inputs != 0:
+        raise ValueError("network context inspection requires a zero-input runtime")
+    checkpoint()
+    episode = state_manager.get_network_recovery(scope_key)
+    result: dict[str, object] = {
+        "status": "blocked", "reason": "network_episode_not_inspectable",
+        "authorization": authorization, "input_count": 0, "game_input_count": 0,
+        "system_launch_count": 0, "route_ready": False,
+        "original_canary_accepted": False, "fresh_invocation_required": True,
+        "scope_key": scope_key,
+    }
+    path = runtime.session / "network-context-inspection.json"
+    result["result_path"] = str(path)
+
+    def finish(reason: str) -> dict[str, object]:
+        result["reason"] = reason
+        with path.open("x", encoding="utf-8") as stream:
+            json.dump(result, stream, indent=2, sort_keys=True)
+            stream.write("\n")
+        return result
+
+    if (episode is None or episode.status != "MANUAL_REQUIRED"
+            or episode.confirm_attempts != 1 or episode.confirm_transport_status != "returned"
+            or episode.relaunch_attempts != 0 or episode.relaunch_transport_status != "not_attempted"):
+        return finish("network_episode_not_inspectable")
+    result.update({
+        "episode_id": episode.episode_id, "original_deadline_at_utc": episode.deadline_at_utc,
+        "original_source_sha256": episode.source_frame_hash,
+    })
+    if action_store.has_action_block() or not action_store.lease_valid_for(owner, utc_clock()):
+        return finish("prior_effect_or_owner_requires_inspection")
+    key = f"network-recovery:{episode.episode_id}:confirm"
+    row = action_store.get_action_by_key(key)
+    if row is None:
+        return finish("network_confirm_record_unavailable")
+    try:
+        transport = json.loads(row["transport_result_json"] or "{}")
+    except (TypeError, ValueError):
+        return finish("network_confirm_transport_not_verified")
+    if (row["final_status"] not in {"unresolved", "confirmed"}
+            or row["task_id"] != "RUNTIME-NETWORK-DISCONNECT-RECOVERY"
+            or row["semantic_action"] != "RECOVER_NETWORK_DISCONNECT"
+            or row["source_state"] != NETWORK_DISCONNECT_IDENTITY
+            or row["target_identity"] != NETWORK_DISCONNECT_TARGET
+            or row["expected_postcondition"] != "NETWORK_RECONNECT_ACKNOWLEDGED"
+            or row["runtime_profile_id"] != NATIVE_RUNTIME_PROFILE_ID
+            or row["consequential"] != 0 or row["cost_type"] != "none"
+            or row["cost_amount"] != 0 or row["quantity"] != 1
+            or not isinstance(transport, dict) or transport.get("dispatched") is not True
+            or transport.get("transport_code") != "NETWORK_CONFIRM_DISPATCHED"):
+        return finish("network_confirm_not_inspectable")
+    captures = []
+    for ordinal in range(2):
+        checkpoint()
+        captured = runtime.capture(f"network-context-inspection-{ordinal}")
+        captures.append(captured)
+        result["terminal_frame"] = str(captured.path)
+        result["terminal_sha256"] = captured.sha256
+        if not _contextual_startup_frame_valid(captured, after=captures[-2] if ordinal else None):
+            return finish("network_inspection_capture_not_fresh")
+        detail = recognize_network_disconnect(captured.frame)
+        if (detail.get("recognized") or detail.get("blocking_unknown_modal")
+                or observe_context(captured) != "HOME_BASE"
+                or not _contextual_startup_frame_valid(captured, after=captures[-2] if ordinal else None)):
+            return finish("network_inspection_requires_fresh_home")
+        checkpoint()
+    now = utc_clock()
+    if (action_store.has_action_block() or not action_store.lease_valid_for(owner, now)
+            or not _contextual_startup_frame_valid(captures[-1], after=captures[-2])):
+        return finish("network_inspection_context_owner_or_effect_changed")
+    evidence = {
+        "confirmed": True, "operator_inspection": "network_home_context",
+        "episode_id": episode.episode_id, "authorization": authorization,
+        "original_canary_accepted": False,
+        "after_original_deadline": now >= episode.deadline_at_utc,
+        "input_count": 0, "system_launch_count": 0,
+        "frames": [{"path": str(c.path), "sha256": c.sha256} for c in captures],
+    }
+    # Core's existing reconciliation retains the earlier transition in audit;
+    # the immutable native receipt is not edited or reclassified as accepted.
+    if row["final_status"] == "unresolved":
+        action_store.reconcile_confirmed(row["action_id"], now, evidence)
+    action_store.audit(row["task_id"], "operator_network_context_inspection", now,
+                       evidence, row["action_id"])
+    updated = state_manager.update_network_recovery(
+        episode.episode_id, expected_row_version=episode.row_version,
+        status="RECOVERED", last_frame_hash=captures[-1].sha256,
+        reason="operator_inspected_fresh_home_not_original_run_acceptance",
+        now_utc_epoch=now,
+    )
+    if updated is None:
+        return finish("network_inspection_state_fence_rejected")
+    result["status"] = "inspected_connected_context"
+    result["after_original_deadline"] = evidence["after_original_deadline"]
+    return finish("operator_inspected_fresh_home_not_original_run_acceptance")

@@ -30,7 +30,9 @@ Shared exact `[10054]` disconnect recovery (#104) is implemented and offline-pro
 canonical owner/Core/SQLite boundaries. Explicit opt-in permits at most one Confirm and one
 launcher-only start per persistent episode; unknown results stop, and gameplay needs a fresh claim
 and route context. Default startup cannot bypass the dialog as “already foreground.”
-The actual Confirm successor and recovery remain `evidence_required`; controls remain disabled.
+The first authorized live Confirm exposed a loading successor and stopped safely; actual-capture
+replay now covers settling to Home. Explicit zero-input inspection is separate from original-run
+acceptance. Native recovery acceptance remains `evidence_required`; controls remain disabled.
 
 
 ## Routes

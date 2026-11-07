@@ -859,12 +859,14 @@ def _network_dialog(frame_bytes: bytes) -> dict[str, Any]:
 
 
 def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_directory,
-                                  state_manager, allow_relaunch: bool) -> dict[str, Any]:
+                                  state_manager, allow_relaunch: bool, inspect_only: bool = False) -> dict[str, Any]:
     from automation_service.state import BotStateManager
     from scripts.navigation_development_boundary import RuntimeInputLock, open_canonical_action_store
     from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
     from scripts.startup_normalization import is_clean_home_frame
-    from scripts.startup_recovery import classify_startup_frame, recover_network_disconnect
+    from scripts.startup_recovery import (
+        classify_startup_frame, recover_network_disconnect, inspect_network_disconnect_context,
+    )
     from tasks.runtime_identity import FIXED_RUNTIME_SCOPE
 
     if (not isinstance(runtime_input_lock, RuntimeInputLock) or not runtime_input_lock.held
@@ -892,9 +894,9 @@ def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_dir
         fenced()
         runtime = LocalBlueStacksRuntime.connect(
             adb=str(BLUESTACKS_ADB), serial=BLUESTACKS_SERIAL,
-            output_directory=Path(session_directory), workflow="network-recovery", execute=True,
+            output_directory=Path(session_directory), workflow="network-recovery", execute=not inspect_only,
         )
-        runtime.max_inputs = min(runtime.max_inputs, 1)
+        runtime.max_inputs = 0 if inspect_only else min(runtime.max_inputs, 1)
         runtime.checkpoint = fenced
 
         def context(captured):
@@ -939,6 +941,13 @@ def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_dir
             launches = started.get("system_launch_count")
             return started
 
+        if inspect_only:
+            return inspect_network_disconnect_context(
+                runtime, state_manager=state_manager, action_store=store, owner=owner,
+                checkpoint=fenced, observe_context=context, scope_key=FIXED_RUNTIME_SCOPE,
+                authorization="Current operator explicitly selected capture-only inspection of its prior zero-cost network Confirm: zero inputs, zero launches, no original-run acceptance.",
+            )
+
         return recover_network_disconnect(
             runtime, state_manager=state_manager, action_store=store, owner=owner,
             checkpoint=fenced, observe_context=context, relaunch=relaunch,
@@ -974,8 +983,8 @@ def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_dir
             store.close()
 
 
-def development_session_recover_network(*, live: bool, yes: bool) -> str:
-    """Run only the explicitly authorized finite recovery, with gameplay off."""
+def development_session_recover_network(*, live: bool, yes: bool, inspect_only: bool = False) -> str:
+    """Run finite recovery or explicit zero-input inspection, with gameplay off."""
     if not live or not yes:
         raise OperatorError("recover-network requires explicit --live --yes")
     from automation_service.state import BotStateManager
@@ -985,7 +994,8 @@ def development_session_recover_network(*, live: bool, yes: bool) -> str:
     if existing_state.resolve() != BotStateManager.DEFAULT_DB_PATH.resolve() or not existing_state.is_file():
         raise OperatorError("network recovery requires the existing canonical state database")
 
-    invocation_id = f"recover-network-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    operation = "inspect-network" if inspect_only else "recover-network"
+    invocation_id = f"{operation}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
     with RuntimeInputLock(owner="pnsctl-development-session:recover-network", invocation_id=invocation_id) as lock:
         with BotStateManager() as state:
             def checkpoint():
@@ -998,11 +1008,20 @@ def development_session_recover_network(*, live: bool, yes: bool) -> str:
                         ).fetchone()):
                     raise OperatorError("standalone network recovery requires disabled controls and no service operator")
             checkpoint()
-            result = owner_bound_application_startup(
-                runtime_input_lock=lock, checkpoint=checkpoint,
-                session_directory=_development_session_directory(invocation_id),
-                require_ready=True, network_recovery=True, state_manager=state,
-            )
+            if inspect_only:
+                result = _owner_bound_network_recovery(
+                    runtime_input_lock=lock, checkpoint=checkpoint,
+                    session_directory=_development_session_directory(invocation_id),
+                    state_manager=state, allow_relaunch=False, inspect_only=True,
+                )
+                if result.get("status") != "inspected_connected_context":
+                    raise ApplicationStartupError(str(result.get("reason")), result)
+            else:
+                result = owner_bound_application_startup(
+                    runtime_input_lock=lock, checkpoint=checkpoint,
+                    session_directory=_development_session_directory(invocation_id),
+                    require_ready=True, network_recovery=True, state_manager=state,
+                )
     return json.dumps(result, sort_keys=True)
 
 
@@ -3437,6 +3456,10 @@ def parser() -> argparse.ArgumentParser:
     )
     development_reconnect.add_argument("--live", action="store_true")
     development_reconnect.add_argument("--yes", action="store_true")
+    development_reconnect.add_argument(
+        "--inspect-only", action="store_true",
+        help="zero-input fresh-Home inspection of its own returned Confirm; not original-run acceptance",
+    )
     delegated_dry_run = development_sub.add_parser("delegated-dry-run")
     delegated_dry_run.add_argument("--delegated-receipt", type=Path, required=True)
     delegated_dry_run.add_argument("--agent-identity", required=True)
@@ -3604,7 +3627,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     cold_restart=bool(args.cold_restart),
                 )
             elif args.development_command == "recover-network":
-                output = development_session_recover_network(live=bool(args.live), yes=bool(args.yes))
+                output = development_session_recover_network(
+                    live=bool(args.live), yes=bool(args.yes), inspect_only=bool(args.inspect_only),
+                )
             elif args.development_command == "delegated-dry-run":
                 output = development_session_delegated_dry_run(
                     receipt_state=args.delegated_receipt,

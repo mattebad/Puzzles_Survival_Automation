@@ -608,6 +608,106 @@ class NetworkDisconnectRecoveryTests(unittest.TestCase):
         self.assert_no_input(env, reopened, rows_before=prepared)
         self.assert_gameplay_untouched(env)
 
+    def test_loading_after_confirm_settles_without_another_input_or_new_deadline(self):
+        for destination in (HOME, LAUNCHER):
+            with self.subTest(destination=destination):
+                env = self.environment(EXACT, after_tap=UNKNOWN)
+                def finish_loading():
+                    if (env.device.taps and isinstance(env.device.current, int)
+                            and env.device.current == UNKNOWN and env.clock.offset >= 3):
+                        env.device.current = destination
+                env.device.hooks.append(finish_loading)
+                result = env.recover(timeout_seconds=30, poll_seconds=1)
+                self.assertEqual(result["status"], "recovered")
+                self.assertTrue(result["route_ready"])
+                self.assertEqual(env.device.taps, [(400, 711)])
+                self.assertEqual(result["game_input_count"], 1)
+                self.assertEqual(result["system_launch_count"], int(destination == LAUNCHER))
+                self.assertEqual(env.episode().deadline_at_utc, env.episode().started_at_utc + 30)
+                self.assertEqual(env.network_rows()[0]["final_status"], "confirmed")
+                self.assertGreaterEqual(env.clock.offset, 3)
+                self.assert_gameplay_untouched(env)
+
+    def test_manual_or_unrecognized_modal_after_confirm_stops_before_later_home(self):
+        for destination in (MANUAL, WRONG_CODE):
+            with self.subTest(destination=str(type(destination))):
+                env = self.environment(EXACT, after_tap=destination)
+                def later_home():
+                    if env.clock.offset >= 3:
+                        env.device.current = HOME
+                env.device.hooks.append(later_home)
+                result = env.recover(timeout_seconds=30, poll_seconds=1)
+                self.assertFalse(result["route_ready"])
+                self.assertEqual(result["status"], "unresolved")
+                self.assertEqual(env.clock.offset, 1)
+                self.assertEqual(env.device.taps, [(400, 711)])
+                self.assertEqual(env.relaunch.calls, [])
+                self.assertEqual(env.network_rows()[0]["final_status"], "unresolved")
+                self.assert_gameplay_untouched(env)
+    def test_explicit_inspection_reconciles_only_fresh_home_without_accepting_original_run(self):
+        env = self.environment(EXACT, after_tap=UNKNOWN)
+        original = env.recover(timeout_seconds=3, poll_seconds=1)
+        raw_path = Path(original["result_path"])
+        raw_bytes = raw_path.read_bytes()
+        original_episode = env.episode()
+        env.clock.advance(1)
+        env.device.current = HOME
+        env.restart_process()
+        env.runtime.max_inputs = 0
+        inspected = recovery.inspect_network_disconnect_context(
+            env.runtime, state_manager=env.state, action_store=env.store, owner=OWNER,
+            checkpoint=env.checkpoint, observe_context=observe, scope_key=SCOPE,
+            authorization="Current operator explicitly requests zero-input inspection",
+            utc_clock=env.clock.utc,
+        )
+        self.assertEqual(inspected["status"], "inspected_connected_context")
+        self.assertFalse(inspected["route_ready"])
+        self.assertFalse(inspected["original_canary_accepted"])
+        self.assertTrue(inspected["after_original_deadline"])
+        self.assertEqual((inspected["input_count"], inspected["system_launch_count"]), (0, 0))
+        self.assertEqual(env.device.taps, [(400, 711)])
+        self.assertEqual(raw_path.read_bytes(), raw_bytes)
+        self.assertEqual(env.episode().deadline_at_utc, original_episode.deadline_at_utc)
+        self.assertEqual(env.episode().source_frame_hash, original_episode.source_frame_hash)
+        self.assertEqual((env.episode().confirm_attempts, env.episode().relaunch_attempts), (1, 0))
+        self.assertEqual(env.network_rows()[0]["final_status"], "confirmed")
+        self.assertEqual(env.episode().status, "RECOVERED")
+        self.assert_gameplay_untouched(env)
+
+    def test_inspection_cannot_resolve_uncertain_transport_relaunch_manual_or_gameplay(self):
+        for case in ("transport", "relaunch", "manual", "modal", "gameplay"):
+            with self.subTest(case=case):
+                env = self.environment(EXACT, after_tap=LAUNCHER if case == "relaunch" else UNKNOWN)
+                env.device.transport_failure = case == "transport"
+                if case == "relaunch":
+                    env.relaunch.lands_on = UNKNOWN
+                env.recover(timeout_seconds=3, poll_seconds=1)
+                env.device.current = MANUAL if case == "manual" else WRONG_CODE if case == "modal" else HOME
+                if case == "gameplay":
+                    env.store.prepare_action(intent("inspection-blocker", "day:unresolved-effect"), APPROVED, NOW)
+                    env.store.mark_input_sent("inspection-blocker", NOW, TransportResult(True, "OK"))
+                    env.store.mark_unresolved("inspection-blocker", NOW, "result_not_observed")
+                rows = env.network_rows()
+                episode = env.episode()
+                taps = list(env.device.taps)
+                launches = list(env.relaunch.calls)
+                env.new_runtime()
+                env.runtime.max_inputs = 0
+                inspected = recovery.inspect_network_disconnect_context(
+                    env.runtime, state_manager=env.state, action_store=env.store, owner=OWNER,
+                    checkpoint=env.checkpoint, observe_context=observe, scope_key=SCOPE,
+                    authorization="Current operator explicitly requests zero-input inspection",
+                    utc_clock=env.clock.utc,
+                )
+                self.assertEqual(inspected["status"], "blocked")
+                self.assertFalse(inspected["original_canary_accepted"])
+                self.assertEqual(env.device.taps, taps)
+                self.assertEqual(env.relaunch.calls, launches)
+                self.assertEqual(env.network_rows(), rows)
+                self.assertEqual(env.episode(), episode)
+                self.assert_gameplay_untouched(env)
+
+
     def test_unknown_or_persistent_result_after_sent_input_stays_unresolved_with_one_intent(self):
         for name, after, transport_failure, transport in (
             ("persistent popup", EXACT, False, NetworkRecoveryTransportStatus.RETURNED),
