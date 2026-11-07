@@ -38,7 +38,7 @@ from scripts.navigation_development_boundary import (
     RuntimeInputLock,
     open_canonical_action_store,
 )
-from scripts.startup_recovery import recover_contextual_startup_overlay
+from scripts.startup_recovery import recover_contextual_startup_overlay, require_network_clear
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 from safe_action_core.path_safety import UnsafePathError, require_no_untrusted_symlinks
@@ -488,6 +488,7 @@ class _BoundNativeRoute:
                     raise NativeExecutionError("native runtime input budget is invalid")
                 runtime.max_inputs = min(runtime_budget, request.max_inputs)
                 runtime.checkpoint = checkpoint
+                runtime.observation_guard = require_network_clear
                 checkpoint()
                 context = _NativeRouteContext(
                     request,

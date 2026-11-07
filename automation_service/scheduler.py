@@ -24,6 +24,7 @@ from .contracts import (
     FlowSpec,
     NormalizedOutcome,
     NormalizedResult,
+    OccurrenceDisposition,
     PerceptionEnvelope,
     RecurrenceClass,
     RecurrenceProjection,
@@ -953,6 +954,7 @@ class _CanonicalPulseCoordinator:
         next_due_at_utc: float | None = None,
         retry_not_before_utc: float | None = None,
         accepted_projection_key: str | None = None,
+        occurrence_disposition: OccurrenceDisposition = OccurrenceDisposition.CONSUME,
     ) -> RunRecord:
         """Project one terminal result through the canonical state authority."""
 
@@ -976,6 +978,8 @@ class _CanonicalPulseCoordinator:
             kwargs["retry_not_before_utc"] = retry_not_before_utc
         if accepted_projection_key is not None:
             kwargs["accepted_projection_key"] = accepted_projection_key
+        if occurrence_disposition is not OccurrenceDisposition.CONSUME:
+            kwargs["occurrence_disposition"] = occurrence_disposition
         projected = project(run.run_id, terminal_state, **kwargs)
         if projected is None:
             raise TerminalProjectionError("TERMINAL_CAS_FAILED")
@@ -1514,6 +1518,11 @@ class _CanonicalPulseCoordinator:
                         )
                         if terminal_state is RunState.SUCCEEDED
                         else None
+                    ),
+                    occurrence_disposition=(
+                        normalized.occurrence_disposition
+                        if terminal_state is RunState.DEFERRED
+                        else OccurrenceDisposition.CONSUME
                     ),
                     now=now,
                 )

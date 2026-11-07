@@ -41,7 +41,7 @@ from .adapters import (
     FakeDeviceAdapter,
     SupervisedBlueStacksAdapter,
 )
-from .contracts import FlowSpec, PerceptionEnvelope, SchedulerFacts, ServiceMode
+from .contracts import FlowSpec, OccurrenceDisposition, PerceptionEnvelope, SchedulerFacts, ServiceMode
 from .handlers import (
     CampaignApSelectionHandler,
     DisabledHandler,
@@ -966,6 +966,63 @@ class AutomationService:
                     checkpoint()
                     if self.application_startup is not None:
                         startup_result = self.application_startup(flow_id, run.run_id, owner, checkpoint)
+                        if isinstance(startup_result, dict) and startup_result.get("status") == "network_recovered":
+                            from tasks.runtime_identity import FIXED_RUNTIME_SCOPE
+                            recovery = startup_result.get("network_recovery")
+                            count = startup_result.get("game_input_count")
+                            launches = startup_result.get("system_launch_count")
+                            if (not isinstance(recovery, dict) or recovery.get("status") != "recovered"
+                                    or recovery.get("scope_key") != FIXED_RUNTIME_SCOPE
+                                    or recovery.get("accounting_verified") is not True
+                                    or recovery.get("unresolved_action") is not False
+                                    or recovery.get("route_ready") is not True
+                                    or startup_result.get("route_ready") is not True
+                                    or type(count) is not int or count not in (0, 1)
+                                    or type(recovery.get("game_input_count")) is not int
+                                    or type(recovery.get("input_count")) is not int
+                                    or recovery.get("game_input_count") != count
+                                    or recovery.get("input_count") != count
+                                    or type(launches) is not int or launches not in (0, 1)
+                                    or type(recovery.get("system_launch_count")) is not int
+                                    or not isinstance(recovery.get("source_sha256"), str)
+                                    or len(recovery["source_sha256"]) != 64
+                                    or any(c not in "0123456789abcdef" for c in recovery["source_sha256"])
+                                    or not 0 <= recovery["system_launch_count"] <= launches):
+                                raise ServiceError("APPLICATION_NETWORK_RECOVERY_ACCOUNTING_INVALID")
+                            episode = state.get_network_recovery(FIXED_RUNTIME_SCOPE)
+                            if (count or recovery["system_launch_count"]) and (
+                                episode is None or episode.episode_id != recovery.get("episode_id")
+                                or episode.status != "RECOVERED"
+                                or episode.source_frame_hash != recovery.get("episode_source_sha256")
+                                or episode.last_frame_hash != recovery.get("terminal_sha256")
+                                or count and (episode.confirm_attempts != 1
+                                              or episode.confirm_transport_status != "returned")
+                                or recovery["system_launch_count"] and (
+                                    episode.relaunch_attempts != 1
+                                    or episode.relaunch_transport_status != "returned")
+                            ):
+                                raise ServiceError("APPLICATION_NETWORK_RECOVERY_EPISODE_INVALID")
+                            checkpoint_fences()
+                            require_canonical_unresolved_clear()
+                            now = clock()
+                            result = {
+                                "status": "deferred_network_recovery", "native_runner_entered": False,
+                                "accounting_verified": True, "input_count": count, "total_input_count": count,
+                                action_count_field: 0, "committed_action_count": 0,
+                                "account_id": account_id, "server_id": server_id, "reset_id": identity.reset_id,
+                                "completed_at_utc": now, "application_startup": startup_result,
+                                "network_recovery": recovery, "system_launch_count": launches,
+                            }
+                            record_consumption()
+                            executor_results[flow_id] = result
+                            # Recovery is not this route's gameplay success. Close
+                            # the prelude, then claim/revalidate a fresh route context.
+                            return NormalizedResult(
+                                NormalizedOutcome.DEFERRED, "NETWORK_RECOVERY_CONTEXT_REFRESH_REQUIRED",
+                                verified=False, next_eligible_at=now + 1.0, action_count=0,
+                                observed_progress=result,
+                                occurrence_disposition=OccurrenceDisposition.PRESERVE_FOR_FRESH_CONTEXT,
+                            )
                         if (not isinstance(startup_result, dict)
                                 or type(startup_result.get("system_launch_count")) is not int
                                 or startup_result["system_launch_count"] not in (0, 1)
@@ -1467,6 +1524,27 @@ class AutomationService:
                     partial_result = getattr(exc, "partial_result", None)
                     if isinstance(partial_result, dict):
                         result = partial_result
+                    if not runner_entered and not result and isinstance(startup_result, dict):
+                        recovery = startup_result.get("network_recovery")
+                        count = startup_result.get("game_input_count")
+                        if (isinstance(recovery, dict) and recovery.get("accounting_verified") is True
+                                and type(count) is int and count in (0, 1)
+                                and type(recovery.get("game_input_count")) is int
+                                and type(recovery.get("input_count")) is int
+                                and recovery.get("game_input_count") == count
+                                and recovery.get("input_count") == count):
+                            from tasks.runtime_identity import FIXED_RUNTIME_SCOPE
+                            episode = state.get_network_recovery(FIXED_RUNTIME_SCOPE)
+                            if (recovery.get("scope_key") == FIXED_RUNTIME_SCOPE
+                                    and (not count or episode is not None
+                                         and episode.confirm_attempts == 1
+                                         and recovery.get("episode_id") in (None, episode.episode_id))):
+                                result = {
+                                    "status": "network_recovery_requires_inspection",
+                                    "native_runner_entered": False, "accounting_verified": True,
+                                    "input_count": count, "total_input_count": count, action_count_field: 0,
+                                    "committed_action_count": 0, "network_recovery": recovery,
+                                }
                     accounting_error = None
                     if result and not accounted:
                         try:

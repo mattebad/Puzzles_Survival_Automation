@@ -930,6 +930,30 @@ class CentralPolicy:
             return deny, "INVALID_PERCEPTION_BINDING", "OCR reuse must identify an earlier completed capture"
         if any(not name or not SHA256.fullmatch(digest) for name, digest in obs.critical_roi_hashes):
             return deny, "INVALID_PERCEPTION_BINDING", "critical ROI bindings are missing or malformed"
+        if (
+            req.task_id == "RUNTIME-NETWORK-DISCONNECT-RECOVERY"
+            or req.semantic_action == "RECOVER_NETWORK_DISCONNECT"
+            or obs.source_state == "NETWORK_DISCONNECTED_10054"
+            or obs.overlay_state == "network_disconnect_10054"
+            or obs.target_identity == "network-disconnect-confirm"
+        ):
+            if not (
+                req.task_id == "RUNTIME-NETWORK-DISCONNECT-RECOVERY"
+                and req.semantic_action == "RECOVER_NETWORK_DISCONNECT"
+                and req.action_class is ActionClass.NAVIGATION_ONLY
+                and obs.source_state == "NETWORK_DISCONNECTED_10054"
+                and obs.overlay_state == "network_disconnect_10054"
+                and obs.target_identity == "network-disconnect-confirm"
+                and obs.control_class == "POPUP_DISMISS_CONFIRM"
+                and obs.expected_postcondition == "NETWORK_RECONNECT_ACKNOWLEDGED"
+                and {"network_disconnect_dialog", "network_disconnect_confirm"}
+                <= {name for name, _digest in obs.critical_roi_hashes}
+                and obs.target_roi is not None
+                and len(obs.target_roi) == 4
+                and 250 <= obs.target_roi[0] < obs.target_roi[2] <= 550
+                and 630 <= obs.target_roi[1] < obs.target_roi[3] <= 790
+            ):
+                return deny, "NETWORK_RECONNECT_NOT_EXACT", "only the exact zero-cost 10054 recovery Confirm is admitted"
         if req.action_class is ActionClass.OWNED_ITEM_NON_IDEMPOTENT:
             if is_approved_base_route_request(req):
                 return deny, "APPROVED_BASE_ROUTE_ACTION_CLASS_NOT_ALLOWED", (
@@ -947,6 +971,9 @@ class CentralPolicy:
             ) and not (
                 req.semantic_action == "DISMISS_ALLIANCE_FORT_WAVE"
                 and obs.overlay_state == "alliance_fort_wave_alert"
+            ) and not (
+                req.semantic_action == "RECOVER_NETWORK_DISCONNECT"
+                and obs.overlay_state == "network_disconnect_10054"
             ):
                 return deny, "UNKNOWN_OVERLAY", "overlay state is not an exact clear state"
         if not obs.target_identity or not obs.target_roi:

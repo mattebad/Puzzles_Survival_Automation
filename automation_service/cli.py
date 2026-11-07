@@ -80,6 +80,8 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("summary")
     serve = subparsers.add_parser("serve")
     serve.add_argument("--live", action="store_true", help="explicitly permit the selected native routes")
+    serve.add_argument("--recover-network-disconnect", action="store_true",
+                       help="authorize one exact10054 Confirm and at most one permitted game launch per persistent episode")
     serve.add_argument("--flow", action="append", choices=tuple(servable_flow_names()), required=True,
                        help="required route to serve; repeat to select routes")
     serve.add_argument("--campaign-stage", default="1-15-9")
@@ -283,6 +285,9 @@ def main(
             "supervised mode requires the executor-bound BlueStacks adapter",
             file=sys.stderr,
         )
+        return 2
+    if args.command == "serve" and args.recover_network_disconnect and not native_serve:
+        print("network recovery requires the supervised native --live boundary", file=sys.stderr)
         return 2
     adapter = None if native_serve else _adapter(args.adapter)
     state_path = Path(resolve_state_path(args.state_path))
@@ -706,10 +711,14 @@ def main(
                         raise ServiceError("native application startup requires the fixed BlueStacks runtime")
                     startup_root = (args.output_directory or state_path.parent / "application-startup")
                     def service_startup(flow_id, run_id, runtime_input_lock, checkpoint):
+                        recovery_options = (
+                            {"network_recovery": True, "state_manager": state}
+                            if args.recover_network_disconnect else {}
+                        )
                         return application_startup(
                             runtime_input_lock=runtime_input_lock, checkpoint=checkpoint,
                             session_directory=_application_startup_directory(Path(startup_root), run_id),
-                            flow_id=flow_id, require_ready=True)
+                            flow_id=flow_id, require_ready=True, **recovery_options)
                 service = AutomationService(
                     mode=args.mode, adapter=adapter, state=state, recruitment_runner=runner,
                     nova_runner=nova_runner,
