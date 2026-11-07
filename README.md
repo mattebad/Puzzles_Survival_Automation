@@ -5,18 +5,19 @@ BlueStacks instance. A supervised service checks which daily or cooldown routes 
 at a time, verifies each result from the screen, and returns to the game's Home screen before
 the next one.
 
-**Status:** Batch A adds canonical-only Daily Rewards and Resource Item integration.
-The native route claims each glowing chest separately and requires its explicit same-slot
-`Claimed` successor; it does not wait for 150 points. One authorized manual chest claim supplied
-the real before/after recognition basis. This is not completed native-route acceptance.
-Both routes remain runtime-disabled and `evidence_required` for live acceptance.
-The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical live evidence, not current execution authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
+**Status:** Batches A/B add canonical-only Daily Rewards, Resource Item, Ruins and Alliance Help.
+All remain runtime-disabled and `evidence_required` for current native acceptance.
+Daily claims individually glowing chests with explicit same-slot `Claimed` proof, not a 150-point gate.
+One authorized manual chest claim supplied actual before/after recognition basis, not completed-route acceptance.
+The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical live evidence, not current
+execution authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
 [`BACKLOG.md`](BACKLOG.md) retains durable history.
 
 ## Routes
 
 The service code registers each route in `automation_service/registry.py`. Each row below is one
-registration, named by its registry family. `serve --flow` takes the name in the first column.
+registration: twelve executable `serve --flow` routes plus one navigation-only flow spec. The
+`serve --flow` argument takes the name in the first column where present.
 
 | `serve --flow` | Registry family | What it does |
 | --- | --- | --- |
@@ -30,13 +31,15 @@ registration, named by its registry family. `serve --flow` takes the name in the
 | `personal-might` | `personal_might_praise` | One Personal Might Praise, once per daily reset. |
 | `daily-rewards` | `daily_rewards` | At most one current aggregate Claim, then individually ready chests with same-slot Claimed proof; 300-second observation cooldown. Disabled; native acceptance evidence_required. |
 | `resource-item` | `resource_item` | One owned 1K Food item use per reset with exact decrement; runtime disabled and current native acceptance remains evidence_required. |
+| `ruins` | `ruins_challenge` | Current zero-cost NPC challenge first, then independently claim each green-ready overview chest; unavailable challenge does not suppress ready chests and participation need not win. Runtime disabled; evidence_required; no current live acceptance. |
+| `alliance-help` | `alliance_help` | Ten actual successful free Help requests per reset, not ten taps; preserve partial quota and use Help All only when its exact request count is known. Runtime disabled; evidence_required; no current live acceptance. |
 | none (navigation-only) | `world_map_navigation` | Registered but never executed by `serve`. |
 
 The `world_map_navigation` registration is navigation-only (registry variant `navigation_only`).
 Its handler, `WorldNavigationSelectionHandler` in `automation_service/handlers.py`, is a
 selection-only stub with no runtime, target or transport capability: it can be selected by the
 scheduler but always reports zero transport, and `serve` has no `--flow` for it. It still has a
-persisted flow control, so `status` lists one more flow than there are routes.
+persisted flow control, so `status` lists one more flow than there are executable routes.
 
 To add or change a route, follow [docs/adding-a-route.md](docs/adding-a-route.md): it names the
 owner of every route fact.
@@ -95,7 +98,7 @@ $runtimeBinding = .\.venv\Scripts\python.exe -c "import json; from tasks.runtime
   --state-path .local-orchestrator/bot-state.sqlite3 serve --live `
   --flow nova --flow recruitment --flow campaign --flow bioenhancer `
   --flow supply --flow ultimate --flow enhancement --flow personal-might `
-  --flow daily-rewards --flow resource-item `
+  --flow daily-rewards --flow resource-item --flow ruins --flow alliance-help `
   --campaign-stage 1-15-9 --campaign-cadence-seconds 300 `
   --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 `
   --account-id $runtimeBinding.account_id --server-id $runtimeBinding.server_id `

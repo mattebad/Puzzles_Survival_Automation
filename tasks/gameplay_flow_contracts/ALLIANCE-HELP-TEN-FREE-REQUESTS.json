@@ -1,0 +1,391 @@
+{
+  "schema_version": 2,
+  "flow_id": "ALLIANCE-HELP-TEN-FREE-REQUESTS",
+  "product_purpose": "From canonical Home, run at most 20 total inputs and 10 Help action calls to complete ten actual positive free Alliance Help request successors. Help All is allowed only when the exact current eligible free request count is known and fits the remaining quota; otherwise complete individually recognized free requests.",
+  "trigger_cadence_type": "cooldown_pulse",
+  "reset_scope": "daily_reset",
+  "required_starting_context": [
+    "home_canonical"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_canonical",
+    "alliance_screen",
+    "help_source_fresh",
+    "help_all_ready_exact",
+    "individual_help_ready",
+    "request_result_observed",
+    "quota_persisted",
+    "quota_reached",
+    "no_free_help_available",
+    "effect_reconciliation_required",
+    "home_returned",
+    "blocked",
+    "manual_required"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "open-alliance",
+      "from": "home_canonical",
+      "to": "alliance_screen",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "open_alliance_from_current_home",
+      "postconditions": [
+        "fresh canonical Home source and current-frame Alliance binding",
+        "positively recognized Alliance screen successor"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "open-help-source",
+      "from": "alliance_screen",
+      "to": "help_source_fresh",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "open_help_from_current_alliance",
+      "postconditions": [
+        "fresh current Alliance Help source is positively recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "bind-help-all-exact-count",
+      "from": "help_source_fresh",
+      "to": "help_all_ready_exact",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "Help All target and zero cost are positively recognized from the fresh source",
+        "exact current eligible request count is known and does not exceed the remaining quota"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "bind-one-free-help-target",
+      "from": "help_source_fresh",
+      "to": "individual_help_ready",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "one individually recognized current free Help target and zero cost",
+        "remaining reset-scoped quota is positive"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "defer-when-free-help-is-unavailable",
+      "from": "help_source_fresh",
+      "to": "no_free_help_available",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "absence of current free Help is positively recognized without dispatch"
+      ],
+      "terminal_outcomes": [
+        "deferred"
+      ]
+    },
+    {
+      "transition_id": "dispatch-bounded-help-all",
+      "from": "help_all_ready_exact",
+      "to": "request_result_observed",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "dispatch_help_all_for_exact_known_free_request_count_within_remaining_quota",
+      "postconditions": [
+        "one Help All action call only for the exact known free request count",
+        "the exact request count does not exceed ten minus confirmed current-reset progress",
+        "transport dispatch alone is not request completion proof"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance-help-current-native-acceptance"
+    },
+    {
+      "transition_id": "dispatch-one-individual-free-help",
+      "from": "individual_help_ready",
+      "to": "request_result_observed",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "dispatch_one_individually_recognized_free_help",
+      "postconditions": [
+        "one exact zero-cost free Help action call",
+        "transport dispatch alone is not request completion proof"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance-help-current-native-acceptance"
+    },
+    {
+      "transition_id": "reconcile-positive-request-successors",
+      "from": "request_result_observed",
+      "to": "quota_persisted",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "each counted request has a positive same-request result successor",
+        "confirmed actual free requests are durably persisted under the current reset",
+        "a static Help screen, tap count, or transport count is not a success substitute"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "alliance-help-current-native-acceptance"
+    },
+    {
+      "transition_id": "preserve-unknown-request-effect",
+      "from": "request_result_observed",
+      "to": "effect_reconciliation_required",
+      "planner": "fail_closed_without_input",
+      "permitted_input": null,
+      "postconditions": [
+        "unknown request results remain durably unresolved across restart",
+        "identical request retry is denied"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "resume-partial-reset-quota",
+      "from": "quota_persisted",
+      "to": "help_source_fresh",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "confirmed partial count survives restart and is applied to the same reset",
+        "only the remaining requests up to ten may be considered"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ]
+    },
+    {
+      "transition_id": "stop-at-ten-successful-requests",
+      "from": "quota_persisted",
+      "to": "quota_reached",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "exactly ten actual free requests have positive same-request result successors"
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset"
+      ]
+    },
+    {
+      "transition_id": "return-home-after-quota",
+      "from": "quota_reached",
+      "to": "home_returned",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "canonical Home is positively recognized"
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "return-home-after-free-help-exhaustion",
+      "from": "no_free_help_available",
+      "to": "home_returned",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "canonical Home is positively recognized"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ]
+    },
+    {
+      "transition_id": "return-home-after-unknown-effect",
+      "from": "effect_reconciliation_required",
+      "to": "home_returned",
+      "planner": "scripts/alliance_help_bluestacks.py",
+      "permitted_input": "safe_return_to_canonical_home",
+      "postconditions": [
+        "canonical Home is positively recognized without repeating the unresolved request"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ]
+    }
+  ],
+  "permitted_inputs": [
+    "open_alliance_from_current_home",
+    "open_help_from_current_alliance",
+    "dispatch_help_all_for_exact_known_free_request_count_within_remaining_quota",
+    "dispatch_one_individually_recognized_free_help",
+    "safe_return_to_canonical_home"
+  ],
+  "consequential_action_class": "zero_cost_free_alliance_help_requests",
+  "cost_quantity_requirements": {
+    "free_only": true,
+    "maximum_cost": 0,
+    "quantity": 10,
+    "resource_or_currency": null,
+    "notes": "Count actual successful free requests, not taps. Help All is permissible only with an exact count that fits the remaining quota; otherwise use one recognized free Help request at a time."
+  },
+  "completion_identity": "alliance-help:ten-positive-free-request-successors-per-daily-reset",
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "complete_for_reset",
+    "already_complete",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "Cooldown pulses are reset-scoped. Preserve confirmed partial request quota across restart within the same daily reset; stop at ten actual successful requests or when free Help disappears. A later pulse resumes only the remaining verified quota.",
+  "bounded_recovery_behavior": "Unknown target, cost, overlay, stale source, unchanged result, or unresolved request successor blocks further identical dispatch across restart. Preserve confirmed quota; use only a positively recognized safe return to canonical Home.",
+  "product_policy_refs": [
+    {
+      "policy_id": "unknown-consequence",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "premium-spending",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "purchases-donations-upgrades-pvp-speedups",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
+  "evidence_requirements": [
+    "Current native evidence must bind a fresh Alliance Help source, exact free target and cost, immediate-before frame, transport result, immediate-after frame, semantic request successor, and terminal canonical Home.",
+    "Show ten and only ten positive free request successors, exact-count Help All behavior or one-at-a-time individual Help, and restart-safe partial quota.",
+    "Offline policy evidence and current native acceptance remain distinct. This contract claims no live run; registration and scheduler admission remain disabled.",
+    "Only the route's own verified native results establish success; no Daily provider, D02, objective ownership, or points attribution is used."
+  ],
+  "evidence_gates": [
+    {
+      "gate_id": "alliance-help-current-native-acceptance",
+      "status": "evidence_required",
+      "blocks": [
+        "dispatch-bounded-help-all",
+        "dispatch-one-individual-free-help",
+        "reconcile-positive-request-successors",
+        "alliance-help-native-service-acceptance"
+      ],
+      "required_evidence": [
+        "current production-route source, immediate-before, transport, immediate-after, semantic successors, and terminal Home",
+        "exact zero-cost target identity and free request count for Help All or individual Help",
+        "ten-successor ceiling and restart-safe partial-count evidence with unknown-result no-retry"
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "alliance-help-ten-request-native-acceptance",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "No live/native acceptance is claimed by product approval or this contract."
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "alliance-help-native-service-acceptance",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [
+        "open_alliance_from_current_home",
+        "open_help_from_current_alliance",
+        "dispatch_help_all_for_exact_known_free_request_count_within_remaining_quota",
+        "dispatch_one_individually_recognized_free_help",
+        "safe_return_to_canonical_home"
+      ],
+      "required_transitions": [],
+      "evidence_gate_ids": [
+        "alliance-help-current-native-acceptance"
+      ],
+      "notes": "Current native evidence is required; this contract does not enable registration or scheduler execution."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "unknown_help_target_or_cost",
+    "unknown_overlay",
+    "stale_help_source",
+    "unchanged_or_unresolved_request_result",
+    "paid_help",
+    "purchase",
+    "alliance_technology_donation",
+    "gameplay_claim",
+    "static_help_screen_as_success",
+    "login",
+    "captcha",
+    "tutorial",
+    "account_selection_or_switching",
+    "credential_entry",
+    "ambiguous_account_or_server_identity",
+    "blocking_unknown_modal"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "evidence_required",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r15",
+    "product_authority_digest": "aec4f9a360a390715aaff4e5ad0dba4ccc23d22202e7bcc75057a33f1775222f",
+    "product_record_id": "alliance_help",
+    "product_record_revision": "alliance_help-v1",
+    "product_record_digest": "3ed8f746336bfa3a0544591b42e8cea832ee3a0b10d10dda54cedcf390c57d78",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_READY",
+      "HOME_LOCALIZED",
+      "HOME_CANONICAL"
+    ],
+    "selected_daily_prerequisite": false
+  },
+  "registration_state": "disabled",
+  "production_eligible": false
+}

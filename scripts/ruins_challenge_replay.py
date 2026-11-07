@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Replay retained native Ruins frames without runtime transport.
+"""Read-only replay of retained native Ruins route frames.
 
-This utility is deliberately read-only.  It accepts explicit PNG paths or one
-retained ``frames`` directory, validates the source files as native 800x1280
-PNG captures, and runs the production Ruins frame recognizer against each
-decoded image.  It never imports an ADB/runtime operator or writes a report.
+The utility validates retained 800x1280 PNG captures and classifies list,
+challenge-detail, result, and reward surfaces with production recognizers.
+Result replay requires an explicit challenge identity; the tool never imports
+a live runtime, executes inputs, or writes state.
 """
 
 from __future__ import annotations
@@ -23,7 +23,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tasks.ruins_challenge_vision import recognize_ruins_frame
+from tasks.ruins_challenge import KNOWN_CHALLENGE_IDENTITIES, RuinsResult
+from tasks.ruins_challenge_vision import (
+    recognize_any_ruins_reward_frame,
+    recognize_ruins_detail_with_targets,
+    recognize_ruins_frame,
+    recognize_ruins_result_with_targets,
+)
 
 
 NATIVE_SIZE = (800, 1280)
@@ -160,22 +166,77 @@ def _row_payload(row: Any) -> dict[str, Any]:
     }
 
 
-def _recognition_payload(path: Path, order: int, payload: bytes, recognition: Any) -> dict[str, Any]:
-    observation = recognition.observation
-    targets = [
-        {"identity": identity, "roi": _roi(roi)}
-        for identity, roi in recognition.targets
-    ]
-    return {
+def recognize_ruins_surface(
+    frame: np.ndarray,
+    *,
+    reset_identity: str | None = None,
+    challenge_identity: str | None = None,
+) -> tuple[str, Any, tuple[tuple[str, Any], ...]]:
+    """Classify one retained frame without authorizing route actions."""
+
+    list_recognition = recognize_ruins_frame(frame, reset_identity=reset_identity)
+    if list_recognition.observation.recognized and list_recognition.observation.screen_identity == "RUINS_CHALLENGE":
+        return "RUINS_CHALLENGE", list_recognition.observation, list_recognition.targets
+
+    if challenge_identity is not None:
+        result = recognize_ruins_result_with_targets(
+            frame, challenge_identity, reset_identity=reset_identity,
+        )
+        if result.observation.result in {RuinsResult.SUCCESS, RuinsResult.FAILURE}:
+            return "RUINS_CHALLENGE_RESULT", result.observation, result.targets
+
+    for identity in KNOWN_CHALLENGE_IDENTITIES:
+        detail = recognize_ruins_detail_with_targets(
+            frame, identity, reset_identity=reset_identity,
+        )
+        if detail.observation.recognized:
+            return "RUINS_CHALLENGE_DETAIL", detail.observation, detail.targets
+
+    reward = recognize_any_ruins_reward_frame(frame, reset_identity=reset_identity)
+    if reward.recognized:
+        return "RUINS_REWARD_MODAL", reward, reward.targets
+    return "UNKNOWN", list_recognition.observation, list_recognition.targets
+
+
+def _recognition_payload(
+    path: Path,
+    order: int,
+    payload: bytes,
+    surface: str,
+    observation: Any,
+    targets: Sequence[tuple[str, Any]],
+) -> dict[str, Any]:
+    result = {
         "order": order,
         "path": _display_path(path),
         "sha256": hashlib.sha256(payload).hexdigest(),
-        "recognized": bool(observation.recognized),
-        "screen_identity": observation.screen_identity,
-        "rows": [_row_payload(row) for row in observation.rows],
-        "targets": targets,
+        "recognized": bool(getattr(observation, "recognized", surface != "UNKNOWN")),
+        "surface": surface,
+        "screen_identity": getattr(observation, "screen_identity", surface),
+        "rows": [_row_payload(row) for row in getattr(observation, "rows", ())],
+        "targets": [
+            {"identity": identity, "roi": _roi(roi)}
+            for identity, roi in targets
+        ],
     }
-
+    for field in (
+        "identity",
+        "result",
+        "floor_current",
+        "floor_maximum",
+        "attack_control",
+        "dispatch_control",
+        "npc_troops_provided",
+        "npc_troops_current",
+        "npc_troops_maximum",
+        "skip_battle_enabled",
+        "medal_amount",
+        "reset_identity",
+    ):
+        value = getattr(observation, field, None)
+        if value is not None:
+            result[field] = _enum_value(value)
+    return result
 
 def _display_path(path: Path) -> str:
     try:
@@ -189,10 +250,13 @@ def replay_frames(
     *,
     frames_dir: Path | None = None,
     reset_identity: str | None = None,
+    challenge_identity: str | None = None,
     allowed_roots: Sequence[Path] | None = None,
 ) -> dict[str, Any]:
     """Replay validated retained frames and return a compact JSON-ready object."""
 
+    if challenge_identity is not None and challenge_identity not in KNOWN_CHALLENGE_IDENTITIES:
+        raise ReplayError("challenge identity is not a canonical Ruins category")
     paths = resolve_frame_paths(frame_paths, frames_dir=frames_dir, allowed_roots=allowed_roots)
     frames: list[dict[str, Any]] = []
     for order, path in enumerate(paths, start=1):
@@ -204,8 +268,12 @@ def replay_frames(
         # so a file replaced between validation and read cannot reach OCR.
         if image is None or image.shape[:2] != (NATIVE_SIZE[1], NATIVE_SIZE[0]):
             raise ReplayError(f"frame changed or is not native 800x1280: {path}")
-        recognition = recognize_ruins_frame(image, reset_identity=reset_identity)
-        frames.append(_recognition_payload(path, order, payload, recognition))
+        surface, observation, targets = recognize_ruins_surface(
+            image,
+            reset_identity=reset_identity,
+            challenge_identity=challenge_identity,
+        )
+        frames.append(_recognition_payload(path, order, payload, surface, observation, targets))
     return {"frame_count": len(frames), "frames": frames}
 
 
@@ -219,10 +287,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("frames", nargs="*", type=Path, help="explicit retained PNG frame path(s)")
     parser.add_argument("--frames-dir", type=Path, help="explicit retained directory containing PNG frames")
-    parser.add_argument("--reset-identity", help="optional reset identity passed to the recognizer")
+    parser.add_argument(
+        "--challenge-identity",
+        choices=KNOWN_CHALLENGE_IDENTITIES,
+        help="identity bound to retained challenge result frames",
+    )
+    parser.add_argument("--reset-identity", help="reset identity to bind to retained frames")
     args = parser.parse_args(argv)
     try:
-        payload = replay_frames(args.frames, frames_dir=args.frames_dir, reset_identity=args.reset_identity)
+        payload = replay_frames(
+            args.frames,
+            frames_dir=args.frames_dir,
+            reset_identity=args.reset_identity,
+            challenge_identity=args.challenge_identity,
+        )
     except ReplayError as exc:
         parser.error(str(exc))
     print(serialize_replay(payload))

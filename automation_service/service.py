@@ -62,6 +62,8 @@ from .registry import (
     PERSONAL_MIGHT_FLOW_ID,
     RECRUITMENT_FLOW_ID,
     RESOURCE_ITEM_FLOW_ID,
+    RUINS_FLOW_ID,
+    ALLIANCE_HELP_FLOW_ID,
     RegisteredDispatchSnapshot,
     SUPPLY_FLOW_ID,
     ULTIMATE_FLOW_ID,
@@ -402,6 +404,8 @@ class AutomationService:
         personal_might_runner=None,
         daily_rewards_runner=None,
         resource_item_runner=None,
+        ruins_runner=None,
+        alliance_help_runner=None,
         application_startup=None,
     ) -> None:
         if state_manager is not None and state is not None and state_manager is not state:
@@ -425,6 +429,8 @@ class AutomationService:
         self.personal_might_runner = personal_might_runner
         self.daily_rewards_runner = daily_rewards_runner
         self.resource_item_runner = resource_item_runner
+        self.ruins_runner = ruins_runner
+        self.alliance_help_runner = alliance_help_runner
         if application_startup is not None and not callable(application_startup):
             raise ServiceError("application startup must be callable")
         self.application_startup = application_startup
@@ -438,15 +444,23 @@ class AutomationService:
             candidate_state = getattr(self.coordinator, "repository", None)
             if isinstance(candidate_state, BotStateManager):
                 self.state = candidate_state
-        if self.mode is ServiceMode.SUPERVISED and all(runner is None for runner in (
-            self.recruitment_runner, self.nova_runner, self.campaign_runner, self.bioenhancer_runner,
-            self.supply_runner,
-            self.ultimate_runner,
-            self.enhancement_runner,
-            self.personal_might_runner,
-            self.daily_rewards_runner,
-            self.resource_item_runner,
-        )) and not isinstance(
+        if self.mode is ServiceMode.SUPERVISED and all(
+            runner is None
+            for runner in (
+                self.recruitment_runner,
+                self.nova_runner,
+                self.campaign_runner,
+                self.bioenhancer_runner,
+                self.supply_runner,
+                self.ultimate_runner,
+                self.enhancement_runner,
+                self.personal_might_runner,
+                self.daily_rewards_runner,
+                self.resource_item_runner,
+                self.ruins_runner,
+                self.alliance_help_runner,
+            )
+        ) and not isinstance(
             self.adapter, SupervisedBlueStacksAdapter
         ):
             raise ServiceError(
@@ -655,7 +669,7 @@ class AutomationService:
     def serve(self, *, account_id: str, server_id: str, stop, emit,
               clock=time.time, flow_ids=None, operator_request_id: str | None = None) -> None:
         """Drive explicitly selected native routes serially under one owner."""
-        from tasks.scheduler_task_result import SchedulerIdentity
+        from tasks.scheduler_task_result import SchedulerIdentity, SchedulerTaskOutcome
         from tasks.noahs_tavern_recruit_maintenance import MAINTENANCE_TASK_ID
         from tasks.nova_praise_pulse import NOVA_TASK_ID
         from scripts.navigation_development_boundary import RuntimeInputLock, require_canonical_unresolved_clear
@@ -670,6 +684,16 @@ class AutomationService:
         from .personal_might import PersonalMightExecutionHandler, PRODUCT_ID as PERSONAL_MIGHT_TASK_ID, personal_might_next_due
         from .daily_rewards import DailyRewardsExecutionHandler, PRODUCT_ID as DAILY_REWARDS_TASK_ID, daily_rewards_next_due
         from .resource_item import ResourceItemExecutionHandler, PRODUCT_ID as RESOURCE_ITEM_TASK_ID, resource_item_next_due
+        from .ruins import (
+            RuinsExecutionHandler,
+            PRODUCT_ID as RUINS_TASK_ID,
+            ruins_next_due,
+        )
+        from .alliance_help import (
+            AllianceHelpExecutionHandler,
+            PRODUCT_ID as ALLIANCE_HELP_TASK_ID,
+            normalize_alliance_help_result,
+        )
 
         if self.mode is not ServiceMode.SUPERVISED or self.state is None:
             raise ServiceError("serve requires an explicitly configured native runner")
@@ -706,11 +730,20 @@ class AutomationService:
                 recruitment = flow_id == RECRUITMENT_FLOW_ID
                 prefix = _reason_prefix(entry_by_flow[flow_id].cli_name)
                 interrupted = f"EXECUTOR_INTERRUPTED_REQUIRES_INSPECTION:{run.run_id}"
-                task_id = {RECRUITMENT_FLOW_ID: MAINTENANCE_TASK_ID, NOVA_FLOW_ID: NOVA_TASK_ID,
-                           CAMPAIGN_FLOW_ID: CAMPAIGN_FLOW_ID, BIOENHANCER_FLOW_ID: BIOENHANCER_TASK_ID,
-                           SUPPLY_FLOW_ID: SUPPLY_TASK_ID, ULTIMATE_FLOW_ID: ULTIMATE_TASK_ID,
-                           ENHANCEMENT_FLOW_ID: ENHANCEMENT_TASK_ID, PERSONAL_MIGHT_FLOW_ID: PERSONAL_MIGHT_TASK_ID,
-                           DAILY_REWARDS_FLOW_ID: DAILY_REWARDS_TASK_ID, RESOURCE_ITEM_FLOW_ID: RESOURCE_ITEM_TASK_ID}[flow_id]
+                task_id = {
+                    RECRUITMENT_FLOW_ID: MAINTENANCE_TASK_ID,
+                    NOVA_FLOW_ID: NOVA_TASK_ID,
+                    CAMPAIGN_FLOW_ID: CAMPAIGN_FLOW_ID,
+                    BIOENHANCER_FLOW_ID: BIOENHANCER_TASK_ID,
+                    SUPPLY_FLOW_ID: SUPPLY_TASK_ID,
+                    ULTIMATE_FLOW_ID: ULTIMATE_TASK_ID,
+                    ENHANCEMENT_FLOW_ID: ENHANCEMENT_TASK_ID,
+                    PERSONAL_MIGHT_FLOW_ID: PERSONAL_MIGHT_TASK_ID,
+                    DAILY_REWARDS_FLOW_ID: DAILY_REWARDS_TASK_ID,
+                    RESOURCE_ITEM_FLOW_ID: RESOURCE_ITEM_TASK_ID,
+                    RUINS_FLOW_ID: RUINS_TASK_ID,
+                    ALLIANCE_HELP_FLOW_ID: ALLIANCE_HELP_TASK_ID,
+                }[flow_id]
                 identity = SchedulerIdentity(account_id, server_id, facts.reset_id, task_id)
                 previous_reset = previous_resets.get(flow_id)
                 reset_change = None
@@ -773,6 +806,8 @@ class AutomationService:
                     PERSONAL_MIGHT_FLOW_ID: "praise_transport_calls",
                     DAILY_REWARDS_FLOW_ID: "reward_claim_transport_calls",
                     RESOURCE_ITEM_FLOW_ID: "item_use_transport_calls",
+                    RUINS_FLOW_ID: "ruins_dispatch_count",
+                    ALLIANCE_HELP_FLOW_ID: "help_transport_calls",
                 }[flow_id]
 
                 def record_consumption():
@@ -827,8 +862,26 @@ class AutomationService:
                             raise ServiceError("APPLICATION_STARTUP_ACCOUNTING_INVALID")
                         startup_verified = True
                         checkpoint()
-                    options = {"runtime_input_lock": owner} if flow_id in {BIOENHANCER_FLOW_ID, SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID} else {}
-                    if flow_id in {DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
+                    options = (
+                        {"runtime_input_lock": owner}
+                        if flow_id in {
+                            BIOENHANCER_FLOW_ID,
+                            SUPPLY_FLOW_ID,
+                            ENHANCEMENT_FLOW_ID,
+                            PERSONAL_MIGHT_FLOW_ID,
+                            DAILY_REWARDS_FLOW_ID,
+                            RESOURCE_ITEM_FLOW_ID,
+                            RUINS_FLOW_ID,
+                            ALLIANCE_HELP_FLOW_ID,
+                        }
+                        else {}
+                    )
+                    if flow_id in {
+                        DAILY_REWARDS_FLOW_ID,
+                        RESOURCE_ITEM_FLOW_ID,
+                        RUINS_FLOW_ID,
+                        ALLIANCE_HELP_FLOW_ID,
+                    }:
                         options["occurrence_key"] = run.occurrence_key
                     if operator_request_id is not None:
                         if run.mode != "manual" or run.occurrence_basis != operator_request_id:
@@ -845,30 +898,138 @@ class AutomationService:
                         due = resource_item_next_due(
                             result, identity, facts.now_utc_epoch, run.occurrence_key,
                         )
-                    else:
-                        due = {RECRUITMENT_FLOW_ID: recruitment_next_due, NOVA_FLOW_ID: nova_next_due,
-                               CAMPAIGN_FLOW_ID: campaign_next_due, BIOENHANCER_FLOW_ID: bioenhancer_next_due,
-                               SUPPLY_FLOW_ID: supply_next_due, ULTIMATE_FLOW_ID: ultimate_next_due,
-                               ENHANCEMENT_FLOW_ID: enhancement_next_due, PERSONAL_MIGHT_FLOW_ID: personal_might_next_due,
-                               DAILY_REWARDS_FLOW_ID: daily_rewards_next_due}[flow_id](
+                    elif flow_id == RUINS_FLOW_ID:
+                        due = ruins_next_due(result, identity, facts.now_utc_epoch)
+                    elif flow_id == ALLIANCE_HELP_FLOW_ID:
+                        normalized_help = normalize_alliance_help_result(
                             result, identity, facts.now_utc_epoch,
                         )
+                        due = normalized_help.next_eligible_at
+                    else:
+                        due = {
+                            RECRUITMENT_FLOW_ID: recruitment_next_due,
+                            NOVA_FLOW_ID: nova_next_due,
+                            CAMPAIGN_FLOW_ID: campaign_next_due,
+                            BIOENHANCER_FLOW_ID: bioenhancer_next_due,
+                            SUPPLY_FLOW_ID: supply_next_due,
+                            ULTIMATE_FLOW_ID: ultimate_next_due,
+                            ENHANCEMENT_FLOW_ID: enhancement_next_due,
+                            PERSONAL_MIGHT_FLOW_ID: personal_might_next_due,
+                            DAILY_REWARDS_FLOW_ID: daily_rewards_next_due,
+                        }[flow_id](result, identity, facts.now_utc_epoch)
                     checkpoint()
+                    if flow_id == ALLIANCE_HELP_FLOW_ID:
+                        help_outcome = normalized_help.outcome
+                        if (
+                            help_outcome is NormalizedOutcome.COMPLETE_FOR_RESET
+                            and result.get("no_work") is True
+                        ):
+                            help_outcome = NormalizedOutcome.ALREADY_COMPLETE
+                        return NormalizedResult(
+                            help_outcome,
+                            (
+                                f"{prefix}_PASS_VERIFIED"
+                                if help_outcome in {
+                                    NormalizedOutcome.COMPLETE_FOR_RESET,
+                                    NormalizedOutcome.ALREADY_COMPLETE,
+                                }
+                                else normalized_help.reason_code
+                            ),
+                            action_count=normalized_help.action_count,
+                            verified=normalized_help.verified,
+                            next_eligible_at=normalized_help.next_eligible_at,
+                            observed_progress={
+                                **result,
+                                **normalized_help.observed_progress,
+                            },
+                            consequence=normalized_help.consequence,
+                            evidence_refs=normalized_help.evidence_refs,
+                            unresolved_action=normalized_help.unresolved_action,
+                        )
+                    if flow_id == RUINS_FLOW_ID:
+                        committed_actions = (
+                            int(result.get("challenge_participation_confirmed") is True)
+                            + len(result.get("newly_claimed_chests", []))
+                        )
+                        consequence = {
+                            "ruins_dispatch_count": consumed_actions,
+                            "committed_action_count": committed_actions,
+                        }
+                        if (
+                            result.get("status") == "completed"
+                            and not result.get("effect_reconciliation_required")
+                            and not result.get("identical_retry_denied")
+                        ):
+                            outcome = (
+                                NormalizedOutcome.ALREADY_COMPLETE
+                                if result.get("no_work") is True
+                                else NormalizedOutcome.COMPLETE_FOR_RESET
+                            )
+                            reason = f"{prefix}_PASS_VERIFIED"
+                            verified = True
+                        elif (
+                            result.get("effect_reconciliation_required")
+                            or result.get("identical_retry_denied")
+                        ):
+                            outcome = NormalizedOutcome.RECONCILIATION_REQUIRED
+                            reason = f"{prefix}_EFFECT_REQUIRES_RECONCILIATION"
+                            verified = False
+                        elif result.get("status") == "unresolved":
+                            outcome = NormalizedOutcome.DEFERRED
+                            reason = f"{prefix}_PARTIAL_REOBSERVATION"
+                            verified = True
+                        else:
+                            outcome = NormalizedOutcome.BLOCKED
+                            reason = f"{prefix}_ROUTE_BLOCKED"
+                            verified = False
+                        return NormalizedResult(
+                            outcome,
+                            reason,
+                            action_count=committed_actions,
+                            verified=verified,
+                            next_eligible_at=due,
+                            observed_progress=result,
+                            consequence=consequence,
+                        )
                     outcome = NormalizedOutcome.DEFERRED
-                    if flow_id in {SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
+                    if flow_id in {
+                        SUPPLY_FLOW_ID,
+                        ENHANCEMENT_FLOW_ID,
+                        PERSONAL_MIGHT_FLOW_ID,
+                        RESOURCE_ITEM_FLOW_ID,
+                    }:
                         # Verified no-work observes prior completion; current
                         # dispatches complete this reset's route effect.
-                        outcome = (NormalizedOutcome.ALREADY_COMPLETE if result.get("no_work") is True
-                                   else NormalizedOutcome.COMPLETE_FOR_RESET)
+                        outcome = (
+                            NormalizedOutcome.ALREADY_COMPLETE
+                            if result.get("no_work") is True
+                            else NormalizedOutcome.COMPLETE_FOR_RESET
+                        )
                     elif flow_id == ULTIMATE_FLOW_ID:
-                        outcome = (NormalizedOutcome.ALREADY_COMPLETE if result.get("status") == "already_completed"
-                                   else NormalizedOutcome.COMPLETE_FOR_RESET)
+                        outcome = (
+                            NormalizedOutcome.ALREADY_COMPLETE
+                            if result.get("status") == "already_completed"
+                            else NormalizedOutcome.COMPLETE_FOR_RESET
+                        )
                     return NormalizedResult(
-                        outcome, f"{prefix}_PASS_VERIFIED",
-                        verified=True, next_eligible_at=due,
-                        action_count=(result["committed_ap_effect_count"] if flow_id == CAMPAIGN_FLOW_ID
-                                      else result["committed_action_count"] if flow_id in {ULTIMATE_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID}
-                                      else result["actions_completed"] if recruitment else consumed_actions),
+                        outcome,
+                        f"{prefix}_PASS_VERIFIED",
+                        verified=True,
+                        next_eligible_at=due,
+                        action_count=(
+                            result["committed_ap_effect_count"]
+                            if flow_id == CAMPAIGN_FLOW_ID
+                            else result["committed_action_count"]
+                            if flow_id in {
+                                ULTIMATE_FLOW_ID,
+                                PERSONAL_MIGHT_FLOW_ID,
+                                DAILY_REWARDS_FLOW_ID,
+                                RESOURCE_ITEM_FLOW_ID,
+                            }
+                            else result["actions_completed"]
+                            if recruitment
+                            else consumed_actions
+                        ),
                         observed_progress=result,
                     )
                 except Exception as exc:
@@ -938,20 +1099,30 @@ class AutomationService:
 
             handlers = {}
             for entry in entries:
-                handler_type = {RECRUITMENT_FLOW_ID: RecruitmentExecutionHandler,
-                                NOVA_FLOW_ID: NovaExecutionHandler,
-                                CAMPAIGN_FLOW_ID: CampaignExecutionHandler,
-                                BIOENHANCER_FLOW_ID: BioenhancerExecutionHandler,
-                                SUPPLY_FLOW_ID: SupplyExecutionHandler,
-                                ULTIMATE_FLOW_ID: UltimateExecutionHandler,
-                                ENHANCEMENT_FLOW_ID: EnhancementExecutionHandler,
-                                PERSONAL_MIGHT_FLOW_ID: PersonalMightExecutionHandler,
-                                DAILY_REWARDS_FLOW_ID: DailyRewardsExecutionHandler,
-                                RESOURCE_ITEM_FLOW_ID: ResourceItemExecutionHandler}[entry.flow_id]
+                handler_type = {
+                    RECRUITMENT_FLOW_ID: RecruitmentExecutionHandler,
+                    NOVA_FLOW_ID: NovaExecutionHandler,
+                    CAMPAIGN_FLOW_ID: CampaignExecutionHandler,
+                    BIOENHANCER_FLOW_ID: BioenhancerExecutionHandler,
+                    SUPPLY_FLOW_ID: SupplyExecutionHandler,
+                    ULTIMATE_FLOW_ID: UltimateExecutionHandler,
+                    ENHANCEMENT_FLOW_ID: EnhancementExecutionHandler,
+                    PERSONAL_MIGHT_FLOW_ID: PersonalMightExecutionHandler,
+                    DAILY_REWARDS_FLOW_ID: DailyRewardsExecutionHandler,
+                    RESOURCE_ITEM_FLOW_ID: ResourceItemExecutionHandler,
+                    RUINS_FLOW_ID: RuinsExecutionHandler,
+                    ALLIANCE_HELP_FLOW_ID: AllianceHelpExecutionHandler,
+                }[entry.flow_id]
                 options = ({"stage": self.campaign_runner.stage} if entry.flow_id == CAMPAIGN_FLOW_ID
                            else {"flow_spec": entry.spec} if entry.flow_id in {ULTIMATE_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, DAILY_REWARDS_FLOW_ID} else {})
                 handlers[entry.flow_id] = handler_type(entry.registration, execute, **options)
-                if entry.flow_id in {SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
+                if entry.flow_id in {
+                    SUPPLY_FLOW_ID,
+                    ENHANCEMENT_FLOW_ID,
+                    RESOURCE_ITEM_FLOW_ID,
+                    RUINS_FLOW_ID,
+                    ALLIANCE_HELP_FLOW_ID,
+                }:
                     handlers[entry.flow_id].flow_spec = entry.spec
             coordinator = UtcPulseCoordinator(
                 state, tuple(effective_descriptors[entry.flow_id] for entry in entries), handlers, clock=clock,
@@ -1031,7 +1202,8 @@ class AutomationService:
                             and retained_run.consumed_inputs == retained_run.consumed_actions == 0
                             and not state.has_unresolved_actions(retained_run.run_id)
                         )
-                        if completed or rollover_deferred:
+                        deferred = result.outcome is SchedulerTaskOutcome.DEFERRED
+                        if completed or deferred or rollover_deferred:
                             claim = report.candidate.claim
                             unblocked = state.unblock_flow(
                                 entry.flow_id, expected_generation=claim.claimed_flow_generation,
@@ -1039,7 +1211,7 @@ class AutomationService:
                             )
                             if rollover_deferred and unblocked is None:
                                 rollover_deferred = False
-                        emit({"status": "completed" if completed else "deferred" if rollover_deferred else "blocked",
+                        emit({"status": "completed" if completed else "deferred" if deferred or rollover_deferred else "blocked",
                               "flow_id": entry.flow_id, "reason": report.reason_code,
                               "next_due_at_utc": result.next_eligible_at,
                               "result": dict(result.observed_progress)

@@ -1,10 +1,8 @@
-"""Crash-safe continuation checkpoint for chest-only Ruins runs.
+"""Non-authorizing, evidence-bound Ruins chest history export.
 
-The checkpoint is deliberately small and evidence-bound.  It records only claims
-whose native postcondition was reconciled as ``confirmed``; a route result,
-resource delta, or ``newly_claimed_chests`` list is never sufficient to create a
-record.  Coordinates and UI state are intentionally absent so a resumed route
-must recognize and bind every row from a fresh frame.
+Canonical action state and UNKNOWN reconciliation live only in the shared
+SQLite SafetyStore. This legacy JSON format can be written or inspected for
+history; it must never grant readiness, suppress a retry, or clear UNKNOWN.
 """
 
 from __future__ import annotations
@@ -213,11 +211,10 @@ def validate_continuation(
     expected_runtime_profile_id: str = RUNTIME_PROFILE_ID,
     expected_package_id: str = PACKAGE_ID,
 ) -> dict[str, Any]:
-    """Validate and normalize a continuation mapping.
+    """Validate and normalize a history-export mapping only.
 
-    ``evidence_root`` is mandatory in practice for persisted claims; when omitted,
-    the current directory is used so callers can validate in-memory fixtures with
-    relative evidence paths.
+    This format is not a route checkpoint or readiness source. ``evidence_root``
+    bounds exported frames; validation does not mutate canonical action state.
     """
 
     if not isinstance(value, Mapping):
@@ -368,7 +365,7 @@ def write_continuation(
     runtime_profile_id: str = RUNTIME_PROFILE_ID,
     package_id: str = PACKAGE_ID,
 ) -> Path:
-    """Atomically write a validated checkpoint inside the caller's capture area."""
+    """Atomically write non-authorizing history inside the caller's capture area."""
 
     try:
         destination = require_no_untrusted_symlinks(path).resolve()
@@ -409,6 +406,7 @@ def load_continuation(
     expected_runtime_profile_id: str = RUNTIME_PROFILE_ID,
     expected_package_id: str = PACKAGE_ID,
 ) -> dict[str, Any]:
+    """Load legacy history for inspection only; never use it as route state."""
     try:
         checkpoint = require_no_untrusted_symlinks(path).resolve()
     except UnsafePathError as exc:
@@ -440,7 +438,7 @@ def load_continuation(
 
 
 def confirmed_identities(value: Mapping[str, Any]) -> frozenset[str]:
-    """Return only identities represented by validated ``confirmed`` records."""
+    """Summarize validated history only; never use this for readiness or retry policy."""
 
     return frozenset(claim["identity"] for claim in value.get("claims", ()) if claim.get("status") == _CLAIM_STATUS)
 

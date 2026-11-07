@@ -25,9 +25,10 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
   and can dispatch only through `SafeActionExecutor` with a bound core request/capability. The
   service CLI has no arbitrary ADB, coordinate, shell, tap, remote, or automatic endpoint.
 - The legacy production registry remains disabled in
-  `tasks/flow_delivery_disabled_production_registry.json`; canonical service admission does
-  not read by that file. Its eleven fixed flow specs report `REGISTERED`. SQLite service/flow
-  enablement is separate, defaults off, and is restored off after the bounded tests.
+  `tasks/flow_delivery_disabled_production_registry.json`; it records the disabled
+  `NOT_REGISTERED` posture and is separate from canonical service admission. The canonical code
+  registry has thirteen fixed flow specs, which report `REGISTERED`; this is composition only.
+  SQLite service/flow enablement is separate, defaults off, and is restored off after bounded tests.
 - Campaign selection remains non-consuming. Explicit native service composition installs
   the Campaign runner behind canonical claims and dispatch fences, reusing destination policy,
   Atlas navigation, and `tasks.campaign_auto_battle` contracts. It spends affordable AP through
@@ -106,21 +107,25 @@ The normal Campaign launch shape is:
 python scripts/pnsctl.py automation-service --mode supervised --adapter bluestacks --state-path .local-orchestrator/bot-state.sqlite3 serve --live --flow campaign --campaign-stage 1-15-9 --campaign-cadence-seconds 300 --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 --account-id primary-account --server-id primary-server --output-directory .local-captures/automation-service-live
 ```
 
-Repeat `--flow` for other named routes; the README gives the complete ten-route command. Argument order does not
+Repeat `--flow` for other named routes; the README gives the complete twelve-route command. Argument order does not
 choose scheduler order; due eligibility and existing controls do. The disabled-gates canonical CLI
 proof produced zero captures and zero new runs, so it is control evidence only and does not promote
 native route acceptance. Facade checks, the ordinary one-battle live-entrypoint retirement, and
 the scheduler/facade consumer checks are recorded separately; their counts are not additive.
 
-The fixed native composition binds ten canonical routes: Nova, Recruitment, Campaign,
-Bioenhancer, Supply, Ultimate, Enhancement, Personal Might, Daily Rewards, and Resource Item.
-The ordinary registered selectors remain non-consuming; passing `--flow` alone does not enable
-them. The native Daily route performs at most one current aggregate Claim, then separately
-claims each glowing ready chest, requiring its same-slot `Claimed` label and canonical journal
-confirmation. Restart-stable slot/reset keys and UNKNOWN stop/no-identical-retry protect effects.
-Already-claimed manual work is skipped. Complete zero-ready scans return to verified Home.
-The owner-authorized November 7 single-chest investigation supplied actual ready/Claimed pixels,
-not finished-route acceptance; neither route has new live acceptance. Both remain disabled.
+The fixed native composition binds twelve canonical routes: Nova, Recruitment, Campaign,
+Bioenhancer, Supply, Ultimate, Enhancement, Personal Might, Daily Rewards, Resource Item,
+Ruins and Alliance Help. The thirteenth fixed spec is navigation-only `world_map_navigation`,
+with no `serve --flow`. Passing `--flow` alone never enables a route.
+
+Batch B adds canonical-only Ruins and Alliance Help, implemented/offline-proven but not newly
+live-accepted. Production and runtime controls remain disabled. Daily performs at most one
+current aggregate Claim, then separately claims each glowing chest with its same-slot `Claimed`
+label and canonical journal confirmation. Restart-stable slot/reset keys protect effects;
+UNKNOWN stops without identical retry. Already-claimed manual work is skipped. Complete
+zero-ready scans return to verified Home. The owner-authorized November 7 single-chest
+investigation supplied actual ready/Claimed pixels, not completed-route acceptance.
+Current native acceptance for Resource Item, Daily, Ruins and Help remains `evidence_required`.
 Existing individual effect/Home acceptance, uninterrupted Enhancement proof, independent recruit
 timers, and cadence scope are maintained in [`BACKLOG.md`](../BACKLOG.md), with volatile state in
 the handoff.

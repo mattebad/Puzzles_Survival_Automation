@@ -1,5 +1,15 @@
 {
   "flows": {
+    "ALLIANCE-HELP-TEN-FREE-REQUESTS": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
     "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE": {
       "mode": "disabled",
       "product_id": null,

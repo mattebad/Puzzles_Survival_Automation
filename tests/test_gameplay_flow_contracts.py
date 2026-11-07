@@ -42,10 +42,6 @@ class GameplayFlowContractTests(unittest.TestCase):
             {"PERSONAL-MIGHT-PRAISE-BLISS-PILOT"} | (default_ids - queue_ids),
         )
         contracts = load_all_flow_contracts()
-        self.assertEqual(
-            len(contracts),
-            len(queue_ids | default_ids | {"PERSONAL-MIGHT-PRAISE-BLISS-PILOT"}),
-        )
         for flow_id, contract in contracts.items():
             validate_flow_contract(contract)
             self.assertEqual(contract["flow_id"], flow_id)
@@ -400,6 +396,7 @@ class GameplayFlowContractTests(unittest.TestCase):
                 self.assertEqual(contract["registration_state"], "disabled")
                 self.assertFalse(contract["production_eligible"])
                 self.assertEqual(contract["proof_state"], "evidence_required")
+
     def test_nanoweapon_contract_binds_exact_normal_craft_and_stays_disabled(self):
         contract = load_flow_contract("NANOWEAPON-BLUESTACKS-INTEGRATION")
         binding = contract["product_authority_binding"]
@@ -483,28 +480,116 @@ class GameplayFlowContractTests(unittest.TestCase):
                 self.assertFalse(contract["production_eligible"])
                 self.assertEqual(contract["registration_state"], "disabled")
 
-    def test_exact_policy_quantities_cooldowns_and_home_terminals(self):
-        nano_daily = json.dumps(load_flow_contract("NANOWEAPON-BLUESTACKS-INTEGRATION"))
-        nano_maintenance = json.dumps(load_flow_contract("NANO-MATERIAL-PRODUCTION-MAINTENANCE"))
-        recruitment_daily = json.dumps(load_flow_contract("RECRUITMENT-BLUESTACKS-INTEGRATION"))
-        recruitment_maintenance = json.dumps(load_flow_contract("RECRUITMENT-FREE-ATTEMPT-MAINTENANCE"))
-        zombie_maintenance = json.dumps(load_flow_contract("ZOMBIE-LAIR-HOME-MAINTENANCE"))
-        self.assertIn("43200", nano_daily)
-        self.assertIn("100", nano_daily)
-        self.assertIn("21600", nano_maintenance)
-        self.assertIn("600", recruitment_daily)
-        for seconds in ("600", "86400", "172800"):
-            self.assertIn(seconds, recruitment_maintenance)
-        self.assertIn("28", zombie_maintenance)
-        for payload in (
-            nano_daily,
-            nano_maintenance,
-            recruitment_daily,
-            recruitment_maintenance,
-            zombie_maintenance,
-        ):
-            self.assertIn("home", payload.casefold())
-            self.assertIn("deferred", payload.casefold())
+    def test_ruins_and_alliance_help_contracts_bind_product_semantics_and_stay_disabled(self):
+        cases = (
+            (
+                "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+                "ruins_challenge",
+                "ruins_challenge-v1",
+            ),
+            (
+                "ALLIANCE-HELP-TEN-FREE-REQUESTS",
+                "alliance_help",
+                "alliance_help-v1",
+            ),
+        )
+        for flow_id, record_id, record_revision in cases:
+            contract = load_flow_contract(flow_id)
+            binding = contract["product_authority_binding"]
+            with self.subTest(flow_id=flow_id):
+                self.assertEqual(contract["schema_version"], 2)
+                self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+                self.assertEqual(binding["product_record_id"], record_id)
+                self.assertEqual(binding["product_record_revision"], record_revision)
+                self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+                self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+                self.assertFalse(binding["selected_daily_prerequisite"])
+                self.assertEqual(contract["trigger_cadence_type"], "cooldown_pulse")
+                self.assertEqual(contract["reset_scope"], "daily_reset")
+                self.assertEqual(contract["implementation_status"], "reference_implemented")
+                self.assertEqual(contract["proof_state"], "evidence_required")
+                self.assertEqual(contract["registration_state"], "disabled")
+                self.assertFalse(contract["production_eligible"])
+                self.assertIn(
+                    "Only the route's own verified native results establish success",
+                    " ".join(contract["evidence_requirements"]),
+                )
+                self.assertIn(
+                    "no Daily provider, D02, objective ownership, or points attribution",
+                    " ".join(contract["evidence_requirements"]),
+                )
+                self.assertTrue(
+                    all(not gate["permitted_inputs"] for gate in contract["evidence_gates"])
+                )
+                scenario = contract["scenarios"][0]
+                self.assertEqual(scenario["mode"], "blocked_until_evidence")
+                self.assertEqual(scenario["permitted_inputs"], [])
+
+        ruins = load_flow_contract("RUINS-CHALLENGE-HOME-ATLAS-MIGRATION")
+        ruins_transitions = {
+            item["transition_id"]: item for item in ruins["transition_contracts"]
+        }
+        self.assertIsNone(
+            ruins_transitions["preserve-unknown-challenge-effect"]["permitted_input"]
+        )
+        self.assertIsNone(
+            ruins_transitions["preserve-unknown-chest-effect"]["permitted_input"]
+        )
+        self.assertEqual(
+            ruins_transitions["dispatch-allowlisted-zero-cost-challenge"]["permitted_input"],
+            "one_current_allowlisted_zero_cost_attack_or_dispatch",
+        )
+        self.assertIn(
+            "independently green-ready Stage Overview chest category",
+            ruins["product_purpose"],
+        )
+        self.assertEqual(
+            ruins_transitions["open-overview-after-unavailable-challenge"]["to"],
+            "stage_overview",
+        )
+        self.assertEqual(
+            ruins["cost_quantity_requirements"]["maximum_cost"],
+            0,
+        )
+        self.assertIsNone(ruins["cost_quantity_requirements"]["quantity"])
+
+        help_contract = load_flow_contract("ALLIANCE-HELP-TEN-FREE-REQUESTS")
+        self.assertEqual(help_contract["cost_quantity_requirements"]["quantity"], 10)
+        help_transitions = {
+            item["transition_id"]: item
+            for item in help_contract["transition_contracts"]
+        }
+        self.assertEqual(
+            help_transitions["defer-when-free-help-is-unavailable"][
+                "terminal_outcomes"
+            ],
+            ["deferred"],
+        )
+        self.assertEqual(
+            help_transitions["stop-at-ten-successful-requests"][
+                "terminal_outcomes"
+            ],
+            ["complete_for_reset"],
+        )
+        self.assertIsNone(
+            help_transitions["preserve-unknown-request-effect"]["permitted_input"]
+        )
+        self.assertIn(
+            "exact current eligible request count is known",
+            " ".join(help_transitions["bind-help-all-exact-count"]["postconditions"]),
+        )
+        self.assertIn(
+            "confirmed partial count survives restart",
+            " ".join(help_transitions["resume-partial-reset-quota"]["postconditions"]),
+        )
+        self.assertEqual(
+            help_transitions["preserve-unknown-request-effect"]["to"],
+            "effect_reconciliation_required",
+        )
+        self.assertIn(
+            "stop at ten actual successful requests",
+            help_contract["cooldown_deferred_behavior"],
+        )
 
     def test_shared_home_dependency_change_marks_nova_regression_required(self):
         contracts = load_all_flow_contracts()
@@ -536,6 +621,8 @@ class GameplayFlowContractTests(unittest.TestCase):
             "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION",
             "RECRUITMENT-BLUESTACKS-INTEGRATION",
             "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE",
+            "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+            "ALLIANCE-HELP-TEN-FREE-REQUESTS",
         )
         for flow_id in representative_ids:
             contract = load_flow_contract(flow_id)

@@ -23,13 +23,23 @@ from automation_service.enhancement import (
 )
 from automation_service.recruitment import recruitment_reset
 from automation_service.registry import (
+    ALLIANCE_HELP_FLOW_ID, ALLIANCE_HELP_MAX_INPUTS, ALLIANCE_HELP_PRODUCT_ID,
+    ALLIANCE_HELP_PRODUCT_REVISION,
     BIOENHANCER_FLOW_ID, CAMPAIGN_PROFILE_ID, DAILY_REWARDS_FLOW_ID,
-    DAILY_REWARDS_PRODUCT_ID, DAILY_REWARDS_PRODUCT_REVISION, ENHANCEMENT_FLOW_ID,
-    DAILY_REWARDS_PROFILE_ID, RESOURCE_ITEM_MAX_INPUTS,
-    PERSONAL_MIGHT_FLOW_ID, RESOURCE_ITEM_FLOW_ID, RESOURCE_ITEM_PRODUCT_ID,
-    RESOURCE_ITEM_PRODUCT_REVISION, RECRUITMENT_FLOW_ID, SUPPLY_FLOW_ID,
-    ULTIMATE_FLOW_ID,
+    DAILY_REWARDS_PROFILE_ID, DAILY_REWARDS_PRODUCT_ID, DAILY_REWARDS_PRODUCT_REVISION,
+    ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
+    RESOURCE_ITEM_MAX_INPUTS, RESOURCE_ITEM_PRODUCT_ID, RESOURCE_ITEM_PRODUCT_REVISION,
+    RECRUITMENT_FLOW_ID, RUINS_FLOW_ID, RUINS_PRODUCT_ID, RUINS_PRODUCT_REVISION,
+    SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
 )
+
+from tasks.alliance_help import (
+    CONSEQUENCE as ALLIANCE_HELP_CONSEQUENCE, DAILY_REQUEST_LIMIT,
+    INDIVIDUAL_TARGET_IDENTITY, POSTCONDITION as ALLIANCE_HELP_POSTCONDITION,
+    SEMANTIC_ACTION as ALLIANCE_HELP_SEMANTIC_ACTION,
+    SOURCE_STATE as ALLIANCE_HELP_SOURCE_STATE, alliance_help_action_key,
+)
+from tasks.ruins_challenge import KNOWN_CHALLENGE_IDENTITIES
 from automation_service.service import ServiceError
 from automation_service.supply import (
     PRODUCT_ID as SUPPLY_PRODUCT_ID, PRODUCT_REVISION as SUPPLY_PRODUCT_REVISION,
@@ -902,4 +912,304 @@ class GuardedRecruitmentRunner:
             "maintenance_state": json.loads(NoahMaintenanceState.for_identity(identity).to_json()),
             "total_input_count": consumed, "recruitment_dispatch_count": actions,
             "actions_completed": actions,
+        }
+
+
+class GuardedRuinsRunner:
+    """Service-manager fake with a dispatched-but-unresolved challenge outcome."""
+
+    def __init__(self, stop, output):
+        self.stop, self.output = stop, output
+        self.calls, self.inputs, self.occurrence_keys = [], [], []
+        self.partial = False
+        self.actions = 0
+        self.on_input = self.on_entry = None
+
+    @property
+    def effects(self):
+        return self.actions
+
+    def __call__(self, identity, previous_reset, checkpoint, *,
+                 runtime_input_lock, occurrence_key):
+        checkpoint()
+        runtime_input_lock.assert_held(
+            runtime_input_lock.owner, runtime_input_lock.invocation_id,
+        )
+        self.calls.append((identity, previous_reset))
+        self.occurrence_keys.append(occurrence_key)
+        if self.on_entry:
+            self.on_entry()
+
+        plan = (
+            "open_home_atlas", "open_ruins", "open_challenge", "dispatch_npc",
+            "open_overview", "inspect_ready_chest", "claim_ready_chest", "return_home",
+        )
+        count = challenge_calls = chest_calls = 0
+        error = None
+        try:
+            for index, label in enumerate(plan):
+                checkpoint()
+                self.inputs.append((identity.reset_id, index, label))
+                count += 1
+                if label == "dispatch_npc":
+                    challenge_calls += 1
+                    self.actions += 1
+                    if self.partial:
+                        raise RuntimeError("Ruins challenge result lost after dispatch")
+                elif label == "claim_ready_chest":
+                    chest_calls += 1
+                    self.actions += 1
+                if self.on_input:
+                    self.on_input(index)
+        except Exception as exc:
+            error = exc
+
+        total = challenge_calls + chest_calls
+        coverage = {item: "already claimed" for item in KNOWN_CHALLENGE_IDENTITIES}
+        claims = []
+        if chest_calls:
+            identity_key = KNOWN_CHALLENGE_IDENTITIES[0]
+            coverage[identity_key] = "newly claimed"
+            claims.append({"identity": identity_key, "ruins_medals": 55})
+        unresolved = error is not None
+        result = {
+            "status": "unresolved" if unresolved and total else "blocked" if unresolved else "completed",
+            "flow_id": RUINS_FLOW_ID,
+            "product_id": RUINS_PRODUCT_ID,
+            "product_revision": RUINS_PRODUCT_REVISION,
+            "task_id": RUINS_PRODUCT_ID,
+            "account_id": identity.account_id,
+            "server_id": identity.server_id,
+            "reset_id": identity.reset_id,
+            "occurrence_key": occurrence_key,
+            "time_basis": "utc",
+            "completed_at_utc": self.stop.now,
+            "input_count": count,
+            "total_input_count": count,
+            "action_count": total,
+            "actions_completed": total,
+            "ruins_dispatch_count": total,
+            "challenge_transport_calls": challenge_calls,
+            "chest_claim_transport_calls": chest_calls,
+            "challenge_participation_confirmed": challenge_calls == 1 and not unresolved,
+            "daily_action_ready": challenge_calls == 1 and not unresolved,
+            "challenge_status": "unresolved" if unresolved and challenge_calls else "confirmed",
+            "challenge_result": "failure" if challenge_calls and not unresolved else None,
+            "challenge_identity": "Nova Challenge" if challenge_calls and not unresolved else None,
+            "chest_coverage": coverage,
+            "newly_claimed_chests": claims,
+            "resource_delta": sum(item["ruins_medals"] for item in claims),
+            "accounting_verified": True,
+            "terminal_home_verified": not unresolved,
+            "effect_reconciliation_required": unresolved and total > 0,
+            "identical_retry_denied": unresolved,
+        }
+        if error:
+            raise GuardedRoutePartialResultError(str(error), result) from error
+        return result
+
+
+class GuardedAllianceHelpRunner:
+    """Guarded ten-request service fake retaining a confirmed prefix on ambiguity."""
+
+    def __init__(self, stop, output):
+        self.stop, self.output = stop, output
+        self.calls, self.inputs, self.occurrence_keys = [], [], []
+        self.partial = False
+        self.actions = 0
+        self.on_input = self.on_entry = None
+
+    @property
+    def effects(self):
+        return self.actions
+
+    def __call__(self, identity, previous_reset, checkpoint, *,
+                 runtime_input_lock, occurrence_key):
+        checkpoint()
+        runtime_input_lock.assert_held(
+            runtime_input_lock.owner, runtime_input_lock.invocation_id,
+        )
+        self.calls.append((identity, previous_reset))
+        self.occurrence_keys.append(occurrence_key)
+        if self.on_entry:
+            self.on_entry()
+
+        plan = (
+            "open_alliance", "open_speedup_help",
+            *("help_request",) * DAILY_REQUEST_LIMIT,
+            *("verify_request",) * (ALLIANCE_HELP_MAX_INPUTS - 2 - DAILY_REQUEST_LIMIT),
+        )
+        input_count = calls = 0
+        error = None
+        try:
+            for index, label in enumerate(plan):
+                checkpoint()
+                self.inputs.append((identity.reset_id, index, label))
+                input_count += 1
+                if label == "help_request":
+                    calls += 1
+                    self.actions += 1
+                    if self.partial and calls == 3:
+                        raise RuntimeError("Alliance Help request result unresolved after transport")
+                if self.on_input:
+                    self.on_input(index)
+        except Exception as exc:
+            error = exc
+
+        backend = derive_resource_runtime_identity(
+            resource_fixed_runtime_binding(),
+            datetime.fromtimestamp(self.stop.now, timezone.utc),
+        )
+        confirmed = max(0, calls - 1) if self.partial and error else calls
+        result = self._result(
+            identity, backend, occurrence_key, input_count, calls, confirmed,
+            error=error,
+        )
+        if error:
+            raise GuardedRoutePartialResultError(str(error), result) from error
+        return result
+
+    def _result(self, identity, backend, occurrence_key, input_count, calls,
+                confirmed, *, error=None):
+        proof = {
+            "runtime_scope": backend.runtime_scope,
+            "account_id": backend.account_id,
+            "server_id": backend.server_id,
+            "reset_id": backend.reset_id,
+            "assurance": backend.assurance.value,
+            "evidence_refs": list(backend.evidence_refs),
+            "observed_utc": backend.observed_utc,
+            "expires_utc": backend.expires_utc,
+            "runtime_binding_digest": backend.runtime_binding_digest,
+            "reset_start_utc": backend.reset_start_utc,
+            "reset_deadline_utc": backend.reset_deadline_utc,
+        }
+        records, actions, dispatches = [], [], []
+        for ordinal in range(1, calls + 1):
+            key = alliance_help_action_key(
+                runtime_scope=backend.runtime_scope,
+                account_id=identity.account_id,
+                server_id=identity.server_id,
+                reset_id=backend.reset_id,
+                ordinal=ordinal,
+            )
+            immediate_sha = hashlib.sha256(f"immediate-{ordinal}".encode()).hexdigest()
+            selected_sha = hashlib.sha256(f"selected-{ordinal}".encode()).hexdigest()
+            if ordinal <= confirmed:
+                records.append({
+                    "action_id": f"fixture-action-{ordinal}",
+                    "action_key": key,
+                    "request_ordinal": ordinal,
+                    "task_id": ALLIANCE_HELP_FLOW_ID,
+                    "semantic_action": ALLIANCE_HELP_SEMANTIC_ACTION,
+                    "source_state": ALLIANCE_HELP_SOURCE_STATE,
+                    "target_identity": INDIVIDUAL_TARGET_IDENTITY,
+                    "game_day_id": backend.reset_id,
+                    "expected_postcondition": ALLIANCE_HELP_POSTCONDITION,
+                    "consequence": ALLIANCE_HELP_CONSEQUENCE,
+                    "cost_type": "none",
+                    "cost_amount": 0,
+                    "quantity": 1,
+                    "consequential": 1,
+                    "final_status": "confirmed",
+                })
+                actions.append({
+                    "status": "confirmed",
+                    "request_ordinal": ordinal,
+                    "action_key": key,
+                    "journal_status": "confirmed",
+                    "verified_request_count": 1,
+                    "help_transport_calls": 1,
+                    "effect_reconciliation_required": False,
+                    "selected_request_sha256": selected_sha,
+                    "immediate_before_frame": {
+                        "frame_path": f"immediate-{ordinal}.png",
+                        "frame_sha256": immediate_sha,
+                    },
+                    "immediate_before_sha256": immediate_sha,
+                    "immediate_daily_alliance_coin_balance": (ordinal - 1) * 1000,
+                    "immediate_daily_alliance_coin_limit": 50000,
+                    "request_result_evidence": [
+                        {
+                            "selected_request_absent": True,
+                            "screen_state": ALLIANCE_HELP_SOURCE_STATE,
+                            "source_fresh": True,
+                            "overlay_clear": True,
+                            "success_message": True,
+                            "daily_alliance_coin_balance": ordinal * 1000,
+                            "daily_alliance_coin_limit": 50000,
+                        },
+                        {
+                            "selected_request_absent": True,
+                            "screen_state": ALLIANCE_HELP_SOURCE_STATE,
+                            "source_fresh": True,
+                            "overlay_clear": True,
+                            "success_message": False,
+                            "daily_alliance_coin_balance": ordinal * 1000,
+                            "daily_alliance_coin_limit": 50000,
+                        },
+                    ],
+                })
+            else:
+                actions.append({
+                    "status": "reconciliation_required",
+                    "request_ordinal": ordinal,
+                    "action_key": key,
+                    "journal_status": "unresolved",
+                    "verified_request_count": 0,
+                    "help_transport_calls": 1,
+                    "effect_reconciliation_required": True,
+                })
+            dispatches.append({
+                "immediate_before_sha256": immediate_sha,
+                "target_identity": INDIVIDUAL_TARGET_IDENTITY,
+                "action_key": key,
+            })
+        return {
+            "status": (
+                "reconciliation_required" if error and calls
+                else "blocked" if error
+                else "complete_for_reset"
+            ),
+            "reason": "help_request_result_unresolved" if error else "ten_free_requests_confirmed",
+            "flow_id": ALLIANCE_HELP_FLOW_ID,
+            "product_id": ALLIANCE_HELP_PRODUCT_ID,
+            "product_revision": ALLIANCE_HELP_PRODUCT_REVISION,
+            "task_id": ALLIANCE_HELP_PRODUCT_ID,
+            "account_id": identity.account_id,
+            "server_id": identity.server_id,
+            "reset_id": identity.reset_id,
+            "scheduler_reset_id": identity.reset_id,
+            "backend_reset_id": backend.reset_id,
+            "occurrence_key": occurrence_key,
+            "time_basis": "utc",
+            "completed_at_utc": self.stop.now,
+            "backend_identity": proof,
+            "confirmed_request_count": confirmed,
+            "confirmed_request_records": records,
+            "committed_action_count": confirmed,
+            "verified_request_count": confirmed,
+            "help_transport_calls": calls,
+            "request_actions": actions,
+            "help_dispatch_evidence": dispatches,
+            "remaining_request_target": DAILY_REQUEST_LIMIT - confirmed,
+            "max_inputs": ALLIANCE_HELP_MAX_INPUTS,
+            "max_actions": DAILY_REQUEST_LIMIT,
+            "input_count": input_count,
+            "total_input_count": input_count,
+            "session_input_count": input_count,
+            "runtime_input_count": input_count,
+            "native_input_count": input_count,
+            "native_execution_verified": error is None,
+            "native_failure": None if error is None else str(error),
+            "accounting_verified": True,
+            "effect_reconciliation_required": bool(error and calls),
+            "identical_retry_denied": bool(error),
+            "no_work": False,
+            "no_work_evidence": None,
+            "terminal_home_verified": error is None,
+            "terminal_home_frame": (
+                {"frame_path": "alliance-help-home.png", "frame_sha256": "f" * 64}
+                if error is None else None
+            ),
         }

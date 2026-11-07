@@ -1,59 +1,64 @@
 #!/usr/bin/env python3
-"""Executable, dry-run-by-default native BlueStacks route for Ruins Challenge."""
+"""Canonical service native driver for the fixed Ruins Challenge route."""
 
 from __future__ import annotations
 
 
-import argparse
 from dataclasses import replace
+import re
 import hashlib
 import json
 from pathlib import Path
-import sys
 import time
 
 import cv2
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
+from safe_action_core import Observation
 from scripts.bluestacks_native_runtime import IntegratedRouteResult, LocalBlueStacksRuntime, NativeRuntimePort
-from scripts.home_atlas_bluestacks import BlueStacksLocalizeFirstHomeDriver, HomeDriverDisposition, ScrcpyMotionEventZoomTransport
-from scripts.navigation_development_boundary import NavigationBoundaryError, NavigationGuardedRuntime, NavigationRouteDeclaration, make_source_safety_facts
+from scripts.home_atlas_bluestacks import BlueStacksLocalizeFirstHomeDriver, HomeDriverDisposition, ScrcpyMotionEventZoomTransport, identity_from_captured
 from tasks.home_atlas import load_home_atlas
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas_vision import BlueStacksHomeLocalizer, bind_visible_building
 from tasks.home_context import HomeReadyObservation
 from tasks.ruins_challenge import (
     KNOWN_CHALLENGE_IDENTITIES,
+    RUINS_CHALLENGE_DISPATCH_ACTION,
+    RUINS_CHALLENGE_RESULT_POSTCONDITION,
+    RUINS_CHEST_CLAIM_ACTION,
+    RUINS_CHEST_CLAIM_POSTCONDITION,
     RuinsAvailability,
     RuinsChestState,
     RuinsControlState,
     RuinsResult,
-    current_day_allowed,
+    challenge_action_authorized,
+    dispatch_authorized,
+    result_verified,
+    ruins_daily_action_key,
 )
 from tasks.ruins_challenge_runtime import RuinsRuntimeController
-from tasks.ruins_challenge_continuation import (
-    CANONICAL_IDENTITIES,
-    FLOW_ID as RUINS_CONTINUATION_FLOW_ID,
-    RUNTIME_PROFILE_ID as RUINS_CONTINUATION_RUNTIME_PROFILE_ID,
-    RuinsContinuationError,
-    confirmed_claim_records,
-    confirmed_identities,
-    load_continuation,
-    make_claim_record,
-)
+from tasks.ruins_challenge_continuation import make_claim_record, write_continuation
 from tasks.ruins_challenge_vision import (
     recognize_ruins_detail_with_targets,
     recognize_ruins_frame,
-    recognize_navigation_chat_screen,
     recognize_ruins_result_with_targets,
     recognize_ruins_reward_frame,
-    recognize_any_ruins_reward_frame,
 )
-from tasks.runtime_identity import RuntimeIdentityAssurance, VerifiedRuntimeIdentity
-from scripts import bluestacks_popup_recognition
+from tasks.runtime_identity import VerifiedRuntimeIdentity
+from automation_service.registry import (
+    RUINS_FLOW_ID,
+    RUINS_MAX_INPUTS,
+    RUINS_PRODUCT_ID,
+    RUINS_PRODUCT_REVISION,
+    RUINS_PROFILE_ID,
+)
+from scripts.navigation_development_boundary import (
+    NavigationBoundaryError,
+    NavigationGuardedRuntime,
+    NavigationRouteDeclaration,
+    make_source_safety_facts,
+)
 
 
 RUINS_HOME_ATLAS_BUILDING_ID = "home.building.ruins"
@@ -63,6 +68,8 @@ MAXIMUM_HOME_ZOOM_INPUTS = 2
 _ORDINARY_RUINS_TARGETS = frozenset(
     {"ruins-attack", "ruins-dispatch", "ruins-result-continue", "ruins-reward-claim", "reset-popup-close"}
 )
+MAX_INPUTS = RUINS_MAX_INPUTS
+MAX_ACTIONS = 13
 
 
 def ruins_challenge_navigation_route_declaration() -> NavigationRouteDeclaration:
@@ -76,25 +83,38 @@ def ruins_challenge_navigation_route_declaration() -> NavigationRouteDeclaration
 
 
 class RuinsIntegratedRoute:
-    """Drive one bounded challenge and optional independently reconciled Ruins chests."""
-
+    """Drive the challenge first, then independently ready Ruins chests."""
     def __init__(
         self,
         runtime: NativeRuntimePort,
         *,
         reset_identity: str,
         current_day: str,
-        claim_chests: bool = False,
-        chests_only: bool = False,
-        allow_optional_second: bool = False,
-        excluded_challenges: set[str] | None = None,
-        navigation_only: bool = False,
-        chest_continuation: Path | None = None,
+        account_id: str,
+        server_id: str,
+        runtime_scope: str,
+        product_id: str,
+        product_revision: str,
+        runtime_identity: VerifiedRuntimeIdentity,
+        action_executor,
+        initial_capture=None,
         home_driver: BlueStacksLocalizeFirstHomeDriver | None = None,
         zoom_transport=None,
         post_input_delay: float = 1.0,
         recognition_timeout: float = 25.0,
     ) -> None:
+        if not reset_identity or current_day not in {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}:
+            raise ValueError("Ruins route requires the current reset and weekday")
+        if not all((account_id, server_id, runtime_scope, product_id, product_revision)):
+            raise ValueError("Ruins route requires exact runtime and product identity")
+        if not isinstance(runtime_identity, VerifiedRuntimeIdentity) or runtime_identity.runtime_scope != runtime_scope:
+            raise ValueError("Ruins route requires the existing verified fixed-backend identity")
+        if not runtime_identity.reset_id:
+            raise ValueError("Ruins route requires the verified backend reset identity")
+        if not callable(getattr(action_executor, "status", None)) or not callable(
+            getattr(action_executor, "execute", None)
+        ):
+            raise ValueError("Ruins gameplay requires the canonical action executor")
         declaration = ruins_challenge_navigation_route_declaration()
         if zoom_transport is None and getattr(runtime, "execute", False):
             runner = getattr(runtime, "runner", None)
@@ -104,56 +124,50 @@ class RuinsIntegratedRoute:
                     serial=runner.serial,
                     evidence_directory=getattr(runtime, "session", None),
                 )
-        self.runtime: NativeRuntimePort = runtime if isinstance(runtime, NavigationGuardedRuntime) else NavigationGuardedRuntime(runtime, declaration)
+        self.runtime: NativeRuntimePort = (
+            runtime if isinstance(runtime, NavigationGuardedRuntime)
+            else NavigationGuardedRuntime(runtime, declaration)
+        )
         self.reset_identity = reset_identity
+        self.action_reset_identity = reset_identity
         self.current_day = current_day
-        self.claim_chests = claim_chests or chests_only
-        self.chests_only = chests_only
-        if chest_continuation is not None and not chests_only:
-            raise ValueError("Ruins chest continuation requires --chests-only")
-        self.allow_optional_second = allow_optional_second
-        self.navigation_only = navigation_only
-        self.chest_continuation = Path(chest_continuation).resolve() if chest_continuation is not None else None
+        self.account_id = account_id
+        self.server_id = server_id
+        self.runtime_scope = runtime_scope
+        self.product_id = product_id
+        self.product_revision = product_revision
+        self.action_executor = action_executor
+        self.initial_capture = initial_capture
         self.post_input_delay = post_input_delay
         self.recognition_timeout = recognition_timeout
         self.resource_delta = 0
         self._points_balance: int | None = None
-        self.chest_coverage = {identity: "unresolved" for identity in CANONICAL_IDENTITIES}
+        self.chest_coverage = {identity: "unresolved" for identity in KNOWN_CHALLENGE_IDENTITIES}
+        self._unresolved_chest_identities: set[str] = set()
         self.newly_claimed_chests: list[dict[str, object]] = []
         self.confirmed_claim_records: list[dict[str, object]] = []
-        self.prior_confirmed_claim_records: list[dict[str, object]] = []
-        self._continuation_confirmed: frozenset[str] = frozenset()
-        if self.chest_continuation is not None:
-            try:
-                checkpoint = load_continuation(
-                    self.chest_continuation,
-                    expected_flow_id=RUINS_CONTINUATION_FLOW_ID,
-                    expected_reset_identity=reset_identity,
-                    expected_current_day=current_day,
-                    expected_runtime_profile_id=RUINS_CONTINUATION_RUNTIME_PROFILE_ID,
-                )
-            except RuinsContinuationError as exc:
-                raise ValueError(f"invalid Ruins chest continuation: {exc.reason}") from exc
-            self._continuation_confirmed = confirmed_identities(checkpoint)
-            self.prior_confirmed_claim_records.extend(confirmed_claim_records(checkpoint))
+        self.challenge_transport_calls = 0
+        self.chest_claim_transport_calls = 0
+        self.challenge_identity: str | None = None
+        self.challenge_result: str | None = None
+        self.challenge_status = "unknown"
+        self.challenge_participation_confirmed = False
+        self.daily_action_ready = False
+        self.unresolved_action = False
+        self.terminal_home_verified = False
+        self.terminal_home_capture = None
         self.atlas_path = ROOT / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
         self.atlas = load_home_atlas(self.atlas_path)
-        identity = VerifiedRuntimeIdentity(
-            "bluestacks-ruins-challenge", "supervised-ruins-challenge",
-            "supervised-ruins-challenge-server", reset_identity,
-            RuntimeIdentityAssurance.SUPERVISED_NAVIGATION_BINDING, (f"reset:{reset_identity}",),
-        )
         self.home_driver = home_driver or BlueStacksLocalizeFirstHomeDriver(
-            self.atlas, self.atlas_path, HomeReadyObservation(True, True, identity, False, False),
-            RUINS_HOME_ATLAS_BUILDING_ID, maximum_zoom_inputs=MAXIMUM_HOME_ZOOM_INPUTS,
+            self.atlas,
+            self.atlas_path,
+            HomeReadyObservation(True, True, runtime_identity, False, False),
+            RUINS_HOME_ATLAS_BUILDING_ID,
+            maximum_zoom_inputs=MAXIMUM_HOME_ZOOM_INPUTS,
         )
-        self.zoom_transport = zoom_transport
-        self.controller = RuinsRuntimeController(
-            reset_identity=reset_identity,
-            allow_optional_second=allow_optional_second,
-        )
-        self.controller.challenge_identities_attempted.update(excluded_challenges or set())
 
+        self.zoom_transport = zoom_transport
+        self.controller = RuinsRuntimeController(reset_identity=reset_identity)
     def _observe_list(self, label: str):
         captured = self.runtime.capture(label)
         return captured, recognize_ruins_frame(captured.frame, reset_identity=self.reset_identity)
@@ -211,23 +225,135 @@ class RuinsIntegratedRoute:
             continuation_of=continuation_of,
         )
 
-    def _dismiss_known_vip_popup(self, captured):
-        """Close the retained benign VIP-points modal once when positively recognized."""
-        detail = bluestacks_popup_recognition.recognize_reset_popup(captured.frame)
-        if not detail.get("recognized") or not detail.get("target"):
-            return captured, None, 0
-        self._ordinary_tap(
-            captured,
-            target_identity="reset-popup-close",
-            target_roi=tuple(detail["target"]),
-            action_key=f"ruins:vip-popup-close:{captured.sha256}",
-            consequential=False,
+    @staticmethod
+    def _slug(value: str) -> str:
+        return re.sub(r"[^a-z0-9_-]+", "-", value.casefold()).strip("-")
+
+    @classmethod
+    def _identity_token(cls, value: str) -> str:
+        return f"{cls._slug(value)}-{hashlib.sha256(value.encode('utf-8')).hexdigest()[:12]}"
+
+    def _action_key(self, category: str) -> str:
+        return ruins_daily_action_key(
+            flow_id=RUINS_FLOW_ID,
+            runtime_scope=self.runtime_scope,
+            account_id=self.account_id,
+            server_id=self.server_id,
+            reset_identity=self.action_reset_identity,
+            current_day=self.current_day,
+            category=category,
         )
-        time.sleep(self.post_input_delay)
-        settled = self.runtime.capture("ruins-vip-popup-close-immediate-post")
-        if bluestacks_popup_recognition.recognize_reset_popup(settled.frame).get("recognized"):
-            return settled, "vip_popup_close_successor_not_recognized", 1
-        return settled, None, 1
+
+    def _challenge_preconditions(self, row, detail) -> tuple[str, ...]:
+        return (
+            f"ruins_product={RUINS_PRODUCT_ID}",
+            f"ruins_product_revision={RUINS_PRODUCT_REVISION}",
+            f"ruins_flow={RUINS_FLOW_ID}",
+            f"ruins_account_id={self._identity_token(self.account_id)}",
+            f"ruins_server_id={self._identity_token(self.server_id)}",
+            f"ruins_reset_id={self.action_reset_identity}",
+            f"ruins_game_day={self.current_day}",
+            "ruins_category=challenge",
+            f"ruins_challenge_identity={self._slug(row.identity)}",
+            f"ruins_challenge_day={row.day_label or 'active_timer'}",
+            "ruins_challenge_availability=available",
+            "ruins_challenge_control=visible_enabled",
+            "ruins_cost_type=none",
+            "ruins_cost_amount=0",
+            "ruins_premium=false",
+            "ruins_paid=false",
+            "ruins_ticketed=false",
+            "ruins_npc_troops=provided",
+            f"ruins_npc_troops_current={detail.npc_troops_current}",
+            f"ruins_npc_troops_maximum={detail.npc_troops_maximum}",
+            "ruins_skip_battle=true",
+            "ruins_dispatch_count_before=0",
+            "ruins_dispatch_count_limit=1",
+        )
+
+    def _chest_preconditions(self, row, reward) -> tuple[str, ...]:
+        identity = self._slug(row.identity)
+        return (
+            f"ruins_product={RUINS_PRODUCT_ID}",
+            f"ruins_product_revision={RUINS_PRODUCT_REVISION}",
+            f"ruins_flow={RUINS_FLOW_ID}",
+            f"ruins_account_id={self._identity_token(self.account_id)}",
+            f"ruins_server_id={self._identity_token(self.server_id)}",
+            f"ruins_reset_id={self.action_reset_identity}",
+            f"ruins_game_day={self.current_day}",
+            "ruins_category=chest",
+            f"ruins_chest_identity={identity}",
+            "ruins_chest_state=green_ready",
+            "ruins_chest_fully_visible=true",
+            "ruins_claim_control=visible_enabled",
+            f"ruins_reward_identity={identity}",
+            f"ruins_reward_medals={reward.medal_amount}",
+            "ruins_cost_type=none",
+            "ruins_cost_amount=0",
+            "ruins_premium=false",
+            "ruins_exchange=false",
+            "ruins_shop=false",
+            "ruins_claim_count_before=0",
+            "ruins_claim_count_limit=1",
+        )
+
+    def _policy_observation(
+        self,
+        captured,
+        *,
+        source_state: str,
+        target_identity: str,
+        target_roi,
+        control_class: str,
+        consequence: str,
+        postcondition: str,
+    ) -> Observation:
+        inner = getattr(self.runtime, "_inner", self.runtime)
+        source = identity_from_captured(
+            captured,
+            session_id=str(inner.session),
+            ordinal=inner.ordinal,
+            label=f"ruins:{source_state.casefold()}",
+        )
+        measure_package = getattr(inner, "measure_foreground_package", None)
+        package = measure_package() if callable(measure_package) else None
+        x0, y0, x1, y1 = target_roi
+        crop = captured.frame[y0:y1, x0:x1]
+        if crop.size == 0:
+            raise ValueError("Ruins action target has an empty current-frame ROI")
+        return Observation(
+            frame_sha256=captured.sha256,
+            capture_completed_monotonic=captured.captured_monotonic,
+            runtime_profile_id=source.runtime_profile_id,
+            width=source.width,
+            height=source.height,
+            valid_png=True,
+            corrupt=False,
+            black=False,
+            source_state=source_state,
+            overlay_state="none_observed",
+            target_identity=target_identity,
+            target_roi=tuple(target_roi),
+            recognized=True,
+            control_class=control_class,
+            consequence=consequence,
+            cost_type="none",
+            cost_amount=0,
+            quantity=1,
+            expected_postcondition=postcondition,
+            evidence_refs=(str(captured.path),),
+            critical_roi_hashes=(("ruins-action-target", hashlib.sha256(crop.tobytes()).hexdigest()),),
+            ocr_result_frame_sha256=captured.sha256,
+            ocr_result_capture_completed_monotonic=captured.captured_monotonic,
+            source_family="ruins_challenge",
+            target_isolated=True,
+            package_foreground=package == "com.global.ztmslg",
+        )
+
+    @staticmethod
+    def _action_status_value(result) -> str:
+        return result.get("status") if isinstance(result, dict) else str(result)
+
 
     def _recover_home_zoom_before_ruins_binding(self) -> tuple[object | None, str | None]:
         """Normalize supported Home zoom before binding Ruins; unknown states fail closed."""
@@ -281,121 +407,11 @@ class RuinsIntegratedRoute:
                 return settled, None
         return None, "home_zoom_recovery_exhausted"
 
-    def _recover_known_chat_to_home(self, source) -> tuple[object | None, str | None, int]:
-        if not recognize_navigation_chat_screen(source.frame):
-            return source, None, 0
-        immediate_before = self.runtime.capture("ruins-chat-safe-exit-immediate-before")
-        if not recognize_navigation_chat_screen(immediate_before.frame):
-            return None, "chat_safe_exit_revalidation_failed", 0
-        try:
-            self._prepare_navigation(immediate_before, source_state="CHAT")
-            self.runtime.back(
-                immediate_before,
-                action_key=f"ruins:chat-safe-exit:{immediate_before.sha256}",
-            )
-        except NavigationBoundaryError as exc:
-            return None, str(exc), 0
-        time.sleep(self.post_input_delay)
-        immediate_post = self.runtime.capture("ruins-chat-safe-exit-immediate-post")
-        home_step = self.home_driver.observe(immediate_post.frame)
-        if home_step.disposition is HomeDriverDisposition.BLOCKED:
-            return None, f"chat_safe_exit_home_not_recognized:{home_step.reason}", 1
-        return immediate_post, None, 1
-
-    def _recover_known_detail_to_list(self, source):
-        """Safely back out of one positively recognized Ruins detail screen."""
-        dispatch_probe = recognize_ruins_detail_with_targets(
-            source.frame, "", reset_identity=self.reset_identity,
-        )
-        dispatch_observation = dispatch_probe.observation
-        if (
-            dispatch_observation.recognized
-            and dispatch_observation.dispatch_control == RuinsControlState.VISIBLE_ENABLED
-            and dispatch_observation.npc_troops_provided
-            and dispatch_observation.npc_troops_current == dispatch_observation.npc_troops_maximum
-            and dispatch_observation.skip_battle_enabled
-        ):
-            dispatch_before = self.runtime.capture("ruins-dispatch-safe-exit-immediate-before")
-            dispatch_rebound = recognize_ruins_detail_with_targets(
-                dispatch_before.frame, "", reset_identity=self.reset_identity,
-            ).observation
-            if not (
-                dispatch_rebound.recognized
-                and dispatch_rebound.dispatch_control == RuinsControlState.VISIBLE_ENABLED
-                and dispatch_rebound.npc_troops_current == dispatch_rebound.npc_troops_maximum
-                and dispatch_rebound.skip_battle_enabled
-            ):
-                return dispatch_before, None, 0, "ruins_dispatch_safe_exit_revalidation_failed", True
-            try:
-                self._prepare_navigation(dispatch_before, source_state="RUINS_DISPATCH_DETAIL")
-                self.runtime.back(
-                    dispatch_before,
-                    action_key=f"ruins:dispatch-safe-exit:{dispatch_before.sha256}",
-                )
-            except NavigationBoundaryError as exc:
-                return dispatch_before, None, 0, str(exc), True
-            time.sleep(self.post_input_delay)
-            detail_after = self.runtime.capture("ruins-dispatch-safe-exit-immediate-post")
-            detail_candidates = []
-            for identity in KNOWN_CHALLENGE_IDENTITIES:
-                detail = recognize_ruins_detail_with_targets(
-                    detail_after.frame, identity, reset_identity=self.reset_identity,
-                )
-                if detail.observation.recognized:
-                    detail_candidates.append(identity)
-            if len(detail_candidates) != 1:
-                return detail_after, None, 1, "ruins_dispatch_safe_exit_detail_not_recognized", True
-            list_capture, list_recognition, detail_actions, detail_error, detail_handled = self._recover_known_detail_to_list(detail_after)
-            if not detail_handled:
-                return detail_after, None, 1, "ruins_dispatch_safe_exit_detail_not_recognized", True
-            if detail_error is not None:
-                return list_capture, list_recognition, detail_actions + 1, detail_error, True
-            return list_capture, list_recognition, detail_actions + 1, None, True
-        if (
-            dispatch_observation.npc_troops_provided
-            or dispatch_observation.npc_troops_current is not None
-            or dispatch_observation.skip_battle_enabled
-        ):
-            return source, None, 0, "ruins_dispatch_context_ambiguous", True
-        candidates = []
-        ambiguous_detail = False
-        for identity in KNOWN_CHALLENGE_IDENTITIES:
-            detail = recognize_ruins_detail_with_targets(
-                source.frame, identity, reset_identity=self.reset_identity,
-            )
-            if detail.observation.recognized:
-                candidates.append((identity, detail))
-            elif detail.observation.floor_maximum > 0:
-                ambiguous_detail = True
-        if len(candidates) > 1:
-            return source, None, 0, "ruins_detail_identity_ambiguous", True
-        if not candidates:
-            if ambiguous_detail:
-                return source, None, 0, "ruins_detail_context_ambiguous", True
-            return source, None, 0, None, False
-        identity, _detail = candidates[0]
-        immediate_before = self.runtime.capture("ruins-detail-safe-exit-immediate-before")
-        rebound = recognize_ruins_detail_with_targets(
-            immediate_before.frame, identity, reset_identity=self.reset_identity,
-        )
-        if not rebound.observation.recognized:
-            return immediate_before, None, 0, "ruins_detail_safe_exit_revalidation_failed", True
-        try:
-            self._prepare_navigation(immediate_before, source_state="RUINS_CHALLENGE_DETAIL")
-            self.runtime.back(
-                immediate_before,
-                action_key=f"ruins:detail-safe-exit:{immediate_before.sha256}",
-            )
-        except NavigationBoundaryError as exc:
-            return immediate_before, None, 0, str(exc), True
-        time.sleep(self.post_input_delay)
-        settled, successor = self._observe_list("ruins-detail-safe-exit-immediate-post")
-        if not successor.observation.recognized or successor.observation.screen_identity != "RUINS_CHALLENGE":
-            return settled, successor, 1, "ruins_detail_safe_exit_successor_not_recognized", True
-        return settled, successor, 1, None, True
 
     def _return_home(self, captured, recognition, actions: int) -> IntegratedRouteResult:
         if recognition.observation.home_base_recognized or self._home_atlas_recognized(captured.frame):
+            self.terminal_home_verified = True
+            self.terminal_home_capture = captured
             return IntegratedRouteResult("completed", "returned_home", actions, str(self.runtime.session))
         if (
             not recognition.observation.recognized
@@ -417,152 +433,15 @@ class RuinsIntegratedRoute:
         self.runtime.back(immediate_before, action_key=f"ruins:safe-exit:{immediate_before.sha256}")
         time.sleep(self.post_input_delay)
         settled, successor = self._observe_list("ruins-safe-exit-immediate-post")
-        exit_actions = actions + (1 if self.navigation_only else 0)
         if not successor.observation.home_base_recognized and not self._home_atlas_recognized(settled.frame):
-            return IntegratedRouteResult("blocked", "safe_exit_home_successor_not_recognized", exit_actions, str(self.runtime.session))
-        return IntegratedRouteResult("completed", "verified_safe_exit_to_home", exit_actions, str(self.runtime.session))
+            return IntegratedRouteResult("blocked", "safe_exit_home_successor_not_recognized", actions, str(self.runtime.session))
+        self.terminal_home_verified = True
+        self.terminal_home_capture = settled
+        return IntegratedRouteResult("completed", "verified_safe_exit_to_home", actions, str(self.runtime.session))
 
     def _home_atlas_recognized(self, frame) -> bool:
         return bool(BlueStacksHomeLocalizer(self.atlas, self.atlas_path).localize(frame).recognized)
 
-    def recover_only(self, evidence_session: Path) -> IntegratedRouteResult:
-        """Close one evidence-bound post-success detail without repeating combat."""
-        flow_root = (ROOT / ".local-captures" / "flow-delivery" / "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION").resolve()
-        try:
-            evidence_session = evidence_session.resolve()
-            evidence_session.relative_to(flow_root)
-        except (OSError, ValueError):
-            return IntegratedRouteResult("blocked", "recovery_evidence_session_outside_ruins_flow", 0, str(self.runtime.session))
-
-        def evidence_path(row):
-            raw = row.get("path")
-            if not raw:
-                return None
-            try:
-                path = Path(raw).resolve()
-                path.relative_to(evidence_session)
-                path.relative_to(evidence_session / "frames")
-            except (OSError, ValueError):
-                return None
-            return path
-
-        try:
-            delivery = json.loads((evidence_session / "flow-delivery-result.json").read_text(encoding="utf-8"))
-            events = [
-                json.loads(line)
-                for line in (evidence_session / "events.jsonl").read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            return IntegratedRouteResult("blocked", f"recovery_evidence_unreadable:{type(exc).__name__}", 0, str(self.runtime.session))
-        for row in events:
-            for field in ("path", "post_path"):
-                if row.get(field) is not None:
-                    try:
-                        referenced = Path(row[field]).resolve()
-                        referenced.relative_to(evidence_session)
-                        referenced.relative_to(evidence_session / "frames")
-                    except (OSError, TypeError, ValueError):
-                        return IntegratedRouteResult("blocked", "recovery_evidence_path_escape", 0, str(self.runtime.session))
-        if delivery.get("status") != "failed" or (delivery.get("ruins_result") or {}).get("reason") != "successful_progress_not_visible":
-            return IntegratedRouteResult("blocked", "recovery_evidence_not_terminal_success_gap", 0, str(self.runtime.session))
-        dispatches = [
-            (index, row) for index, row in enumerate(events)
-            if row.get("type") == "dispatch" and row.get("target_identity") == "ruins-dispatch" and row.get("consequential")
-        ]
-        if len(dispatches) != 1:
-            return IntegratedRouteResult("blocked", "recovery_evidence_missing_consequential_dispatch", 0, str(self.runtime.session))
-        dispatch_index, dispatch = dispatches[0]
-        dispatch_key = dispatch.get("action_key")
-        source_sha = dispatch.get("source_sha256")
-        roi = dispatch.get("target_roi")
-        if not isinstance(dispatch_key, str) or not dispatch_key or not isinstance(source_sha, str) or len(source_sha) != 64:
-            return IntegratedRouteResult("blocked", "recovery_evidence_dispatch_binding_invalid", 0, str(self.runtime.session))
-        if not (isinstance(roi, list) and len(roi) == 4 and all(isinstance(value, int) for value in roi)):
-            return IntegratedRouteResult("blocked", "recovery_evidence_dispatch_target_invalid", 0, str(self.runtime.session))
-        source_captures = []
-        if dispatch_index > 0:
-            source_row = events[dispatch_index - 1]
-            source_path = evidence_path(source_row)
-            if source_row.get("type") == "capture" and source_row.get("sha256") == source_sha and source_path is not None and hashlib.sha256(source_path.read_bytes()).hexdigest() == source_sha:
-                source_captures.append(source_row)
-        if len(source_captures) != 1:
-            return IntegratedRouteResult("blocked", "recovery_evidence_dispatch_source_invalid", 0, str(self.runtime.session))
-        continues = [
-            (index, row) for index, row in enumerate(events)
-            if index > dispatch_index and row.get("type") == "dispatch"
-            and row.get("target_identity") == "ruins-result-continue"
-            and row.get("action_key", "").startswith(dispatch_key + ":")
-        ]
-        if len(continues) != 1:
-            return IntegratedRouteResult("blocked", "recovery_evidence_continue_link_invalid", 0, str(self.runtime.session))
-        continue_index, continue_row = continues[0]
-        successor_rows = [
-            (index, row) for index, row in enumerate(events)
-            if index > continue_index and row.get("type") == "capture" and row.get("label") == "challenge-list-postcondition"
-        ]
-        if len(successor_rows) != 1:
-            return IntegratedRouteResult("blocked", "recovery_evidence_successor_link_invalid", 0, str(self.runtime.session))
-        successor_index, successor_row = successor_rows[0]
-        successor_path = evidence_path(successor_row)
-        successor_sha = successor_row.get("sha256")
-        if successor_path is None or not successor_path.is_file() or not isinstance(successor_sha, str) or len(successor_sha) != 64:
-            return IntegratedRouteResult("blocked", "recovery_evidence_successor_frame_invalid", 0, str(self.runtime.session))
-        if hashlib.sha256(successor_path.read_bytes()).hexdigest() != successor_sha:
-            return IntegratedRouteResult("blocked", "recovery_evidence_successor_hash_mismatch", 0, str(self.runtime.session))
-        reconciles = [
-            (index, row) for index, row in enumerate(events)
-            if index > successor_index and row.get("type") == "reconcile"
-            and row.get("status") == "unresolved" and row.get("reason") == "successful row progress not visible"
-            and row.get("action_key") == dispatch_key
-            and row.get("post_path") and Path(row.get("post_path")).resolve() == successor_path
-            and row.get("post_sha256") == successor_sha
-        ]
-        if len(reconciles) != 1:
-            return IntegratedRouteResult("blocked", "recovery_evidence_reconcile_link_invalid", 0, str(self.runtime.session))
-        detail_rows = [
-            (index, row) for index, row in enumerate(events)
-            if row.get("type") == "capture" and row.get("label") == "challenge-detail-immediate-post" and index < dispatch_index
-        ]
-        if len(detail_rows) != 1:
-            return IntegratedRouteResult("blocked", "recovery_evidence_detail_frame_invalid", 0, str(self.runtime.session))
-        _detail_index, detail_row = detail_rows[0]
-        detail_path = evidence_path(detail_row)
-        if detail_path is None or not detail_path.is_file() or detail_row.get("sha256") != hashlib.sha256(detail_path.read_bytes()).hexdigest():
-            return IntegratedRouteResult("blocked", "recovery_evidence_detail_hash_mismatch", 0, str(self.runtime.session))
-        successor_frame = cv2.imread(str(successor_path))
-        if successor_frame is None or successor_frame.shape[:2] != (1280, 800):
-            return IntegratedRouteResult("blocked", "recovery_evidence_successor_frame_invalid", 0, str(self.runtime.session))
-        detail_frame = cv2.imread(str(detail_path))
-        prior_candidates = []
-        for identity in KNOWN_CHALLENGE_IDENTITIES:
-            detail = recognize_ruins_detail_with_targets(detail_frame, identity, reset_identity=self.reset_identity)
-            if detail.observation.recognized:
-                prior_candidates.append((identity, detail.observation.floor_current, detail.observation.floor_maximum))
-        if len(prior_candidates) != 1:
-            return IntegratedRouteResult("blocked", "recovery_evidence_detail_identity_ambiguous", 0, str(self.runtime.session))
-        prior_identity, prior_floor, prior_maximum = prior_candidates[0]
-        candidates = []
-        detail = recognize_ruins_detail_with_targets(successor_frame, prior_identity, reset_identity=self.reset_identity)
-        if detail.observation.recognized:
-            candidates.append((prior_identity, detail.observation.floor_current, detail.observation.floor_maximum))
-        if len(candidates) != 1 or candidates[0][0] != prior_identity or candidates[0][1] != prior_floor + 1 or candidates[0][2] != prior_maximum:
-            return IntegratedRouteResult("blocked", "recovery_evidence_successor_detail_ambiguous", 0, str(self.runtime.session))
-        identity, successor_floor, successor_maximum = candidates[0]
-        source = self.runtime.capture("ruins-recovery-source")
-        current_candidates = []
-        detail = recognize_ruins_detail_with_targets(source.frame, prior_identity, reset_identity=self.reset_identity)
-        if detail.observation.recognized:
-            current_candidates.append((prior_identity, detail.observation.floor_current, detail.observation.floor_maximum))
-        if current_candidates != [(identity, successor_floor, successor_maximum)]:
-            return IntegratedRouteResult("blocked", "recovery_current_detail_does_not_match_retained_successor", 0, str(self.runtime.session))
-        # Bind this continuation to the already-attempted identity so a recovery
-        # invocation cannot fall through into a fresh challenge selection.
-        self.controller.challenge_identities_attempted.add(identity)
-        captured, recognition, _actions, error, handled = self._recover_known_detail_to_list(source)
-        if not handled or error is not None:
-            return IntegratedRouteResult("blocked", error or "recovery_detail_to_list_failed", 0, str(self.runtime.session))
-        return self._return_home(captured, recognition, 0)
 
     def _current_frame_ruins_binding(self, captured):
         localization = BlueStacksHomeLocalizer(self.atlas, self.atlas_path).localize(captured.frame)
@@ -584,72 +463,174 @@ class RuinsIntegratedRoute:
     def _claim_one_chest(self, captured, recognition):
         observation = recognition.observation
         for row in observation.rows:
-            if row.chest_state != RuinsChestState.AVAILABLE:
-                continue
-            # A checkpoint suppresses only the Claim input.  The caller still
-            # audits this row from the current recognition; no retained target
-            # ROI or stale ``already claimed`` status is trusted.
-            if row.identity in self._continuation_confirmed or self.chest_coverage[row.identity] == "newly claimed":
+            if row.chest_state != RuinsChestState.AVAILABLE or not self._fully_visible_chest_row(row):
                 continue
             target_identity = f"chest:{row.identity}"
             target = recognition.target(target_identity)
+            action_key = self._action_key(f"chest:{self._slug(row.identity)}")
             if target is None:
-                return "blocked", "available_chest_target_not_bound", captured, recognition
-            action_key = f"ruins:chest:{self.reset_identity}:{row.identity}:{captured.sha256}"
-            command = self.controller.plan_chest_claim(observation, row, action_key=action_key)
-            if command.kind != "claim_chest":
-                return "blocked", command.reason, captured, recognition
+                return "blocked", "green_ready_chest_claim_not_authorized", captured, recognition
+            spec = {
+                "action_key": action_key,
+                "semantic_action": RUINS_CHEST_CLAIM_ACTION,
+                "action_kind": RUINS_CHEST_CLAIM_ACTION,
+                "subject": f"ruins_stage_chest:{self._slug(row.identity)}",
+                "category": "chest",
+                "identity": row.identity,
+                "source_state": "RUINS_REWARD_MODAL",
+                "target_identity": "ruins-reward-claim",
+                "control_class": "CLAIM",
+                "consequence": "ruins_zero_cost_ready_chest_reward",
+                "expected_postcondition": RUINS_CHEST_CLAIM_POSTCONDITION,
+                "semantic_preconditions": (),
+                "game_day_id": self.action_reset_identity,
+            }
+            existing = self.action_executor.status(spec)
+            existing_status = self._action_status_value(existing)
+            if existing_status == "confirmed":
+                self.chest_coverage[row.identity] = "unresolved"
+                self._unresolved_chest_identities.add(row.identity)
+                continue
+            if existing_status != "new":
+                self._unresolved_chest_identities.add(row.identity)
+                if existing_status in {"unknown", "unresolved"}:
+                    self.unresolved_action = True
+                return "unresolved" if existing_status in {"unknown", "unresolved"} else "blocked", (
+                    f"canonical_chest_action_{existing_status}"
+                ), captured, recognition
+            planned = self.controller.plan_chest_claim(
+                observation, row, action_key=action_key,
+            )
+            if planned.kind != "claim_chest":
+                return "blocked", planned.reason, captured, recognition
             self._ordinary_tap(
                 captured,
                 target_identity=target_identity,
                 target_roi=target,
-                action_key=action_key,
+                action_key=f"{action_key}:open:{captured.sha256}",
                 consequential=False,
             )
             time.sleep(self.post_input_delay)
             modal_capture = self.runtime.capture("chest-modal-immediate-post")
-            modal = recognize_ruins_reward_frame(modal_capture.frame, row.identity, reset_identity=self.reset_identity)
+            modal = recognize_ruins_reward_frame(
+                modal_capture.frame, row.identity, reset_identity=self.reset_identity,
+            )
             claim_target = modal.target("ruins-reward-claim")
-            if not modal.recognized or claim_target is None:
-                self.runtime.reconcile(action_key, "unresolved", modal_capture, "Ruins reward modal not positively recognized")
-                return "unresolved", "chest_reward_modal_not_recognized", modal_capture, recognition
-            self._ordinary_tap(
+            if (
+                not modal.recognized
+                or modal.reset_identity != self.reset_identity
+                or claim_target is None
+                or type(modal.medal_amount) is not int
+                or modal.medal_amount <= 0
+            ):
+                return "blocked", "ruins_reward_modal_not_exact_zero_cost_identity", modal_capture, recognition
+            spec["semantic_preconditions"] = self._chest_preconditions(row, modal)
+            proposal = self._policy_observation(
                 modal_capture,
+                source_state="RUINS_REWARD_MODAL",
                 target_identity="ruins-reward-claim",
                 target_roi=claim_target,
-                action_key=f"{action_key}:claim",
+                control_class="CLAIM",
+                consequence="ruins_zero_cost_ready_chest_reward",
+                postcondition=RUINS_CHEST_CLAIM_POSTCONDITION,
             )
-            time.sleep(self.post_input_delay)
-            post_capture, post_recognition = self._observe_list("chest-claim-immediate-post")
-            after = post_recognition.observation.row(row.identity)
-            chest_target_absent = post_recognition.target(target_identity) is None
-            if not post_recognition.observation.recognized or not chest_target_absent:
-                self.runtime.reconcile(action_key, "unresolved", post_capture, "exact chest disappearance not proven")
-                return "unresolved", "chest_postcondition_not_proven", post_capture, post_recognition
-            after_points = post_recognition.observation.points_balance
-            before_points = observation.points_balance if observation.points_balance is not None else self._points_balance
-            if before_points is None or after_points is None or after_points < before_points:
-                self.runtime.reconcile(action_key, "unresolved", post_capture, "Ruins medal delta not positively proven")
-                return "unresolved", "chest_medal_delta_not_proven", post_capture, post_recognition
-            reward_delta = after_points - before_points
-            # A transient reward toast can corrupt OCR of the just-claimed row
-            # while leaving the exact chest absent.  The identity-bound reward
-            # modal, current-frame target disappearance, and medal increase are
-            # sufficient postcondition evidence; do not retry the Claim merely
-            # because the row label itself was missed in this one frame.
-            if after is None:
+            facts: dict[str, object] = {"captures": []}
+
+            def observe(current):
+                recognized = recognize_ruins_reward_frame(
+                    current.frame, row.identity, reset_identity=self.reset_identity,
+                )
+                current_target = recognized.target("ruins-reward-claim")
                 if (
-                    not isinstance(modal.medal_amount, int)
-                    or modal.medal_amount <= 0
-                    or reward_delta != modal.medal_amount
+                    not recognized.recognized
+                    or recognized.reset_identity != self.reset_identity
+                    or recognized.medal_amount != modal.medal_amount
+                    or current_target is None
                 ):
-                    self.runtime.reconcile(
-                        action_key,
-                        "unresolved",
-                        post_capture,
-                        "Ruins reward modal and positive medal delta do not agree",
-                    )
-                    return "unresolved", "chest_reward_delta_mismatch", post_capture, post_recognition
+                    return None
+                facts["modal"] = recognized
+                return self._policy_observation(
+                    current,
+                    source_state="RUINS_REWARD_MODAL",
+                    target_identity="ruins-reward-claim",
+                    target_roi=current_target,
+                    control_class="CLAIM",
+                    consequence="ruins_zero_cost_ready_chest_reward",
+                    postcondition=RUINS_CHEST_CLAIM_POSTCONDITION,
+                )
+
+            def dispatch(current, current_observation):
+                if (
+                    current_observation.frame_sha256 != current.sha256
+                    or current_observation.target_identity != "ruins-reward-claim"
+                    or current_observation.expected_postcondition != RUINS_CHEST_CLAIM_POSTCONDITION
+                ):
+                    raise NavigationBoundaryError("Ruins Claim target changed before canonical dispatch")
+                self._ordinary_tap(
+                    current,
+                    target_identity="ruins-reward-claim",
+                    target_roi=current_observation.target_roi,
+                    action_key=action_key,
+                    consequential=True,
+                )
+
+            before_points = observation.points_balance
+
+            def successor(after):
+                post_capture, post_recognition = (
+                    after,
+                    recognize_ruins_frame(after.frame, reset_identity=self.reset_identity),
+                )
+                next_observation = post_recognition.observation
+                next_row = next_observation.row(row.identity)
+                delta = (
+                    next_observation.points_balance - before_points
+                    if next_observation.points_balance is not None and before_points is not None
+                    else None
+                )
+                proven = bool(
+                    next_observation.recognized
+                    and next_observation.screen_identity == "RUINS_CHALLENGE"
+                    and next_observation.reset_identity == self.reset_identity
+                    and post_recognition.target(target_identity) is None
+                    and delta == modal.medal_amount
+                    and (next_row is None or next_row.chest_state == RuinsChestState.CLAIMED)
+                )
+                facts["captures"].append((post_capture, post_recognition, delta, proven))
+                return RUINS_CHEST_CLAIM_POSTCONDITION if proven else "unknown"
+
+            result = self.action_executor.execute(
+                spec=spec,
+                proposal_capture=modal_capture,
+                proposal_observation=proposal,
+                capture=lambda label: self.runtime.capture(label),
+                observe=observe,
+                dispatch=dispatch,
+                successor=successor,
+                settle_seconds=self.post_input_delay,
+            )
+            status = self._action_status_value(result)
+            transport_calls = result.get("transport_calls", 0) if isinstance(result, dict) else 0
+            if type(transport_calls) is int and transport_calls >= 0:
+                self.chest_claim_transport_calls += transport_calls
+            captures = facts["captures"]
+            if status != "confirmed" or not captures or not captures[-1][3]:
+                self.unresolved_action = status in {"unknown", "unresolved"}
+                self._unresolved_chest_identities.add(row.identity)
+                self.chest_coverage[row.identity] = "unresolved"
+                if captures:
+                    post_capture, post_recognition = captures[-1][0], captures[-1][1]
+                else:
+                    post_capture, post_recognition = modal_capture, recognition
+                return (
+                    "unresolved" if self.unresolved_action else "blocked",
+                    str(result.get("reason", "canonical_chest_claim_not_confirmed")),
+                    post_capture,
+                    post_recognition,
+                )
+            post_capture, post_recognition, reward_delta, _proven = captures[-1]
+            after = post_recognition.observation.row(row.identity)
+            if after is None:
                 after = replace(
                     row,
                     chest_state=RuinsChestState.CLAIMED,
@@ -659,17 +640,12 @@ class RuinsIntegratedRoute:
                 after = replace(after, chest_state=RuinsChestState.CLAIMED)
             reconciled = self.controller.reconcile_chest(row, after, action_key=action_key)
             if reconciled.kind != "chest_reconciled":
-                self.runtime.reconcile(action_key, "unresolved", post_capture, reconciled.reason)
+                self.unresolved_action = True
+                self._unresolved_chest_identities.add(row.identity)
+                self.chest_coverage[row.identity] = "unresolved"
                 return "unresolved", reconciled.reason, post_capture, post_recognition
-            self.runtime.reconcile(
-                action_key,
-                "confirmed",
-                post_capture,
-                "exact Ruins chest disappeared and medal delta was proven after Claim",
-            )
             self.resource_delta += reward_delta
-            if after_points is not None:
-                self._points_balance = after_points
+            self._points_balance = post_recognition.observation.points_balance
             self.chest_coverage[row.identity] = "newly claimed"
             self.newly_claimed_chests.append({"identity": row.identity, "ruins_medals": reward_delta})
             self.confirmed_claim_records.append(make_claim_record(
@@ -694,9 +670,11 @@ class RuinsIntegratedRoute:
         for row in recognition.observation.rows:
             if not self._fully_visible_chest_row(row):
                 continue
-            if self.chest_coverage[row.identity] == "newly claimed" and row.identity not in self._continuation_confirmed:
-                # Preserve this session's exact Claim reconciliation; a transient
-                # OCR presentation after the reward toast must not downgrade it.
+            if row.identity in self._unresolved_chest_identities:
+                # Preserve uncertain action provenance over a later claimed-looking row.
+                continue
+            if self.chest_coverage[row.identity] == "newly claimed":
+                # Preserve this session's exact canonical Claim reconciliation after a transient toast.
                 continue
             if row.availability == RuinsAvailability.LOCKED or row.chest_state == RuinsChestState.LOCKED:
                 classification = "locked"
@@ -769,117 +747,172 @@ class RuinsIntegratedRoute:
             return "blocked", "ruins_list_scroll_no_semantic_progress", post_capture, post_recognition
         return "scrolled", "ruins_list_scroll_progress", post_capture, post_recognition
 
-    def _restore_chest_list_top(self, captured, recognition):
-        """Return a positively recognized mid-list continuation to the canonical Hero page."""
 
-        for ordinal in range(1, MAXIMUM_RUINS_CHEST_SCROLLS + 1):
-            self._audit_visible_chest_rows(recognition)
-            hero = recognition.observation.row("Hero Challenge")
-            if hero is not None and self._fully_visible_chest_row(hero):
-                return "restored", "ruins_chest_list_top_restored", captured, recognition, ordinal - 1
-            if not recognition.observation.recognized or recognition.observation.screen_identity != "RUINS_CHALLENGE":
-                return "blocked", "ruins_list_top_source_not_recognized", captured, recognition, ordinal - 1
-            signature = self._visible_row_signature(recognition)
-            if not signature:
-                return "blocked", "ruins_list_top_has_no_bound_rows", captured, recognition, ordinal - 1
-            start, end = (400, 400), (400, 1100)
-            swipe_roi = (390, 400, 411, 1101)
-            try:
-                self._prepare_navigation(captured, source_state="RUINS_CHALLENGE", target_roi=swipe_roi)
-                self.runtime.swipe(
-                    captured,
-                    start=start,
-                    end=end,
-                    action_key=f"ruins:chest-scroll-top:{self.reset_identity}:{ordinal}:{captured.sha256}",
-                    target_identity=RUINS_LIST_SCROLL_TARGET,
-                )
-            except NavigationBoundaryError as exc:
-                return "blocked", str(exc), captured, recognition, ordinal - 1
-            time.sleep(self.post_input_delay)
-            post_capture, post_recognition = self._observe_list(
-                f"chest-coverage-top-{ordinal:02d}-immediate-post"
-            )
-            if not post_recognition.observation.recognized or post_recognition.observation.screen_identity != "RUINS_CHALLENGE":
-                return "blocked", "ruins_list_top_postcondition_not_recognized", post_capture, post_recognition, ordinal
-            post_signature = self._visible_row_signature(post_recognition)
-            if not set(post_signature) - set(signature):
-                return "blocked", "ruins_list_top_no_semantic_progress", post_capture, post_recognition, ordinal
-            captured, recognition = post_capture, post_recognition
-        hero = recognition.observation.row("Hero Challenge")
-        if hero is not None and self._fully_visible_chest_row(hero):
-            return "restored", "ruins_chest_list_top_restored", captured, recognition, MAXIMUM_RUINS_CHEST_SCROLLS
-        return "blocked", "ruins_chest_coverage_not_at_list_top", captured, recognition, MAXIMUM_RUINS_CHEST_SCROLLS
-
-    def _continue_open_reward_modal(self, captured, reward):
-        if reward.identity in self._continuation_confirmed:
-            # A prior checkpoint proves this identity already claimed.  Do not
-            # press Claim again from a stale/open modal; stop for a fresh,
-            # human-resolved observation instead.
-            return captured, None, 0, "continuation_reward_identity_already_confirmed"
-        target = reward.target("ruins-reward-claim")
-        if not reward.recognized or target is None or not isinstance(reward.medal_amount, int) or reward.medal_amount < 0:
-            return captured, None, 0, "ruins_reward_source_not_recognized"
-        self._ordinary_tap(
-            captured,
-            target_identity="ruins-reward-claim",
-            target_roi=target,
-            action_key=f"ruins:reward-continuation:{self.reset_identity}:{reward.identity}:{captured.sha256}",
-        )
-        time.sleep(self.post_input_delay)
-        post_capture, post_recognition = self._observe_list("reward-continuation-immediate-post")
-        if (
-            not post_recognition.observation.recognized
-            or post_recognition.observation.screen_identity != "RUINS_CHALLENGE"
-            or post_recognition.target(f"chest:{reward.identity}") is not None
-        ):
-            return post_capture, post_recognition, 0, "reward_continuation_postcondition_not_proven"
-        if post_recognition.observation.points_balance is not None:
-            self._points_balance = post_recognition.observation.points_balance
-        self.resource_delta += reward.medal_amount
-        self.chest_coverage[reward.identity] = "newly claimed"
-        self.newly_claimed_chests.append({
-            "identity": reward.identity,
-            "ruins_medals": reward.medal_amount,
-        })
-        action_key = f"ruins:reward-continuation:{self.reset_identity}:{reward.identity}:{captured.sha256}"
-        # ``_ordinary_tap`` intentionally does not create a consequential
-        # in-flight lease.  Record the confirmed reconciliation in the native
-        # event journal when running against the production runtime; lightweight
-        # test ports may not expose that journal boundary.
-        if isinstance(getattr(self.runtime, "_inner", self.runtime), LocalBlueStacksRuntime):
-            self.runtime.reconcile(
-                action_key,
-                "confirmed",
-                post_capture,
-                "identity-bound reward modal closed and chest target disappeared",
-            )
-        self.confirmed_claim_records.append(make_claim_record(
-            identity=reward.identity,
-            action_key=action_key,
-            medal_delta=reward.medal_amount,
-            source_frame_path=captured.path,
-            source_frame_sha256=captured.sha256,
-            post_frame_path=post_capture.path,
-            post_frame_sha256=post_capture.sha256,
-            reset_identity=self.reset_identity,
-        ))
-        return post_capture, post_recognition, 1, None
 
     def _choose_challenge(self, recognition):
-        candidates = []
+        action_key = self._action_key("challenge")
         for row in recognition.observation.rows:
             if (
-                row.availability == RuinsAvailability.AVAILABLE
-                and row.challenge_control == RuinsControlState.VISIBLE_ENABLED
-                and current_day_allowed(row, self.current_day)
-                and row.identity not in self.controller.challenge_identities_attempted
+                challenge_action_authorized(
+                    recognition.observation,
+                    row,
+                    current_day=self.current_day,
+                    action_key=action_key,
+                )
                 and recognition.target(f"challenge:{row.identity}") is not None
             ):
-                candidates.append(row)
-        return candidates[0] if candidates else None
+                return row
+        return None
+
+    def _safe_back_unavailable_detail(self, identity: str):
+        immediate = self.runtime.capture("challenge-unavailable-safe-back-immediate-before")
+        detail = recognize_ruins_detail_with_targets(
+            immediate.frame, identity, reset_identity=self.reset_identity,
+        ).observation
+        if not detail.recognized or detail.overlay_state != "none":
+            return None
+        source_state = (
+            "RUINS_DISPATCH_DETAIL"
+            if detail.dispatch_control == RuinsControlState.VISIBLE_ENABLED
+            else "RUINS_CHALLENGE_DETAIL"
+        )
+        try:
+            self._prepare_navigation(immediate, source_state=source_state)
+            self.runtime.back(
+                immediate,
+                action_key=f"ruins:challenge-unavailable-safe-back:{immediate.sha256}",
+            )
+        except NavigationBoundaryError:
+            return None
+        time.sleep(self.post_input_delay)
+        captured, recognition = self._observe_list("challenge-unavailable-list-immediate-post")
+        if (
+            not recognition.observation.recognized
+            or recognition.observation.screen_identity != "RUINS_CHALLENGE"
+            or recognition.observation.reset_identity != self.reset_identity
+        ):
+            return None
+        return captured, recognition
+
+    def _safe_exit_after_challenge_problem(self, reason: str, *, unresolved: bool) -> IntegratedRouteResult:
+        """Use only a currently recognized Ruins successor to leave an unresolved challenge."""
+
+        current = self.runtime.capture("ruins-challenge-problem-safe-exit-source")
+        dispatch_count = self.challenge_transport_calls + self.chest_claim_transport_calls
+        if is_clean_home_frame(current.frame):
+            self.terminal_home_verified = True
+            self.terminal_home_capture = current
+            return IntegratedRouteResult(
+                "unresolved" if unresolved else "blocked",
+                f"{reason};verified_safe_exit_to_home",
+                dispatch_count,
+                str(self.runtime.session),
+            )
+        list_recognition = recognize_ruins_frame(current.frame, reset_identity=self.reset_identity)
+        if (
+            list_recognition.observation.recognized
+            and list_recognition.observation.screen_identity == "RUINS_CHALLENGE"
+            and list_recognition.observation.reset_identity == self.reset_identity
+        ):
+            home = self._return_home(current, list_recognition, dispatch_count)
+            if home.status == "completed":
+                return IntegratedRouteResult(
+                    "unresolved" if unresolved else "blocked",
+                    f"{reason};verified_safe_exit_to_home",
+                    dispatch_count,
+                    str(self.runtime.session),
+                )
+            return IntegratedRouteResult(
+                "unresolved" if unresolved else "blocked",
+                f"{reason};{home.reason}",
+                dispatch_count,
+                str(self.runtime.session),
+            )
+        for identity in KNOWN_CHALLENGE_IDENTITIES:
+            result = recognize_ruins_result_with_targets(
+                current.frame,
+                identity,
+                reset_identity=self.reset_identity,
+            )
+            result_observation = result.observation
+            continue_target = result.target("ruins-result-continue")
+            if (
+                result_observation.identity == identity
+                and result_observation.reset_identity == self.reset_identity
+                and result_observation.tap_to_continue_visible
+                and continue_target is not None
+            ):
+                try:
+                    self._ordinary_tap(
+                        current,
+                        target_identity="ruins-result-continue",
+                        target_roi=continue_target,
+                        action_key=f"ruins:challenge-problem-continue:{current.sha256}",
+                    )
+                except NavigationBoundaryError:
+                    break
+                time.sleep(self.post_input_delay)
+                listed, recognition = self._observe_list("ruins-challenge-problem-list-post")
+                if (
+                    recognition.observation.recognized
+                    and recognition.observation.screen_identity == "RUINS_CHALLENGE"
+                    and recognition.observation.reset_identity == self.reset_identity
+                ):
+                    home = self._return_home(listed, recognition, dispatch_count)
+                    if home.status == "completed":
+                        return IntegratedRouteResult(
+                            "unresolved" if unresolved else "blocked",
+                            f"{reason};verified_safe_exit_to_home",
+                            dispatch_count,
+                            str(self.runtime.session),
+                        )
+                break
+        for identity in KNOWN_CHALLENGE_IDENTITIES:
+            detail = recognize_ruins_detail_with_targets(
+                current.frame,
+                identity,
+                reset_identity=self.reset_identity,
+            ).observation
+            if not detail.recognized or detail.reset_identity != self.reset_identity or detail.overlay_state != "none":
+                continue
+            source_state = (
+                "RUINS_DISPATCH_DETAIL"
+                if detail.dispatch_control == RuinsControlState.VISIBLE_ENABLED
+                else "RUINS_CHALLENGE_DETAIL"
+            )
+            try:
+                self._prepare_navigation(current, source_state=source_state)
+                self.runtime.back(
+                    current,
+                    action_key=f"ruins:challenge-problem-safe-back:{identity}:{current.sha256}",
+                )
+            except NavigationBoundaryError:
+                break
+            time.sleep(self.post_input_delay)
+            listed, recognition = self._observe_list("ruins-challenge-problem-detail-exit-post")
+            if (
+                recognition.observation.recognized
+                and recognition.observation.screen_identity == "RUINS_CHALLENGE"
+                and recognition.observation.reset_identity == self.reset_identity
+            ):
+                home = self._return_home(listed, recognition, dispatch_count)
+                if home.status == "completed":
+                    return IntegratedRouteResult(
+                        "unresolved" if unresolved else "blocked",
+                        f"{reason};verified_safe_exit_to_home",
+                        dispatch_count,
+                        str(self.runtime.session),
+                    )
+            break
+        return IntegratedRouteResult(
+            "unresolved" if unresolved else "blocked",
+            f"{reason};safe_exit_not_proven",
+            dispatch_count,
+            str(self.runtime.session),
+        )
 
     def _run_challenge(self, captured, recognition, row):
-        action_key = f"ruins:challenge:{self.reset_identity}:{row.identity}:{captured.sha256}"
+        action_key = self._action_key("challenge")
         planned = self.controller.plan_challenge(
             recognition.observation,
             row,
@@ -889,11 +922,13 @@ class RuinsIntegratedRoute:
         if planned.kind != "open_detail":
             return IntegratedRouteResult("blocked", planned.reason, 0, str(self.runtime.session))
         target = recognition.target(f"challenge:{row.identity}")
+        if target is None:
+            return IntegratedRouteResult("blocked", "challenge_row_target_not_bound", 0, str(self.runtime.session))
         self._ordinary_tap(
             captured,
             target_identity=f"challenge:{row.identity}",
-            target_roi=target or (0, 0, 0, 0),
-            action_key=f"{action_key}:open",
+            target_roi=target,
+            action_key=f"{action_key}:open:{captured.sha256}",
         )
         time.sleep(self.post_input_delay)
         detail_capture = self.runtime.capture("challenge-detail-immediate-post")
@@ -905,7 +940,10 @@ class RuinsIntegratedRoute:
         attack_target = detail.target("ruins-attack")
         attack = self.controller.plan_attack(detail.observation, action_key=action_key)
         if attack.kind != "attack" or attack_target is None:
-            return IntegratedRouteResult("blocked", "detail or Attack target not positively recognized", 0, str(self.runtime.session))
+            recovered = self._safe_back_unavailable_detail(row.identity)
+            if recovered is not None:
+                return recovered[0], recovered[1], None
+            return IntegratedRouteResult("blocked", "detail or zero-cost Attack control not positively recognized", 0, str(self.runtime.session))
         self._ordinary_tap(
             detail_capture,
             target_identity="ruins-attack",
@@ -926,70 +964,151 @@ class RuinsIntegratedRoute:
             attack_control=detail.observation.attack_control,
         )
         dispatch_target = dispatch_recognition.target("ruins-dispatch")
-        dispatch = self.controller.plan_dispatch(dispatch_observation, action_key=action_key)
-        if dispatch.kind != "dispatch" or dispatch_target is None:
-            return IntegratedRouteResult("blocked", "Dispatch target or zero-cost NPC contract not proven", 0, str(self.runtime.session))
-        self._ordinary_tap(
+        if not dispatch_authorized(dispatch_observation) or dispatch_target is None:
+            recovered = self._safe_back_unavailable_detail(row.identity)
+            if recovered is not None:
+                return recovered[0], recovered[1], None
+            return IntegratedRouteResult("blocked", "zero-cost NPC Dispatch contract not proven", 0, str(self.runtime.session))
+        action_spec = {
+            "action_key": action_key,
+            "semantic_action": RUINS_CHALLENGE_DISPATCH_ACTION,
+            "action_kind": RUINS_CHALLENGE_DISPATCH_ACTION,
+            "subject": f"ruins_challenge:{self._slug(row.identity)}",
+            "category": "challenge",
+            "identity": row.identity,
+            "source_state": "RUINS_CHALLENGE_DETAIL",
+            "target_identity": "ruins-dispatch",
+            "control_class": "DISPATCH",
+            "consequence": "ruins_zero_cost_npc_challenge",
+            "expected_postcondition": RUINS_CHALLENGE_RESULT_POSTCONDITION,
+            "semantic_preconditions": self._challenge_preconditions(row, dispatch_observation),
+            "game_day_id": self.action_reset_identity,
+        }
+        existing = self.action_executor.status(action_spec)
+        existing_status = self._action_status_value(existing)
+        if existing_status != "new":
+            return IntegratedRouteResult(
+                "unresolved" if existing_status in {"unknown", "unresolved"} else "blocked",
+                f"canonical_challenge_action_{existing_status}",
+                0,
+                str(self.runtime.session),
+            )
+        proposal = self._policy_observation(
             dispatch_capture,
+            source_state="RUINS_CHALLENGE_DETAIL",
             target_identity="ruins-dispatch",
             target_roi=dispatch_target,
-            action_key=action_key,
-            consequential=True,
+            control_class="DISPATCH",
+            consequence="ruins_zero_cost_npc_challenge",
+            postcondition=RUINS_CHALLENGE_RESULT_POSTCONDITION,
         )
-        deadline = time.monotonic() + self.recognition_timeout
-        result_capture = None
-        result_recognition = None
-        while time.monotonic() < deadline:
-            time.sleep(min(0.5, self.post_input_delay))
-            candidate_capture = self.runtime.capture("challenge-result-immediate-post")
-            candidate = recognize_ruins_result_with_targets(
-                candidate_capture.frame,
+        facts: dict[str, object] = {"results": []}
+
+        def observe(current):
+            current_recognition = recognize_ruins_detail_with_targets(
+                current.frame, row.identity, reset_identity=self.reset_identity,
+            )
+            current_detail = replace(
+                current_recognition.observation,
+                floor_current=detail.observation.floor_current,
+                floor_maximum=detail.observation.floor_maximum,
+                attack_control=detail.observation.attack_control,
+            )
+            current_target = current_recognition.target("ruins-dispatch")
+            if not dispatch_authorized(current_detail) or current_target is None:
+                return None
+            facts["dispatch"] = (current, current_recognition, current_detail)
+            return self._policy_observation(
+                current,
+                source_state="RUINS_CHALLENGE_DETAIL",
+                target_identity="ruins-dispatch",
+                target_roi=current_target,
+                control_class="DISPATCH",
+                consequence="ruins_zero_cost_npc_challenge",
+                postcondition=RUINS_CHALLENGE_RESULT_POSTCONDITION,
+            )
+
+        def dispatch(current, current_observation):
+            if (
+                current_observation.frame_sha256 != current.sha256
+                or current_observation.target_identity != "ruins-dispatch"
+                or current_observation.expected_postcondition != RUINS_CHALLENGE_RESULT_POSTCONDITION
+            ):
+                raise NavigationBoundaryError("Ruins Dispatch target changed before canonical dispatch")
+            self._ordinary_tap(
+                current,
+                target_identity="ruins-dispatch",
+                target_roi=current_observation.target_roi,
+                action_key=action_key,
+                consequential=True,
+            )
+
+        def successor(after):
+            result_recognition = recognize_ruins_result_with_targets(
+                after.frame,
                 row.identity,
                 before_progress=row.progress_current,
                 reset_identity=self.reset_identity,
             )
-            if candidate.observation.result != RuinsResult.AMBIGUOUS and candidate.target("ruins-result-continue") is not None:
-                result_capture, result_recognition = candidate_capture, candidate
-                break
-        if result_capture is None or result_recognition is None:
-            unresolved = self.runtime.capture("challenge-result-unresolved")
-            self.runtime.reconcile(action_key, "unresolved", unresolved, "explicit result and safe continuation not recognized")
-            return IntegratedRouteResult("unresolved", "challenge_result_not_recognized", 0, str(self.runtime.session))
+            valid = bool(
+                result_verified(row, result_recognition.observation)
+                and result_recognition.target("ruins-result-continue") is not None
+            )
+            facts["results"].append((after, result_recognition, valid))
+            return RUINS_CHALLENGE_RESULT_POSTCONDITION if valid else "unknown"
+
+        result = self.action_executor.execute(
+            spec=action_spec,
+            proposal_capture=dispatch_capture,
+            proposal_observation=proposal,
+            capture=lambda label: self.runtime.capture(label),
+            observe=observe,
+            dispatch=dispatch,
+            successor=successor,
+            settle_seconds=self.post_input_delay,
+        )
+        status = self._action_status_value(result)
+        transport_calls = result.get("transport_calls", 0) if isinstance(result, dict) else 0
+        if type(transport_calls) is int and transport_calls >= 0:
+            self.challenge_transport_calls += transport_calls
+        if status != "confirmed" or not facts["results"] or not facts["results"][-1][2]:
+            self.unresolved_action = status in {"unknown", "unresolved"}
+            reason = result.get("reason", "challenge_participation_not_confirmed") if isinstance(result, dict) else "challenge_participation_not_confirmed"
+            return IntegratedRouteResult(
+                "unresolved" if self.unresolved_action else "blocked",
+                str(reason),
+                0,
+                str(self.runtime.session),
+            )
+        result_capture, result_recognition, _valid = facts["results"][-1]
+        self.challenge_identity = row.identity
+        self.challenge_result = result_recognition.observation.result.value
+        self.challenge_participation_confirmed = True
+        self.daily_action_ready = True
         self._ordinary_tap(
             result_capture,
             target_identity="ruins-result-continue",
-            target_roi=result_recognition.target("ruins-result-continue") or (0, 0, 0, 0),
+            target_roi=result_recognition.target("ruins-result-continue"),
             action_key=f"{action_key}:continue",
             continuation_of=action_key,
         )
         time.sleep(self.post_input_delay)
         list_capture, list_recognition = self._observe_list("challenge-list-postcondition")
+        if (
+            not list_recognition.observation.recognized
+            or list_recognition.observation.screen_identity != "RUINS_CHALLENGE"
+            or list_recognition.observation.reset_identity != self.reset_identity
+        ):
+            return IntegratedRouteResult("unresolved", "challenge_list_postcondition_not_recognized", 0, str(self.runtime.session))
         result_observation = result_recognition.observation
         if result_observation.result == RuinsResult.SUCCESS:
             after_row = list_recognition.observation.row(row.identity)
-            if after_row is None:
-                detail_successor = recognize_ruins_detail_with_targets(
-                    list_capture.frame, row.identity, reset_identity=self.reset_identity,
-                )
-                detail_observation = detail_successor.observation
-                if not (
-                    detail_observation.recognized
-                    and detail_observation.identity == row.identity
-                    and detail_observation.reset_identity == self.reset_identity
-                    and detail_observation.floor_current > row.progress_current
-                    and detail_observation.floor_maximum == row.progress_maximum
-                ):
-                    self.runtime.reconcile(action_key, "unresolved", list_capture, "successful row progress not visible")
-                    return IntegratedRouteResult("unresolved", "successful_progress_not_visible", 0, str(self.runtime.session))
-                recovered_capture, recovered_recognition, _recovery_actions, recovery_error, recovery_handled = self._recover_known_detail_to_list(list_capture)
-                if not recovery_handled or recovery_error is not None:
-                    self.runtime.reconcile(action_key, "unresolved", recovered_capture, recovery_error or "successful detail successor safe exit not recognized")
-                    return IntegratedRouteResult("unresolved", recovery_error or "successful_detail_successor_safe_exit_not_recognized", 0, str(self.runtime.session))
-                list_capture, list_recognition = recovered_capture, recovered_recognition
-                after_row = list_recognition.observation.row(row.identity)
-                if after_row is None:
-                    self.runtime.reconcile(action_key, "unresolved", list_capture, "successful detail successor list progress not visible")
-                    return IntegratedRouteResult("unresolved", "successful_progress_not_visible", 0, str(self.runtime.session))
+            if (
+                after_row is None
+                or after_row.progress_current <= row.progress_current
+                or after_row.progress_maximum != row.progress_maximum
+            ):
+                return IntegratedRouteResult("unresolved", "successful_progress_not_visible", 0, str(self.runtime.session))
             result_observation = replace(
                 result_observation,
                 progress_after=after_row.progress_current,
@@ -998,253 +1117,400 @@ class RuinsIntegratedRoute:
             )
         reconciled = self.controller.reconcile_result(row, result_observation)
         if reconciled.kind != "reconciled":
-            self.runtime.reconcile(action_key, "unresolved", list_capture, reconciled.reason)
             return IntegratedRouteResult("unresolved", reconciled.reason, 0, str(self.runtime.session))
-        status = "confirmed" if result_observation.result == RuinsResult.SUCCESS else "failed_confirmed"
-        self.runtime.reconcile(action_key, status, list_capture, f"explicit {result_observation.result.value} result reconciled")
         return list_capture, list_recognition, result_observation.result
 
     def run(self, *, max_steps: int = 30) -> IntegratedRouteResult:
         if not self.runtime.execute:
-            captured = self.runtime.capture("dry-run-source")
-            if recognize_navigation_chat_screen(captured.frame):
-                return IntegratedRouteResult(
-                    "dry-run",
-                    "transport_disabled:chat_safe_exit_required",
-                    0,
-                    str(self.runtime.session),
-                )
-            preparation = self.home_driver.observe(captured.frame)
-            if preparation.disposition is HomeDriverDisposition.RECOVER_ZOOM:
-                return IntegratedRouteResult(
-                    "dry-run",
-                    "transport_disabled:home_zoom_recovery_required",
-                    0,
-                    str(self.runtime.session),
-                )
-            if preparation.disposition is HomeDriverDisposition.BLOCKED:
+            return IntegratedRouteResult(
+                "blocked",
+                "ruins_consequential_route_requires_canonical_native_executor",
+                0,
+                str(self.runtime.session),
+            )
+        captured = self.initial_capture or self.runtime.capture("ruins-canonical-home-source")
+        if not is_clean_home_frame(captured.frame):
+            return IntegratedRouteResult("blocked", "canonical_clean_home_required", 0, str(self.runtime.session))
+        preparation = self.home_driver.observe(captured.frame)
+        if preparation.disposition is HomeDriverDisposition.BLOCKED:
+            return IntegratedRouteResult(
+                "blocked",
+                f"home_atlas_preflight_blocked:{preparation.reason}",
+                0,
+                str(self.runtime.session),
+            )
+        if preparation.disposition is HomeDriverDisposition.RECOVER_ZOOM:
+            captured, preparation_error = self._recover_home_zoom_before_ruins_binding()
+            if preparation_error is not None or captured is None or not is_clean_home_frame(captured.frame):
                 return IntegratedRouteResult(
                     "blocked",
-                    f"home_zoom_recovery_blocked:{preparation.reason}",
+                    preparation_error or "home_zoom_did_not_restore_clean_home",
                     0,
                     str(self.runtime.session),
                 )
-            home_binding = self._current_frame_ruins_binding(captured)
-            status = "dry-run" if home_binding is not None else "blocked"
-            reason = "transport_disabled:home_atlas_ruins_bound" if home_binding is not None else "home_atlas_ruins_not_bound"
-            return IntegratedRouteResult(status, reason, 0, str(self.runtime.session))
-        actions = 0
-        source = self.runtime.capture("route-source")
-        if self.chests_only:
-            reward = recognize_any_ruins_reward_frame(source.frame, reset_identity=self.reset_identity)
-            if reward.recognized:
-                captured, recognition, reward_actions, reward_error = self._continue_open_reward_modal(source, reward)
-                actions += reward_actions
-                if reward_error is not None:
-                    return IntegratedRouteResult("blocked", reward_error, actions, str(self.runtime.session))
-                source = captured
-                source_recognition = recognition
-            else:
-                source_recognition = None
-        else:
-            source_recognition = None
-        _home_source, source_error, recovered_actions = self._recover_known_chat_to_home(source)
-        actions += recovered_actions
-        if source_error is not None:
-            return IntegratedRouteResult("blocked", source_error, actions, str(self.runtime.session))
-        source, popup_error, popup_actions = self._dismiss_known_vip_popup(source)
-        actions += popup_actions
-        if popup_error is not None:
-            return IntegratedRouteResult("blocked", popup_error, actions, str(self.runtime.session))
-        source_recognition = source_recognition or recognize_ruins_frame(source.frame, reset_identity=self.reset_identity)
-        already_in_ruins = (
-            source_recognition.observation.recognized
-            and source_recognition.observation.screen_identity == "RUINS_CHALLENGE"
-        )
-        if already_in_ruins:
-            # A development session may begin from a positively recognized Ruins
-            # list after an earlier navigation handoff. Continue gameplay directly;
-            # Home zoom/atlas entry is only required for Home-origin sessions.
-            captured, recognition = source, source_recognition
-        else:
-            if source_recognition.observation.home_base_recognized:
-                captured, recognition, detail_actions, detail_error, detail_handled = source, source_recognition, 0, None, False
-            else:
-                captured, recognition, detail_actions, detail_error, detail_handled = self._recover_known_detail_to_list(source)
-            if detail_handled:
-                actions += detail_actions
-                if detail_error is not None:
-                    return IntegratedRouteResult("blocked", detail_error, actions, str(self.runtime.session))
-            else:
-                _prepared, preparation_error = self._recover_home_zoom_before_ruins_binding()
-                if preparation_error is not None:
-                    return IntegratedRouteResult("blocked", preparation_error, actions, str(self.runtime.session))
-                captured, recognition = self._observe_list("ruins-home-atlas-immediate-before")
-                target = self._current_frame_ruins_binding(captured)
-                if target is not None:
-                    # The building can be off-screen at canonical Home. The Atlas binding is
-                    # therefore the entry authority; the Ruins adapter is only used after entry.
-                    try:
-                        self._prepare_navigation(captured, source_state="HOME_BASE", target_roi=target)
-                        self.runtime.tap(
-                            captured, target_identity=RUINS_HOME_ATLAS_BUILDING_ID, target_roi=target,
-                            action_key=f"ruins:open:{captured.sha256}",
-                        )
-                    except NavigationBoundaryError as exc:
-                        return IntegratedRouteResult("blocked", str(exc), actions, str(self.runtime.session))
-                    # Gameplay action accounting reports challenge/chest work; the
-                    # navigation-only route retains its Home-entry input count.
-                    if self.navigation_only:
-                        actions += 1
-                    time.sleep(self.post_input_delay)
-                    captured, recognition = self._observe_list("ruins-list-immediate-post")
-        if not recognition.observation.recognized or recognition.observation.screen_identity != "RUINS_CHALLENGE":
+        target = self._current_frame_ruins_binding(captured)
+        if target is None:
+            return IntegratedRouteResult("blocked", "home_atlas_ruins_not_bound", 0, str(self.runtime.session))
+        try:
+            self._prepare_navigation(captured, source_state="HOME_BASE", target_roi=target)
+            self.runtime.tap(
+                captured,
+                target_identity=RUINS_HOME_ATLAS_BUILDING_ID,
+                target_roi=target,
+                action_key=f"ruins:open:{captured.sha256}",
+            )
+        except NavigationBoundaryError as exc:
+            return IntegratedRouteResult("blocked", str(exc), 0, str(self.runtime.session))
+        time.sleep(self.post_input_delay)
+        captured, recognition = self._observe_list("ruins-list-immediate-post")
+        if (
+            not recognition.observation.recognized
+            or recognition.observation.screen_identity != "RUINS_CHALLENGE"
+            or recognition.observation.reset_identity != self.reset_identity
+        ):
             return IntegratedRouteResult("blocked", "Ruins list not positively recognized", 0, str(self.runtime.session))
         self.controller.observe_list(recognition.observation)
-        if recognition.observation.points_balance is not None and self._points_balance is None:
+        if recognition.observation.points_balance is not None:
             self._points_balance = recognition.observation.points_balance
-        if self.navigation_only:
-            return self._return_home(captured, recognition, actions)
-        if self.claim_chests:
-            if self.chests_only:
-                hero = recognition.observation.row("Hero Challenge")
-                if hero is None or not self._fully_visible_chest_row(hero):
-                    top_status, reason, captured, recognition, top_actions = self._restore_chest_list_top(
-                        captured, recognition,
-                    )
-                    actions += top_actions
-                    if top_status != "restored":
-                        return IntegratedRouteResult("blocked", reason, actions, str(self.runtime.session))
-                    self.controller.observe_list(recognition.observation)
-            scroll_ordinal = 0
-            for _ in range(max_steps):
-                self._audit_visible_chest_rows(recognition)
-                chest_status, reason, captured, recognition = self._claim_one_chest(captured, recognition)
-                if chest_status == "claimed":
-                    actions += 1
-                    self.controller.observe_list(recognition.observation)
-                    continue
-                if chest_status in {"blocked", "unresolved"}:
-                    return IntegratedRouteResult(chest_status, reason, actions, str(self.runtime.session))
-                if not self.chests_only:
-                    break
-                if all(status != "unresolved" for status in self.chest_coverage.values()):
-                    break
-                if scroll_ordinal >= MAXIMUM_RUINS_CHEST_SCROLLS:
-                    return IntegratedRouteResult("blocked", "ruins_chest_scroll_limit_exhausted", actions, str(self.runtime.session))
-                scroll_ordinal += 1
-                scroll_status, reason, captured, recognition = self._scroll_chest_list(
-                    captured, recognition, ordinal=scroll_ordinal,
-                )
-                if scroll_status != "scrolled":
-                    return IntegratedRouteResult("blocked", reason, actions, str(self.runtime.session))
-                actions += 1
-                self.controller.observe_list(recognition.observation)
-            else:
-                return IntegratedRouteResult("blocked", "ruins_chest_coverage_step_limit_exhausted", actions, str(self.runtime.session))
-            self._audit_visible_chest_rows(recognition)
-            if any(status == "unresolved" for status in self.chest_coverage.values()):
-                return IntegratedRouteResult("blocked", "ruins_chest_coverage_incomplete", actions, str(self.runtime.session))
-        if self.chests_only:
-            return self._return_home(captured, recognition, actions)
-        row = self._choose_challenge(recognition)
-        if row is None:
-            return self._return_home(captured, recognition, actions)
-        challenge_result = self._run_challenge(captured, recognition, row)
-        if isinstance(challenge_result, IntegratedRouteResult):
-            return challenge_result
-        captured, recognition, result = challenge_result
-        actions += 1
-        if result == RuinsResult.FAILURE and self.allow_optional_second:
-            self.controller.observe_list(recognition.observation)
-            second_row = self._choose_challenge(recognition)
-            if second_row is not None:
-                second_result = self._run_challenge(captured, recognition, second_row)
-                if isinstance(second_result, IntegratedRouteResult):
-                    return IntegratedRouteResult(
-                        second_result.status,
-                        second_result.reason,
-                        actions + second_result.actions_completed,
-                        second_result.session_directory,
-                    )
-                captured, recognition, _ = second_result
-                actions += 1
-        return self._return_home(captured, recognition, actions)
 
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--adb", required=True)
-    parser.add_argument("--serial", required=True)
-    parser.add_argument("--reset-identity", required=True)
-    parser.add_argument("--current-day", required=True, choices=("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
-    parser.add_argument("--claim-chests", action="store_true")
-    parser.add_argument("--chests-only", action="store_true", help="claim visible Ruins chests and return Home without starting combat")
-    parser.add_argument(
-        "--chest-continuation",
-        type=Path,
-        default=None,
-        help="validated chest-only continuation checkpoint; rows are still freshly observed",
-    )
-    parser.add_argument("--allow-optional-second", action="store_true")
-    parser.add_argument("--navigation-only", action="store_true", help="permit only Home -> Ruins -> Home navigation")
-    parser.add_argument("--recovery-only", action="store_true", help="close one evidence-bound post-success detail without combat")
-    parser.add_argument("--recovery-session", type=Path, default=None, help="retained Ruins session bound to --recovery-only")
-    parser.add_argument("--exclude-challenge", action="append", default=[])
-    parser.add_argument("--execute", action="store_true")
-    parser.add_argument("--yes", action="store_true", help="confirm the exact local BlueStacks target non-interactively")
-    parser.add_argument("--output-directory", type=Path, default=Path(".local-captures/ruins-challenge-integrated"))
-    args = parser.parse_args(argv)
-    if args.execute and not args.yes:
-        parser.error("--execute requires --yes")
-    if args.chest_continuation is not None and not args.chests_only:
-        parser.error("--chest-continuation requires --chests-only")
-    if args.chest_continuation is not None:
-        try:
-            load_continuation(
-                args.chest_continuation,
-                expected_reset_identity=args.reset_identity,
-                expected_current_day=args.current_day,
-                expected_runtime_profile_id=RUINS_CONTINUATION_RUNTIME_PROFILE_ID,
+        challenge_key = self._action_key("challenge")
+        challenge_status = self.action_executor.status({
+            "action_key": challenge_key,
+            "semantic_action": RUINS_CHALLENGE_DISPATCH_ACTION,
+            "category": "challenge",
+            "game_day_id": self.action_reset_identity,
+            "source_state": "RUINS_CHALLENGE_DETAIL",
+            "target_identity": "ruins-dispatch",
+            "expected_postcondition": RUINS_CHALLENGE_RESULT_POSTCONDITION,
+            "consequence": "ruins_zero_cost_npc_challenge",
+        })
+        challenge_status_value = self._action_status_value(challenge_status)
+        if challenge_status_value == "confirmed":
+            self.challenge_participation_confirmed = True
+            self.challenge_status = "confirmed"
+            self.daily_action_ready = True
+            if isinstance(challenge_status, dict):
+                proof = challenge_status.get("result")
+                if isinstance(proof, dict) and isinstance(proof.get("result"), str):
+                    self.challenge_result = proof["result"]
+        elif challenge_status_value in {"unknown", "unresolved", "blocked"}:
+            self.unresolved_action = challenge_status_value in {"unknown", "unresolved"}
+            self.challenge_status = "unresolved" if self.unresolved_action else "unknown"
+            home = self._return_home(captured, recognition, 0)
+            if home.status != "completed":
+                return home
+            return IntegratedRouteResult(
+                "unresolved" if self.unresolved_action else "blocked",
+                f"canonical_challenge_action_{challenge_status_value}_no_retry",
+                0,
+                str(self.runtime.session),
             )
-        except RuinsContinuationError as exc:
-            parser.error(f"invalid --chest-continuation: {exc.reason}")
-    runtime = LocalBlueStacksRuntime.connect(
-        adb=args.adb,
-        serial=args.serial,
-        output_directory=args.output_directory,
-        workflow="ruins-challenge",
-        execute=args.execute,
-    )
-    route = RuinsIntegratedRoute(
-        runtime,
-        reset_identity=args.reset_identity,
-        current_day=args.current_day,
-        claim_chests=args.claim_chests,
-        chests_only=args.chests_only,
-        allow_optional_second=args.allow_optional_second,
-        excluded_challenges=set(args.exclude_challenge),
-        navigation_only=args.navigation_only,
-        chest_continuation=args.chest_continuation,
-    )
-    if args.recovery_only:
-        if args.recovery_session is None:
-            parser.error("--recovery-only requires --recovery-session")
-        result = route.recover_only(args.recovery_session)
+        elif challenge_status_value != "new":
+            self.challenge_status = "unknown"
+            home = self._return_home(captured, recognition, 0)
+            return IntegratedRouteResult(
+                "blocked",
+                f"canonical_challenge_action_{challenge_status_value}",
+                0,
+                str(self.runtime.session),
+            )
+        else:
+            row = self._choose_challenge(recognition)
+            if row is None:
+                applicable = [
+                    candidate for candidate in recognition.observation.rows
+                    if candidate.day_label is None or candidate.day_label == self.current_day
+                ]
+                unavailable = {
+                    RuinsAvailability.LOCKED,
+                    RuinsAvailability.UNAVAILABLE,
+                    RuinsAvailability.EXPIRED,
+                    RuinsAvailability.PREMIUM,
+                }
+                if applicable and all(
+                    candidate.recognized
+                    and candidate.availability in unavailable
+                    and candidate.challenge_control != RuinsControlState.VISIBLE_ENABLED
+                    for candidate in applicable
+                ):
+                    self.challenge_status = "unavailable"
+            if row is not None:
+                challenge_result = self._run_challenge(captured, recognition, row)
+                if isinstance(challenge_result, IntegratedRouteResult):
+                    if challenge_result.status == "blocked" and challenge_result.actions_completed == 0:
+                        current, current_recognition = self._observe_list("challenge-unavailable-safe-recheck")
+                        if (
+                            current_recognition.observation.recognized
+                            and current_recognition.observation.screen_identity == "RUINS_CHALLENGE"
+                            and current_recognition.observation.reset_identity == self.reset_identity
+                        ):
+                            captured, recognition = current, current_recognition
+                            self.challenge_status = "unknown"
+                        else:
+                            return self._safe_exit_after_challenge_problem(
+                                challenge_result.reason,
+                                unresolved=False,
+                            )
+                    else:
+                        return self._safe_exit_after_challenge_problem(
+                            challenge_result.reason,
+                            unresolved=challenge_result.status == "unresolved" or self.unresolved_action,
+                        )
+                else:
+                    captured, recognition, result = challenge_result
+                    if result is not None:
+                        self.challenge_participation_confirmed = True
+                        self.challenge_result = result.value
+                        self.challenge_status = "confirmed"
+                        self.daily_action_ready = True
+                    else:
+                        self.challenge_status = "unavailable"
+                    self.controller.observe_list(recognition.observation)
+
+        partial_reason = None if self.challenge_status in {"confirmed", "unavailable"} else (
+            "challenge_participation_unresolved"
+        )
+        scroll_ordinal = 0
+        for _ in range(max_steps):
+            self._audit_visible_chest_rows(recognition)
+            chest_status, reason, captured, recognition = self._claim_one_chest(captured, recognition)
+            if chest_status == "claimed":
+                self.controller.observe_list(recognition.observation)
+                continue
+            if chest_status in {"blocked", "unresolved"}:
+                partial_reason = reason
+                self.unresolved_action = self.unresolved_action or chest_status == "unresolved"
+                break
+            if all(status != "unresolved" for status in self.chest_coverage.values()):
+                break
+            if scroll_ordinal >= MAXIMUM_RUINS_CHEST_SCROLLS:
+                partial_reason = "ruins_chest_coverage_scroll_limit_exhausted"
+                break
+            scroll_ordinal += 1
+            scroll_status, scroll_reason, captured, recognition = self._scroll_chest_list(
+                captured, recognition, ordinal=scroll_ordinal,
+            )
+            if scroll_status != "scrolled":
+                partial_reason = scroll_reason
+                break
+            self.controller.observe_list(recognition.observation)
+        else:
+            partial_reason = "ruins_chest_coverage_step_limit_exhausted"
+        self._audit_visible_chest_rows(recognition)
+        if partial_reason is None and any(status == "unresolved" for status in self.chest_coverage.values()):
+            partial_reason = "ruins_chest_coverage_incomplete"
+
+        dispatch_count = self.challenge_transport_calls + self.chest_claim_transport_calls
+        home = self._return_home(captured, recognition, dispatch_count)
+        if home.status != "completed":
+            return home
+        if partial_reason is not None:
+            return IntegratedRouteResult(
+                "unresolved",
+                f"{partial_reason};verified_safe_exit_to_home",
+                dispatch_count,
+                str(self.runtime.session),
+            )
+        return IntegratedRouteResult(
+            "completed",
+            "verified_safe_exit_to_home",
+            dispatch_count,
+            str(self.runtime.session),
+        )
+
+
+
+def execute_ruins_route(context, arguments):
+    """Fixed service driver for one canonical Home-to-Ruins visit."""
+
+    from datetime import datetime, timezone
+
+    identity = context.identity
+    required_arguments = {
+        "account_id",
+        "action_executor_factory",
+        "current_day",
+        "runtime_identity",
+        "runtime_scope",
+        "server_id",
+    }
+    if set(arguments) != required_arguments:
+        raise ValueError("Ruins native route arguments do not match the fixed route contract")
+    if (
+        context.flow_id != RUINS_FLOW_ID
+        or context.product_id != RUINS_PRODUCT_ID
+        or context.product_revision != RUINS_PRODUCT_REVISION
+        or context.runtime_profile_id != RUINS_PROFILE_ID
+        or getattr(identity, "task_id", None) != RUINS_PRODUCT_ID
+    ):
+        raise ValueError("Ruins native route identity mismatch")
+    current_day = arguments["current_day"]
+    account_id = arguments["account_id"]
+    server_id = arguments["server_id"]
+    runtime_identity = arguments["runtime_identity"]
+    runtime_scope = arguments["runtime_scope"]
+    action_executor_factory = arguments["action_executor_factory"]
+    if (
+        not isinstance(current_day, str)
+        or current_day not in {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+        or account_id != identity.account_id
+        or server_id != identity.server_id
+        or not isinstance(runtime_identity, VerifiedRuntimeIdentity)
+        or runtime_identity.runtime_scope != runtime_scope
+        or not callable(action_executor_factory)
+    ):
+        raise ValueError("Ruins native route has an invalid current identity binding")
+    context.validate_identity()
+    initial = context.initial_frame
+    if not context.is_clean_home(initial.frame):
+        startup = context.prepare_startup(
+            source_context=RUINS_FLOW_ID,
+            recognize_successor=lambda captured: context.is_clean_home(captured.frame),
+            action_key=f"ruins-startup:{identity.reset_id}",
+            settle_seconds=context.settle_seconds,
+        )
+        if (
+            not startup.resume_ready
+            or startup.settled_frame is None
+            or not context.is_clean_home(startup.settled_frame.frame)
+        ):
+            raise ValueError("Ruins startup recovery did not reach canonical clean Home")
+        initial = startup.settled_frame
     else:
-        result = route.run()
-    print(json.dumps({
-        **result.__dict__,
+        context.bind_initial_observation(
+            initial,
+            extra={
+                "ruins_flow_id": RUINS_FLOW_ID,
+                "ruins_product_id": RUINS_PRODUCT_ID,
+                "ruins_product_revision": RUINS_PRODUCT_REVISION,
+                "ruins_canonical_home": True,
+            },
+        )
+    context.validate_identity()
+    action_executor = action_executor_factory(context)
+
+    def attach_partial(exc):
+        calls = getattr(action_executor, "transport_calls_by_category", {})
+        challenge_calls = calls.get("challenge", 0) if isinstance(calls, dict) else 0
+        chest_calls = calls.get("chest", 0) if isinstance(calls, dict) else 0
+        partial = dict(getattr(exc, "partial_result", {}) or {})
+        partial.setdefault("status", "unresolved" if challenge_calls + chest_calls else "blocked")
+        partial.setdefault("reason", f"ruins_native_route_failed:{type(exc).__name__}")
+        partial.setdefault("ruins_dispatch_count", challenge_calls + chest_calls)
+        partial.setdefault("challenge_transport_calls", challenge_calls)
+        partial.setdefault("chest_claim_transport_calls", chest_calls)
+        partial.setdefault("unresolved_action", challenge_calls + chest_calls > 0)
+        exc.partial_result = partial
+        return exc
+
+    route = RuinsIntegratedRoute(
+        context.runtime,
+        reset_identity=identity.reset_id,
+        current_day=current_day,
+        account_id=account_id,
+        server_id=server_id,
+        runtime_scope=runtime_scope,
+        product_id=RUINS_PRODUCT_ID,
+        product_revision=RUINS_PRODUCT_REVISION,
+        runtime_identity=runtime_identity,
+        action_executor=action_executor,
+        initial_capture=initial,
+        post_input_delay=context.settle_seconds,
+    )
+    try:
+        outcome = route.run()
+    except Exception as exc:
+        raise attach_partial(exc)
+    try:
+        context.validate_identity()
+        home_reference = None
+        if route.terminal_home_verified and route.terminal_home_capture is not None:
+            home_frame, home_reference = context.capture_reference(
+                route.terminal_home_capture.path,
+                route.terminal_home_capture.sha256,
+            )
+            context.replay_source(home_frame, home_reference, "ruins-terminal-home")
+            if not context.is_clean_home(home_frame.frame):
+                raise ValueError("Ruins terminal Home capture is not canonical clean Home")
+        accounting = context.accounting()
+        calls = getattr(action_executor, "transport_calls_by_category", None)
+        if calls != {
+            "challenge": route.challenge_transport_calls,
+            "chest": route.chest_claim_transport_calls,
+        }:
+            raise ValueError("Ruins route and canonical executor dispatch accounting differ")
+        history_export = None
+        history_export_error = None
+        if route.confirmed_claim_records:
+            try:
+                history_export = write_continuation(
+                    Path(context.runtime.session) / "ruins-chest-history.json",
+                    reset_identity=identity.reset_id,
+                    current_day=current_day,
+                    claims=route.confirmed_claim_records,
+                    evidence_root=Path(context.runtime.session),
+                )
+            except (OSError, ValueError) as exc:
+                history_export_error = f"{type(exc).__name__}: {exc}"
+        dispatch_count = route.challenge_transport_calls + route.chest_claim_transport_calls
+        if dispatch_count > MAX_ACTIONS:
+            raise ValueError("Ruins consequential dispatch budget exceeded")
+    except Exception as exc:
+        raise attach_partial(exc)
+    return {
+        "status": outcome.status,
+        "reason": outcome.reason,
+        "actions_completed": dispatch_count,
+        "ruins_dispatch_count": dispatch_count,
+        "challenge_transport_calls": route.challenge_transport_calls,
+        "chest_claim_transport_calls": route.chest_claim_transport_calls,
+        "challenge_identity": route.challenge_identity,
+        "challenge_result": route.challenge_result,
+        "challenge_participation_confirmed": route.challenge_participation_confirmed,
+        "daily_action_ready": route.daily_action_ready,
+        "challenge_status": route.challenge_status,
+        "unresolved_action": route.unresolved_action,
+        "chest_coverage": dict(route.chest_coverage),
+        "newly_claimed_chests": list(route.newly_claimed_chests),
+        "confirmed_claim_records": list(route.confirmed_claim_records),
+        "history_export": history_export.name if history_export is not None else None,
+        "history_export_error": history_export_error,
         "resource_delta": route.resource_delta,
-        "chests_only": route.chests_only,
-        "chest_coverage": route.chest_coverage,
-        "newly_claimed_chests": route.newly_claimed_chests,
-        "confirmed_claim_records": route.confirmed_claim_records,
-        "prior_confirmed_claim_records": route.prior_confirmed_claim_records,
-        "points_after": route._points_balance,
-    }, sort_keys=True))
-    return 0 if result.status in {"completed", "dry-run"} else 3
+        "terminal_home_verified": bool(home_reference is not None and route.terminal_home_verified),
+        "terminal_home_frame": (
+            {
+                "frame_path": home_reference.frame_path,
+                "frame_sha256": home_reference.frame_sha256,
+                "observed_utc": home_reference.observed_utc,
+                "capture_ordinal": home_reference.capture_ordinal,
+            }
+            if home_reference is not None else None
+        ),
+        "input_count": accounting.input_count,
+        "session_input_count": accounting.session_input_count,
+        "runtime_input_count": accounting.runtime_input_count,
+        "accounting_verified": accounting.verified,
+        "scheduler_reset_id": identity.reset_id,
+        "backend_reset_id": runtime_identity.reset_id,
+        "runtime_scope": runtime_scope,
+        "completed_at_utc": datetime.fromtimestamp(context.utc_clock(), timezone.utc).timestamp(),
+        "session_directory": str(context.runtime.session),
+    }
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+def create_service_binding(make_native_route_binding):
+    """Build the fixed native lifecycle binding without opening a runtime."""
+
+    if not callable(make_native_route_binding):
+        raise TypeError("Ruins requires the injected native route binding factory")
+    return make_native_route_binding(
+        flow_id=RUINS_FLOW_ID,
+        product_id=RUINS_PRODUCT_ID,
+        product_revision=RUINS_PRODUCT_REVISION,
+        runtime_profile_id=RUINS_PROFILE_ID,
+        owner="automation-service:ruins-challenge",
+        workflow="ruins-challenge-home-atlas",
+        max_inputs=MAX_INPUTS,
+        max_actions=MAX_ACTIONS,
+        driver=execute_ruins_route,
+    )

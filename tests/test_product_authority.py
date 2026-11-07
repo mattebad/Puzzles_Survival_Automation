@@ -49,7 +49,7 @@ class ProductAuthorityTests(unittest.TestCase):
             for record in self.authority["product_records"]
         }
 
-    def test_authority_is_v2_and_has_exactly_twenty_two_typed_records(self) -> None:
+    def test_authority_is_v2_and_has_exact_product_record_set(self) -> None:
         self.assertEqual(self.authority["schema_version"], 2)
         self.assertEqual(self.authority["authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(
@@ -69,6 +69,8 @@ class ProductAuthorityTests(unittest.TestCase):
                 "gathering_resources",
                 "zombie_lair",
                 "ruins_shop_purchase",
+                "ruins_challenge",
+                "alliance_help",
                 "rare_earth_shop_purchase",
                 "alliance_shop_purchase",
                 "hero_upgrade",
@@ -134,6 +136,8 @@ class ProductAuthorityTests(unittest.TestCase):
             "gathering_resources",
             "zombie_lair",
             "ruins_shop_purchase",
+            "ruins_challenge",
+            "alliance_help",
             "rare_earth_shop_purchase",
             "alliance_shop_purchase",
             "hero_upgrade",
@@ -1127,6 +1131,186 @@ class ProductAuthorityTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
                 validate_product_authority(changed)
 
+    def test_ruins_product_attempts_challenge_first_and_keeps_ready_chests_independent(self) -> None:
+        record = self.records["ruins_challenge"]
+        self.assertEqual(record["record_type"], "ruins_challenge")
+        self.assertEqual(record["record_revision"], "ruins_challenge-v1")
+        self.assertEqual(record["recurrence"], "reset_scoped_cooldown_pulse")
+        self.assertEqual(record["semantic_entry_route"]["target"], "RUINS")
+        self.assertEqual(record["target"]["challenge_identity"], "current_allowlisted_npc")
+        self.assertEqual(record["target"]["challenge_control"], "Attack/Dispatch")
+        self.assertEqual(record["target"]["challenge_quantity"], 1)
+        self.assertEqual(record["target"]["chest_eligibility"], "visible_green_ready")
+        self.assertEqual(
+            record["target"]["challenge_unavailable_behavior"],
+            "continue_to_independently_ready_overview_chests",
+        )
+        self.assertIsNone(record["quantity_cost"]["quantity"])
+        self.assertEqual(record["quantity_cost"]["cost"]["amount"], 0)
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["challenge_before_overview"])
+        self.assertTrue(effect["challenge_success_not_required_for_ready_chests"])
+        self.assertTrue(effect["recognized_loss_counts_as_participation"])
+        self.assertTrue(effect["challenge_unavailability_does_not_fabricate_a_result"])
+        self.assertTrue(effect["per_category_claim_and_unknown_state_persisted"])
+        self.assertTrue(effect["unknown_consequential_effects_block_restart_retry"])
+        self.assertFalse(effect["identical_retry"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        self.assertIsNone(record["daily_ownership"]["point_credit_trigger"])
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+
+    def test_ruins_safety_fields_fail_closed_with_fresh_digests(self) -> None:
+        mutations = (
+            (
+                "challenge_order",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "challenge_before_overview", False
+                ),
+            ),
+            (
+                "unavailable_no_fabricated_result",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "challenge_unavailability_does_not_fabricate_a_result", False
+                ),
+            ),
+            (
+                "non_green_claim",
+                lambda record: record["target"].__setitem__(
+                    "chest_eligibility", "any_visible"
+                ),
+            ),
+            (
+                "unavailable_blocks_chests",
+                lambda record: record["target"].__setitem__(
+                    "challenge_unavailable_behavior", "stop"
+                ),
+            ),
+            (
+                "paid_cost",
+                lambda record: record["quantity_cost"]["cost"].__setitem__(
+                    "free_only", False
+                ),
+            ),
+            (
+                "unknown_retry",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "identical_retry", True
+                ),
+            ),
+            (
+                "daily_owner",
+                lambda record: record["daily_ownership"].__setitem__(
+                    "daily_owner", "ruins_challenge"
+                ),
+            ),
+            (
+                "revision",
+                lambda record: record.__setitem__(
+                    "record_revision", "ruins_challenge-v2"
+                ),
+            ),
+        )
+        for field, mutate in mutations:
+            changed = deepcopy(self.authority)
+            ruins = next(
+                item
+                for item in changed["product_records"]
+                if item["record_id"] == "ruins_challenge"
+            )
+            mutate(ruins)
+            ruins["record_digest"] = record_digest(ruins)
+            changed["authority_digest"] = authority_digest(changed)
+            with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
+                validate_product_authority(changed)
+
+    def test_alliance_help_product_enforces_quota_and_partial_progress(self) -> None:
+        record = self.records["alliance_help"]
+        self.assertEqual(record["record_type"], "alliance_help")
+        self.assertEqual(record["record_revision"], "alliance_help-v1")
+        self.assertEqual(record["recurrence"], "reset_scoped_cooldown_pulse")
+        self.assertEqual(record["semantic_entry_route"]["target"], "ALLIANCE")
+        self.assertEqual(record["target"]["help_all_control"], "Help All")
+        self.assertEqual(
+            record["target"]["help_all_count_rule"],
+            "exact_current_eligible_free_request_count_known",
+        )
+        self.assertEqual(record["target"]["individual_control"], "Help")
+        self.assertEqual(record["quantity_cost"]["quantity"], 10)
+        self.assertEqual(record["quantity_cost"]["cost"]["amount"], 0)
+        self.assertTrue(record["quantity_cost"]["cost"]["free_only"])
+        effect = record["semantic_effect"]
+        self.assertEqual(effect["successful_request_ceiling"], 10)
+        self.assertTrue(effect["confirmed_partial_quota_persisted_across_restart"])
+        self.assertTrue(effect["transport_call_is_not_success"])
+        self.assertTrue(effect["static_help_screen_is_not_success"])
+        self.assertTrue(effect["unknown_successor_persisted_and_identical_retry_denied"])
+        self.assertFalse(effect["identical_retry"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        self.assertIsNone(record["daily_ownership"]["point_credit_trigger"])
+        self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+
+    def test_alliance_help_safety_fields_fail_closed_with_fresh_digests(self) -> None:
+        mutations = (
+            (
+                "quota",
+                lambda record: record["quantity_cost"].__setitem__("quantity", 9),
+            ),
+            (
+                "help_all_exact_count",
+                lambda record: record["target"].__setitem__(
+                    "help_all_count_rule", "unknown_count_allowed"
+                ),
+            ),
+            (
+                "transport_success",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "transport_call_is_not_success", False
+                ),
+            ),
+            (
+                "partial_quota",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "confirmed_partial_quota_persisted_across_restart", False
+                ),
+            ),
+            (
+                "free_cost",
+                lambda record: record["quantity_cost"]["cost"].__setitem__(
+                    "amount", 1
+                ),
+            ),
+            (
+                "retry",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "identical_retry", True
+                ),
+            ),
+            (
+                "daily_owner",
+                lambda record: record["daily_ownership"].__setitem__(
+                    "daily_owner", "alliance_help"
+                ),
+            ),
+            (
+                "revision",
+                lambda record: record.__setitem__(
+                    "record_revision", "alliance_help-v2"
+                ),
+            ),
+        )
+        for field, mutate in mutations:
+            changed = deepcopy(self.authority)
+            help_record = next(
+                item
+                for item in changed["product_records"]
+                if item["record_id"] == "alliance_help"
+            )
+            mutate(help_record)
+            help_record["record_digest"] = record_digest(help_record)
+            changed["authority_digest"] = authority_digest(changed)
+            with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
+                validate_product_authority(changed)
+
     def test_product_records_have_no_forbidden_authority_domains(self) -> None:
         forbidden = {
             "coordinate",
@@ -1168,6 +1352,56 @@ class ProductAuthorityTests(unittest.TestCase):
             if "product_authority_binding" in contract
         }
         self.assertEqual(bound, set(self.records))
+
+    def test_ruins_and_alliance_help_contracts_bind_their_exact_typed_records(self) -> None:
+        for flow_id, record_id, revision in (
+            (
+                "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+                "ruins_challenge",
+                "ruins_challenge-v1",
+            ),
+            (
+                "ALLIANCE-HELP-TEN-FREE-REQUESTS",
+                "alliance_help",
+                "alliance_help-v1",
+            ),
+        ):
+            contract = self.contracts[flow_id]
+            binding = contract["product_authority_binding"]
+            record = self.records[record_id]
+            with self.subTest(flow_id=flow_id):
+                self.assertEqual(binding["product_record_id"], record_id)
+                self.assertEqual(binding["product_record_revision"], revision)
+                self.assertEqual(binding["product_record_revision"], record["record_revision"])
+                self.assertEqual(binding["product_record_digest"], record["record_digest"])
+                self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+                self.assertEqual(
+                    binding["product_authority_digest"],
+                    self.authority["authority_digest"],
+                )
+                self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+                self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
+                self.assertFalse(binding["selected_daily_prerequisite"])
+                self.assertEqual(contract["registration_state"], "disabled")
+                self.assertFalse(contract["production_eligible"])
+                self.assertEqual(contract["proof_state"], "evidence_required")
+
+    def test_ruins_and_alliance_help_records_cannot_bind_each_others_routes(self) -> None:
+        for flow_id, wrong_record_id in (
+            ("RUINS-CHALLENGE-HOME-ATLAS-MIGRATION", "alliance_help"),
+            ("ALLIANCE-HELP-TEN-FREE-REQUESTS", "ruins_challenge"),
+        ):
+            contract = deepcopy(self.contracts[flow_id])
+            wrong_record = self.records[wrong_record_id]
+            binding = contract["product_authority_binding"]
+            binding["product_record_id"] = wrong_record_id
+            binding["product_record_revision"] = wrong_record["record_revision"]
+            binding["product_record_digest"] = wrong_record["record_digest"]
+            with self.subTest(flow_id=flow_id), self.assertRaises(ProductAuthorityError):
+                validate_contract_product_authority_bindings(
+                    self.authority,
+                    {flow_id: contract},
+                )
 
     def test_nova_praise_contract_binds_direct_record_and_preserves_disabled_state(self) -> None:
         contract = self.contracts["NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"]

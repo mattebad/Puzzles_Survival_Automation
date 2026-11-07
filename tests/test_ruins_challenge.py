@@ -30,8 +30,8 @@ from tasks.ruins_challenge import (
     detail_attack_authorized,
     dispatch_authorized,
     result_verified,
+    ruins_daily_action_key,
 )
-from tasks.ruins_challenge_runtime import RuinsRuntimeController, RuinsRuntimeState
 from tasks.ruins_challenge_vision import (
     recognize_ruins_detail_frame,
     recognize_ruins_detail_with_targets,
@@ -43,6 +43,7 @@ from tasks.ruins_challenge_vision import (
     parse_points,
     parse_progress,
 )
+from tasks.ruins_challenge_runtime import RuinsRuntimeController
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -356,6 +357,47 @@ class RuinsContractTests(unittest.TestCase):
         self.assertIn("Hero Challenge", KNOWN_CHALLENGE_IDENTITIES)
         self.assertIn("Cube Challenge", KNOWN_CHALLENGE_IDENTITIES)
 
+    def test_action_keys_bind_exact_reset_day_and_category(self):
+        args = {
+            "flow_id": "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION",
+            "runtime_scope": "bluestacks:instance-1",
+            "account_id": "account-1",
+            "server_id": "server-1",
+            "reset_identity": "game-day-2026-07-16",
+            "current_day": "Thu",
+            "category": "challenge",
+        }
+        challenge_key = ruins_daily_action_key(**args)
+        self.assertEqual(challenge_key, ruins_daily_action_key(**args))
+        self.assertNotEqual(
+            challenge_key,
+            ruins_daily_action_key(**{**args, "category": "chest:hero-challenge"}),
+        )
+        self.assertNotEqual(
+            challenge_key,
+            ruins_daily_action_key(**{**args, "reset_identity": "game-day-2026-07-17"}),
+        )
+        self.assertNotEqual(
+            challenge_key,
+            ruins_daily_action_key(**{**args, "server_id": "server-2"}),
+        )
+
+    def test_green_ready_chest_is_independent_of_unavailable_challenge(self):
+        ready = replace(
+            load_row("available_chest"),
+            availability=RuinsAvailability.UNAVAILABLE,
+            challenge_control=RuinsControlState.HIDDEN,
+            day_label="Tue",
+        )
+        self.assertTrue(chest_claim_authorized(
+            screen(ready, source=ready.source_frame_sha256),
+            ready,
+            action_key="ruins:chest:hero:reset",
+        ))
+        self.assertFalse(challenge_action_authorized(
+            screen(ready), ready, current_day="Wed", action_key="ruins:challenge:reset",
+        ))
+
     def test_current_day_filtering_and_one_or_two_available_rows(self):
         nova, module = load_row("available_nova"), load_row("available_module")
         self.assertTrue(current_day_allowed(nova, "Wed"))
@@ -401,6 +443,7 @@ class RuinsContractTests(unittest.TestCase):
             RuinsControlState.VISIBLE_ENABLED,
             npc_troops_provided=True, npc_troops_current=200200, npc_troops_maximum=200200,
             skip_battle_enabled=True, resource_cost=0,
+            source_frame_sha256="f" * 64, reset_identity=RESET,
         )
         self.assertTrue(detail_attack_authorized(detail))
         self.assertTrue(dispatch_authorized(detail))
@@ -580,7 +623,12 @@ class RuinsContractTests(unittest.TestCase):
         observation = screen(nova)
         controller.observe_list(observation)
         self.assertEqual(controller.plan_challenge(observation, nova, current_day="Wed", action_key="nova-1").kind, "open_detail")
-        detail = RuinsDetailObservation("Nova Challenge", True, 19, 100, RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED, True, 200200, 200200, True, 0)
+        detail = RuinsDetailObservation(
+            "Nova Challenge", True, 19, 100,
+            RuinsControlState.VISIBLE_ENABLED, RuinsControlState.VISIBLE_ENABLED,
+            True, 200200, 200200, True, 0,
+            source_frame_sha256="f" * 64, reset_identity=RESET,
+        )
         self.assertEqual(controller.plan_attack(detail, action_key="nova-1").kind, "attack")
         self.assertEqual(controller.plan_dispatch(detail, action_key="nova-1").kind, "dispatch")
         result = RuinsResultObservation("Nova Challenge", RuinsResult.SUCCESS, 20, 100, 20, "f" * 64, RESET, True, False, False)
@@ -589,18 +637,49 @@ class RuinsContractTests(unittest.TestCase):
         self.assertTrue(controller.daily.successful_progress_complete)
         self.assertEqual(controller.plan_challenge(observation, nova, current_day="Wed", action_key="nova-2").kind, "blocked")
 
-    def test_failed_first_challenge_can_optionally_be_followed_by_distinct_second(self):
-        nova, module = load_row("available_nova"), load_row("available_module")
-        controller = RuinsRuntimeController(reset_identity=RESET, allow_optional_second=True)
+    def test_failed_first_challenge_confirms_participation_and_keeps_chests_eligible(self):
+        nova = load_row("available_nova")
+        controller = RuinsRuntimeController(reset_identity=RESET)
         first = screen(nova)
         controller.observe_list(first)
         self.assertEqual(controller.plan_challenge(first, nova, current_day="Wed", action_key="nova-1").kind, "open_detail")
         failure = RuinsResultObservation("Nova Challenge", RuinsResult.FAILURE, 18, 100, None, "f" * 64, RESET, False, True, True)
         self.assertEqual(controller.reconcile_result(nova, failure).kind, "reconciled")
-        second = replace(screen(module), source_frame_sha256="1" * 64)
-        controller.observe_list(second)
-        self.assertEqual(controller.plan_challenge(second, module, current_day="Wed", action_key="module-1").kind, "open_detail")
-        self.assertEqual(controller.plan_challenge(second, module, current_day="Wed", action_key="module-duplicate").kind, "blocked")
+        self.assertTrue(controller.daily.initiation_complete)
+        self.assertTrue(controller.daily.ready_to_claim)
+        self.assertTrue(controller.daily.claim_dormant)
+        self.assertFalse(controller.daily.successful_progress_complete)
+        self.assertEqual(
+            controller.plan_challenge(first, nova, current_day="Wed", action_key="nova-retry").kind,
+            "blocked",
+        )
+        ready = replace(load_row("available_chest"), availability=RuinsAvailability.UNAVAILABLE)
+        current_list = screen(ready, source=ready.source_frame_sha256)
+        controller.observe_list(current_list)
+        self.assertEqual(
+            controller.plan_chest_claim(current_list, ready, action_key="hero-chest-1").kind,
+            "claim_chest",
+        )
+
+    def test_unavailable_challenge_does_not_invalidate_ready_chest(self):
+        unavailable = replace(
+            load_row("available_nova"),
+            availability=RuinsAvailability.UNAVAILABLE,
+            challenge_control=RuinsControlState.HIDDEN,
+        )
+        controller = RuinsRuntimeController(reset_identity=RESET)
+        unavailable_list = screen(unavailable, source=unavailable.source_frame_sha256)
+        controller.observe_list(unavailable_list)
+        self.assertEqual(controller.plan_challenge(
+            unavailable_list, unavailable, current_day="Wed", action_key="nova-unavailable",
+        ).kind, "blocked")
+        ready = replace(load_row("available_chest"), availability=RuinsAvailability.UNAVAILABLE)
+        ready_list = screen(ready, source=ready.source_frame_sha256)
+        controller.observe_list(ready_list)
+        self.assertEqual(
+            controller.plan_chest_claim(ready_list, ready, action_key="hero-chest-independent").kind,
+            "claim_chest",
+        )
 
     def test_ambiguous_result_stops_without_retry(self):
         nova = load_row("available_nova")

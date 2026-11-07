@@ -45,6 +45,8 @@ from .models import (
     navigation_capability_forbidden_reason,
     snapshot,
 )
+from .approved_base_routes import decide_approved_base_route, is_approved_base_route_request
+
 from .promotional import (
     MAX_PROMOTIONAL_BACKS,
     PROMOTIONAL_BACK_GEOMETRY,
@@ -928,9 +930,11 @@ class CentralPolicy:
             return deny, "INVALID_PERCEPTION_BINDING", "OCR reuse must identify an earlier completed capture"
         if any(not name or not SHA256.fullmatch(digest) for name, digest in obs.critical_roi_hashes):
             return deny, "INVALID_PERCEPTION_BINDING", "critical ROI bindings are missing or malformed"
-        if req.action_class == ActionClass.SPEND_OR_STRATEGIC:
-            return deny, "SPEND_OR_STRATEGIC_DISABLED", "spend and strategic actions remain disabled"
         if req.action_class is ActionClass.OWNED_ITEM_NON_IDEMPOTENT:
+            if is_approved_base_route_request(req):
+                return deny, "APPROVED_BASE_ROUTE_ACTION_CLASS_NOT_ALLOWED", (
+                    "route actions cannot use the generic owned-item authorization bypass"
+                )
             return self._decide_resource_item(req)
         if req.semantic_action == SAFE_PROMOTIONAL_BACK:
             return self._decide_promotional_back(req)
@@ -959,6 +963,11 @@ class CentralPolicy:
             return deny, "GO_NOT_CLAIM", "Go cannot be classified or authorized as Claim"
         if req.semantic_action == "CLAIM_DAILY_QUEST" and obs.control_class != "CLAIM":
             return deny, "CLAIM_TARGET_NOT_RECOGNIZED", "Claim requires an exact Claim control classification"
+        approved_route = decide_approved_base_route(req)
+        if approved_route is not None:
+            return approved_route
+        if req.action_class is ActionClass.SPEND_OR_STRATEGIC:
+            return deny, "SPEND_OR_STRATEGIC_DISABLED", "spend and strategic actions remain disabled outside exact route policy"
         if (
             req.semantic_action == PERSONAL_MIGHT_SEMANTIC_ACTION
             or obs.target_identity == PERSONAL_MIGHT_TARGET_IDENTITY
