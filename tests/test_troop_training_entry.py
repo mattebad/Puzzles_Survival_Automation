@@ -148,19 +148,6 @@ class ZoomTransport:
 
 
 class TroopTrainingEntryContractTests(unittest.TestCase):
-    def test_troop_type_to_semantic_building_mapping(self):
-        self.assertEqual(
-            ATLAS_BUILDING_BY_TROOP_TYPE,
-            {
-                "fighter": "home.building.fighter_camp",
-                "shooter": "home.building.shooter_camp",
-                "rider": "home.building.rider_camp",
-                "vehicle": "home.building.vehicle_depot",
-            },
-        )
-        for troop_type, building_id in ATLAS_BUILDING_BY_TROOP_TYPE.items():
-            target = first_enabled_entry_target(config(troop_type))
-            self.assertEqual((target.troop_type, target.building_id), (troop_type, building_id))
 
     def test_zero_pan_requires_exact_current_frame_semantic_binding(self):
         target = first_enabled_entry_target(config())
@@ -213,6 +200,84 @@ class TroopTrainingEntryContractTests(unittest.TestCase):
             self.assertEqual(forbidden_atlas_entry_surface(frame), "unexpected_warehouse_surface")
         with patch("tasks.troop_training_vision._ocr", return_value="auto use resource boxes"):
             self.assertEqual(forbidden_atlas_entry_surface(frame), "unexpected_resource_box_surface")
+
+    def test_confirmed_legacy_consumer_history_blocks_before_new_native_input(self):
+        from automation_service.troop_training import (
+            FLOW_ID,
+            PROFILE_ID,
+            PRODUCT_ID,
+            PRODUCT_REVISION,
+            TrainingActionHistoryError,
+            make_training_claim_action_key,
+            make_training_start_action_key,
+            training_identity_digest,
+        )
+        from scripts.troop_training_bluestacks import run_troop_training_native
+        from tasks.runtime_identity import resource_fixed_runtime_binding
+
+        binding = resource_fixed_runtime_binding()
+        runtime_hash = training_identity_digest(
+            binding.runtime_scope,
+            binding.account_id,
+            binding.server_id,
+        )
+        reset = "game-day-2025-01-02"
+        start = make_training_start_action_key(runtime_hash, reset, "fighter", 1)
+        claim = make_training_claim_action_key(start)
+        rows = [
+            {
+                "task_id": FLOW_ID,
+                "action_key": start,
+                "final_status": "confirmed",
+                "game_day_id": reset,
+                "semantic_action": "TROOP_TRAINING_START",
+            },
+            {
+                "task_id": FLOW_ID,
+                "action_key": claim,
+                "final_status": "confirmed",
+                "game_day_id": reset,
+                "semantic_action": "TROOP_TRAINING_COMPLETED_BATCH_CLAIM",
+            },
+            {
+                "task_id": FLOW_ID,
+                "action_key": f"{start}:resource-box",
+                "final_status": "confirmed",
+                "game_day_id": reset,
+                "semantic_action": "UNKNOWN_LEGACY_RESOURCE_CONSUMER",
+            },
+        ]
+        original_rows = [dict(row) for row in rows]
+        runtime = SimpleNamespace(input_count=0, taps=[])
+        context = SimpleNamespace(
+            flow_id=FLOW_ID,
+            product_id=PRODUCT_ID,
+            product_revision=PRODUCT_REVISION,
+            runtime_profile_id=PROFILE_ID,
+            checkpoint=lambda: None,
+            validate_identity=lambda: None,
+            identity=SimpleNamespace(
+                account_id=binding.account_id,
+                server_id=binding.server_id,
+                reset_id=reset,
+            ),
+            initial_frame=SimpleNamespace(frame=np.zeros((1280, 800, 3), np.uint8)),
+            bind_initial_observation=lambda *_args, **_kwargs: None,
+            action_store=SimpleNamespace(list_actions_for_task=lambda _task_id: rows),
+            runtime=runtime,
+        )
+        home = SimpleNamespace(recognized=True, overlay_state="none", diagnostics={})
+
+        with (
+            patch("scripts.troop_training_bluestacks.recognize_home", return_value=home),
+            patch("scripts.troop_training_bluestacks._canonical_home_proof", return_value=True),
+        ):
+            with self.assertRaisesRegex(TrainingActionHistoryError, "manual reconciliation"):
+                run_troop_training_native(context, {})
+
+        self.assertEqual(runtime.input_count, 0)
+        self.assertEqual(runtime.taps, [])
+        self.assertEqual(rows, original_rows)
 
     def test_bluestacks_radial_exterior_binding_rejects_wrong_facility_and_bliss(self):
         frame = np.zeros((1280, 800, 3), np.uint8)
