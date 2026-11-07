@@ -15,6 +15,8 @@ ROUTE_BOUNDARIES = {
     "ultimate": "tests.test_service_ultimate.UltimateServiceTests.test_prior_completed_day_allows_one_current_flee_home_then_idempotent_repeat",
     "enhancement": "tests.test_service_enhancement.ServiceEnhancementTests.test_full_family_uses_one_wrapper_and_current_proof_with_exact_counts",
     "personal-might": "tests.test_service_personal_might.ServicePersonalMightTests.test_real_boundary_one_praise_then_current_day_gray_repeat_no_praise",
+    "resource-item": "tests.test_resource_item_authorization.ResourceItemAuthorizationTests.test_unknown_transport_is_reserved_and_observe_only_reconcile_is_idempotent",
+    "daily-rewards": "tests.test_service_daily_rewards.DailyRewardsServiceTests.test_canonical_runner_executes_combined_native_route_with_exact_effect_accounting",
 }
 
 # Native Home/Back admission uses different OCR backend builds on the two CI
@@ -233,7 +235,7 @@ FAMILIES = {
     "nova": ("nova",),
     "personal_might": ("personal_might",),
     "resources": ("daily_resource", "resources", "resource_item", "resource_boost"),
-    "daily_row_claim": ("daily_row_claim", "available_daily_claim"),
+    "daily_row_claim": ("daily_row_claim", "daily_rewards", "available_daily_claim"),
     "ultimate": ("ultimate",),
     "ruins": ("ruins",),
     "troop": ("troop", "training"),

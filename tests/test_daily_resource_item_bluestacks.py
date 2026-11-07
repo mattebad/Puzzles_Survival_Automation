@@ -172,6 +172,29 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         self.assertEqual(recognition.quantity_source, "ordinary-use-implied-one")
         self.assertTrue(recognition.single_use_semantics_proven)
         self.assertTrue(route.resource_item_authorizeable(recognition))
+        missing_count_rows = tuple(
+            row for row in _item_rows("1K Food Use") if row[0] not in {"owned", "2"}
+        )
+        with patch.object(route, "_measure_resource_item_card", return_value=measured):
+            missing_count = route.recognize_food_item(
+                _frame(),
+                ocr=_ocr(*missing_count_rows),
+            )
+        self.assertFalse(missing_count.recognized)
+        self.assertIsNone(missing_count.owned_quantity)
+
+        ambiguous_count_rows = (
+            *_item_rows("1K Food Use"),
+            ("owned", 100, 580, 60, 28),
+            ("3", 165, 580, 15, 28),
+        )
+        with patch.object(route, "_measure_resource_item_card", return_value=measured):
+            ambiguous_count = route.recognize_food_item(
+                _frame(),
+                ocr=_ocr(*ambiguous_count_rows),
+            )
+        self.assertFalse(ambiguous_count.recognized)
+        self.assertIsNone(ambiguous_count.owned_quantity)
 
         with patch.object(route, "_measure_resource_item_card", return_value=measured):
             with_bulk = route.recognize_food_item(
@@ -360,41 +383,43 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         self.assertFalse(overlay.recognized)
 
     def test_postcondition_requires_exact_owned_decrement_and_home(self):
-        before = {"inventory_quantity": 2, "food_resource": 100}
-        after = {
-            "inventory_quantity": 1,
-            "food_resource": 100,
-            "home_verified": True,
-        }
+        before = {"inventory_quantity": 2}
+        after = {"inventory_quantity": 1, "home_verified": True}
         self.assertTrue(route.resource_item_postcondition_verified(before, after))
         self.assertFalse(
             route.resource_item_postcondition_verified(
                 before,
-                {"inventory_quantity": 2, "food_resource": 100, "home_verified": True},
+                {"inventory_quantity": 2, "home_verified": True},
             )
         )
         self.assertFalse(
             route.resource_item_postcondition_verified(
                 before,
-                {"inventory_quantity": 0, "food_resource": 100, "home_verified": True},
+                {"inventory_quantity": 0, "home_verified": True},
             )
         )
         self.assertFalse(
             route.resource_item_postcondition_verified(
                 before,
-                {"inventory_quantity": 1, "food_resource": 100},
+                {"inventory_quantity": 1},
             )
         )
         self.assertFalse(
             route._resource_delta_verified(
-                {"inventory_quantity": 10, "food_resource": 100},
-                {"inventory_quantity": 9, "food_resource": 50},
+                {"inventory_quantity": 10},
+                {"inventory_quantity": 8},
             )
         )
         self.assertFalse(
             route._resource_delta_verified(
-                {"food_resource": 100},
-                {"food_resource": 1100},
+                {"inventory_quantity": 10},
+                {"inventory_quantity": 10},
+            )
+        )
+        self.assertFalse(
+            route._resource_delta_verified(
+                {},
+                {"inventory_quantity": 1},
             )
         )
         self.assertTrue(
@@ -437,11 +462,6 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         self.assertIsNotNone(retained)
         assert retained is not None
 
-        recognized_home = type(
-            "HomeRecognition",
-            (),
-            {"is_home": True, "native_ok": True},
-        )()
         altered = retained.copy()
         cv2.rectangle(
             altered,
@@ -450,29 +470,24 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             (0, 0, 0),
             -1,
         )
-        with patch.object(route, "recognize_home_nav", return_value=recognized_home):
-            target = route._home_bag_target(retained, ocr=_ocr())
-            altered_target = route._home_bag_target(altered, ocr=_ocr())
-            blank_target = route._home_bag_target(_blank_frame(), ocr=_ocr())
+        target = route._home_bag_target(retained, ocr=_ocr())
+        altered_target = route._home_bag_target(altered, ocr=_ocr())
+        blank_target = route._home_bag_target(_blank_frame(), ocr=_ocr())
 
         self.assertEqual(target, route.HOME_BAG_ICON_ROI)
         self.assertIsNone(altered_target)
         self.assertIsNone(blank_target)
 
-    def test_retained_home_frame_binds_measured_bag_icon(self):
-        frame_path = PORTABLE_FIXTURES / "session-2-terminal-home.png"
-        frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
-        self.assertIsNotNone(frame)
-        assert frame is not None
-        recognized_home = type(
-            "HomeRecognition",
-            (),
-            {"is_home": True, "native_ok": True},
-        )()
-        with patch.object(route, "recognize_home_nav", return_value=recognized_home):
-            target = route._home_bag_target(frame, ocr=_ocr())
-        self.assertEqual(target, route.HOME_BAG_ICON_ROI)
-        self.assertNotEqual(target, (407, 1227, 455, 1267))
+    def test_current_compact_home_binds_bag_but_daily_screen_cannot(self):
+        fixtures = Path(__file__).parent / "fixtures" / "daily_rewards_native"
+        home = cv2.imread(str(fixtures / "native-home-compact-footer.png"))
+        daily = cv2.imread(str(fixtures / "native-chest1-claimed-after-20261107.png"))
+        self.assertEqual(route._home_bag_target(home, ocr=_ocr()), route.HOME_BAG_ICON_ROI)
+        duplicate = home.copy()
+        x0, y0, x1, y1 = route.HOME_BAG_ICON_ROI
+        duplicate[y0:y1, 150:150 + x1 - x0] = home[y0:y1, x0:x1]
+        self.assertIsNone(route._home_bag_target(duplicate, ocr=_ocr()))
+        self.assertIsNone(route._home_bag_target(daily, ocr=_ocr()))
 
     def test_return_home_binding_fails_closed_without_proven_control(self):
         for label in ("home", "base", "close", "return"):
@@ -559,7 +574,6 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             quantity=1,
             use_roi=(430, 500, 485, 528),
             inventory_quantity=2,
-            food_resource=100,
             visual_evidence={
                 "item_card": {
                     "proven": True,
@@ -580,7 +594,6 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             owned_quantity=1,
             quantity=1,
             inventory_quantity=1,
-            food_resource=100,
         )
         home = {
             "state": "HOME",
@@ -863,7 +876,6 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             quantity=1,
             use_roi=(577, 833, 768, 897),
             inventory_quantity=10,
-            food_resource=100,
             visual_evidence={
                 "item_card": {
                     "proven": True,
@@ -978,7 +990,6 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             quantity=1,
             use_roi=(430, 500, 485, 528),
             inventory_quantity=2,
-            food_resource=100,
             visual_evidence={
                 "item_card": {
                     "proven": True,
@@ -999,7 +1010,6 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             owned_quantity=1,
             quantity=1,
             inventory_quantity=1,
-            food_resource=100,
         )
         home = {
             "state": "HOME",

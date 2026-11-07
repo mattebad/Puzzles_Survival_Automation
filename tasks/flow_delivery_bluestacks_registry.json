@@ -69,22 +69,10 @@
       "recovery_handler": "bioenhancer_free_research_bluestacks_recovery",
       "consequence_class": "consequential"
     },
-    "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION": {
-      "runner": "daily_row_claim_bluestacks_runner",
-      "evidence_validator": "daily_row_claim_bluestacks_evidence",
-      "recovery_handler": "daily_row_claim_bluestacks_recovery",
-      "consequence_class": "consequential"
-    },
     "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": {
       "runner": "supply_depot_bluestacks_runner",
       "evidence_validator": "supply_depot_bluestacks_evidence",
       "recovery_handler": "supply_depot_bluestacks_recovery",
-      "consequence_class": "consequential"
-    },
-    "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION": {
-      "runner": "daily_resource_item_bluestacks_runner",
-      "evidence_validator": "daily_resource_item_bluestacks_evidence",
-      "recovery_handler": "daily_resource_item_bluestacks_recovery",
       "consequence_class": "consequential"
     },
     "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE": {

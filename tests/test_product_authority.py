@@ -81,23 +81,47 @@ class ProductAuthorityTests(unittest.TestCase):
         )
         validate_product_authority(self.authority)
 
-    def test_aggregate_daily_claim_is_the_only_selected_daily_owner(self) -> None:
+    def test_aggregate_daily_claim_is_batch_scoped_and_the_only_selected_daily_owner(self) -> None:
         record = self.records["aggregate_daily_claim"]
         self.assertEqual(record["record_type"], "aggregate_daily_claim")
+        self.assertEqual(record["record_revision"], "aggregate_daily_claim-v2")
         self.assertEqual(record["recurrence"], "daily_reset_scoped")
         self.assertEqual(record["semantic_entry_route"]["target"], "DAILY")
         self.assertTrue(record["target"]["selected_daily"])
-        self.assertTrue(record["target"]["row_local"])
+        self.assertFalse(record["target"]["row_local"])
         self.assertFalse(record["target"]["milestone"])
+        self.assertTrue(record["target"]["current_ready_batch_required"])
+        self.assertTrue(record["target"]["batch_identity_required"])
         self.assertEqual(record["target"]["control"], "Claim")
         self.assertEqual(record["quantity_cost"]["quantity"], 1)
         self.assertEqual(record["quantity_cost"]["cost"]["amount"], 0)
         self.assertTrue(record["quantity_cost"]["cost"]["free_only"])
-        self.assertTrue(record["semantic_effect"]["positive_points_delta_required"])
-        self.assertTrue(record["semantic_effect"]["ordinary_claim_controls_cleared_required"])
-        self.assertTrue(record["semantic_effect"]["dispatch_is_not_success_proof"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["at_most_once_per_current_ready_batch_per_pass"])
+        self.assertTrue(effect["distinct_later_ready_batch_allowed_same_reset"])
+        self.assertTrue(effect["points_observation_optional"])
+        self.assertTrue(effect["points_are_diagnostic_or_corroborative_only"])
+        self.assertTrue(effect["points_are_not_a_success_gate_or_ownership_grant"])
+        self.assertNotIn("positive_points_delta_required", effect)
+        self.assertEqual(
+            record["aggregate_success_trigger"],
+            {
+                "action": "exact_free_aggregate_claim",
+                "successor": "all_ordinary_claim_controls_cleared",
+                "source_bounds": [
+                    "current_frame",
+                    "current_ready_batch_identity",
+                    "daily_reset_identity",
+                ],
+            },
+        )
         self.assertEqual(record["daily_ownership"]["daily_owner"], "aggregate_daily_claim")
+        self.assertNotIn("point_credit_trigger", record["daily_ownership"])
         self.assertTrue(record["daily_ownership"]["selected_daily_prerequisite"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        self.assertIn("150-point threshold prerequisite", forbidden)
+        self.assertIn("daily objective-row inventory", forbidden)
+        self.assertIn("per-objective daily attribution", forbidden)
         for record_id in (
             "use_resource_item",
             "enhancement_family",
@@ -615,10 +639,18 @@ class ProductAuthorityTests(unittest.TestCase):
             ):
                 validate_product_authority(changed)
 
-    def test_aggregate_claim_requires_non_claimable_negative(self) -> None:
-        record = self.records["aggregate_daily_claim"]
-        forbidden = {str(item).casefold() for item in record["forbidden_actions"]}
-        self.assertIn("non-claimable claim row", forbidden)
+    def test_aggregate_claim_requires_batch_scoping_and_forbids_row_inventory(self) -> None:
+        changed = deepcopy(self.authority)
+        daily = next(
+            item
+            for item in changed["product_records"]
+            if item["record_id"] == "aggregate_daily_claim"
+        )
+        daily["semantic_effect"]["at_most_once_per_current_ready_batch_per_pass"] = False
+        daily["record_digest"] = record_digest(daily)
+        changed["authority_digest"] = authority_digest(changed)
+        with self.assertRaisesRegex(ProductAuthorityError, "batch-scoped dispatch"):
+            validate_product_authority(changed)
 
         changed = deepcopy(self.authority)
         daily = next(
@@ -626,15 +658,66 @@ class ProductAuthorityTests(unittest.TestCase):
             for item in changed["product_records"]
             if item["record_id"] == "aggregate_daily_claim"
         )
-        daily["forbidden_actions"].remove("non-claimable Claim row")
+        daily["forbidden_actions"] = [
+            action for action in daily["forbidden_actions"]
+            if action.casefold() != "daily objective-row inventory"
+        ]
         daily["record_digest"] = record_digest(daily)
         changed["authority_digest"] = authority_digest(changed)
-        with self.assertRaisesRegex(ProductAuthorityError, "must forbid non-claimable"):
+        with self.assertRaises(ProductAuthorityError):
             validate_product_authority(changed)
 
-    def test_activity_milestone_product_is_one_free_ready_chest_and_not_ordinary_claim_owned(self) -> None:
+    def test_aggregate_success_trigger_binds_sources_and_excludes_point_credit(self) -> None:
+        mutations = (
+            (
+                "exact_free_claim",
+                lambda record: record["aggregate_success_trigger"].__setitem__(
+                    "action", "claim_any_control"
+                ),
+            ),
+            (
+                "all_controls_cleared",
+                lambda record: record["aggregate_success_trigger"].__setitem__(
+                    "successor", "positive_points_delta"
+                ),
+            ),
+            (
+                "source_bounds",
+                lambda record: record["aggregate_success_trigger"].__setitem__(
+                    "source_bounds", ["current_frame"]
+                ),
+            ),
+            (
+                "point_credit_trigger",
+                lambda record: record["daily_ownership"].__setitem__(
+                    "point_credit_trigger", "positive_points_delta"
+                ),
+            ),
+            (
+                "positive_points_gate",
+                lambda record: record["semantic_effect"].__setitem__(
+                    "positive_points_delta_required", True
+                ),
+            ),
+        )
+        for field, mutate in mutations:
+            changed = deepcopy(self.authority)
+            daily = next(
+                item
+                for item in changed["product_records"]
+                if item["record_id"] == "aggregate_daily_claim"
+            )
+            mutate(daily)
+            daily["record_digest"] = record_digest(daily)
+            changed["authority_digest"] = authority_digest(changed)
+            with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
+                validate_product_authority(changed)
+
+
+    def test_activity_milestone_product_is_per_chest_and_not_ordinary_claim_owned(self) -> None:
         record = self.records["activity_milestone_claim"]
         self.assertEqual(record["record_type"], "activity_milestone_claim")
+        self.assertEqual(record["record_revision"], "activity_milestone_claim-v2")
         self.assertEqual(record["recurrence"], "daily_reset_scoped")
         self.assertEqual(record["semantic_entry_route"]["target"], "QUEST")
         self.assertEqual(
@@ -644,6 +727,13 @@ class ProductAuthorityTests(unittest.TestCase):
         target = record["target"]
         self.assertEqual(target["kind"], "activity_milestone_chest")
         self.assertEqual(target["control"], "MILESTONE_CHEST")
+        self.assertEqual(
+            target["eligibility"],
+            "one_current_ready_free_milestone_chest_per_action",
+        )
+        self.assertTrue(target["distinct_chest_identity_required"])
+        self.assertTrue(target["one_claim_per_chest_per_reset"])
+        self.assertTrue(target["distinct_chests_per_reset_allowed"])
         self.assertTrue(target["fully_visible"])
         self.assertTrue(target["reset_bound"])
         self.assertEqual(record["quantity_cost"]["quantity"], 1)
@@ -651,7 +741,12 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertTrue(record["quantity_cost"]["cost"]["free_only"])
         effect = record["semantic_effect"]
         self.assertTrue(effect["same_milestone_successor_required"])
-        self.assertTrue(effect["positive_bound_points_successor_allowed"])
+        self.assertTrue(effect["same_chest_identity_and_reset_bound"])
+        self.assertFalse(effect["positive_bound_points_successor_allowed"])
+        self.assertEqual(
+            effect["success_requires"],
+            "same_chest_milestone_state_transition_ready_to_claimed_opened_or_removed",
+        )
         self.assertTrue(effect["dispatch_is_not_success_proof"])
         self.assertFalse(effect["identical_retry"])
         self.assertIsNone(record["daily_ownership"]["daily_owner"])
@@ -669,15 +764,18 @@ class ProductAuthorityTests(unittest.TestCase):
             "stale",
             "real-money",
             "identical retry",
+            "points-only successor",
         ):
             self.assertIn(marker, forbidden)
         self.assertEqual(record["terminal_requirement"]["home_authority"], "HOME_CANONICAL")
-
     def test_activity_milestone_safety_fields_fail_closed_with_fresh_digests(self) -> None:
         mutations = (
             ("ready", lambda record: record["target"].__setitem__("eligibility", "already_claimed")),
             ("free_only", lambda record: record["quantity_cost"]["cost"].__setitem__("free_only", False)),
             ("successor", lambda record: record["semantic_effect"].__setitem__("same_milestone_successor_required", False)),
+            ("same_chest", lambda record: record["semantic_effect"].__setitem__("same_chest_identity_and_reset_bound", False)),
+            ("points_only", lambda record: record["semantic_effect"].__setitem__("positive_bound_points_successor_allowed", True)),
+            ("multiple_chests", lambda record: record["target"].__setitem__("distinct_chests_per_reset_allowed", False)),
             ("dispatch_separation", lambda record: record["semantic_effect"].__setitem__("dispatch_is_not_success_proof", False)),
             ("retry_denial", lambda record: record["semantic_effect"].__setitem__("identical_retry", True)),
             ("ordinary_ownership", lambda record: record["daily_ownership"].__setitem__("point_credit_trigger", "points")),
@@ -694,7 +792,6 @@ class ProductAuthorityTests(unittest.TestCase):
             changed["authority_digest"] = authority_digest(changed)
             with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
                 validate_product_authority(changed)
-
     def test_digest_excludes_only_its_own_field(self) -> None:
         first = {"a": 1, "digest": "0" * 64}
         second = {"a": 1, "digest": "f" * 64}
@@ -746,9 +843,50 @@ class ProductAuthorityTests(unittest.TestCase):
                         self.authority,
                         {"resource": changed},
                     )
+    def test_combined_daily_contract_reuses_typed_activity_milestone_record(self) -> None:
+        contract = self.contracts["DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"]
+        validate_contract_product_authority_bindings(
+            self.authority,
+            {"daily": contract},
+        )
+        aggregate = self.records["aggregate_daily_claim"]
+        activity_binding = aggregate["additional_product_record_bindings"][0]
+        self.assertEqual(
+            contract["product_authority_binding"]["product_record_id"],
+            "aggregate_daily_claim",
+        )
+        self.assertEqual(activity_binding["binding_type"], "typed_product_record")
+        self.assertEqual(activity_binding["product_record_id"], "activity_milestone_claim")
+        self.assertEqual(
+            activity_binding["product_record_revision"],
+            "activity_milestone_claim-v2",
+        )
+        self.assertEqual(
+            activity_binding["product_record_digest"],
+            self.records["activity_milestone_claim"]["record_digest"],
+        )
+
+        stale_record = deepcopy(self.authority)
+        aggregate = next(
+            item
+            for item in stale_record["product_records"]
+            if item["record_id"] == "aggregate_daily_claim"
+        )
+        aggregate["additional_product_record_bindings"][0][
+            "product_record_digest"
+        ] = "0" * 64
+        aggregate["record_digest"] = record_digest(aggregate)
+        stale_record["authority_digest"] = authority_digest(stale_record)
+        with self.assertRaisesRegex(
+            ProductAuthorityError,
+            "stale Activity Milestone product record",
+        ):
+            validate_product_authority(stale_record)
+
 
     def test_resource_semantics_are_direct_owned_one_item(self) -> None:
         record = self.records["use_resource_item"]
+        self.assertEqual(record["record_revision"], "use_resource_item-v2")
         self.assertEqual(record["objective"], "use_resource_item")
         self.assertEqual(
             record["semantic_entry_route"]["source_home_authorities"],
@@ -759,9 +897,29 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertTrue(record["target"]["owned"])
         self.assertEqual(record["quantity_cost"]["quantity"], 1)
         self.assertEqual(record["quantity_cost"]["cost"]["amount"], 1)
-        self.assertFalse(record["quantity_cost"]["cost"]["free_only"])
-        self.assertEqual(record["semantic_effect"]["effect_ordinal"], 1)
+        self.assertEqual(
+            record["semantic_effect"]["owned_inventory_delta"],
+            -1,
+        )
+        self.assertFalse(record["semantic_effect"]["food_balance_ocr_required"])
         self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
+        self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        self.assertIsNone(record["daily_ownership"]["point_credit_trigger"])
+        invalid_delta = deepcopy(record)
+        invalid_delta["semantic_effect"]["owned_inventory_delta"] = 0
+        invalid_delta["record_digest"] = record_digest(invalid_delta)
+        with self.assertRaisesRegex(ProductAuthorityError, "exact owned-item decrement"):
+            validate_product_record(invalid_delta)
+        invalid_home = deepcopy(record)
+        invalid_home["terminal_requirement"]["return_required"] = False
+        invalid_home["record_digest"] = record_digest(invalid_home)
+        with self.assertRaisesRegex(ProductAuthorityError, "canonical Home return"):
+            validate_product_record(invalid_home)
+        invalid_ocr = deepcopy(record)
+        invalid_ocr["semantic_effect"]["food_balance_ocr_required"] = True
+        invalid_ocr["record_digest"] = record_digest(invalid_ocr)
+        with self.assertRaisesRegex(ProductAuthorityError, "Food-balance OCR"):
+            validate_product_record(invalid_ocr)
 
     def test_enhancement_semantics_separate_use_and_confirm(self) -> None:
         record = self.records["enhancement_family"]
@@ -1010,23 +1168,6 @@ class ProductAuthorityTests(unittest.TestCase):
             if "product_authority_binding" in contract
         }
         self.assertEqual(bound, set(self.records))
-
-    def test_daily_claim_contract_binds_aggregate_record_and_preserves_disabled_state(self) -> None:
-        contract = self.contracts["DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"]
-        binding = contract["product_authority_binding"]
-        self.assertEqual(binding["product_record_id"], "aggregate_daily_claim")
-        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
-        self.assertEqual(binding["product_record_revision"], "aggregate_daily_claim-v1")
-        self.assertEqual(binding["home_authority"], "HOME_READY")
-        self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
-        self.assertFalse(contract["production_eligible"])
-        self.assertEqual(contract["registration_state"], "disabled")
-        self.assertEqual(contract["product_policy_refs"][0]["policy_id"], "aggregate-daily-claim")
-        self.assertEqual(contract["replay_fixture_proof_state"], "evidence_required")
-        self.assertIn(
-            "composite",
-            " ".join(contract["evidence_requirements"]).casefold(),
-        )
 
     def test_nova_praise_contract_binds_direct_record_and_preserves_disabled_state(self) -> None:
         contract = self.contracts["NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE"]

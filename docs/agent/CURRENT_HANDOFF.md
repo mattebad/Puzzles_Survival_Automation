@@ -1,18 +1,19 @@
 # Current handoff
 
-Updated 2026-11-03. This file is volatile session state.
-Route status lives in the README's current status report; open work lives in GitHub issues.
+Updated 2026-11-07. This file is volatile session state.
+Current owner direction and planning live in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53) and its tickets.
 
-- **Integration branch:** `main`. PR #16 (`codex/bluestacks-route-reliability`) merged into
-  `main` on 2026-11-02 (`f6b201f`). That branch is finished; do not develop on it.
-- **Work in progress:** the repository cleanup tickets (GitHub issues #19 to #44), each on
-  its own branch and worktree.
-- **Runtime posture (last recorded, not checked again here):** the November 2 report records
-  all nine flow controls and the service control OFF, no live owner, and no permanent
-  scheduling. Run `scripts/pnsctl.py automation-service status` on the runtime host to see
-  the actual state.
-- **Previous handoff:** the November 2 pre-merge session snapshot is preserved byte-for-byte in
-  [`../archive/current-handoff-astra-premerge-20261102.md`](../archive/current-handoff-astra-premerge-20261102.md).
-  Its next actions (publish to PR #16, wait for its CI) are complete or out of date.
+- **Verified starting point:** `origin/main` and Original HEAD were `c6f0e2fba509dacde136226a7519568550f6b066` at startup. Do not assume this remains current or resume merged branches.
+- **Review branch:** `impl/base-route-batch-a-20261107`, draft PR #97. #54/#66 use canonical adapters/native bindings, not retired operator wrappers.
+- **#54 implemented:** at most one aggregate Claim/current batch/pass, then each individually glowing free chest. Exact same-slot `Claimed` label, fresh reset-bound source, canonical capability/journal confirmation and Home proof are required. No 150-point gate or per-objective attribution.
+- **#54 offline proof:** 212 focused native/service/authority/metadata/contract tests pass (two optional capture-dependent skips); device-free `scripts/check.py` passes 394 tests. Actual native driver/CentralPolicy/SafetyStore plus offline composite replay produced one aggregate and five individually confirmed chests; the real adapter admitted all six effects and a 300-second next observation. UNKNOWN third-chest and restart cases preserve two confirmed effects and forbid repeats. Already-claimed manual work produces no chest input. Three `pnsctl` help surfaces pass with repository `PYTHONPATH` unset.
+- **Current manual claim:** the owner explicitly instructed “Just claim the chest and use that as your basis.” The parent used the existing DevelopmentSession controller for exactly one first-glowing-chest tap, zero spend. Its actual open/`Claimed` successor and settled observation are retained. This is investigative source material, not finished-route acceptance. Do not repeat that same-reset slot-1 effect or clear counters to obtain a receipt.
+- **Immutable raw basis:** Original `.local-captures/development-sessions/daily54-single-chest-basis-20261107T082130893645Z`; clean settled frame in `observe-20261107T082220485760Z/observe.png`. Checked-in fixture provenance records both hashes. The original controller's UNKNOWN collection record is preserved; a separate current-owner semantic inspection records the observed claim, without inventing a canonical native journal entry.
+- **Prior native canary:** corrected fixed-slot identities and current footer/direct-Daily navigation reached Daily with one navigation input, zero claim effects, then stopped at the then-missing successor guard. Run `a7362a66c492469b9966f2d14e6cc80d` remains retained/BLOCKED; no counters/history were reset. This is not native acceptance of the subsequently finished chest loop.
+- **Home/Bag repair:** retained compact footer plus prior layout, same 0.90 Home threshold and mapped controls. Bag uses the matching retained layout and one unique connected correlation peak; adjacent hits from the same icon are not multiple controls, separated duplicates remain rejected. Current and legacy retained frames are offline-proven.
+- **#66 implemented/offline-proven:** exactly one positively identified owned 1K Food item with owned decrement by one, no Food-balance OCR or Daily ownership. Current native acceptance remains `evidence_required`.
+- **Live acceptance:** neither finished A route is newly live-accepted. Next #54 scenario is a later distinct currently ready chest/batch through the finished canonical driver, with all evidence and same-reset manual work reconciled; never repeat the already-claimed first chest. #66 needs its owned-item/decrement/Home native scenario. Current authorization and finite budgets remain mandatory.
+- **Runtime posture:** the supervised #54 canary temporarily enabled only authorized controls, then restored them. The supported status command subsequently reports service OFF and all eleven controls OFF. No PR merge, permanent scheduling enablement or deployment. Original temporary validation source checkout and authorized runtime-history changes are recorded; raw evidence and unrelated user files are preserved.
+- **Historical handoff:** the [November 2 pre-merge snapshot](../archive/current-handoff-astra-premerge-20261102.md) is historical and grants no live authority.
 
 This file grants no live authority.

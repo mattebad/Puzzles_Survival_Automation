@@ -26,7 +26,7 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
   service CLI has no arbitrary ADB, coordinate, shell, tap, remote, or automatic endpoint.
 - The legacy production registry remains disabled in
   `tasks/flow_delivery_disabled_production_registry.json`; canonical service admission does
-  not read that file. Its nine fixed flow specs report `REGISTERED`. SQLite service/flow
+  not read by that file. Its eleven fixed flow specs report `REGISTERED`. SQLite service/flow
   enablement is separate, defaults off, and is restored off after the bounded tests.
 - Campaign selection remains non-consuming. Explicit native service composition installs
   the Campaign runner behind canonical claims and dispatch fences, reusing destination policy,
@@ -106,17 +106,24 @@ The normal Campaign launch shape is:
 python scripts/pnsctl.py automation-service --mode supervised --adapter bluestacks --state-path .local-orchestrator/bot-state.sqlite3 serve --live --flow campaign --campaign-stage 1-15-9 --campaign-cadence-seconds 300 --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 --account-id primary-account --server-id primary-server --output-directory .local-captures/automation-service-live
 ```
 
-Repeat `--flow` for other named routes; the README gives the complete eight-route command. Argument order does not
+Repeat `--flow` for other named routes; the README gives the complete ten-route command. Argument order does not
 choose scheduler order; due eligibility and existing controls do. The disabled-gates canonical CLI
 proof produced zero captures and zero new runs, so it is control evidence only and does not promote
 native route acceptance. Facade checks, the ordinary one-battle live-entrypoint retirement, and
 the scheduler/facade consumer checks are recorded separately; their counts are not additive.
 
-The explicitly authorized native composition supports Nova, Recruitment, Campaign, Bioenhancer,
-Supply, Ultimate, Enhancement, and Personal Might runners. The ordinary registered selectors
-remain non-consuming; passing `--flow` alone does not enable them. Current individual effect/Home
-acceptance, uninterrupted Enhancement proof, independent recruit timers and cadence scope are maintained
-in [`BACKLOG.md`](../BACKLOG.md), with volatile state in the handoff.
+The fixed native composition binds ten canonical routes: Nova, Recruitment, Campaign,
+Bioenhancer, Supply, Ultimate, Enhancement, Personal Might, Daily Rewards, and Resource Item.
+The ordinary registered selectors remain non-consuming; passing `--flow` alone does not enable
+them. The native Daily route performs at most one current aggregate Claim, then separately
+claims each glowing ready chest, requiring its same-slot `Claimed` label and canonical journal
+confirmation. Restart-stable slot/reset keys and UNKNOWN stop/no-identical-retry protect effects.
+Already-claimed manual work is skipped. Complete zero-ready scans return to verified Home.
+The owner-authorized November 7 single-chest investigation supplied actual ready/Claimed pixels,
+not finished-route acceptance; neither route has new live acceptance. Both remain disabled.
+Existing individual effect/Home acceptance, uninterrupted Enhancement proof, independent recruit
+timers, and cadence scope are maintained in [`BACKLOG.md`](../BACKLOG.md), with volatile state in
+the handoff.
 
 Before invoking a due native runner, the owning service checks the foreground. A healthy game is
 left in its current context for route-owned recognition. An exact known BlueStacks launcher can

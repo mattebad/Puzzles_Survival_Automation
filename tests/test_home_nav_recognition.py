@@ -32,6 +32,8 @@ _COMMITTED_TRUTH = (
     ("nova_praise_preflight/zoomed-home-a.png", True, "home (zoomed)"),
     ("resource_effect_authority/portable/session-2-terminal-home.png", True, "home"),
     ("runtime_trace_projection/frames/0007-commander-to-home-terminal-settled.png", True, "home"),
+    ("daily_rewards_native/native-home-compact-footer.png", True, "current Home (independent capture)"),
+    ("daily_rewards_native/native-daily-selected-ready-first-chest.png", False, "selected Daily Quest"),
     ("world_map/world-hud-1a2d8f02.png", False, "world map"),
     ("campaign_tier_controls/retained-tier2-map.png", False, "campaign tier map"),
 )

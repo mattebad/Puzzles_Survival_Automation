@@ -70,6 +70,7 @@ class AvailableDailyClaimObservation:
     reset_deadline_identity: Optional[str] = None
     reset_deadline_tolerance_seconds: Optional[int] = None
     available_claim_controls: Optional[int] = None
+    aggregate_batch_identity: Optional[str] = None
 
 
 def _target_inside_row(observation: AvailableDailyClaimObservation) -> bool:
@@ -78,7 +79,13 @@ def _target_inside_row(observation: AvailableDailyClaimObservation) -> bool:
         tx0, ty0, tx1, ty1 = observation.target_roi
     except (TypeError, ValueError):
         return False
-    return bool(rx0 <= tx0 < tx1 <= rx1 and ry0 <= ty0 < ty1 <= ry1)
+    return bool(
+        all(type(value) is int for value in (*observation.row_bounds, *observation.target_roi))
+        and 0 <= rx0 < rx1 <= 800
+        and 0 <= ry0 < ry1 <= 1280
+        and rx0 <= tx0 < tx1 <= rx1
+        and ry0 <= ty0 < ty1 <= ry1
+    )
 
 
 def _has_bluestacks_native_source(observation: AvailableDailyClaimObservation) -> bool:
@@ -192,13 +199,23 @@ def _reset_identity_is_bound(observation: AvailableDailyClaimObservation) -> boo
 
 
 def available_daily_claim_authorizeable(observation: AvailableDailyClaimObservation) -> bool:
-    """Require a current selected-Daily aggregate Claim target."""
+    """Require a current, unambiguous aggregate Claim for one ready batch."""
 
+    native_batch_bound = (
+        observation.target_provenance != BLUESTACKS_NATIVE_TARGET_PROVENANCE
+        or (
+            isinstance(observation.aggregate_batch_identity, str)
+            and bool(observation.aggregate_batch_identity.strip())
+            and observation.available_claim_controls == 1
+        )
+    )
     return bool(
         observation.screen_state == DAILY_QUEST_SCREEN
         and observation.selected_daily_quest
-        and observation.row_fully_visible
         and observation.claim_fully_visible
+        and observation.row_fully_visible
+        and observation.row_panel_proven is True
+        and _target_inside_row(observation)
         and observation.target_identity == DAILY_QUEST_CLAIM_TARGET
         and observation.control_class == "CLAIM"
         and observation.cost_type == "none"
@@ -206,12 +223,7 @@ def available_daily_claim_authorizeable(observation: AvailableDailyClaimObservat
         and observation.quantity == 1
         and _positive_free_semantics(observation)
         and _cost_scan_is_clear(observation)
-        and (
-            observation.row_panel_proven is True
-            if observation.target_provenance == BLUESTACKS_NATIVE_TARGET_PROVENANCE
-            else observation.row_panel_proven is not False
-        )
-        and _target_inside_row(observation)
+        and native_batch_bound
         and not observation.milestone_reward
         and not observation.clipped
         and observation.overlay_state in {"none", "none_observed"}
@@ -238,6 +250,7 @@ def available_daily_claim_transaction_spec(observation: AvailableDailyClaimObser
         semantic_preconditions=(
             "daily_quest_screen",
             "selected_daily_quest",
+            "current_aggregate_ready_batch",
             "accepted_native_target_evidence",
             "explicit_zero_cost",
             "ordinary_claim_control",
@@ -245,7 +258,6 @@ def available_daily_claim_transaction_spec(observation: AvailableDailyClaimObser
         ),
         semantic_postconditions=(
             "same_selected_daily_and_reset_identity",
-            "points_increase",
             "no_available_ordinary_claim_controls",
         ),
     )
@@ -255,11 +267,9 @@ def available_daily_claim_postcondition_verified(
     before: AvailableDailyClaimObservation,
     after: AvailableDailyClaimObservation | None,
     *,
-    points_before: Optional[int] = None,
-    points_after: Optional[int] = None,
     row_disappeared: bool = False,
 ) -> bool:
-    """Require selected Daily/reset continuity, points increase, and Claim exhaustion."""
+    """Require selected Daily/reset continuity and exhaustion of aggregate Claim controls."""
 
     if not available_daily_claim_authorizeable(before) or after is None:
         return False
@@ -267,6 +277,8 @@ def available_daily_claim_postcondition_verified(
         after.screen_state != DAILY_QUEST_SCREEN
         or not after.selected_daily_quest
         or after.game_day_id != before.game_day_id
+        or not after.recognized
+        or not _has_bluestacks_native_source(after)
     ):
         return False
     if (
@@ -317,7 +329,7 @@ def available_daily_claim_postcondition_verified(
                     return False
             except (TypeError, ValueError):
                 return False
-    controls_exhausted = bool(
+    return bool(
         after.available_claim_controls == 0
         if after.available_claim_controls is not None
         else (
@@ -327,24 +339,12 @@ def available_daily_claim_postcondition_verified(
             or not after.claim_fully_visible
         )
     )
-    observed_points_before = before.points if points_before is None else points_before
-    observed_points_after = after.points if points_after is None else points_after
-    points_changed = (
-        isinstance(observed_points_before, int)
-        and not isinstance(observed_points_before, bool)
-        and isinstance(observed_points_after, int)
-        and not isinstance(observed_points_after, bool)
-        and observed_points_after > observed_points_before
-    )
-    return bool(controls_exhausted and points_changed)
 
 
 def available_daily_claim_perform_one_pulse(
     before: AvailableDailyClaimObservation,
     after: AvailableDailyClaimObservation | None = None,
     *,
-    points_before: Optional[int] = None,
-    points_after: Optional[int] = None,
     row_disappeared: bool = False,
 ) -> TaskResult:
     """Return a pure result; transport remains outside this evidence-gated module."""
@@ -356,13 +356,11 @@ def available_daily_claim_perform_one_pulse(
     if not available_daily_claim_postcondition_verified(
         before,
         after,
-        points_before=points_before,
-        points_after=points_after,
         row_disappeared=row_disappeared,
     ):
         return TaskResult(TaskOutcome.FAILED_SAFE, "DAILY_CLAIM_POSTCONDITION_NOT_PROVEN", state=DAILY_QUEST_SCREEN)
     return TaskResult.done(
         "generalized Daily Quest Claim postcondition verified",
-        "daily-quest:aggregate-claimed",
+        f"daily-quest:aggregate-claimed:{before.aggregate_batch_identity}",
         DAILY_QUEST_SCREEN,
     )

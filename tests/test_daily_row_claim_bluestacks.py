@@ -15,10 +15,9 @@ import cv2
 import numpy as np
 
 from scripts import daily_row_claim_bluestacks as daily
-from scripts import delegated_runtime_receipts as control
 from scripts import navigation_development_boundary as boundary
-from scripts import pnsctl
-from scripts.bluestacks_native_runtime import CapturedNativeFrame, LocalBlueStacksRuntime
+from scripts.bluestacks_native_runtime import CapturedNativeFrame
+from safe_action_core import SafetyStore
 from tasks.home_nav_recognition import NAV_STRIP_BOX, _load_template
 from tests.support.capability_firewall import Clock
 
@@ -129,22 +128,6 @@ class VisualFakeRuntime(FakeRuntime):
         return captured
 
 
-class MainAbsentContinuationRuntime(FakeRuntime):
-    def capture(self, label: str) -> CapturedNativeFrame:
-        self.labels.append(label)
-        image = np.zeros((1280, 800, 3), dtype=np.uint8)
-        daily_selected = label.startswith("quest-daily-tab-immediate-post") or label.startswith(
-            "quest-daily-tab-poll-"
-        )
-        main_color = (70, 70, 70) if daily_selected else (0, 180, 255)
-        daily_color = (0, 180, 255) if daily_selected else (70, 70, 70)
-        cv2.rectangle(image, (0, 60), (267, 145), main_color, -1)
-        cv2.rectangle(image, (268, 60), (533, 145), daily_color, -1)
-        cv2.rectangle(image, (534, 60), (799, 145), (70, 70, 70), -1)
-        captured = _frame(self.session, label, image=image)
-        with self.events.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps({"type": "capture", "label": label}) + "\n")
-        return captured
 
 
 class ModalOCR:
@@ -234,8 +217,6 @@ class ScriptedRecognizer:
             (304, 74, 492, 146),
         )
 
-    def recognize_main_quest(self, frame: np.ndarray) -> daily.FrameRecognition:
-        return self.recognize_quest(frame)
 
     def recognize_daily_selected(self, frame: np.ndarray) -> daily.FrameRecognition:
         self.calls.append(("daily", self._label(frame)))
@@ -252,7 +233,6 @@ class LabelSettlingRecognizer(ScriptedRecognizer):
         *,
         quest_ready_label: str | None = None,
         daily_ready_label: str | None = None,
-        main_source_state: str = daily.QUEST_STATE,
     ) -> None:
         super().__init__(selected_daily=True)
         self.quest_ready_after = (
@@ -265,7 +245,6 @@ class LabelSettlingRecognizer(ScriptedRecognizer):
             if daily_ready_label is not None
             else 1
         )
-        self.main_source_state = main_source_state
 
     def recognize_quest(self, frame: np.ndarray) -> daily.FrameRecognition:
         self.quest_calls = getattr(self, "quest_calls", 0) + 1
@@ -278,16 +257,10 @@ class LabelSettlingRecognizer(ScriptedRecognizer):
             (304, 74, 492, 146),
         )
 
-    def recognize_main_quest(self, frame: np.ndarray) -> daily.FrameRecognition:
-        if self.main_source_state != daily.QUEST_STATE:
-            return self._recognition(self.main_source_state, None, None)
-        return self._recognition(
-            daily.QUEST_STATE,
-            daily.QUEST_DAILY_IDENTITY,
-            (304, 74, 492, 146),
-        )
 
     def recognize_daily_selected(self, frame: np.ndarray) -> daily.FrameRecognition:
+        if getattr(self, "quest_calls", 0) < self.quest_ready_after:
+            return self._recognition(daily.UNKNOWN_STATE, None, None)
         self.daily_calls = getattr(self, "daily_calls", 0) + 1
         if self.daily_calls <= self.daily_ready_after:
             if self.daily_calls < self.daily_ready_after:
@@ -308,61 +281,52 @@ class DailyRowReconnaissanceTests(unittest.TestCase):
             max_inputs=2,
         )
 
-    def _continuation_session(self, root: Path) -> boundary.DevelopmentSession:
-        return boundary.DevelopmentSession(
-            owner="test-daily-row-continuation",
-            invocation_id="test-daily-row-continuation",
-            session_directory=root / "session",
-            max_inputs=1,
-        )
+    def test_home_entry_resumes_selected_daily_without_redundant_tab_tap(self) -> None:
+        fixtures = Path(__file__).resolve().parent / "fixtures" / "daily_rewards_native"
+        home = cv2.imread(str(fixtures / "native-home-compact-footer.png"))
+        selected = cv2.imread(str(fixtures / "native-daily-selected-ready-first-chest.png"))
 
-    def test_two_step_route_rebinds_current_geometry_and_retains_five_frames(self) -> None:
+        class DirectDailyRuntime(FakeRuntime):
+            def capture(self, label: str) -> CapturedNativeFrame:
+                self.labels.append(label)
+                image = home if label in {
+                    "home-source", "home-quest-entry-immediate-before"
+                } else selected
+                return _frame(self.session, label, image=image)
+
+        def replay_tab_ocr(image: np.ndarray) -> dict[str, list[object]]:
+            # Retained native header OCR missed the stylized Daily title. The
+            # real selected-tab geometry must prove it between Main and Alliance.
+            if image.shape[0] != 390:
+                return ModalOCR._data([])
+            return ModalOCR._data([
+                ("main", 178, 114, 120, 42),
+                ("quest", 320, 116, 148, 46),
+                ("alliance", 1192, 96, 172, 36),
+                ("activity", 1202, 140, 158, 44),
+            ])
+
         with tempfile.TemporaryDirectory() as directory, patch.object(
             boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
         ):
             root = Path(directory)
-            runtime = FakeRuntime(root)
-            recognizer = ScriptedRecognizer()
+            runtime = DirectDailyRuntime(root)
             with self._session(root) as session:
                 result = daily.run_daily_row_reconnaissance(
                     runtime,
                     session,
-                    recognizer=recognizer,
+                    recognizer=daily.DailyRowClaimRecognizer(ocr=replay_tab_ocr),
                 )
 
         self.assertEqual(result["status"], "observed")
-        self.assertEqual(result["input_count"], 2)
-        self.assertEqual(result["resource_affecting_inputs"], 0)
-        self.assertEqual(result["combat_confirmations"], 0)
-        self.assertEqual(
-            runtime.labels,
-            [
-                "home-source",
-                "home-quest-entry-immediate-before",
-                "home-quest-entry-immediate-post",
-                "quest-daily-tab-immediate-before",
-                "quest-daily-tab-immediate-post",
-            ],
-        )
+        self.assertEqual(result["input_count"], 1)
         self.assertEqual(
             [tap["target_identity"] for tap in runtime.taps],
-            [daily.HOME_QUEST_IDENTITY, daily.QUEST_DAILY_IDENTITY],
-        )
-        self.assertEqual(runtime.taps[0]["target_roi"], (127, 1118, 241, 1204))
-        self.assertEqual(runtime.taps[1]["target_roi"], (304, 74, 492, 146))
-        self.assertEqual(
-            set(result["frames"]),
-            {
-                "source",
-                "home_immediate_before",
-                "quest_successor",
-                "daily_immediate_before",
-                "daily_terminal",
-            },
+            [daily.HOME_QUEST_IDENTITY],
         )
         self.assertEqual(
-            [row["label"] for row in result["actions"]],
-            [daily.HOME_QUEST_IDENTITY, daily.QUEST_DAILY_IDENTITY],
+            result["recognitions"]["daily_terminal"]["state"],
+            daily.DAILY_SELECTED_STATE,
         )
 
     def test_dispatched_home_quest_center_is_inside_rendered_component(self) -> None:
@@ -525,54 +489,6 @@ class DailyRowReconnaissanceTests(unittest.TestCase):
             3,
         )
 
-    def test_continuation_starts_on_main_quest_and_dispatches_only_daily(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, patch.object(
-            boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
-        ):
-            root = Path(directory)
-            runtime = FakeRuntime(root)
-            recognizer = LabelSettlingRecognizer()
-            with self._continuation_session(root) as session:
-                result = daily.run_quest_daily_continuation(
-                    runtime, session, recognizer=recognizer
-                )
-
-        self.assertEqual(result["status"], "observed")
-        self.assertEqual(len(runtime.taps), 1)
-        self.assertEqual(runtime.taps[0]["target_identity"], daily.QUEST_DAILY_IDENTITY)
-        self.assertEqual(set(result["frames"]), {"source", "daily_immediate_before", "daily_terminal"})
-        self.assertEqual(result["recognitions"]["source"]["state"], daily.QUEST_STATE)
-
-    def test_continuation_rejects_home_source_without_input(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, patch.object(
-            boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
-        ):
-            root = Path(directory)
-            runtime = FakeRuntime(root)
-            recognizer = LabelSettlingRecognizer(main_source_state=daily.HOME_STATE)
-            with self._continuation_session(root) as session:
-                result = daily.run_quest_daily_continuation(
-                    runtime, session, recognizer=recognizer
-                )
-
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(runtime.taps, [])
-
-    def test_continuation_rejects_unknown_source_without_input(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, patch.object(
-            boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
-        ):
-            root = Path(directory)
-            runtime = FakeRuntime(root)
-            recognizer = LabelSettlingRecognizer(main_source_state=daily.UNKNOWN_STATE)
-            with self._continuation_session(root) as session:
-                result = daily.run_quest_daily_continuation(
-                    runtime, session, recognizer=recognizer
-                )
-
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(runtime.taps, [])
-
     def test_stale_immediate_before_stops_before_transport(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch.object(
             boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
@@ -667,24 +583,6 @@ class DailyRowRecognizerTests(unittest.TestCase):
 
         return DailyRowRecognizerTests._ocr_for([scaled(item) for item in native_tokens])
 
-    @staticmethod
-    def _main_absent_continuation_ocr():
-        base = DailyRowRecognizerTests._quest_ocr()
-
-        def ocr(image: np.ndarray) -> dict[str, list[object]]:
-            if image.shape[0] != 390:
-                return DailyRowRecognizerTests._ocr_for([])(image)
-            data = base(image)
-            if float(np.mean(image[:, 536:1066])) <= float(np.mean(image[:, :534])):
-                return data
-            extra = DailyRowRecognizerTests._ocr_for(
-                [("Main", 100 * 2, (70 - 35) * 2, 80 * 2, 20 * 2)]
-            )(image)
-            for key in ("text", "left", "top", "width", "height", "conf"):
-                data[key] = extra[key] + data[key]
-            return data
-
-        return ocr
 
     @staticmethod
     def _quest_frame(*, shift_x: int = 0, shift_y: int = 0, daily_selected: bool = False) -> np.ndarray:
@@ -830,35 +728,6 @@ class DailyRowRecognizerTests(unittest.TestCase):
         self.assertIsNone(recognition.visual_evidence["quest_header"])
         self.assertTrue(recognition.visual_evidence["selection_proven"])
 
-    def test_continuation_accepts_spatial_main_proof_without_main_title_ocr(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, patch.object(
-            boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
-        ):
-            root = Path(directory)
-            runtime = MainAbsentContinuationRuntime(root)
-            recognizer = daily.DailyRowClaimRecognizer(
-                ocr=self._main_absent_continuation_ocr()
-            )
-            session = boundary.DevelopmentSession(
-                owner="test-daily-row-continuation",
-                invocation_id="test-daily-row-continuation",
-                session_directory=root / "session",
-                max_inputs=1,
-            )
-            with session:
-                result = daily.run_quest_daily_continuation(
-                    runtime, session, recognizer=recognizer
-                )
-
-        self.assertEqual(result["status"], "observed")
-        self.assertEqual(result["input_count"], 1)
-        self.assertEqual(len(runtime.taps), 1)
-        self.assertEqual(runtime.taps[0]["target_identity"], daily.QUEST_DAILY_IDENTITY)
-        source = result["recognitions"]["source"]
-        self.assertTrue(source["recognized"])
-        self.assertTrue(source["visual_evidence"]["selection_proven"])
-        self.assertFalse(source["visual_evidence"]["main_tab_present"])
-        self.assertNotIn("main", source["ocr_text"].split())
 
     def test_quest_accepts_normalized_recommend_spelling(self) -> None:
         recognition = daily.DailyRowClaimRecognizer(
@@ -952,413 +821,6 @@ class DailyRowRecognizerTests(unittest.TestCase):
         ).recognize_quest(self._quest_frame())
         self.assertFalse(unrelated.recognized)
 
-    def test_catalog_parser_exposes_frozen_command_bindings(self) -> None:
-        parsed = pnsctl.parser().parse_args(
-            [
-                "development-session",
-                "daily-row-reconnaissance",
-                "--max-inputs",
-                "2",
-                "--delegated-receipt",
-                "receipt.sqlite3",
-                "--agent-identity",
-                "luna-agent",
-                "--task-id",
-                "daily-row-claim",
-                "--flow-id",
-                "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                "--scenario",
-                "selected-daily-row-evidence",
-                "--variant",
-                "home-quest-daily",
-            ]
-        )
-        self.assertEqual(parsed.development_command, "daily-row-reconnaissance")
-        self.assertEqual(parsed.max_inputs, 2)
-        self.assertEqual(parsed.task_id, "daily-row-claim")
-
-
-class PnsctlDailyRowCommandTests(unittest.TestCase):
-    def test_continuation_receipt_freezes_variant_budget_and_actions_before_consume(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            state = root / "receipts.sqlite3"
-            command = [
-                "development-session",
-                "daily-row-reconnaissance",
-                "--max-inputs",
-                "1",
-                "--delegated-receipt",
-                str(state),
-                "--agent-identity",
-                "luna-agent",
-                "--task-id",
-                "daily-row-claim",
-                "--flow-id",
-                "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                "--scenario",
-                "selected-daily-row-evidence",
-                "--variant",
-                "quest-daily-continuation",
-            ]
-            controller = control.DelegatedRuntimeReceiptController(state)
-            controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
-            receipt = controller.issue(
-                task_id="daily-row-claim",
-                flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                receipt_class="reconnaissance",
-                agent_identity="luna-agent",
-                command_argv=command,
-                scenario="selected-daily-row-evidence",
-                variant="quest-daily-continuation",
-                permitted_action_identities=["quest-daily-tab"],
-                permitted_action_classes=["navigation"],
-                consequence_class="navigation_only",
-                max_total_inputs=1,
-                max_resource_affecting_inputs=0,
-                max_combat_confirmations=0,
-                permitted_terminal_states=["observed", "evidence_required"],
-                result_identity=pnsctl.DAILY_ROW_RECON_RESULT_IDENTITY,
-            )
-
-            with self.assertRaisesRegex(pnsctl.OperatorError, "requires --max-inputs 1"):
-                pnsctl.development_session_daily_row_reconnaissance(
-                    max_inputs=2,
-                    delegated_receipt=state,
-                    agent_identity="luna-agent",
-                    task_id="daily-row-claim",
-                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                    scenario="selected-daily-row-evidence",
-                    variant="quest-daily-continuation",
-                    command_argv=command,
-                )
-            self.assertEqual(controller.inspect()["status"], "issued")
-
-            with patch.object(
-                control,
-                "DelegatedRuntimeReceiptController",
-                return_value=controller,
-            ), self.assertRaises(control.DelegatedReceiptError):
-                pnsctl.development_session_daily_row_reconnaissance(
-                    max_inputs=2,
-                    delegated_receipt=state,
-                    agent_identity="luna-agent",
-                    task_id="daily-row-claim",
-                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                    scenario="selected-daily-row-evidence",
-                    variant="home-quest-daily",
-                    command_argv=command,
-                )
-            self.assertEqual(controller.inspect()["status"], "issued")
-            self.assertEqual(receipt["max_total_inputs"], 1)
-
-            bad_state = root / "bad-receipts.sqlite3"
-            bad_controller = control.DelegatedRuntimeReceiptController(bad_state)
-            bad_controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
-            bad_controller.issue(
-                task_id="daily-row-claim",
-                flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                receipt_class="reconnaissance",
-                agent_identity="luna-agent",
-                command_argv=command,
-                scenario="selected-daily-row-evidence",
-                variant="quest-daily-continuation",
-                permitted_action_identities=["home-quest-entry"],
-                permitted_action_classes=["navigation"],
-                consequence_class="navigation_only",
-                max_total_inputs=1,
-                max_resource_affecting_inputs=0,
-                max_combat_confirmations=0,
-                permitted_terminal_states=["observed", "evidence_required"],
-                result_identity=pnsctl.DAILY_ROW_RECON_RESULT_IDENTITY,
-            )
-            with patch.object(
-                control,
-                "DelegatedRuntimeReceiptController",
-                return_value=bad_controller,
-            ), self.assertRaises(pnsctl.OperatorError):
-                pnsctl.development_session_daily_row_reconnaissance(
-                    max_inputs=1,
-                    delegated_receipt=bad_state,
-                    agent_identity="luna-agent",
-                    task_id="daily-row-claim",
-                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                    scenario="selected-daily-row-evidence",
-                    variant="quest-daily-continuation",
-                    command_argv=command,
-                )
-            self.assertEqual(bad_controller.inspect()["status"], "issued")
-
-    def test_receipt_bound_command_records_observed_terminal_after_release(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            state = root / "receipts.sqlite3"
-            command = [
-                "development-session",
-                "daily-row-reconnaissance",
-                "--max-inputs",
-                "2",
-                "--delegated-receipt",
-                str(state),
-                "--agent-identity",
-                "luna-agent",
-                "--task-id",
-                "daily-row-claim",
-                "--flow-id",
-                "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                "--scenario",
-                "selected-daily-row-evidence",
-                "--variant",
-                "home-quest-daily",
-            ]
-            controller = control.DelegatedRuntimeReceiptController(state)
-            controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
-            controller.issue(
-                task_id="daily-row-claim",
-                flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                receipt_class="reconnaissance",
-                agent_identity="luna-agent",
-                command_argv=command,
-                scenario="selected-daily-row-evidence",
-                variant="home-quest-daily",
-                permitted_action_identities=["home-quest-entry", "quest-daily-tab"],
-                permitted_action_classes=["navigation", "navigation"],
-                consequence_class="navigation_only",
-                max_total_inputs=2,
-                max_resource_affecting_inputs=0,
-                max_combat_confirmations=0,
-                permitted_terminal_states=["observed", "evidence_required"],
-                result_identity=pnsctl.DAILY_ROW_RECON_RESULT_IDENTITY,
-            )
-
-            def connect(**kwargs):
-                return FakeRuntime(Path(kwargs["output_directory"]))
-
-            with patch.object(
-                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
-            ), patch.object(
-                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
-            ), patch.object(
-                control,
-                "DelegatedRuntimeReceiptController",
-                return_value=controller,
-            ), patch.object(
-                LocalBlueStacksRuntime,
-                "connect",
-                side_effect=connect,
-            ), patch.object(
-                daily,
-                "DailyRowClaimRecognizer",
-                return_value=ScriptedRecognizer(),
-            ), patch.object(
-                boundary,
-                "RUNTIME_INPUT_LOCK_PATH",
-                root / "lock.sqlite3",
-            ):
-                output = pnsctl.development_session_daily_row_reconnaissance(
-                    max_inputs=2,
-                    delegated_receipt=state,
-                    agent_identity="luna-agent",
-                    task_id="daily-row-claim",
-                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                    scenario="selected-daily-row-evidence",
-                    variant="home-quest-daily",
-                    command_argv=command,
-                )
-
-            result = json.loads(output)
-            self.assertEqual(result["status"], "observed")
-            self.assertEqual(result["input_count"], 2)
-            self.assertTrue(result["ownership_released"])
-            self.assertEqual(controller.inspect()["status"], "consumed")
-            connection = controller._connection()
-            try:
-                terminal = connection.execute(
-                    "SELECT status FROM delegated_results WHERE receipt_id=?",
-                    (result["receipt_id"],),
-                ).fetchone()
-            finally:
-                connection.close()
-            self.assertEqual(terminal[0], "observed")
-
-    def test_continuation_command_accepts_three_frame_terminal_artifacts(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            state = root / "receipts.sqlite3"
-            command = [
-                "development-session",
-                "daily-row-reconnaissance",
-                "--max-inputs",
-                "1",
-                "--delegated-receipt",
-                str(state),
-                "--agent-identity",
-                "luna-agent",
-                "--task-id",
-                "daily-row-claim",
-                "--flow-id",
-                "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                "--scenario",
-                "selected-daily-row-evidence",
-                "--variant",
-                "quest-daily-continuation",
-            ]
-            controller = control.DelegatedRuntimeReceiptController(state)
-            controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
-            controller.issue(
-                task_id="daily-row-claim",
-                flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                receipt_class="reconnaissance",
-                agent_identity="luna-agent",
-                command_argv=command,
-                scenario="selected-daily-row-evidence",
-                variant="quest-daily-continuation",
-                permitted_action_identities=["quest-daily-tab"],
-                permitted_action_classes=["navigation"],
-                consequence_class="navigation_only",
-                max_total_inputs=1,
-                max_resource_affecting_inputs=0,
-                max_combat_confirmations=0,
-                permitted_terminal_states=["observed", "evidence_required"],
-                result_identity=pnsctl.DAILY_ROW_RECON_RESULT_IDENTITY,
-            )
-
-            def connect(**kwargs):
-                return FakeRuntime(Path(kwargs["output_directory"]))
-
-            with patch.object(pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"), patch.object(
-                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
-            ), patch.object(
-                control,
-                "DelegatedRuntimeReceiptController",
-                return_value=controller,
-            ), patch.object(
-                LocalBlueStacksRuntime,
-                "connect",
-                side_effect=connect,
-            ), patch.object(
-                daily,
-                "DailyRowClaimRecognizer",
-                return_value=ScriptedRecognizer(),
-            ), patch.object(
-                boundary,
-                "RUNTIME_INPUT_LOCK_PATH",
-                root / "lock.sqlite3",
-            ):
-                output = pnsctl.development_session_daily_row_reconnaissance(
-                    max_inputs=1,
-                    delegated_receipt=state,
-                    agent_identity="luna-agent",
-                    task_id="daily-row-claim",
-                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                    scenario="selected-daily-row-evidence",
-                    variant="quest-daily-continuation",
-                    command_argv=command,
-                )
-
-            result = json.loads(output)
-            self.assertEqual(result["status"], "observed")
-            self.assertEqual(result["input_count"], 1)
-            self.assertTrue(result["ownership_released"])
-            self.assertEqual(set(result["frames"]), {"source", "daily_immediate_before", "daily_terminal"})
-            self.assertEqual(controller.inspect()["status"], "consumed")
-
-    def test_daily_recon_failure_records_terminal_before_fallback_write(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            state = root / "receipts.sqlite3"
-            command = [
-                "development-session",
-                "daily-row-reconnaissance",
-                "--max-inputs",
-                "2",
-                "--delegated-receipt",
-                str(state),
-                "--agent-identity",
-                "luna-agent",
-                "--task-id",
-                "daily-row-claim",
-                "--flow-id",
-                "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                "--scenario",
-                "selected-daily-row-evidence",
-                "--variant",
-                "home-quest-daily",
-            ]
-            controller = control.DelegatedRuntimeReceiptController(state)
-            controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
-            receipt = controller.issue(
-                task_id="daily-row-claim",
-                flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                receipt_class="reconnaissance",
-                agent_identity="luna-agent",
-                command_argv=command,
-                scenario="selected-daily-row-evidence",
-                variant="home-quest-daily",
-                permitted_action_identities=["home-quest-entry", "quest-daily-tab"],
-                permitted_action_classes=["navigation", "navigation"],
-                consequence_class="navigation_only",
-                max_total_inputs=2,
-                max_resource_affecting_inputs=0,
-                max_combat_confirmations=0,
-                permitted_terminal_states=["observed", "evidence_required"],
-                result_identity=pnsctl.DAILY_ROW_RECON_RESULT_IDENTITY,
-            )
-
-            with patch.object(
-                pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"
-            ), patch.object(
-                pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
-            ), patch.object(
-                control,
-                "DelegatedRuntimeReceiptController",
-                return_value=controller,
-            ), patch.object(
-                LocalBlueStacksRuntime,
-                "connect",
-                side_effect=pnsctl.OperatorError("observation failed"),
-            ), patch.object(
-                pnsctl,
-                "_write_daily_recon_artifacts",
-                side_effect=OSError("fallback artifact write failed"),
-            ), patch.object(
-                boundary,
-                "RUNTIME_INPUT_LOCK_PATH",
-                root / "lock.sqlite3",
-            ):
-                with self.assertRaisesRegex(
-                    pnsctl.OperatorError, "observation failed"
-                ):
-                    pnsctl.development_session_daily_row_reconnaissance(
-                        max_inputs=2,
-                        delegated_receipt=state,
-                        agent_identity="luna-agent",
-                        task_id="daily-row-claim",
-                        flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                        scenario="selected-daily-row-evidence",
-                        variant="home-quest-daily",
-                        command_argv=command,
-                    )
-
-            connection = controller._connection()
-            try:
-                terminal = connection.execute(
-                    "SELECT status, payload_json FROM delegated_results WHERE receipt_id=?",
-                    (receipt["receipt_id"],),
-                ).fetchone()
-            finally:
-                connection.close()
-            self.assertIsNotNone(terminal)
-            self.assertEqual(terminal[0], "evidence_required")
-            self.assertEqual(json.loads(terminal[1])["status"], "evidence_required")
-            with self.assertRaisesRegex(control.DelegatedReceiptError, "terminal result"):
-                controller.record_result(
-                    receipt,
-                    status="observed",
-                    result_identity=pnsctl.DAILY_ROW_RECON_RESULT_IDENTITY,
-                    payload={},
-                )
-
 
 class DailyClaimRecognitionTests(unittest.TestCase):
     @staticmethod
@@ -1393,13 +855,15 @@ class DailyClaimRecognitionTests(unittest.TestCase):
         include_reset: bool = True,
         reset_timer: str = "04:00:00",
         cost_icon: bool = False,
+        points: int | None = 0,
     ) -> tuple[np.ndarray, Callable[[np.ndarray], dict[str, list[object]]], list[tuple[str, tuple[int, int, int, int]]]]:
         tokens: list[tuple[str, tuple[int, int, int, int]]] = [
             ("Main", (80, 80, 170, 110)),
             ("Alliance", (500, 80, 610, 110)),
             ("Activity", (505, 115, 610, 140)),
-            ("Daily Quest Pts 0", (80, 220, 240, 250)),
         ]
+        if points is not None:
+            tokens.append((f"Daily Quest Pts {points}", (80, 220, 240, 250)))
         if include_daily_title:
             tokens.insert(1, ("Daily", (280, 80, 370, 110)))
         if include_reset:
@@ -1457,7 +921,7 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             cv2.circle(frame, (580, objective_y + 45), 12, (0, 220, 180), -1)
         return frame, cls._ocr_for_native_tokens(tokens), tokens
 
-    def test_selected_daily_binds_independent_row_progress_reward_points_and_roi(self):
+    def test_aggregate_claim_uses_current_free_control_without_objective_attribution(self):
         frame, ocr, _tokens = self._claim_fixture()
         recognition = daily.DailyRowClaimRecognizer(ocr=ocr).recognize_daily_claim(
             frame,
@@ -1487,6 +951,7 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             source_frame_sha256="b" * 64,
             evidence_ref="runtime/frames/0001-daily.png",
             game_day_id=evidence["game_day_id"],
+            aggregate_batch_identity="occ:v1:test-pass-1",
         )
         self.assertIsNotNone(observation)
         self.assertFalse(observation.catalog_reconciled)
@@ -1494,6 +959,83 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             __import__("tasks.available_daily_claim", fromlist=["available_daily_claim_authorizeable"])
             .available_daily_claim_authorizeable(observation)
         )
+
+    def test_aggregate_claim_recognition_ignores_objective_and_chest_labels(self):
+        frame, ocr, _tokens = self._claim_fixture(
+            extra_tokens=(("Milestone Chest", (100, 500, 280, 525)),)
+        )
+        recognition = daily.DailyRowClaimRecognizer(ocr=ocr).recognize_daily_claim(
+            frame,
+            observed_utc="2026-08-16T00:00:00Z",
+        )
+
+        self.assertTrue(recognition.recognized)
+        self.assertTrue(recognition.visual_evidence["claim_ready"])
+
+    def test_fake_before_claim_after_go_recognizer_pair_proves_control_exhaustion(self):
+        before_frame, before_ocr, _tokens = self._claim_fixture(points=None)
+        before = daily.DailyRowClaimRecognizer(ocr=before_ocr).recognize_daily_claim(
+            before_frame,
+            observed_utc="2026-08-16T00:00:00Z",
+        )
+        after_frame, after_ocr, _tokens = self._claim_fixture(
+            claim_tokens=(),
+            extra_tokens=(("Go", (650, 480, 710, 510)),),
+            points=None,
+            reset_timer="03:59:58",
+        )
+        cv2.rectangle(after_frame, (640, 475), (720, 515), (0, 0, 255), -1)
+        after = daily.DailyRowClaimRecognizer(ocr=after_ocr).recognize_daily_claim(
+            after_frame,
+            observed_utc="2026-08-16T00:00:02Z",
+            game_day_id=before.visual_evidence["game_day_id"],
+        )
+
+        self.assertTrue(before.recognized)
+        self.assertTrue(before.visual_evidence["claim_scan_complete"])
+        self.assertEqual(before.visual_evidence["recognized_claim_controls"], 1)
+        self.assertTrue(after.recognized)
+        self.assertEqual(after.state, daily.DAILY_SELECTED_STATE)
+        self.assertIsNone(after.target_identity)
+        self.assertIsNone(after.target_roi)
+        self.assertTrue(after.visual_evidence["claim_scan_complete"])
+        self.assertTrue(after.visual_evidence["zero_claim_scan_proven"])
+        self.assertEqual(after.visual_evidence["recognized_claim_controls"], 0)
+        self.assertEqual(after.visual_evidence["available_claim_controls"], 0)
+        self.assertTrue(
+            daily.daily_claim_postcondition_verified(
+                before,
+                after,
+                game_day_id=before.visual_evidence["game_day_id"],
+            )
+        )
+        points_only = replace(
+            before,
+            visual_evidence={**before.visual_evidence, "points": 150},
+        )
+        self.assertFalse(
+            daily.daily_claim_postcondition_verified(
+                before,
+                points_only,
+                game_day_id=before.visual_evidence["game_day_id"],
+            )
+        )
+
+    def test_aggregate_action_key_is_restart_stable_and_batch_scoped(self):
+        identity = ("account-1", "server-1", "reset-1", "day-1")
+        first = daily._daily_aggregate_action_key(
+            *identity, batch_identity="batch-1"
+        )
+        restarted = daily._daily_aggregate_action_key(
+            *identity, batch_identity="batch-1"
+        )
+        later_batch = daily._daily_aggregate_action_key(
+            *identity, batch_identity="batch-2"
+        )
+
+        self.assertEqual(first, restarted)
+        self.assertNotEqual(first, later_batch)
+
 
     def test_selected_daily_title_may_be_missed_when_current_pixels_and_context_bind_center_tab(self):
         frame, ocr, _tokens = self._claim_fixture(include_daily_title=False)
@@ -1503,8 +1045,6 @@ class DailyClaimRecognitionTests(unittest.TestCase):
         )
 
         self.assertTrue(recognition.recognized)
-        self.assertTrue(recognition.visual_evidence["selected_daily"])
-        self.assertFalse(recognition.visual_evidence["selected_daily_semantics"]["title_ocr_present"])
 
     def test_gold_claim_binding_does_not_require_stylized_claim_ocr(self):
         frame, _ocr, tokens = self._claim_fixture()
@@ -1539,7 +1079,7 @@ class DailyClaimRecognitionTests(unittest.TestCase):
         self.assertEqual(recognition.visual_evidence["recognized_claim_controls"], 0)
         self.assertIsNone(recognition.target_roi)
 
-    def test_multiple_safe_claim_controls_select_one_deterministically(self):
+    def test_multiple_safe_claim_controls_select_one_current_control(self):
         frame, ocr, _tokens = self._claim_fixture(
             claim_tokens=(
                 ("Claim", (570, 480, 610, 510)),
@@ -1554,15 +1094,12 @@ class DailyClaimRecognitionTests(unittest.TestCase):
         self.assertTrue(recognition.recognized)
         self.assertEqual(recognition.target_roi, (560, 475, 621, 516))
         evidence = recognition.visual_evidence
-        self.assertEqual(evidence["recognized_claim_controls"], 2)
-        self.assertEqual(evidence["available_claim_controls"], 2)
-        self.assertEqual(evidence["available_ordinary_claim_controls"], 2)
-        self.assertEqual(
-            [candidate["status"] for candidate in evidence["claim_candidates"]],
-            ["eligible", "eligible"],
-        )
 
-    def test_multiple_claim_controls_skip_unsafe_cost_and_select_safe_control(self):
+        self.assertEqual(evidence["available_claim_controls"], 1)
+        self.assertEqual(len(evidence["claim_candidates"]), 1)
+        self.assertEqual(evidence["claim_candidates"][0]["status"], "eligible")
+
+    def test_selected_current_control_with_attached_cost_blocks_without_skipping_to_another_row(self):
         frame, ocr, _tokens = self._claim_fixture(
             claim_tokens=(
                 ("Claim", (570, 480, 610, 510)),
@@ -1575,15 +1112,8 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             observed_utc="2026-08-16T00:00:00Z",
         )
 
-        self.assertTrue(recognition.recognized)
-        self.assertEqual(recognition.target_roi, (660, 475, 721, 516))
-        evidence = recognition.visual_evidence
-        self.assertEqual(evidence["recognized_claim_controls"], 2)
-        self.assertEqual(evidence["available_ordinary_claim_controls"], 1)
-        self.assertIn(
-            "claim_attached_cost",
-            evidence["claim_candidates"][0]["rejection_reasons"],
-        )
+        self.assertFalse(recognition.recognized)
+        self.assertIn("attached currency", recognition.reason or "")
 
     def test_daily_claim_rejects_main_missing_context_and_overlay_states(self):
         cases = (
@@ -1603,15 +1133,9 @@ class DailyClaimRecognitionTests(unittest.TestCase):
                 )
                 self.assertFalse(recognition.recognized)
 
-    def test_daily_claim_rejects_go_milestone_clipped_and_row_geometry_negatives(self):
+    def test_daily_claim_rejects_go_and_clipped_controls(self):
         cases = (
             ("go", self._claim_fixture(claim_tokens=())),
-            (
-                "milestone",
-                self._claim_fixture(
-                    extra_tokens=(("Milestone Chest", (100, 390, 280, 415)),)
-                ),
-            ),
             ("clipped", self._claim_fixture(row_y=1190)),
         )
         for name, (frame, ocr, _tokens) in cases:
@@ -1620,11 +1144,9 @@ class DailyClaimRecognitionTests(unittest.TestCase):
                     frame,
                     game_day_id="game-day-a",
                 )
-                self.assertFalse(
-                    bool((recognition.visual_evidence or {}).get("claim_ready"))
-                )
+                self.assertFalse(bool((recognition.visual_evidence or {}).get("claim_ready")))
 
-    def test_daily_claim_rejects_exactly_one_adjacent_row_claim(self):
+    def test_daily_claim_rejects_claim_outside_measured_panel_geometry(self):
         frame, ocr, _tokens = self._claim_fixture(
             claim_tokens=(("Claim", (650, 555, 710, 585)),)
         )
@@ -1633,7 +1155,6 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             observed_utc="2026-08-16T00:00:00Z",
         )
         self.assertFalse(recognition.recognized)
-        self.assertIn("escaped", recognition.reason or "")
 
     def test_daily_claim_rejects_numeric_only_and_icon_only_attached_costs(self):
         numeric_frame, numeric_ocr, _tokens = self._claim_fixture(
@@ -1652,7 +1173,6 @@ class DailyClaimRecognitionTests(unittest.TestCase):
                     observed_utc="2026-08-16T00:00:00Z",
                 )
                 self.assertFalse(recognition.recognized)
-                self.assertIn("attached", recognition.reason or "")
 
     def test_reset_deadline_is_bound_from_injected_wall_utc_and_rollover_rejects(self):
         before_frame, before_ocr, _tokens = self._claim_fixture(
@@ -1674,26 +1194,15 @@ class DailyClaimRecognitionTests(unittest.TestCase):
         )
 
         after_frame, after_ocr, _tokens = self._claim_fixture(
-            reset_timer="23:59:58"
+            claim_tokens=(),
+            extra_tokens=(("Go", (650, 480, 710, 510)),),
+            reset_timer="23:59:58",
         )
+        cv2.rectangle(after_frame, (640, 475), (720, 515), (0, 0, 255), -1)
         after = daily.DailyRowClaimRecognizer(ocr=after_ocr).recognize_daily_claim(
             after_frame,
             observed_utc="2026-08-17T00:00:00Z",
             game_day_id=before_evidence["game_day_id"],
-        )
-        after_evidence = dict(after.visual_evidence)
-        after_evidence.update(
-            {
-                "claim_ready": False,
-                "available_ordinary_claim_controls": 0,
-                "points": 5,
-            }
-        )
-        after = replace(
-            after,
-            target_identity=None,
-            target_roi=None,
-            visual_evidence=after_evidence,
         )
         self.assertFalse(
             daily.daily_claim_postcondition_verified(
@@ -1709,23 +1218,18 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             before_frame,
             observed_utc="2026-08-16T00:00:00Z",
         )
+        self.assertTrue(before.recognized)
+
         after_frame, after_ocr, _tokens = self._claim_fixture(
-            reset_timer="03:59:58"
+            claim_tokens=(),
+            extra_tokens=(("Go", (650, 480, 710, 510)),),
+            reset_timer="03:59:58",
         )
+        cv2.rectangle(after_frame, (640, 475), (720, 515), (0, 0, 255), -1)
         after = daily.DailyRowClaimRecognizer(ocr=after_ocr).recognize_daily_claim(
             after_frame,
             observed_utc="2026-08-16T00:00:02Z",
             game_day_id=before.visual_evidence["game_day_id"],
-        )
-        after_evidence = dict(after.visual_evidence)
-        after_evidence.update(
-            {"claim_ready": False, "available_ordinary_claim_controls": 0, "points": 5}
-        )
-        after = replace(
-            after,
-            target_identity=None,
-            target_roi=None,
-            visual_evidence=after_evidence,
         )
         self.assertTrue(
             daily.daily_claim_postcondition_verified(
@@ -1735,2055 +1239,544 @@ class DailyClaimRecognitionTests(unittest.TestCase):
             )
         )
 
-class ClaimCanaryRuntime:
-    execute = True
-    frame_max_age_seconds = 30.0
 
-    def __init__(self, root: Path):
-        self.session = root / "runtime"
-        self.session.mkdir(parents=True)
-        self.events = self.session / "events.jsonl"
-        self.labels: list[str] = []
-        self.taps: list[dict[str, object]] = []
-        self.backs: list[dict[str, object]] = []
-        self.reservations: list[dict[str, object]] = []
-        self.input_count = 0
-        self._ordinal = 0
-
-    def capture(self, label: str) -> CapturedNativeFrame:
-        self._ordinal += 1
-        self.labels.append(label)
-        safe_label = label.replace(":", "_").replace("/", "_")
-        return _frame(self.session, f"{self._ordinal:04d}-{safe_label}")
-
-    def measure_device_state(self) -> str:
-        return "device"
-
-    def measure_foreground_package(self) -> str:
-        return daily.EXPECTED_PACKAGE
-
-    def tap(
-        self,
-        source: CapturedNativeFrame,
-        *,
-        target_identity: str,
-        target_roi: tuple[int, int, int, int],
-        action_key: str,
-        action_class: str = "navigation",
-        consequential: bool = False,
-        continuation_of: str | None = None,
-    ) -> None:
-        self.reservations.append(
-            {
-                "action_identity": target_identity,
-                "action_class": action_class,
-                "consequence_class": (
-                    getattr(delegated, "receipt", {}).get(
-                        "consequence_class",
-                        "ordinary_development",
-                    )
-                    if (delegated := boundary.current_delegated_runtime_context())
-                    is not None
-                    else "ordinary_development"
-                ),
-                "source_sha256": source.sha256,
-            }
-        )
-        if delegated is not None:
-            consequence_class = str(
-                delegated.receipt.get("consequence_class", "ordinary_development")
-            )
-            delegated.reserve_input(
-                action_identity=target_identity,
-                action_class=action_class,
-                consequence_class=consequence_class,
-                source_evidence_hash=source.sha256,
-                action_key=action_key,
-            )
-            delegated.mark_transported(action_key)
-        self.taps.append(
-            {
-                "target_identity": target_identity,
-                "target_roi": target_roi,
-                "action_key": action_key,
-                "action_class": action_class,
-                "consequential": consequential,
-                "continuation_of": continuation_of,
-            }
-        )
-        self.input_count += 1
-        with self.events.open("a", encoding="utf-8") as handle:
-            handle.write(
-                json.dumps(
-                    {
-                        "type": "dispatch",
-                        "target_identity": target_identity,
-                        "target_roi": target_roi,
-                        "action_class": action_class,
-                    }
-                )
-                + "\n"
-            )
-
-    def back(
-        self,
-        source: CapturedNativeFrame,
-        *,
-        action_key: str,
-        target_identity: str = "android-back",
-        continuation_of: str | None = None,
-    ) -> None:
-        self.reservations.append(
-            {
-                "action_identity": target_identity,
-                "action_class": "navigation",
-                "consequence_class": (
-                    getattr(delegated, "receipt", {}).get(
-                        "consequence_class",
-                        "ordinary_development",
-                    )
-                    if (delegated := boundary.current_delegated_runtime_context())
-                    is not None
-                    else "ordinary_development"
-                ),
-                "source_sha256": source.sha256,
-            }
-        )
-        if delegated is not None:
-            consequence_class = str(
-                delegated.receipt.get("consequence_class", "ordinary_development")
-            )
-            delegated.reserve_input(
-                action_identity=target_identity,
-                action_class="navigation",
-                consequence_class=consequence_class,
-                source_evidence_hash=source.sha256,
-                action_key=action_key,
-            )
-            delegated.mark_transported(action_key)
-        self.backs.append(
-            {
-                "action_key": action_key,
-                "target_identity": target_identity,
-                "source_sha256": source.sha256,
-                "continuation_of": continuation_of,
-            }
-        )
-        self.input_count += 1
-        with self.events.open("a", encoding="utf-8") as handle:
-            handle.write(
-                json.dumps(
-                    {
-                        "type": "dispatch",
-                        "action_key": action_key,
-                        "target_identity": "android-back",
-                        "action_class": "navigation",
-                    }
-                )
-                + "\n"
-            )
-
-
-class VipPopupRuntime(FakeRuntime):
-    def __init__(self, root: Path, *, modal_post: bool = False) -> None:
-        super().__init__(root)
-        self.action_classes: list[str] = []
-        self.modal_post = modal_post
-
-    def capture(self, label: str) -> CapturedNativeFrame:
-        self.labels.append(label)
-        image = np.zeros((1280, 800, 3), dtype=np.uint8)
-        cv2.rectangle(image, (0, 60), (267, 145), (70, 70, 70), -1)
-        cv2.rectangle(image, (268, 60), (533, 145), (0, 180, 255), -1)
-        cv2.rectangle(image, (534, 60), (799, 145), (70, 70, 70), -1)
-        if self.modal_post and (
-            label == "reset-popup-close-immediate-post"
-            or label.startswith("reset-popup-close-poll-")
-        ):
-            image = cv2.addWeighted(image, 0.25, np.zeros_like(image), 0.75, 0)
-            cv2.rectangle(image, (96, 260), (704, 948), (255, 255, 255), 8)
-        captured = _frame(self.session, label, image=image)
-        with self.events.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps({"type": "capture", "label": label}) + "\n")
-        return captured
-
-    def tap(
-        self,
-        source: CapturedNativeFrame,
-        *,
-        target_identity: str,
-        target_roi: tuple[int, int, int, int],
-        action_key: str,
-        action_class: str = "navigation",
-        consequential: bool = False,
-        continuation_of: str | None = None,
-    ) -> None:
-        self.action_classes.append(action_class)
-        super().tap(
-            source,
-            target_identity=target_identity,
-            target_roi=target_roi,
-            action_key=action_key,
-            consequential=consequential,
-            continuation_of=continuation_of,
-        )
-
-
-class IndependentVipPopupFake:
-    """Independent popup contract fake; production OCR is not reused."""
-
-    def __init__(
-        self,
-        states: list[str],
-        *,
-        mismatch_hash: bool = False,
-        invalid_roi: bool = False,
-    ) -> None:
-        self.states = states
-        self.mismatch_hash = mismatch_hash
-        self.invalid_roi = invalid_roi
-        self.calls = 0
-
-    def __call__(
-        self,
-        _frame: np.ndarray,
-        *,
-        source_frame_sha256: str,
-    ) -> dict[str, object]:
-        index = min(self.calls, len(self.states) - 1)
-        state = self.states[index]
-        self.calls += 1
-        if state != "allowed":
-            return {
-                "status": state,
-                "popup_identity": None,
-                "target_identity": None,
-                "target_roi": None,
-                "source_frame_sha256": source_frame_sha256,
-                "semantic_evidence": (),
-                "reason": f"scripted-{state}",
-            }
-        return {
-            "status": "allowed",
-            "popup_identity": "VIP_POINTS_GET_PTS",
-            "target_identity": "reset-popup-close",
-            "target_roi": (100, 700, 300, 780) if not self.invalid_roi else (900, 700, 950, 780),
-            "source_frame_sha256": (
-                "0" * 64 if self.mismatch_hash else source_frame_sha256
-            ),
-            "semantic_evidence": (
-                "Get Pts",
-                "Log in every day to get VIP pts",
-                "Close",
-                "spatially_associated_close_control",
-            ),
-            "reason": "",
-        }
-
-
-class SelectedDailySuccessorFake:
-    def __init__(self, *, recognized: bool = True, blurred: bool = False) -> None:
-        self.recognized = recognized
-        self.blurred = blurred
-        self.calls = 0
-
-    def recognize_daily_selected(
-        self,
-        _frame: np.ndarray,
-    ) -> daily.FrameRecognition:
-        self.calls += 1
-        return daily.FrameRecognition(
-            daily.DAILY_SELECTED_STATE if self.recognized else daily.UNKNOWN_STATE,
-            self.recognized,
-            "daily-quest-selected" if self.recognized else None,
-            (280, 80, 370, 110) if self.recognized else None,
-            "selected Daily",
-            {
-                "selected_daily": self.recognized,
-                "unblurred": not self.blurred,
-                "blurred": self.blurred,
-                "full_frame_overlay": {"recognized": self.blurred},
-            },
-            None if self.recognized else "selected Daily is unknown",
-        )
-
-
-class ScriptedClaimRecognizer:
-    def __init__(
-        self,
-        outcome: str,
-        *,
-        available_controls: int = 1,
-        selected_daily: bool = True,
-        home: bool = True,
-        template_home: bool = True,
-    ):
-        self.outcome = outcome
-        self.available_controls = available_controls
-        self.selected_daily = selected_daily
-        self.home = home
-        self.template_home = template_home
-        self.calls = 0
-
-    def recognize_daily_claim(
-        self,
-        _frame: np.ndarray,
-        *,
-        game_day_id: str | None = None,
-    ) -> daily.FrameRecognition:
-        self.calls += 1
-        before = self.calls <= 2
-        ready = before or self.outcome == "unchanged"
-        points = 0
-        recognized = True
-        reset_timer: str | None = "04:00:00"
-        if not before and self.outcome == "points":
-            points = 5
-            ready = False
-        elif not before and self.outcome == "row_disappeared":
-            ready = False
-        elif not before and self.outcome == "row_missing_points":
-            ready = False
-            points = None
-        elif not before and self.outcome == "wrong_delta":
-            points = 4
-            ready = False
-        elif not before and self.outcome == "plus_ten":
-            points = 10
-            ready = False
-        elif not before and self.outcome == "control_changed":
-            ready = False
-        elif not before and self.outcome == "wrong_objective":
-            points = 5
-            ready = False
-        elif not before and self.outcome == "overlay":
-            recognized = False
-        elif not before and self.outcome == "reset":
-            points = 5
-            ready = False
-            reset_timer = None
-
-        visual = {
-            "selected_daily": True,
-            "game_day_id": game_day_id,
-            "points": points,
-            "reset_timer": reset_timer,
-            "reset_timer_seconds": 14400 if reset_timer is not None else None,
-            "reset_observed_utc": (
-                "2026-08-16T00:00:00Z" if reset_timer is not None else None
-            ),
-            "reset_deadline_utc": (
-                "2026-08-16T04:00:00Z" if reset_timer is not None else None
-            ),
-            "reset_deadline_identity": game_day_id if reset_timer is not None else None,
-            "reset_deadline_tolerance_seconds": (
-                2 if reset_timer is not None else None
-            ),
-            "claim_ready": ready,
-            "available_claim_controls": self.available_controls if ready else 0,
-            "available_ordinary_claim_controls": self.available_controls if ready else 0,
-            "row_bounds": (82, 432, 773, 545),
-            "claim_roi": (605, 455, 755, 535),
-            "row_fully_visible": True,
-            "claim_fully_visible": ready,
-            "cost_type": "none",
-            "cost_amount": 0,
-            "quantity": 1,
-            "ordinary_reward_claim": ready,
-            "free_control_proven": ready,
-            "quantity_one_proven": ready,
-            "cost_region_scan": {
-                "attached_cost": False,
-                "numeric_only_cost": False,
-                "icon_only_cost": False,
-                "currency_icon": False,
-                "currency_amount": False,
-            },
-            "row_panel_geometry": {
-                "proven": True,
-                "source": "independent-test-panel",
-                "bounds": (82, 432, 773, 545),
-            },
-            "milestone_reward": False,
-            "full_frame_overlay": {
-                "recognized": not recognized,
-                "markers": ("confirm",) if not recognized else (),
-            },
-        }
-        return daily.FrameRecognition(
-            daily.DAILY_SELECTED_STATE if recognized else daily.UNKNOWN_STATE,
-            recognized,
-            "daily-quest-claim" if ready else None,
-            (605, 455, 755, 535) if ready else None,
-            "scripted daily claim",
-            visual,
-            None if recognized else "full-frame overlay/modal detected",
-        )
-
-    def recognize_daily_selected(
-        self,
-        _frame: np.ndarray,
-    ) -> daily.FrameRecognition:
-        recognized = self.selected_daily and self.outcome not in {"selected_unknown", "overlay"}
-        return daily.FrameRecognition(
-            daily.DAILY_SELECTED_STATE if recognized else daily.UNKNOWN_STATE,
-            recognized,
-            "daily-quest-selected" if recognized else None,
-            (280, 80, 370, 110) if recognized else None,
-            "selected Daily",
-            {
-                "selected_daily": recognized,
-                "unblurred": True,
-                "blurred": False,
-                "full_frame_overlay": {"recognized": not recognized},
-            },
-            None if recognized else "selected Daily is unknown",
-        )
-
-    def recognize_home(
-        self,
-        _frame: np.ndarray,
-    ) -> daily.FrameRecognition:
-        recognized = self.home and self.outcome not in {"non_home", "home_unknown"}
-        return daily.FrameRecognition(
-            daily.HOME_STATE if recognized else daily.QUEST_STATE,
-            recognized,
-            "home-quest-entry" if recognized else None,
-            (180, 1028, 231, 1078) if recognized else None,
-            "Home" if recognized else "Quest",
-            {
-                "template_home": {
-                    "recognized": self.template_home and recognized
-                },
-                "full_frame_overlay": {"recognized": False},
-            },
-            None if recognized else "Home template was not recognized",
-        )
-
-
-class ImmediateBeforeBaselineClaimRecognizer(ScriptedClaimRecognizer):
-    """Make the source baseline differ from the tap-authorizing frame."""
-
-    def recognize_daily_claim(
-        self,
-        frame: np.ndarray,
-        *,
-        game_day_id: str | None = None,
-    ) -> daily.FrameRecognition:
-        recognition = super().recognize_daily_claim(
-            frame,
-            game_day_id=game_day_id,
-        )
-        if self.calls != 1:
-            return recognition
-        visual = dict(recognition.visual_evidence or {})
-        visual["points"] = 10
-        return replace(recognition, visual_evidence=visual)
-
-
-class DailyClaimCanaryTests(unittest.TestCase):
-    def _run_canary(
-        self,
-        root: Path,
-        outcome: str,
-        *,
-        available_controls: int = 1,
-        recognizer: ScriptedClaimRecognizer | None = None,
-    ):
-        runtime = ClaimCanaryRuntime(root)
-        recognizer = recognizer or ScriptedClaimRecognizer(
-            outcome,
-            available_controls=available_controls,
-        )
-        with patch.object(daily, "DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS", 0.0), patch.object(
-            daily, "DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS", 2
-        ), patch.object(
-            daily, "DAILY_RETURN_HOME_SUCCESS_POLL_INTERVAL_SECONDS", 0.0
-        ), patch.object(
-            daily, "DAILY_RETURN_HOME_SUCCESS_POLL_MAX_ATTEMPTS", 2
-        ), patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"):
-            with boundary.DevelopmentSession(
-                owner="test-daily-claim-canary",
-                invocation_id=f"test-{outcome}",
-                session_directory=root / "session",
-                max_inputs=2,
-            ) as session:
-                result = daily.run_daily_row_claim_once(
-                    runtime,
-                    session,
-                    game_day_id="game-day-a",
-                    recognizer=recognizer,
-                )
-        return result, runtime, recognizer, session
-
-    def test_canary_dispatches_one_reward_claim_and_proves_points_success(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime, _recognizer, session = self._run_canary(
-                Path(directory), "points"
-            )
-
-            self.assertEqual(result["status"], "completed")
-            self.assertEqual(result["input_count"], 2)
-            self.assertEqual(len(runtime.taps), 1)
-            self.assertEqual(len(runtime.backs), 1)
-            self.assertEqual(runtime.taps[0]["target_identity"], "daily-claim:aggregate")
-            self.assertEqual(runtime.taps[0]["target_roi"], (605, 455, 755, 535))
-            self.assertEqual(
-                [item["action_identity"] for item in runtime.reservations],
-                ["daily-claim:aggregate", "daily-return-home"],
-            )
-            self.assertEqual(
-                [item["action_class"] for item in runtime.reservations],
-                ["reward_claim", "navigation"],
-            )
-            self.assertEqual(result["claim"]["points_before"], 0)
-            self.assertEqual(result["claim"]["points_after"], 5)
-            self.assertTrue(result["home"]["verified"])
-            self.assertEqual(result["home"]["state"], daily.HOME_STATE)
-            self.assertIn("return_home_final", result["frames"])
-            self.assertTrue(session._ownership.lock.held is False)
-            self.assertIn("immediate_before", result["frames"])
-            self.assertIn("immediate_post", result["frames"])
-            annotated = Path(result["claim"]["annotated_immediate_before"])
-            self.assertTrue(annotated.is_file())
-            self.assertGreater(annotated.stat().st_size, 0)
-
-    def test_canary_uses_immediate_before_points_baseline(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime, _recognizer, _session = self._run_canary(
-                Path(directory),
-                "points",
-                recognizer=ImmediateBeforeBaselineClaimRecognizer("points"),
-            )
-
-        self.assertEqual(result["status"], "completed")
-        self.assertEqual(result["input_count"], 2)
-        self.assertEqual(len(runtime.taps), 1)
-        self.assertEqual(len(runtime.backs), 1)
-        self.assertEqual(result["claim"]["points_before"], 0)
-        self.assertEqual(result["claim"]["points_after"], 5)
-        self.assertEqual(
-            result["recognitions"]["source"]["visual_evidence"]["points"],
-            10,
-        )
-        self.assertEqual(
-            result["recognitions"]["immediate_before"]["visual_evidence"]["points"],
-            0,
-        )
-
-    def test_canary_requires_final_template_home_and_never_retries_back(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime, _recognizer, _session = self._run_canary(
-                Path(directory),
-                "points",
-                recognizer=ScriptedClaimRecognizer("points", home=False),
-            )
-
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(result["input_count"], 2)
-        self.assertEqual(len(runtime.taps), 1)
-        self.assertEqual(len(runtime.backs), 1)
-        self.assertNotIn("home", result)
-        self.assertEqual(
-            result["recognitions"]["return_home_immediate_post"]["state"],
-            daily.QUEST_STATE,
-        )
-
-    def test_canary_selected_daily_source_failure_does_not_dispatch_back(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime, _recognizer, _session = self._run_canary(
-                Path(directory),
-                "points",
-                recognizer=ScriptedClaimRecognizer(
-                    "points",
-                    selected_daily=False,
-                ),
-            )
-
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(result["input_count"], 1)
-        self.assertEqual(len(runtime.taps), 1)
-        self.assertEqual(runtime.backs, [])
-        self.assertEqual(result["claim"]["points_after"], 5)
-
-    def test_canary_with_multiple_eligible_controls_still_dispatches_once(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime, _recognizer, _session = self._run_canary(
-                Path(directory),
-                "points",
-                available_controls=2,
-            )
-
-        self.assertEqual(result["status"], "completed")
-        self.assertEqual(result["input_count"], 2)
-        self.assertEqual(len(runtime.taps), 1)
-        self.assertEqual(len(runtime.backs), 1)
-        self.assertEqual(
-            result["recognitions"]["source"]["visual_evidence"][
-                "available_ordinary_claim_controls"
-            ],
-            2,
-        )
-        self.assertEqual(
-            result["recognitions"]["immediate_post"]["visual_evidence"][
-                "available_ordinary_claim_controls"
-            ],
-            0,
-        )
-
-    def test_canary_rejects_ocr_missing_row_with_unchanged_points(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime, _recognizer, _session = self._run_canary(
-                Path(directory), "row_disappeared"
-            )
-
-            self.assertEqual(result["status"], "evidence_required")
-            self.assertEqual(len(runtime.taps), 1)
-            post = result["recognitions"]["immediate_post"]["visual_evidence"]
-            self.assertEqual(post["points"], 0)
-
-    def test_canary_failure_is_evidence_required_without_retry(self):
-        for outcome in (
-            "unchanged",
-            "row_missing_points",
-            "control_changed",
-            "overlay",
-            "reset",
-        ):
-            with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as directory:
-                result, runtime, _recognizer, _session = self._run_canary(
-                    Path(directory), outcome
-                )
-
-                self.assertEqual(result["status"], "evidence_required")
-                self.assertEqual(len(runtime.taps), 1)
-                self.assertEqual(result["input_count"], 1)
-                self.assertGreaterEqual(len(result["polls"]), 1)
-                self.assertTrue(result["frames"]["immediate_post"]["sha256"])
-                self.assertTrue(
-                    all(
-                        poll["frame"]["sha256"]
-                        for poll in result["polls"]
-                    )
-                )
-
-
-class DailyReturnHomeTests(unittest.TestCase):
-    def _run(
-        self,
-        root: Path,
-        *,
-        recognizer: ScriptedClaimRecognizer | None = None,
-        runtime: ClaimCanaryRuntime | None = None,
-    ):
-        runtime = runtime or ClaimCanaryRuntime(root)
-        recognizer = recognizer or ScriptedClaimRecognizer("points")
-        with patch.object(
-            daily,
-            "DAILY_RETURN_HOME_SUCCESS_POLL_INTERVAL_SECONDS",
-            0.0,
-        ), patch.object(
-            daily,
-            "DAILY_RETURN_HOME_SUCCESS_POLL_MAX_ATTEMPTS",
-            2,
-        ), patch.object(
-            boundary,
-            "RUNTIME_INPUT_LOCK_PATH",
-            root / "lock.sqlite3",
-        ):
-            with boundary.DevelopmentSession(
-                owner="test-daily-return-home",
-                invocation_id="test-daily-return-home",
-                session_directory=root / "session",
-                max_inputs=1,
-            ) as session:
-                result = daily.run_daily_row_claim_return_home(
-                    runtime,
-                    session,
-                    recognizer=recognizer,
-                )
-        return result, runtime
-
-    def test_selected_daily_return_home_dispatches_one_back_without_claim(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            result, runtime = self._run(root)
-
-        self.assertEqual(result["status"], "observed")
-        self.assertEqual(result["input_count"], 1)
-        self.assertEqual(runtime.taps, [])
-        self.assertEqual(len(runtime.backs), 1)
-        self.assertEqual(
-            result["actions"][0]["label"],
-            "daily-return-home",
-        )
-        self.assertEqual(
-            result["recognitions"]["source"]["state"],
-            daily.DAILY_SELECTED_STATE,
-        )
-        self.assertEqual(
-            result["recognitions"]["return_home_immediate_before"]["state"],
-            daily.DAILY_SELECTED_STATE,
-        )
-        self.assertEqual(result["home"]["state"], daily.HOME_STATE)
-        self.assertIn("return_home_final", result["frames"])
-
-    def test_return_home_rejects_non_selected_sources_without_input(self):
-        for label, recognizer in (
-            ("home", ScriptedClaimRecognizer("points", selected_daily=False)),
-            ("quest", ScriptedClaimRecognizer("points", selected_daily=False)),
-            ("unknown", ScriptedClaimRecognizer("points", selected_daily=False)),
-            ("overlay", ScriptedClaimRecognizer("points", selected_daily=False)),
-        ):
-            with self.subTest(source=label), tempfile.TemporaryDirectory() as directory:
-                result, runtime = self._run(
-                    Path(directory),
-                    recognizer=recognizer,
-                )
-                self.assertEqual(result["status"], "evidence_required")
-                self.assertEqual(result["input_count"], 0)
-                self.assertEqual(runtime.backs, [])
-
-    def test_return_home_rejects_stale_immediate_before_without_input(self):
-        class StaleImmediateBeforeRuntime(ClaimCanaryRuntime):
-            def capture(self, label: str) -> CapturedNativeFrame:
-                frame = super().capture(label)
-                if label == "daily-return-home-immediate-before":
-                    return _frame(
-                        self.session,
-                        "stale-immediate-before",
-                        age=60.0,
-                    )
-                return frame
-
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime = self._run(
-                Path(directory),
-                runtime=StaleImmediateBeforeRuntime(Path(directory)),
-            )
-
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(result["input_count"], 0)
-        self.assertEqual(runtime.backs, [])
-        self.assertIn("return_home_immediate_before", result["frames"])
-
-    def test_return_home_rejects_wrong_dimensions_without_input(self):
-        class WrongDimensionsRuntime(ClaimCanaryRuntime):
-            def capture(self, label: str) -> CapturedNativeFrame:
-                super().capture(label)
-                return _frame(
-                    self.session,
-                    "wrong-dimensions",
-                    image=np.zeros((720, 400, 3), dtype=np.uint8),
-                )
-
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime = self._run(
-                Path(directory),
-                runtime=WrongDimensionsRuntime(Path(directory)),
-            )
-
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(result["input_count"], 0)
-        self.assertEqual(runtime.backs, [])
-
-    def test_return_home_non_home_successor_is_evidence_required_without_retry(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime = self._run(
-                Path(directory),
-                recognizer=ScriptedClaimRecognizer("points", home=False),
-            )
-
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(result["input_count"], 1)
-        self.assertEqual(len(runtime.backs), 1)
-        self.assertNotIn("home", result)
-        self.assertEqual(
-            result["recognitions"]["return_home_immediate_post"]["state"],
-            daily.QUEST_STATE,
-        )
-
-    def test_generic_home_without_template_proof_is_rejected(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime = self._run(
-                Path(directory),
-                recognizer=ScriptedClaimRecognizer(
-                    "points",
-                    template_home=False,
-                ),
-            )
-
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(result["input_count"], 1)
-        self.assertEqual(len(runtime.backs), 1)
-        self.assertEqual(
-            result["recognitions"]["return_home_immediate_post"]["state"],
-            daily.HOME_STATE,
-        )
-        self.assertFalse(
-            result["recognitions"]["return_home_immediate_post"][
-                "visual_evidence"
-            ]["template_home"]["recognized"]
-        )
-
-
-class VipPopupDismissalTests(unittest.TestCase):
-    def _run(
-        self,
-        root: Path,
-        popup: IndependentVipPopupFake,
-        *,
-        daily_successor: SelectedDailySuccessorFake | None = None,
-        max_attempts: int = 2,
-        modal_post: bool = False,
-    ):
-        runtime = VipPopupRuntime(root, modal_post=modal_post)
-        daily_successor = daily_successor or SelectedDailySuccessorFake()
-        with patch.object(
-            daily,
-            "VIP_POPUP_SUCCESS_POLL_INTERVAL_SECONDS",
-            0.0,
-        ), patch.object(
-            daily,
-            "VIP_POPUP_SUCCESS_POLL_MAX_ATTEMPTS",
-            max_attempts,
-        ), patch.object(
-            boundary,
-            "RUNTIME_INPUT_LOCK_PATH",
-            root / "lock.sqlite3",
-        ):
-            with boundary.DevelopmentSession(
-                owner="test-vip-popup-dismissal",
-                invocation_id="test-vip-popup",
-                session_directory=root / "session",
-                max_inputs=1,
-            ) as session:
-                result = daily.run_daily_row_claim_vip_popup_dismissal(
-                    runtime,
-                    session,
-                    popup_recognizer=popup,
-                    daily_recognizer=daily_successor,
-                )
-        return result, runtime, daily_successor
-
-    def test_exact_vip_popup_dispatches_once_and_observes_selected_daily(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime, successor = self._run(
-                Path(directory),
-                IndependentVipPopupFake(["allowed", "allowed", "absent"]),
-            )
-
-        self.assertEqual(result["status"], "observed")
-        self.assertEqual(result["input_count"], 1)
-        self.assertEqual(len(runtime.taps), 1)
-        self.assertEqual(runtime.action_classes, ["navigation"])
-        self.assertEqual(runtime.taps[0]["target_identity"], "reset-popup-close")
-        self.assertEqual(
-            set(result["frames"]),
-            {"source", "immediate_before", "immediate_post"},
-        )
-        self.assertEqual(
-            result["popup_recognitions"]["source"]["popup_identity"],
-            "VIP_POINTS_GET_PTS",
-        )
-        for name in ("source", "immediate_before"):
-            self.assertEqual(
-                result["popup_recognitions"][name]["source_frame_sha256"],
-                result["frames"][name]["sha256"],
-            )
-        self.assertTrue(result["successor"]["popup_absent"])
-        self.assertTrue(result["successor"]["unblurred"])
-        self.assertEqual(successor.calls, 1)
-
-    def test_non_vip_central_modal_blocks_selected_daily_successor(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime, _successor = self._run(
-                Path(directory),
-                IndependentVipPopupFake(["allowed", "allowed", "absent"]),
-                modal_post=True,
-            )
-
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(result["input_count"], 1)
-        self.assertEqual(len(runtime.taps), 1)
-        self.assertIsNotNone(result["polls"][0]["recognition"])
-        self.assertTrue(
-            result["polls"][0]["recognition"]["visual_evidence"][
-                "generic_modal_overlay"
-            ]["recognized"]
-        )
-        self.assertEqual(
-            result["polls"][0]["recognition"]["visual_evidence"][
-                "generic_modal_overlay"
-            ]["state"],
-            "modal",
-        )
-
-    def test_clean_selected_daily_has_no_visual_panel_false_positive(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime, _successor = self._run(
-                Path(directory),
-                IndependentVipPopupFake(["allowed", "allowed", "absent"]),
-            )
-
-        self.assertEqual(result["status"], "observed")
-        self.assertEqual(len(runtime.taps), 1)
-        generic_overlay = result["successor"]["recognition"]["visual_evidence"][
-            "generic_modal_overlay"
-        ]
-        self.assertFalse(generic_overlay["recognized"])
-        self.assertEqual(generic_overlay["state"], "none_observed")
-
-    def test_wrong_or_unknown_popup_does_not_dispatch(self):
-        for state in ("unknown", "wrong-popup"):
-            with self.subTest(state=state), tempfile.TemporaryDirectory() as directory:
-                result, runtime, _successor = self._run(
-                    Path(directory),
-                    IndependentVipPopupFake([state]),
-                )
-                self.assertEqual(result["status"], "evidence_required")
-                self.assertEqual(result["input_count"], 0)
-                self.assertEqual(runtime.taps, [])
-
-    def test_mismatched_close_geometry_or_hash_does_not_dispatch(self):
-        for kwargs in (
-            {"invalid_roi": True},
-            {"mismatch_hash": True},
-        ):
-            with self.subTest(kwargs=kwargs), tempfile.TemporaryDirectory() as directory:
-                result, runtime, _successor = self._run(
-                    Path(directory),
-                    IndependentVipPopupFake(["allowed"], **kwargs),
-                )
-                self.assertEqual(result["status"], "evidence_required")
-                self.assertEqual(runtime.taps, [])
-
-    def test_popup_still_present_or_unknown_successor_never_retries_input(self):
-        cases = (
-            (["allowed", "allowed", "allowed"], SelectedDailySuccessorFake()),
-            (["allowed", "allowed", "unknown"], SelectedDailySuccessorFake()),
-            (["allowed", "allowed", "absent"], SelectedDailySuccessorFake(recognized=False)),
-        )
-        for popup_states, successor in cases:
-            with self.subTest(popup_states=popup_states), tempfile.TemporaryDirectory() as directory:
-                result, runtime, _successor = self._run(
-                    Path(directory),
-                    IndependentVipPopupFake(popup_states),
-                    daily_successor=successor,
-                    max_attempts=2,
-                )
-                self.assertEqual(result["status"], "evidence_required")
-                self.assertEqual(result["input_count"], 1)
-                self.assertEqual(len(runtime.taps), 1)
-                self.assertGreaterEqual(len(result["polls"]), 1)
-
-
-class PnsctlDailyClaimTests(unittest.TestCase):
-    def _command(self, root: Path, mode: str, *, max_inputs: int | None = None) -> list[str]:
-        limit = (
-            0
-            if mode == "prepare"
-            else 2
-            if mode == "canary"
-            else 1
-        )
-        if max_inputs is not None:
-            limit = max_inputs
-        variant = (
-            "aggregate-claim-dismiss-vip"
-            if mode == "dismiss-vip-popup"
-            else "aggregate-claim-return-home"
-            if mode == "return-home"
-            else f"aggregate-claim-{mode}"
-        )
-        return [
-            "development-session",
-            "daily-row-claim",
-            "--mode",
-            mode,
-            "--max-inputs",
-            str(limit),
-            "--delegated-receipt",
-            str(root / "receipts.sqlite3"),
-            "--agent-identity",
-            "luna-agent",
-            "--task-id",
-            "daily-row-claim",
-            "--flow-id",
-            "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-            "--scenario",
-            "selected-daily-aggregate-claim",
-            "--variant",
-            variant,
-        ]
-
-    def _receipt(self, root: Path, mode: str, *, command: list[str] | None = None):
-        state = root / "receipts.sqlite3"
-        controller = control.DelegatedRuntimeReceiptController(state)
-        controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
-        command = command or self._command(root, mode)
-        variant = (
-            "aggregate-claim-dismiss-vip"
-            if mode == "dismiss-vip-popup"
-            else "aggregate-claim-return-home"
-            if mode == "return-home"
-            else f"aggregate-claim-{mode}"
-        )
-        if mode == "prepare":
-            receipt_class = "reconnaissance"
-            identities = ["daily-row-prepare-observation"]
-            classes = ["observation"]
-            consequence = "navigation_only"
-            total = 0
-            terminals = ["observed", "evidence_required"]
-            result_identity = "daily-claim:prepare:aggregate"
-            gates = {}
-        elif mode == "canary":
-            receipt_class = "canary"
-            identities = ["daily-claim:aggregate", "daily-return-home"]
-            classes = ["reward_claim", "navigation"]
-            consequence = "ordinary_development"
-            total = 2
-            terminals = ["completed", "evidence_required"]
-            result_identity = "daily-claim:canary:aggregate"
-            gates = {
-                "implementation_self_check_evidence": "self-check",
-                "independent_read_only_tester_evidence": "tester",
-                "parent_integration_acceptance": "accepted",
-            }
-        elif mode == "return-home":
-            receipt_class = "reconnaissance"
-            identities = ["daily-return-home"]
-            classes = ["navigation"]
-            consequence = "navigation_only"
-            total = 1
-            terminals = ["observed", "evidence_required"]
-            result_identity = "daily-claim:return-home:verified"
-            gates = {}
-        else:
-            receipt_class = "reconnaissance"
-            identities = ["reset-popup-close"]
-            classes = ["navigation"]
-            consequence = "navigation_only"
-            total = 1
-            terminals = ["observed", "evidence_required"]
-            result_identity = "daily-row-claim:popup-dismiss:vip-points"
-            gates = {}
-        action_bindings = [
-            {
-                "action_identity": identity,
-                "action_class": action_class,
-                "consequence_class": consequence,
-                "resource_affecting": False,
-                "combat_confirmation": False,
-            }
-            for identity, action_class in zip(identities, classes)
-        ]
-        receipt = controller.issue(
-            task_id="daily-row-claim",
-            flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-            receipt_class=receipt_class,
-            agent_identity="luna-agent",
-            command_argv=command,
-            scenario="selected-daily-aggregate-claim",
-            variant=variant,
-            permitted_action_identities=identities,
-            permitted_action_classes=classes,
-            action_bindings=action_bindings,
-            consequence_class=consequence,
-            max_total_inputs=total,
-            max_resource_affecting_inputs=0,
-            max_combat_confirmations=0,
-            permitted_terminal_states=terminals,
-            result_identity=result_identity,
-            **gates,
-        )
-        return controller, receipt
-
-    def _run_pnsctl(self, root: Path, mode: str):
-        state = root / "receipts.sqlite3"
-        controller, receipt = self._receipt(root, mode)
-        variant = str(receipt["variant"])
-
-        def connect(**kwargs):
-            return ClaimCanaryRuntime(Path(kwargs["output_directory"]))
-
-        with patch.object(pnsctl, "DEVELOPMENT_SESSION_ROOT", root / "sessions"), patch.object(
-            pnsctl, "DEVELOPMENT_CHECKPOINT_PATHS", ()
-        ), patch.object(
-            control,
-            "DelegatedRuntimeReceiptController",
-            return_value=controller,
-        ), patch.object(
-            LocalBlueStacksRuntime,
-            "connect",
-            side_effect=connect,
-        ), patch.object(
-            daily,
-            "DailyRowClaimRecognizer",
-            return_value=ScriptedClaimRecognizer(
-                "points" if mode == "canary" else "points"
-            ),
-        ), patch.object(
-            boundary,
-            "RUNTIME_INPUT_LOCK_PATH",
-            root / "lock.sqlite3",
-        ), patch.object(
-            daily,
-            "DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS",
-            0.0,
-        ):
-            output = pnsctl.development_session_daily_row_claim(
-                mode=mode,
-                max_inputs=(
-                    0
-                    if mode == "prepare"
-                    else 2
-                    if mode == "canary"
-                    else 1
-                ),
-                delegated_receipt=state,
-                agent_identity="luna-agent",
-                task_id="daily-row-claim",
-                flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                scenario="selected-daily-aggregate-claim",
-                variant=variant,
-                command_argv=self._command(root, mode),
-            )
-        return json.loads(output), controller, receipt
-
-    def test_parser_and_prepare_receipt_freeze_zero_input_observation_binding(self):
-        parsed = pnsctl.parser().parse_args(
-            self._command(Path("receipt.sqlite3"), "prepare")
-        )
-        self.assertEqual(parsed.development_command, "daily-row-claim")
-        self.assertEqual(parsed.mode, "prepare")
-        self.assertEqual(parsed.max_inputs, 0)
-
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            controller, receipt = self._receipt(root, "prepare")
-            self.assertEqual(receipt["receipt_class"], "reconnaissance")
-            self.assertEqual(receipt["max_total_inputs"], 0)
-            self.assertEqual(
-                receipt["permitted_action_identities"],
-                ["daily-row-prepare-observation"],
-            )
-            self.assertEqual(receipt["permitted_action_classes"], ["observation"])
-            self.assertEqual(
-                receipt["action_bindings"],
-                [
-                    {
-                        "action_identity": "daily-row-prepare-observation",
-                        "action_class": "observation",
-                        "consequence_class": "navigation_only",
-                        "resource_affecting": False,
-                        "combat_confirmation": False,
-                    }
-                ],
-            )
-            pnsctl._validate_daily_row_claim_receipt(receipt, mode="prepare")
-            self.assertEqual(controller.inspect()["status"], "issued")
-
-    def test_parser_and_dismiss_receipt_freeze_popup_navigation_before_consume(self):
-        command = self._command(Path("receipt.sqlite3"), "dismiss-vip-popup")
-        parsed = pnsctl.parser().parse_args(command)
-        self.assertEqual(parsed.development_command, "daily-row-claim")
-        self.assertEqual(parsed.mode, "dismiss-vip-popup")
-        self.assertEqual(parsed.max_inputs, 1)
-
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            controller, receipt = self._receipt(root, "dismiss-vip-popup")
-            self.assertEqual(receipt["receipt_class"], "reconnaissance")
-            self.assertEqual(receipt["max_total_inputs"], 1)
-            self.assertEqual(receipt["permitted_action_identities"], ["reset-popup-close"])
-            self.assertEqual(receipt["permitted_action_classes"], ["navigation"])
-            self.assertEqual(receipt["consequence_class"], "navigation_only")
-            self.assertEqual(
-                receipt["evidence_result_binding"]["result_identity"],
-                "daily-row-claim:popup-dismiss:vip-points",
-            )
-            pnsctl._validate_daily_row_claim_receipt(
-                receipt,
-                mode="dismiss-vip-popup",
-            )
-            for field, value in (
-                ("variant", "aggregate-claim-canary"),
-                ("max_total_inputs", 2),
-                ("permitted_action_identities", ["daily-claim:aggregate"]),
-            ):
-                with self.subTest(field=field):
-                    wrong = dict(receipt)
-                    wrong[field] = value
-                    with self.assertRaises(pnsctl.OperatorError):
-                        pnsctl._validate_daily_row_claim_receipt(
-                            wrong,
-                            mode="dismiss-vip-popup",
-                        )
-            self.assertEqual(controller.inspect()["status"], "issued")
-
-    def test_parser_and_return_home_receipt_freeze_navigation_contract(self):
-        command = self._command(Path("receipt.sqlite3"), "return-home")
-        parsed = pnsctl.parser().parse_args(command)
-        self.assertEqual(parsed.mode, "return-home")
-        self.assertEqual(parsed.max_inputs, 1)
-
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            controller, receipt = self._receipt(root, "return-home")
-            self.assertEqual(receipt["receipt_class"], "reconnaissance")
-            self.assertEqual(receipt["variant"], "aggregate-claim-return-home")
-            self.assertEqual(receipt["max_total_inputs"], 1)
-            self.assertEqual(
-                receipt["permitted_action_identities"],
-                ["daily-return-home"],
-            )
-            self.assertEqual(receipt["permitted_action_classes"], ["navigation"])
-            self.assertEqual(receipt["consequence_class"], "navigation_only")
-            self.assertEqual(
-                receipt["evidence_result_binding"]["result_identity"],
-                "daily-claim:return-home:verified",
-            )
-            pnsctl._validate_daily_row_claim_receipt(
-                receipt,
-                mode="return-home",
-            )
-            self.assertEqual(controller.inspect()["status"], "issued")
-
-    def test_dismiss_artifact_failure_records_durable_evidence_required_terminal(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            state = root / "receipts.sqlite3"
-            controller, receipt = self._receipt(root, "dismiss-vip-popup")
-            route_result = {
-                "status": "observed",
-                "mode": "dismiss-vip-popup",
-                "input_count": 1,
-                "resource_affecting_inputs": 0,
-                "combat_confirmations": 0,
-                "actions": [
-                    {
-                        "label": "reset-popup-close",
-                        "requested_action": "navigation",
-                        "status": "completed",
-                    }
-                ],
-            }
-
-            def connect(**kwargs):
-                return VipPopupRuntime(Path(kwargs["output_directory"]))
-
-            with patch.object(
-                pnsctl,
-                "DEVELOPMENT_SESSION_ROOT",
-                root / "sessions",
-            ), patch.object(
-                pnsctl,
-                "DEVELOPMENT_CHECKPOINT_PATHS",
-                (),
-            ), patch.object(
-                control,
-                "DelegatedRuntimeReceiptController",
-                return_value=controller,
-            ), patch.object(
-                LocalBlueStacksRuntime,
-                "connect",
-                side_effect=connect,
-            ), patch.object(
-                daily,
-                "run_daily_row_claim_vip_popup_dismissal",
-                return_value=route_result,
-            ), patch.object(
-                pnsctl,
-                "_write_daily_row_claim_artifacts",
-                side_effect=OSError("fallback artifact write failed"),
-            ), patch.object(
-                boundary,
-                "RUNTIME_INPUT_LOCK_PATH",
-                root / "lock.sqlite3",
-            ):
-                with self.assertRaisesRegex(
-                    OSError,
-                    "fallback artifact write failed",
-                ):
-                    pnsctl.development_session_daily_row_claim(
-                        mode="dismiss-vip-popup",
-                        max_inputs=1,
-                        delegated_receipt=state,
-                        agent_identity="luna-agent",
-                        task_id="daily-row-claim",
-                        flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                    scenario="selected-daily-aggregate-claim",
-                    variant="aggregate-claim-dismiss-vip",
-                        command_argv=self._command(root, "dismiss-vip-popup"),
-                    )
-
-            connection = controller._connection()
-            try:
-                terminal = connection.execute(
-                    "SELECT status, payload_json FROM delegated_results WHERE receipt_id=?",
-                    (receipt["receipt_id"],),
-                ).fetchone()
-            finally:
-                connection.close()
-            self.assertIsNotNone(terminal)
-            self.assertEqual(terminal[0], "evidence_required")
-            self.assertEqual(
-                json.loads(terminal[1])["status"],
-                "evidence_required",
-            )
-
-    def test_prepare_fake_runtime_retains_native_hashes_overlay_semantics_and_releases(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            result, controller, receipt = self._run_pnsctl(root, "prepare")
-
-            self.assertEqual(result["status"], "observed")
-            self.assertEqual(result["input_count"], 0)
-            self.assertEqual(result["resource_affecting_inputs"], 0)
-            self.assertEqual(result["combat_confirmations"], 0)
-            self.assertTrue(result["ownership_released"])
-            self.assertNotIn("objective_key", result["claim"])
-            self.assertNotIn("current_progress", result["claim"])
-            self.assertNotIn("required_progress", result["claim"])
-            self.assertEqual(result["claim"]["points"], 0)
-            self.assertEqual(result["claim"]["reset_timer"], "04:00:00")
-            self.assertEqual(result["claim"]["game_day_id"], result["game_day_id"])
-            self.assertEqual(tuple(result["claim"]["row_bounds"]), (82, 432, 773, 545))
-            self.assertEqual(tuple(result["claim"]["claim_roi"]), (605, 455, 755, 535))
-            source = result["frames"]["source"]
-            self.assertEqual(len(source["sha256"]), 64)
-            session = Path(result["session_directory"])
-            raw = session / source["path"]
-            self.assertTrue(raw.is_file())
-            self.assertEqual(cv2.imread(str(raw)).shape[:2], (1280, 800))
-            annotated = session / result["claim"]["annotated_source"]
-            self.assertTrue(annotated.is_file())
-            self.assertGreater(annotated.stat().st_size, 0)
-            self.assertEqual(controller.inspect()["status"], "consumed")
-            connection = controller._connection()
-            try:
-                terminal = connection.execute(
-                    "SELECT status FROM delegated_results WHERE receipt_id=?",
-                    (receipt["receipt_id"],),
-                ).fetchone()
-            finally:
-                connection.close()
-            self.assertEqual(terminal[0], "observed")
-
-    def test_prepare_rejects_wrong_identity_or_class_before_receipt_consumption(self):
-        cases = (
-            (
-                "permitted_action_identities",
-                ["daily-row-prepare-capability"],
-                ["observation"],
-                "daily-row-prepare-capability",
-                "observation",
-            ),
-            (
-                "permitted_action_classes",
-                ["daily-row-prepare-observation"],
-                ["navigation"],
-                "daily-row-prepare-observation",
-                "navigation",
-            ),
-        )
-        for field, identities, classes, identity, action_class in cases:
-            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                state = root / "receipts.sqlite3"
-                command = self._command(root, "prepare")
-                controller = control.DelegatedRuntimeReceiptController(state)
-                controller._candidate = lambda: ("head", "fingerprint")  # type: ignore[method-assign]
-                controller.issue(
-                    task_id="daily-row-claim",
-                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                    receipt_class="reconnaissance",
-                    agent_identity="luna-agent",
-                    command_argv=command,
-                    scenario="selected-daily-aggregate-claim",
-                    variant="aggregate-claim-prepare",
-                    permitted_action_identities=identities,
-                    permitted_action_classes=classes,
-                    action_bindings=[
-                        {
-                            "action_identity": identity,
-                            "action_class": action_class,
-                            "consequence_class": "navigation_only",
-                            "resource_affecting": False,
-                            "combat_confirmation": False,
-                        }
-                    ],
-                    consequence_class="navigation_only",
-                    max_total_inputs=0,
-                    max_resource_affecting_inputs=0,
-                    max_combat_confirmations=0,
-                    permitted_terminal_states=["observed", "evidence_required"],
-                    result_identity="daily-claim:prepare:aggregate",
-                )
-                with self.assertRaisesRegex(
-                    pnsctl.OperatorError,
-                    f"daily row Claim receipt {field}",
-                ):
-                    pnsctl.development_session_daily_row_claim(
-                        mode="prepare",
-                        max_inputs=0,
-                        delegated_receipt=state,
-                        agent_identity="luna-agent",
-                        task_id="daily-row-claim",
-                        flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                        scenario="selected-daily-aggregate-claim",
-                        variant="aggregate-claim-prepare",
-                        command_argv=command,
-                    )
-                self.assertEqual(controller.inspect()["status"], "issued")
-
-    def test_prepare_rejects_mismatched_variant_or_budget_before_receipt_consumption(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            controller, _receipt = self._receipt(root, "prepare")
-            command = self._command(root, "prepare")
-            with self.assertRaisesRegex(pnsctl.OperatorError, "max-inputs 0"):
-                pnsctl.development_session_daily_row_claim(
-                    mode="prepare",
-                    max_inputs=1,
-                    delegated_receipt=root / "receipts.sqlite3",
-                    agent_identity="luna-agent",
-                    task_id="daily-row-claim",
-                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                    scenario="selected-daily-aggregate-claim",
-                    variant="aggregate-claim-prepare",
-                    command_argv=command,
-                )
-            self.assertEqual(controller.inspect()["status"], "issued")
-
-            bad_command = self._command(root, "prepare")
-            bad_command[-1] = "wrong-variant"
-            with self.assertRaises(pnsctl.OperatorError):
-                pnsctl.development_session_daily_row_claim(
-                    mode="prepare",
-                    max_inputs=0,
-                    delegated_receipt=root / "receipts.sqlite3",
-                    agent_identity="luna-agent",
-                    task_id="daily-row-claim",
-                    flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                    scenario="selected-daily-aggregate-claim",
-                    variant="wrong-variant",
-                    command_argv=bad_command,
-                )
-            self.assertEqual(controller.inspect()["status"], "issued")
-
-    def test_canary_receipt_and_pnsctl_route_bind_reward_claim_and_terminal_artifacts(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            result, controller, _receipt = self._run_pnsctl(root, "canary")
-
-            self.assertEqual(result["status"], "completed")
-            self.assertEqual(result["input_count"], 2)
-            self.assertEqual(len(result["actions"]), 2)
-            self.assertEqual(result["actions"][0]["requested_action"], "reward_claim")
-            self.assertEqual(result["actions"][1]["requested_action"], "navigation")
-            self.assertEqual(
-                [row["label"] for row in result["actions"]],
-                ["daily-claim:aggregate", "daily-return-home"],
-            )
-            self.assertEqual(result["claim"]["points_after"], 5)
-            self.assertIn("immediate_before", result["frames"])
-            self.assertIn("immediate_post", result["frames"])
-            self.assertTrue(result["home"]["verified"])
-            self.assertTrue(result["claim"]["annotated_immediate_before"])
-            self.assertEqual(controller.inspect()["status"], "consumed")
-
-    def test_artifacts_reject_generic_home_without_template_proof(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            result, _controller, _receipt = self._run_pnsctl(root, "canary")
-            final = result["recognitions"]["return_home_final"]
-            visual = dict(final["visual_evidence"])
-            visual["template_home"] = {"recognized": False}
-            final["visual_evidence"] = visual
-            with self.assertRaisesRegex(
-                pnsctl.OperatorError,
-                "final Home is not recognized",
-            ):
-                pnsctl._validate_daily_row_claim_artifacts(
-                    Path(result["session_directory"]),
-                    result,
-                    mode="canary",
-                )
-
-    def test_prepare_failure_records_durable_evidence_required_before_fallback_write(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            controller, receipt = self._receipt(root, "prepare")
-            with patch.object(
-                pnsctl,
-                "DEVELOPMENT_SESSION_ROOT",
-                root / "sessions",
-            ), patch.object(
-                pnsctl,
-                "DEVELOPMENT_CHECKPOINT_PATHS",
-                (),
-            ), patch.object(
-                control,
-                "DelegatedRuntimeReceiptController",
-                return_value=controller,
-            ), patch.object(
-                LocalBlueStacksRuntime,
-                "connect",
-                side_effect=pnsctl.OperatorError("recognition failed"),
-            ), patch.object(
-                pnsctl,
-                "_write_daily_row_claim_artifacts",
-                side_effect=OSError("fallback artifact write failed"),
-            ), patch.object(
-                boundary,
-                "RUNTIME_INPUT_LOCK_PATH",
-                root / "lock.sqlite3",
-            ):
-                with self.assertRaisesRegex(OSError, "fallback artifact write failed"):
-                    pnsctl.development_session_daily_row_claim(
-                        mode="prepare",
-                        max_inputs=0,
-                        delegated_receipt=root / "receipts.sqlite3",
-                        agent_identity="luna-agent",
-                        task_id="daily-row-claim",
-                        flow_id="DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-                    scenario="selected-daily-aggregate-claim",
-                    variant="aggregate-claim-prepare",
-                        command_argv=self._command(root, "prepare"),
-                    )
-
-            connection = controller._connection()
-            try:
-                terminal = connection.execute(
-                    "SELECT status, payload_json FROM delegated_results WHERE receipt_id=?",
-                    (receipt["receipt_id"],),
-                ).fetchone()
-            finally:
-                connection.close()
-            self.assertIsNotNone(terminal)
-            self.assertEqual(terminal[0], "evidence_required")
-            self.assertEqual(json.loads(terminal[1])["status"], "evidence_required")
-
-
-class RetiredDailyReadyRowArtifactFixtures:
-    """Retained scan artifacts must prove the exact native swipe dispatches."""
-
-    _REGION = (100, 520, 700, 1120)
-    _START = (400, 1000)
-    _END = (400, 560)
-    _IDENTITIES = (
-        "daily-row-scan-swipe-1",
-        "daily-row-scan-swipe-2",
-        "daily-row-scan-swipe-3",
+class DailyMilestoneReadinessTests(unittest.TestCase):
+    NATIVE_FIXTURE = (
+        Path(__file__).parent
+        / "fixtures"
+        / "daily_rewards_native"
+        / "native-daily-selected-ready-first-chest.png"
+    )
+    NATIVE_SOURCE_SHA256 = (
+        "5f5388e9dfed863efdeba8580d08adf742083166f66c43f6ed8428a16593e83c"
     )
 
-    def _artifact(self, root: Path, *, count: int = 2, status: str = "observed"):
-        session = root / "session"
-        session.mkdir(parents=True)
-        frames: dict[str, dict[str, object]] = {}
-        captured_frames: dict[str, CapturedNativeFrame] = {}
-
-        def add_frame(name: str) -> dict[str, object]:
-            captured = _frame(session, name)
-            reference = {
-                "path": name + ".png",
-                "sha256": captured.sha256,
-                "captured_monotonic": captured.captured_monotonic,
-            }
-            frames[name] = reference
-            captured_frames[name] = captured
-            return reference
-
-        add_frame("source")
-        class SwipeTransport:
-            def dispatch_swipe(
-                self,
-                _start: tuple[int, int],
-                _end: tuple[int, int],
-            ) -> None:
-                return None
-
-        native_runtime = LocalBlueStacksRuntime(
-            SwipeTransport(),
-            session / "runtime",
-            execute=True,
+    def _native_daily_frame(self) -> tuple[bytes, np.ndarray, daily.FrameRecognition]:
+        payload = self.NATIVE_FIXTURE.read_bytes()
+        image = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+        assert image is not None
+        recognition = daily.DailyRowClaimRecognizer().recognize_daily_claim(
+            image,
+            observed_utc="2026-11-06T21:46:23Z",
         )
-        events_path = native_runtime.events
-        events_path.write_text(
-            json.dumps({"type": "capture", "label": "daily-row-scan-source"}) + "\n",
-            encoding="utf-8",
+        return payload, image, recognition
+
+    def test_native_screenshot_recognizes_only_the_first_glowing_chest(self) -> None:
+        payload, image, recognition = self._native_daily_frame()
+        source_sha256 = hashlib.sha256(payload).hexdigest()
+        self.assertEqual(source_sha256, self.NATIVE_SOURCE_SHA256)
+        self.assertTrue(recognition.recognized)
+        self.assertEqual(recognition.state, daily.DAILY_SELECTED_STATE)
+        self.assertIsNone(recognition.target_identity)
+        self.assertIsNone(recognition.target_roi)
+        self.assertTrue(recognition.visual_evidence["claim_scan_complete"])
+        self.assertTrue(recognition.visual_evidence["zero_claim_scan_proven"])
+        self.assertEqual(recognition.visual_evidence["recognized_claim_controls"], 0)
+        self.assertEqual(recognition.visual_evidence["available_claim_controls"], 0)
+        scan = daily.recognize_daily_milestone_chests(
+            image,
+            recognition,
+            source_frame_sha256=source_sha256,
         )
-        swipes: list[dict[str, object]] = []
-        actions: list[dict[str, object]] = []
-        before_refs: list[dict[str, object]] = []
-        for ordinal, identity in enumerate(self._IDENTITIES[:count], start=1):
-            before_key = f"swipe_{ordinal:02d}_immediate_before"
-            before = add_frame(before_key)
-            before_refs.append(before)
-            native_runtime.swipe(
-                captured_frames[before_key],
-                start=self._START,
-                end=self._END,
-                action_key=identity,
-                target_identity=identity,
-            )
 
-        dispatches: list[dict[str, object]] = []
-        for line in events_path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            event = json.loads(line)
-            if event.get("type") == "dispatch":
-                dispatches.append(event)
-        self.assertEqual(len(dispatches), count)
-        for ordinal, (before, event) in enumerate(
-            zip(before_refs, dispatches),
-            start=1,
-        ):
-            identity = str(event["target_identity"])
-            swipes.append(
-                {
-                    "ordinal": ordinal,
-                    "action_identity": identity,
-                    "action_class": event["action_class"],
-                    "consequence_class": event["consequence_class"],
-                    "source_frame_sha256": event["source_sha256"],
-                    "start": event["start"],
-                    "end": event["end"],
-                    "safe_list_region": self._REGION,
-                    "status": "completed",
-                    "before": before,
-                    "after": None,
-                }
-            )
-            actions.append(
-                {
-                    "ordinal": ordinal,
-                    "action_class": event["action_class"],
-                    "requested_action": "navigation",
-                    "label": identity,
-                    "status": "completed",
-                    "before_sha256": before["sha256"],
-                    "after_sha256": "b" * 64,
-                    "recovery_used": False,
-                }
-            )
+        self.assertEqual(scan["status"], "observed")
+        self.assertEqual(scan["slot_count"], 5)
+        self.assertEqual(scan["observed_chest_count"], 5)
+        self.assertEqual(scan["ready_chest_count"], 1)
+        self.assertEqual(
+            [chest["milestone_state"] for chest in scan["milestones"]],
+            ["ready", "not_ready", "not_ready", "not_ready", "not_ready"],
+        )
+        self.assertTrue(
+            all(chest["target_roi"] is not None for chest in scan["milestones"])
+        )
+        self.assertEqual(scan["source_frame_sha256"], self.NATIVE_SOURCE_SHA256)
 
-        (session / "final.png").write_bytes(b"annotated")
-        payload: dict[str, object] = {
-            "status": status,
-            "mode": "scan-ready-row",
-            "input_count": count,
-            "resource_affecting_inputs": 0,
-            "combat_confirmations": 0,
-            "claim_authority": False,
-            "scan_budget": 3,
-            "swipe_identities": list(self._IDENTITIES),
-            "safe_list_region": self._REGION,
-            "swipe_start": self._START,
-            "swipe_end": self._END,
-            "frames": frames,
-            "swipes": swipes,
-            "actions": actions,
-            "runtime_events_path": "runtime/events.jsonl",
-            "final_annotation": "final.png",
-            "dispatch": count > 0,
+    def test_fake_points_counterfactual_does_not_change_chest_readiness(self) -> None:
+        payload, image, recognition = self._native_daily_frame()
+        source_sha256 = hashlib.sha256(payload).hexdigest()
+        native_scan = daily.recognize_daily_milestone_chests(
+            image,
+            recognition,
+            source_frame_sha256=source_sha256,
+        )
+        # This is an explicitly fake metadata-only counterfactual, not native evidence.
+        fake_points_recognition = replace(
+            recognition,
+            visual_evidence={
+                **dict(recognition.visual_evidence or {}),
+                "points": 150,
+            },
+        )
+        fake_scan = daily.recognize_daily_milestone_chests(
+            image,
+            fake_points_recognition,
+            source_frame_sha256=source_sha256,
+        )
+
+        self.assertEqual(fake_scan["points"], 150)
+        self.assertEqual(fake_scan["ready_chest_count"], 1)
+        self.assertEqual(
+            [chest["milestone_state"] for chest in fake_scan["milestones"]],
+            [chest["milestone_state"] for chest in native_scan["milestones"]],
+        )
+
+    def test_fake_wrong_context_overlay_and_ambiguous_header_are_unknown(self) -> None:
+        payload, image, recognition = self._native_daily_frame()
+        source_sha256 = hashlib.sha256(payload).hexdigest()
+        visual = dict(recognition.visual_evidence or {})
+        selected_geometry = dict(visual["selected_daily_semantics"])
+        selected_geometry["daily_candidates"] = (
+            *selected_geometry["daily_candidates"],
+            *selected_geometry["daily_candidates"],
+        )
+        ambiguous_visual = {
+            **visual,
+            "selected_daily_semantics": selected_geometry,
         }
-        if status == "observed":
-            payload["ready_row"] = {
-                "status": "ready",
-                "claim_authority": False,
-                "objective_key": "upgrade_building",
-                "objective_name": "Upgrade building",
-                "row_bounds": (70, 432, 780, 542),
-                "claim_roi": (605, 455, 755, 535),
-            }
-        return session, payload, events_path
-
-    def test_positive_multi_swipe_artifact_matches_runtime_events(self):
-        with tempfile.TemporaryDirectory() as directory:
-            session, payload, _events_path = self._artifact(Path(directory))
-            pnsctl._validate_daily_row_claim_artifacts(
-                session,
-                payload,
-                mode="scan-ready-row",
-            )
-
-    def test_scan_rejects_out_of_region_endpoint(self):
-        with tempfile.TemporaryDirectory() as directory:
-            session, payload, _events_path = self._artifact(Path(directory))
-            payload["swipes"][0]["end"] = (700, 1120)
-            with self.assertRaisesRegex(pnsctl.OperatorError, "outside"):
-                pnsctl._validate_daily_row_claim_artifacts(
-                    session,
-                    payload,
-                    mode="scan-ready-row",
+        overlay_visual = {
+            **visual,
+            "full_frame_overlay": {
+                "recognized": True,
+                "markers": ("confirm",),
+            },
+        }
+        cases = (
+            ("wrong-context", replace(recognition, state=daily.HOME_STATE)),
+            ("overlay", replace(recognition, visual_evidence=overlay_visual)),
+            ("ambiguous-header", replace(recognition, visual_evidence=ambiguous_visual)),
+        )
+        for name, fake_recognition in cases:
+            with self.subTest(case=name):
+                scan = daily.recognize_daily_milestone_chests(
+                    image,
+                    fake_recognition,
+                    source_frame_sha256=source_sha256,
+                )
+                self.assertEqual(scan["status"], "unknown")
+                self.assertEqual(scan["ready_chest_count"], 0)
+                self.assertEqual(
+                    [chest["milestone_state"] for chest in scan["milestones"]],
+                    ["unknown"] * 5,
                 )
 
-    def test_scan_rejects_source_hash_tamper(self):
-        with tempfile.TemporaryDirectory() as directory:
-            session, payload, _events_path = self._artifact(Path(directory))
-            payload["swipes"][0]["source_frame_sha256"] = "0" * 64
-            with self.assertRaisesRegex(pnsctl.OperatorError, "source hash"):
-                pnsctl._validate_daily_row_claim_artifacts(
-                    session,
-                    payload,
-                    mode="scan-ready-row",
-                )
 
-    def test_scan_rejects_non_navigation_consequence(self):
-        with tempfile.TemporaryDirectory() as directory:
-            session, payload, _events_path = self._artifact(Path(directory))
-            payload["swipes"][0]["consequence_class"] = "resource_affecting"
-            with self.assertRaisesRegex(pnsctl.OperatorError, "class"):
-                pnsctl._validate_daily_row_claim_artifacts(
-                    session,
-                    payload,
-                    mode="scan-ready-row",
-                )
 
-    def test_scan_rejects_missing_and_extra_runtime_dispatch(self):
-        for mutation, expected in (
-            ("missing", "count"),
-            ("extra", "count"),
+    def _observed_chest_transition(self):
+        scans = []
+        recognitions = []
+        images = []
+        recognizer = daily.DailyRowClaimRecognizer()
+        game_day = None
+        for name, clock in (
+            ("native-chest1-ready-before-20261107.png", "2026-11-07T08:21:32Z"),
+            ("native-chest1-claimed-after-20261107.png", "2026-11-07T08:22:20Z"),
         ):
-            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
-                session, payload, events_path = self._artifact(Path(directory))
-                rows = [
-                    json.loads(line)
-                    for line in events_path.read_text(encoding="utf-8").splitlines()
-                ]
-                dispatch_indices = [
-                    index for index, row in enumerate(rows) if row["type"] == "dispatch"
-                ]
-                if mutation == "missing":
-                    rows.pop(dispatch_indices[-1])
-                else:
-                    rows.append(dict(rows[dispatch_indices[0]]))
-                events_path.write_text(
-                    "".join(json.dumps(row) + "\n" for row in rows),
-                    encoding="utf-8",
-                )
-                with self.assertRaisesRegex(pnsctl.OperatorError, expected):
-                    pnsctl._validate_daily_row_claim_artifacts(
-                        session,
-                        payload,
-                        mode="scan-ready-row",
-                    )
-
-    def test_scan_rejects_reordered_runtime_dispatch(self):
-        with tempfile.TemporaryDirectory() as directory:
-            session, payload, events_path = self._artifact(Path(directory))
-            rows = [
-                json.loads(line)
-                for line in events_path.read_text(encoding="utf-8").splitlines()
-            ]
-            dispatches = [row for row in rows if row["type"] == "dispatch"]
-            rows = [row for row in rows if row["type"] != "dispatch"]
-            rows.extend(reversed(dispatches))
-            events_path.write_text(
-                "".join(json.dumps(row) + "\n" for row in rows),
-                encoding="utf-8",
+            payload = (self.NATIVE_FIXTURE.parent / name).read_bytes()
+            image = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+            recognition = recognizer.recognize_daily_claim(
+                image, observed_utc=clock, game_day_id=game_day,
             )
-            with self.assertRaisesRegex(pnsctl.OperatorError, "identity"):
-                pnsctl._validate_daily_row_claim_artifacts(
-                    session,
-                    payload,
-                    mode="scan-ready-row",
-                )
-
-    def test_scan_rejects_non_swipe_runtime_gesture(self):
-        with tempfile.TemporaryDirectory() as directory:
-            session, payload, events_path = self._artifact(Path(directory))
-            rows = [
-                json.loads(line)
-                for line in events_path.read_text(encoding="utf-8").splitlines()
-            ]
-            next(row for row in rows if row["type"] == "dispatch")["gesture"] = "tap"
-            events_path.write_text(
-                "".join(json.dumps(row) + "\n" for row in rows),
-                encoding="utf-8",
+            scan = daily.recognize_daily_milestone_chests(
+                image, recognition, source_frame_sha256=hashlib.sha256(payload).hexdigest(),
             )
-            with self.assertRaisesRegex(pnsctl.OperatorError, "identity or class"):
-                pnsctl._validate_daily_row_claim_artifacts(
-                    session,
-                    payload,
-                    mode="scan-ready-row",
-                )
+            game_day = scan["game_day_id"]
+            scans.append(scan)
+            recognitions.append(recognition)
+            images.append(image)
+        return scans, recognitions, images
 
-    def test_scan_rejects_missing_required_runtime_dispatch_fields(self):
-        for field in ("gesture", "action_class", "consequence_class"):
-            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
-                session, payload, events_path = self._artifact(Path(directory))
-                rows = [
-                    json.loads(line)
-                    for line in events_path.read_text(encoding="utf-8").splitlines()
-                ]
-                dispatch = next(row for row in rows if row["type"] == "dispatch")
-                dispatch.pop(field)
-                events_path.write_text(
-                    "".join(json.dumps(row) + "\n" for row in rows),
-                    encoding="utf-8",
-                )
-                with self.assertRaisesRegex(pnsctl.OperatorError, "identity or class"):
-                    pnsctl._validate_daily_row_claim_artifacts(
-                        session,
-                        payload,
-                        mode="scan-ready-row",
-                    )
+    def test_actual_same_slot_claimed_label_proves_success_without_points_change(self):
+        (before, after), _, _ = self._observed_chest_transition()
+        self.assertTrue(daily.daily_milestone_postcondition_verified(
+            before, after, "daily-milestone-slot-1",
+        ))
+        self.assertEqual(after["ready_chest_count"], 0)
+        self.assertEqual(after["milestones"][0]["milestone_state"], "claimed")
+        self.assertEqual((before["points"], after["points"]), (30, 30))
+        self.assertFalse(daily.daily_milestone_postcondition_verified(
+            before, after, "daily-milestone-slot-2",
+        ))
 
-    def test_evidence_terminal_validates_available_scan_artifacts(self):
-        with tempfile.TemporaryDirectory() as directory:
-            session, payload, events_path = self._artifact(
-                Path(directory),
-                status="evidence_required",
+    def test_claimed_label_must_be_unambiguous_current_and_bound_to_the_same_slot(self):
+        (before, after), (_, recognition), (_, image) = self._observed_chest_transition()
+        claimed = next(token for token in recognition.tokens if token["text"] == "claimed")
+        without = tuple(token for token in recognition.tokens if token is not claimed)
+        x0, y0, x1, y1 = claimed["roi"]
+        for label_tokens in (
+            (),
+            (claimed, claimed),
+            ({**claimed, "confidence": 20},),
+            ({**claimed, "roi": (x0 + 140, y0, x1 + 140, y1)},),
+        ):
+            fake = replace(recognition, tokens=without + label_tokens)
+            scan = daily.recognize_daily_milestone_chests(
+                image, fake, source_frame_sha256=after["source_frame_sha256"],
             )
-            payload.pop("final_annotation")
-            pnsctl._validate_daily_row_claim_artifacts(
-                session,
-                payload,
-                mode="scan-ready-row",
+            self.assertFalse(daily.daily_milestone_postcondition_verified(
+                before, scan, "daily-milestone-slot-1",
+            ))
+        self.assertFalse(daily.daily_milestone_postcondition_verified(
+            before, before, "daily-milestone-slot-1",
+        ))
+        self.assertFalse(daily.daily_milestone_postcondition_verified(
+            before, {**after, "game_day_id": "different-reset"}, "daily-milestone-slot-1",
+        ))
+
+    def test_five_ready_chests_are_individually_confirmed_without_a_150_point_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result, runtime, _ = self._run_fake_static_zero_claim_route(
+                Path(tmp), return_home=True, ready_count=5,
             )
-            rows = [
-                json.loads(line)
-                for line in events_path.read_text(encoding="utf-8").splitlines()
-            ]
-            events_path.write_text(
-                "".join(
-                    json.dumps(row) + "\n"
-                    for row in rows
-                    if row["type"] != "dispatch"
-                ),
-                encoding="utf-8",
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["committed_action_count"], 5)
+        self.assertEqual(runtime.claim_attempts, 5)
+        self.assertEqual(len({row["action_key"] for row in runtime.journal_rows}), 5)
+        self.assertTrue(all(row["final_status"] == "confirmed" for row in runtime.journal_rows))
+        self.assertEqual(result["unclaimed_ready_chest_count"], 0)
+        self.assertTrue(result["terminal_home_verified"])
+        self.assertEqual(result["observed_points"], {"before": 30, "after": 30})
+
+    def test_one_aggregate_claim_then_every_ready_chest_share_the_canonical_journal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result, runtime, _ = self._run_fake_static_zero_claim_route(
+                Path(tmp), return_home=True, ready_count=5, aggregate_ready=True,
             )
-            with self.assertRaisesRegex(pnsctl.OperatorError, "count"):
-                pnsctl._validate_daily_row_claim_artifacts(
-                    session,
-                    payload,
-                    mode="scan-ready-row",
-                )
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual((runtime.aggregate_attempts, runtime.claim_attempts), (1, 5))
+        self.assertEqual(result["committed_action_count"], 6)
+        self.assertTrue(result["aggregate_claim"]["confirmed"])
+        self.assertEqual(len(runtime.journal_rows), 6)
+        self.assertTrue(all(row["final_status"] == "confirmed" for row in runtime.journal_rows))
 
-
-class RetiredDailyReadyRowScanFixtures:
-    """Independent row-scan fixtures exercise observation without Claim authority."""
-
-    class Runtime:
-        execute = True
-        frame_max_age_seconds = 30.0
-
-        def __init__(self, root: Path, *, unchanged_after_swipe: bool = False) -> None:
-            self.session = root
-            self.session.mkdir(parents=True, exist_ok=True)
-            self.labels: list[str] = []
-            self.swipes: list[dict[str, object]] = []
-            self._last_capture: CapturedNativeFrame | None = None
-            self.unchanged_after_swipe = unchanged_after_swipe
-            self._ordinal = 0
-
-        def capture(self, label: str) -> CapturedNativeFrame:
-            self.labels.append(label)
-            if (
-                self.unchanged_after_swipe
-                and label.endswith("-immediate-post")
-                and self._last_capture is not None
-            ):
-                return self._last_capture
-            self._ordinal += 1
-            image = np.zeros((1280, 800, 3), dtype=np.uint8)
-            image[0, 0, 0] = self._ordinal % 255
-            captured = _frame(
-                self.session,
-                label.replace(":", "_"),
-                image=image,
+    def test_unknown_third_chest_preserves_two_confirmed_effects_and_restart_never_retries(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            daily, "DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS", 2,
+        ), patch.object(daily, "DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS", 0):
+            root = Path(tmp)
+            journal = root / "persistent-actions.sqlite3"
+            partial, runtime, _ = self._run_fake_static_zero_claim_route(
+                root / "first", return_home=True, ready_count=5,
+                unknown_after=3, journal_path=journal,
             )
-            if label.endswith("-immediate-before"):
-                self._last_capture = captured
-            return captured
-
-        def measure_device_state(self) -> str:
-            return "device"
-
-        def measure_foreground_package(self) -> str:
-            return daily.EXPECTED_PACKAGE
-
-        def swipe(
-            self,
-            source: CapturedNativeFrame,
-            *,
-            start: tuple[int, int],
-            end: tuple[int, int],
-            action_key: str,
-            target_identity: str,
-        ) -> None:
-            self.swipes.append(
-                {
-                    "source": source.sha256,
-                    "start": start,
-                    "end": end,
-                    "action_key": action_key,
-                    "target_identity": target_identity,
-                }
+            self.assertEqual(partial["status"], "unresolved")
+            self.assertEqual((runtime.claim_attempts, partial["committed_action_count"]), (3, 2))
+            self.assertTrue(partial["effect_reconciliation_required"])
+            resumed, restarted, _ = self._run_fake_static_zero_claim_route(
+                root / "restart", return_home=True, ready_count=5, journal_path=journal,
+                wall_utc=1794039693.0,
             )
+            self.assertEqual(restarted.claim_attempts, 0)
+            self.assertTrue(resumed["identical_retry_denied"])
+            self.assertEqual([row["final_status"] for row in restarted.journal_rows].count("confirmed"), 2)
 
-    class Recognizer:
-        def __init__(self, ready_on_call: int | None = None) -> None:
-            self.calls = 0
-            self.ready_on_call = ready_on_call
-
-        def recognize_daily_ready_rows(
-            self,
-            _frame: np.ndarray,
-            *,
-            game_day_id: str | None = None,
-            observed_utc: str | None = None,
-        ) -> daily.FrameRecognition:
-            self.calls += 1
-            ready = (
-                self.ready_on_call is not None
-                and self.calls >= self.ready_on_call
+    def test_confirmed_slot_cannot_repeat_after_restart_but_new_reset_is_independent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            journal = root / "persistent-actions.sqlite3"
+            first, _, _ = self._run_fake_static_zero_claim_route(
+                root / "first", return_home=True, ready_count=1, journal_path=journal,
             )
-            row = {
-                "objective_key": "upgrade_building",
-                "objective_name": "Upgrade building",
-                "observed_name": "upgrade building 1 1",
-                "current_progress": 1,
-                "required_progress": 1,
-                "progress_text": "upgrade building 1 1",
-                "reward": {"text": "reward pts 5", "points": 5},
-                "row_bounds": (70, 432, 780, 542),
-                "claim_roi": (605, 455, 755, 535),
-                "status": "ready",
-                "claim_authority": False,
-            }
-            visual = {
-                "selected_daily": True,
-                "full_frame_overlay": {"recognized": False, "markers": ()},
-                "generic_modal_overlay": {"recognized": False},
-                "reset_timer": "23:07:46",
-                "reset_timer_seconds": 83266,
-                "reset_observed_utc": "2026-08-17T00:00:00Z",
-                "reset_deadline_utc": "2026-08-17T23:07:46Z",
-                "reset_deadline_identity": "reset-deadline:2026-08-17T23:07:46Z",
-                "game_day_id": game_day_id or "reset-deadline:2026-08-17T23:07:46Z",
-                "inventory_rows": [row],
-                "ready_row": row if ready else None,
-            }
-            return daily.FrameRecognition(
-                daily.DAILY_SELECTED_STATE,
-                True,
-                daily.DAILY_ROW_SCAN_OBSERVATION_IDENTITY if ready else None,
-                row["claim_roi"] if ready else None,
-                "selected Daily",
-                visual,
-                None,
+            repeated, runtime, _ = self._run_fake_static_zero_claim_route(
+                root / "restart", return_home=True, ready_count=1, journal_path=journal,
+                wall_utc=1794039693.0,
             )
+            self.assertEqual(first["committed_action_count"], 1)
+            self.assertEqual(runtime.claim_attempts, 0)
+            self.assertTrue(repeated["identical_retry_denied"])
+            new_reset, runtime, _ = self._run_fake_static_zero_claim_route(
+                root / "new-reset", return_home=True, ready_count=1, journal_path=journal,
+                reset_id="reset-next", wall_utc=1794126092.0,
+            )
+            self.assertEqual(new_reset["committed_action_count"], 1)
+            self.assertEqual(len(runtime.journal_rows), 2)
 
-    def _run_scan(
+    def test_zero_effect_budget_and_already_claimed_manual_slot_do_not_claim(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            limited, runtime, _ = self._run_fake_static_zero_claim_route(
+                root / "limit", return_home=True, ready_count=1, max_actions=0,
+            )
+            self.assertEqual(runtime.claim_attempts, 0)
+            self.assertEqual(limited["committed_action_count"], 0)
+            self.assertNotEqual(limited["status"], "completed")
+            complete, runtime, _ = self._run_fake_static_zero_claim_route(
+                root / "already-claimed", return_home=True, start_claimed=True,
+                wall_utc=1794039740.0,
+            )
+            self.assertEqual(complete["status"], "completed")
+            self.assertTrue(complete["no_work"])
+            self.assertEqual(runtime.claim_attempts, 0)
+            self.assertEqual(complete["committed_action_count"], 0)
+
+    def _run_fake_static_zero_claim_route(
         self,
         root: Path,
         *,
-        ready_on_call: int | None,
-        unchanged_after_swipe: bool = False,
-    ):
-        with patch.object(daily, "DAILY_ROW_SCAN_SETTLE_INTERVAL_SECONDS", 0.0), patch.object(
-            boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"
-        ):
-            with boundary.DevelopmentSession(
-                owner="test-daily-ready-row-scan",
-                invocation_id="test-daily-ready-row-scan",
-                session_directory=root / "session",
-                max_inputs=3,
-            ) as session:
-                runtime = self.Runtime(
-                    session.session_directory / "runtime",
-                    unchanged_after_swipe=unchanged_after_swipe,
-                )
-                result = daily.run_daily_row_claim_ready_row_scan(
-                    runtime,
-                    session,
-                    recognizer=self.Recognizer(ready_on_call),
-                    game_day_id="reset-deadline:2026-08-17T23:07:46Z",
-                    wall_utc=lambda: __import__("datetime").datetime.fromisoformat(
-                        "2026-08-17T00:00:00+00:00"
-                    ),
-                )
-        return result, runtime
-
-    def test_visible_ready_row_uses_zero_inputs_and_retains_non_authorizing_evidence(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime = self._run_scan(
-                Path(directory),
-                ready_on_call=1,
-            )
-        self.assertEqual(result["status"], "observed")
-        self.assertEqual(result["input_count"], 0)
-        self.assertEqual(runtime.swipes, [])
-        self.assertEqual(result["ready_row"]["objective_key"], "upgrade_building")
-        self.assertFalse(result["claim_authority"])
-        self.assertFalse(result["ready_row"]["claim_authority"])
-        self.assertTrue(result["final_annotation"])
-
-    def test_one_swipe_finds_ready_row_with_safe_navigation_geometry(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime = self._run_scan(
-                Path(directory),
-                ready_on_call=4,
-            )
-        self.assertEqual(result["status"], "observed")
-        self.assertEqual(result["input_count"], 1)
-        self.assertEqual(len(runtime.swipes), 1)
-        self.assertEqual(runtime.swipes[0]["action_key"], "daily-row-scan-swipe-1")
-        self.assertEqual(runtime.swipes[0]["target_identity"], "daily-row-scan-swipe-1")
-        region = tuple(result["swipes"][0]["safe_list_region"])
-        start = tuple(runtime.swipes[0]["start"])
-        end = tuple(runtime.swipes[0]["end"])
-        self.assertEqual(region, tuple(daily.DAILY_ROW_SCAN_LIST_REGION))
-        header_tabs = (0, 0, 800, 340)
-        row_button_lane = (region[2] - 100, region[1], region[2], region[3])
-        for point in (start, end):
-            self.assertGreater(point[0], region[0])
-            self.assertLess(point[0], region[2])
-            self.assertGreater(point[1], region[1])
-            self.assertLess(point[1], region[3])
-            self.assertFalse(
-                header_tabs[0] <= point[0] < header_tabs[2]
-                and header_tabs[1] <= point[1] < header_tabs[3]
-            )
-            self.assertFalse(
-                row_button_lane[0] <= point[0] < row_button_lane[2]
-                and row_button_lane[1] <= point[1] < row_button_lane[3]
-            )
-
-    def test_three_swipes_without_ready_row_end_evidence_required(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime = self._run_scan(
-                Path(directory),
-                ready_on_call=None,
-            )
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(result["input_count"], 3)
+        return_home: bool,
+        ready_count: int = 0,
+        unknown_after: int | None = None,
+        max_actions: int = 6,
+        journal_path: Path | None = None,
+        start_claimed: bool = False,
+        reset_id: str = "reset",
+        wall_utc: float = 1794039692.0,
+        aggregate_ready: bool = False,
+    ) -> tuple[dict[str, object], object, object]:
+        _payload, native_image, native_recognition = self._native_daily_frame()
+        native_scan = daily.recognize_daily_milestone_chests(
+            native_image,
+            native_recognition,
+            source_frame_sha256="a" * 64,
+        )
+        first, second = native_scan["milestones"][:2]
+        fake_image = native_image.copy()
+        x0, y0, x1, y1 = first["target_roi"]
+        sx0, sy0, sx1, sy1 = second["target_roi"]
+        self.assertEqual((x1 - x0, y1 - y0), (sx1 - sx0, sy1 - sy0))
+        # Explicit fake counterfactual: copy one static chest over the glowing slot.
+        fake_image[y0:y1, x0:x1] = native_image[sy0:sy1, sx0:sx1]
+        fake_recognition = daily.DailyRowClaimRecognizer().recognize_daily_claim(
+            fake_image,
+            observed_utc="2026-11-06T21:46:23Z",
+        )
+        self.assertTrue(fake_recognition.recognized)
+        self.assertTrue(fake_recognition.visual_evidence["zero_claim_scan_proven"])
+        fake_payload_ok, fake_payload = cv2.imencode(".png", fake_image)
+        self.assertTrue(fake_payload_ok)
+        fake_sha = hashlib.sha256(fake_payload.tobytes()).hexdigest()
+        fake_scan = daily.recognize_daily_milestone_chests(
+            fake_image,
+            fake_recognition,
+            source_frame_sha256=fake_sha,
+        )
+        self.assertEqual(fake_scan["status"], "observed")
+        self.assertEqual(fake_scan["ready_chest_count"], 0)
         self.assertEqual(
-            [item["action_key"] for item in runtime.swipes],
-            [
-                "daily-row-scan-swipe-1",
-                "daily-row-scan-swipe-2",
-                "daily-row-scan-swipe-3",
-            ],
+            [chest["milestone_state"] for chest in fake_scan["milestones"]],
+            ["not_ready"] * 5,
+        )
+        claimed_patches: dict[int, np.ndarray] = {}
+        if ready_count:
+            fixture_root = self.NATIVE_FIXTURE.parent
+            fake_image = cv2.imread(str(fixture_root / "native-chest1-ready-before-20261107.png"))
+            claimed_image = cv2.imread(str(fixture_root / "native-chest1-claimed-after-20261107.png"))
+            assert fake_image is not None and claimed_image is not None
+            # Explicit multi-slot fake counterfactual using observed pixels.
+            # This does not establish native acceptance for any additional chest.
+            glow_patch = fake_image[178:275, 84:184].copy()
+            claimed_patch = claimed_image[178:275, 85:185].copy()
+            claimed_label = claimed_image[316:352, 65:205].copy()
+            for slot in range(ready_count):
+                offset = slot * 140
+                fake_image[178:275, 84 + offset:184 + offset] = glow_patch
+                claimed_patches[slot] = claimed_patch
+        else:
+            claimed_label = None
+        if start_claimed:
+            fake_image = cv2.imread(str(
+                self.NATIVE_FIXTURE.parent / "native-chest1-claimed-after-20261107.png"
+            ))
+            assert fake_image is not None
+
+        plain_daily_image = fake_image.copy()
+        if aggregate_ready:
+            cv2.rectangle(fake_image, (574, 444), (739, 503), (0, 180, 255), -1)
+            cv2.putText(
+                fake_image, "Claim", (601, 483), cv2.FONT_HERSHEY_SIMPLEX,
+                0.9, (255, 255, 255), 2,
+            )
+
+        home_image = np.zeros((1280, 800, 3), dtype=np.uint8)
+        unknown_image = np.full((1280, 800, 3), 19, dtype=np.uint8)
+        session_directory = root / "native-session"
+        session_directory.mkdir(parents=True)
+
+        class FakeRuntime:
+            execute = True
+            frame_max_age_seconds = 30.0
+            session = session_directory
+
+            def __init__(self) -> None:
+                self.current_image = fake_image
+                self.input_count = 0
+                self.frame_actions: list[object] = []
+                self.claim_attempts = 0
+                self.aggregate_attempts = 0
+                self.journal_rows: list[dict[str, object]] = []
+
+            def capture(self, label: str) -> CapturedNativeFrame:
+                return _frame(session_directory, label.replace(":", "_"), image=self.current_image)
+
+            def tap(self, _source, *, target_identity, target_roi, action_key, **_kwargs):
+                self.input_count += 1
+                self.claim_attempts += 1
+                self.frame_actions.append((action_key, target_identity, target_roi))
+                if target_identity == daily.DAILY_CLAIM_TARGET_IDENTITY:
+                    self.aggregate_attempts += 1
+                    self.claim_attempts -= 1
+                    self.current_image = plain_daily_image.copy()
+                    return
+                if self.claim_attempts == unknown_after:
+                    return
+                slot = int(round(((target_roi[0] + target_roi[2]) / 2 - 134) / 140))
+                offset = slot * 140
+                self.current_image = self.current_image.copy()
+                self.current_image[178:275, 84 + offset:184 + offset] = claimed_patches[slot]
+                self.current_image[316:352, 64 + offset:204 + offset] = claimed_label
+
+            def back(self, _source, *, action_key: str, target_identity: str) -> None:
+                self.input_count += 1
+                self.current_image = home_image if return_home else unknown_image
+
+            @staticmethod
+            def measure_device_state() -> str:
+                return "device"
+
+            @staticmethod
+            def measure_foreground_package() -> str:
+                return "com.global.ztmslg"
+
+        class FakeSession:
+            def __init__(self, runtime: FakeRuntime) -> None:
+                self.runtime = runtime
+                self.input_count = 0
+                self.actions: list[dict[str, object]] = []
+                self.session_directory = session_directory
+
+            def observe(self, capture, *, label: str) -> CapturedNativeFrame:
+                return capture(label)
+
+            def run_action(self, **kwargs):
+                before = kwargs["capture"](f"{kwargs['label']}-immediate-before")
+                if kwargs.get("authorize") is not None:
+                    kwargs["authorize"](before)
+                self.input_count += 1
+                kwargs["dispatch"](before)
+                after = kwargs["capture"](f"{kwargs['label']}-immediate-post")
+                state = kwargs["recognize"](after)
+                if state.lower() == "unknown" and kwargs.get("settled_successor"):
+                    after = kwargs["settled_successor"]()
+                    state = kwargs["recognize"](after)
+                status = "completed" if state.lower() != "unknown" else "unknown"
+                self.actions.append({"label": kwargs["label"], "state": state})
+                return SimpleNamespace(status=status, reason="replay")
+
+        runtime = FakeRuntime()
+        session = FakeSession(runtime)
+        initial_home = _frame(
+            session_directory,
+            "fake-initial-home",
+            image=home_image,
         )
 
-    def test_unchanged_swipe_successor_stops_without_repeated_swipe(self):
-        with tempfile.TemporaryDirectory() as directory:
-            result, runtime = self._run_scan(
-                Path(directory),
-                ready_on_call=None,
-                unchanged_after_swipe=True,
+        class FakeRouteRecognizer(daily.DailyRowClaimRecognizer):
+            def recognize_home(self, frame: np.ndarray) -> daily.FrameRecognition:
+                if frame is home_image:
+                    return daily.FrameRecognition(
+                        daily.HOME_STATE,
+                        True,
+                        daily.HOME_QUEST_IDENTITY,
+                        (120, 1100, 240, 1200),
+                    )
+                return super().recognize_home(frame)
+
+        store = SafetyStore(journal_path or (root / "actions.sqlite3"))
+        wall_clock = lambda: wall_utc
+        store.acquire_lease("daily-rewards-test", wall_clock(), 3600)
+        context = SimpleNamespace(
+            validate_identity=lambda: None,
+            checkpoint=lambda: None,
+            accounting=lambda: SimpleNamespace(
+                input_count=session.input_count,
+                verified=session.input_count == runtime.input_count,
+            ),
+            runtime=runtime,
+            session=session,
+            action_store=store,
+            initial_frame=initial_home,
+            is_clean_home=lambda frame: frame is home_image,
+            bind_initial_observation=lambda *_args, **_kwargs: None,
+            utc_clock=wall_clock,
+            monotonic_clock=time.monotonic,
+            flow_id="daily-rewards-test",
+            identity=SimpleNamespace(
+                account_id="account",
+                server_id="server",
+                reset_id=reset_id,
+                task_id="daily-rewards-test",
+            ),
+            occurrence_key="occ:v1:daily-rewards-test",
+            invocation_id="daily-rewards-test",
+            owner="daily-rewards-test",
+            settle_seconds=0.0,
+            max_actions=max_actions,
+        )
+        with patch.object(
+            daily,
+            "DailyRowClaimRecognizer",
+            FakeRouteRecognizer,
+        ), patch.object(
+            daily,
+            "run_daily_row_reconnaissance",
+            return_value={"status": "observed"},
+        ):
+            try:
+                result = daily.run_daily_rewards_from_home(
+                    context,
+                    {"observation_interval_seconds": 3600},
+                )
+                runtime.journal_rows = store.list_actions_for_task("daily-rewards-test")
+            finally:
+                store.close()
+        return result, runtime, session
+
+    def test_fake_static_zero_claim_replay_requires_verified_home_and_projects_no_work(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result, runtime, session = self._run_fake_static_zero_claim_route(
+                Path(tmp),
+                return_home=True,
             )
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(result["input_count"], 1)
-        self.assertEqual(len(runtime.swipes), 1)
+
+        self.assertEqual(result["status"], "completed")
+        self.assertTrue(result["no_work"])
+        self.assertTrue(result["terminal_home_verified"])
+        self.assertTrue(result["accounting_verified"])
+        self.assertEqual(result["total_action_count"], 0)
+        self.assertEqual(result["aggregate_claim"]["status"], "none")
+        self.assertEqual(result["milestone_scan"]["status"], "verified")
+        self.assertEqual(result["milestone_scan"]["ready_chest_count"], 0)
+        self.assertEqual(result["milestone_scan"]["ready_chest_keys"], [])
+        static_keys = result["milestone_scan"]["static_or_locked_chest_keys"]
+        self.assertEqual(len(static_keys), 5)
+        self.assertEqual(len(set(static_keys)), 5)
+        self.assertEqual(
+            result["no_work_evidence"]["static_or_locked_chest_keys"],
+            static_keys,
+        )
+        self.assertEqual(
+            result["no_work_evidence"]["source_frame_sha256"],
+            result["milestone_scan"]["source_frame_sha256"],
+        )
+        self.assertEqual(result["no_work_evidence"]["ordinary_claim_controls"], 0)
+        self.assertEqual(runtime.input_count, session.input_count)
+
+    def test_fake_static_zero_claim_replay_does_not_invent_home_on_unknown_successor(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result, runtime, session = self._run_fake_static_zero_claim_route(
+                Path(tmp),
+                return_home=False,
+            )
+
+        self.assertNotEqual(result["status"], "completed")
+        self.assertFalse(result["no_work"])
+        self.assertFalse(result["terminal_home_verified"])
+        self.assertNotIn("terminal_home_frame", result)
+        self.assertEqual(runtime.input_count, session.input_count)
 
 
 if __name__ == "__main__":

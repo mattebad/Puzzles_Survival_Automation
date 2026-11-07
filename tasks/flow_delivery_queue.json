@@ -9,7 +9,8 @@
     "active",
     "blocked",
     "completed",
-    "needs_product_decision"
+    "needs_product_decision",
+    "evidence_required"
   ],
   "stage_vocabulary": [
     "selected",
@@ -73,8 +74,8 @@
         "task_id": "daily-milestone-claim",
         "execution_flow_id": "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
         "queue_record_state": "blocked_evidence_required",
-        "depends_on": [],
-        "blocker": "No current BlueStacks-native ready milestone chest, same-milestone successor, or canonical-Home corpus exists; the retained Bliss/synthetic fixture is diagnostic and non-authorizing."
+        "depends_on": ["daily-row-claim"],
+        "blocker": "Standalone milestone dispatch is not admissible; same-chest claims and their evidence are part of the combined Daily reward route, whose current native same-chest and canonical-Home proof remains evidence_required. Retained Bliss/synthetic fixtures are non-authorizing."
 
       },
       {
@@ -3190,21 +3191,30 @@
     },
     {
       "flow_id": "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-      "title": "Integrate generalized Daily row Claim with BlueStacks",
-      "kind": "maintenance_integration",
+      "title": "Integrate combined Daily aggregate Claim and milestone chest collection with BlueStacks",
+      "kind": "daily_rewards_integration",
       "priority": 70,
-      "status": "completed",
+      "status": "evidence_required",
       "backlog_task_id": "DQ-CLAIM-DAILY",
       "dependencies": [],
       "implementation_entrypoints": [
         "tasks/available_daily_claim.py",
-        "tasks/daily_quest.py",
-        "scripts/bluestacks_native_runtime.py"
+        "tasks/activity_milestones.py",
+        "scripts/daily_row_claim_bluestacks.py",
+        "automation_service/daily_rewards.py",
+        "scripts/pnsctl.py",
+        "tasks/product_authority.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION.json",
+        "tasks/gameplay_flow_contracts/DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION.json",
+        "tests/test_product_authority.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_service_daily_rewards.py"
       ],
-      "navigation_model": "selected_daily_row_local_binding",
+      "navigation_model": "home_to_quest_selected_daily_aggregate_batch_then_each_distinct_ready_milestone_chest_to_home",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "End-to-end aggregate Claim and bounded return to positively verified template Base/Home are proven.",
-      "consequence_policy": "Objective completion never implies Claim readiness; unknown row, target, game day, or successor fails closed.",
+      "live_validation_scope": "One aggregate ordinary Claim at most once for the current ready-batch identity per pass, followed by each individually glowing ready free chest one at a time with an exact same-chest state successor and canonical Home.",
+      "consequence_policy": "No objective-row inventory, per-objective attribution, or 150-point minimum. The exact free aggregate Claim and source-bound clearing of all ordinary Claim controls establish action success; points are optional diagnostics/corroboration only and cannot gate success or grant attribution. Unknown/stale batch, locked/static/projected/ambiguous chest, or points-only chest change fails closed; no identical retry.",
       "product_policy_status": "supervised_consequential_validation",
       "maximum_live_attempts": 1,
       "live_attempt_count": 1,
@@ -3233,49 +3243,64 @@
         "diagnosis": "Positively recognized selected Daily, dispatched exactly one bounded Back, then verified template Home at correlation 0.9613733291625977 with singleton ownership released."
       },
       "focused_tests": [
-        "tests/test_available_daily_claim.py"
+        "tests/test_available_daily_claim.py",
+        "tests/test_activity_milestones.py",
+        "tests/test_daily_row_claim_bluestacks.py",
+        "tests/test_service_daily_rewards.py",
+        "tests/test_product_authority.py",
+        "tests/test_gameplay_flow_contracts.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
         "claim_binding_latency_seconds"
       ],
-      "blocked_reason": "",
-      "next_concrete_action": "Advance to the next individually selected lean portfolio flow; preserve registration and scheduler-disabled state.",
+      "blocked_reason": "The retained receipt proves the former aggregate row Claim path only; current uninterrupted combined-route proof, each same-chest successor, exact total action accounting, and canonical Home remain evidence_required.",
+      "next_concrete_action": "Remain disabled and evidence_required; obtain separately authorized current native combined-route proof without altering retained receipts, and never treat points-only change as a chest claim.",
       "last_completed_stage": "completed",
       "last_commit": "abe21edef0530513faa27f5aa95523a42a0506b9",
       "artifact_root": ".local-captures/flow-delivery/DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
     },
     {
       "flow_id": "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
-      "title": "Integrate Daily milestone Claim with BlueStacks",
+      "title": "Keep milestone chest semantics bound to the combined Daily reward route",
       "kind": "consequential_integration",
       "priority": 80,
-      "status": "blocked",
+      "status": "evidence_required",
 
       "backlog_task_id": "DQ-CLAIM-MILESTONE",
-      "dependencies": [],
+      "dependencies": [
+        "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
+      ],
       "implementation_entrypoints": [
         "tasks/activity_milestones.py",
-        "tasks/daily_quest.py",
-        "scripts/bluestacks_native_runtime.py"
+        "scripts/daily_row_claim_bluestacks.py",
+        "automation_service/daily_rewards.py",
+        "tasks/product_authority.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION.json",
+        "tasks/gameplay_flow_contracts/DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION.json"
       ],
-      "navigation_model": "daily_milestone_panel_local_binding",
+      "navigation_model": "combined_daily_visit_per_distinct_ready_chest_identity_then_home",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "One supervised ready milestone chest only after fresh target and postcondition evidence exists.",
-      "consequence_policy": "Milestone Claim is separate from ordinary row Claim; unknown points, chest state, or successor fails closed.",
+      "live_validation_scope": "No separate standalone milestone dispatch: current ready free chests are claimed only during the combined Daily visit, one distinct chest at a time, each with same-chest claimed/opened/removed evidence and canonical Home.",
+      "consequence_policy": "Only individually glowing, fully visible, current ready free chests are eligible. Each exact chest identity/reset requires its own ready-to-claimed/opened/removed transition; points-only change is not success, and unknown state forbids retry.",
       "product_policy_status": "supervised_consequential_validation",
+      "focused_tests": [
+        "tests/test_activity_milestones.py",
+        "tests/test_daily_row_claim_bluestacks.py",
+        "tests/test_service_daily_rewards.py",
+        "tests/test_product_authority.py",
+        "tests/test_gameplay_flow_contracts.py"
+      ],
       "maximum_live_attempts": 1,
       "live_attempt_count": 0,
       "live_attempts": [],
-      "focused_tests": [
-        "tests/test_activity_milestones.py"
-      ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
         "claim_binding_latency_seconds"
       ],
-      "blocked_reason": "Fresh BlueStacks-native ready-milestone target, positive same-milestone successor, and canonical-Home evidence are missing; no implementation or dispatch is admissible.",
-      "next_concrete_action": "Obtain separately authorized zero-input/navigation-only BlueStacks-native milestone evidence; only after a ready chest and positive successor are proven may a new atomic route-integration task be selected.",
+      "blocked_reason": "The standalone milestone route remains contract-only; combined Daily route proof for each exact same-chest successor, total action accounting, and canonical Home remains evidence_required.",
+      "next_concrete_action": "Do not dispatch through a standalone milestone flow. Obtain separately authorized current native proof only through the combined Daily reward route; retain points-only as a non-success outcome.",
       "last_completed_stage": "blocked",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION"
@@ -4060,24 +4085,31 @@
       "title": "Integrate one direct 1K Food resource-item use with BlueStacks",
       "kind": "daily_resource_item_integration",
       "priority": 75,
-      "status": "completed",
+      "status": "evidence_required",
       "production_registration": "NOT_REGISTERED",
       "scheduler_enabled": false,
       "backlog_task_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
       "dependencies": [],
       "implementation_entrypoints": [
         "scripts/daily_resource_item_bluestacks.py",
-        "scripts/flow_delivery_daily_resource_item_bluestacks.py",
+        "scripts/resource_item_authorization.py",
+        "automation_service/resource_item.py",
         "scripts/pnsctl.py",
-        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/product_authority.py",
+        "tasks/flow_delivery_product_policy.json",
         "tasks/gameplay_flow_contracts/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION.json",
-        "tasks/daily_quest_catalog.json",
-        "tasks/daily_quest_execution_matrix.json"
+        "tests/test_daily_resource_item_bluestacks.py",
+        "tests/test_service_resource_item.py",
+        "tests/test_resource_item_authorization.py",
+        "tests/test_product_authority.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_resource_effect_authority_store.py",
+        "tests/test_resource_effect_authority_history.py"
       ],
-      "navigation_model": "home_to_bag_selected_resource_observed_list_exact_1k_food_to_home",
+      "navigation_model": "home_to_bag_selected_resource_observed_list_exact_1k_food_owned_decrement_to_home",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "One supervised direct 1K Food use from verified Home after the settled selected Resource & Speedup successor (optional category tab tap when another Bag tab is current), at most six progressing measured short list swipes, exact measured-card item/quantity binding, positive resource successor, and verified Home; hard ceiling 10 total inputs with exactly one Use.",
-      "consequence_policy": "Use exactly one owned 1K Food at quantity one from verified Home; never In bulk, AP/Stamina recovery, premium substitution, unidentified items, ordinary Claim, milestone Claim, or Android Back.",
+      "live_validation_scope": "One supervised direct 1K Food use from verified Home after the settled selected Resource & Speedup successor (optional category tab tap when another Bag tab is current), at most six progressing measured short list swipes, exact owned-item and quantity binding, exact owned-count decrement of one, and verified Home; hard ceiling 10 total inputs with exactly one Use and no Food-balance OCR.",
+      "consequence_policy": "Use exactly one positively identified owned 1K Food at quantity one; require explicit current owned count and exact decrement of one, then canonical Home. No Food-balance OCR, selected-Daily/D02 evidence, Daily ownership, In bulk, recovery-item substitution, premium item, Android Back, or identical retry.",
       "product_policy_status": "supervised_consequential_validation",
       "maximum_live_attempts": 1,
       "maximum_inputs": 10,
@@ -4097,30 +4129,37 @@
       ],
       "focused_tests": [
         "tests/test_daily_resource_item_bluestacks.py",
-        "tests/test_flow_delivery_daily_resource_item_bluestacks.py",
-        "tests/test_gameplay_flow_contracts.py"
+        "tests/test_service_resource_item.py",
+        "tests/test_resource_item_authorization.py",
+        "tests/test_product_authority.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_resource_effect_authority_store.py",
+        "tests/test_resource_effect_authority_history.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [
         "item_binding_latency_seconds",
         "postcondition_latency_seconds"
       ],
-      "blocked_reason": "",
-      "next_concrete_action": "Do not start daily-milestone-claim until explicitly selected. daily-resource-item live acceptance is complete; registration remains NOT_REGISTERED.",
+      "blocked_reason": "The retained August 2026 attempt is historical and remains unchanged. Current route acceptance still requires fresh exact owned-count evidence/decrement and canonical Home under the tightened recognizer; no current proof or live authorization is asserted.",
+      "next_concrete_action": "Remain NOT_REGISTERED, scheduler-disabled, and evidence_required; obtain separately authorized current route-specific proof only when explicitly selected, without Food-balance OCR or Daily attribution.",
       "last_completed_stage": "completed",
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
       "acceptance_criteria": [
         "verified Home is required before Bag navigation",
-        "exact current-frame measured Resources card containing the 1K Food anchor, owned quantity at least one, quantity exactly one, and one Use dispatch are enforced",
+        "exact current-frame measured Resources card containing the identified 1K Food anchor, explicit owned count, quantity-one evidence, and one Use dispatch is enforced",
         "exact owned-count decrement of one for the measured 1K Food item is required before verified Home",
         "the direct route reaches final verified Home within 10 total inputs with at most six progressing short list swipes",
+        "Food-balance OCR and selected-Daily/D02 evidence are not prerequisites or ownership conditions",
         "dry-run and registration remain scheduler-disabled and no Android Back or Claim path is used"
       ],
       "scope_prohibitions": [
         "no In bulk",
         "no AP or Stamina recovery items",
         "no premium, paid, diamond, or unidentified item",
+        "no Food-balance OCR requirement",
+        "no selected-Daily/D02 prerequisite or Daily attribution",
         "no ordinary or milestone Claim",
         "no Android Back from unproven Bag or Resources",
         "no production registration or scheduler eligibility",
@@ -4134,16 +4173,20 @@
       "direct_dependencies": [],
       "implementation_allowlist_seed": [
         "scripts/daily_resource_item_bluestacks.py",
-        "scripts/flow_delivery_daily_resource_item_bluestacks.py",
+        "scripts/resource_item_authorization.py",
+        "automation_service/resource_item.py",
         "scripts/pnsctl.py",
-        "tasks/flow_delivery_bluestacks_registry.json",
+        "tasks/flow_delivery_product_policy.json",
         "tasks/flow_delivery_queue.json",
         "tasks/gameplay_flow_contracts/DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION.json",
-        "tasks/daily_quest_catalog.json",
-        "tasks/daily_quest_execution_matrix.json",
+        "tasks/product_authority.py",
         "tests/test_daily_resource_item_bluestacks.py",
-        "tests/test_flow_delivery_daily_resource_item_bluestacks.py",
-        "tests/test_gameplay_flow_contracts.py"
+        "tests/test_service_resource_item.py",
+        "tests/test_resource_item_authorization.py",
+        "tests/test_product_authority.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_resource_effect_authority_store.py",
+        "tests/test_resource_effect_authority_history.py"
       ],
       "live_validation_scenarios": [
         {
@@ -4160,8 +4203,12 @@
       ],
       "completion_tests": [
         "tests/test_daily_resource_item_bluestacks.py",
-        "tests/test_flow_delivery_daily_resource_item_bluestacks.py",
-        "tests/test_gameplay_flow_contracts.py"
+        "tests/test_service_resource_item.py",
+        "tests/test_product_authority.py",
+        "tests/test_resource_item_authorization.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_resource_effect_authority_store.py",
+        "tests/test_resource_effect_authority_history.py"
       ],
       "consequential_stage_policy": {
         "initial_live_validation": "supervised_consequential_validation",

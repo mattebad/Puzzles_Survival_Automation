@@ -220,8 +220,6 @@ class OperatorCliTests(unittest.TestCase):
                     {
                         "observe",
                         "launch-game",
-                        "daily-row-reconnaissance",
-                        "daily-row-claim",
                         "delegated-dry-run",
                         "run-flow",
                     }

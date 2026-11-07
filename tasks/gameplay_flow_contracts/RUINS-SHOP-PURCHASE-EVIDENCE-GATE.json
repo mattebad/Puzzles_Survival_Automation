@@ -158,8 +158,8 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r13",
-    "product_authority_digest": "13a3b12051a89f25e926875fc9d085aa5c220c6eb3904375d147e34f302a67d6",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r14",
+    "product_authority_digest": "c71684f26e3ba7366a39aafb0ca293776348a3179ae7b4284c8649e2bcd2a8af",
     "product_record_id": "ruins_shop_purchase",
     "product_record_revision": "ruins_shop_purchase-v1",
     "product_record_digest": "eadc1a6c93de0c64d9ad5a3143a99a6834cfcba5bbfd0dea964698b86dd42222",

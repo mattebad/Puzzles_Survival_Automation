@@ -1,9 +1,9 @@
-"""Bounded Home -> Quest -> Daily reconnaissance for local BlueStacks.
+"""Native BlueStacks binding for the canonical Daily rewards service route.
 
-This module owns the selected-Daily aggregate Claim flow, its bounded
-return-Home continuation, and its optional exact VIP popup dismissal.  It
-never spends resources, performs recovery, or talks to ADB directly.  Runtime
-capture and transport are supplied by ``LocalBlueStacksRuntime``.
+The route visits Home -> Quest -> Daily, performs at most one aggregate
+Claim for an identified ready batch, then individually claims glowing chests.
+An explicit same-slot Claimed label proves chest success. Runtime capture
+and transport are supplied by the fixed service binding.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import hashlib
 import re
 import time
 from typing import Any, Callable, Mapping, Protocol, Sequence
@@ -24,6 +25,7 @@ from tasks.available_daily_claim import (
     AvailableDailyClaimObservation,
     available_daily_claim_authorizeable,
 )
+from tasks.activity_milestones import ACTIVITY_MILESTONE_TARGET
 from tasks.home_nav_recognition import recognize_home_nav
 from scripts.world_map_navigation_bluestacks import (
     _visual_popup_panel_candidates as _accepted_visual_popup_panel_candidates,
@@ -34,7 +36,6 @@ from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 NATIVE_WIDTH = 800
 NATIVE_HEIGHT = 1280
 EXPECTED_PACKAGE = "com.global.ztmslg"
-HOME_SEARCH_ROI: NativeBox = (0, 1000, NATIVE_WIDTH, NATIVE_HEIGHT)
 QUEST_TAB_SEARCH_ROI: NativeBox = (0, 35, NATIVE_WIDTH, 230)
 DAILY_TAB_SEARCH_ROI: NativeBox = (0, 35, NATIVE_WIDTH, 230)
 FULL_FRAME_SEARCH_ROI: NativeBox = (0, 0, NATIVE_WIDTH, NATIVE_HEIGHT)
@@ -43,25 +44,13 @@ HOME_STATE = "HOME"
 QUEST_STATE = "QUEST"
 DAILY_SELECTED_STATE = "DAILY_SELECTED"
 UNKNOWN_STATE = "UNKNOWN"
-DAILY_CLAIM_STATE = "DAILY_CLAIM_READY"
-DAILY_CLAIM_ACTION_IDENTITY = "daily-claim:aggregate"
 DAILY_CLAIM_TARGET_IDENTITY = "daily-quest-claim"
 BLUESTACKS_TARGET_PROVENANCE = "bluestacks-native"
 BLUESTACKS_RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 DAILY_CLAIM_CONSEQUENCE_CLASS = "ordinary_development"
 DAILY_CLAIM_ACTION_CLASS = "reward_claim"
-DAILY_CLAIM_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0
 DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS = 0.25
 DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS = 20
-DAILY_RETURN_HOME_ACTION_IDENTITY = "daily-return-home"
-DAILY_RETURN_HOME_ACTION_CLASS = "navigation"
-DAILY_RETURN_HOME_CONSEQUENCE_CLASS = "navigation_only"
-DAILY_RETURN_HOME_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0
-DAILY_RETURN_HOME_SUCCESS_POLL_INTERVAL_SECONDS = 0.25
-DAILY_RETURN_HOME_SUCCESS_POLL_MAX_ATTEMPTS = 20
-VIP_POPUP_SUCCESS_POLL_TIMEOUT_SECONDS = 5.0
-VIP_POPUP_SUCCESS_POLL_INTERVAL_SECONDS = 0.25
-VIP_POPUP_SUCCESS_POLL_MAX_ATTEMPTS = 20
 RESET_DEADLINE_TOLERANCE_SECONDS = 2
 
 # The Daily action column is stable on the native BlueStacks profile.  Gold
@@ -79,8 +68,6 @@ HOME_QUEST_IDENTITY = "home-quest-entry"
 QUEST_DAILY_IDENTITY = "quest-daily-tab"
 NAVIGATION_ACTION_CLASS = "navigation"
 NAVIGATION_CONSEQUENCE_CLASS = "navigation_only"
-VIP_POINTS_POPUP_IDENTITY = "VIP_POINTS_GET_PTS"
-VIP_POINTS_POPUP_CLOSE_IDENTITY = "reset-popup-close"
 SUCCESSOR_POLL_TIMEOUT_SECONDS = 5.0
 SUCCESSOR_POLL_INTERVAL_SECONDS = 0.25
 SUCCESSOR_POLL_MAX_ATTEMPTS = 20
@@ -89,6 +76,47 @@ _HOME_WORDS = frozenset({"quest", "world", "hero", "bag", "mail", "alliance", "m
 _OVERLAY_MARKERS = frozenset(
     {"loading", "retry", "cancel", "confirm", "purchase", "payment", "popup", "captcha"}
 )
+DAILY_MILESTONE_CHEST_TARGET_IDENTITY = ACTIVITY_MILESTONE_TARGET
+DAILY_MILESTONE_SLOT_COUNT = 5
+DAILY_MILESTONE_GLOW_HUE_RANGE = (12, 48)
+DAILY_MILESTONE_GLOW_MIN_SAT = 120
+DAILY_MILESTONE_GLOW_MIN_VAL = 190
+DAILY_MILESTONE_GLOW_READY_PIXELS = 600
+DAILY_MILESTONE_GLOW_READY_COMPONENT = 250
+DAILY_MILESTONE_GLOW_ABSENT_PIXELS = 300
+DAILY_MILESTONE_GLOW_ABSENT_COMPONENT = 80
+
+
+def _daily_milestone_unknown_scan(
+    *,
+    reason: str,
+    source_frame_sha256: str | None,
+    points: int | None = None,
+) -> dict[str, Any]:
+    return {
+        "status": "unknown",
+        "reason": reason,
+        "source_frame_sha256": source_frame_sha256,
+        "slot_count": DAILY_MILESTONE_SLOT_COUNT,
+        "observed_chest_count": 0,
+        "ready_chest_count": 0,
+        "unclaimed_ready_chest_count": 0,
+        "points": points,
+        "milestones": tuple(
+            {
+                "slot_index": slot,
+                "milestone_key": f"daily-milestone-slot-{slot}",
+                "target_identity": DAILY_MILESTONE_CHEST_TARGET_IDENTITY,
+                "target_roi": None,
+                "milestone_state": "unknown",
+                "milestone_ready": None,
+                "glow_pixel_count": None,
+                "largest_glow_component": None,
+            }
+            for slot in range(1, DAILY_MILESTONE_SLOT_COUNT + 1)
+        ),
+    }
+
 _MILESTONE_MARKERS = frozenset({"milestone", "chest"})
 
 
@@ -114,14 +142,6 @@ class RuntimeLike(Protocol):
         continuation_of: str | None = None,
     ) -> None: ...
 
-    def back(
-        self,
-        source: CapturedNativeFrame,
-        *,
-        action_key: str,
-        target_identity: str = "android-back",
-        continuation_of: str | None = None,
-    ) -> None: ...
 
 
 class SessionLike(Protocol):
@@ -151,22 +171,6 @@ class _NativeTapDispatch:
     def _authorize_dispatch(self) -> None:
         # DevelopmentSession uses this marker to avoid a second generic
         # delegated reservation.  LocalBlueStacksRuntime.tap performs the
-        # actual current-frame and receipt-bound authorization.
-        return None
-
-    def dispatch(self, source: CapturedNativeFrame) -> None:
-        self._callback(source)
-
-
-class _NativeSwipeDispatch:
-    """Keep receipt reservation ownership with the native runtime swipe."""
-
-    def __init__(self, callback: Callable[[CapturedNativeFrame], None]) -> None:
-        self._callback = callback
-
-    def _authorize_dispatch(self) -> None:
-        # DevelopmentSession uses this marker to avoid a second generic
-        # delegated reservation.  LocalBlueStacksRuntime.swipe performs the
         # actual current-frame and receipt-bound authorization.
         return None
 
@@ -877,14 +881,6 @@ def _reading_text(tokens: Sequence[OCRToken]) -> str:
     ).strip()
 
 
-def _parse_progress(text: str) -> tuple[int, int] | None:
-    match = re.search(r"\(?\s*(\d{1,6})\s*/\s*(\d{1,6})\s*\)?", text)
-    if match is not None:
-        return int(match.group(1)), int(match.group(2))
-    numbers = re.findall(r"\b\d{1,6}\b", text)
-    if len(numbers) >= 2:
-        return int(numbers[-2]), int(numbers[-1])
-    return None
 
 
 def _parse_points(text: str) -> int | None:
@@ -892,9 +888,6 @@ def _parse_points(text: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def _parse_reward_points(text: str) -> int | None:
-    match = re.search(r"reward[^0-9+-]*pts?[^0-9+-]*\+?\s*(\d{1,6})", text)
-    return int(match.group(1)) if match else None
 
 
 def _parse_reset_timer(text: str) -> str | None:
@@ -1133,6 +1126,7 @@ def _visual_claim_button_candidates(
     *,
     row_y: float,
     minimum_x: int,
+    scan_details: dict[str, Any] | None = None,
 ) -> tuple[NativeBox, ...]:
     """Find current-frame gold Claim bodies and reject red Go controls."""
 
@@ -1157,6 +1151,13 @@ def _visual_claim_button_candidates(
         & (saturation >= CLAIM_MIN_SAT)
         & (value >= CLAIM_MIN_VAL)
     ).astype(np.uint8) * 255
+    if scan_details is not None:
+        scan_details.update(
+            {
+                "claim_scan_roi": (x0, CLAIM_SCAN_TOP_Y, x1, NATIVE_HEIGHT),
+                "claim_scan_raw_gold_pixel_count": int(cv2.countNonZero(gold)),
+            }
+        )
     full = np.zeros((NATIVE_HEIGHT, NATIVE_WIDTH), dtype=np.uint8)
     full[CLAIM_SCAN_TOP_Y:NATIVE_HEIGHT, x0:x1] = gold
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (31, 15))
@@ -1173,6 +1174,8 @@ def _visual_claim_button_candidates(
             continue
         candidates.append((left, top, left + width, top + height))
     candidates.sort(key=lambda box: (box[1], box[0], box[2], box[3]))
+    if scan_details is not None:
+        scan_details["claim_scan_complete"] = True
     return tuple(candidates)
 
 
@@ -1461,9 +1464,9 @@ def _daily_aggregate_claim_semantics(
 
     words = {word for token in tokens for word in token.text.split()}
     overlay_markers = tuple(sorted(words & _OVERLAY_MARKERS))
-    milestone_markers = tuple(sorted(words & _MILESTONE_MARKERS))
-    selected, selected_visual = _selected_daily_visual_context(frame, tokens)
-    full_text = _reading_text(tokens)
+    header_tokens = tuple(token for token in tokens if _token_center(token)[1] < 440)
+    selected, selected_visual = _selected_daily_visual_context(frame, header_tokens)
+    full_text = _reading_text(header_tokens)
     points = _parse_points(full_text)
     reset_timer = _parse_reset_timer(full_text)
     reset_evidence = (
@@ -1490,14 +1493,12 @@ def _daily_aggregate_claim_semantics(
             )
         )
     )
-    body = tuple(token for token in tokens if _token_center(token)[1] >= 340)
-
+    body = tuple(token for token in tokens if token.text == "claim")
     visual: dict[str, Any] = {
         "full_frame_overlay": {
             "recognized": bool(overlay_markers),
             "markers": overlay_markers,
         },
-        "milestone_markers": milestone_markers,
         "selected_daily_semantics": selected_visual,
         "selected_daily": selected,
         "points": points,
@@ -1541,19 +1542,15 @@ def _daily_aggregate_claim_semantics(
                 full_text,
                 visual,
                 reason,
-                _token_rows(tokens),
+                _token_rows((*header_tokens, *body)),
             ),
             None,
         )
 
     if overlay_markers:
         return failure("full-frame overlay/modal detected")
-    if milestone_markers:
-        return failure("milestone reward is not row-local")
     if not selected:
         return failure(selected_visual.get("reason", "selected Daily was not proven"))
-    if points is None:
-        return failure("Daily Quest points were not proven")
     if reset_timer is None:
         return failure("positive Daily reset timer was not proven")
     if reset_evidence is None:
@@ -1580,17 +1577,26 @@ def _daily_aggregate_claim_semantics(
             ),
         )
     )
-    claim_controls = _visual_claim_button_candidates(
+    all_claim_controls = _visual_claim_button_candidates(
         frame,
         row_y=NATIVE_HEIGHT / 2.0,
         minimum_x=CLAIM_BUTTON_COLUMN[0],
+        scan_details=visual,
     )
-    visual["recognized_claim_controls"] = len(claim_controls)
+    claim_controls = all_claim_controls[:1]
+    visual["recognized_claim_controls"] = len(all_claim_controls)
     visual["available_claim_controls"] = 0
     visual["available_ordinary_claim_controls"] = 0
-    if not claim_controls:
-        # A selected-Daily successor remains recognized after the aggregate
-        # Claim is consumed, but it never authorizes a second input.
+    visual["zero_claim_scan_proven"] = False
+    if not all_claim_controls:
+        if (
+            visual.get("claim_scan_complete") is not True
+            or visual.get("claim_scan_raw_gold_pixel_count") != 0
+        ):
+            return failure(
+                "Claim control absence is ambiguous; residual or clipped Claim pixels remain"
+            )
+        visual["zero_claim_scan_proven"] = True
         visual["claim_ready"] = False
         return (
             FrameRecognition(
@@ -1601,7 +1607,7 @@ def _daily_aggregate_claim_semantics(
                 full_text,
                 visual,
                 None,
-                _token_rows(tokens),
+                _token_rows((*header_tokens, *body)),
             ),
             None,
         )
@@ -1716,7 +1722,6 @@ def _daily_aggregate_claim_semantics(
     eligible = [candidate for candidate in candidates if candidate.get("eligible")]
     visual["claim_candidates"] = tuple(candidates)
     visual["available_claim_controls"] = len(eligible)
-    visual["available_ordinary_claim_controls"] = len(eligible)
     if not eligible:
         rejection_reasons = {
             reason
@@ -1798,7 +1803,6 @@ def _daily_aggregate_claim_semantics(
     visual.update(
         {
             "claim_ready": True,
-            "available_ordinary_claim_controls": len(eligible),
             "row_bounds": row_bounds,
             "row_panel_bounds": row_bounds,
             "claim_roi": target_roi,
@@ -1832,7 +1836,7 @@ def _daily_aggregate_claim_semantics(
             full_text,
             visual,
             None,
-            _token_rows(tokens),
+            _token_rows((*header_tokens, *body)),
         ),
         observation,
     )
@@ -1853,9 +1857,6 @@ def _daily_claim_semantics(
     )
 
 
-def _box_contains(box: NativeBox, point: tuple[float, float]) -> bool:
-    x0, y0, x1, y1 = box
-    return bool(x0 <= point[0] <= x1 and y0 <= point[1] <= y1)
 
 
 class DailyRowClaimRecognizer:
@@ -2049,10 +2050,6 @@ class DailyRowClaimRecognizer:
             _token_rows(tokens),
         )
 
-    def recognize_main_quest(self, frame: np.ndarray) -> FrameRecognition:
-        """Reuse the complete Main-selection proof from ``recognize_quest``."""
-
-        return self.recognize_quest(frame)
 
     def recognize_daily_claim(
         self,
@@ -2140,6 +2137,365 @@ class DailyRowClaimRecognizer:
         )
 
 
+
+def recognize_daily_milestone_chests(
+    frame: np.ndarray,
+    daily_recognition: FrameRecognition,
+    *,
+    source_frame_sha256: str | None,
+) -> dict[str, Any]:
+    """Observe the five current milestone chests without inferring from points."""
+    visual = dict(daily_recognition.visual_evidence or {})
+    points = visual.get("points")
+    points = points if type(points) is int else None
+    if not _frame_shape_ok(frame):
+        return _daily_milestone_unknown_scan(
+            reason="native frame dimensions do not match the BlueStacks profile",
+            source_frame_sha256=source_frame_sha256,
+            points=points,
+        )
+    if not isinstance(source_frame_sha256, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", source_frame_sha256
+    ):
+        return _daily_milestone_unknown_scan(
+            reason="native source frame identity is missing or malformed",
+            source_frame_sha256=source_frame_sha256,
+            points=points,
+        )
+    overlay = visual.get("full_frame_overlay")
+    if (
+        not daily_recognition.recognized
+        or daily_recognition.state != DAILY_SELECTED_STATE
+        or visual.get("selected_daily") is not True
+        or (isinstance(overlay, Mapping) and overlay.get("recognized"))
+    ):
+        return _daily_milestone_unknown_scan(
+            reason="selected Daily context or overlay-free screen was not proven",
+            source_frame_sha256=source_frame_sha256,
+            points=points,
+        )
+    if not (
+        isinstance(visual.get("reset_deadline_identity"), str)
+        and visual["reset_deadline_identity"].strip()
+        and isinstance(visual.get("reset_deadline_utc"), str)
+        and visual["reset_deadline_utc"].strip()
+    ):
+        return _daily_milestone_unknown_scan(
+            reason="current Daily reset identity was not positively recognized",
+            source_frame_sha256=source_frame_sha256,
+            points=points,
+        )
+
+    selected_geometry = visual.get("selected_daily_semantics")
+    if not isinstance(selected_geometry, Mapping):
+        return _daily_milestone_unknown_scan(
+            reason="selected Daily header geometry is unavailable",
+            source_frame_sha256=source_frame_sha256,
+            points=points,
+        )
+    daily_headers = tuple(selected_geometry.get("daily_candidates", ()))
+    main_headers = tuple(selected_geometry.get("main_candidates", ()))
+    alliance_headers = tuple(selected_geometry.get("alliance_candidates", ()))
+    activity_headers = tuple(selected_geometry.get("activity_candidates", ()))
+    if len(daily_headers) > 1 or not main_headers or not (
+        alliance_headers or activity_headers
+    ):
+        return _daily_milestone_unknown_scan(
+            reason="Daily header geometry is missing or ambiguous",
+            source_frame_sha256=source_frame_sha256,
+            points=points,
+        )
+    daily_roi = _clamp_roi(
+        daily_headers[0]
+        if daily_headers
+        else selected_geometry.get("daily_tab_probe", ())
+    )
+    header_boxes = tuple(
+        roi
+        for candidates in (
+            daily_headers,
+            main_headers,
+            alliance_headers,
+            activity_headers,
+        )
+        for candidate in candidates
+        if (roi := _clamp_roi(candidate)) is not None
+        and 35 <= roi[1] < roi[3] <= 200
+    )
+    if daily_roi is not None and not daily_headers:
+        header_boxes = (*header_boxes, daily_roi)
+    if (
+        daily_roi is None
+        or not 35 <= daily_roi[1] < daily_roi[3] <= 200
+        or len(header_boxes) < 3
+    ):
+        return _daily_milestone_unknown_scan(
+            reason="Daily header geometry is outside the native screen",
+            source_frame_sha256=source_frame_sha256,
+            points=points,
+        )
+    header_bottom = max(roi[3] for roi in header_boxes)
+    if not 80 <= header_bottom <= 180:
+        return _daily_milestone_unknown_scan(
+            reason="Daily header/chest row spacing is unsupported",
+            source_frame_sha256=source_frame_sha256,
+            points=points,
+        )
+
+    raw_daily_center = selected_geometry.get("daily_center")
+    daily_split_x = (
+        float(raw_daily_center[0])
+        if isinstance(raw_daily_center, (tuple, list))
+        and len(raw_daily_center) == 2
+        and isinstance(raw_daily_center[0], (int, float))
+        else (daily_roi[0] + daily_roi[2]) / 2.0
+    )
+    left_header_boxes = tuple(
+        roi
+        for candidate in main_headers
+        if (roi := _clamp_roi(candidate)) is not None
+        and 35 <= roi[1] < roi[3] <= 200
+        and roi[2] <= daily_split_x
+    )
+    right_header_boxes = tuple(
+        roi
+        for candidates in (alliance_headers, activity_headers)
+        for candidate in candidates
+        if (roi := _clamp_roi(candidate)) is not None
+        and 35 <= roi[1] < roi[3] <= 200
+        and (roi[0] + roi[2]) / 2.0 > daily_split_x
+    )
+    if not left_header_boxes or not right_header_boxes:
+        return _daily_milestone_unknown_scan(
+            reason="Daily chest row cannot be bound to both neighboring tab headers",
+            source_frame_sha256=source_frame_sha256,
+            points=points,
+        )
+
+    slot_pitch = frame.shape[1] * 0.175
+    chest_row_center_x = (
+        max(roi[2] for roi in left_header_boxes)
+        + min(roi[0] for roi in right_header_boxes)
+    ) / 2.0
+    chest_y0 = header_bottom + 34
+    chest_y1 = header_bottom + 131
+    core_y0 = header_bottom + 58
+    core_y1 = header_bottom + 115
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    observations: list[dict[str, Any]] = []
+    claimed_tokens = tuple(
+        token
+        for token in daily_recognition.tokens
+        if isinstance(token, Mapping)
+        and token.get("text") == "claimed"
+        and _clamp_roi(token.get("roi", ())) is not None
+    )
+    for slot in range(1, DAILY_MILESTONE_SLOT_COUNT + 1):
+        center_x = int(round(chest_row_center_x + (slot - 3) * slot_pitch))
+        target_roi = (
+            center_x - 50,
+            chest_y0,
+            center_x + 50,
+            chest_y1,
+        )
+        core_roi = (
+            center_x - 38,
+            core_y0,
+            center_x + 39,
+            core_y1,
+        )
+        x0, y0, x1, y1 = core_roi
+        core = hsv[y0:y1, x0:x1]
+        gold_body = cv2.inRange(
+            core,
+            np.asarray((8, 50, 35), dtype=np.uint8),
+            np.asarray((48, 255, 255), dtype=np.uint8),
+        )
+        red_body = cv2.bitwise_or(
+            cv2.inRange(
+                core,
+                np.asarray((0, 45, 35), dtype=np.uint8),
+                np.asarray((7, 255, 255), dtype=np.uint8),
+            ),
+            cv2.inRange(
+                core,
+                np.asarray((170, 45, 35), dtype=np.uint8),
+                np.asarray((179, 255, 255), dtype=np.uint8),
+            ),
+        )
+        gold_pixels = int(cv2.countNonZero(gold_body))
+        red_pixels = int(cv2.countNonZero(red_body))
+        supported_skin = (
+            "gold"
+            if gold_pixels >= 500 and red_pixels < 500
+            else "red"
+            if red_pixels >= 500 and gold_pixels < 500
+            else None
+        )
+
+        x0, y0, x1, y1 = target_roi
+        hot_glow = cv2.inRange(
+            hsv[y0:y1, x0:x1],
+            np.asarray(
+                (
+                    DAILY_MILESTONE_GLOW_HUE_RANGE[0],
+                    DAILY_MILESTONE_GLOW_MIN_SAT,
+                    DAILY_MILESTONE_GLOW_MIN_VAL,
+                ),
+                dtype=np.uint8,
+            ),
+            np.asarray(
+                (DAILY_MILESTONE_GLOW_HUE_RANGE[1], 255, 255),
+                dtype=np.uint8,
+            ),
+        )
+        glow_pixels = int(cv2.countNonZero(hot_glow))
+        component_count, _labels, component_stats, _centroids = (
+            cv2.connectedComponentsWithStats(hot_glow, connectivity=8)
+        )
+        largest_glow_component = max(
+            (
+                int(component_stats[index, cv2.CC_STAT_AREA])
+                for index in range(1, component_count)
+            ),
+            default=0,
+        )
+        slot_claimed_tokens = tuple(
+            token
+            for token in claimed_tokens
+            if center_x - slot_pitch / 2 < (token["roi"][0] + token["roi"][2]) / 2
+            < center_x + slot_pitch / 2
+            and header_bottom + 168 <= token["roi"][1]
+            < token["roi"][3] <= header_bottom + 215
+        )
+        claimed_label = (
+            slot_claimed_tokens[0]
+            if len(slot_claimed_tokens) == 1
+            and isinstance(slot_claimed_tokens[0].get("confidence"), (int, float))
+            and slot_claimed_tokens[0]["confidence"] >= 60
+            else None
+        )
+        if supported_skin is None:
+            state = "unknown"
+            reason = "chest appearance is unsupported or ambiguous"
+        elif slot_claimed_tokens:
+            if (
+                claimed_label is not None
+                and not (
+                    glow_pixels >= DAILY_MILESTONE_GLOW_READY_PIXELS
+                    and largest_glow_component >= DAILY_MILESTONE_GLOW_READY_COMPONENT
+                )
+            ):
+                state = "claimed"
+                reason = None
+            else:
+                state = "unknown"
+                reason = "Claimed label is ambiguous or contradicts a glowing ready chest"
+        elif (
+            glow_pixels >= DAILY_MILESTONE_GLOW_READY_PIXELS
+            and largest_glow_component >= DAILY_MILESTONE_GLOW_READY_COMPONENT
+        ):
+            state = "ready"
+            reason = None
+        elif (
+            glow_pixels <= DAILY_MILESTONE_GLOW_ABSENT_PIXELS
+            and largest_glow_component <= DAILY_MILESTONE_GLOW_ABSENT_COMPONENT
+        ):
+            state = "not_ready"
+            reason = None
+        else:
+            state = "unknown"
+            reason = "glow pixels are ambiguous for the supported chest skin"
+        observations.append(
+            {
+                "slot_index": slot,
+                "milestone_key": f"daily-milestone-slot-{slot}",
+                "target_identity": DAILY_MILESTONE_CHEST_TARGET_IDENTITY,
+                "target_roi": target_roi,
+                "milestone_state": state,
+                "milestone_ready": (
+                    state == "ready" if state != "unknown" else None
+                ),
+                "glow_pixel_count": glow_pixels,
+                "largest_glow_component": largest_glow_component,
+                "supported_chest_skin": supported_skin,
+                "claimed_label_roi": tuple(claimed_label["roi"]) if state == "claimed" else None,
+                "claimed_label_proven": state == "claimed",
+                "reason": reason,
+            }
+        )
+    ready_count = sum(
+        chest["milestone_state"] == "ready" for chest in observations
+    )
+    observed_count = sum(
+        chest["milestone_state"] != "unknown" for chest in observations
+    )
+    uncertain = observed_count != DAILY_MILESTONE_SLOT_COUNT
+    return {
+        "status": "partial_unknown" if uncertain else "observed",
+        "reason": (
+            "one or more chest slots have ambiguous or unsupported appearance"
+            if uncertain
+            else None
+        ),
+        "source_frame_sha256": source_frame_sha256,
+        "game_day_id": visual.get("game_day_id"),
+        "header_bounds": (
+            min(roi[0] for roi in header_boxes),
+            min(roi[1] for roi in header_boxes),
+            max(roi[2] for roi in header_boxes),
+            header_bottom,
+        ),
+        "slot_count": DAILY_MILESTONE_SLOT_COUNT,
+        "observed_chest_count": observed_count,
+        "ready_chest_count": ready_count,
+        "unclaimed_ready_chest_count": ready_count,
+        "points": points,
+        "milestones": tuple(observations),
+    }
+
+
+def daily_milestone_postcondition_verified(
+    before: Mapping[str, Any],
+    after: Mapping[str, Any],
+    milestone_key: str,
+) -> bool:
+    """Require the bound ready chest's explicit current native Claimed label."""
+    if (
+        before.get("status") not in {"observed", "partial_unknown"}
+        or after.get("status") not in {"observed", "partial_unknown"}
+        or not before.get("game_day_id")
+        or before.get("game_day_id") != after.get("game_day_id")
+        or before.get("source_frame_sha256") == after.get("source_frame_sha256")
+    ):
+        return False
+    source = [
+        row for row in before.get("milestones", ())
+        if isinstance(row, Mapping) and row.get("milestone_key") == milestone_key
+    ]
+    successor = [
+        row for row in after.get("milestones", ())
+        if isinstance(row, Mapping) and row.get("milestone_key") == milestone_key
+    ]
+    return bool(
+        len(source) == len(successor) == 1
+        and source[0].get("milestone_state") == "ready"
+        and source[0].get("milestone_ready") is True
+        and source[0].get("target_identity") == DAILY_MILESTONE_CHEST_TARGET_IDENTITY
+        and source[0].get("target_roi") is not None
+        and successor[0].get("slot_index") == source[0].get("slot_index")
+        and isinstance(successor[0].get("target_roi"), (list, tuple))
+        and len(successor[0]["target_roi"]) == len(source[0]["target_roi"]) == 4
+        and max(
+            abs(a - b)
+            for a, b in zip(source[0]["target_roi"], successor[0]["target_roi"])
+        ) <= 2
+        and successor[0].get("milestone_state") == "claimed"
+        and successor[0].get("claimed_label_proven") is True
+        and successor[0].get("claimed_label_roi") is not None
+    )
+
+
 def _ensure_fresh(frame: CapturedNativeFrame, runtime: RuntimeLike) -> None:
     age = time.monotonic() - frame.captured_monotonic
     maximum = float(getattr(runtime, "frame_max_age_seconds", 30.0))
@@ -2203,6 +2559,7 @@ def daily_claim_observation_from_recognition(
     source_frame_sha256: str,
     evidence_ref: str,
     game_day_id: str | None,
+    aggregate_batch_identity: str,
 ) -> AvailableDailyClaimObservation | None:
     """Project one current-frame recognition into the offline claim contract."""
 
@@ -2240,7 +2597,7 @@ def daily_claim_observation_from_recognition(
         source_frame_sha256=source_frame_sha256,
         evidence_refs=(evidence_ref,),
         milestone_reward=bool(evidence.get("milestone_reward")),
-        clipped=not bool(evidence.get("row_fully_visible")),
+        clipped=not bool(evidence.get("claim_fully_visible")),
         overlay_state="none" if not evidence.get("full_frame_overlay", {}).get("recognized") else "unknown",
         reset_guard_active=False,
         runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
@@ -2275,6 +2632,7 @@ def daily_claim_observation_from_recognition(
             and not isinstance(evidence.get("available_claim_controls"), bool)
             else None
         ),
+        aggregate_batch_identity=aggregate_batch_identity,
     )
 
 
@@ -2284,22 +2642,26 @@ def daily_claim_postcondition_verified(
     *,
     game_day_id: str,
 ) -> bool:
-    """Require selected Daily/reset continuity, points increase, and Claim exhaustion."""
+    """Require selected Daily/reset continuity and exhaustion of Claim controls."""
 
     before_evidence = dict(before.visual_evidence or {})
     after_evidence = dict((after.visual_evidence if after is not None else {}) or {})
     if (
         not before.recognized
         or before.state != DAILY_SELECTED_STATE
-        or before.target_identity != DAILY_CLAIM_TARGET_IDENTITY
-        or before_evidence.get("selected_daily") is not True
+        or before_evidence.get("claim_scan_complete") is not True
+        or before_evidence.get("recognized_claim_controls", 0) < 1
+        or before_evidence.get("claim_ready") is not True
         or after is None
         or not after.recognized
+        or after.target_identity is not None
+        or after.target_roi is not None
         or after.state != DAILY_SELECTED_STATE
         or after_evidence.get("selected_daily") is not True
         or before_evidence.get("game_day_id") != game_day_id
         or after_evidence.get("game_day_id") != game_day_id
         or after_evidence.get("reset_timer") is None
+        or after_evidence.get("claim_ready") is not False
         or bool(after_evidence.get("full_frame_overlay", {}).get("recognized"))
     ):
         return False
@@ -2350,18 +2712,14 @@ def daily_claim_postcondition_verified(
         return False
     if abs((before_seconds - after_seconds) - elapsed) > tolerance + 1.0:
         return False
-    if after_evidence.get("available_ordinary_claim_controls") != 0:
-        return False
-    before_points = before_evidence.get("points")
-    after_points = after_evidence.get("points")
     if (
-        not isinstance(before_points, int)
-        or isinstance(before_points, bool)
-        or not isinstance(after_points, int)
-        or isinstance(after_points, bool)
+        after_evidence.get("claim_scan_complete") is not True
+        or after_evidence.get("zero_claim_scan_proven") is not True
+        or after_evidence.get("recognized_claim_controls") != 0
+        or after_evidence.get("available_claim_controls") != 0
     ):
         return False
-    return after_points > before_points
+    return True
 
 
 def _failure(
@@ -2393,19 +2751,6 @@ def _failure(
     }
 
 
-def _recognize_main_quest(
-    recognizer: DailyRowClaimRecognizer | Any,
-    frame: np.ndarray,
-) -> FrameRecognition:
-    method = getattr(recognizer, "recognize_main_quest", None)
-    if callable(method):
-        return method(frame)
-    return FrameRecognition(
-        QUEST_STATE,
-        False,
-        reason="Main Quest recognition is unavailable",
-    )
-
 
 def _settle_successor(
     *,
@@ -2413,7 +2758,7 @@ def _settle_successor(
     capture: Callable[[str], CapturedNativeFrame],
     immediate_post: CapturedNativeFrame,
     recognize: Callable[[np.ndarray], FrameRecognition],
-    expected_state: str,
+    expected_states: tuple[str, ...],
     action_identity: str,
     frame_key: str,
     recognition_key: str,
@@ -2452,7 +2797,7 @@ def _settle_successor(
         attempt=0,
         label=f"{action_identity}-immediate-post",
     )
-    if current_recognition.recognized and current_recognition.state == expected_state:
+    if current_recognition.recognized and current_recognition.state in expected_states:
         recognitions[recognition_key] = current_recognition
         return current_recognition
 
@@ -2472,7 +2817,7 @@ def _settle_successor(
         current = session.observe(capture, label=label)
         current_recognition = recognize(current.frame)
         record(current, current_recognition, attempt=attempts, label=label)
-        if current_recognition.recognized and current_recognition.state == expected_state:
+        if current_recognition.recognized and current_recognition.state in expected_states:
             recognitions[recognition_key] = current_recognition
             frames[frame_key] = current
             return current_recognition
@@ -2487,7 +2832,7 @@ def run_daily_row_reconnaissance(
     *,
     recognizer: DailyRowClaimRecognizer | Any | None = None,
 ) -> dict[str, Any]:
-    """Run exactly Home -> Quest -> selected Daily, without recovery."""
+    """Reach selected Daily from Home, accepting a directly resumed Daily tab."""
 
     if not bool(getattr(runtime, "execute", False)):
         return _failure(
@@ -2549,14 +2894,20 @@ def run_daily_row_reconnaissance(
                 action_key=HOME_QUEST_IDENTITY,
             )
 
+        def recognize_quest_or_daily(frame: np.ndarray) -> FrameRecognition:
+            quest = recognizer.recognize_quest(frame)
+            if quest.recognized and quest.state == QUEST_STATE:
+                return quest
+            return recognizer.recognize_daily_selected(frame)
+
         def recognize_quest_successor(after: CapturedNativeFrame) -> str:
             nonlocal first_post_recognition
             first_post_recognition = _settle_successor(
                 session=session,
                 capture=capture,
                 immediate_post=after,
-                recognize=recognizer.recognize_quest,
-                expected_state=QUEST_STATE,
+                recognize=recognize_quest_or_daily,
+                expected_states=(QUEST_STATE, DAILY_SELECTED_STATE),
                 action_identity=HOME_QUEST_IDENTITY,
                 frame_key="quest_successor",
                 recognition_key="quest_successor",
@@ -2588,65 +2939,68 @@ def run_daily_row_reconnaissance(
                 polls=polls,
             )
 
-        second_post_recognition: FrameRecognition | None = None
+        if first_post_recognition.state == DAILY_SELECTED_STATE:
+            frames["daily_terminal"] = frames["quest_successor"]
+            recognitions["daily_terminal"] = first_post_recognition
+        else:
+            second_post_recognition: FrameRecognition | None = None
 
-        def dispatch_daily(before: CapturedNativeFrame) -> None:
-            rebound = recognizer.recognize_quest(before.frame)
-            recognitions["daily_immediate_before"] = rebound
-            _require_recognition(
-                rebound,
-                state=QUEST_STATE,
-                target_identity=QUEST_DAILY_IDENTITY,
-            )
-            _ensure_fresh(before, runtime)
-            _ensure_runtime_ready(runtime)
-            runtime.tap(
-                before,
-                target_identity=QUEST_DAILY_IDENTITY,
-                target_roi=rebound.target_roi,  # type: ignore[arg-type]
-                action_key=QUEST_DAILY_IDENTITY,
-            )
+            def dispatch_daily(before: CapturedNativeFrame) -> None:
+                rebound = recognizer.recognize_quest(before.frame)
+                recognitions["daily_immediate_before"] = rebound
+                _require_recognition(
+                    rebound,
+                    state=QUEST_STATE,
+                    target_identity=QUEST_DAILY_IDENTITY,
+                )
+                _ensure_fresh(before, runtime)
+                _ensure_runtime_ready(runtime)
+                runtime.tap(
+                    before,
+                    target_identity=QUEST_DAILY_IDENTITY,
+                    target_roi=rebound.target_roi,  # type: ignore[arg-type]
+                    action_key=QUEST_DAILY_IDENTITY,
+                )
 
-        def recognize_daily_successor(after: CapturedNativeFrame) -> str:
-            nonlocal second_post_recognition
-            second_post_recognition = _settle_successor(
-                session=session,
+            def recognize_daily_successor(after: CapturedNativeFrame) -> str:
+                nonlocal second_post_recognition
+                second_post_recognition = _settle_successor(
+                    session=session,
+                    capture=capture,
+                    immediate_post=after,
+                    recognize=recognizer.recognize_daily_selected,
+                    expected_states=(DAILY_SELECTED_STATE,),
+                    action_identity=QUEST_DAILY_IDENTITY,
+                    frame_key="daily_terminal",
+                    recognition_key="daily_terminal",
+                    frames=frames,
+                    recognitions=recognitions,
+                    polls=polls,
+                )
+                return second_post_recognition.state if second_post_recognition.recognized else UNKNOWN_STATE
+
+            daily_dispatch = _NativeTapDispatch(dispatch_daily)
+            second_action = session.run_action(
+                action_class=NAVIGATION_ACTION_CLASS,
+                label=QUEST_DAILY_IDENTITY,
                 capture=capture,
-                immediate_post=after,
-                recognize=recognizer.recognize_daily_selected,
-                expected_state=DAILY_SELECTED_STATE,
-                action_identity=QUEST_DAILY_IDENTITY,
-                frame_key="daily_terminal",
-                recognition_key="daily_terminal",
-                frames=frames,
-                recognitions=recognitions,
-                polls=polls,
+                dispatch=daily_dispatch.dispatch,
+                recognize=recognize_daily_successor,
+                consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
             )
-            return second_post_recognition.state if second_post_recognition.recognized else UNKNOWN_STATE
+            if (
+                second_action.status != "completed"
+                or second_post_recognition is None
+                or not second_post_recognition.recognized
+            ):
+                return _failure(
+                    session,
+                    reason="selected Daily terminal was not positively recognized",
+                    frames=frames,
+                    recognitions=recognitions,
+                    polls=polls,
+                )
 
-        daily_dispatch = _NativeTapDispatch(dispatch_daily)
-        second_action = session.run_action(
-            action_class=NAVIGATION_ACTION_CLASS,
-            label=QUEST_DAILY_IDENTITY,
-            capture=capture,
-            dispatch=daily_dispatch.dispatch,
-            recognize=recognize_daily_successor,
-            consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
-        )
-        if (
-            second_action.status != "completed"
-            or second_post_recognition is None
-            or not second_post_recognition.recognized
-        ):
-            return _failure(
-                session,
-                reason="selected Daily terminal was not positively recognized",
-                frames=frames,
-                recognitions=recognitions,
-                polls=polls,
-            )
-
-        session.terminal_status = "observed"
         return {
             "status": "observed",
             "reason": "selected Daily positively recognized",
@@ -2673,1032 +3027,9 @@ def run_daily_row_reconnaissance(
         )
 
 
-def run_quest_daily_continuation(
-    runtime: RuntimeLike,
-    session: SessionLike,
-    *,
-    recognizer: DailyRowClaimRecognizer | Any | None = None,
-) -> dict[str, Any]:
-    """Continue from a positively recognized Main Quest screen to Daily."""
-
-    if not bool(getattr(runtime, "execute", False)):
-        return _failure(
-            session,
-            reason="runtime execution is required for reconnaissance",
-            frames={},
-            recognitions={},
-        )
-    recognizer = recognizer or DailyRowClaimRecognizer()
-    frames: dict[str, CapturedNativeFrame] = {}
-    recognitions: dict[str, FrameRecognition] = {}
-    polls: list[dict[str, Any]] = []
-
-    try:
-        def capture(label: str) -> CapturedNativeFrame:
-            captured = runtime.capture(label)
-            frame_names = {
-                "quest-source": "source",
-                "quest-daily-tab-immediate-before": "daily_immediate_before",
-                "quest-daily-tab-immediate-post": "daily_terminal",
-            }
-            name = frame_names.get(label)
-            if name is None and label.startswith(f"{QUEST_DAILY_IDENTITY}-poll-"):
-                name = f"daily_terminal_poll_{label.rsplit('-', 1)[-1]}"
-            if name is not None:
-                frames[name] = captured
-            return captured
-
-        source = session.observe(capture, label="quest-source")
-        frames["source"] = source
-        source_recognition = _recognize_main_quest(recognizer, source.frame)
-        recognitions["source"] = source_recognition
-        _require_recognition(
-            source_recognition,
-            state=QUEST_STATE,
-            target_identity=QUEST_DAILY_IDENTITY,
-        )
-
-        terminal_recognition: FrameRecognition | None = None
-
-        def dispatch_daily(before: CapturedNativeFrame) -> None:
-            rebound = _recognize_main_quest(recognizer, before.frame)
-            recognitions["daily_immediate_before"] = rebound
-            _require_recognition(
-                rebound,
-                state=QUEST_STATE,
-                target_identity=QUEST_DAILY_IDENTITY,
-            )
-            _ensure_fresh(before, runtime)
-            _ensure_runtime_ready(runtime)
-            runtime.tap(
-                before,
-                target_identity=QUEST_DAILY_IDENTITY,
-                target_roi=rebound.target_roi,  # type: ignore[arg-type]
-                action_key=QUEST_DAILY_IDENTITY,
-            )
-
-        def recognize_daily_successor(after: CapturedNativeFrame) -> str:
-            nonlocal terminal_recognition
-            terminal_recognition = _settle_successor(
-                session=session,
-                capture=capture,
-                immediate_post=after,
-                recognize=recognizer.recognize_daily_selected,
-                expected_state=DAILY_SELECTED_STATE,
-                action_identity=QUEST_DAILY_IDENTITY,
-                frame_key="daily_terminal",
-                recognition_key="daily_terminal",
-                frames=frames,
-                recognitions=recognitions,
-                polls=polls,
-            )
-            return terminal_recognition.state if terminal_recognition.recognized else UNKNOWN_STATE
-
-        daily_dispatch = _NativeTapDispatch(dispatch_daily)
-        action = session.run_action(
-            action_class=NAVIGATION_ACTION_CLASS,
-            label=QUEST_DAILY_IDENTITY,
-            capture=capture,
-            dispatch=daily_dispatch.dispatch,
-            recognize=recognize_daily_successor,
-            consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
-        )
-        if (
-            action.status != "completed"
-            or terminal_recognition is None
-            or not terminal_recognition.recognized
-        ):
-            return _failure(
-                session,
-                reason="selected Daily terminal was not positively recognized",
-                frames=frames,
-                recognitions=recognitions,
-                polls=polls,
-            )
-
-        session.terminal_status = "observed"
-        return {
-            "status": "observed",
-            "reason": "selected Daily positively recognized from Main Quest",
-            "input_count": int(session.input_count),
-            "resource_affecting_inputs": 0,
-            "combat_confirmations": 0,
-            "frames": {
-                name: _frame_ref(frame, session.session_directory)
-                for name, frame in frames.items()
-            },
-            "recognitions": {
-                name: recognition.as_dict() for name, recognition in recognitions.items()
-            },
-            "polls": [dict(poll) for poll in polls],
-            "actions": [dict(row) for row in session.actions],
-        }
-    except BaseException as exc:
-        return _failure(
-            session,
-            reason=f"{type(exc).__name__}: {exc}",
-            frames=frames,
-            recognitions=recognitions,
-            polls=polls,
-        )
 
 
-def _claim_frame_label_map(label: str) -> str | None:
-    if label == "daily-row-claim-source":
-        return "source"
-    if label in {
-        "daily-row-claim-immediate-before",
-        f"{DAILY_CLAIM_ACTION_IDENTITY}-immediate-before",
-    }:
-        return "immediate_before"
-    if label in {
-        "daily-row-claim-immediate-post",
-        f"{DAILY_CLAIM_ACTION_IDENTITY}-immediate-post",
-    }:
-        return "immediate_post"
-    if label.startswith("daily-row-claim-poll-"):
-        return f"poll_{label.rsplit('-', 1)[-1]}"
-    if label == "daily-row-claim-return-home-source":
-        return "return_home_source"
-    if label == f"{DAILY_RETURN_HOME_ACTION_IDENTITY}-immediate-before":
-        return "return_home_immediate_before"
-    if label == f"{DAILY_RETURN_HOME_ACTION_IDENTITY}-immediate-post":
-        return "return_home_immediate_post"
-    if label.startswith(f"{DAILY_RETURN_HOME_ACTION_IDENTITY}-poll-"):
-        return f"return_home_poll_{label.rsplit('-', 1)[-1]}"
-    return None
 
-
-def _annotate_daily_claim_frame(
-    frame: CapturedNativeFrame,
-    *,
-    row_bounds: NativeBox,
-    target_roi: NativeBox,
-    output: Any,
-) -> None:
-    image = frame.frame.copy()
-    rx0, ry0, rx1, ry1 = row_bounds
-    tx0, ty0, tx1, ty1 = target_roi
-    cv2.rectangle(image, (rx0, ry0), (rx1 - 1, ry1 - 1), (255, 180, 0), 3)
-    cv2.rectangle(image, (tx0, ty0), (tx1 - 1, ty1 - 1), (0, 255, 0), 3)
-    cv2.putText(
-        image,
-        "aggregate daily claim",
-        (max(4, rx0), max(22, ry0 - 6)),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.65,
-        (0, 255, 0),
-        2,
-        cv2.LINE_AA,
-    )
-    ok, encoded = cv2.imencode(".png", image)
-    if not ok:
-        raise DailyRowClaimRecognitionError("annotated target overlay encoding failed")
-    output.write_bytes(encoded.tobytes())
-
-
-def _claim_result(
-    *,
-    status: str,
-    reason: str,
-    session: SessionLike,
-    frames: Mapping[str, CapturedNativeFrame],
-    recognitions: Mapping[str, FrameRecognition | Mapping[str, Any]],
-    polls: Sequence[Mapping[str, Any]],
-    game_day_id: str,
-    mode: str,
-    claim: Mapping[str, Any] | None = None,
-    extra: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    def recognition_record(
-        recognition: FrameRecognition | Mapping[str, Any],
-    ) -> dict[str, Any]:
-        if isinstance(recognition, Mapping):
-            return dict(recognition)
-        return recognition.as_dict()
-
-    payload: dict[str, Any] = {
-        "status": status,
-        "mode": mode,
-        "reason": reason,
-        "input_count": int(session.input_count),
-        "resource_affecting_inputs": 0,
-        "combat_confirmations": 0,
-        "game_day_id": game_day_id,
-        "frames": {
-            name: _frame_ref(frame, session.session_directory)
-            for name, frame in frames.items()
-        },
-        "recognitions": {
-            name: recognition_record(recognition)
-            for name, recognition in recognitions.items()
-        },
-        "polls": [dict(item) for item in polls],
-        "actions": [dict(item) for item in session.actions],
-    }
-    if claim is not None:
-        payload["claim"] = dict(claim)
-    if extra is not None:
-        payload.update(dict(extra))
-    return payload
-
-
-def run_daily_row_claim_prepare(
-    runtime: RuntimeLike,
-    session: SessionLike,
-    *,
-    game_day_id: str | None = None,
-    recognizer: DailyRowClaimRecognizer | Any | None = None,
-    wall_utc: Callable[[], datetime] | None = None,
-) -> dict[str, Any]:
-    """Capture and annotate one zero-input native BlueStacks Claim target."""
-
-    recognizer = recognizer or DailyRowClaimRecognizer()
-    if game_day_id is None and not hasattr(recognizer, "_ocr"):
-        # Test doubles predating reset-deadline evidence cannot derive pixels;
-        # keep their deterministic contract explicit without using host date.
-        game_day_id = "test-reset-deadline-bound"
-    frames: dict[str, CapturedNativeFrame] = {}
-    recognitions: dict[str, FrameRecognition] = {}
-    if not bool(getattr(runtime, "execute", False)):
-        return _claim_result(
-            status="evidence_required",
-            reason="runtime execution is required for Daily Claim preparation",
-            session=session,
-            frames=frames,
-            recognitions=recognitions,
-            polls=(),
-            game_day_id=game_day_id,
-            mode="prepare",
-        )
-    try:
-        source = session.observe(runtime.capture, label="daily-row-claim-source")
-        frames["source"] = source
-        recognition = _recognize_daily_claim(
-            recognizer,
-            source.frame,
-            game_day_id=game_day_id,
-            wall_utc=wall_utc,
-        )
-        recognitions["source"] = recognition
-        if game_day_id is None:
-            game_day_id = str(
-                (recognition.visual_evidence or {}).get("game_day_id") or ""
-            )
-        if not game_day_id:
-            raise DailyRowClaimRecognitionError(
-                "reset deadline identity was not bound at Daily Claim source"
-            )
-        observation = daily_claim_observation_from_recognition(
-            recognition,
-            source_frame_sha256=source.sha256,
-            evidence_ref=str(source.path),
-            game_day_id=game_day_id,
-        )
-        if (
-            observation is None
-            or recognition.target_identity != DAILY_CLAIM_TARGET_IDENTITY
-            or not available_daily_claim_authorizeable(observation)
-        ):
-            raise DailyRowClaimRecognitionError(
-                recognition.reason or "aggregate Daily Claim target was not authorized"
-            )
-        annotated = Path(runtime.session) / "annotated-daily-row-claim-source.png"
-        _annotate_daily_claim_frame(
-            source,
-            row_bounds=observation.row_bounds,
-            target_roi=observation.target_roi,
-            output=annotated,
-        )
-        claim = {
-            "points": observation.points,
-            "reset_timer": observation.reset_timer,
-            "reset_timer_seconds": observation.reset_timer_seconds,
-            "reset_observed_utc": observation.reset_observed_utc,
-            "reset_deadline_utc": observation.reset_deadline_utc,
-            "reset_deadline_identity": observation.reset_deadline_identity,
-            "reset_deadline_tolerance_seconds": observation.reset_deadline_tolerance_seconds,
-            "game_day_id": observation.game_day_id,
-            "row_bounds": observation.row_bounds,
-            "claim_roi": observation.target_roi,
-            "target_provenance": observation.target_provenance,
-            "runtime_profile_id": observation.runtime_profile_id,
-            "source_frame_sha256": source.sha256,
-            "annotated_source": str(annotated.relative_to(session.session_directory)).replace("\\", "/"),
-            "selected_daily": observation.selected_daily_quest,
-            "ordinary_reward_claim": observation.ordinary_reward_claim,
-            "free_control_proven": observation.free_control_proven,
-            "milestone_reward": observation.milestone_reward,
-            "available_claim_controls": observation.available_claim_controls,
-        }
-        session.terminal_status = "observed"
-        return _claim_result(
-            status="observed",
-            reason="aggregate Daily Claim target prepared without input",
-            session=session,
-            frames=frames,
-            recognitions=recognitions,
-            polls=(),
-            game_day_id=game_day_id,
-            mode="prepare",
-            claim=claim,
-        )
-    except BaseException as exc:
-        session.terminal_status = "evidence_required"
-        session.blocker = str(exc)
-        return _claim_result(
-            status="evidence_required",
-            reason=f"{type(exc).__name__}: {exc}",
-            session=session,
-            frames=frames,
-            recognitions=recognitions,
-            polls=(),
-            game_day_id=game_day_id,
-            mode="prepare",
-        )
-
-
-def _settle_daily_claim_successor(
-    *,
-    session: SessionLike,
-    runtime: RuntimeLike,
-    recognizer: DailyRowClaimRecognizer | Any,
-    immediate_post: CapturedNativeFrame,
-    before: FrameRecognition,
-    game_day_id: str,
-    wall_utc: Callable[[], datetime] | None,
-    frames: dict[str, CapturedNativeFrame],
-    recognitions: dict[str, FrameRecognition],
-    polls: list[dict[str, Any]],
-) -> FrameRecognition | None:
-    def inspect(frame: CapturedNativeFrame, label: str, attempt: int) -> FrameRecognition:
-        recognition = _recognize_daily_claim(
-            recognizer,
-            frame.frame,
-            game_day_id=game_day_id,
-            wall_utc=wall_utc,
-        )
-        frame_name = _claim_frame_label_map(label)
-        if frame_name is not None:
-            frames[frame_name] = frame
-            recognitions[frame_name] = recognition
-        polls.append(
-            {
-                "action_identity": DAILY_CLAIM_ACTION_IDENTITY,
-                "attempt": attempt,
-                "label": label,
-                "frame_name": frame_name,
-                "frame": _frame_ref(frame, session.session_directory),
-                "recognition": recognition.as_dict(),
-            }
-        )
-        return recognition
-
-    current = inspect(immediate_post, "daily-row-claim-immediate-post", 0)
-    if daily_claim_postcondition_verified(before, current, game_day_id=game_day_id):
-        return current
-    deadline = time.monotonic() + DAILY_CLAIM_SUCCESS_POLL_TIMEOUT_SECONDS
-    attempts = 0
-    while attempts < DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            break
-        interval = max(0.0, min(DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS, remaining))
-        if interval:
-            time.sleep(interval)
-        if time.monotonic() >= deadline:
-            break
-        attempts += 1
-        label = f"daily-row-claim-poll-{attempts:02d}"
-        current_frame = session.observe(runtime.capture, label=label)
-        current = inspect(current_frame, label, attempts)
-        if daily_claim_postcondition_verified(before, current, game_day_id=game_day_id):
-            return current
-    return None
-
-
-def _recognition_record(
-    recognition: FrameRecognition | Mapping[str, Any],
-) -> dict[str, Any]:
-    if isinstance(recognition, Mapping):
-        return dict(recognition)
-    if hasattr(recognition, "as_dict"):
-        return dict(recognition.as_dict())
-    return dict(asdict(recognition))
-
-
-def _home_successor_verified(
-    recognition: FrameRecognition | Mapping[str, Any],
-) -> bool:
-    record = _recognition_record(recognition)
-    visual = record.get("visual_evidence")
-    visual = visual if isinstance(visual, Mapping) else {}
-    overlay = visual.get("full_frame_overlay")
-    overlay = overlay if isinstance(overlay, Mapping) else {}
-    template = visual.get("template_home")
-    template = template if isinstance(template, Mapping) else None
-    return bool(
-        record.get("recognized")
-        and record.get("state") == HOME_STATE
-        and not bool(overlay.get("recognized"))
-        and template is not None
-        and template.get("recognized") is True
-    )
-
-
-def _settle_daily_return_home_successor(
-    *,
-    session: SessionLike,
-    runtime: RuntimeLike,
-    recognizer: DailyRowClaimRecognizer | Any,
-    immediate_post: CapturedNativeFrame,
-    frames: dict[str, CapturedNativeFrame],
-    recognitions: dict[str, FrameRecognition | Mapping[str, Any]],
-    polls: list[dict[str, Any]],
-) -> FrameRecognition | Mapping[str, Any] | None:
-    def inspect(
-        frame: CapturedNativeFrame,
-        label: str,
-        attempt: int,
-    ) -> FrameRecognition | Mapping[str, Any]:
-        method = getattr(recognizer, "recognize_home", None)
-        if not callable(method):
-            raise DailyRowClaimRecognitionError(
-                "template Home recognizer is not available"
-            )
-        recognition = method(frame.frame)
-        frame_name = _claim_frame_label_map(label)
-        if frame_name is not None:
-            frames[frame_name] = frame
-            recognitions[frame_name] = recognition
-        polls.append(
-            {
-                "action_identity": DAILY_RETURN_HOME_ACTION_IDENTITY,
-                "attempt": attempt,
-                "label": label,
-                "frame_name": frame_name,
-                "frame": _frame_ref(frame, session.session_directory),
-                "recognition": _recognition_record(recognition),
-            }
-        )
-        return recognition
-
-    current = inspect(
-        immediate_post,
-        f"{DAILY_RETURN_HOME_ACTION_IDENTITY}-immediate-post",
-        0,
-    )
-    if _home_successor_verified(current):
-        frames["return_home_final"] = immediate_post
-        recognitions["return_home_final"] = current
-        return current
-
-    deadline = time.monotonic() + DAILY_RETURN_HOME_SUCCESS_POLL_TIMEOUT_SECONDS
-    attempts = 0
-    while attempts < DAILY_RETURN_HOME_SUCCESS_POLL_MAX_ATTEMPTS:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            break
-        interval = max(
-            0.0,
-            min(DAILY_RETURN_HOME_SUCCESS_POLL_INTERVAL_SECONDS, remaining),
-        )
-        if interval:
-            time.sleep(interval)
-        if time.monotonic() >= deadline:
-            break
-        attempts += 1
-        label = f"{DAILY_RETURN_HOME_ACTION_IDENTITY}-poll-{attempts:02d}"
-        current_frame = session.observe(runtime.capture, label=label)
-        current = inspect(current_frame, label, attempts)
-        if _home_successor_verified(current):
-            frames["return_home_final"] = current_frame
-            recognitions["return_home_final"] = current
-            return current
-    return None
-
-
-def _run_daily_return_home_action(
-    runtime: RuntimeLike,
-    session: SessionLike,
-    *,
-    recognizer: DailyRowClaimRecognizer | Any,
-    expected_consequence_class: str,
-    frames: dict[str, CapturedNativeFrame],
-    recognitions: dict[str, FrameRecognition | Mapping[str, Any]],
-    polls: list[dict[str, Any]],
-) -> tuple[Any, FrameRecognition | Mapping[str, Any] | None]:
-    """Authorize one selected-Daily Back and prove template Home."""
-
-    def capture(label: str) -> CapturedNativeFrame:
-        frame = runtime.capture(label)
-        frame_name = _claim_frame_label_map(label)
-        if frame_name is not None:
-            frames[frame_name] = frame
-        if label == "daily-row-claim-return-home-source":
-            if not _frame_shape_ok(frame.frame):
-                raise DailyRowClaimRecognitionError(
-                    "return-home source profile dimensions mismatch"
-                )
-            _ensure_fresh(frame, runtime)
-            source, source_record = _daily_selected_successor(recognizer, frame)
-            recognitions["return_home_source"] = source_record or source
-            if not bool(source_record and source_record.get("successor_proven")):
-                raise DailyRowClaimRecognitionError(
-                    str(
-                        (source_record or {}).get("reason")
-                        or "selected Daily source was not positively recognized"
-                    )
-                )
-        elif label == f"{DAILY_RETURN_HOME_ACTION_IDENTITY}-immediate-before":
-            # Reject stale, malformed, or non-selected-Daily immediate evidence
-            # before DevelopmentSession accounts an input or invokes dispatch.
-            if not _frame_shape_ok(frame.frame):
-                raise DailyRowClaimRecognitionError(
-                    "return-home immediate-before profile dimensions mismatch"
-                )
-            _ensure_fresh(frame, runtime)
-            immediate, immediate_record = _daily_selected_successor(recognizer, frame)
-            recognitions["return_home_immediate_before"] = immediate_record or immediate
-            if not bool(
-                immediate_record and immediate_record.get("successor_proven")
-            ):
-                raise DailyRowClaimRecognitionError(
-                    str(
-                        (immediate_record or {}).get("reason")
-                        or "return-home immediate-before selected Daily revalidation failed"
-                    )
-                )
-        return frame
-
-    source = session.observe(
-        capture,
-        label="daily-row-claim-return-home-source",
-    )
-    # The source is checked again here because DevelopmentSession validates
-    # native geometry, but deliberately does not own this route's freshness
-    # policy.
-    _ensure_fresh(source, runtime)
-
-    def dispatch(before: CapturedNativeFrame) -> None:
-        _ensure_fresh(before, runtime)
-        _ensure_runtime_ready(runtime)
-        runtime.back(
-            before,
-            action_key=DAILY_RETURN_HOME_ACTION_IDENTITY,
-            target_identity=DAILY_RETURN_HOME_ACTION_IDENTITY,
-        )
-
-    terminal: FrameRecognition | Mapping[str, Any] | None = None
-
-    def recognize_successor(after: CapturedNativeFrame) -> str:
-        nonlocal terminal
-        terminal = _settle_daily_return_home_successor(
-            session=session,
-            runtime=runtime,
-            recognizer=recognizer,
-            immediate_post=after,
-            frames=frames,
-            recognitions=recognitions,
-            polls=polls,
-        )
-        return HOME_STATE if terminal is not None else UNKNOWN_STATE
-
-    action = session.run_action(
-        action_class=DAILY_RETURN_HOME_ACTION_CLASS,
-        label=DAILY_RETURN_HOME_ACTION_IDENTITY,
-        capture=capture,
-        dispatch=_NativeTapDispatch(dispatch).dispatch,
-        recognize=recognize_successor,
-        consequence_class=expected_consequence_class,
-    )
-    return action, terminal
-
-
-def run_daily_row_claim_once(
-    runtime: RuntimeLike,
-    session: SessionLike,
-    *,
-    game_day_id: str | None = None,
-    recognizer: DailyRowClaimRecognizer | Any | None = None,
-    wall_utc: Callable[[], datetime] | None = None,
-) -> dict[str, Any]:
-    """Claim once, then return Home with exactly one bounded Android Back."""
-
-    recognizer = recognizer or DailyRowClaimRecognizer()
-    if game_day_id is None and not hasattr(recognizer, "_ocr"):
-        game_day_id = "test-reset-deadline-bound"
-    frames: dict[str, CapturedNativeFrame] = {}
-    recognitions: dict[str, FrameRecognition] = {}
-    polls: list[dict[str, Any]] = []
-    before_recognition: FrameRecognition | None = None
-    authorization_recognition: FrameRecognition | None = None
-    terminal_recognition: FrameRecognition | None = None
-    annotated_immediate_before: str | None = None
-    claim_evidence: dict[str, Any] | None = None
-    if not bool(getattr(runtime, "execute", False)):
-        return _claim_result(
-            status="evidence_required",
-            reason="runtime execution is required for Daily Claim canary",
-            session=session,
-            frames=frames,
-            recognitions=recognitions,
-            polls=polls,
-            game_day_id=game_day_id,
-            mode="canary",
-        )
-    try:
-        source = session.observe(runtime.capture, label="daily-row-claim-source")
-        frames["source"] = source
-        before_recognition = _recognize_daily_claim(
-            recognizer,
-            source.frame,
-            game_day_id=game_day_id,
-            wall_utc=wall_utc,
-        )
-        recognitions["source"] = before_recognition
-        if game_day_id is None:
-            game_day_id = str(
-                (before_recognition.visual_evidence or {}).get("game_day_id") or ""
-            )
-        if not game_day_id:
-            raise DailyRowClaimRecognitionError(
-                "reset deadline identity was not bound at Daily Claim source"
-            )
-        before_observation = daily_claim_observation_from_recognition(
-            before_recognition,
-            source_frame_sha256=source.sha256,
-            evidence_ref=str(source.path),
-            game_day_id=game_day_id,
-        )
-        if (
-            before_observation is None
-            or before_recognition.target_identity != DAILY_CLAIM_TARGET_IDENTITY
-            or not available_daily_claim_authorizeable(before_observation)
-        ):
-            raise DailyRowClaimRecognitionError(
-                before_recognition.reason
-                or "aggregate Daily Claim target was not authorized"
-            )
-
-        def capture(label: str) -> CapturedNativeFrame:
-            frame = runtime.capture(label)
-            frame_name = _claim_frame_label_map(label)
-            if frame_name is not None:
-                frames[frame_name] = frame
-            return frame
-
-        def dispatch(before_frame: CapturedNativeFrame) -> None:
-            nonlocal annotated_immediate_before, authorization_recognition
-            rebound = _recognize_daily_claim(
-                recognizer,
-                before_frame.frame,
-                game_day_id=game_day_id,
-                wall_utc=wall_utc,
-            )
-            recognitions["immediate_before"] = rebound
-            rebound_observation = daily_claim_observation_from_recognition(
-                rebound,
-                source_frame_sha256=before_frame.sha256,
-                evidence_ref=str(before_frame.path),
-                game_day_id=game_day_id,
-            )
-            if (
-                rebound_observation is None
-                or rebound.target_identity != DAILY_CLAIM_TARGET_IDENTITY
-                or not available_daily_claim_authorizeable(rebound_observation)
-            ):
-                raise DailyRowClaimRecognitionError(
-                    rebound.reason or "immediate-before Claim revalidation failed"
-                )
-            # Successor semantics must use the exact fresh frame that passed
-            # the final authorization gate, never the earlier source frame.
-            authorization_recognition = rebound
-            _ensure_fresh(before_frame, runtime)
-            _ensure_runtime_ready(runtime)
-            annotated = Path(runtime.session) / "annotated-daily-row-claim-immediate-before.png"
-            _annotate_daily_claim_frame(
-                before_frame,
-                row_bounds=tuple(rebound.visual_evidence["row_bounds"]),  # type: ignore[index]
-                target_roi=rebound.target_roi,  # type: ignore[arg-type]
-                output=annotated,
-            )
-            try:
-                annotated_immediate_before = str(
-                    annotated.resolve()
-                    .relative_to(session.session_directory.resolve())
-                ).replace("\\", "/")
-            except (OSError, ValueError):
-                annotated_immediate_before = str(annotated)
-            runtime.tap(
-                before_frame,
-                target_identity=DAILY_CLAIM_ACTION_IDENTITY,
-                target_roi=rebound.target_roi,  # type: ignore[arg-type]
-                action_key=DAILY_CLAIM_ACTION_IDENTITY,
-                action_class=DAILY_CLAIM_ACTION_CLASS,
-                consequential=False,
-            )
-
-        def recognize_successor(after: CapturedNativeFrame) -> str:
-            nonlocal terminal_recognition
-            terminal_recognition = _settle_daily_claim_successor(
-                session=session,
-                runtime=runtime,
-                recognizer=recognizer,
-                immediate_post=after,
-                before=authorization_recognition,  # type: ignore[arg-type]
-                game_day_id=game_day_id,
-                wall_utc=wall_utc,
-                frames=frames,
-                recognitions=recognitions,
-                polls=polls,
-            )
-            return (
-                DAILY_SELECTED_STATE
-                if terminal_recognition is not None
-                else UNKNOWN_STATE
-            )
-
-        action = session.run_action(
-            action_class=DAILY_CLAIM_ACTION_CLASS,
-            label=DAILY_CLAIM_ACTION_IDENTITY,
-            capture=capture,
-            dispatch=_NativeTapDispatch(dispatch).dispatch,
-            recognize=recognize_successor,
-            consequence_class=DAILY_CLAIM_CONSEQUENCE_CLASS,
-        )
-
-        def visual_for(
-            recognition: FrameRecognition | Mapping[str, Any] | None,
-        ) -> dict[str, Any]:
-            if recognition is None:
-                return {}
-            visual = _recognition_record(recognition).get("visual_evidence")
-            return dict(visual) if isinstance(visual, Mapping) else {}
-
-        before_visual = visual_for(authorization_recognition or before_recognition)
-        after_visual = visual_for(
-            terminal_recognition or recognitions.get("immediate_post")
-        )
-        claim_evidence = {
-            "points_before": before_visual.get("points"),
-            "points_after": after_visual.get("points"),
-            "reset_timer": before_visual.get("reset_timer"),
-            "reset_timer_seconds": before_visual.get("reset_timer_seconds"),
-            "reset_observed_utc": before_visual.get("reset_observed_utc"),
-            "reset_deadline_utc": before_visual.get("reset_deadline_utc"),
-            "reset_deadline_identity": before_visual.get(
-                "reset_deadline_identity"
-            ),
-            "reset_deadline_tolerance_seconds": before_visual.get(
-                "reset_deadline_tolerance_seconds"
-            ),
-            "action_class": DAILY_CLAIM_ACTION_CLASS,
-            "consequence_class": DAILY_CLAIM_CONSEQUENCE_CLASS,
-            "annotated_immediate_before": annotated_immediate_before,
-        }
-        if action.status != "completed" or terminal_recognition is None:
-            raise DailyRowClaimRecognitionError(
-                "Daily Claim semantic postcondition was not proven"
-            )
-
-        return_home_action, final_home = _run_daily_return_home_action(
-            runtime,
-            session,
-            recognizer=recognizer,
-            expected_consequence_class=DAILY_CLAIM_CONSEQUENCE_CLASS,
-            frames=frames,
-            recognitions=recognitions,
-            polls=polls,
-        )
-        if return_home_action.status != "completed" or final_home is None:
-            raise DailyRowClaimRecognitionError(
-                "template Home return postcondition was not proven"
-            )
-
-        session.terminal_status = "completed"
-        final_frame = frames.get("return_home_final")
-        home_evidence = {
-            "verified": True,
-            "state": HOME_STATE,
-            "frame": (
-                _frame_ref(final_frame, session.session_directory)
-                if final_frame is not None
-                else None
-            ),
-            "recognition": _recognition_record(final_home),
-        }
-        return _claim_result(
-            status="completed",
-            reason="aggregate Daily Claim and template Home postconditions proven",
-            session=session,
-            frames=frames,
-            recognitions=recognitions,
-            polls=polls,
-            game_day_id=game_day_id,
-            mode="canary",
-            claim=claim_evidence,
-            extra={"home": home_evidence},
-        )
-    except BaseException as exc:
-        session.terminal_status = "evidence_required"
-        session.blocker = str(exc)
-        return _claim_result(
-            status="evidence_required",
-            reason=f"{type(exc).__name__}: {exc}",
-            session=session,
-            frames=frames,
-            recognitions=recognitions,
-            polls=polls,
-            game_day_id=game_day_id,
-            mode="canary",
-            claim=claim_evidence,
-        )
-
-
-def run_daily_row_claim_return_home(
-    runtime: RuntimeLike,
-    session: SessionLike,
-    *,
-    recognizer: DailyRowClaimRecognizer | Any | None = None,
-) -> dict[str, Any]:
-    """Return from an already-claimed selected Daily screen without Claim."""
-
-    recognizer = recognizer or DailyRowClaimRecognizer()
-    frames: dict[str, CapturedNativeFrame] = {}
-    recognitions: dict[str, FrameRecognition | Mapping[str, Any]] = {}
-    polls: list[dict[str, Any]] = []
-
-    def alias_source_evidence() -> None:
-        if "return_home_source" in frames:
-            frames["source"] = frames["return_home_source"]
-        if "return_home_source" in recognitions:
-            recognitions["source"] = recognitions["return_home_source"]
-
-    binding = {
-        "action_identity": DAILY_RETURN_HOME_ACTION_IDENTITY,
-        "action_class": DAILY_RETURN_HOME_ACTION_CLASS,
-        "consequence_class": DAILY_RETURN_HOME_CONSEQUENCE_CLASS,
-    }
-    if not bool(getattr(runtime, "execute", False)):
-        return _claim_result(
-            status="evidence_required",
-            reason="runtime execution is required for Daily return-home",
-            session=session,
-            frames=frames,
-            recognitions=recognitions,
-            polls=polls,
-            game_day_id=None,
-            mode="return-home",
-            extra=binding,
-        )
-
-    try:
-        action, final_home = _run_daily_return_home_action(
-            runtime,
-            session,
-            recognizer=recognizer,
-            expected_consequence_class=DAILY_RETURN_HOME_CONSEQUENCE_CLASS,
-            frames=frames,
-            recognitions=recognitions,
-            polls=polls,
-        )
-        alias_source_evidence()
-        if action.status != "completed" or final_home is None:
-            raise DailyRowClaimRecognitionError(
-                "template Home return postcondition was not proven"
-            )
-        final_frame = frames.get("return_home_final")
-        home_evidence = {
-            "verified": True,
-            "state": HOME_STATE,
-            "frame": (
-                _frame_ref(final_frame, session.session_directory)
-                if final_frame is not None
-                else None
-            ),
-            "recognition": _recognition_record(final_home),
-        }
-        session.terminal_status = "observed"
-        return _claim_result(
-            status="observed",
-            reason="selected Daily returned to template Home",
-            session=session,
-            frames=frames,
-            recognitions=recognitions,
-            polls=polls,
-            game_day_id=None,
-            mode="return-home",
-            extra={**binding, "home": home_evidence},
-        )
-    except BaseException as exc:
-        alias_source_evidence()
-        session.terminal_status = "evidence_required"
-        session.blocker = str(exc)
-        return _claim_result(
-            status="evidence_required",
-            reason=f"{type(exc).__name__}: {exc}",
-            session=session,
-            frames=frames,
-            recognitions=recognitions,
-            polls=polls,
-            game_day_id=None,
-            mode="return-home",
-            extra=binding,
-        )
-
-
-def _popup_value(recognition: Any, key: str, default: Any = None) -> Any:
-    if isinstance(recognition, Mapping):
-        return recognition.get(key, default)
-    return getattr(recognition, key, default)
-
-
-def _popup_record(recognition: Any) -> dict[str, Any]:
-    target_roi = _popup_value(recognition, "target_roi")
-    if isinstance(target_roi, list):
-        target_roi = tuple(target_roi)
-    return {
-        "status": _popup_value(recognition, "status"),
-        "recognized": bool(
-            _popup_value(
-                recognition,
-                "recognized",
-                _popup_value(recognition, "status") == "allowed",
-            )
-        ),
-        "popup_identity": _popup_value(recognition, "popup_identity"),
-        "target_identity": _popup_value(recognition, "target_identity"),
-        "target_roi": target_roi,
-        "source_frame_sha256": _popup_value(recognition, "source_frame_sha256", ""),
-        "semantic_evidence": tuple(
-            _popup_value(recognition, "semantic_evidence", ()) or ()
-        ),
-        "reason": _popup_value(recognition, "reason", ""),
-    }
-
-
-def _popup_recognizer_call(
-    recognizer: Any,
-    frame: np.ndarray,
-    *,
-    source_frame_sha256: str,
-) -> Any:
-    if recognizer is None:
-        from scripts.world_map_navigation_bluestacks import recognize_allowlisted_popup
-
-        return recognize_allowlisted_popup(
-            frame,
-            source_frame_sha256=source_frame_sha256,
-        )
-    if callable(recognizer):
-        return recognizer(frame, source_frame_sha256=source_frame_sha256)
-    method = getattr(recognizer, "recognize_allowlisted_popup", None)
-    if callable(method):
-        return method(frame, source_frame_sha256=source_frame_sha256)
-    method = getattr(recognizer, "recognize_popup", None)
-    if callable(method):
-        return method(frame, source_frame_sha256=source_frame_sha256)
-    raise DailyRowClaimRecognitionError("VIP popup recognizer is not callable")
-
-
-def _require_exact_vip_popup(
-    recognition: Any,
-    frame: CapturedNativeFrame,
-    *,
-    phase: str,
-) -> dict[str, Any]:
-    record = _popup_record(recognition)
-    target_roi = record["target_roi"]
-    semantics = {
-        _normalize_text(value)
-        for value in record["semantic_evidence"]
-    }
-    required_semantics = {
-        "get pts",
-        "log in every day to get vip pts",
-        "close",
-        "spatially associated close control",
-    }
-    if (
-        record["status"] != "allowed"
-        or record["popup_identity"] != VIP_POINTS_POPUP_IDENTITY
-        or record["target_identity"] != VIP_POINTS_POPUP_CLOSE_IDENTITY
-        or record["source_frame_sha256"] != frame.sha256
-        or not isinstance(target_roi, (tuple, list))
-        or len(target_roi) != 4
-        or not all(isinstance(value, (int, np.integer)) for value in target_roi)
-        or not (
-            0 <= int(target_roi[0]) < int(target_roi[2]) <= NATIVE_WIDTH
-            and 0 <= int(target_roi[1]) < int(target_roi[3]) <= NATIVE_HEIGHT
-        )
-        or not required_semantics.issubset(semantics)
-    ):
-        raise DailyRowClaimRecognitionError(
-            f"{phase} is not the exact VIP_POINTS_GET_PTS popup contract"
-        )
-    record["target_roi"] = tuple(int(value) for value in target_roi)
-    return record
 
 
 def _generic_modal_overlay_evidence(frame: np.ndarray) -> dict[str, Any]:
@@ -3735,289 +3066,1328 @@ def _generic_modal_overlay_evidence(frame: np.ndarray) -> dict[str, Any]:
     }
 
 
-def _daily_selected_successor(
-    recognizer: Any,
-    frame: CapturedNativeFrame,
-) -> tuple[FrameRecognition | Mapping[str, Any] | None, dict[str, Any] | None]:
-    method = getattr(recognizer, "recognize_daily_selected", None)
-    if not callable(method):
-        raise DailyRowClaimRecognitionError(
-            "selected-Daily successor recognizer is not available"
-        )
-    result = method(frame.frame)
-    if isinstance(result, Mapping):
-        record = dict(result)
-    elif hasattr(result, "as_dict"):
-        record = dict(result.as_dict())
-    else:
-        record = dict(asdict(result))
-    visual = record.get("visual_evidence")
-    visual = visual if isinstance(visual, Mapping) else {}
-    overlay = visual.get("full_frame_overlay")
-    overlay = overlay if isinstance(overlay, Mapping) else {}
-    generic_overlay = _generic_modal_overlay_evidence(frame.frame)
-    record = dict(record)
-    visual = dict(visual)
-    visual["generic_modal_overlay"] = generic_overlay
-    record["visual_evidence"] = visual
-    positive = bool(
-        record.get("recognized")
-        and record.get("state") == DAILY_SELECTED_STATE
-        and visual.get("selected_daily") is True
-        and not bool(overlay.get("recognized"))
-        and visual.get("blurred") is not True
-        and visual.get("unblurred") is not False
-        and visual.get("overlay_state") not in {"blurred", "modal"}
-        and not generic_overlay["recognized"]
+def _daily_aggregate_action_key(
+    account_id: str,
+    server_id: str,
+    reset_id: str,
+    game_day_id: str,
+    batch_identity: str,
+) -> str:
+    identity = (account_id, server_id, reset_id, game_day_id, batch_identity)
+    if any(not isinstance(value, str) or not value.strip() for value in identity):
+        raise ValueError("Daily aggregate action key requires exact account/reset/batch identity")
+    material = "".join(f"{len(value)}:{value}" for value in identity)
+    return "daily-rewards:aggregate:" + hashlib.sha256(
+        material.encode("utf-8")
+    ).hexdigest()
+
+
+def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -> Mapping[str, Any]:
+    """Maintain the current free Daily reward batch through the canonical journal."""
+    from safe_action_core import (
+        ActionClass,
+        ActionStatus,
+        CentralPolicy,
+        Observation,
+        PolicyRequest,
+        SafeActionExecutor,
+        TransportResult,
     )
-    record["successor_proven"] = positive
-    return result, record
+    from dataclasses import replace
+    from tasks.runtime_identity import BLUESTACKS_PACKAGE
 
+    if (
+        not isinstance(arguments, Mapping)
+        or type(arguments.get("observation_interval_seconds")) is not int
+        or not 1 <= arguments["observation_interval_seconds"] <= 86400
+    ):
+        return {
+            "status": "blocked",
+            "reason": "invalid observation cadence",
+            "total_input_count": None,
+            "total_action_count": 0,
+            "reward_claim_transport_calls": 0,
+            "committed_action_count": 0,
+            "accounting_verified": False,
+            "terminal_home_verified": False,
+            "effect_reconciliation_required": False,
+            "identical_retry_denied": False,
+            "aggregate_claim": {
+                "status": "none",
+                "dispatch_count": 0,
+                "confirmed": False,
+            },
+            "chests_collected": [],
+            "observed_points": {"before": None, "after": None},
+            "milestone_scan": {
+                "status": "unproven",
+                "reason": "invalid observation cadence",
+            },
+            "unclaimed_ready_chest_count": None,
+            "no_work": False,
+        }
+    context.validate_identity()
+    start_accounting = context.accounting()
+    runtime, session, store = context.runtime, context.session, context.action_store
+    recognizer = DailyRowClaimRecognizer()
+    initial = context.initial_frame
+    home = recognizer.recognize_home(initial.frame)
+    if not context.is_clean_home(initial.frame) or not home.recognized:
+        return {
+            "status": "blocked",
+            "reason": "fresh clean recognized Home is required before Daily rewards",
+            "total_input_count": start_accounting.input_count,
+            "total_action_count": 0,
+            "reward_claim_transport_calls": 0,
+            "committed_action_count": 0,
+            "accounting_verified": start_accounting.verified,
+            "terminal_home_verified": False,
+            "effect_reconciliation_required": False,
+            "identical_retry_denied": False,
+            "aggregate_claim": {
+                "status": "none",
+                "dispatch_count": 0,
+                "confirmed": False,
+            },
+            "chests_collected": [],
+            "observed_points": {"before": None, "after": None},
+            "milestone_scan": {
+                "status": "unproven",
+                "reason": "Daily surface was not reached from Home",
+            },
+            "unclaimed_ready_chest_count": None,
+            "no_work": False,
+        }
+    context.bind_initial_observation(
+        initial,
+        extra={"daily_rewards_start_state": HOME_STATE},
+    )
+    reconnaissance = run_daily_row_reconnaissance(runtime, session, recognizer=recognizer)
+    context.validate_identity()
+    if reconnaissance.get("status") != "observed":
+        accounting = context.accounting()
+        return {
+            "status": "blocked",
+            "reason": "Home-to-Quest-to-Daily reconnaissance was not verified",
+            "reconnaissance": reconnaissance,
+            "total_input_count": accounting.input_count,
+            "total_action_count": 0,
+            "reward_claim_transport_calls": 0,
+            "committed_action_count": 0,
+            "accounting_verified": accounting.verified,
+            "terminal_home_verified": False,
+            "effect_reconciliation_required": False,
+            "identical_retry_denied": False,
+            "aggregate_claim": {
+                "status": "none",
+                "dispatch_count": 0,
+                "confirmed": False,
+            },
+            "chests_collected": [],
+            "observed_points": {"before": None, "after": None},
+            "milestone_scan": {
+                "status": "unproven",
+                "reason": "selected Daily was not verified",
+            },
+            "unclaimed_ready_chest_count": None,
+            "no_work": False,
+        }
 
-def _popup_dismiss_result(
-    *,
-    status: str,
-    reason: str,
-    session: SessionLike,
-    frames: Mapping[str, CapturedNativeFrame],
-    popup_recognitions: Mapping[str, Mapping[str, Any]],
-    recognitions: Mapping[str, FrameRecognition | Mapping[str, Any]],
-    polls: Sequence[Mapping[str, Any]],
-    successor: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    return {
-        "status": status,
-        "mode": "dismiss-vip-popup",
-        "reason": reason,
-        "input_count": int(session.input_count),
-        "resource_affecting_inputs": 0,
-        "combat_confirmations": 0,
-        "action_identity": VIP_POINTS_POPUP_CLOSE_IDENTITY,
-        "action_class": NAVIGATION_ACTION_CLASS,
-        "consequence_class": NAVIGATION_CONSEQUENCE_CLASS,
-        "popup_identity": VIP_POINTS_POPUP_IDENTITY,
-        "frames": {
-            name: _frame_ref(frame, session.session_directory)
-            for name, frame in frames.items()
-        },
-        "popup_recognitions": {
-            name: dict(recognition)
-            for name, recognition in popup_recognitions.items()
-        },
-        "recognitions": {
-            name: (
-                dict(recognition)
-                if isinstance(recognition, Mapping)
-                else recognition.as_dict()
-            )
-            for name, recognition in recognitions.items()
-        },
-        "polls": [dict(item) for item in polls],
-        "successor": dict(successor) if successor is not None else None,
-        "actions": [dict(item) for item in session.actions],
+    utc_now = lambda: datetime.fromtimestamp(context.utc_clock(), timezone.utc)
+
+    def recognize(captured: CapturedNativeFrame, game_day_id: str | None = None):
+        return _recognize_daily_claim(
+            recognizer,
+            captured.frame,
+            game_day_id=game_day_id,
+            wall_utc=utc_now,
+        )
+
+    proposal_capture = session.observe(
+        runtime.capture,
+        label="daily-rewards-aggregate-proposal",
+    )
+    proposal_recognition = recognize(proposal_capture)
+    proposal_visual = dict(proposal_recognition.visual_evidence or {})
+    proposal_game_day = str(proposal_visual.get("game_day_id") or "")
+    proposal = daily_claim_observation_from_recognition(
+        proposal_recognition,
+        source_frame_sha256=proposal_capture.sha256,
+        evidence_ref=str(proposal_capture.path),
+        game_day_id=proposal_game_day,
+        aggregate_batch_identity=context.occurrence_key,
+    )
+    milestone_scan = recognize_daily_milestone_chests(
+        proposal_capture.frame,
+        proposal_recognition,
+        source_frame_sha256=proposal_capture.sha256,
+    )
+    scan_is_observed = milestone_scan.get("status") in {
+        "observed",
+        "partial_unknown",
     }
+    ready_chest_count = (
+        milestone_scan.get("ready_chest_count", 0)
+        if scan_is_observed
+        else None
+    )
+    ready_chest_count = (
+        ready_chest_count if type(ready_chest_count) is int else None
+    )
 
-
-def run_daily_row_claim_vip_popup_dismissal(
-    runtime: RuntimeLike,
-    session: SessionLike,
-    *,
-    recognizer: Any | None = None,
-    popup_recognizer: Any | None = None,
-    daily_recognizer: Any | None = None,
-) -> dict[str, Any]:
-    """Dismiss only the exact VIP Points popup, then observe selected Daily."""
-
-    if popup_recognizer is None and recognizer is not None:
-        popup_recognizer = (
-            getattr(recognizer, "recognize_allowlisted_popup", None)
-            or getattr(recognizer, "recognize_popup", None)
-            or recognizer
-        )
-    if daily_recognizer is None and recognizer is not None:
-        candidate = getattr(recognizer, "recognize_daily_selected", None)
-        if callable(candidate):
-            daily_recognizer = recognizer
-    daily_recognizer = daily_recognizer or DailyRowClaimRecognizer()
-    frames: dict[str, CapturedNativeFrame] = {}
-    popup_recognitions: dict[str, dict[str, Any]] = {}
-    recognitions: dict[str, FrameRecognition | Mapping[str, Any]] = {}
-    polls: list[dict[str, Any]] = []
-    successor: dict[str, Any] | None = None
-    terminal_recognition: FrameRecognition | Mapping[str, Any] | None = None
-
-    def result(status: str, reason: str) -> dict[str, Any]:
-        return _popup_dismiss_result(
-            status=status,
-            reason=reason,
-            session=session,
-            frames=frames,
-            popup_recognitions=popup_recognitions,
-            recognitions=recognitions,
-            polls=polls,
-            successor=successor,
+    def has_complete_zero_control_scan(recognition: FrameRecognition) -> bool:
+        visual = dict(recognition.visual_evidence or {})
+        return bool(
+            recognition.recognized
+            and recognition.state == DAILY_SELECTED_STATE
+            and recognition.target_identity is None
+            and recognition.target_roi is None
+            and visual.get("selected_daily") is True
+            and visual.get("claim_scan_complete") is True
+            and visual.get("claim_scan_raw_gold_pixel_count") == 0
+            and visual.get("zero_claim_scan_proven") is True
+            and visual.get("recognized_claim_controls") == 0
+            and visual.get("available_claim_controls") == 0
+            and isinstance(visual.get("game_day_id"), str)
+            and visual["game_day_id"].strip()
+            and isinstance(visual.get("reset_deadline_identity"), str)
+            and visual["reset_deadline_identity"].strip()
         )
 
-    if not bool(getattr(runtime, "execute", False)):
-        session.terminal_status = "evidence_required"
-        session.blocker = "runtime execution is required for VIP popup dismissal"
-        return result("evidence_required", session.blocker)
-
-    try:
-        source = session.observe(runtime.capture, label="daily-row-claim-source")
-        frames["source"] = source
-        source_popup = _popup_recognizer_call(
-            popup_recognizer,
-            source.frame,
-            source_frame_sha256=source.sha256,
+    def has_five_static_chests(scan: Mapping[str, Any]) -> bool:
+        chests = scan.get("milestones")
+        keys = [
+            chest.get("milestone_key")
+            for chest in chests
+            if isinstance(chest, Mapping)
+        ] if isinstance(chests, (tuple, list)) else []
+        return bool(
+            scan.get("status") == "observed"
+            and scan.get("slot_count") == DAILY_MILESTONE_SLOT_COUNT
+            and scan.get("observed_chest_count") == DAILY_MILESTONE_SLOT_COUNT
+            and scan.get("ready_chest_count") == 0
+            and isinstance(chests, (tuple, list))
+            and len(chests) == DAILY_MILESTONE_SLOT_COUNT
+            and len(keys) == DAILY_MILESTONE_SLOT_COUNT
+            and all(isinstance(key, str) and key.strip() for key in keys)
+            and len(set(keys)) == DAILY_MILESTONE_SLOT_COUNT
+            and all(
+                isinstance(chest, Mapping)
+                and chest.get("milestone_state") in {"not_ready", "claimed"}
+                and chest.get("milestone_ready") is False
+                and chest.get("target_roi") is not None
+                for chest in chests
+            )
         )
-        popup_recognitions["source"] = _popup_record(source_popup)
-        _require_exact_vip_popup(source_popup, source, phase="source")
 
-        def capture(label: str) -> CapturedNativeFrame:
-            frame = runtime.capture(label)
-            if label == f"{VIP_POINTS_POPUP_CLOSE_IDENTITY}-immediate-before":
-                frames["immediate_before"] = frame
-            elif label == f"{VIP_POINTS_POPUP_CLOSE_IDENTITY}-immediate-post":
-                frames["immediate_post"] = frame
-            elif label.startswith(f"{VIP_POINTS_POPUP_CLOSE_IDENTITY}-poll-"):
-                frames[f"poll_{label.rsplit('-', 1)[-1]}"] = frame
-            return frame
-
-        def dispatch(before_frame: CapturedNativeFrame) -> None:
-            before_popup = _popup_recognizer_call(
-                popup_recognizer,
-                before_frame.frame,
-                source_frame_sha256=before_frame.sha256,
-            )
-            popup_recognitions["immediate_before"] = _popup_record(before_popup)
-            exact = _require_exact_vip_popup(
-                before_popup,
-                before_frame,
-                phase="immediate-before",
-            )
-            _ensure_fresh(before_frame, runtime)
-            _ensure_runtime_ready(runtime)
-            runtime.tap(
-                before_frame,
-                target_identity=VIP_POINTS_POPUP_CLOSE_IDENTITY,
-                target_roi=exact["target_roi"],
-                action_key=VIP_POINTS_POPUP_CLOSE_IDENTITY,
-                action_class=NAVIGATION_ACTION_CLASS,
-                consequential=False,
-            )
-
-        def inspect_successor(
-            frame: CapturedNativeFrame,
-            label: str,
-            attempt: int,
-        ) -> FrameRecognition | Mapping[str, Any] | None:
-            nonlocal successor
-            popup = _popup_recognizer_call(
-                popup_recognizer,
-                frame.frame,
-                source_frame_sha256=frame.sha256,
-            )
-            popup_record = _popup_record(popup)
-            popup_recognitions[label] = popup_record
-            daily_result: FrameRecognition | Mapping[str, Any] | None = None
-            daily_record: dict[str, Any] | None = None
-            if popup_record["status"] == "absent":
-                daily_result, daily_record = _daily_selected_successor(
-                    daily_recognizer,
-                    frame,
-                )
-                if daily_record is not None and daily_record.get("successor_proven"):
-                    successor = {
-                        "state": DAILY_SELECTED_STATE,
-                        "popup_absent": True,
-                        "unblurred": True,
-                        "frame_name": (
-                            "immediate_post"
-                            if label == "immediate_post"
-                            else f"poll_{attempt:02d}"
-                        ),
-                        "frame_sha256": frame.sha256,
-                        "recognition": daily_record,
-                    }
-            poll = {
-                "action_identity": VIP_POINTS_POPUP_CLOSE_IDENTITY,
-                "attempt": attempt,
-                "label": label,
-                "frame_name": (
-                    "immediate_post"
-                    if label == "immediate_post"
-                    else f"poll_{attempt:02d}"
-                ),
-                "frame": _frame_ref(frame, session.session_directory),
-                "popup": popup_record,
-                "recognition": daily_record,
-            }
-            polls.append(poll)
-            if daily_result is not None:
-                recognitions[label] = daily_result
-            return (
-                daily_result
-                if daily_record is not None
-                and bool(daily_record.get("successor_proven"))
-                else None
-            )
-
-        def recognize_successor(
-            immediate_post: CapturedNativeFrame,
-        ) -> str:
-            nonlocal terminal_recognition
-            terminal_recognition = inspect_successor(
-                immediate_post,
-                "immediate_post",
-                0,
-            )
-            if terminal_recognition is not None:
-                return DAILY_SELECTED_STATE
-            deadline = time.monotonic() + VIP_POPUP_SUCCESS_POLL_TIMEOUT_SECONDS
-            attempts = 0
-            while attempts < VIP_POPUP_SUCCESS_POLL_MAX_ATTEMPTS:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    break
-                interval = max(
-                    0.0,
-                    min(VIP_POPUP_SUCCESS_POLL_INTERVAL_SECONDS, remaining),
-                )
-                if interval:
-                    time.sleep(interval)
-                if time.monotonic() >= deadline:
-                    break
-                attempts += 1
-                label = f"{VIP_POINTS_POPUP_CLOSE_IDENTITY}-poll-{attempts:02d}"
-                current = session.observe(runtime.capture, label=label)
-                terminal_recognition = inspect_successor(
-                    current,
-                    f"poll_{attempts:02d}",
-                    attempts,
-                )
-                if terminal_recognition is not None:
-                    return DAILY_SELECTED_STATE
-            return UNKNOWN_STATE
-
-        action = session.run_action(
-            action_class=NAVIGATION_ACTION_CLASS,
-            label=VIP_POINTS_POPUP_CLOSE_IDENTITY,
-            capture=capture,
-            dispatch=_NativeTapDispatch(dispatch).dispatch,
-            recognize=recognize_successor,
-            consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
-        )
-        if action.status != "completed" or terminal_recognition is None:
+    def verified_static_scan(
+        scan: Mapping[str, Any],
+        collected: Sequence[Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        if not has_five_static_chests(scan):
             raise DailyRowClaimRecognitionError(
-                "VIP popup dismissal selected-Daily successor was not proven"
+                "all five current milestone chests were not positively observed static"
             )
-        session.terminal_status = "observed"
-        return result(
-            "observed",
-            "VIP_POINTS_GET_PTS popup dismissed; selected Daily successor observed",
+        ready_keys = [str(chest["milestone_key"]) for chest in collected]
+        static_keys = [
+            str(chest["milestone_key"])
+            for chest in scan["milestones"]
+            if chest["milestone_key"] not in ready_keys
+        ]
+        if len(set(ready_keys)) != len(ready_keys) or any(
+            chest.get("milestone_state") != "claimed"
+            for chest in scan["milestones"]
+            if chest["milestone_key"] in ready_keys
+        ):
+            raise DailyRowClaimRecognitionError("collected chest successor is no longer proven")
+        return {
+            **dict(scan),
+            "status": "verified",
+            "selected_daily": True,
+            "reset_id": context.identity.reset_id,
+            # These keys describe the pass's positively admitted ready sources;
+            # the retained terminal rows below show their current Claimed state.
+            "ready_chest_count": len(ready_keys),
+            "ready_chest_keys": ready_keys,
+            "remaining_ready_chest_count": 0,
+            "static_or_locked_chest_keys": static_keys,
+        }
+
+    def same_daily_reset(
+        before: FrameRecognition,
+        current: FrameRecognition,
+    ) -> bool:
+        before_visual = dict(before.visual_evidence or {})
+        current_visual = dict(current.visual_evidence or {})
+        before_deadline = before_visual.get("reset_deadline_identity")
+        current_deadline = current_visual.get("reset_deadline_identity")
+        return bool(
+            before_visual.get("game_day_id")
+            and before_visual.get("game_day_id") == current_visual.get("game_day_id")
+            and isinstance(before_deadline, str)
+            and isinstance(current_deadline, str)
+            and _reset_deadline_identities_match(
+                before_deadline,
+                current_deadline,
+                tolerance_seconds=RESET_DEADLINE_TOLERANCE_SECONDS,
+            )
         )
-    except BaseException as exc:
-        session.terminal_status = "evidence_required"
-        session.blocker = str(exc)
-        return result("evidence_required", f"{type(exc).__name__}: {exc}")
+
+    def return_home_from_static_daily(
+        reference_recognition: FrameRecognition,
+    ) -> tuple[
+        CapturedNativeFrame | None,
+        Mapping[str, Any] | None,
+        FrameRecognition | None,
+        str | None,
+    ]:
+        """Back out only from a fresh, unchanged, complete zero-ready Daily scan."""
+        source: dict[str, Any] = {}
+        terminal: dict[str, CapturedNativeFrame] = {}
+        reference_day = str(
+            dict(reference_recognition.visual_evidence or {}).get("game_day_id")
+            or ""
+        )
+
+        for ordinal in range(1, 3):
+            successor_state = {"value": UNKNOWN_STATE}
+            label = f"daily-rewards:return-home-back-{ordinal}"
+
+            def authorize(before: CapturedNativeFrame) -> None:
+                context.validate_identity()
+                _ensure_fresh(before, runtime)
+                _ensure_runtime_ready(runtime)
+                if ordinal == 1:
+                    current = recognize(before, reference_day)
+                    current_scan = recognize_daily_milestone_chests(
+                        before.frame,
+                        current,
+                        source_frame_sha256=before.sha256,
+                    )
+                    source.update(
+                        capture=before,
+                        recognition=current,
+                        scan=current_scan,
+                    )
+                    if not has_complete_zero_control_scan(current):
+                        raise DailyRowClaimRecognitionError(
+                            "fresh selected Daily has no complete positive zero-Claim scan"
+                        )
+                    if not same_daily_reset(reference_recognition, current):
+                        raise DailyRowClaimRecognitionError(
+                            "fresh selected Daily reset identity changed before Home return"
+                        )
+                    if not has_five_static_chests(current_scan):
+                        raise DailyRowClaimRecognitionError(
+                            "fresh Daily chest scan is ready, unknown, or incomplete"
+                        )
+                else:
+                    quest = recognizer.recognize_quest(before.frame)
+                    if not quest.recognized or quest.state != QUEST_STATE:
+                        raise DailyRowClaimRecognitionError(
+                            "fresh intermediate Quest surface was not positively recognized"
+                        )
+
+            def dispatch(before: CapturedNativeFrame) -> None:
+                context.validate_identity()
+                _ensure_fresh(before, runtime)
+                _ensure_runtime_ready(runtime)
+                runtime.back(
+                    before,
+                    action_key=f"{label}:{before.sha256}",
+                    target_identity="android-back",
+                )
+
+            def recognize_return(after: CapturedNativeFrame) -> str:
+                if context.is_clean_home(after.frame):
+                    home_recognition = recognizer.recognize_home(after.frame)
+                    if home_recognition.recognized and home_recognition.state == HOME_STATE:
+                        terminal["capture"] = after
+                        successor_state["value"] = HOME_STATE
+                        return HOME_STATE
+                quest = recognizer.recognize_quest(after.frame)
+                if quest.recognized and quest.state == QUEST_STATE:
+                    successor_state["value"] = QUEST_STATE
+                    return QUEST_STATE
+                successor_state["value"] = UNKNOWN_STATE
+                return UNKNOWN_STATE
+
+            def settled_successor() -> CapturedNativeFrame:
+                delay = float(getattr(context, "settle_seconds", 0.0))
+                if delay > 0:
+                    time.sleep(delay)
+                return session.observe(
+                    runtime.capture,
+                    label=f"{label}-settled-successor",
+                )
+
+            try:
+                outcome = session.run_action(
+                    action_class=NAVIGATION_ACTION_CLASS,
+                    label=label,
+                    capture=runtime.capture,
+                    authorize=authorize,
+                    dispatch=dispatch,
+                    recognize=recognize_return,
+                    settled_successor=settled_successor,
+                    consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
+                )
+            except Exception as exc:
+                return (
+                    None,
+                    source.get("scan"),
+                    source.get("recognition"),
+                    f"{type(exc).__name__}: {exc}",
+                )
+            if outcome.status != "completed":
+                return (
+                    None,
+                    source.get("scan"),
+                    source.get("recognition"),
+                    "system Back did not produce a positively recognized successor",
+                )
+            if successor_state["value"] == HOME_STATE:
+                try:
+                    context.validate_identity()
+                except Exception as exc:
+                    return (
+                        None,
+                        source.get("scan"),
+                        source.get("recognition"),
+                        f"identity validation failed after Home return: {exc}",
+                    )
+                return (
+                    terminal.get("capture"),
+                    source.get("scan"),
+                    source.get("recognition"),
+                    None,
+                )
+            if successor_state["value"] != QUEST_STATE:
+                return (
+                    None,
+                    source.get("scan"),
+                    source.get("recognition"),
+                    "system Back successor was neither verified Home nor verified Quest",
+                )
+
+        return (
+            None,
+            source.get("scan"),
+            source.get("recognition"),
+            "two bounded system Back actions did not reach verified Home",
+        )
+
+    def close_static_daily(
+        result: dict[str, Any],
+        reference_recognition: FrameRecognition,
+        *,
+        no_work: bool,
+    ) -> dict[str, Any]:
+        home_capture, source_scan, source_recognition, return_error = (
+            return_home_from_static_daily(reference_recognition)
+        )
+        if source_scan is not None:
+            result["milestone_scan"] = source_scan
+            source_ready_count = source_scan.get("ready_chest_count")
+            result["unclaimed_ready_chest_count"] = (
+                source_ready_count if type(source_ready_count) is int else None
+            )
+        if source_scan is not None and not has_five_static_chests(source_scan):
+            accounting_now = context.accounting()
+            if (
+                source_recognition is not None
+                and has_complete_zero_control_scan(source_recognition)
+            ):
+                source_ready_count = source_scan.get("ready_chest_count")
+                if type(source_ready_count) is int and source_ready_count > 0:
+                    reason = (
+                        f"{source_ready_count} ready Daily milestone chest(es) remain "
+                        "at the fresh Home-return boundary; completion is deferred."
+                    )
+                else:
+                    reason = (
+                        "Fresh Daily chest scan contains unknown or unsupported slots; "
+                        "no chest input was sent and unsupported appearance is not "
+                        "treated as locked or opened."
+                    )
+                status = "evidence_required"
+            else:
+                reason = (
+                    "Fresh Daily zero-Claim and complete chest-state evidence changed "
+                    "before Home return."
+                )
+                status = "blocked" if no_work else "evidence_required"
+            result.update(
+                status=status,
+                reason=reason,
+                total_input_count=accounting_now.input_count,
+                accounting_verified=accounting_now.verified,
+                terminal_home_verified=False,
+                no_work=False,
+            )
+            return result
+        if home_capture is None or source_scan is None:
+            accounting_now = context.accounting()
+            result.update(
+                status="blocked" if no_work else "evidence_required",
+                reason=(
+                    "Complete zero-ready Daily evidence was not sufficient to prove "
+                    f"a clean Home return: {return_error or 'required evidence is missing'}"
+                ),
+                total_input_count=accounting_now.input_count,
+                accounting_verified=accounting_now.verified,
+                terminal_home_verified=False,
+                no_work=False,
+            )
+            return result
+
+        try:
+            scan_projection = verified_static_scan(source_scan, result["chests_collected"])
+            accounting_now = context.accounting()
+            terminal_ref = _frame_ref(home_capture, session.session_directory)
+            terminal_path = terminal_ref["path"]
+            if not isinstance(terminal_path, str) or not terminal_path:
+                raise DailyRowClaimRecognitionError(
+                    "retained verified Home frame reference is unavailable"
+                )
+        except Exception as exc:
+            accounting_now = context.accounting()
+            result.update(
+                status="blocked" if no_work else "evidence_required",
+                reason=f"verified Home result evidence is incomplete: {exc}",
+                total_input_count=accounting_now.input_count,
+                accounting_verified=accounting_now.verified,
+                terminal_home_verified=False,
+                no_work=False,
+            )
+            return result
+        if (
+            not accounting_now.verified
+            or source_recognition is None
+            or not has_complete_zero_control_scan(source_recognition)
+        ):
+            result.update(
+                status="blocked" if no_work else "evidence_required",
+                reason=(
+                    "Clean Home was recognized but native accounting or the complete "
+                    "zero-Claim source proof is unavailable."
+                ),
+                total_input_count=accounting_now.input_count,
+                accounting_verified=accounting_now.verified,
+                terminal_home_verified=True,
+                terminal_home_frame={
+                    "frame_path": terminal_ref["path"],
+                    "frame_sha256": terminal_ref["sha256"],
+                },
+                native_session_directory=str(session.session_directory),
+                milestone_scan=scan_projection,
+                no_work=False,
+            )
+            return result
+        source_visual = dict(source_recognition.visual_evidence or {})
+        static_keys = scan_projection["static_or_locked_chest_keys"]
+        result.update(
+            status="completed",
+            reason=(
+                "No aggregate Claim was available; all five current Daily milestone "
+                "chests were positively observed static/not ready, and clean Home was "
+                "verified."
+                if no_work
+                else (
+                    "Current free Daily rewards were confirmed; all five milestone "
+                    "chests are now claimed or not ready, and clean Home was verified."
+                )
+            ),
+            total_input_count=accounting_now.input_count,
+            accounting_verified=True,
+            terminal_home_verified=True,
+            terminal_home_frame={
+                "frame_path": terminal_ref["path"],
+                "frame_sha256": terminal_ref["sha256"],
+            },
+            native_session_directory=str(session.session_directory),
+            milestone_scan=scan_projection,
+            unclaimed_ready_chest_count=0,
+            no_work=no_work,
+        )
+        if no_work:
+            result["no_work_evidence"] = {
+                "selected_daily": True,
+                "reset_id": context.identity.reset_id,
+                "source_frame_sha256": source_scan.get("source_frame_sha256"),
+                "ordinary_claim_controls": source_visual.get(
+                    "available_claim_controls"
+                ),
+                "ready_chest_count": 0,
+                "static_or_locked_chest_keys": list(static_keys),
+            }
+        else:
+            result["no_work_evidence"] = None
+        return result
+
+    accounting = context.accounting()
+    empty_aggregate = {
+        "status": "none",
+        "dispatch_count": 0,
+        "confirmed": False,
+    }
+    base: dict[str, Any] = {
+        "status": "blocked",
+        "total_input_count": accounting.input_count,
+        "total_action_count": 0,
+        "reward_claim_transport_calls": 0,
+        "committed_action_count": 0,
+        "accounting_verified": accounting.verified,
+        "terminal_home_verified": False,
+        "effect_reconciliation_required": False,
+        "identical_retry_denied": False,
+        "aggregate_claim": empty_aggregate,
+        "chests_collected": [],
+        "observed_points": {"before": proposal_visual.get("points"), "after": None},
+        "reconnaissance": reconnaissance,
+        "milestone_scan": milestone_scan,
+        "unclaimed_ready_chest_count": ready_chest_count,
+        "no_work": False,
+    }
+    def claim_ready_chests(
+        result: dict[str, Any],
+        captured: CapturedNativeFrame,
+        recognition: FrameRecognition,
+        scan: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Claim each freshly bound ready slot once; UNKNOWN never retries input."""
+        def refresh_accounting() -> None:
+            accounting_now = context.accounting()
+            result.update(
+                total_input_count=accounting_now.input_count,
+                accounting_verified=accounting_now.verified,
+            )
+
+        for _ in range(DAILY_MILESTONE_SLOT_COUNT):
+            context.checkpoint()
+            context.validate_identity()
+            if not has_complete_zero_control_scan(recognition):
+                result.update(
+                    status="evidence_required",
+                    reason="Current ordinary Claim batch is not positively clear; chest phase deferred.",
+                )
+                return result
+            ready = [
+                row for row in scan.get("milestones", ())
+                if row.get("milestone_state") == "ready"
+                and row.get("milestone_ready") is True
+                and row.get("target_identity") == DAILY_MILESTONE_CHEST_TARGET_IDENTITY
+            ]
+            if not ready:
+                break
+            if result["total_action_count"] >= min(
+                context.max_actions if context.max_actions is not None else 6, 6,
+            ):
+                result.update(status="blocked", reason="Finite Daily reward action budget exhausted.")
+                return result
+            chest = ready[0]
+            key = str(chest["milestone_key"])
+            game_day = str(scan["game_day_id"])
+            identity = (
+                context.identity.account_id, context.identity.server_id,
+                context.identity.reset_id, key,
+            )
+            material = "".join(f"{len(value)}:{value}" for value in identity)
+            action_key = "daily-rewards:milestone:" + hashlib.sha256(
+                material.encode("utf-8")
+            ).hexdigest()
+            prior = store.get_action_by_key(action_key)
+            if store.has_action_block() or prior is not None:
+                result.update(
+                    status="unresolved",
+                    reason="Canonical action history requires reconciliation; no chest retry.",
+                    effect_reconciliation_required=store.has_action_block(),
+                    identical_retry_denied=True,
+                )
+                return result
+            before = session.observe(runtime.capture, label=f"{key}-immediate-before")
+            before_recognition = recognize(before, game_day)
+            before_scan = recognize_daily_milestone_chests(
+                before.frame, before_recognition, source_frame_sha256=before.sha256,
+            )
+            bound = [
+                row for row in before_scan.get("milestones", ())
+                if row.get("milestone_key") == key
+                and row.get("milestone_state") == "ready"
+                and row.get("milestone_ready") is True
+            ]
+            if (
+                len(bound) != 1
+                or not has_complete_zero_control_scan(before_recognition)
+                or not same_daily_reset(recognition, before_recognition)
+                or before.captured_monotonic <= captured.captured_monotonic
+                or max(abs(a - b) for a, b in zip(
+                    chest["target_roi"], bound[0]["target_roi"]
+                )) > 2
+            ):
+                result.update(status="blocked", reason="Fresh same-slot ready chest binding changed.")
+                refresh_accounting()
+                return result
+            target_roi = tuple(bound[0]["target_roi"])
+            action_id = "daily-milestone-" + hashlib.sha256(
+                f"{action_key}:{context.invocation_id}".encode("utf-8")
+            ).hexdigest()
+            expected_postcondition = "same_milestone_claimed_opened_or_removed"
+            consequence = "claim_zero_cost_reward"
+            policy = CentralPolicy({context.flow_id})
+
+            def source_observation(frame):
+                return Observation(
+                    frame_sha256=frame.sha256,
+                    capture_completed_monotonic=frame.captured_monotonic,
+                    runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
+                    width=NATIVE_WIDTH, height=NATIVE_HEIGHT, valid_png=True,
+                    corrupt=False, black=False, source_state=DAILY_SELECTED_STATE,
+                    overlay_state="none_observed",
+                    target_identity=DAILY_MILESTONE_CHEST_TARGET_IDENTITY,
+                    target_roi=target_roi, recognized=True, control_class="MILESTONE_CHEST",
+                    consequence=consequence, cost_type="none", cost_amount=0, quantity=1,
+                    expected_postcondition=expected_postcondition,
+                    evidence_refs=(str(frame.path),), ocr_result_frame_sha256=frame.sha256,
+                    ocr_result_capture_completed_monotonic=frame.captured_monotonic,
+                    source_family="daily_rewards_milestone", target_isolated=True,
+                    package_foreground=runtime.measure_foreground_package() == BLUESTACKS_PACKAGE,
+                )
+
+            immediate_observation = source_observation(before)
+            request = PolicyRequest(
+                action_id=action_id, action_key=action_key, task_id=context.flow_id,
+                task_mode="supervised_validation", semantic_action="CLAIM_ACTIVITY_MILESTONE",
+                expected_runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
+                observation=immediate_observation, monotonic_now=context.monotonic_clock(),
+                observation_max_age_seconds=30.0, dispatch_max_age_seconds=30.0,
+                lease_owner=context.owner,
+                lease_valid=store.lease_valid_for(context.owner, context.utc_clock()),
+                unresolved_action=store.has_action_block(),
+                duplicate_action_key=store.action_key_exists(action_key),
+                game_day_id=game_day, action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+                action_kind="CLAIM_ACTIVITY_MILESTONE",
+                subject=DAILY_MILESTONE_CHEST_TARGET_IDENTITY, maximum_cost=0, free_only=True,
+                semantic_preconditions=(
+                    "daily_quest_screen", "selected_activity_milestones",
+                    f"exact_milestone:{key}", "exact_ready_chest",
+                    "bluestacks_native_evidence", "zero_cost_reward",
+                ),
+                semantic_postconditions=(expected_postcondition,),
+                runtime_session_id=str(runtime.session),
+            )
+            issued = policy.issue_capability(request)
+            store.audit(context.flow_id, "capability_issued", context.utc_clock(), issued.audit, action_id)
+            if not issued.authorized or issued.capability is None:
+                result.update(status="blocked", reason=f"Chest policy denied: {issued.reason_code}")
+                refresh_accounting()
+                return result
+            post_frames: list[CapturedNativeFrame] = []
+            post_scans: list[Mapping[str, Any]] = []
+            post_recognitions: list[FrameRecognition] = []
+            verified: list[bool] = []
+            transport_calls = 0
+            before_used = False
+            recapture_used = False
+
+            def single_before(label):
+                nonlocal before_used
+                if before_used:
+                    return runtime.capture(label)
+                before_used = True
+                return before
+
+            def recapture():
+                nonlocal recapture_used
+                if recapture_used:
+                    raise DailyRowClaimRecognitionError("Chest source observation is single-use")
+                recapture_used = True
+                return immediate_observation
+
+            def observe_successor(frame):
+                current = recognize(frame, game_day)
+                current_scan = recognize_daily_milestone_chests(
+                    frame.frame, current, source_frame_sha256=frame.sha256,
+                )
+                positive = daily_milestone_postcondition_verified(before_scan, current_scan, key)
+                post_frames.append(frame)
+                post_scans.append(current_scan)
+                post_recognitions.append(current)
+                verified.append(positive)
+                return expected_postcondition if positive else "unknown"
+
+            def settle_successor():
+                last = None
+                for ordinal in range(1, DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS + 1):
+                    context.checkpoint()
+                    context.validate_identity()
+                    time.sleep(DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS)
+                    last = runtime.capture(f"{key}-settled-{ordinal:02d}")
+                    if observe_successor(last) == expected_postcondition:
+                        break
+                return last
+
+            def dispatch(frame):
+                nonlocal transport_calls
+                context.validate_identity()
+                transport_calls += 1
+                runtime.tap(
+                    frame, target_identity=DAILY_MILESTONE_CHEST_TARGET_IDENTITY,
+                    target_roi=target_roi, action_key=action_key,
+                    action_class="free_action", consequential=False,
+                )
+
+            def transport(_intent):
+                action = session.run_action(
+                    action_class=DAILY_CLAIM_ACTION_CLASS, label=action_key,
+                    capture=single_before, dispatch=dispatch, recognize=observe_successor,
+                    settled_successor=settle_successor,
+                    consequence_class=DAILY_CLAIM_CONSEQUENCE_CLASS,
+                )
+                return TransportResult(
+                    action.status == "completed",
+                    "BLUESTACKS_DAILY_MILESTONE_CLAIM_DISPATCHED"
+                    if action.status == "completed" else "BLUESTACKS_DAILY_MILESTONE_UNRESOLVED",
+                )
+
+            def post_observe():
+                for frame, positive in zip(post_frames, verified):
+                    yield Observation(
+                        frame_sha256=frame.sha256,
+                        capture_completed_monotonic=frame.captured_monotonic,
+                        runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
+                        width=NATIVE_WIDTH, height=NATIVE_HEIGHT, valid_png=True,
+                        corrupt=False, black=False,
+                        source_state=expected_postcondition if positive else UNKNOWN_STATE,
+                        overlay_state="none_observed" if positive else "unknown",
+                        target_identity=None, target_roi=None, recognized=positive,
+                        evidence_refs=(str(frame.path),),
+                    )
+
+            def reconcile(_intent, observed):
+                return bool(
+                    verified and verified[-1]
+                    and observed.frame_sha256 == post_frames[-1].sha256
+                    and observed.capture_completed_monotonic == post_frames[-1].captured_monotonic
+                )
+
+            error = None
+            execution = None
+            try:
+                execution = SafeActionExecutor(
+                    store, policy, context.owner, context.monotonic_clock, transport,
+                    recapture, post_observe, reconcile, wall_clock=context.utc_clock,
+                    max_pre_dispatch_attempts=1,
+                ).execute(
+                    replace(request, observation=source_observation(captured),
+                            monotonic_now=context.monotonic_clock()),
+                    issued.capability,
+                )
+            except Exception as exc:
+                error = str(exc)
+            journal = store.get_action_by_key(action_key)
+            expected_journal = {
+                "action_id": action_id, "task_id": context.flow_id,
+                "semantic_action": "CLAIM_ACTIVITY_MILESTONE",
+                "source_state": DAILY_SELECTED_STATE,
+                "target_identity": DAILY_MILESTONE_CHEST_TARGET_IDENTITY,
+                "game_day_id": game_day, "consequence": consequence,
+                "expected_postcondition": expected_postcondition, "cost_type": "none",
+                "cost_amount": 0, "quantity": 1, "consequential": 1,
+                "final_status": ActionStatus.CONFIRMED.value,
+            }
+            confirmed = bool(
+                execution is not None and execution.status is ActionStatus.CONFIRMED
+                and transport_calls == 1 and verified and verified[-1]
+                and journal is not None
+                and all(journal.get(field) == value for field, value in expected_journal.items())
+            )
+            result["total_action_count"] += transport_calls
+            result["reward_claim_transport_calls"] += transport_calls
+            result["identical_retry_denied"] = bool(journal is not None or transport_calls)
+            if not confirmed:
+                result.update(
+                    status="unresolved" if journal is not None or transport_calls else "blocked",
+                    reason=error or (execution.reason if execution is not None else "Chest outcome unknown"),
+                    effect_reconciliation_required=bool(journal is not None or transport_calls),
+                )
+                refresh_accounting()
+                return result
+            result["committed_action_count"] += 1
+            result["chests_collected"].append({
+                "status": "confirmed", "milestone_key": key,
+                "reset_id": context.identity.reset_id,
+                "target_identity": DAILY_MILESTONE_CHEST_TARGET_IDENTITY,
+                "control_class": "MILESTONE_CHEST", "ready_state_proven": True,
+                "free_only": True, "cost_type": "none", "dispatch_count": 1,
+                "action_key": action_key, "successor_milestone_key": key,
+                "successor_state": "claimed",
+                "source_frame_sha256": before.sha256,
+                "successor_frame_sha256": post_frames[-1].sha256,
+            })
+            refresh_accounting()
+            captured, recognition, scan = post_frames[-1], post_recognitions[-1], post_scans[-1]
+            result.update(
+                milestone_scan=scan,
+                unclaimed_ready_chest_count=scan.get("ready_chest_count"),
+            )
+            result["observed_points"]["after"] = dict(recognition.visual_evidence or {}).get("points")
+        if has_complete_zero_control_scan(recognition) and has_five_static_chests(scan):
+            return close_static_daily(
+                result, recognition, no_work=result["committed_action_count"] == 0,
+            )
+        result.update(
+            status="evidence_required",
+            reason="Current five-slot chest scan is incomplete or still ready; no identical retry.",
+        )
+        return result
+
+    if proposal is None or not available_daily_claim_authorizeable(proposal):
+        if has_complete_zero_control_scan(proposal_recognition):
+            return claim_ready_chests(base, proposal_capture, proposal_recognition, milestone_scan)
+        base["reason"] = proposal_recognition.reason or "Current free Daily claim context is ambiguous."
+        return base
+
+    batch_identity = proposal.aggregate_batch_identity
+    if not isinstance(batch_identity, str) or not batch_identity:
+        base["reason"] = "current aggregate ready-batch identity is missing"
+        return base
+    action_key = _daily_aggregate_action_key(
+        context.identity.account_id,
+        context.identity.server_id,
+        context.identity.reset_id,
+        proposal.game_day_id,
+        batch_identity,
+    )
+    if store.has_action_block():
+        base.update(
+            status="unresolved",
+            reason="canonical unresolved action requires inspection",
+            effect_reconciliation_required=True,
+            identical_retry_denied=True,
+        )
+        return base
+    prior = store.get_action_by_key(action_key)
+    if prior is not None:
+        base["reason"] = (
+            "same current aggregate batch already has a canonical journal entry; no retry"
+        )
+        base["identical_retry_denied"] = True
+        base["prior_journal_status"] = prior.get("final_status")
+        return base
+
+    immediate_capture = session.observe(
+        runtime.capture,
+        label="daily-rewards-aggregate-immediate-before",
+    )
+    immediate_recognition = recognize(immediate_capture, proposal.game_day_id)
+    immediate_visual = dict(immediate_recognition.visual_evidence or {})
+    immediate = daily_claim_observation_from_recognition(
+        immediate_recognition,
+        source_frame_sha256=immediate_capture.sha256,
+        evidence_ref=str(immediate_capture.path),
+        game_day_id=proposal.game_day_id,
+        aggregate_batch_identity=batch_identity,
+    )
+    if (
+        immediate is None
+        or not available_daily_claim_authorizeable(immediate)
+        or immediate.aggregate_batch_identity != batch_identity
+        or immediate.target_roi != proposal.target_roi
+        or immediate.row_bounds != proposal.row_bounds
+        or immediate_capture.captured_monotonic <= proposal_capture.captured_monotonic
+    ):
+        base["reason"] = "immediate-before aggregate batch changed or became ambiguous"
+        return base
+
+    action_id = "daily-rewards-aggregate-" + hashlib.sha256(
+        f"{action_key}:{context.invocation_id}".encode("utf-8")
+    ).hexdigest()
+    action_semantic = "CLAIM_DAILY_QUEST"
+    expected_postcondition = "all_ordinary_claim_controls_cleared"
+    consequence = "claim_zero_cost_reward"
+
+    def action_observation(captured, recognition, observed):
+        package = runtime.measure_foreground_package()
+        return Observation(
+            frame_sha256=captured.sha256,
+            capture_completed_monotonic=captured.captured_monotonic,
+            runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
+            width=NATIVE_WIDTH,
+            height=NATIVE_HEIGHT,
+            valid_png=True,
+            corrupt=False,
+            black=False,
+            source_state=DAILY_SELECTED_STATE,
+            overlay_state="none_observed",
+            target_identity=DAILY_CLAIM_TARGET_IDENTITY,
+            target_roi=recognition.target_roi,
+            recognized=bool(recognition.recognized),
+            control_class="CLAIM",
+            consequence=consequence,
+            cost_type="none",
+            cost_amount=0,
+            quantity=1,
+            expected_postcondition=expected_postcondition,
+            evidence_refs=(str(captured.path),),
+            ocr_result_frame_sha256=captured.sha256,
+            ocr_result_capture_completed_monotonic=captured.captured_monotonic,
+            source_family="daily_rewards_aggregate",
+            target_isolated=True,
+            package_foreground=package == BLUESTACKS_PACKAGE,
+        )
+
+    immediate_policy_observation = action_observation(
+        immediate_capture, immediate_recognition, immediate
+    )
+    proposal_policy_observation = action_observation(
+        proposal_capture, proposal_recognition, proposal
+    )
+    policy = CentralPolicy({context.flow_id})
+
+    def policy_request(observed):
+        return PolicyRequest(
+            action_id=action_id,
+            action_key=action_key,
+            task_id=context.flow_id,
+            task_mode="supervised_validation",
+            semantic_action=action_semantic,
+            expected_runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
+            observation=observed,
+            monotonic_now=context.monotonic_clock(),
+            observation_max_age_seconds=30.0,
+            dispatch_max_age_seconds=30.0,
+            lease_owner=context.owner,
+            lease_valid=store.lease_valid_for(context.owner, context.utc_clock()),
+            unresolved_action=store.has_action_block(),
+            duplicate_action_key=store.action_key_exists(action_key),
+            game_day_id=proposal.game_day_id,
+            action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+            action_kind=action_semantic,
+            subject=DAILY_CLAIM_TARGET_IDENTITY,
+            maximum_cost=0,
+            free_only=True,
+            semantic_preconditions=(
+                "daily_quest_screen",
+                "current_aggregate_ready_batch",
+                "exact_current_free_claim_control",
+                "aggregate_batch_bound_to_reset",
+            ),
+            semantic_postconditions=(expected_postcondition,),
+            runtime_session_id=str(runtime.session),
+        )
+
+    issue_request = policy_request(immediate_policy_observation)
+    issued = policy.issue_capability(issue_request)
+    store.audit(context.flow_id, "capability_issued", context.utc_clock(), issued.audit, action_id)
+    if not issued.authorized or issued.capability is None:
+        base["reason"] = f"aggregate Claim policy denied: {issued.reason_code}"
+        return base
+
+    post_captures: list[CapturedNativeFrame] = []
+    post_recognitions: list[FrameRecognition] = []
+    post_verified: list[bool] = []
+    immediate_returned = False
+    recapture_returned = False
+
+    def single_immediate(label):
+        nonlocal immediate_returned
+        if not immediate_returned:
+            immediate_returned = True
+            return immediate_capture
+        return runtime.capture(label)
+
+    def recapture():
+        nonlocal recapture_returned
+        if recapture_returned:
+            raise ValueError("aggregate Claim immediate observation is single-use")
+        recapture_returned = True
+        return immediate_policy_observation
+
+    def observe_successor(captured):
+        recognition = recognize(captured, proposal.game_day_id)
+        verified = daily_claim_postcondition_verified(
+            immediate_recognition,
+            recognition,
+            game_day_id=proposal.game_day_id,
+        )
+        post_captures.append(captured)
+        post_recognitions.append(recognition)
+        post_verified.append(verified)
+        return expected_postcondition if verified else "unknown"
+
+    def settle_successor():
+        last = None
+        for ordinal in range(1, DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS + 1):
+            time.sleep(DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS)
+            last = runtime.capture(f"daily-rewards-aggregate-settled-{ordinal:02d}")
+            if observe_successor(last) == expected_postcondition:
+                break
+        if last is None:
+            raise DailyRowClaimRecognitionError("aggregate Claim successor capture is unavailable")
+        return last
+
+    def transport(_intent):
+        context.validate_identity()
+        action = session.run_action(
+            action_class=DAILY_CLAIM_ACTION_CLASS,
+            label=action_key,
+            capture=single_immediate,
+            dispatch=lambda before: runtime.tap(
+                before,
+                target_identity=DAILY_CLAIM_TARGET_IDENTITY,
+                target_roi=immediate_recognition.target_roi,
+                action_key=action_key,
+                action_class="free_action",
+                consequential=False,
+            ),
+            recognize=observe_successor,
+            settled_successor=settle_successor,
+            consequence_class=DAILY_CLAIM_CONSEQUENCE_CLASS,
+        )
+        if action.status != "completed":
+            return TransportResult(False, "BLUESTACKS_DAILY_AGGREGATE_ACTION_UNRESOLVED")
+        return TransportResult(True, "BLUESTACKS_DAILY_AGGREGATE_CLAIM_DISPATCHED")
+
+    def post_observe():
+        for captured, recognition, positive in zip(
+            post_captures, post_recognitions, post_verified
+        ):
+            visual = dict(recognition.visual_evidence or {})
+            yield Observation(
+                frame_sha256=captured.sha256,
+                capture_completed_monotonic=captured.captured_monotonic,
+                runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
+                width=NATIVE_WIDTH,
+                height=NATIVE_HEIGHT,
+                valid_png=True,
+                corrupt=False,
+                black=False,
+                source_state=(
+                    expected_postcondition if positive else "UNKNOWN"
+                ),
+                overlay_state=(
+                    "none_observed"
+                    if not visual.get("full_frame_overlay", {}).get("recognized")
+                    else "unknown"
+                ),
+                target_identity=None,
+                target_roi=None,
+                recognized=positive,
+                evidence_refs=(str(captured.path),),
+            )
+
+    def reconcile(_intent, observed):
+        return bool(
+            post_captures
+            and observed.frame_sha256 == post_captures[-1].sha256
+            and observed.capture_completed_monotonic
+            == post_captures[-1].captured_monotonic
+            and post_verified[-1]
+        )
+
+    def aggregate_action_count() -> int:
+        return sum(
+            1
+            for item in runtime.frame_actions
+            if isinstance(item, tuple)
+            and len(item) == 3
+            and item[1] == DAILY_CLAIM_TARGET_IDENTITY
+        )
+
+    def interrupted_result(reason: str) -> Mapping[str, Any]:
+        calls = aggregate_action_count()
+        try:
+            current_accounting = context.accounting()
+            input_count = current_accounting.input_count
+            accounting_verified = current_accounting.verified is True
+        except Exception:
+            input_count = None
+            accounting_verified = False
+        return {
+            "status": "unresolved" if calls else "blocked",
+            "reason": reason,
+            "total_input_count": input_count,
+            "total_action_count": calls,
+            "reward_claim_transport_calls": calls,
+            "committed_action_count": 0,
+            "accounting_verified": accounting_verified,
+            "terminal_home_verified": False,
+            "effect_reconciliation_required": bool(calls),
+            "identical_retry_denied": bool(calls),
+            "aggregate_claim": {
+                "status": "unresolved" if calls else "none",
+                "dispatch_count": calls,
+                "confirmed": False,
+                "batch_identity": batch_identity,
+                "reset_id": context.identity.reset_id,
+                "ready_batch_proven": True,
+                "free_only": True,
+                "control_identity": DAILY_CLAIM_TARGET_IDENTITY,
+                "ordinary_claim_controls_cleared": False,
+                "source_frame_sha256": immediate_capture.sha256,
+            },
+            "chests_collected": [],
+            "observed_points": {"before": immediate.points, "after": None},
+            "milestone_scan": milestone_scan,
+            "unclaimed_ready_chest_count": ready_chest_count,
+            "no_work": False,
+        }
+    try:
+        execution = SafeActionExecutor(
+            store,
+            policy,
+            context.owner,
+            context.monotonic_clock,
+            transport,
+            recapture,
+            post_observe,
+            reconcile,
+            wall_clock=context.utc_clock,
+            max_pre_dispatch_attempts=1,
+        ).execute(
+            replace(
+                issue_request,
+                observation=proposal_policy_observation,
+                monotonic_now=context.monotonic_clock(),
+            ),
+            issued.capability,
+        )
+    except Exception as exc:
+        return interrupted_result(f"aggregate Claim execution outcome is unknown: {exc}")
+    action_calls = aggregate_action_count()
+    committed = 0
+    journal = store.get_action_by_key(action_key)
+    if (
+        execution.status is ActionStatus.CONFIRMED
+        and journal is not None
+        and journal.get("final_status") == ActionStatus.CONFIRMED.value
+        and post_verified
+        and post_verified[-1]
+    ):
+        expected = {
+            "action_id": action_id,
+            "task_id": context.flow_id,
+            "semantic_action": action_semantic,
+            "source_state": DAILY_SELECTED_STATE,
+            "target_identity": DAILY_CLAIM_TARGET_IDENTITY,
+            "game_day_id": proposal.game_day_id,
+            "consequence": consequence,
+            "expected_postcondition": expected_postcondition,
+            "cost_type": "none",
+            "cost_amount": 0,
+            "quantity": 1,
+            "consequential": 1,
+            "final_status": ActionStatus.CONFIRMED.value,
+        }
+        if any(journal.get(field) != value for field, value in expected.items()):
+            return interrupted_result(
+                "aggregate Claim canonical journal does not match the dispatched batch"
+            )
+        committed = 1
+    try:
+        context.validate_identity()
+        accounting = context.accounting()
+    except Exception as exc:
+        return interrupted_result(f"aggregate Claim identity/accounting became unknown: {exc}")
+    effect_unknown = bool(action_calls and not committed)
+    aggregate_result: dict[str, Any] = {
+        "status": "confirmed" if committed else "unresolved" if effect_unknown else "none",
+        "dispatch_count": action_calls,
+        "confirmed": bool(committed),
+        "batch_identity": batch_identity,
+        "reset_id": context.identity.reset_id,
+        "ready_batch_proven": True,
+        "free_only": True,
+        "control_identity": DAILY_CLAIM_TARGET_IDENTITY,
+        "ordinary_claim_controls_cleared": bool(committed),
+        "source_frame_sha256": immediate_capture.sha256,
+    }
+    if committed and post_captures:
+        aggregate_result["successor_frame_sha256"] = post_captures[-1].sha256
+    post_milestone_scan = (
+        recognize_daily_milestone_chests(
+            post_captures[-1].frame,
+            post_recognitions[-1],
+            source_frame_sha256=post_captures[-1].sha256,
+        )
+        if post_captures
+        else None
+    )
+    latest_milestone_scan = post_milestone_scan or milestone_scan
+    latest_scan_observed = latest_milestone_scan.get("status") in {
+        "observed",
+        "partial_unknown",
+    }
+    latest_ready_chest_count = (
+        latest_milestone_scan.get("ready_chest_count")
+        if latest_scan_observed
+        else None
+    )
+    latest_ready_chest_count = (
+        latest_ready_chest_count
+        if type(latest_ready_chest_count) is int
+        else None
+    )
+    partial = {
+        "status": (
+            "unresolved"
+            if effect_unknown
+            else "evidence_required"
+            if committed
+            else "blocked"
+        ),
+        "reason": execution.reason,
+        "total_input_count": accounting.input_count,
+        "total_action_count": action_calls,
+        "reward_claim_transport_calls": action_calls,
+        "committed_action_count": committed,
+        "accounting_verified": accounting.verified,
+        "terminal_home_verified": False,
+        "effect_reconciliation_required": effect_unknown,
+        "identical_retry_denied": bool(action_calls),
+        "aggregate_claim": aggregate_result,
+        "chests_collected": [],
+        "observed_points": {
+            "before": immediate.points,
+            "after": (
+                (post_recognitions[-1].visual_evidence or {}).get("points")
+                if post_recognitions
+                else None
+            ),
+        },
+        "milestone_scan": latest_milestone_scan,
+        "milestone_scan_before_aggregate": (
+            milestone_scan if post_milestone_scan is not None else None
+        ),
+        "unclaimed_ready_chest_count": latest_ready_chest_count,
+        "no_work": False,
+    }
+    if committed and post_recognitions:
+        return claim_ready_chests(
+            partial, post_captures[-1], post_recognitions[-1], latest_milestone_scan,
+        )
+    return partial
+
+
+def create_service_binding(make_native_route_binding):
+    """Construct the fixed native binding used by the canonical Daily rewards adapter."""
+    from automation_service.registry import (
+        DAILY_REWARDS_FLOW_ID,
+        DAILY_REWARDS_MAX_INPUTS,
+        DAILY_REWARDS_PRODUCT_ID,
+        DAILY_REWARDS_PRODUCT_REVISION,
+    )
+
+    return make_native_route_binding(
+        flow_id=DAILY_REWARDS_FLOW_ID,
+        product_id=DAILY_REWARDS_PRODUCT_ID,
+        product_revision=DAILY_REWARDS_PRODUCT_REVISION,
+        runtime_profile_id=BLUESTACKS_RUNTIME_PROFILE_ID,
+        owner="automation-service:daily-rewards",
+        workflow="daily-rewards-native",
+        max_inputs=DAILY_REWARDS_MAX_INPUTS,
+        max_actions=6,
+        driver=run_daily_rewards_from_home,
+        lease_seconds=3600.0,
+    )

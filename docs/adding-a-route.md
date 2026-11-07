@@ -14,8 +14,8 @@ focused tests as its behavior changes.
 | Family, variant, cadence, reset scope, priority, recurrence | `CANONICAL_FLOW_REGISTRY` entry | every handler and adapter `describe()` returns `canonical_entry(flow_id).descriptor`; the test compares them |
 | `serve --flow` name | `cli_name` on the registry entry | `serve --flow` choices, `AutomationService.serve` allowed set, runner lookup (`<cli_name>_runner`), reason-code prefix; README table and example are checked |
 | Product id, product revision, handler id, profile, mode | `_FIXED_BINDINGS` in `registry.py` | descriptor, adapter `PRODUCT_ID`/`PRODUCT_REVISION`, scheduler admission facts |
-| Total input budget of one run | `max_inputs` on the registry entry, spelled once as `<ROUTE>_MAX_INPUTS` | the adapter's `max_inputs`, the native `flow_delivery_*` `MAX_INPUTS`, the Nova/Recruitment runner arguments, `pnsctl._DEFAULT_MAX_INPUTS`; development-only routes keep their budget in their `flow_delivery_*` module and the queue/contract copies are checked against it |
-| Operator runner / validator / recovery ids | `tasks/flow_delivery_bluestacks_registry.json` | `pnsctl.BLUESTACKS_FLOW_IDS` is the set with all three bound in code; the test requires it to equal the registry's flow set |
+| Total input budget of one run | `max_inputs` on the registry entry, spelled once as `<ROUTE>_MAX_INPUTS` | adapter and native budget copies import it; `pnsctl._DEFAULT_MAX_INPUTS` covers only retained operator routes. Development-only routes keep their budget in their `flow_delivery_*` module. |
+| Operator runner / validator / recovery ids, when present | `tasks/flow_delivery_bluestacks_registry.json` | `pnsctl.BLUESTACKS_FLOW_IDS` equals this registry's flow set. Canonical-service-only routes have an explicit checked `NO_OPERATOR_RUNNER` reason instead. |
 | Gameplay semantics (states, transitions, permitted inputs, evidence gates) | `tasks/gameplay_flow_contracts/<FLOW_ID>.json` | schema-validated; the optional `product_authority_binding` is validated against the product policy |
 | Product record (purpose, recurrence, forbidden actions) | `tasks/flow_delivery_product_policy.json` `product_records` | contract bindings check `record_revision` and digest |
 | Development queue record | `tasks/flow_delivery_queue.json` | every `implementation_entrypoints`, `implementation_allowlist_seed`, `focused_tests`, `completion_tests` and `reference_docs` path must exist |
@@ -49,26 +49,36 @@ Product *revision* has two vocabularies that are intentionally not compared: the
 
 1. **Native route** (offline-testable, no ADB at import): semantics and recognition in `tasks/<route>.py`
    (+ `<route>_vision.py`), the native runner in `scripts/<route>_bluestacks.py`.
-2. **Operator wrapper** `scripts/flow_delivery_<route>_bluestacks.py`: `RUNNER_ID`, `VALIDATOR_ID`,
-   `RECOVERY_ID`, `register()`. Import `FLOW_ID` and `<ROUTE>_MAX_INPUTS` from
-   `automation_service.registry`; do not write the literals.
+2. **Execution boundary**: new routes use the canonical service and their fixed native factory.
+   Do not create a second development runtime or a forwarding `flow_delivery_*` wrapper.
+   Retained development-only routes may have an operator wrapper and its existing controls.
 3. **Registry**: in `registry.py` add `<ROUTE>_FLOW_ID`, `_PRODUCT_ID`, `_PRODUCT_REVISION`, `_HANDLER_ID`,
    `_PROFILE_ID`, `_PHASE_MODE`, `_MAX_INPUTS`; a `_FIXED_BINDINGS` entry; a `_canonical_registration(...)`
    call with `cli_name=` and `max_inputs=`; the `__all__` names.
 4. **Adapter** `automation_service/<route>.py`: an `ExecutionHandler` whose `describe()` is
    `canonical_entry(FLOW_ID).descriptor`, `max_inputs = <ROUTE>_MAX_INPUTS`, `PRODUCT_ID` and
-   `PRODUCT_REVISION` imported from the registry.
+   `PRODUCT_REVISION` imported from the registry. New runners receive a
+   `NativeRouteBoundary` from `automation_service/native_execution.py`; do not import
+   `scripts` or the operator wrapper into the adapter.
 5. **Service wiring**: add the `<cli_name>_runner` argument and attribute to `AutomationService`
    (and its all-`None` check), the runner construction in `automation_service/cli.py`, and the route's
-   entry in the three code maps inside `AutomationService.serve` (task id, execution-handler class,
-   `<route>_next_due`). Those maps bind adapter *code* to a flow id and have no other owner, so a missing
-   key fails at `serve` start (`KeyError`), not silently. The `--flow` choice, allowed set, runner lookup
-   and reason-code prefix follow from `cli_name`.
-6. **pnsctl**: register in `_register_checked_in_bluestacks_handlers()`; add the flow to
-   `_DEFAULT_MAX_INPUTS` using the owner constants. Use constants, never flow-id strings.
-7. **JSON authorities**: operator registry entry; disabled-production entry (`disabled`, all `null`); a
-   contract in `tasks/gameplay_flow_contracts/`; a product-policy record + contract binding if the route
-   is product-approved; a queue record with `registration_state: NOT_REGISTERED` and only existing paths.
+   entries inside `AutomationService.serve` for task id, execution-handler class,
+   `<route>_next_due`, consequential-dispatch accounting, and outcome/recurrence projection.
+   Pass the actual claimed run's `occurrence_key` to the new runner; do not derive it
+   from a frame, balance, timestamp or a native quota counter. Missing code bindings
+   fail at `serve` start rather than silently. The `--flow` choice, allowed set,
+   runner lookup and reason-code prefix follow from `cli_name`.
+6. **pnsctl**: install the native module's fixed
+   `create_service_binding(make_native_route_binding)` in the operator composition,
+   and pass the flow-id-keyed `native_route_bindings` mapping through the canonical
+   CLI to the runner. The factory is device-free: no store, ownership or device access.
+   Use owner constants. Only retained operator routes belong in
+   `_register_checked_in_bluestacks_handlers()` and `_DEFAULT_MAX_INPUTS`.
+7. **JSON authorities**: disabled-production entry (`disabled`, all `null`); a
+   contract in `tasks/gameplay_flow_contracts/`; a product-policy record + contract binding if
+   approved; a queue record with `registration_state: NOT_REGISTERED` and existing paths.
+   Add an operator registry entry only for a retained development runner. Service-only routes
+   require the explicit metadata-test exception, not a no-op operator triple.
 8. **Docs**: one README route-table row, the `--flow` in the README example, the counts in
    `docs/automation-service.md`.
 9. **Tests**: add the route to `EXECUTION_HANDLERS` (and `MAX_INPUT_COPIES` for native copies) in
@@ -81,24 +91,45 @@ Product *revision* has two vocabularies that are intentionally not compared: the
     The broader developer smoke command `python scripts/check.py` remains available;
     it need not be repeated after every checklist step.
 
+Choose scheduler cadence independently from the gameplay quota. A
+`daily_once_per_reset` service occurrence is consumed even when it finishes
+`DEFERRED`; it cannot resume a partial quota later in that reset. Routes that
+must resume partial work use a cooldown/timer recurrence and enforce their
+per-reset effects through stable canonical action keys. Unknown effects block;
+a later occurrence is not permission to repeat them.
+
 Renaming a flow id is a migration, not a find-and-replace: keep the old id in a migration constant
 (`RENAMED_FLOW_IDS`, `RENAMED_TASK_IDS`), retained evidence and historical queue records, and list each
 file in `OLD_CAMPAIGN_ID_FILES`-style allowlists in the consistency test.
 
 ## Layer layout and intentional exceptions
 
-A route is `tasks/` (semantics) → `scripts/<route>_bluestacks.py` (native runner) →
-`scripts/flow_delivery_<route>_bluestacks.py` (operator wrapper) → `automation_service/<route>.py`
-(adapter) → registry entry. Existing exceptions:
+Route semantics live in `tasks/`, native recognition/input in
+`scripts/<route>_bluestacks.py`. Retained development routes keep operator
+validation/recovery in `scripts/flow_delivery_<route>_bluestacks.py`.
+New canonical adapters consume the pure `NativeRouteBoundary` protocol, injected
+by `pnsctl`. Their fixed native
+drivers share `scripts/base_route_native_runtime.py` for the borrowed owner,
+canonical action-store lease, checkpoints, capture/replay, startup recovery,
+input accounting and teardown. Drivers retain route-specific recognition,
+consequential policy and semantic acceptance. The shared boundary does not
+authorize gameplay or convert transport success into a committed effect.
+
+Existing layout exceptions:
 
 * **Nova**: no operator wrapper since #35; the adapter calls `scripts/nova_praise_bluestacks.py` directly.
 * **Recruitment**: native runner is `scripts/noahs_tavern_recruit_bluestacks.py`; wrapper keeps the old name.
 * **Ultimate, Campaign AP, Enhancement**: adapters import their native runner (`bluestacks_ultimate_challenge`,
   `bluestacks_campaign_ap`, `flow_delivery_enhancement_bluestacks`) rather than a `<route>_route` module.
 * **World navigation**: registered selection stub only (no adapter, no `cli_name`).
-* **Development-only flows** (Daily Row Claim, Daily Resource Item, Troop Training, Ruins, Campaign Atlas):
+* **Development-only flows** (Troop Training, Ruins, Campaign Atlas):
   operator wrapper and contract, no service adapter and no registry entry; their budgets live in their
   `flow_delivery_*` module.
+* **Batch A Daily Rewards and Resource Item**: canonical service routes with fixed native bindings;
+  their former development wrappers/operator rows are retired and must not be reintroduced as a
+  second dispatch path. Both remain runtime-disabled and `evidence_required` until current native
+  acceptance; Daily has a genuine ready-glow example but still lacks a same-chest claimed/opened
+  successor needed to admit chest execution.
 * **Campaign budgets**: the service route budget (`CAMPAIGN_MAX_INPUTS`, a whole AP drain) is a different
   fact from the single-battle development-session ceiling in `pnsctl`; the test lists the difference.
 

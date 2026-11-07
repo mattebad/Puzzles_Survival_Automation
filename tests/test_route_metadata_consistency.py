@@ -31,6 +31,8 @@ from automation_service import state as state_module
 from automation_service.cli import build_parser
 from automation_service.registry import (
     CAMPAIGN_FLOW_ID,
+    DAILY_REWARDS_FLOW_ID,
+    RESOURCE_ITEM_FLOW_ID,
     CAMPAIGN_PRODUCT_REVISION,
     CANONICAL_FLOW_REGISTRY,
     load_disabled_registry,
@@ -57,10 +59,13 @@ OLD_CAMPAIGN_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
 
 # --- explicit, reasoned exceptions -------------------------------------------------------------
 
-# Service routes that have no operator-registry runner. Nova's flow_delivery module was retired in #35;
-# the canonical ``serve`` path is its only runner.
+# Service routes that have no operator-registry runner. Nova's wrapper was retired in #35;
+# Batch A retired Daily Row Claim and Daily Resource Item wrappers in favor of canonical
+# service bindings. These routes must not regain a second development-session authority.
 NO_OPERATOR_RUNNER = {
     "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": "operator runner retired in #35; canonical serve is the only runner",
+    DAILY_REWARDS_FLOW_ID: "Daily Row Claim wrapper retired in Batch A; canonical serve uses its fixed native binding",
+    RESOURCE_ITEM_FLOW_ID: "Daily Resource Item wrapper retired in Batch A; canonical serve uses its fixed native binding",
 }
 
 # Operator-registry flows with no development-session input default in ``pnsctl._DEFAULT_MAX_INPUTS``
@@ -127,6 +132,8 @@ EXECUTION_HANDLERS = {
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": ("automation_service.ultimate", "UltimateExecutionHandler"),
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": ("automation_service.enhancement", "EnhancementExecutionHandler"),
     "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION": ("automation_service.personal_might", "PersonalMightExecutionHandler"),
+    DAILY_REWARDS_FLOW_ID: ("automation_service.daily_rewards", "DailyRewardsExecutionHandler"),
+    RESOURCE_ITEM_FLOW_ID: ("automation_service.resource_item", "ResourceItemExecutionHandler"),
 }
 
 # Every non-registry copy of a service route's input budget: (module, attribute).
@@ -143,6 +150,9 @@ MAX_INPUT_COPIES = {
         ("scripts.bluestacks_ultimate_challenge", "MAX_TOTAL_INPUTS"),
     ],
     "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION": [("scripts.flow_delivery_personal_might_bluestacks", "MAX_INPUTS")],
+    RESOURCE_ITEM_FLOW_ID: [
+        ("scripts.daily_resource_item_bluestacks", "MAX_ROUTE_INPUTS"),
+    ],
 }
 
 _NUMBER_WORDS = {
@@ -376,10 +386,8 @@ class MaxInputTests(RouteTestCase):
         for flow_id in DEFAULT_MAX_INPUTS_DIFFERS_FROM_REGISTRY:
             self.assertNotEqual(defaults[flow_id], canonical_entry(flow_id).max_inputs, f"{flow_id} exception no longer needed")
 
-    def test_development_only_routes_agree_across_module_contract_queue_and_pnsctl(self) -> None:
+    def test_batch_a_routes_are_canonical_only_and_resource_copies_agree(self) -> None:
         from scripts import daily_resource_item_bluestacks as resource_route
-        from scripts import flow_delivery_daily_resource_item_bluestacks as resource_delivery
-        from scripts import flow_delivery_daily_row_claim_bluestacks as row_delivery
         from scripts import flow_delivery_troop_training_bluestacks as troop_delivery
 
         queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
@@ -390,11 +398,17 @@ class MaxInputTests(RouteTestCase):
         }
         contracts = load_all_flow_contracts()
         defaults = pnsctl._DEFAULT_MAX_INPUTS
-        resource = resource_delivery.FLOW_ID
-        resource_budget = resource_delivery.MAX_INPUTS
+        operator = _operator_ids()
+        for flow_id in (DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID):
+            with self.subTest(flow_id=flow_id):
+                self.assertNotIn(flow_id, operator)
+                self.assertNotIn(flow_id, pnsctl.BLUESTACKS_FLOW_IDS)
+                self.assertNotIn(flow_id, defaults)
+
+        resource = RESOURCE_ITEM_FLOW_ID
+        resource_budget = canonical_entry(resource).max_inputs
         copies = {
             "route MAX_ROUTE_INPUTS": resource_route.MAX_ROUTE_INPUTS,
-            "pnsctl default": defaults[resource],
             "contract navigation_input_authorization": contracts[resource]["navigation_input_authorization"]["maximum_inputs"],
             "queue maximum_inputs": queue[resource]["maximum_inputs"],
             "queue maximum_live_inputs": queue[resource]["maximum_live_inputs"],
@@ -402,17 +416,21 @@ class MaxInputTests(RouteTestCase):
         }
         for name, value in copies.items():
             with self.subTest(flow_id=resource, copy=name):
-                self.assertEqual(value, resource_budget, f"Daily Resource Item {name} drifted from MAX_INPUTS")
+                self.assertEqual(value, resource_budget, f"Daily Resource Item {name} drifted from the registry")
         self.assertEqual(
             queue[resource]["maximum_resource_list_swipes"],
-            resource_delivery.MAX_RESOURCE_LIST_SWIPES,
+            resource_route.MAX_RESOURCE_LIST_SWIPES,
         )
         self.assertEqual(
-            staging[resource]["maximum_resource_list_swipes"], resource_delivery.MAX_RESOURCE_LIST_SWIPES
+            staging[resource]["maximum_resource_list_swipes"],
+            resource_route.MAX_RESOURCE_LIST_SWIPES,
         )
-        self.assertEqual(defaults[row_delivery.FLOW_ID], row_delivery.MAX_INPUTS)
-        self.assertEqual(defaults[troop_delivery.FLOW_ID], troop_delivery.MAX_INPUTS)
-        self.assertEqual(queue[troop_delivery.FLOW_ID]["development_session_max_inputs"], troop_delivery.MAX_INPUTS)
+
+        troop = troop_delivery.FLOW_ID
+        self.assertEqual(defaults[troop], troop_delivery.MAX_INPUTS)
+        self.assertEqual(
+            queue[troop]["development_session_max_inputs"], troop_delivery.MAX_INPUTS,
+        )
 
 
 class ServeWiringTests(RouteTestCase):

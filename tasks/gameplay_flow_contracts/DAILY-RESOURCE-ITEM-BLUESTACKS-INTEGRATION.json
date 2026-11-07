@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "flow_id": "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION",
-  "product_purpose": "Consume exactly one owned 1K Food item from canonical Home.",
+  "product_purpose": "From canonical Home, consume exactly one positively identified owned 1K Food item and verify its exact owned-count decrement and canonical Home; this direct resource route has no Food-balance OCR or Daily ownership.",
   "trigger_cadence_type": "daily_once",
   "reset_scope": "daily_reset",
   "required_starting_context": [
@@ -15,7 +15,7 @@
     "resource_list_progress",
     "1k_food_ready",
     "1k_food_used",
-    "resource_delta_verified",
+    "owned_item_decrement_verified",
     "home_verified",
     "evidence_required"
   ],
@@ -100,7 +100,7 @@
     {
       "transition_id": "resource-reconcile-delta",
       "from": "1k_food_used",
-      "to": "resource_delta_verified",
+      "to": "owned_item_decrement_verified",
       "planner": "scripts/daily_resource_item_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
@@ -115,7 +115,7 @@
     },
     {
       "transition_id": "resource-return-home",
-      "from": "resource_delta_verified",
+      "from": "owned_item_decrement_verified",
       "to": "home_verified",
       "planner": "scripts/daily_resource_item_bluestacks.py",
       "permitted_input": "current-frame-bound visible Home return",
@@ -175,7 +175,7 @@
   "bounded_recovery_behavior": "Fail closed on unknown Home, Bag, Resources, item, quantity, successor, overlay, or return control. Android Back is prohibited.",
   "evidence_requirements": [
     "fresh native verified Home source",
-    "current-frame measured Resources card fully containing the exact 1K Food anchor, owned count, quantity-one evidence, and exactly one Use ROI",
+    "current-frame measured Resources card fully containing the exact 1K Food anchor, explicit owned count, quantity-one evidence, and exactly one Use ROI",
     "immediate-post exact owned-count decrement of one",
     "verified Home terminal evidence"
   ],
@@ -278,11 +278,11 @@
   "registration_state": "disabled",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r13",
-    "product_authority_digest": "13a3b12051a89f25e926875fc9d085aa5c220c6eb3904375d147e34f302a67d6",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r14",
+    "product_authority_digest": "c71684f26e3ba7366a39aafb0ca293776348a3179ae7b4284c8649e2bcd2a8af",
     "product_record_id": "use_resource_item",
     "product_record_revision": "use_resource_item-v2",
-    "product_record_digest": "e51bdc251eea52d3b2dd7b4dfe369597ab3fbbb0c6b3706e0270af56f0ae3d09",
+    "product_record_digest": "a51835d61c2df201fa748b7cd79b61534fabbf09bc83edc90a7053a7f1cb0ea3",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

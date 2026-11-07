@@ -5,9 +5,13 @@ BlueStacks instance. A supervised service checks which daily or cooldown routes 
 at a time, verifies each result from the screen, and returns to the game's Home screen before
 the next one.
 
-**Current status:** [November 2 BlueStacks route report](docs/bluestacks-route-status-20261102.md).
-It records which routes are live-accepted, at which commit, and the limits of that evidence.
-Remaining work is planned in [`BACKLOG.md`](BACKLOG.md) and tracked in GitHub issues.
+**Status:** Batch A adds canonical-only Daily Rewards and Resource Item integration.
+The native route claims each glowing chest separately and requires its explicit same-slot
+`Claimed` successor; it does not wait for 150 points. One authorized manual chest claim supplied
+the real before/after recognition basis. This is not completed native-route acceptance.
+Both routes remain runtime-disabled and `evidence_required` for live acceptance.
+The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical live evidence, not current execution authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
+[`BACKLOG.md`](BACKLOG.md) retains durable history.
 
 ## Routes
 
@@ -24,6 +28,8 @@ registration, named by its registry family. `serve --flow` takes the name in the
 | `ultimate` | `ultimate_challenge_daily` | One Ultimate Challenge entry, then Flee, once per daily reset. |
 | `enhancement` | `enhancement_family` | Gear, Chip and Module enhancement once each in a single Profile visit, once per daily reset. |
 | `personal-might` | `personal_might_praise` | One Personal Might Praise, once per daily reset. |
+| `daily-rewards` | `daily_rewards` | At most one current aggregate Claim, then individually ready chests with same-slot Claimed proof; 300-second observation cooldown. Disabled; native acceptance evidence_required. |
+| `resource-item` | `resource_item` | One owned 1K Food item use per reset with exact decrement; runtime disabled and current native acceptance remains evidence_required. |
 | none (navigation-only) | `world_map_navigation` | Registered but never executed by `serve`. |
 
 The `world_map_navigation` registration is navigation-only (registry variant `navigation_only`).
@@ -82,20 +88,29 @@ selection described below instead of repeating that command after another suite.
 Run everything through `scripts/pnsctl.py`. This serves all routes from the table above:
 
 ```powershell
+$runtimeBinding = .\.venv\Scripts\python.exe -c "import json; from tasks.runtime_identity import resource_fixed_runtime_binding; b=resource_fixed_runtime_binding(); print(json.dumps({'account_id': b.account_id, 'server_id': b.server_id}))" | ConvertFrom-Json
+
 .\.venv\Scripts\python.exe scripts/pnsctl.py automation-service `
   --mode supervised --adapter bluestacks `
   --state-path .local-orchestrator/bot-state.sqlite3 serve --live `
   --flow nova --flow recruitment --flow campaign --flow bioenhancer `
   --flow supply --flow ultimate --flow enhancement --flow personal-might `
+  --flow daily-rewards --flow resource-item `
   --campaign-stage 1-15-9 --campaign-cadence-seconds 300 `
   --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 `
-  --account-id primary-account --server-id primary-server `
+  --account-id $runtimeBinding.account_id --server-id $runtimeBinding.server_id `
   --output-directory .local-captures/automation-service-live
 ```
 
-Account, server, device, state and output paths must match your local instance. The command
-blocks and uses the persisted controls as they are; turn routes on first with `service-enable`
-and `enable <flow-id>`, and check `automation-service status` before and after a session.
+Daily Rewards and Resource Item require these exact fixed-slot scheduler identities, not the
+historical `primary-account` / `primary-server` labels. Deriving them is device-free; they identify
+the private runtime slot, not an observed game login. Reconcile prior same-reset work before
+changing a persisted logical scope; never clear counters or evidence.
+
+This is a launch shape, not current execution authority. The command uses persisted controls
+without enabling them. A live scenario needs current explicit authorization, exclusive controller
+ownership and finite input/resource budgets. Enable only the authorized controls and restore them
+OFF afterward; inspect `automation-service status` before and after.
 
 ## Tests
 
