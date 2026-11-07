@@ -362,12 +362,7 @@ class DailyShopsLivePort:
         self.settle_seconds = float(settle_seconds)
         self.current_tab = ""
         self.currency_icons = {}
-        self.before_counts: dict[str, int] = {}
-        self.after_counts: dict[str, int] = {}
-        self.last_bag_capture = None
-        self.before_bag_capture = None
         self.last_offer_capture = None
-        self.latest_offers: dict[str, ShopOffer] = {}
         self.last_dialog = None
         self.backend_identity = None
 
@@ -521,112 +516,6 @@ class DailyShopsLivePort:
             return None
         return tuple(binding.target_roi)
 
-    def _bag_count(self, item):
-        """Read one exact material's explicit owned value from the Bag Other list."""
-        from scripts import daily_resource_item_bluestacks as bag
-        captured = self._capture(f"daily-shops-inventory-{item.replace(' ', '-')}-source")
-        if not bag._recognize_bag(captured.frame).get("recognized"):
-            return None
-        category = bag.classify_selected_bag_category(captured.frame)
-        if category != "other":
-            lines = self._ocr(captured)
-            tabs = self._hits(lines, "Other")
-            if len(tabs) != 1 or not self._tap(
-                captured, tabs[0], "daily-shops:bag-other-tab",
-                f"daily-shops:bag-other:{captured.sha256}",
-                lambda after: (
-                    bag._recognize_bag(after.frame).get("recognized") is True
-                    and bag.classify_selected_bag_category(after.frame) == "other"
-                ),
-            ):
-                return None
-        for ordinal in range(7):
-            captured = self._capture(f"daily-shops-inventory-scan-{ordinal + 1}")
-            if (not bag._recognize_bag(captured.frame).get("recognized")
-                    or bag.classify_selected_bag_category(captured.frame) != "other"):
-                return None
-            lines = self._ocr(captured)
-            hits = self._hits(lines, item)
-            if len(hits) > 1:
-                return None
-            if hits:
-                y = (hits[0][1] + hits[0][3]) / 2
-                count_hits = []
-                for line in lines:
-                    text = " ".join(word[0] for word in line).casefold()
-                    line_y = sum((word[1][1] + word[1][3]) / 2 for word in line) / len(line)
-                    if abs(line_y - y) > 100:
-                        continue
-                    words = [word[0].casefold() for word in line]
-                    for index, word in enumerate(words[:-1]):
-                        if word in {"x", "owned", "owned:", "quantity", "qty"}:
-                            values = self._numbers(line[index + 1:])
-                            if len(values) == 1:
-                                count_hits.append(values[0][0])
-                    if "owned" in text or "quantity" in text:
-                        values = self._numbers(line)
-                        if len(values) == 1:
-                            count_hits.append(values[0][0])
-                if len(set(count_hits)) == 1:
-                    self.last_bag_capture = captured
-                    return count_hits[0]
-                return None
-            tokens = bag._ocr_tokens(captured.frame, bag._default_ocr)
-            category_rois = bag._bag_category_tab_rois(tokens)
-            other_roi = category_rois.get("other")
-            if other_roi is None:
-                return None
-            start_y, end_y = captured.frame.shape[0] - 100, other_roi[3] + 80
-            if start_y - end_y < 120:
-                return None
-            self.context.checkpoint()
-            self.runtime.swipe(
-                captured, start=(captured.frame.shape[1] // 2, start_y),
-                end=(captured.frame.shape[1] // 2, end_y),
-                action_key=f"daily-shops:bag-other-scroll:{captured.sha256}",
-                target_identity="daily-shops:bag-other-list-scroll",
-            )
-            successor = self._capture(f"daily-shops-inventory-scroll-successor-{ordinal + 1}")
-            if (not bag._recognize_bag(successor.frame).get("recognized")
-                    or bag.classify_selected_bag_category(successor.frame) != "other"):
-                return None
-            if successor.sha256 == captured.sha256:
-                return None
-        return None
-
-    def _open_bag(self):
-        from scripts import daily_resource_item_bluestacks as bag
-        home = self._capture("daily-shops-bag-home-source")
-        if not self.context.is_clean_home(home.frame):
-            return False
-        roi = bag._home_bag_target(home.frame)
-        return bool(roi and self._tap(
-            home, roi, "daily-shops:bag", f"daily-shops:bag-open:{home.sha256}",
-            lambda after: bag._recognize_bag(after.frame).get("recognized") is True,
-        ))
-
-    def _close_bag(self):
-        from scripts import daily_resource_item_bluestacks as bag
-        captured = self._capture("daily-shops-bag-close-source")
-        roi = bag._bag_back_arrow_visual(captured.frame)
-        if roi is None:
-            return False
-        return self._tap(
-            captured, roi, "daily-shops:bag-close", f"daily-shops:bag-close:{captured.sha256}",
-            lambda after: self.context.is_clean_home(after.frame),
-        )
-
-    def _inventory_snapshot(self, items):
-        if not self._open_bag():
-            return False
-        for tab, item in items.items():
-            count = self._bag_count(item)
-            if count is None:
-                self._close_bag()
-                return False
-            self.before_counts[tab] = count
-            self.before_bag_capture = self.last_bag_capture
-        return self._close_bag()
 
     def _open_ruins_shop(self):
         home = self._capture("daily-shops-ruins-home-source")
@@ -648,11 +537,10 @@ class DailyShopsLivePort:
 
     def enter_ruins_shop(self):
         self.backend_identity = getattr(self.context, "backend_identity", None)
-        if RUINS_TAB not in self.before_counts:
-            self._inventory_snapshot({RUINS_TAB: "3★ Chip Enhance Material"})
         return self._open_ruins_shop()
 
     def _read_offer(self, captured, tab):
+        self._owned_evidence_missing = False
         lines = self._ocr(captured)
         expected = {
             RUINS_TAB: (RUINS_SHOP, "3★ Chip Enhance Material", "Ruins Coins"),
@@ -696,13 +584,12 @@ class DailyShopsLivePort:
         if len(balances) != 1 or price_icon is None:
             return None
         self.currency_icons[tab] = price_icon
-        if tab == RARE_EARTH_TAB and len(owned_values) != 1:
+        # A Bag baseline alone cannot establish a purchase successor while remaining in this
+        # shared shop. Without a current explicit Owned value, paired item proof is unavailable.
+        if len(owned_values) != 1:
+            self._owned_evidence_missing = not owned_values
             return None
-        count = owned_values[0] if owned_values else self.before_counts.get(tab)
-        if type(count) is not int:
-            return None
-        if tab not in self.before_counts:
-            self.before_counts[tab] = count
+        count = owned_values[0]
         stock = stocks[0]
         offer = ShopOffer(
             shop_identity=shop, item_identity=item, currency_identity=currency,
@@ -710,7 +597,6 @@ class DailyShopsLivePort:
             item_quantity=count, rarity=3, available=stock > 0,
             recognized=True, offer_identity=f"{tab}:{item}",
         )
-        self.latest_offers[tab] = offer
         return offer
 
     def inspect_tab(self, tab):
@@ -723,8 +609,13 @@ class DailyShopsLivePort:
             )
         offer = self._read_offer(captured, tab)
         if offer is None:
+            if self._owned_evidence_missing:
+                return TabOffer(
+                    None, True, "TAB_ITEM_EFFECT_EVIDENCE_REQUIRED",
+                    str(captured.path), captured.sha256,
+                )
             return TabOffer(
-                None, False, "EXACT_DAILY_OFFER_OR_INVENTORY_MISSING",
+                None, False, "evidence_required:EXACT_DAILY_OFFER_OR_IN_SHOP_OWNED_PROOF_MISSING",
                 str(captured.path), captured.sha256,
             )
         self.last_offer_capture = captured
@@ -824,8 +715,42 @@ class DailyShopsLivePort:
                 return "unresolved"
             from scripts.startup_normalization import is_clean_home_frame
             import cv2
-            if not is_clean_home_frame(cv2.imread(str(terminal[0]), cv2.IMREAD_COLOR)):
+            terminal_frame = cv2.imread(str(terminal[0]), cv2.IMREAD_COLOR)
+            if terminal_frame is None:
                 return "unresolved"
+            if not is_clean_home_frame(terminal_frame):
+                # New one-visit receipts settle each action on its own exact shop successor.
+                # Historical Home receipts remain read-only and retain duplicate prevention.
+                from types import SimpleNamespace
+                after_frame = SimpleNamespace(frame=terminal_frame)
+                if self._page(after_frame)[0] != tab:
+                    return "unresolved"
+                after = self._read_offer(after_frame, tab)
+                if after is None:
+                    return "unresolved"
+                paired = False
+                for path in retained:
+                    if path == terminal[0]:
+                        continue
+                    frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
+                    if frame is None:
+                        continue
+                    before_frame = SimpleNamespace(frame=frame)
+                    if self._page(before_frame)[0] != tab:
+                        continue
+                    before = self._read_offer(before_frame, tab)
+                    if (before is not None and before.unit_price == price
+                            and before.stock == stock and before.balance == balance
+                            and after.shop_identity == before.shop_identity
+                            and after.item_identity == before.item_identity
+                            and after.currency_identity == before.currency_identity
+                            and after.balance == balance - total
+                            and after.stock == stock - quantity
+                            and after.item_quantity == before.item_quantity + quantity):
+                        paired = True
+                        break
+                if not paired:
+                    return "unresolved"
         except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError, IndexError):
             return "unresolved"
         return "confirmed"
@@ -1004,16 +929,6 @@ class DailyShopsLivePort:
         return _purchase_daily_offer(self.context, self, tab, offer, dialog, action_key,
                                      settle_seconds=self.settle_seconds)
 
-    def _verify_bag_effect(self, tab, offer, quantity, shop_offer_after=None):
-        if tab != RUINS_TAB:
-            return shop_offer_after.item_quantity if shop_offer_after is not None else None
-        if not self._open_bag():
-            return None
-        actual = self._bag_count(offer.item_identity)
-        if not self._close_bag():
-            return None
-        self.after_counts[tab] = actual
-        return actual
 
     def _back(self):
         captured = self._capture("daily-shops-back-source")
@@ -1042,9 +957,6 @@ class DailyShopsLivePort:
         return self.context.is_clean_home(self._capture("daily-shops-terminal-home-final").frame)
 
     def switch_to_rare_earth(self):
-        if self.context.is_clean_home(self._capture("daily-shops-rare-earth-entry-check").frame):
-            if not self._open_ruins_shop():
-                return False
         if self.current_tab == "ruins":
             tab = "Rare Earth Shop"
             if not self._tap_text(
@@ -1114,7 +1026,6 @@ def _purchase_daily_offer(context, port, tab, offer, dialog, action_key, *, sett
             evidence_refs=tuple(
                 str(value.path) for value in (
                     policy_source, source, port.last_offer_capture,
-                    port.before_bag_capture if tab == RUINS_TAB else None,
                 ) if value is not None
             ),
             critical_roi_hashes=(("inner-buy", hashlib.sha256(
@@ -1189,51 +1100,34 @@ def _purchase_daily_offer(context, port, tab, offer, dialog, action_key, *, sett
                 page == tab and after is not None
                 and after.balance == offer.balance - total
                 and after.stock == offer.stock - quantity
-                and (tab != RARE_EARTH_TAB or item_effect)
+                and item_effect
             )
             if shop_ok:
                 effects.update(
                     currency_after=after.balance, stock_after=after.stock,
                     tab_successor_verified=True, shop_frame=captured,
                 )
-                if not port.return_home():
-                    continue
-                actual = port._verify_bag_effect(tab, offer, quantity, after)
-                item_effect = actual == offer.item_quantity + quantity
-                item_frame = port.last_bag_capture if tab == RUINS_TAB else captured
-                home = port._capture(f"daily-shops-{tab}-purchase-terminal-home")
-                home_ok = bool(item_effect and port.context.is_clean_home(home.frame))
+                # Settle the actual paired effects here, before switching tabs. Home is a
+                # route-terminal condition, not a reason to leave and re-enter the shop.
                 effects.update(
-                    item_quantity_after=actual, item_identity_after=offer.item_identity,
-                    currency_identity_after=offer.currency_identity,
-                    item_effect_verified=item_effect, item_frame=item_frame,
-                    terminal_home_verified=home_ok, home_frame=home,
+                    item_quantity_after=after.item_quantity, item_identity_after=after.item_identity,
+                    currency_identity_after=after.currency_identity, item_effect_verified=True,
                 )
-                refs = [str(source.path), str(frames["current"].path), str(captured.path)]
+                refs = [str(source.path), str(frames["source"].path), str(captured.path)]
                 if port.last_offer_capture is not None:
                     refs.append(str(port.last_offer_capture.path))
-                if tab == RUINS_TAB and port.before_bag_capture is not None:
-                    refs.append(str(port.before_bag_capture.path))
-                if item_frame is not None:
-                    refs.append(str(item_frame.path))
-                refs.append(str(home.path))
-                refs = list(dict.fromkeys(refs))
                 yield Observation(
-                    frame_sha256=home.sha256, capture_completed_monotonic=home.captured_monotonic,
+                    frame_sha256=captured.sha256, capture_completed_monotonic=captured.captured_monotonic,
                     runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID, width=800, height=1280,
-                    valid_png=home.frame.shape == (1280, 800, 3), corrupt=False,
-                    black=not bool(np.any(home.frame)),
-                    source_state=postcondition if home_ok else "DAILY_SHOPS_HOME_OR_ITEM_NOT_VERIFIED",
+                    valid_png=captured.frame.shape == (1280, 800, 3), corrupt=False,
+                    black=not bool(np.any(captured.frame)), source_state=postcondition,
                     overlay_state="none", target_identity=None, target_roi=None,
-                    recognized=home_ok, ambiguous=not home_ok,
-                    consequence="daily_shops_purchase" if home_ok else None,
-                    cost_type=currency if home_ok else None, cost_amount=total if home_ok else None,
-                    quantity=quantity if home_ok else None,
-                    expected_postcondition=postcondition if home_ok else None,
-                    evidence_refs=tuple(refs),
-                    critical_roi_hashes=(("terminal-home", hashlib.sha256(home.frame.tobytes()).hexdigest()),),
-                    ocr_result_frame_sha256=home.sha256,
-                    ocr_result_capture_completed_monotonic=home.captured_monotonic,
+                    recognized=True, ambiguous=False, consequence="daily_shops_purchase",
+                    cost_type=currency, cost_amount=total, quantity=quantity,
+                    expected_postcondition=postcondition, evidence_refs=tuple(dict.fromkeys(refs)),
+                    critical_roi_hashes=(("shop-paired-effect", hashlib.sha256(captured.frame.tobytes()).hexdigest()),),
+                    ocr_result_frame_sha256=captured.sha256,
+                    ocr_result_capture_completed_monotonic=captured.captured_monotonic,
                     source_family="DAILY_SHOPS",
                     package_foreground=port.runtime.measure_foreground_package() == "com.global.ztmslg",
                 )
@@ -1256,8 +1150,7 @@ def _purchase_daily_offer(context, port, tab, offer, dialog, action_key, *, sett
     def reconcile(_intent, observed):
         return bool(observed.source_state == postcondition
                     and effects.get("item_effect_verified") is True
-                    and effects.get("tab_successor_verified") is True
-                    and effects.get("terminal_home_verified") is True)
+                    and effects.get("tab_successor_verified") is True)
 
     execution = SafeActionExecutor(
         context.action_store, policy, context.owner, context.monotonic_clock,
@@ -1270,8 +1163,8 @@ def _purchase_daily_offer(context, port, tab, offer, dialog, action_key, *, sett
     if execution.status.value == "confirmed" and journal == "confirmed":
         context.validate_identity()
         try:
-            port.runtime.reconcile(action_key, "confirmed", effects["home_frame"],
-                                   "exact material, currency, stock, tab and Home effects verified")
+            port.runtime.reconcile(action_key, "confirmed", effects["shop_frame"],
+                                   "exact observed material, currency, stock and tab effects verified")
         except (AttributeError, KeyError, TypeError, ValueError):
             pass
     return PurchaseEffect(
@@ -1281,7 +1174,7 @@ def _purchase_daily_offer(context, port, tab, offer, dialog, action_key, *, sett
         effects.get("item_identity_after", ""), effects.get("currency_identity_after", ""),
         bool(effects.get("tab_successor_verified")),
         effect_reconciliation_required=journal in {"input_sent", "unresolved"},
-        identical_retry_denied=dispatched or journal != "cancelled",
+        identical_retry_denied=journal in {"prepared", "input_sent", "unresolved"},
         action_key=action_key, reason=execution.reason,
     )
 

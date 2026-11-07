@@ -16,6 +16,11 @@ from automation_service.recruitment import recruitment_reset
 from tasks.purchases_disabled import canonical_purchase_action_key
 from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
 from tasks.scheduler_task_result import SchedulerIdentity
+from safe_action_core import SafetyStore
+from scripts.daily_shops_bluestacks import DailyShopsPurchaseRoute
+from tests.test_daily_shops_bluestacks import (
+    ActualSafetyStorePairedShopPort, safety_store_purchase_context,
+)
 
 class FakeRuntimeInputLock:
     owner = "automation-service"
@@ -116,6 +121,40 @@ class DailyShopsServiceAdapterTests(unittest.TestCase):
             native=native, utc_clock=lambda: now, monotonic_clock=lambda: 33.0,
             settle_seconds=0,
         )
+
+    def test_real_native_confirmations_reach_adapter_and_partial_due_without_unknown_projection(self):
+        _binding, identity, now = self._identity()
+        keys = {tab: canonical_purchase_action_key(
+            DAILY_SHOPS_FLOW_ID, DAILY_SHOPS_PRODUCT_ID, identity,
+            "ruins_shop" if tab == "ruins" else "rare_earth_shop",
+        ) for tab in ("ruins", "rare_earth")}
+        for partial, unproved in ((False, False), (True, False), (False, True)):
+            with self.subTest(unaffordable_second=partial, unproved_first=unproved), tempfile.TemporaryDirectory() as directory:
+                store = SafetyStore(Path(directory) / "actions.sqlite3")
+                try:
+                    context = safety_store_purchase_context(directory, store)
+                    context.identity = identity
+                    port = ActualSafetyStorePairedShopPort(
+                        context, unaffordable_second=partial, unproved_first=unproved,
+                    )
+                    context.monotonic_clock = lambda: float(port.capture_count) + 0.1
+                    payload = DailyShopsPurchaseRoute(port, action_keys=keys).run().to_mapping()
+                    payload.update(total_input_count=9, source_frame={
+                        "frame_path": "home-source.png", "frame_sha256": "a" * 64,
+                    })
+                    result = self._runner(FakeNativeBoundary(payload), directory, now)(
+                        identity, None, lambda: None, runtime_input_lock=FakeRuntimeInputLock(),
+                        occurrence_key="native-policy-partial" if partial or unproved else "native-policy-complete",
+                    )
+                    self.assertEqual(result["status"], "deferred" if partial or unproved else "complete_for_reset", result)
+                    self.assertFalse(result["identical_retry_denied"])
+                    self.assertFalse(result["effect_reconciliation_required"])
+                    self.assertEqual(result["committed_action_count"], 1 if partial or unproved else 2)
+                    self.assertEqual(port.home_calls, 1)
+                    if partial or unproved:
+                        self.assertEqual(daily_shops_next_due(result, identity, now), now + 300)
+                finally:
+                    store.close()
 
     def test_runner_preserves_fixed_native_request_and_full_reset_completion(self):
         _binding, identity, now = self._identity()

@@ -517,10 +517,17 @@ def _same_donation_facts(left: DonationObservation, right: DonationObservation) 
         "screen_state", "auto_hot_marker", "tech_identity", "target_identity", "target_roi", "panel_bounds",
         "control_class", "donate_control_visible", "control_enabled", "quantity", "resource_identity",
         "resource_known", "donation_amount", "resource_balance", "available_attempts", "attempt_capacity",
-        "active_recharge_timer", "next_attempt_available_in_seconds", "game_day_id", "overlay_state",
-        "reset_guard_active", "runtime_profile_id", "recognized",
+        "game_day_id", "overlay_state", "reset_guard_active", "runtime_profile_id", "recognized",
     )
-    return all(getattr(left, name) == getattr(right, name) for name in fields)
+    if not all(getattr(left, name) == getattr(right, name) for name in fields):
+        return False
+    attempts = left.available_attempts
+    if type(attempts) is int and attempts > 0:
+        # With an unchanged positive attempt count the recharge countdown only describes the next refill;
+        # a tick between captures neither consumes nor grants an attempt, so it cannot change authorization.
+        return True
+    return (left.active_recharge_timer == right.active_recharge_timer
+            and left.next_attempt_available_in_seconds == right.next_attempt_available_in_seconds)
 
 
 def _unknown_policy_observation(captured: CapturedNativeFrame, evidence_ref: str) -> Observation:

@@ -876,6 +876,7 @@ class AllianceShopLivePort:
 
 def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle_seconds):
     import hashlib
+    from dataclasses import replace
     from safe_action_core import ActionClass, CentralPolicy, Observation, PolicyRequest, SafeActionExecutor, TransportResult
     from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
@@ -998,15 +999,8 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
         runtime_session_id=str(session.session_directory),
     )
     policy = CentralPolicy({FLOW_ID})
-    issued = policy.issue_capability(request)
-    store.audit(FLOW_ID, "capability_issued", context.utc_clock(), issued.audit, request.action_id)
-    if not issued.authorized or issued.capability is None:
-        return PurchaseEffect(
-            "blocked", None, False, 0, None, None, None, "", "", False,
-            action_key=action_key, reason=issued.reason_code,
-        )
     offer_source = port.offer_evidence.get(offer.item_identity)
-    frames = {"current": page_source, "offer_source": offer_source}
+    frames = {"policy_source": page_source, "current": page_source, "offer_source": offer_source}
     effect_data: dict[str, Any] = {}
 
     def as_observation(captured, *, source, roi, positive=False):
@@ -1065,6 +1059,7 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
                 valid_png=captured.frame.shape == (1280, 800, 3), corrupt=False,
                 black=not bool(np.any(captured.frame)), source_state=source_state,
                 overlay_state="none", recognized=False, ambiguous=True,
+                target_identity=None, target_roi=None,
                 evidence_refs=(str(captured.path),), ocr_result_frame_sha256=captured.sha256,
                 ocr_result_capture_completed_monotonic=captured.captured_monotonic,
                 package_foreground=runtime.measure_foreground_package() == "com.global.ztmslg",
@@ -1155,9 +1150,22 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
             and effect_data.get("terminal_home_verified") is True
         )
 
+    # The one-shot capability binds the exact immediate numeric readback, not the
+    # earlier planning frame. Keep the original request for Core's plan/change checks.
+    immediate_observation = recapture()
+    issued = policy.issue_capability(replace(
+        request, observation=immediate_observation, monotonic_now=context.monotonic_clock(),
+    ))
+    store.audit(FLOW_ID, "capability_issued", context.utc_clock(), issued.audit, request.action_id)
+    if not issued.authorized or issued.capability is None:
+        return PurchaseEffect(
+            "blocked", None, False, 0, None, None, None, "", "", False,
+            action_key=action_key, reason=issued.reason_code,
+        )
+
     execution = SafeActionExecutor(
         store, policy, context.owner, context.monotonic_clock, transport,
-        recapture, post_observe, reconcile, wall_clock=context.utc_clock,
+        lambda: immediate_observation, post_observe, reconcile, wall_clock=context.utc_clock,
         max_pre_dispatch_attempts=1,
     ).execute(request, issued.capability)
     action = store.get_action_by_key(action_key)
@@ -1184,7 +1192,7 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
         effect_data.get("currency_identity_after", ""),
         bool(effect_data.get("tab_successor_verified")),
         effect_reconciliation_required=terminal_status in {"input_sent", "unresolved"},
-        identical_retry_denied=dispatched or terminal_status not in {"cancelled"},
+        identical_retry_denied=terminal_status in {"prepared", "input_sent", "unresolved"},
         action_key=action_key,
         reason=execution.reason,
     )

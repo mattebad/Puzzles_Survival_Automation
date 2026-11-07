@@ -160,9 +160,25 @@ def daily_shops_next_due(
                 raise ValueError("Daily Shops restart tab lacks paired effect proof")
         elif status == "deferred":
             deferred += 1
-            if row.get("effect_verified") is not False or row.get("reason") != "TAB_NO_AFFORDABLE_STOCK":
-                raise ValueError("Daily Shops deferred tab lacks exact no-work readiness")
-            _validate_tab_offer(row, tab, no_work=True)
+            if row.get("effect_verified") is not False:
+                raise ValueError("Daily Shops deferred tab cannot claim a verified effect")
+            if row.get("reason") == "TAB_NO_AFFORDABLE_STOCK":
+                _validate_tab_offer(row, tab, no_work=True)
+            elif row.get("reason") == "TAB_ITEM_EFFECT_EVIDENCE_REQUIRED":
+                source_ref, source_hash = row.get("source_frame_ref"), row.get("source_frame_sha256")
+                if (
+                    type(row.get("quantity")) is not int or row["quantity"] != 0
+                    or row.get("total") is not None
+                    or any(row.get(field) is not None for field in (
+                        "offer_identity", "shop_identity", "item_identity", "currency_identity",
+                        "rarity", "unit_price", "balance_before", "stock_before", "item_quantity_before",
+                    ))
+                    or not isinstance(source_ref, str) or not source_ref.strip()
+                    or not isinstance(source_hash, str) or _SHA256_RE.fullmatch(source_hash) is None
+                ):
+                    raise ValueError("Daily Shops unproved tab requires retained source and zero purchase")
+            else:
+                raise ValueError("Daily Shops deferred tab lacks an exact no-work or evidence-required reason")
         else:
             raise ValueError("Daily Shops tab is blocked or unresolved")
     calls = result.get("purchase_transport_calls")
