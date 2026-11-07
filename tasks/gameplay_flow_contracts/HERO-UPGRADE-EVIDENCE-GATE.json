@@ -43,18 +43,20 @@
       "evidence_gate_id": "hero_upgrade_replay"
     },
     {
-      "transition_id": "upgrade_wali_single_level",
+      "transition_id": "upgrade_wali_individual_normal_batch",
       "from": "hero",
       "to": "upgrade_observation",
-      "planner": "hero_upgrade_spec",
-      "permitted_input": "upgrade_wali_single_level",
+      "planner": "hero_upgrade_batch_spec",
+      "permitted_input": "bounded_individual_wali_single_level_inputs",
       "postconditions": [
-        "product hero_upgrade-v3, current reset identity, canonical confirmed count, and next normal-upgrade ordinal are current",
+        "product hero_upgrade-v4, current reset identity, canonical confirmed count, and next normal-upgrade ordinal are current",
         "exact selected Wali is stable below the displayed cap with a visible normal single-level Upgrade control, never bulk",
-        "the complete current ANTISERUM cost and sufficient balance are recognized before dispatch",
+        "bound the uninterrupted batch by the remaining quota and displayed cap, and reread each input's exact current affordable ANTISERUM quote",
         "current explicit authorization for the exact action, active route lease/input lock, and a fresh source/generation fence are required",
-        "one consequential input commits only after a settled Wali level-plus-one successor and exact ANTISERUM debit; the normal count increments exactly once",
-        "a dispatch attempt or unknown successor is not success and cannot be identically retried"
+        "verify baseline-to-final cumulative Wali level change equals actual journaled normal inputs and exact debit equals their summed current quotes; no mandatory per-input settled level-plus-one or Back",
+        "settle a positively verified partial prefix on a guard change and defer; only a real cap/evolution transition permits another batch in the same visit",
+        "a dispatch attempt or unknown batch successor is not success and cannot be identically retried",
+        "evolution's automatic level never consumes the normal quota, which persists through partial batches and restart"
       ],
       "terminal_outcomes": [
         "action_performed",
@@ -64,16 +66,16 @@
       "evidence_gate_id": "hero_upgrade_replay"
     },
     {
-      "transition_id": "reveal_single_upgrade_successor",
+      "transition_id": "reveal_normal_batch_successor",
       "from": "wali_bulk_upgrade_row",
       "to": "upgrade_observation",
       "planner": "_reveal_single_upgrade_successor",
       "permitted_input": "dismiss_wali_bulk_row",
       "postconditions": [
-        "after a sent single Upgrade, positively recognize the separate bulk row on the stable selected Wali detail surface",
+        "only when final cumulative verification is obstructed, positively recognize the separate bulk row on the selected Wali detail surface",
         "one non-spending Back may reveal current Wali details or the positively recognized Hero roster; only the latter permits current named Wali reselection",
         "never press the bulk row, repeat an unknown dismissal, or credit navigation as a normal upgrade",
-        "the parent single Upgrade remains pending until its settled level-plus-one and exact ANTISERUM debit are independently verified",
+        "the normal batch remains pending until its final cumulative level change and exact summed ANTISERUM debit are verified; do not dismiss after every input",
         "the current route lease, input lock, finite physical-input budget and fresh-source fences remain held"
       ],
       "terminal_outcomes": [
@@ -139,7 +141,7 @@
   ],
   "permitted_inputs": [
     "navigate_to_hero",
-    "upgrade_wali_single_level",
+    "bounded_individual_wali_single_level_inputs",
     "evolve_wali_standard",
     "dismiss_wali_bulk_row",
     "safe_return_home"
@@ -203,8 +205,8 @@
       "status": "evidence_required",
       "blocks": [
         "navigate_home_to_hero",
-        "upgrade_wali_single_level",
-        "reveal_single_upgrade_successor",
+        "upgrade_wali_individual_normal_batch",
+        "reveal_normal_batch_successor",
         "evolve_wali_standard",
         "return_normal_upgrade_to_canonical_home",
         "return_evolution_to_canonical_home"
@@ -225,15 +227,15 @@
       "permitted_inputs": [],
       "forbidden_inputs": [
         "navigate_to_hero",
-        "upgrade_wali_single_level",
+        "bounded_individual_wali_single_level_inputs",
         "evolve_wali_standard",
         "dismiss_wali_bulk_row",
         "safe_return_home"
       ],
       "required_transitions": [
         "navigate_home_to_hero",
-        "upgrade_wali_single_level",
-        "reveal_single_upgrade_successor",
+        "upgrade_wali_individual_normal_batch",
+        "reveal_normal_batch_successor",
         "evolve_wali_standard",
         "return_normal_upgrade_to_canonical_home",
         "return_evolution_to_canonical_home"
@@ -290,11 +292,11 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r20",
-    "product_authority_digest": "a451cb1b252e982eb412e8b9e0583bfe111c38c26f728952e81b56aeb1f60972",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r21",
+    "product_authority_digest": "8f94146b377ca6475291d9a998dddcf595629c82b890b38ca8db62d089d68a98",
     "product_record_id": "hero_upgrade",
-    "product_record_revision": "hero_upgrade-v3",
-    "product_record_digest": "0cadd4f28e0d4a035e70f91e2ac910b4639d4eed6bc0347dd98f77d8a9d9527d",
+    "product_record_revision": "hero_upgrade-v4",
+    "product_record_digest": "2f77c6105bf7f3fef95a9f8c0d384fb1a4782d16776073519a2d75c6ef2ef7d8",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

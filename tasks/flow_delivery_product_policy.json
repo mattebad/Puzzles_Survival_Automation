@@ -377,10 +377,11 @@
       "policy_id": "hero-upgrade-policy",
       "scope": "hero_upgrade.reset",
       "status": "explicitly_approved",
-      "decision": "Exactly three confirmed single Wali normal level upgrades per reset are approved; at the displayed cap, one standard evolution may support remaining normal upgrades but its automatic level change does not count. Permit dispatch only through exact guarded normal/evolution inputs with current explicit authorization, a canonical supervised claim, active route lease/input lock, fresh source/generation fence, exact current costs, and a positive settled successor. Do not hardcode levels, cap ladders, or prices. Actual service registration, enablement, and scheduling remain off; live acceptance remains evidence_required. The Campaign/reset/150-diamond path remains operationally blocked because the exact Campaign block and final confirmation are unproven.",
+      "decision": "Exactly three confirmed individual Wali normal level upgrades per reset are approved. Bound each uninterrupted batch by the remaining quota and displayed cap; read each individual input's current affordable ANTISERUM quote, then verify baseline-to-final cumulative level and exact summed debit, without mandatory per-input level-plus-one settlement or Back. Settle a known partial prefix on a guard change; split for a real cap/evolution transition. At the displayed cap, one standard evolution may support remaining normal upgrades but its automatic level change does not count. Exact current authorization, canonical supervised claim, lease/input lock, fresh source/generation fencing and positive native settlement remain required. Registration/scheduling stay off; native acceptance is evidence_required. Campaign/reset/150-diamond execution stays blocked pending its exact missing evidence.",
       "candidate_hero": "Wali",
       "normal_upgrade_count_per_reset": 3,
       "normal_upgrade_kind": "single_level",
+      "normal_upgrade_verification": "baseline_and_final_cumulative_level_and_debit",
       "normal_upgrade_material": "ANTISERUM",
       "standard_evolution_materials": [
         "ANTISERUM",
@@ -636,7 +637,7 @@
     {"policy_id": "daily-control-cost-boundary", "scope": "global.daily_control_costs", "status": "explicitly_approved", "decision": "Universal Daily control safety boundary: premium/cash purchases, paid or ambiguous controls, refills, 10x controls, and item-backed substitutes are prohibited. Route-approved resource, AP, and stamina effects remain governed by their own R/P ticket and are not globally forbidden.", "prohibited_controls": ["premium_purchase", "cash_purchase", "paid_control", "ambiguous_control", "refill", "10x", "item_backed_substitute"], "premium_allowed": false, "cash_allowed": false, "paid_allowed": false, "ambiguous_allowed": false, "refill_allowed": false, "ten_x_allowed": false, "item_backed_substitute_allowed": false, "unknown_cost_allowed": false, "route_owned_effects_globally_forbidden": false, "route_owner_ticket_required": true, "governing_owner_ticket_families": ["REC-R*", "REC-P*"], "dispatch_authority": null, "source": "REC-D01_explicit_cost_boundary"},
     {"policy_id": "current-positive-completion-postcondition", "scope": "global.completion_semantics", "status": "explicitly_approved", "decision": "Training and march completion require a current positive postcondition. Queue, timer, outbound, return, or other projected state alone never proves completion.", "applies_to": ["training", "march"], "current_positive_postcondition_required": true, "queue_projection_is_completion": false, "timer_projection_is_completion": false, "outbound_projection_is_completion": false, "return_projection_is_completion": false, "dispatch_is_completion": false, "source": "REC-D01_explicit_completion_boundary"}
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r20",
+  "authority_revision": "flow-delivery-product-authority-v2-r21",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -1940,7 +1941,7 @@
         ]
       },
       "objective": "upgrade_hero",
-      "action": "upgrade_one_wali_normal_level_with_standard_evolution_support",
+      "action": "upgrade_wali_individual_normal_batch_with_standard_evolution_support",
       "target": {
         "kind": "hero_upgrade",
         "hero_identity": "Wali",
@@ -1973,10 +1974,12 @@
       "quantity_cost": {
         "quantity": 1,
         "normal_upgrade": {
-          "action": "single_level",
+          "action": "individual_single_level_inputs",
           "material": "ANTISERUM",
           "amount": null,
           "current_observation_required": true,
+          "maximum_inputs_per_batch": 3,
+          "current_quote_before_each_input": true,
           "free_only": false
         },
         "standard_evolution": {
@@ -2005,7 +2008,9 @@
         "exact_selected_wali_evidence_required": true,
         "stable_level_and_displayed_cap_required": true,
         "exact_current_material_vector_and_balance_required": true,
-        "normal_single_level_successor_required": true,
+        "normal_batch_cumulative_level_and_debit_required": true,
+        "per_input_settled_successor_required": false,
+        "partial_batch_requires_exact_known_prefix": true,
         "exact_antiserum_debit_required": true,
         "evolution_only_at_displayed_cap": true,
         "evolution_automatic_level_not_counted": true,
@@ -2077,8 +2082,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "hero_upgrade-v3",
-      "record_digest": "0cadd4f28e0d4a035e70f91e2ac910b4639d4eed6bc0347dd98f77d8a9d9527d"
+      "record_revision": "hero_upgrade-v4",
+      "record_digest": "2f77c6105bf7f3fef95a9f8c0d384fb1a4782d16776073519a2d75c6ef2ef7d8"
     },
     {
       "record_id": "alliance_shop_purchase",
@@ -3602,5 +3607,5 @@
       "record_digest": "3ed8f746336bfa3a0544591b42e8cea832ee3a0b10d10dda54cedcf390c57d78"
     }
   ],
-  "authority_digest": "a451cb1b252e982eb412e8b9e0583bfe111c38c26f728952e81b56aeb1f60972"
+  "authority_digest": "8f94146b377ca6475291d9a998dddcf595629c82b890b38ca8db62d089d68a98"
 }

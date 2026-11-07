@@ -3442,22 +3442,30 @@ def _wali_upgrade_result_builder(identity, stop, input_count, *, explicit_partia
     defer_prefix = owner.wali_mode == "deferred_prefix"
     count = 0 if interrupted else min(1, 3 - prior) if explicit_partial or defer_prefix else 3 - prior
     with_evolution = owner.wali_mode == "standard_evolution" and not explicit_partial and not interrupted and prior == 0
-    upgrades, evolutions = [], []
-    level, cap, balance = (9, 10, 1000) if with_evolution else (5 + prior, 30, 1000)
-    for index in range(count):
+    batches, evolutions = [], []
+    level, cap, balance = (9, 10, 1000) if with_evolution or explicit_partial else (5 + prior, 30, 1000)
+    index = 0
+    while index < count:
         ordinal = prior + index + 1
-        key = f"wali:{identity.account_id}:{identity.server_id}:{identity.reset_id}:normal:{ordinal}"
+        input_limit = min(3 - prior - index, cap - level)
+        batch_inputs = min(count - index, input_limit)
+        key = f"wali:{identity.account_id}:{identity.server_id}:{identity.reset_id}:normal-batch:{ordinal}"
         before = _wali_observation(
             identity.reset_id, level=level, cap=cap, confirmed=ordinal - 1,
             balance=balance, phase=f"{key}:before",
         )
-        level, balance = level + 1, balance - 100
+        level, balance = level + batch_inputs, balance - 100 * batch_inputs
+        index += batch_inputs
         after = _wali_observation(
-            identity.reset_id, level=level, cap=cap, confirmed=ordinal,
+            identity.reset_id, level=level, cap=cap, confirmed=prior + index,
             balance=balance, phase=f"{key}:after",
         )
-        upgrades.append({"action_key": key, "before": asdict(before), "after": asdict(after), "semantic_verified": True})
-        if with_evolution and index == 0:
+        batches.append({
+            "action_key": key, "first_ordinal": ordinal, "input_limit": input_limit,
+            "normal_inputs": batch_inputs, "quoted_antiserum_costs": [100] * batch_inputs,
+            "before": asdict(before), "after": asdict(after), "semantic_verified": True,
+        })
+        if with_evolution and level == cap:
             evolution_key = f"wali:{identity.account_id}:{identity.server_id}:{identity.reset_id}:evolution:{cap}"
             evolution_before = replace(
                 after, screen_state="HERO_EVOLUTION_PREVIEW", target_identity="hero-evolve",
@@ -3495,9 +3503,9 @@ def _wali_upgrade_result_builder(identity, stop, input_count, *, explicit_partia
         "prior_confirmed_upgrades": prior, "confirmed_upgrades": prior + count,
         "level_upgrade_committed_count": count, "evolution_committed_count": len(evolutions),
         "committed_action_count": committed,
-        "upgrade_transport_calls": count + int(explicit_partial),
-        "evolution_transport_calls": len(evolutions), "total_action_count": attempts,
-        "input_actions": input_count, "level_upgrades": upgrades, "evolutions": evolutions,
+        "upgrade_transport_calls": count,
+        "evolution_transport_calls": len(evolutions) + int(explicit_partial), "total_action_count": attempts,
+        "input_actions": input_count, "normal_batches": batches, "evolutions": evolutions,
         "unknown_action_sent": explicit_partial, "identical_retry_denied": explicit_partial,
         "terminal_home_verified": not interrupted and not explicit_partial,
         "terminal_home_frame": home, "terminal_home_frame_sha256": home["frame_sha256"],

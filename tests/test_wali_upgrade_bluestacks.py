@@ -1,6 +1,7 @@
 """Replay-only OCR/template tests; synthetic frames are never runtime acceptance evidence."""
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from itertools import count
@@ -170,7 +171,7 @@ class _WaliModel:
 
     def __init__(
         self, level: int = 5, balance: int = 10000, unknown: bool = False,
-        bulk_mode: str = "detail", price_step: int = 0,
+        bulk_mode: str = "clear", price_step: int = 0,
     ) -> None:
         self.page, self.level, self.cap = 1, level, 10
         self.balance, self.manual, self.receipt = balance, 50, 0
@@ -189,10 +190,11 @@ class _WaliModel:
         frame = np.full((1280, 800, 3), 20, dtype=np.uint8)
         # OCR reads the immutable captured snapshot, never this model's later state.
         snapshot = (self.page, self.level, self.cap, self.balance // 256,
-                    self.balance % 256, self.manual, self.receipt, int(self.bulk), self.price_step)
+                    self.balance % 256, self.manual, self.receipt, int(self.bulk), self.price_step,
+                    int(self.bulk_mode == "clear"))
         for index, value in enumerate(snapshot):
             frame[0, index, 0] = value
-        if self.page == 4 or (self.page == 3 and not self.bulk):
+        if self.page == 4 or (self.page == 3 and (not self.bulk or self.bulk_mode == "clear")):
             template = route._ANTISERUM_TEMPLATES[0 if self.page == 3 else 1][0]
             x, y = (245, 1100) if self.page == 3 else (285, 792)
             height, width = template.shape[:2]
@@ -218,7 +220,7 @@ class _WaliModel:
         elif self.page == 3:
             assert 100 <= x <= 330 and 1175 <= y <= 1230
             cost = 100 + self.price_step * self.level
-            assert not self.bulk and self.level < self.cap and self.balance >= cost
+            assert (not self.bulk or self.bulk_mode == "clear") and self.level < self.cap and self.balance >= cost
             self.normal += 1
             self.bulk = True
             if not self.unknown:
@@ -240,7 +242,7 @@ class _WaliModel:
     def dispatch_back(self) -> None:
         self.inputs.append(("back", self.page))
         if self.bulk:
-            if self.bulk_mode == "detail":
+            if self.bulk_mode in {"detail", "clear"}:
                 self.bulk = False
             elif self.bulk_mode == "roster":
                 self.bulk, self.page = False, 2
@@ -254,8 +256,8 @@ class _WaliModel:
 
 
 def _model_words(frame: np.ndarray) -> tuple[route._Word, ...]:
-    page, level, cap, high, low, manual, receipt, bulk, price_step = (
-        int(frame[0, index, 0]) for index in range(9)
+    page, level, cap, high, low, manual, receipt, bulk, price_step, clear_bulk = (
+        int(frame[0, index, 0]) for index in range(10)
     )
     balance = high * 256 + low
     rows = []
@@ -278,8 +280,8 @@ def _model_words(frame: np.ndarray) -> tuple[route._Word, ...]:
         add("Upgrade", 150, 1190, 130)
         add("Evolve", 500, 1190, 120)
         if bulk:
-            add(f"Upgrade to Lv.{cap}", 100, 1100, 300)
-        else:
+            add(f"Upgrade to Lv.{cap}", 100, 950 if clear_bulk else 1100, 300)
+        if not bulk or clear_bulk:
             add(f"{balance}/{100 + price_step * level}", 310, 1115, 200)
         if receipt:
             add("[Combat Manual I] used", 220, 450, 350)
@@ -353,6 +355,9 @@ class WaliNativeDurabilityTests(unittest.TestCase):
             self.assertEqual(first["native"]["status"], "completed")
             self.assertEqual(first["native"]["confirmed_upgrades"], 3)
             self.assertEqual(first["native"]["evolution_committed_count"], 1)
+            self.assertEqual(
+                [row["normal_inputs"] for row in first["native"]["normal_batches"]], [1, 2],
+            )
             self.assertEqual((model.normal, model.evolutions, model.level), (3, 1, 13))
             repeated = _run_native_model(model, root / "safety.sqlite3", root, "day-1")
             self.assertEqual(repeated["input_count"], 0)
@@ -363,21 +368,53 @@ class WaliNativeDurabilityTests(unittest.TestCase):
             self.assertEqual(next_reset["native"]["prior_confirmed_upgrades"], 0)
             self.assertEqual((model.normal, model.evolutions, model.level), (6, 1, 16))
 
-    def test_costs_are_reread_after_bulk_dismissal_and_current_wali_reselection(self):
+    def test_three_inputs_use_changing_quotes_then_one_final_verification_boundary(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            model = _WaliModel(bulk_mode="roster", price_step=7)
-            result = _run_native_model(model, root / "safety.sqlite3", root, "day-1")
+            model = _WaliModel(price_step=7)
+            proofs = []
+            original = route._post_verified
+            def verify(*args, **kwargs):
+                proofs.append(model.normal)
+                return original(*args, **kwargs)
+            with patch.object(route, "_post_verified", side_effect=verify):
+                result = _run_native_model(model, root / "safety.sqlite3", root, "day-1")
             self.assertIsNone(result["failure"])
             self.assertTrue(result["accounting_verified"])
             self.assertEqual(result["native"]["status"], "completed")
             self.assertEqual((model.normal, model.level, model.balance), (3, 8, 9574))
-            self.assertEqual(
-                [row["before"]["material_costs"]["ANTISERUM"]
-                 for row in result["native"]["level_upgrades"]],
-                [135, 142, 149],
-            )
+            batch, = result["native"]["normal_batches"]
+            self.assertEqual(batch["normal_inputs"], 3)
+            self.assertEqual(batch["quoted_antiserum_costs"], [135, 142, 149])
+            self.assertTrue(proofs)
+            self.assertEqual(set(proofs), {3})  # No intermediate level/debit proof.
+            first_back = next(index for index, action in enumerate(model.inputs) if action[0] == "back")
+            self.assertEqual([action[1] for action in model.inputs[:first_back]], [1, 2, 3, 3, 3])
             self.assertTrue(result["native"]["terminal_home_verified"])
+            store = SafetyStore(root / "safety.sqlite3")
+            try:
+                row, = store.list_actions_for_task(route.FLOW_ID)
+                journal = json.loads(json.loads(row["transport_result_json"])["detail"])
+                self.assertEqual((row["quantity"], journal["inputs"]), (3, 3))
+                self.assertEqual(journal["quoted_antiserum"], [135, 142, 149])
+            finally:
+                store.close()
+
+    def test_obstructed_quote_stops_and_settles_prefix_without_back_after_each_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            model = _WaliModel(bulk_mode="roster", price_step=7)
+            first = _run_native_model(model, root / "safety.sqlite3", root, "day-1")
+            self.assertEqual(first["native"]["status"], "deferred")
+            self.assertEqual(first["native"]["confirmed_upgrades"], 1)
+            self.assertEqual(first["native"]["normal_batches"][0]["stop_reason"], "current_quote_not_readable")
+            self.assertEqual(model.normal, 1)
+            model.bulk_mode = "clear"
+            resumed = _run_native_model(model, root / "safety.sqlite3", root, "day-1")
+            self.assertEqual(resumed["native"]["status"], "completed")
+            self.assertEqual(resumed["native"]["prior_confirmed_upgrades"], 1)
+            self.assertEqual(resumed["native"]["normal_batches"][0]["normal_inputs"], 2)
+            self.assertEqual((model.normal, model.balance), (3, 9574))
 
     def test_unknown_bulk_dismissal_never_repeats_back_or_the_spending_input(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -392,20 +429,21 @@ class WaliNativeDurabilityTests(unittest.TestCase):
             self.assertEqual((repeated["input_count"], repeated["runtime_created"]), (0, 0))
             self.assertEqual(sum(row[0] == "back" for row in model.inputs), 1)
 
-    def test_known_shortage_preserves_one_and_reopen_performs_only_remaining_two(self):
+    def test_affordable_two_input_prefix_resumes_only_the_one_remaining_normal(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            model = _WaliModel(balance=100)
+            model = _WaliModel(balance=250)
             first = _run_native_model(model, root / "safety.sqlite3", root, "day-1")
             self.assertEqual(first["native"]["status"], "deferred")
             self.assertTrue(first["native"]["terminal_home_verified"])
-            self.assertEqual(first["native"]["confirmed_upgrades"], 1)
-            self.assertEqual(model.normal, 1)
+            self.assertEqual(first["native"]["confirmed_upgrades"], 2)
+            self.assertEqual(first["native"]["normal_batches"][0]["normal_inputs"], 2)
+            self.assertEqual(model.normal, 2)
             model.balance = 10000
             resumed = _run_native_model(model, root / "safety.sqlite3", root, "day-1")
             self.assertEqual(resumed["native"]["status"], "completed")
-            self.assertEqual(resumed["native"]["prior_confirmed_upgrades"], 1)
-            self.assertEqual(resumed["native"]["level_upgrade_committed_count"], 2)
+            self.assertEqual(resumed["native"]["prior_confirmed_upgrades"], 2)
+            self.assertEqual(resumed["native"]["level_upgrade_committed_count"], 1)
             self.assertEqual(model.normal, 3)
 
     def test_unknown_single_effect_is_unresolved_and_not_retried_after_restart_or_reset(self):
@@ -426,6 +464,50 @@ class WaliNativeDurabilityTests(unittest.TestCase):
                 self.assertEqual([row["final_status"] for row in store.list_actions_for_task(route.FLOW_ID)], ["unresolved"])
             finally:
                 store.close()
+
+    def test_crash_before_final_proof_keeps_whole_batch_unknown_across_restart_and_reset(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            model = _WaliModel()
+            original = route._capture
+            def crash_before_proof(context, state, label):
+                if label == "wali-normal-reconcile-source":
+                    raise RuntimeError("simulated interruption before final proof")
+                return original(context, state, label)
+            with patch.object(route, "_capture", side_effect=crash_before_proof):
+                first = _run_native_model(model, root / "safety.sqlite3", root, "day-1")
+            self.assertEqual(first["native"]["status"], "unknown")
+            self.assertEqual(first["native"]["confirmed_upgrades"], 0)
+            self.assertEqual(first["native"]["normal_batches"], [])
+            self.assertEqual(model.normal, 3)
+            for day in ("day-1", "day-2"):
+                retry = _run_native_model(model, root / "safety.sqlite3", root, day)
+                self.assertEqual((retry["input_count"], retry["runtime_created"]), (0, 0))
+            self.assertEqual(model.normal, 3)
+
+    def test_legacy_confirmed_singles_chain_with_actual_batch_journal_count(self):
+        context = SimpleNamespace(identity=SimpleNamespace(account_id="a", server_id="s"))
+        prefix = route._scope_prefix(context, "day-1")
+        rows = [
+            {"action_key": prefix + "normal|1", "final_status": "confirmed"},
+            {
+                "action_key": prefix + "normal-batch|2", "final_status": "confirmed",
+                "quantity": 2,
+                "transport_result_json": json.dumps({
+                    "dispatched": True, "detail": json.dumps({
+                        "inputs": 1, "quoted_antiserum": [100], "source_frame_sha256": ["a" * 64],
+                    }),
+                }),
+            },
+        ]
+        context.action_store = SimpleNamespace(list_actions_for_task=lambda _task: rows)
+        self.assertEqual(route._history(context, "day-1")[:4], (2, 0, False, False))
+        # A planned limit of two must never substitute for the actual sent one.
+        rows[1]["transport_result_json"] = None
+        self.assertTrue(route._history(context, "day-1")[2])
+        # Manual cancellation of an unproved batch is not quota reset/retry permission.
+        rows[1]["final_status"] = "cancelled"
+        self.assertEqual(route._history(context, "day-1")[:4], (1, 0, False, True))
 
 
 if __name__ == "__main__":

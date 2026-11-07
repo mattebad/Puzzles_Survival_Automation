@@ -223,12 +223,17 @@ Existing layout exceptions:
   operator `bluestacks verify-flow` is not this service-only route's validation entrypoint;
   the canonical native boundary validates its semantic result and action journal. Keep
   current live authorization, route acceptance and disabled deployment posture distinct.
-  A normal Upgrade opens a separate bulk row. One route-owned, non-spending Back per pending
-  single action may reveal the current detail screen or the recognized roster, followed only
-  by current named Wali reselection. Unknown dismissal stops without another Back or Upgrade.
-  These navigation inputs count against the physical budget, not the three-action quota.
-  The complete current quote is hashed into the capability-bound action ID while the action
-  key retains its stable reset/ordinal identity; changing a quoted balance or cost invalidates admission.
+  Normal upgrades use one bounded batch intent, baseline/final cumulative level proof and
+  exact debit equal to the sum of journaled current quotes. Re-read the normal control and
+  quote before every individual tap; never fabricate intermediate settled successors.
+  Cap/evolution, shortage or unreadable quote splits the batch and preserves only an exactly
+  verified prefix. Normal input limit is at most the remaining reset quota and displayed cap.
+  A separate bulk row is never pressed; at most one route-owned non-spending Back after the
+  batch may reveal current details or the recognized roster plus named Wali reselection.
+  No mandatory per-input Back/+1 settlement. UNKNOWN forbids another Back or Upgrade.
+  Navigation counts against the physical budget, not normal quota. Bind fresh current quotes
+  to each input and keep stable reset/first-ordinal batch keys. Historical confirmed single
+  journals remain progress; new execution writes only the batch contract.
 
 
 * **Campaign budgets**: the service route budget (`CAMPAIGN_MAX_INPUTS`, a whole AP drain) is a different

@@ -127,13 +127,20 @@ single normal Wali upgrades consume the reset quota; a standard evolution's auto
 does not. Costs, balances, selected hero and displayed cap are read afresh. A named manual-use
 toast is retained as usage evidence with its own frame, not invented as a numeric inventory
 decrement; the settled cap/level and exact Antiserum debit are independently required.
-Normal Upgrade's separate bulk row is recognized, never pressed. At most one non-spending
-Back per pending single action reveals details or the recognized roster plus current Wali
-reselection; an unknown dismissal stops without another Back or spending input. Physical
-navigation accounting is separate from confirmed normal actions. The full current quote is
-bound through the capability's action ID, without changing the reset/ordinal action key.
-Actual native binding/SDK/runtime/Core/temp-SQLite replay verified three singles across
-evolution, current per-level quotes, partial shortage/resume and durable unknown/no retry.
+Normal inputs run as a bounded batch of up to the remaining three reset ordinals. Capture
+the baseline once, re-read the current ordinary control and numeric quote before each tap,
+then verify the cumulative final level and exact sum of the journaled Antiserum costs.
+There is no required per-input Back or settled level-plus-one proof. A cap/evolution,
+unreadable quote or shortage ends the batch; credit only its exactly verified known prefix.
+One Core intent retains the actual input count and quote journal; UNKNOWN blocks the entire
+unproved batch across restart/reset without another input.
+The separate bulk row is recognized, never pressed. At most one non-spending Back after
+the batch may reveal details or the recognized roster plus current Wali reselection; an
+unknown dismissal stops. Physical navigation is separate from confirmed normal actions.
+The current quote is capability-bound, while the stable reset/first-ordinal key prevents
+duplicates. Historical confirmed singles remain readable progress, not executable aliases.
+Actual binding/SDK/runtime/Core/temp-SQLite replay verifies changing per-input quotes,
+one cumulative three-input proof, cap/evolution splits, partial shortage/resume and UNKNOWN.
 Historical desktop-derived pixels recognize the bulk row and settled Wali detail quote;
 compressed historical evolution-preview quotes remain incomplete and fail closed. Neither
 those images nor synthetic execution establish current native acceptance.

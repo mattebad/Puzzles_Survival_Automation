@@ -483,7 +483,6 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertFalse(reset_path["dispatch_allowed"])
 
         self.assertEqual(record["record_type"], "hero_upgrade")
-        self.assertEqual(record["record_revision"], "hero_upgrade-v3")
         self.assertEqual(record["semantic_entry_route"]["route"], ["HERO"])
         target = record["target"]
         self.assertEqual(target["hero_identity"], "Wali")
@@ -524,7 +523,6 @@ class ProductAuthorityTests(unittest.TestCase):
         effect = record["semantic_effect"]
         self.assertTrue(effect["exact_selected_wali_evidence_required"])
         self.assertTrue(effect["exact_current_material_vector_and_balance_required"])
-        self.assertTrue(effect["normal_single_level_successor_required"])
         self.assertTrue(effect["exact_antiserum_debit_required"])
         self.assertTrue(effect["evolution_automatic_level_not_counted"])
         self.assertTrue(effect["evolution_manual_decrement_numeric_receipt_or_named_usage_toast_required"])
@@ -558,6 +556,11 @@ class ProductAuthorityTests(unittest.TestCase):
 
         mutations = (
             lambda changed: changed["target"].__setitem__("normal_upgrade_count_per_reset", 2),
+            lambda changed: changed["quantity_cost"]["normal_upgrade"].__setitem__("maximum_inputs_per_batch", 4),
+            lambda changed: changed["quantity_cost"]["normal_upgrade"].__setitem__("current_quote_before_each_input", False),
+            lambda changed: changed["semantic_effect"].__setitem__("normal_batch_cumulative_level_and_debit_required", False),
+            lambda changed: changed["semantic_effect"].__setitem__("per_input_settled_successor_required", True),
+            lambda changed: changed["semantic_effect"].__setitem__("partial_batch_requires_exact_known_prefix", False),
             lambda changed: changed["target"]["approved_action_kinds"].append("HERO_UPGRADE_BULK"),
             lambda changed: changed["target"].__setitem__("evolution_level_change_counts_as_normal_upgrade", True),
             lambda changed: changed["quantity_cost"]["reset_campaign_diamond_path"].__setitem__(

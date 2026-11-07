@@ -46,7 +46,7 @@ from safe_action_core.models import ActionClass, PolicyDecision
 from safe_action_core.policy import CentralPolicy
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tests.support.safe_action import TEST_TASK_ID, observation, request as base_request
-from tasks.hero_upgrade_disabled import HeroUpgradeObservation, hero_evolution_spec, hero_upgrade_spec
+from tasks.hero_upgrade_disabled import HeroUpgradeObservation, hero_evolution_spec, hero_upgrade_batch_spec
 from tasks.profile import BLUESTACKS_NATIVE_TARGET_PROVENANCE
 
 
@@ -903,13 +903,13 @@ class WaliUpgradePolicyTests(unittest.TestCase):
             target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE,
             source_frame_sha256=FRAME, evidence_refs=("synthetic:wali-core-policy",),
         )
-        spec = hero_evolution_spec(current) if evolution else hero_upgrade_spec(current)
+        spec = hero_evolution_spec(current) if evolution else hero_upgrade_batch_spec(current, 3)
         req = route_request(
             task=WALI_UPGRADE, action=spec.action_kind, action_class=ActionClass.SPEND_OR_STRATEGIC,
             kind=spec.action_kind, subject=spec.subject, source=spec.expected_source_screen,
             target=current.target_identity, control=current.control_class,
-            consequence="evolve_wali_with_standard_materials" if evolution else "upgrade_wali_single_level",
-            post="WALI_STANDARD_EVOLUTION_WITH_EXACT_MATERIAL_USE" if evolution else "WALI_SINGLE_LEVEL_WITH_EXACT_ANTISERUM_DEBIT",
+            consequence="evolve_wali_with_standard_materials" if evolution else "upgrade_wali_individual_single_levels",
+            post="WALI_STANDARD_EVOLUTION_WITH_EXACT_MATERIAL_USE" if evolution else "WALI_NORMAL_BATCH_CUMULATIVE_LEVEL_WITH_EXACT_ANTISERUM_DEBIT",
             cost_type="standard_hero_evolution_material_bundle" if evolution else "ANTISERUM",
             cost=1 if evolution else current.material_costs["ANTISERUM"], quantity=spec.quantity,
             resource=spec.resource_or_currency, maximum=spec.maximum_cost, free=spec.free_only,
