@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r16"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r17"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -2089,108 +2089,148 @@ def _validate_ruins_shop_purchase_record(record: Mapping[str, Any]) -> None:
 
 
 def _validate_nanoweapon_normal_craft_record(record: Mapping[str, Any]) -> None:
-    """Validate one exact once-per-reset Normal Craft Nanoweapon action."""
+    """Validate one reset-scoped Normal Craft action and its maintenance prerequisite."""
 
-    if record["objective"] != "nanoweapon_daily_craft":
-        raise ProductAuthorityError(
-            "Nanoweapon record objective must be nanoweapon_daily_craft"
-        )
-    if record["action"] != "start_one_normal_nanoweapon_craft":
-        raise ProductAuthorityError(
-            "Nanoweapon action must be start_one_normal_nanoweapon_craft"
-        )
-    if record["recurrence"] != "daily_reset_scoped":
-        raise ProductAuthorityError(
-            "Nanoweapon recurrence must be daily_reset_scoped"
-        )
+    if (
+        record["record_revision"] != "nanoweapon_normal_craft-v2"
+        or record["objective"] != "nanoweapon_normal_craft"
+        or record["action"] != "start_one_normal_nanoweapon_craft"
+        or record["recurrence"] != "daily_reset_scoped"
+    ):
+        raise ProductAuthorityError("Nanoweapon Normal Craft must use its v2 own-action identity")
     route = record["semantic_entry_route"]
     if (
         route.get("source_home_authorities") != ["HOME_CANONICAL"]
-        or route.get("route")
-        != ["GEAR_FACTORY", "NANOWEAPON", "NORMAL_CRAFT"]
+        or route.get("route") != ["GEAR_FACTORY", "NANOWEAPON", "NORMAL_CRAFT"]
     ):
         raise ProductAuthorityError(
             "Nanoweapon entry route must bind canonical Home to Normal Craft"
         )
+    expected_maintenance = {
+        "product_record_id": "nano_material_production",
+        "product_record_revision": "nano_material_production-v1",
+        "required_same_visit": True,
+        "separate_authorization_required": True,
+        "positive_effect_must_be_reconciled_before_craft": True,
+        "normal_craft_substitution_allowed": False,
+        "normal_craft_reset_allowance_consumed": False,
+    }
+    expected_target = {
+        "kind": "nanoweapon_normal_craft",
+        "craft_mode": "NORMAL_CRAFT",
+        "completed_claim_on_entry": True,
+        "parts_required": 100,
+        "parts_unit": "NANO_PARTS",
+        "maximum_active_crafts": 1,
+        "maximum_starts_per_reset": 1,
+        "craft_duration_seconds": 43200,
+        "exclusive_craft_allowed": False,
+        "rotating_display_selection_allowed": False,
+        "insufficient_parts_defer": True,
+        "disabled_craft_defer": True,
+        "prior_material_production": expected_maintenance,
+        "terminal_home": "HOME_CANONICAL",
+    }
     target = record["target"]
-    if (
-        target.get("kind") != "nanoweapon_normal_craft"
-        or target.get("craft_mode") != "NORMAL_CRAFT"
-        or target.get("completed_claim_on_entry") is not True
-        or target.get("parts_required") != 100
-        or target.get("parts_unit") != "NANO_PARTS"
-        or target.get("maximum_active_crafts") != 1
-        or target.get("maximum_starts_per_reset") != 1
-        or target.get("craft_duration_seconds") != 43200
-        or target.get("exclusive_craft_allowed") is not False
-        or target.get("rotating_display_selection_allowed") is not False
-        or target.get("insufficient_parts_defer") is not True
-        or target.get("disabled_craft_defer") is not True
-        or target.get("terminal_home") != "HOME_CANONICAL"
-    ):
+    if not isinstance(target, Mapping) or dict(target) != expected_target:
         raise ProductAuthorityError(
-            "Nanoweapon target must bind one exact 100-part Normal Craft"
+            "Nanoweapon Normal Craft target or prior maintenance composition changed"
         )
+    prior_maintenance = target["prior_material_production"]
+    if any(
+        type(target[field]) is not int
+        for field in (
+            "parts_required",
+            "maximum_active_crafts",
+            "maximum_starts_per_reset",
+            "craft_duration_seconds",
+        )
+    ):
+        raise ProductAuthorityError("Nanoweapon Normal Craft limits must be integers")
+    if any(
+        type(target[field]) is not bool
+        for field in (
+            "completed_claim_on_entry",
+            "exclusive_craft_allowed",
+            "rotating_display_selection_allowed",
+            "insufficient_parts_defer",
+            "disabled_craft_defer",
+        )
+    ) or any(
+        type(prior_maintenance[field]) is not bool
+        for field in (
+            "required_same_visit",
+            "separate_authorization_required",
+            "positive_effect_must_be_reconciled_before_craft",
+            "normal_craft_substitution_allowed",
+            "normal_craft_reset_allowance_consumed",
+        )
+    ):
+        raise ProductAuthorityError("Nanoweapon Normal Craft composition flags must be booleans")
+    expected_quantity_cost = {
+        "quantity": 1,
+        "cost": {
+            "kind": "exact_material",
+            "amount": 100,
+            "unit": "NANO_PARTS",
+            "free_only": False,
+        },
+    }
     quantity_cost = record["quantity_cost"]
-    cost = quantity_cost.get("cost")
+    if not isinstance(quantity_cost, Mapping) or dict(quantity_cost) != expected_quantity_cost:
+        raise ProductAuthorityError("Nanoweapon Normal Craft must bind exact 100 NANO_PARTS")
     if (
-        quantity_cost.get("quantity") != 1
-        or not isinstance(cost, Mapping)
-        or cost.get("kind") != "exact_material"
-        or cost.get("amount") != 100
-        or cost.get("unit") != "NANO_PARTS"
-        or cost.get("free_only") is not False
+        type(quantity_cost["quantity"]) is not int
+        or type(quantity_cost["cost"]["amount"]) is not int
+        or type(quantity_cost["cost"]["free_only"]) is not bool
     ):
-        raise ProductAuthorityError(
-            "Nanoweapon must bind exact 100 NANO_PARTS consumption"
-        )
+        raise ProductAuthorityError("Nanoweapon Normal Craft costs must be integers and booleans")
+    expected_effect = {
+        "effect_ordinal": 1,
+        "completed_claim_successor_required": True,
+        "exact_parts_consumption_required": True,
+        "single_active_craft_required": True,
+        "single_start_per_reset_required": True,
+        "exact_duration_required": True,
+        "own_normal_craft_start_successor_required": True,
+        "prior_material_production_reconciled_before_craft": True,
+        "maintenance_does_not_satisfy_normal_craft": True,
+        "maintenance_does_not_consume_normal_craft_reset_allowance": True,
+        "no_currency_box_or_item_input": True,
+        "dispatch_is_not_success_proof": True,
+        "daily_ownership": "none",
+        "identical_retry": False,
+    }
     effect = record["semantic_effect"]
-    required_effects = (
-        "completed_claim_successor_required",
-        "exact_parts_consumption_required",
-        "single_active_craft_required",
-        "single_start_per_reset_required",
-        "exact_duration_required",
-        "craft_successor_required",
-        "daily_objective_successor_required",
-        "no_currency_box_or_item_input",
-        "dispatch_is_not_success_proof",
-    )
-    if (
-        effect.get("effect_ordinal") != 1
-        or any(effect.get(field) is not True for field in required_effects)
-        or effect.get("daily_ownership") != "none"
-        or effect.get("identical_retry") is not False
-    ):
+    if not isinstance(effect, Mapping) or dict(effect) != expected_effect:
         raise ProductAuthorityError(
-            "Nanoweapon successor, cost, or retry safety effect is incomplete"
+            "Nanoweapon Normal Craft must require its own successor without Daily coupling"
         )
+    if type(effect["effect_ordinal"]) is not int or any(
+        type(effect[field]) is not bool
+        for field in (
+            "completed_claim_successor_required",
+            "exact_parts_consumption_required",
+            "single_active_craft_required",
+            "single_start_per_reset_required",
+            "exact_duration_required",
+            "own_normal_craft_start_successor_required",
+            "prior_material_production_reconciled_before_craft",
+            "maintenance_does_not_satisfy_normal_craft",
+            "maintenance_does_not_consume_normal_craft_reset_allowance",
+            "no_currency_box_or_item_input",
+            "dispatch_is_not_success_proof",
+            "identical_retry",
+        )
+    ):
+        raise ProductAuthorityError("Nanoweapon Normal Craft effect flags must be typed")
     terminal = record["terminal_requirement"]
     if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
         "return_required"
     ) is not True:
         raise ProductAuthorityError(
-            "Nanoweapon terminal requirement must return to canonical Home"
+            "Nanoweapon Normal Craft must return to canonical Home"
         )
-    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
-    for marker in (
-        "material production",
-        "inherit",
-        "exclusive craft",
-        "rotating weapon display",
-        "insufficient nano parts",
-        "disabled craft",
-        "multiple active",
-        "second craft",
-        "currency",
-        "resource box",
-        "item",
-        "identical retry",
-    ):
-        if marker not in forbidden:
-            raise ProductAuthorityError(
-                f"Nanoweapon forbidden actions must include {marker}"
-            )
 
 
 def _validate_nano_material_production_record(record: Mapping[str, Any]) -> None:
@@ -2273,23 +2313,6 @@ def _validate_nano_material_production_record(record: Mapping[str, Any]) -> None
         raise ProductAuthorityError(
             "Nano Material terminal requirement must return to canonical Home"
         )
-    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
-    for marker in (
-        "base resource",
-        "resource box",
-        "currency",
-        "item",
-        "normal craft",
-        "exclusive craft",
-        "multiple active",
-        "wrong duration",
-        "unknown production",
-        "identical retry",
-    ):
-        if marker not in forbidden:
-            raise ProductAuthorityError(
-                f"Nano Material forbidden actions must include {marker}"
-            )
 
 
 def _validate_zombie_lair_record(record: Mapping[str, Any]) -> None:

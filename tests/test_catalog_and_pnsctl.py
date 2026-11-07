@@ -10,6 +10,13 @@ import unittest
 from unittest.mock import patch
 
 from scripts import pnsctl
+from automation_service.registry import (
+    CANONICAL_FLOW_REGISTRY,
+    NANO_MATERIAL_PRODUCTION_FLOW_ID,
+    NANOWEAPON_FLOW_ID,
+    canonical_entry,
+    servable_flow_names,
+)
 from tasks.catalog import CATALOG_PATH, catalog_summary, load_catalog, objective_for_text
 from tasks.gameplay_flow_contracts import CONTRACTS_DIR
 MILESTONE_FLOW_ID = "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION"
@@ -193,6 +200,47 @@ class OperatorCliTests(unittest.TestCase):
         for asset in manifest["assets"]:
             payload = (asset_root / asset["path"]).read_bytes()
             self.assertEqual(hashlib.sha256(payload).hexdigest(), asset["sha256"])
+
+    def test_batch_d_routes_are_canonical_service_only_and_disabled(self):
+        self.assertEqual(len(CANONICAL_FLOW_REGISTRY), 18)
+        self.assertEqual(len(servable_flow_names()), 17)
+        material = canonical_entry(NANO_MATERIAL_PRODUCTION_FLOW_ID)
+        weapon = canonical_entry(NANOWEAPON_FLOW_ID)
+        self.assertEqual(
+            (material.descriptor.family, material.descriptor.variant, material.descriptor.cadence,
+             material.descriptor.reset_scoped, material.max_inputs),
+            ("nano_material_production", "six_hour_single_slot", "timer", False, 18),
+        )
+        self.assertEqual(
+            (weapon.descriptor.family, weapon.descriptor.variant, weapon.descriptor.cadence,
+             weapon.descriptor.reset_scoped, weapon.product_revision, weapon.max_inputs),
+            ("nanoweapon", "normal_craft_100_nano_parts", "cooldown_pulse", True,
+             "nanoweapon_normal_craft-v2", 22),
+        )
+        self.assertFalse(material.spec.default_enabled)
+        self.assertFalse(weapon.spec.default_enabled)
+
+        disabled = json.loads(
+            (Path(__file__).resolve().parents[1] / "tasks" /
+             "flow_delivery_disabled_production_registry.json").read_text(encoding="utf-8")
+        )["flows"]
+        operator = pnsctl._load_bluestacks_flow_registry()
+        for flow_id in (NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID):
+            with self.subTest(flow_id=flow_id):
+                self.assertNotIn(flow_id, operator)
+                self.assertEqual(
+                    disabled[flow_id],
+                    {
+                        "mode": "disabled",
+                        "product_id": None,
+                        "product_revision": None,
+                        "production_handler": None,
+                        "profile": None,
+                        "registration_status": "NOT_REGISTERED",
+                        "scheduler_eligible": False,
+                        "supported_profiles": [],
+                    },
+                )
 
     def test_command_surface_is_exactly_the_documented_set(self):
         # Adding or removing a command must be deliberate: update this set and

@@ -159,8 +159,8 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r16",
-    "product_authority_digest": "87382f4dc6829c577f8dd13b16517b8aa69cdc51f0ab9d7760749fceaa970a28",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r17",
+    "product_authority_digest": "874c5fa56867cf47dbff7673adbe4cf6715a2fc55c022a35e3bdc7e9f2b08fd4",
     "product_record_id": "rare_earth_shop_purchase",
     "product_record_revision": "rare_earth_shop_purchase-v1",
     "product_record_digest": "47c28608b0b5e9471ad7c912e6f0fafca3d64aff49d1c1f34c4ebb3a22911904",

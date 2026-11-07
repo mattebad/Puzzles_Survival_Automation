@@ -22,7 +22,10 @@ ROUTE_BOUNDARIES = {
     "alliance-donation": "tests.test_service_alliance_donation.AllianceDonationServiceAdapterTests.test_partial_quota_restarts_from_durable_count_and_observed_timer",
     "alliance-shop": "tests.test_alliance_shop_bluestacks.AllianceShopNativeReplayTests.test_unaffordable_preferred_offer_falls_back_to_exact_other_item",
     "daily-shops": "tests.test_daily_shops_bluestacks.DailyShopsNativeReplayTests.test_uses_live_stock_and_affordability_maximum_for_each_tab",
+    "nano-material-production": "tests.test_nano_material_production_bluestacks.NanoMaterialProductionNativeSmokeTests.test_completed_production_claims_then_starts_as_two_effects",
+    "nanoweapon": "tests.test_nanoweapon_bluestacks.NanoweaponNativeSmokeTests.test_same_visit_production_then_claim_and_exact_normal_start",
 }
+
 
 # Native Home/Back admission uses different OCR backend builds on the two CI
 # hosts. Pair supported-layout positives with denials in the owning layer,
@@ -243,10 +246,10 @@ FAMILIES = {
     "daily_row_claim": ("daily_row_claim", "daily_rewards", "available_daily_claim"),
     "ultimate": ("ultimate",),
     "ruins": ("ruins",),
-    "alliance_help": ("alliance_help",),
     "alliance_donation": ("alliance_donation",),
     "alliance_shop": ("alliance_shop",),
     "daily_shops": ("daily_shops",),
+    "nano_material_production": ("nano_material_production",),
     "troop": ("troop", "training"),
     "world": ("world", "stamina", "zombie_lair"),
     "gathering": ("gathering",),

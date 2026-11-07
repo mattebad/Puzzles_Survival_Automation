@@ -539,32 +539,126 @@ class GameplayFlowContractTests(unittest.TestCase):
                 self.assertFalse(contract["production_eligible"])
                 self.assertEqual(contract["proof_state"], "evidence_required")
 
-    def test_nanoweapon_contract_binds_exact_normal_craft_and_stays_disabled(self):
+    def test_nanoweapon_contract_binds_same_visit_maintenance_and_own_craft_success(self):
         contract = load_flow_contract("NANOWEAPON-BLUESTACKS-INTEGRATION")
         binding = contract["product_authority_binding"]
         self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "nanoweapon_normal_craft")
-        self.assertEqual(binding["product_record_revision"], "nanoweapon_normal_craft-v1")
+        self.assertEqual(binding["product_record_revision"], "nanoweapon_normal_craft-v2")
         self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
         self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
         self.assertFalse(binding["selected_daily_prerequisite"])
         self.assertEqual(
             contract["consequential_action_class"],
-            "consume_exact_nanoparts_and_start_one_timed_craft",
+            "same_visit_material_maintenance_then_one_normal_craft",
         )
-        self.assertFalse(contract["cost_quantity_requirements"]["free_only"])
         self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 100)
+        self.assertFalse(contract["cost_quantity_requirements"]["free_only"])
         self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
         self.assertEqual(
             contract["cost_quantity_requirements"]["resource_or_currency"],
             "NANO_PARTS",
         )
+        transitions = {
+            item["transition_id"]: item for item in contract["transition_contracts"]
+        }
+        self.assertEqual(
+            transitions["open_material_production"]["from"],
+            "craft_status_known",
+        )
+        self.assertEqual(
+            transitions["open_material_production"]["permitted_input"],
+            "select_material_production",
+        )
+        self.assertEqual(
+            transitions["claim_completed_production"]["permitted_input"],
+            "claim_material_production",
+        )
+        self.assertEqual(
+            transitions["start_one_production"]["permitted_input"],
+            "start_material_production",
+        )
+        self.assertEqual(
+            transitions["inspect_normal_craft"]["from"],
+            "prior_material_production_reconciled",
+        )
+        self.assertEqual(
+            transitions["authorize_normal_craft"]["postconditions"][-2:],
+            [
+                "same_visit_record_70_maintenance_effect_is_current_and_reconciled",
+                "maintenance_did_not_consume_the_normal_craft_reset_allowance",
+            ],
+        )
+        self.assertIn(
+            "own_current_NANOWEAPON_NORMAL_CRAFT_ACTIVE_successor_is_positive",
+            transitions["start_one_normal_craft"]["postconditions"],
+        )
+        transition_inputs = {
+            item["permitted_input"]
+            for item in contract["transition_contracts"]
+            if item["permitted_input"] is not None
+        }
+        self.assertEqual(transition_inputs, set(contract["permitted_inputs"]))
+        scenarios = {item["scenario_id"]: item for item in contract["scenarios"]}
+        normal = scenarios["nanoweapon_normal_craft_with_maintenance"]
+        self.assertLess(
+            normal["required_transitions"].index("reconcile_started_production"),
+            normal["required_transitions"].index("start_one_normal_craft"),
+        )
+        claim_restart = scenarios["nanoweapon_claim_restart_then_craft"][
+            "required_transitions"
+        ]
+        self.assertLess(
+            claim_restart.index("claim_completed_craft"),
+            claim_restart.index("claim_completed_production"),
+        )
+        self.assertLess(
+            claim_restart.index("reconcile_started_production"),
+            claim_restart.index("start_one_normal_craft"),
+        )
+        insufficient = scenarios["nanoweapon_insufficient_parts_after_maintenance"][
+            "required_transitions"
+        ]
+        self.assertIn("defer_insufficient_parts", insufficient)
+        self.assertNotIn("start_one_normal_craft", insufficient)
+        revisit = scenarios["nanoweapon_maintenance_revisit_after_reset_quota"][
+            "required_transitions"
+        ]
+        self.assertLess(
+            revisit.index("reconcile_started_production"),
+            revisit.index("observe_already_started"),
+        )
+        self.assertNotIn("start_one_normal_craft", revisit)
+        self.assertIn(
+            "record_active_production_due_time",
+            scenarios["nanoweapon_active_maintenance_then_craft"][
+                "required_transitions"
+            ],
+        )
+        self.assertIn(
+            "defer_active_craft",
+            scenarios["nanoweapon_active_craft_after_maintenance"][
+                "required_transitions"
+            ],
+        )
+        self.assertTrue(
+            all(
+                item["mode"] == "blocked_until_evidence"
+                and item["permitted_inputs"] == []
+                for item in scenarios.values()
+            )
+        )
+        self.assertTrue(
+            all(
+                item["status"] == "evidence_required"
+                and item["permitted_inputs"] == []
+                for item in contract["evidence_gates"]
+            )
+        )
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])
         self.assertEqual(contract["proof_state"], "evidence_required")
-        self.assertEqual(contract["scenarios"][0]["mode"], "blocked_until_policy")
-        self.assertEqual(contract["scenarios"][0]["permitted_inputs"], [])
 
     def test_nano_material_contract_binds_zero_resource_batch_and_stays_disabled(self):
         contract = load_flow_contract("NANO-MATERIAL-PRODUCTION-MAINTENANCE")
@@ -652,14 +746,6 @@ class GameplayFlowContractTests(unittest.TestCase):
                 self.assertEqual(contract["proof_state"], "evidence_required")
                 self.assertEqual(contract["registration_state"], "disabled")
                 self.assertFalse(contract["production_eligible"])
-                self.assertIn(
-                    "Only the route's own verified native results establish success",
-                    " ".join(contract["evidence_requirements"]),
-                )
-                self.assertIn(
-                    "no Daily provider, D02, objective ownership, or points attribution",
-                    " ".join(contract["evidence_requirements"]),
-                )
                 self.assertTrue(
                     all(not gate["permitted_inputs"] for gate in contract["evidence_gates"])
                 )

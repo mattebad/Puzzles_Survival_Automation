@@ -33,6 +33,10 @@ from automation_service.registry import (
     DAILY_REWARDS_PRODUCT_ID, DAILY_REWARDS_PRODUCT_REVISION, DAILY_SHOPS_FLOW_ID,
     DAILY_SHOPS_MAX_INPUTS, DAILY_SHOPS_PRODUCT_ID, DAILY_SHOPS_PRODUCT_REVISION,
     DAILY_SHOPS_PROFILE_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID,
+    NANO_MATERIAL_PRODUCTION_FLOW_ID, NANO_MATERIAL_PRODUCTION_MAX_INPUTS,
+    NANO_MATERIAL_PRODUCTION_PRODUCT_ID, NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION,
+    NANO_MATERIAL_PRODUCTION_PROFILE_ID, NANOWEAPON_FLOW_ID, NANOWEAPON_MAX_INPUTS,
+    NANOWEAPON_PRODUCT_ID, NANOWEAPON_PRODUCT_REVISION, NANOWEAPON_PROFILE_ID,
     RESOURCE_ITEM_FLOW_ID, RESOURCE_ITEM_MAX_INPUTS, RESOURCE_ITEM_PRODUCT_ID,
     RESOURCE_ITEM_PRODUCT_REVISION, RECRUITMENT_FLOW_ID, RUINS_FLOW_ID,
     RUINS_PRODUCT_ID, RUINS_PRODUCT_REVISION, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
@@ -44,6 +48,10 @@ from tasks.purchases_disabled import (
     ALLIANCE_WEEKLY_ITEMS, ShopOffer, alliance_shop_choice,
     canonical_purchase_action_key,
 )
+from tasks.nano_material_production import (
+    NANO_MATERIAL_PRODUCTION_DURATION_SECONDS, NANO_MATERIAL_PRODUCTION_TARGET,
+)
+from tasks.nanoweapon import NANO_PARTS_REQUIRED, NORMAL_CRAFT_DURATION_SECONDS
 from tasks.scheduler_task_result import SchedulerIdentity
 
 from tasks.alliance_help import (
@@ -1700,3 +1708,460 @@ class GuardedDailyShopsRunner:
         if deferred:
             row["reason"] = "TAB_NO_AFFORDABLE_STOCK"
         return row
+
+
+_D_PRODUCTION_SHA256 = "b" * 64
+_D_HOME_SHA256 = "c" * 64
+_D_BEFORE_SHA256 = "d" * 64
+_D_AFTER_SHA256 = "e" * 64
+
+
+def _guarded_d_frame(path, sha256, now, ordinal=1):
+    return {
+        "frame_path": path,
+        "frame_sha256": sha256,
+        "observed_utc": datetime.fromtimestamp(now, timezone.utc).isoformat().replace("+00:00", "Z"),
+        "capture_ordinal": ordinal,
+    }
+
+
+def _guarded_d_backend(completed):
+    backend = derive_resource_runtime_identity(
+        resource_fixed_runtime_binding(),
+        datetime.fromtimestamp(completed, timezone.utc),
+    )
+    return {
+        "runtime_scope": backend.runtime_scope,
+        "account_id": backend.account_id,
+        "server_id": backend.server_id,
+        "backend_reset_id": backend.reset_id,
+        "assurance": backend.assurance.value,
+        "runtime_binding_digest": backend.runtime_binding_digest,
+        "reset_start_utc": backend.reset_start_utc,
+        "reset_deadline_utc": backend.reset_deadline_utc,
+        "evidence_refs": list(backend.evidence_refs),
+    }
+
+
+def _guarded_d_envelope(
+    *, flow_id, product_id, product_revision, profile_id, identity,
+    occurrence_key, completed_at, input_count, status, reason, error, unknown,
+):
+    result = {
+        "flow_id": flow_id,
+        "product_id": product_id,
+        "product_revision": product_revision,
+        "task_id": product_id,
+        "account_id": identity.account_id,
+        "server_id": identity.server_id,
+        "reset_id": identity.reset_id,
+        "backend_identity": _guarded_d_backend(completed_at),
+        "native_occurrence_key": occurrence_key,
+        "occurrence_key": occurrence_key,
+        "completed_at_utc": completed_at,
+        "runtime_profile_id": profile_id,
+        "time_basis": "utc",
+        "input_count": input_count,
+        "total_input_count": input_count,
+        "session_input_count": input_count,
+        "runtime_input_count": input_count,
+        "status": status,
+        "reason": reason,
+        "accounting_verified": True,
+        "terminal_home_verified": not error,
+        "effect_reconciliation_required": unknown,
+        "identical_retry_denied": unknown,
+    }
+    if not error:
+        result.update(
+            terminal_home_state="HOME_BASE",
+            terminal_home_recognized=True,
+            terminal_home_frame=_guarded_d_frame(
+                "guarded-d-home.png", _D_HOME_SHA256, completed_at,
+            ),
+            terminal_home_frame_path="guarded-d-home.png",
+            terminal_home_frame_sha256=_D_HOME_SHA256,
+        )
+    return result
+
+
+class GuardedNanoMaterialProductionRunner:
+    """Mapping-shaped zero-cost maintenance fake with restart-safe timer state."""
+
+    CLAIM_INPUT = 5
+    START_INPUT = 10
+
+    def __init__(self, stop, output):
+        self.stop, self.output = stop, output
+        self.calls, self.inputs, self.occurrence_keys = [], [], []
+        self.transition_order = []
+        self.production_state = "idle"
+        self.production_due_at = None
+        self.partial = False
+        self.partial_action = None
+        self.on_input = self.on_entry = None
+        self.last_result = None
+        self.last_identity = None
+        self.effects = 0
+
+    def __call__(self, identity, previous_reset_id, checkpoint, *,
+                 runtime_input_lock, occurrence_key):
+        checkpoint()
+        runtime_input_lock.assert_held(
+            runtime_input_lock.owner, runtime_input_lock.invocation_id,
+        )
+        self.calls.append((identity, previous_reset_id))
+        self.occurrence_keys.append(occurrence_key)
+        self.last_identity = identity
+        if self.on_entry:
+            self.on_entry()
+
+        if (self.production_state == "active" and self.production_due_at is not None
+                and self.stop.now >= self.production_due_at):
+            self.production_state = "complete"
+        input_count = transport_calls = committed = 0
+        error = None
+        unknown = False
+        last_action_evidence = None
+        try:
+            for index in range(NANO_MATERIAL_PRODUCTION_MAX_INPUTS):
+                checkpoint()
+                self.inputs.append((identity.reset_id, index, "nano-material-production-input"))
+                input_count += 1
+                action = (
+                    "claim" if index == self.CLAIM_INPUT and self.production_state == "complete"
+                    else "start" if index == self.START_INPUT and self.production_state == "idle"
+                    else None
+                )
+                if action is not None:
+                    self.transition_order.append(action)
+                    transport_calls += 1
+                    should_fail = self.partial and (
+                        self.partial_action is None or self.partial_action == action
+                    )
+                    if should_fail:
+                        unknown = True
+                        error = RuntimeError(f"Nano Material Production {action} successor is unknown")
+                        last_action_evidence = {
+                            "before": _guarded_d_frame(
+                                "nano-material-production-before.png", _D_BEFORE_SHA256,
+                                self.stop.now,
+                            ),
+                            "after": _guarded_d_frame(
+                                "nano-material-production-after.png", _D_AFTER_SHA256,
+                                self.stop.now, 2,
+                            ),
+                        }
+                        break
+                    committed += 1
+                    self.effects += 1
+                    if action == "claim":
+                        self.production_state = "idle"
+                    else:
+                        self.production_state = "active"
+                        self.production_due_at = self.stop.now + NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
+                if self.on_input:
+                    self.on_input(index)
+        except Exception as exc:
+            error = exc
+
+        completed = self.stop.now
+        status = (
+            "unresolved" if unknown else "blocked" if error
+            else "completed" if transport_calls else "deferred"
+        )
+        frame = _guarded_d_frame(
+            "nano-material-production-state.png", _D_PRODUCTION_SHA256, completed,
+        )
+        timer = (
+            max(1, min(NANO_MATERIAL_PRODUCTION_DURATION_SECONDS,
+                       int(self.production_due_at - completed)))
+            if not error and self.production_state == "active"
+            and self.production_due_at is not None else None
+        )
+        result = _guarded_d_envelope(
+            flow_id=NANO_MATERIAL_PRODUCTION_FLOW_ID,
+            product_id=NANO_MATERIAL_PRODUCTION_PRODUCT_ID,
+            product_revision=NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION,
+            profile_id=NANO_MATERIAL_PRODUCTION_PROFILE_ID,
+            identity=identity, occurrence_key=occurrence_key,
+            completed_at=completed, input_count=input_count,
+            status=status,
+            reason=(
+                str(error) if error else
+                "MATERIAL_PRODUCTION_ACTIVE_DUE_REFRESH_ONLY" if not transport_calls else
+                "MATERIAL_PRODUCTION_CLAIMED_THEN_RESTARTED" if transport_calls == 2 else
+                "MATERIAL_PRODUCTION_IDLE_STARTED"
+            ),
+            error=error is not None, unknown=unknown,
+        )
+        result.update(
+            production_transport_calls=transport_calls,
+            attempted_action_count=transport_calls,
+            attempted_action_count_known=True,
+            action_evidence_required=False,
+            committed_action_count=committed,
+            zero_resource_cost_confirmed=not error,
+            production_state="active" if not error else None,
+            active_production_count=1 if not error else None,
+            completed_batch_count=0 if not error else None,
+            production_duration_seconds=NANO_MATERIAL_PRODUCTION_DURATION_SECONDS,
+            timer_seconds_remaining=timer,
+            production_occurrence_key=occurrence_key,
+            production_target_identity=NANO_MATERIAL_PRODUCTION_TARGET,
+            production_state_frame=frame,
+            production_state_observation_sha256=_D_PRODUCTION_SHA256,
+            production_evidence_refs=("nano-material-production-state.png",),
+        )
+        if not error:
+            result["next_eligible_at"] = completed + timer
+        if last_action_evidence is not None:
+            result["last_action_evidence"] = last_action_evidence
+        self.last_result = result
+        if error is not None:
+            raise GuardedRoutePartialResultError(str(error), result) from error
+        return result
+
+
+class GuardedNanoweaponRunner:
+    """Mapping-shaped same-visit fake for production-first Normal Craft pulses."""
+
+    PRODUCTION_CLAIM_INPUT = 4
+    PRODUCTION_START_INPUT = 6
+    CRAFT_CLAIM_INPUT = 10
+    CRAFT_START_INPUT = 12
+
+    def __init__(self, stop, output):
+        self.stop, self.output = stop, output
+        self.calls, self.inputs, self.occurrence_keys = [], [], []
+        self.phase_order, self.action_order = [], []
+        self.production_state = "idle"
+        self.production_due_at = None
+        self.craft_state = "idle"
+        self.craft_due_at = None
+        self.craft_start_reset_id = None
+        self.starts_this_reset = 0
+        self.reset_id = None
+        self.nano_parts_balance = 200
+        self.partial = False
+        self.fail_action = "craft_start"
+        self.on_input = self.on_entry = None
+        self.last_result = None
+        self.last_identity = None
+        self.effects = 0
+
+    def __call__(self, identity, previous_reset_id, checkpoint, *,
+                 runtime_input_lock, occurrence_key):
+        checkpoint()
+        runtime_input_lock.assert_held(
+            runtime_input_lock.owner, runtime_input_lock.invocation_id,
+        )
+        self.calls.append((identity, previous_reset_id))
+        self.occurrence_keys.append(occurrence_key)
+        self.last_identity = identity
+        if identity.reset_id != self.reset_id:
+            self.starts_this_reset = 0
+            self.reset_id = identity.reset_id
+        if self.on_entry:
+            self.on_entry()
+
+        if (self.production_state == "active" and self.production_due_at is not None
+                and self.stop.now >= self.production_due_at):
+            self.production_state = "complete"
+        if self.production_state == "active" and self.production_due_at is None:
+            self.production_due_at = self.stop.now + NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
+        if (self.craft_state == "active" and self.craft_due_at is not None
+                and self.stop.now >= self.craft_due_at):
+            self.craft_state = "complete"
+
+        input_count = production_calls = craft_calls = claim_calls = start_calls = 0
+        committed = 0
+        error = None
+        unknown = False
+        last_action_evidence = None
+        precraft_balance = self.nano_parts_balance
+        phase = "production"
+        production_frame = _guarded_d_frame(
+            "nanoweapon-production-state.png", _D_PRODUCTION_SHA256, self.stop.now,
+        )
+
+        def dispatch(action: str, *, production: bool) -> bool:
+            nonlocal production_calls, craft_calls, claim_calls, start_calls
+            nonlocal committed, error, unknown, last_action_evidence
+            self.action_order.append(f"{'production' if production else 'craft'}:{action}")
+            if production:
+                production_calls += 1
+            else:
+                craft_calls += 1
+                if action == "claim":
+                    claim_calls += 1
+                else:
+                    start_calls += 1
+            failure_action = f"{'production' if production else 'craft'}_{action}"
+            if self.partial and failure_action == self.fail_action and not unknown:
+                unknown = True
+                error = RuntimeError(f"Nanoweapon {failure_action} successor is unknown")
+                last_action_evidence = {
+                    "before": _guarded_d_frame(
+                        "nanoweapon-action-before.png", _D_BEFORE_SHA256,
+                        self.stop.now,
+                    ),
+                    "after": _guarded_d_frame(
+                        "nanoweapon-action-after.png", _D_AFTER_SHA256,
+                        self.stop.now, 2,
+                    ),
+                }
+                return False
+            committed += 1
+            self.effects += 1
+            if production:
+                if action == "claim":
+                    self.production_state = "idle"
+                    self.production_due_at = None
+                else:
+                    self.production_state = "active"
+                    self.production_due_at = self.stop.now + NANO_MATERIAL_PRODUCTION_DURATION_SECONDS
+            elif action == "claim":
+                self.craft_state = "idle"
+                self.craft_due_at = None
+            else:
+                self.nano_parts_balance -= NANO_PARTS_REQUIRED
+                self.craft_state = "active"
+                self.craft_due_at = self.stop.now + NORMAL_CRAFT_DURATION_SECONDS
+                self.craft_start_reset_id = identity.reset_id
+                self.starts_this_reset += 1
+            return True
+
+        try:
+            for index in range(NANOWEAPON_MAX_INPUTS):
+                checkpoint()
+                self.inputs.append((identity.reset_id, index, "nanoweapon-input"))
+                input_count += 1
+
+                if phase == "production":
+                    if index == 0:
+                        self.phase_order.append("production-maintenance")
+                    production_action = (
+                        "claim" if index == self.PRODUCTION_CLAIM_INPUT
+                        and self.production_state == "complete"
+                        else "start" if index == self.PRODUCTION_START_INPUT
+                        and self.production_state == "idle"
+                        else None
+                    )
+                    if production_action and not dispatch(production_action, production=True):
+                        break
+                    if index == self.PRODUCTION_START_INPUT:
+                        phase = "craft"
+                if phase == "craft":
+                    if index == self.CRAFT_CLAIM_INPUT:
+                        self.phase_order.append("normal-craft")
+                    craft_action = (
+                        "claim" if index == self.CRAFT_CLAIM_INPUT
+                        and self.craft_state == "complete"
+                        else "start" if index == self.CRAFT_START_INPUT
+                        and self.craft_state == "idle"
+                        and self.starts_this_reset == 0
+                        and self.nano_parts_balance >= NANO_PARTS_REQUIRED
+                        else None
+                    )
+                    if craft_action and not dispatch(craft_action, production=False):
+                        break
+                if self.on_input:
+                    self.on_input(index)
+        except Exception as exc:
+            error = exc
+
+        completed = self.stop.now
+        successful = error is None
+        status = (
+            "unresolved" if unknown else "blocked" if error
+            else "completed" if start_calls else "deferred"
+        )
+        production_known = self.production_state == "active"
+        production_timer = (
+            max(1, min(NANO_MATERIAL_PRODUCTION_DURATION_SECONDS,
+                       int(self.production_due_at - completed)))
+            if production_known and self.production_due_at is not None else None
+        )
+        craft_timer = (
+            max(1, min(NORMAL_CRAFT_DURATION_SECONDS, int(self.craft_due_at - completed)))
+            if successful and self.craft_state == "active" and self.craft_due_at is not None
+            else 0
+        )
+        game_day_id = identity.reset_id
+        if self.craft_start_reset_id is None and self.craft_state == "active":
+            active_date = datetime.fromisoformat(
+                identity.reset_id.removeprefix("game-day-"),
+            ).date() - timedelta(days=1)
+            self.craft_start_reset_id = f"game-day-{active_date.isoformat()}"
+        due_reason = (
+            "current_reset_start" if self.starts_this_reset > 0
+            else "previous_reset_active_timer" if self.craft_state == "active"
+            else "known_material_shortage"
+        )
+        if self.craft_state == "complete":
+            due_reason = "current_reset_start" if self.starts_this_reset > 0 else "known_material_shortage"
+        result = _guarded_d_envelope(
+            flow_id=NANOWEAPON_FLOW_ID,
+            product_id=NANOWEAPON_PRODUCT_ID,
+            product_revision=NANOWEAPON_PRODUCT_REVISION,
+            profile_id=NANOWEAPON_PROFILE_ID,
+            identity=identity, occurrence_key=occurrence_key,
+            completed_at=completed, input_count=input_count,
+            status=status,
+            reason=str(error) if error else "NANOWEAPON_SAME_VISIT_ROUTE_COMPLETE",
+            error=error is not None, unknown=unknown,
+        )
+        result.update(
+            production_transport_calls=production_calls,
+            craft_transport_calls=craft_calls,
+            craft_claim_transport_calls=claim_calls,
+            craft_start_transport_calls=start_calls,
+            nanoweapon_dispatch_count=production_calls + craft_calls,
+            attempted_action_count=production_calls + craft_calls,
+            attempted_action_count_known=True,
+            committed_action_count=committed,
+            prior_material_production_reconciled=production_known,
+            zero_resource_cost_confirmed=production_known,
+            production_state="active" if production_known else None,
+            production_active_count=1 if production_known else None,
+            production_duration_seconds=NANO_MATERIAL_PRODUCTION_DURATION_SECONDS,
+            production_timer_seconds_remaining=production_timer,
+            production_next_eligible_at=(
+                completed + production_timer if production_timer is not None else None
+            ),
+            production_occurrence_key=occurrence_key,
+            production_target_identity=NANO_MATERIAL_PRODUCTION_TARGET,
+            production_state_frame=production_frame,
+            production_state_observation_sha256=_D_PRODUCTION_SHA256,
+            game_day_id=game_day_id,
+            craft_state=self.craft_state if successful else None,
+            craft_active_count=1 if successful and self.craft_state == "active" else 0,
+            active_craft_timer_seconds_remaining=craft_timer if successful else None,
+            craft_duration_seconds=NORMAL_CRAFT_DURATION_SECONDS,
+            craft_start_confirmed=bool(self.craft_start_reset_id is not None),
+            craft_start_reset_id=self.craft_start_reset_id,
+            starts_this_reset=self.starts_this_reset,
+            due_reason=due_reason if successful else None,
+            precraft_nano_parts_balance=precraft_balance if start_calls and successful else None,
+            nano_parts_balance=self.nano_parts_balance,
+            observation_interval_seconds=300,
+        )
+        if successful:
+            if due_reason == "previous_reset_active_timer":
+                craft_due = completed + craft_timer
+            elif due_reason == "known_material_shortage":
+                craft_due = completed + 300
+            else:
+                craft_due = (int(completed) // 86400 + 1) * 86400
+                if self.craft_state == "active":
+                    craft_due = min(craft_due, completed + craft_timer)
+            result["next_eligible_at"] = min(
+                result["production_next_eligible_at"], craft_due,
+            )
+        if last_action_evidence is not None:
+            result["last_action_evidence"] = last_action_evidence
+        self.last_result = result
+        if error is not None:
+            raise GuardedRoutePartialResultError(str(error), result) from error
+        return result

@@ -1,24 +1,29 @@
 # Puzzles & Survival Automation
 
 Computer-vision automation for the mobile game **Puzzles & Survival**, running against a local
-BlueStacks instance. A supervised service checks which daily or cooldown routes are due, runs one
+BlueStacks instance. A supervised service checks which daily, cooldown, or timer routes are due, runs one
 at a time, verifies each result from the screen, and returns to the game's Home screen before
 the next one.
 
-**Status:** Batches A-C add canonical-only Daily Rewards, Resource Item, Ruins, Alliance Help,
-Alliance Donation, Alliance Shop and Daily Shops. Code registration is separate from runtime
-enablement: all remain disabled and `evidence_required` for current native acceptance.
-Daily claims individually glowing chests with explicit same-slot `Claimed` proof, not a 150-point gate.
-One authorized manual claim supplied real before/after recognition basis, not finished-route acceptance.
-The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical evidence, not execution
-authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
+**Status:** Batches A-D add canonical-only Daily Rewards, Resource Item, Ruins, Alliance Help,
+Alliance Donation, Alliance Shop, Daily Shops, Nano Material Production and reset-scoped Normal Craft.
+Code registration is separate from runtime enablement: all remain disabled and `evidence_required`
+for current native acceptance. Daily claims individually glowing chests with explicit same-slot
+`Claimed` proof, not a 150-point gate. One authorized manual claim supplied real before/after
+recognition basis, not finished-route acceptance. The [November 2 report](docs/bluestacks-route-status-20261102.md)
+is historical evidence, not authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
 [`BACKLOG.md`](BACKLOG.md) retains durable history.
+
+Nano building entry reuses the shared Home Atlas pan dispatcher with its native runtime,
+fresh capture identities, lease checks and bounded pans. Each confirmed pan is followed
+by a fresh mapped binding; an unknown result stops without an identical retry.
+
 
 ## Routes
 
 The service code registers each route in `automation_service/registry.py`. Each row below is one
-registration: fifteen executable `serve --flow` routes plus one navigation-only flow spec
-(sixteen fixed flow specs total). The `serve --flow` argument takes the name in the first column where present.
+registration: seventeen executable `serve --flow` routes plus one navigation-only flow spec
+(eighteen fixed flow specs total). The `serve --flow` argument takes the name in the first column where present.
 
 | `serve --flow` | Registry family | What it does |
 | --- | --- | --- |
@@ -37,6 +42,8 @@ registration: fifteen executable `serve --flow` routes plus one navigation-only 
 | `alliance-donation` | `alliance_donation` | Up to ten confirmed ordinary-resource donations to the automatically selected Alliance Tech per reset; preserve partial progress and defer only on observed attempt/resource unavailability. Unknown effects block identical retry. Runtime disabled; evidence_required; no current live acceptance. |
 | `alliance-shop` | `alliance_shop` | One currently affordable allowlisted Weekly Offer, or one exact Other one-star Gear fallback if no preferred offer is affordable; quantity one total. Require paired item/currency effects and canonical Home. Runtime disabled; evidence_required; no current live purchase acceptance. |
 | `daily-shops` | `daily_shops` | One visit to Ruins Shop and Rare Earth Shop; one purchase action per exact three-star tab, capped by current stock and affordability. Preserve confirmed tabs and verify numeric quantity/total plus paired effects. Runtime disabled; evidence_required; no current live purchase acceptance. |
+| `nano-material-production` | `nano_material_production` | One zero-resource 21600-second production slot: start when idle, claim then restart when complete, and refresh the observed timer without dispatch while active. Its timer persists across game-day boundaries. Runtime disabled; evidence_required; no live acceptance. |
+| `nanoweapon` | `nanoweapon` | Same-visit Nano Material maintenance followed by at most one reset-scoped Normal Craft start, exactly 100 Nano Parts and 43200 seconds; claim completed craft when recognized. No Exclusive Craft, Daily/D02 ownership, or points attribution. Runtime disabled; evidence_required; no live acceptance. |
 | none (navigation-only) | `world_map_navigation` | Registered but never executed by `serve`. |
 
 The `world_map_navigation` registration is navigation-only (registry variant `navigation_only`).
@@ -92,7 +99,8 @@ selection described below instead of repeating that command after another suite.
 
 ## Running
 
-Run everything through `scripts/pnsctl.py`. This serves all routes from the table above:
+Run everything through `scripts/pnsctl.py`. This serves all seventeen executable routes from the
+table above:
 
 ```powershell
 $runtimeBinding = .\.venv\Scripts\python.exe -c "import json; from tasks.runtime_identity import resource_fixed_runtime_binding; b=resource_fixed_runtime_binding(); print(json.dumps({'account_id': b.account_id, 'server_id': b.server_id}))" | ConvertFrom-Json
@@ -104,6 +112,7 @@ $runtimeBinding = .\.venv\Scripts\python.exe -c "import json; from tasks.runtime
   --flow supply --flow ultimate --flow enhancement --flow personal-might `
   --flow daily-rewards --flow resource-item --flow ruins --flow alliance-help `
   --flow alliance-donation --flow alliance-shop --flow daily-shops `
+  --flow nano-material-production --flow nanoweapon `
   --campaign-stage 1-15-9 --campaign-cadence-seconds 300 `
   --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 `
   --account-id $runtimeBinding.account_id --server-id $runtimeBinding.server_id `

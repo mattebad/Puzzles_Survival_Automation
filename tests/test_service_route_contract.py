@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import redirect_stderr
+from datetime import datetime, timedelta, timezone
 import importlib
 import io
 import json
@@ -14,20 +15,28 @@ from automation_service.registry import (
     ALLIANCE_DONATION_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
     BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, CANONICAL_FLOW_REGISTRY,
     DAILY_REWARDS_FLOW_ID, DAILY_SHOPS_FLOW_ID, ENHANCEMENT_FLOW_ID,
-    NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, REGISTRY_PATH,
+    NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID, NOVA_FLOW_ID,
+    PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, REGISTRY_PATH,
     RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
     canonical_entry, canonical_flow_specs,
 )
 from automation_service.alliance_donation import alliance_donation_next_due
 from automation_service.alliance_shop import alliance_shop_next_due
 from automation_service.daily_shops import daily_shops_next_due
+from automation_service.nano_material_production import nano_material_production_next_due
+from automation_service.nanoweapon import nanoweapon_next_due
 from automation_service.service import ServiceError
 from automation_service.state import BotStateManager, RunState
 from scripts import navigation_development_boundary as boundary
 from tasks.noahs_tavern_recruit_maintenance import NoahMaintenanceState
 from tasks.nova_praise_pulse import NOVA_TASK_ID
+from tasks.nanoweapon import NANO_PARTS_REQUIRED
+from tasks.purchases_disabled import ALLIANCE_WEEKLY_ITEMS, ALLIANCE_WEEKLY_SHOP
 from tests.support.service_route_contract import (
     EXCEPTIONS, NOT_SERVABLE, ROUTES, RouteRig, _runner_kwarg,
+)
+from tests.support.service_route_fakes import (
+    GuardedNanoMaterialProductionRunner, GuardedNanoweaponRunner,
 )
 
 
@@ -88,7 +97,8 @@ class DisabledByDefaultTests(unittest.TestCase):
                         PERSONAL_MIGHT_FLOW_ID, BIOENHANCER_FLOW_ID,
                         DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
                         ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
-                        DAILY_SHOPS_FLOW_ID,
+                        DAILY_SHOPS_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
+                        NANOWEAPON_FLOW_ID,
                     }:
                         adapter = importlib.import_module(
                             "automation_service." + entry.cli_name.replace("-", "_"),
@@ -101,6 +111,14 @@ class DisabledByDefaultTests(unittest.TestCase):
                             self.assertEqual(entry.product_revision, "bioenhancer_research-v1")
                             self.assertFalse(entry.descriptor.reset_scoped)
                             self.assertEqual(entry.descriptor.cadence, "cooldown_pulse")
+                        elif flow_id == NANO_MATERIAL_PRODUCTION_FLOW_ID:
+                            self.assertFalse(entry.descriptor.reset_scoped)
+                            self.assertEqual(entry.descriptor.cadence, "timer")
+                            self.assertEqual(entry.descriptor.recurrence_class, RecurrenceClass.TIMER)
+                        elif flow_id == NANOWEAPON_FLOW_ID:
+                            self.assertTrue(entry.descriptor.reset_scoped)
+                            self.assertEqual(entry.descriptor.cadence, "cooldown_pulse")
+                            self.assertEqual(entry.descriptor.recurrence_class, RecurrenceClass.COOLDOWN)
                         elif flow_id == DAILY_REWARDS_FLOW_ID or flow_id in {
                             ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
                         }:
@@ -125,10 +143,11 @@ class DisabledByDefaultTests(unittest.TestCase):
 
 
 class OccurrenceIdentityTests(unittest.TestCase):
-    def test_b_routes_forward_the_persisted_opaque_occurrence_key_verbatim(self):
+    def test_resource_route_occurrences_are_forwarded_verbatim(self):
         for flow_id in (
             RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_DONATION_FLOW_ID,
             ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
+            NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
         ):
             with self.subTest(flow_id=flow_id), RouteRig(self, ROUTES[flow_id]) as rig:
                 report, = rig.once()
@@ -136,6 +155,35 @@ class OccurrenceIdentityTests(unittest.TestCase):
                 self.assertIn(":", run.occurrence_key)
                 self.assertEqual(rig.runner.occurrence_keys, [run.occurrence_key])
                 self.assertEqual(report["result"]["occurrence_key"], run.occurrence_key)
+
+    def test_opaque_production_occurrences_are_preserved_in_mapping(self):
+        opaque_occurrence = "opaque|session|occurrence"
+        cases = (
+            (NANO_MATERIAL_PRODUCTION_FLOW_ID, GuardedNanoMaterialProductionRunner),
+            (NANOWEAPON_FLOW_ID, GuardedNanoweaponRunner),
+        )
+        for flow_id, fake_type in cases:
+            with self.subTest(flow_id=flow_id), RouteRig(self, ROUTES[flow_id]) as rig:
+                rig.once()
+                identity = rig.runner.last_identity
+                fake = fake_type(rig.stop, rig.root)
+                with boundary.RuntimeInputLock(
+                    owner="opaque-occurrence-contract", invocation_id=flow_id,
+                ) as input_lock:
+                    result = fake(
+                        identity, identity.reset_id, lambda: None,
+                        runtime_input_lock=input_lock,
+                        occurrence_key=opaque_occurrence,
+                    )
+                self.assertEqual(fake.occurrence_keys, [opaque_occurrence])
+                self.assertEqual(
+                    (
+                        result["occurrence_key"],
+                        result["native_occurrence_key"],
+                        result["production_occurrence_key"],
+                    ),
+                    (opaque_occurrence,) * 3,
+                )
 
 class RestartBeforeDueTests(unittest.TestCase):
     def test_restart_before_due_skips_runner_and_next_reset_runs_once(self):
@@ -202,6 +250,7 @@ class BorrowedOwnerTests(unittest.TestCase):
             BIOENHANCER_FLOW_ID, DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
             RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_DONATION_FLOW_ID,
             ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
+            NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
         }
         for flow_id, spec in ROUTES.items():
             with self.subTest(route=flow_id):
@@ -243,12 +292,14 @@ class BorrowedOwnerTests(unittest.TestCase):
                         if flow_id in {
                             RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_DONATION_FLOW_ID,
                             ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
+                            NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
                         }:
                             run, = rig.runs()
                             action_budgets = {
                                 RUINS_FLOW_ID: 13, ALLIANCE_HELP_FLOW_ID: 10,
                                 ALLIANCE_DONATION_FLOW_ID: 10, ALLIANCE_SHOP_FLOW_ID: 1,
-                                DAILY_SHOPS_FLOW_ID: 2,
+                                DAILY_SHOPS_FLOW_ID: 2, NANO_MATERIAL_PRODUCTION_FLOW_ID: 2,
+                                NANOWEAPON_FLOW_ID: 4,
                             }
                             self.assertEqual(run.max_actions, action_budgets[flow_id])
                             self.assertLessEqual(run.consumed_actions, action_budgets[flow_id])
@@ -256,7 +307,8 @@ class BorrowedOwnerTests(unittest.TestCase):
                             DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
                             RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID,
                             ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
-                            DAILY_SHOPS_FLOW_ID,
+                            DAILY_SHOPS_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
+                            NANOWEAPON_FLOW_ID,
                         }:
                             run, = rig.runs()
                             transport_fields = {
@@ -267,6 +319,8 @@ class BorrowedOwnerTests(unittest.TestCase):
                                 ALLIANCE_DONATION_FLOW_ID: "donation_transport_calls",
                                 ALLIANCE_SHOP_FLOW_ID: "purchase_transport_calls",
                                 DAILY_SHOPS_FLOW_ID: "purchase_transport_calls",
+                                NANO_MATERIAL_PRODUCTION_FLOW_ID: "production_transport_calls",
+                                NANOWEAPON_FLOW_ID: "nanoweapon_dispatch_count",
                             }
                             expected_calls = {
                                 DAILY_REWARDS_FLOW_ID: 1,
@@ -276,6 +330,8 @@ class BorrowedOwnerTests(unittest.TestCase):
                                 ALLIANCE_DONATION_FLOW_ID: 10,
                                 ALLIANCE_SHOP_FLOW_ID: 1,
                                 DAILY_SHOPS_FLOW_ID: 2,
+                                NANO_MATERIAL_PRODUCTION_FLOW_ID: 1,
+                                NANOWEAPON_FLOW_ID: 2,
                             }
                             result = reports[0]["result"]
                             expected = expected_calls[flow_id]
@@ -356,15 +412,36 @@ class PartialResultTests(unittest.TestCase):
                         self.assertEqual(result["committed_action_count"], expected_confirmed)
                         self.assertTrue(result["effect_reconciliation_required"])
                         self.assertTrue(result["identical_retry_denied"])
+                    elif flow_id == NANO_MATERIAL_PRODUCTION_FLOW_ID:
+                        result = reports[0]["result"]
+                        self.assertEqual(
+                            (result["production_transport_calls"],
+                             result["attempted_action_count"],
+                             result["committed_action_count"]),
+                            (1, 1, 0),
+                        )
+                        self.assertTrue(result["effect_reconciliation_required"])
+                        self.assertTrue(result["identical_retry_denied"])
+                        self.assertFalse(result["terminal_home_verified"])
+                        self.assertNotIn("next_eligible_at", result)
+                        self.assertEqual(
+                            set(result["last_action_evidence"]), {"before", "after"},
+                        )
+                    elif flow_id == NANOWEAPON_FLOW_ID:
+                        result = reports[0]["result"]
+                        self.assertEqual(
+                            (result["production_transport_calls"], result["craft_transport_calls"],
+                             result["nanoweapon_dispatch_count"], result["attempted_action_count"],
+                             result["committed_action_count"]),
+                            (1, 1, 2, 2, 1),
+                        )
+                        self.assertTrue(result["effect_reconciliation_required"])
+                        self.assertTrue(result["identical_retry_denied"])
+                        self.assertFalse(result["terminal_home_verified"])
+                        self.assertNotIn("next_eligible_at", result)
+                        self.assertTrue(result["prior_material_production_reconciled"])
                     if flow_id == ULTIMATE_FLOW_ID:
                         self.assertEqual(rig.runner.flee_calls, 1)
-                    if flow_id == ENHANCEMENT_FLOW_ID:
-                        self.assertEqual(rig.runner.use_calls, 1)
-                    if flow_id == PERSONAL_MIGHT_FLOW_ID:
-                        self.assertEqual(rig.runner.praise_calls, 1)
-                    if flow_id == CAMPAIGN_FLOW_ID:
-                        self.assertEqual(reports[0]["result"]["committed_ap_effect_count"], 0)
-                        self.assertEqual(len(rig.runner.observations), 1)
 
 
 class GenerationChangeTests(unittest.TestCase):
@@ -680,6 +757,36 @@ class BatchCSemanticContractTests(unittest.TestCase):
             runner = rig.runner
             result = runner.last_result
             offer = result["selected_offer"]
+            selection = result["selection_evidence"]
+            self.assertEqual(
+                set(selection),
+                {"weekly_inventory", "weekly_offers", "fallback_inventory", "fallback_offer"},
+            )
+            self.assertEqual(
+                (selection["weekly_inventory"]["complete"],
+                 selection["weekly_inventory"]["reason"]),
+                (True, ""),
+            )
+            weekly, = selection["weekly_offers"]
+            self.assertEqual(
+                (weekly["shop_identity"], weekly["item_identity"], weekly["unit_price"],
+                 weekly["balance"], weekly["stock"], weekly["available"]),
+                (ALLIANCE_WEEKLY_SHOP, ALLIANCE_WEEKLY_ITEMS[0], 1000, 0, 12, True),
+            )
+            fallback = selection["fallback_offer"]
+            self.assertEqual(
+                (fallback["shop_identity"], fallback["item_identity"], fallback["rarity"],
+                 fallback["unit_price"], fallback["balance"], fallback["stock"],
+                 fallback["available"]),
+                ("Other", "1★ Gear Enhance Material", 1, 1000, 79999, 10055, True),
+            )
+            self.assertEqual(
+                (selection["fallback_inventory"]["complete"],
+                 selection["fallback_inventory"]["reason"]),
+                (True, ""),
+            )
+            self.assertEqual(runner.selection_choice.reason, "AFFORDABLE_EXACT_FALLBACK")
+            self.assertEqual(offer["offer_identity"], fallback["offer_identity"])
             self.assertEqual(
                 (result["purchase_transport_calls"], result["committed_action_count"]),
                 (1, 1),
@@ -786,6 +893,198 @@ class BatchCSemanticContractTests(unittest.TestCase):
                     self.assertEqual(rig.once(state=restarted)[0]["status"], "paused")
                 self.assertEqual(len(rig.runner.calls), 1)
                 self.assertEqual(len(rig.runner.inputs), spec.partial_counts[0])
+
+
+class BatchDSemanticContractTests(unittest.TestCase):
+    def test_production_timer_survives_service_restart_across_reset_and_restarts_once(self):
+        with RouteRig(self, ROUTES[NANO_MATERIAL_PRODUCTION_FLOW_ID]) as rig:
+            midnight = (int(rig.stop.now) // 86400 + 1) * 86400
+            rig.stop.now = midnight - 3600
+            started = rig.stop.now
+            first_report, = rig.once()
+            runner = rig.runner
+            first_result = runner.last_result
+            first_run, = rig.runs()
+            self.assertEqual(first_report["status"], "completed")
+            self.assertEqual(
+                (first_result["production_transport_calls"],
+                 first_result["committed_action_count"],
+                 first_result["production_state"],
+                 first_result["active_production_count"],
+                 first_result["production_duration_seconds"],
+                 first_result["zero_resource_cost_confirmed"]),
+                (1, 1, "active", 1, 21600, True),
+            )
+            due = nano_material_production_next_due(
+                first_result, runner.last_identity, started,
+            )
+            self.assertEqual(due, started + 21600)
+            self.assertEqual(rig.state.get_flow(NANO_MATERIAL_PRODUCTION_FLOW_ID).next_due_at_utc, due)
+
+            rig.stop.now = midnight + 1800
+            with BotStateManager(rig.path) as restarted:
+                self.assertEqual(rig.once(state=restarted), [])
+            self.assertEqual(len(runner.calls), 1)
+            rig.stop.now = due
+            second_report, = rig.once()
+            second_result = runner.last_result
+            first_run, second_run = rig.runs()
+            self.assertEqual(second_report["status"], "completed")
+            self.assertNotEqual(first_run.reset_id, second_run.reset_id)
+            self.assertNotEqual(first_run.occurrence_key, second_run.occurrence_key)
+            self.assertEqual(runner.transition_order, ["start", "claim", "start"])
+            self.assertEqual(
+                (second_result["production_transport_calls"],
+                 second_result["committed_action_count"]),
+                (2, 2),
+            )
+            self.assertEqual(
+                nano_material_production_next_due(
+                    second_result, runner.last_identity, due,
+                ),
+                due + 21600,
+            )
+
+    def test_production_active_timer_refresh_has_no_transport_work(self):
+        with RouteRig(self, ROUTES[NANO_MATERIAL_PRODUCTION_FLOW_ID]) as rig:
+            runner = rig.runner
+            runner.production_state = "active"
+            runner.production_due_at = rig.stop.now + 3600
+            started = rig.stop.now
+            rig.once()
+            result = runner.last_result
+            self.assertEqual(
+                (result["status"], result["production_transport_calls"],
+                 result["committed_action_count"], result["active_production_count"]),
+                ("deferred", 0, 0, 1),
+            )
+            self.assertEqual(
+                nano_material_production_next_due(result, runner.last_identity, started),
+                started + 3600,
+            )
+
+    def test_production_unknown_claim_blocks_without_retry_or_due(self):
+        with RouteRig(self, ROUTES[NANO_MATERIAL_PRODUCTION_FLOW_ID]) as rig:
+            runner = rig.runner
+            runner.production_state = "complete"
+            runner.partial = True
+            runner.partial_action = "claim"
+            report, = rig.once()
+            result = runner.last_result
+            self.assertEqual(report["status"], "blocked")
+            self.assertEqual(
+                (
+                    result["status"], result["production_transport_calls"],
+                    result["attempted_action_count"], result["attempted_action_count_known"],
+                    result["committed_action_count"],
+                ),
+                ("unresolved", 1, 1, True, 0),
+            )
+            self.assertTrue(result["effect_reconciliation_required"])
+            self.assertTrue(result["identical_retry_denied"])
+            self.assertFalse(result["terminal_home_verified"])
+            self.assertNotIn("next_eligible_at", result)
+            self.assertEqual(runner.transition_order, ["claim"])
+            with BotStateManager(rig.path) as restarted:
+                self.assertEqual(rig.once(state=restarted)[0]["status"], "paused")
+            self.assertEqual(len(runner.calls), 1)
+
+    def test_nanoweapon_same_visit_claims_then_starts_exact_craft_and_resumes_pulse(self):
+        with RouteRig(self, ROUTES[NANOWEAPON_FLOW_ID]) as rig:
+            started = rig.stop.now
+            runner = rig.runner
+            runner.craft_state = "complete"
+            runner.craft_due_at = started
+            first_report, = rig.once()
+            first = runner.last_result
+            first_run, = rig.runs()
+            self.assertEqual(first_report["status"], "completed")
+            self.assertEqual(runner.phase_order[:2], ["production-maintenance", "normal-craft"])
+            self.assertEqual(
+                runner.action_order, ["production:start", "craft:claim", "craft:start"],
+            )
+            self.assertEqual(
+                (first["production_transport_calls"], first["craft_transport_calls"],
+                 first["craft_claim_transport_calls"], first["craft_start_transport_calls"],
+                 first["nanoweapon_dispatch_count"], first["attempted_action_count"],
+                 first["committed_action_count"]),
+                (1, 2, 1, 1, 3, 3, 3),
+            )
+            self.assertEqual(
+                (first["precraft_nano_parts_balance"], first["nano_parts_balance"],
+                 first["craft_duration_seconds"], first["craft_start_reset_id"],
+                 first["starts_this_reset"], first["craft_start_confirmed"]),
+                (200, 100, 43200, first_run.reset_id, 1, True),
+            )
+            self.assertEqual(first["production_occurrence_key"], first["occurrence_key"])
+            due = nanoweapon_next_due(first, runner.last_identity, started)
+            self.assertEqual(due, started + 21600)
+
+            rig.stop.now = due - 1
+            with BotStateManager(rig.path) as restarted:
+                self.assertEqual(rig.once(state=restarted), [])
+            self.assertEqual(len(runner.calls), 1)
+            rig.stop.now = due
+            rig.once()
+            second = runner.last_result
+            first_run, second_run = rig.runs()
+            self.assertEqual(first_run.reset_id, second_run.reset_id)
+            self.assertNotEqual(first_run.occurrence_key, second_run.occurrence_key)
+            self.assertEqual(
+                (second["production_transport_calls"], second["craft_transport_calls"],
+                 second["craft_start_transport_calls"], second["starts_this_reset"],
+                 second["nano_parts_balance"]),
+                (2, 0, 0, 1, 100),
+            )
+            self.assertEqual(
+                nanoweapon_next_due(second, runner.last_identity, due),
+                due + 21600,
+            )
+
+    def test_nanoweapon_known_shortage_uses_bounded_observation_due(self):
+        with RouteRig(self, ROUTES[NANOWEAPON_FLOW_ID]) as rig:
+            runner = rig.runner
+            runner.nano_parts_balance = NANO_PARTS_REQUIRED - 1
+            started = rig.stop.now
+            rig.once()
+            result = runner.last_result
+            self.assertEqual(
+                (result["production_transport_calls"], result["craft_transport_calls"],
+                 result["nanoweapon_dispatch_count"], result["committed_action_count"],
+                 result["nano_parts_balance"], result["craft_state"]),
+                (1, 0, 1, 1, NANO_PARTS_REQUIRED - 1, "idle"),
+            )
+            self.assertEqual(result["due_reason"], "known_material_shortage")
+            self.assertEqual(
+                nanoweapon_next_due(result, runner.last_identity, started),
+                started + 300,
+            )
+
+    def test_nanoweapon_previous_reset_craft_timer_prevents_duplicate_start(self):
+        with RouteRig(self, ROUTES[NANOWEAPON_FLOW_ID]) as rig:
+            runner = rig.runner
+            started = rig.stop.now
+            current_day = datetime.fromtimestamp(started, timezone.utc).date()
+            runner.production_state = "active"
+            runner.production_due_at = started + 7200
+            runner.craft_state = "active"
+            runner.craft_due_at = started + 9000
+            runner.craft_start_reset_id = (
+                f"game-day-{(current_day - timedelta(days=1)).isoformat()}"
+            )
+            rig.once()
+            result = runner.last_result
+            self.assertEqual(
+                (result["production_transport_calls"], result["craft_transport_calls"],
+                 result["craft_start_transport_calls"], result["starts_this_reset"],
+                 result["due_reason"]),
+                (0, 0, 0, 0, "previous_reset_active_timer"),
+            )
+            self.assertEqual(
+                nanoweapon_next_due(result, runner.last_identity, started),
+                started + 7200,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

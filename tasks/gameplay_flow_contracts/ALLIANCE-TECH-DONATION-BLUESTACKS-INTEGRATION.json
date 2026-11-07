@@ -341,8 +341,8 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r16",
-    "product_authority_digest": "87382f4dc6829c577f8dd13b16517b8aa69cdc51f0ab9d7760749fceaa970a28",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r17",
+    "product_authority_digest": "874c5fa56867cf47dbff7673adbe4cf6715a2fc55c022a35e3bdc7e9f2b08fd4",
     "product_record_id": "alliance_donation",
     "product_record_revision": "alliance_donation-v1",
     "product_record_digest": "b26c59422b0c8c10eda6a60b0db1b9295be78d1d40bd7c82d1cdba768632e878",

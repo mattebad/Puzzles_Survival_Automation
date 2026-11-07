@@ -41,6 +41,8 @@ from automation_service.registry import (  # noqa: E402
     RECRUITMENT_FLOW_ID,
     RESOURCE_ITEM_FLOW_ID,
     RUINS_FLOW_ID,
+    NANO_MATERIAL_PRODUCTION_FLOW_ID,
+    NANOWEAPON_FLOW_ID,
     SUPPLY_FLOW_ID,
     ULTIMATE_FLOW_ID,
     WORLD_FLOW_ID,
@@ -277,6 +279,12 @@ def _native_service_route_bindings() -> Mapping[str, NativeRouteBoundary]:
     from scripts.daily_shops_bluestacks import (
         create_service_binding as create_daily_shops_binding,
     )
+    from scripts.nano_material_production_bluestacks import (
+        create_service_binding as create_nano_material_production_binding,
+    )
+    from scripts.nanoweapon_bluestacks import (
+        create_service_binding as create_nanoweapon_binding,
+    )
 
     return {
         DAILY_REWARDS_FLOW_ID: create_daily_rewards_binding(
@@ -293,9 +301,11 @@ def _native_service_route_bindings() -> Mapping[str, NativeRouteBoundary]:
         ALLIANCE_SHOP_FLOW_ID: create_alliance_shop_binding(
             make_native_route_binding
         ),
-        DAILY_SHOPS_FLOW_ID: create_daily_shops_binding(
+        DAILY_SHOPS_FLOW_ID: create_daily_shops_binding(make_native_route_binding),
+        NANO_MATERIAL_PRODUCTION_FLOW_ID: create_nano_material_production_binding(
             make_native_route_binding
         ),
+        NANOWEAPON_FLOW_ID: create_nanoweapon_binding(make_native_route_binding),
     }
 
 

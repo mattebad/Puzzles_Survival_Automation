@@ -583,6 +583,7 @@ class ProductAuthorityTests(unittest.TestCase):
 
     def test_nano_material_production_is_one_zero_resource_six_hour_batch(self) -> None:
         record = self.records["nano_material_production"]
+        self.assertEqual(record["record_revision"], "nano_material_production-v1")
         self.assertEqual(record["record_type"], "nano_material_production")
         self.assertEqual(record["recurrence"], "cooldown_pulse")
         self.assertEqual(
@@ -606,12 +607,11 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertFalse(effect["identical_retry"])
         self.assertIsNone(record["daily_ownership"]["daily_owner"])
         self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
-        forbidden = json.dumps(record["forbidden_actions"]).casefold()
-        for marker in ("normal craft", "exclusive craft", "resource box", "multiple active"):
-            self.assertIn(marker, forbidden)
     def test_nanoweapon_product_is_one_exact_normal_craft_per_reset(self) -> None:
         record = self.records["nanoweapon_normal_craft"]
         self.assertEqual(record["record_type"], "nanoweapon_normal_craft")
+        self.assertEqual(record["record_revision"], "nanoweapon_normal_craft-v2")
+        self.assertEqual(record["objective"], "nanoweapon_normal_craft")
         self.assertEqual(record["recurrence"], "daily_reset_scoped")
         self.assertEqual(
             record["semantic_entry_route"]["route"],
@@ -627,21 +627,70 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertFalse(target["exclusive_craft_allowed"])
         self.assertFalse(target["rotating_display_selection_allowed"])
         self.assertTrue(target["insufficient_parts_defer"])
+        self.assertTrue(target["disabled_craft_defer"])
+        self.assertEqual(
+            target["prior_material_production"],
+            {
+                "product_record_id": "nano_material_production",
+                "product_record_revision": "nano_material_production-v1",
+                "required_same_visit": True,
+                "separate_authorization_required": True,
+                "positive_effect_must_be_reconciled_before_craft": True,
+                "normal_craft_substitution_allowed": False,
+                "normal_craft_reset_allowance_consumed": False,
+            },
+        )
         self.assertEqual(record["quantity_cost"]["quantity"], 1)
         self.assertEqual(record["quantity_cost"]["cost"]["amount"], 100)
         self.assertEqual(record["quantity_cost"]["cost"]["unit"], "NANO_PARTS")
         self.assertFalse(record["quantity_cost"]["cost"]["free_only"])
         effect = record["semantic_effect"]
+        self.assertTrue(effect["completed_claim_successor_required"])
+        self.assertTrue(effect["no_currency_box_or_item_input"])
         self.assertTrue(effect["exact_parts_consumption_required"])
+        self.assertTrue(effect["single_active_craft_required"])
         self.assertTrue(effect["single_start_per_reset_required"])
         self.assertTrue(effect["exact_duration_required"])
-        self.assertTrue(effect["daily_objective_successor_required"])
+        self.assertTrue(effect["own_normal_craft_start_successor_required"])
+        self.assertTrue(effect["prior_material_production_reconciled_before_craft"])
+        self.assertTrue(effect["maintenance_does_not_satisfy_normal_craft"])
+        self.assertTrue(effect["maintenance_does_not_consume_normal_craft_reset_allowance"])
         self.assertFalse(effect["identical_retry"])
         self.assertIsNone(record["daily_ownership"]["daily_owner"])
+        self.assertIsNone(record["daily_ownership"]["point_credit_trigger"])
         self.assertFalse(record["daily_ownership"]["selected_daily_prerequisite"])
-        forbidden = json.dumps(record["forbidden_actions"]).casefold()
-        for marker in ("material production", "exclusive craft", "second craft", "currency"):
-            self.assertIn(marker, forbidden)
+
+    def test_nanoweapon_v2_rejects_daily_and_composition_regressions(self) -> None:
+        mutations = (
+            ("stale_revision", lambda changed: changed.__setitem__("record_revision", "nanoweapon_normal_craft-v1")),
+            ("wrong_parts", lambda changed: changed["target"].__setitem__("parts_required", 101)),
+            ("wrong_cost", lambda changed: changed["quantity_cost"]["cost"].__setitem__("amount", 101)),
+            ("occupied", lambda changed: changed["target"].__setitem__("maximum_active_crafts", 2)),
+            ("second_start", lambda changed: changed["target"].__setitem__("maximum_starts_per_reset", 2)),
+            ("wrong_duration", lambda changed: changed["target"].__setitem__("craft_duration_seconds", 21600)),
+            ("exclusive", lambda changed: changed["target"].__setitem__("exclusive_craft_allowed", True)),
+            ("maintenance_record", lambda changed: changed["target"]["prior_material_production"].__setitem__("product_record_id", "nanoweapon_normal_craft")),
+            ("maintenance_revision", lambda changed: changed["target"]["prior_material_production"].__setitem__("product_record_revision", "nano_material_production-v2")),
+            ("not_same_visit", lambda changed: changed["target"]["prior_material_production"].__setitem__("required_same_visit", False)),
+            ("not_separately_authorized", lambda changed: changed["target"]["prior_material_production"].__setitem__("separate_authorization_required", False)),
+            ("maintenance_substitution", lambda changed: changed["target"]["prior_material_production"].__setitem__("normal_craft_substitution_allowed", True)),
+            ("maintenance_consumes_quota", lambda changed: changed["target"]["prior_material_production"].__setitem__("normal_craft_reset_allowance_consumed", True)),
+            ("unreconciled_maintenance", lambda changed: changed["target"]["prior_material_production"].__setitem__("positive_effect_must_be_reconciled_before_craft", False)),
+            ("maintenance_not_reconciled", lambda changed: changed["semantic_effect"].__setitem__("prior_material_production_reconciled_before_craft", False)),
+            ("maintenance_satisfies_craft", lambda changed: changed["semantic_effect"].__setitem__("maintenance_does_not_satisfy_normal_craft", False)),
+            ("maintenance_quota", lambda changed: changed["semantic_effect"].__setitem__("maintenance_does_not_consume_normal_craft_reset_allowance", False)),
+            ("daily_objective_requirement", lambda changed: changed["semantic_effect"].__setitem__("daily_objective_successor_required", False)),
+            ("daily_provider_requirement", lambda changed: changed["semantic_effect"].__setitem__("daily_provider_required", True)),
+            ("points_requirement", lambda changed: changed["semantic_effect"].__setitem__("points_delta_required", True)),
+            ("missing_own_successor", lambda changed: changed["semantic_effect"].__setitem__("own_normal_craft_start_successor_required", False)),
+            ("identical_retry", lambda changed: changed["semantic_effect"].__setitem__("identical_retry", True)),
+        )
+        for field, mutate in mutations:
+            changed = deepcopy(self.records["nanoweapon_normal_craft"])
+            mutate(changed)
+            changed["record_digest"] = record_digest(changed)
+            with self.subTest(field=field), self.assertRaises(ProductAuthorityError):
+                validate_product_record(changed)
 
 
     def test_world_navigation_record_is_zero_cost_and_non_gameplay(self) -> None:

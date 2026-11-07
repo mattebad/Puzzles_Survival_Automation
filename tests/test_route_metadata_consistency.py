@@ -35,8 +35,9 @@ from automation_service.registry import (
     ALLIANCE_HELP_PROFILE_ID, ALLIANCE_SHOP_FLOW_ID, ALLIANCE_SHOP_PROFILE_ID,
     CAMPAIGN_FLOW_ID, CAMPAIGN_PRODUCT_REVISION, CANONICAL_FLOW_REGISTRY,
     DAILY_REWARDS_FLOW_ID, DAILY_SHOPS_FLOW_ID, DAILY_SHOPS_PROFILE_ID,
-    RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, RUINS_PROFILE_ID,
-    load_disabled_registry, canonical_entry, servable_flow_names,
+    NANO_MATERIAL_PRODUCTION_FLOW_ID, NANO_MATERIAL_PRODUCTION_PROFILE_ID,
+    NANOWEAPON_FLOW_ID, NANOWEAPON_PROFILE_ID, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID,
+    RUINS_PROFILE_ID, load_disabled_registry, canonical_entry, servable_flow_names,
 )
 from automation_service.service import AutomationService, _runner_attribute
 from safe_action_core import policy as safe_policy
@@ -67,6 +68,8 @@ NO_OPERATOR_RUNNER = {
     ALLIANCE_DONATION_FLOW_ID: "Alliance Donation is canonical-service-only and has no operator wrapper",
     ALLIANCE_SHOP_FLOW_ID: "Alliance Shop is canonical-service-only and has no operator wrapper",
     DAILY_SHOPS_FLOW_ID: "Daily Shops is canonical-service-only and has no operator wrapper",
+    NANO_MATERIAL_PRODUCTION_FLOW_ID: "Nano Material Production is canonical-service-only and has no operator wrapper",
+    NANOWEAPON_FLOW_ID: "Nanoweapon is canonical-service-only and has no operator wrapper",
 }
 
 # Retained operator-registry flows with no development-session input default in ``pnsctl._DEFAULT_MAX_INPUTS``.
@@ -137,6 +140,10 @@ EXECUTION_HANDLERS = {
     ALLIANCE_DONATION_FLOW_ID: ("automation_service.alliance_donation", "AllianceDonationExecutionHandler"),
     ALLIANCE_SHOP_FLOW_ID: ("automation_service.alliance_shop", "AllianceShopExecutionHandler"),
     DAILY_SHOPS_FLOW_ID: ("automation_service.daily_shops", "DailyShopsExecutionHandler"),
+    NANO_MATERIAL_PRODUCTION_FLOW_ID: (
+        "automation_service.nano_material_production", "NanoMaterialProductionExecutionHandler",
+    ),
+    NANOWEAPON_FLOW_ID: ("automation_service.nanoweapon", "NanoweaponExecutionHandler"),
 }
 
 
@@ -244,6 +251,61 @@ C_FIXED_RELATIONSHIPS = {
     },
 }
 
+D_FIXED_RELATIONSHIPS = {
+    NANO_MATERIAL_PRODUCTION_FLOW_ID: {
+        "cli_name": "nano-material-production",
+        "family": "nano_material_production",
+        "variant": "six_hour_single_slot",
+        "product_id": "nano_material_production",
+        "product_revision": "nano_material_production-v1",
+        "handler_id": "nano_material_production_execution_handler",
+        "profile_id": NANO_MATERIAL_PRODUCTION_PROFILE_ID,
+        "mode": "phase_canary",
+        "max_inputs": 18,
+        "max_actions": 2,
+        "cadence": "timer",
+        "reset_scoped": False,
+        "adapter": (
+            "automation_service.nano_material_production",
+            "NanoMaterialProductionExecutionHandler",
+        ),
+        "native": ("scripts.nano_material_production_bluestacks", {
+            "FLOW_ID": NANO_MATERIAL_PRODUCTION_FLOW_ID,
+            "PRODUCT_ID": "nano_material_production",
+            "PRODUCT_REVISION": "nano_material_production-v1",
+            "PROFILE_ID": NANO_MATERIAL_PRODUCTION_PROFILE_ID,
+            "MAX_INPUTS": 18,
+            "MAX_ACTIONS": 2,
+            "NANO_MATERIAL_PRODUCTION_DURATION_SECONDS": 21600,
+        }),
+    },
+    NANOWEAPON_FLOW_ID: {
+        "cli_name": "nanoweapon",
+        "family": "nanoweapon",
+        "variant": "normal_craft_100_nano_parts",
+        "product_id": "nanoweapon_normal_craft",
+        "product_revision": "nanoweapon_normal_craft-v2",
+        "handler_id": "nanoweapon_execution_handler",
+        "profile_id": NANOWEAPON_PROFILE_ID,
+        "mode": "phase_canary",
+        "max_inputs": 22,
+        "max_actions": 4,
+        "cadence": "cooldown_pulse",
+        "reset_scoped": True,
+        "adapter": ("automation_service.nanoweapon", "NanoweaponExecutionHandler"),
+        "native": ("scripts.nanoweapon_bluestacks", {
+            "FLOW_ID": NANOWEAPON_FLOW_ID,
+            "PRODUCT_ID": "nanoweapon_normal_craft",
+            "PRODUCT_REVISION": "nanoweapon_normal_craft-v2",
+            "PROFILE_ID": NANOWEAPON_PROFILE_ID,
+            "MAX_INPUTS": 22,
+            "MAX_ACTIONS": 4,
+            "NANO_PARTS_REQUIRED": 100,
+            "NORMAL_CRAFT_DURATION_SECONDS": 43200,
+        }),
+    },
+}
+
 
 # Every non-registry copy of a service route's input budget: (module, attribute).
 MAX_INPUT_COPIES = {
@@ -275,12 +337,22 @@ MAX_INPUT_COPIES = {
         ("automation_service.daily_shops", "MAX_INPUTS"),
         ("scripts.daily_shops_bluestacks", "MAX_INPUTS"),
     ],
+    NANO_MATERIAL_PRODUCTION_FLOW_ID: [
+        ("automation_service.nano_material_production", "MAX_INPUTS"),
+        ("scripts.nano_material_production_bluestacks", "MAX_INPUTS"),
+    ],
+    NANOWEAPON_FLOW_ID: [
+        ("automation_service.nanoweapon", "MAX_INPUTS"),
+        ("scripts.nanoweapon_bluestacks", "MAX_INPUTS"),
+    ],
+
 }
 
 _NUMBER_WORDS = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
     "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
     "fourteen": 14, "fifteen": 15, "sixteen": 16,
+    "seventeen": 17, "eighteen": 18,
 }
 
 
@@ -579,6 +651,94 @@ class ProductBindingTests(RouteTestCase):
                 self.assertNotIn(flow_id, pnsctl.BLUESTACKS_FLOW_IDS)
                 self.assertNotIn(flow_id, pnsctl._DEFAULT_MAX_INPUTS)
                 self.assertIn("canonical", NO_OPERATOR_RUNNER[flow_id].casefold())
+
+    def test_batch_d_routes_have_current_native_adapters_and_no_operator_runners(self) -> None:
+        self.assertEqual(set(D_FIXED_RELATIONSHIPS), {
+            NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
+        })
+        operator = _operator_ids()
+        self.assertEqual(len(operator), 12, "Batch D preserves the existing operator routes")
+        queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
+        for flow_id, expected in D_FIXED_RELATIONSHIPS.items():
+            queue_record = queue[flow_id]
+            with self.subTest(flow_id=flow_id):
+                self.assertEqual(
+                    (
+                        queue_record["status"], queue_record["production_registration"],
+                        queue_record["scheduler_enabled"], queue_record["product_policy_status"],
+                    ),
+                    ("evidence_required", "NOT_REGISTERED", False, "explicitly_approved"),
+                )
+                self.assertEqual(
+                    (
+                        queue_record["maximum_inputs"], queue_record["maximum_live_inputs"],
+                        queue_record["maximum_actions"], queue_record["maximum_live_attempts"],
+                        queue_record["live_attempt_count"],
+                    ),
+                    (expected["max_inputs"], expected["max_inputs"], expected["max_actions"], 0, 0),
+                )
+                self.assertEqual(queue_record["live_attempts"], [])
+                adapter_module, class_name = expected["adapter"]
+                native_module, native_facts = expected["native"]
+                required_paths = {
+                    adapter_module.replace(".", "/") + ".py",
+                    native_module.replace(".", "/") + ".py",
+                    f"tests/test_service_{expected['family']}.py",
+                    f"tests/test_{native_module.rsplit('.', 1)[-1]}.py",
+                    "tests/test_service_route_contract.py",
+                    "tests/test_route_metadata_consistency.py",
+                }
+                self.assertTrue(
+                    required_paths <= (
+                        set(queue_record["implementation_entrypoints"])
+                        | set(queue_record["focused_tests"])
+                    ),
+                )
+                entry = canonical_entry(flow_id)
+                self.assertEqual(
+                    (entry.cli_name, entry.descriptor.family, entry.descriptor.variant),
+                    (expected["cli_name"], expected["family"], expected["variant"]),
+                )
+                self.assertEqual(
+                    (entry.product_id, entry.product_revision, entry.handler_id),
+                    (expected["product_id"], expected["product_revision"], expected["handler_id"]),
+                )
+                self.assertEqual(
+                    (entry.registration.production_handler, entry.registration.profile,
+                     entry.registration.mode, entry.registration.registration_status,
+                     entry.registration.scheduler_eligible),
+                    (
+                        expected["handler_id"], expected["profile_id"], expected["mode"],
+                        "REGISTERED", True,
+                    ),
+                )
+                self.assertEqual(
+                    (entry.max_inputs, entry.descriptor.cadence,
+                     entry.descriptor.reset_scoped, entry.descriptor.recurrence_class),
+                    (
+                        expected["max_inputs"], expected["cadence"], expected["reset_scoped"],
+                        RecurrenceClass.TIMER if expected["cadence"] == "timer"
+                        else RecurrenceClass.COOLDOWN,
+                    ),
+                )
+                adapter = import_module(adapter_module)
+                self.assertEqual(
+                    (adapter.PRODUCT_ID, adapter.PRODUCT_REVISION, adapter.PROFILE_ID,
+                     adapter.MAX_INPUTS, adapter.MAX_ACTIONS),
+                    (expected["product_id"], expected["product_revision"], expected["profile_id"],
+                     expected["max_inputs"], expected["max_actions"]),
+                )
+                handler = getattr(adapter, class_name)
+                self.assertEqual(
+                    (handler.max_inputs, handler.max_actions),
+                    (expected["max_inputs"], expected["max_actions"]),
+                )
+                native = import_module(native_module)
+                for attribute, value in native_facts.items():
+                    self.assertEqual(getattr(native, attribute), value, f"{native_module}.{attribute} drifted")
+                self.assertNotIn(flow_id, operator)
+                self.assertNotIn(flow_id, pnsctl.BLUESTACKS_FLOW_IDS)
+                self.assertNotIn(flow_id, pnsctl._DEFAULT_MAX_INPUTS)
 
     def test_selection_handlers_describe_the_registry_cadence(self) -> None:
         for entry in CANONICAL_FLOW_REGISTRY:
