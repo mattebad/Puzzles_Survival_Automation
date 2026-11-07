@@ -942,6 +942,8 @@ def _navigation_action(
                 black=not bool(captured.frame.any()),
                 source_state=state,
                 overlay_state="none_observed" if state != "UNKNOWN" else "unknown",
+                target_identity=None,
+                target_roi=None,
                 recognized=state != "UNKNOWN",
                 evidence_refs=(str(captured.path),),
             )
@@ -1094,7 +1096,7 @@ def _select_material_tab(context, *, occurrence_key: str, captured) -> tuple[Any
         target_identity="nanoweapon:material-production-tab",
         source_state="NANOWEAPON",
         expected_postcondition="MATERIAL_PRODUCTION_PANEL",
-        bind=lambda fresh: _word_roi(_phrase_lines(_lines(_ocr_words(fresh.frame)), "Material Production")[0][1]) if _is_nanoweapon_page(fresh.frame) and len(_phrase_lines(_lines(_ocr_words(fresh.frame)), "Material Production")) == 1 else None,
+        bind=lambda frame: _line_target(frame, "Material Production"),
         source_recognize=_is_nanoweapon_page,
         recognize=lambda after: "MATERIAL_PRODUCTION" if _panel_observation(after, context=context, occurrence_key=occurrence_key).observation is not None else None,
         allowed_successors=("MATERIAL_PRODUCTION",),

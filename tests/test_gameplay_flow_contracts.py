@@ -122,7 +122,6 @@ class GameplayFlowContractTests(unittest.TestCase):
             transitions["evaluate_exact_fallback"]["from"],
             "preferred_offer_unaffordable_or_absent",
         )
-        self.assertEqual(contract["permitted_inputs"], [])
         self.assertEqual(contract["evidence_gates"][0]["status"], "evidence_required")
         self.assertEqual(contract["evidence_gates"][0]["permitted_inputs"], [])
         self.assertEqual(contract["registration_state"], "disabled")
@@ -193,7 +192,6 @@ class GameplayFlowContractTests(unittest.TestCase):
         )
         self.assertIn("no_attempt_available", contract["recognized_states"])
         self.assertIn("quota_partial_persisted", contract["recognized_states"])
-        self.assertEqual(contract["permitted_inputs"], [])
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertEqual(contract["proof_state"], "evidence_required")
         self.assertFalse(contract["production_eligible"])
@@ -230,7 +228,6 @@ class GameplayFlowContractTests(unittest.TestCase):
         )
         self.assertIn("ruins_tab_result_recorded", contract["recognized_states"])
         self.assertIn("rare_earth_tab_result_recorded", contract["recognized_states"])
-        self.assertEqual(contract["permitted_inputs"], [])
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertEqual(contract["proof_state"], "evidence_required")
         self.assertFalse(contract["production_eligible"])

@@ -778,7 +778,7 @@ class BatchCSemanticContractTests(unittest.TestCase):
                 (fallback["shop_identity"], fallback["item_identity"], fallback["rarity"],
                  fallback["unit_price"], fallback["balance"], fallback["stock"],
                  fallback["available"]),
-                ("Other", "1â˜… Gear Enhance Material", 1, 1000, 79999, 10055, True),
+                ("Other", "1★ Gear Enhance Material", 1, 1000, 79999, 10055, True),
             )
             self.assertEqual(
                 (selection["fallback_inventory"]["complete"],
@@ -795,7 +795,7 @@ class BatchCSemanticContractTests(unittest.TestCase):
                 (offer["shop_identity"], offer["item_identity"], offer["rarity"],
                  offer["quantity"], offer["unit_price"], offer["total"],
                  offer["balance_before"]),
-                ("Other", "1â˜… Gear Enhance Material", 1, 1, 1000, 1000, 79999),
+                ("Other", "1★ Gear Enhance Material", 1, 1, 1000, 1000, 79999),
             )
             self.assertEqual(
                 alliance_shop_next_due(result, runner.last_identity, result["started_at_utc"]),

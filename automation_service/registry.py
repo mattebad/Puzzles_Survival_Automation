@@ -555,6 +555,8 @@ class CanonicalFlowRegistration:
             ALLIANCE_DONATION_FLOW_ID,
             ALLIANCE_SHOP_FLOW_ID,
             DAILY_SHOPS_FLOW_ID,
+            NANO_MATERIAL_PRODUCTION_FLOW_ID,
+            NANOWEAPON_FLOW_ID,
         }:
             # Only explicit supervised serve installs its executor and held-owner
             # checkpoint. Generic composition must never create native authority.

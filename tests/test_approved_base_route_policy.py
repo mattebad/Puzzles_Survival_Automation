@@ -368,7 +368,7 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
         self.assert_denied(replace(req, subject="premium_pack"))
 
-def test_nanoweapon_claims_and_exact_production_and_craft_effects(self):
+    def test_nanoweapon_claims_and_exact_production_and_craft_effects(self):
         self.assert_authorized(nano_request('claim_nano_material_production'))
         self.assert_authorized(nano_request('start_nano_material_production'))
         self.assert_authorized(craft_claim_request())

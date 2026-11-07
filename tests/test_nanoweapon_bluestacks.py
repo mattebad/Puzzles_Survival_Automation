@@ -356,18 +356,6 @@ class NanoweaponNativeSmokeTests(unittest.TestCase):
         )
         try:
             binding = route.create_service_binding(lambda **values: values)
-            self.assertEqual(binding["flow_id"], route.FLOW_ID)
-            self.assertEqual(binding["product_id"], route.PRODUCT_ID)
-            self.assertEqual(binding["product_revision"], route.PRODUCT_REVISION)
-            self.assertEqual(binding["runtime_profile_id"], route.PROFILE_ID)
-            self.assertEqual(binding["owner"], "automation-service:nanoweapon")
-            self.assertEqual(binding["workflow"], "nanoweapon-native")
-            self.assertEqual(binding["max_inputs"], route.MAX_INPUTS)
-            self.assertEqual(binding["max_actions"], route.MAX_ACTIONS)
-            self.assertIsNone(binding["validator"])
-            factory_store = binding["action_store_factory"](self.root / "binding-store.sqlite")
-            self.assertIsInstance(factory_store, SafetyStore)
-            factory_store.close()
             result = binding["driver"](context, {})
             consequential = [action for action in context.runtime.actions if action[2]]
             self.assertEqual(

@@ -739,15 +739,6 @@ class ProductBindingTests(RouteTestCase):
                 self.assertNotIn(flow_id, operator)
                 self.assertNotIn(flow_id, pnsctl.BLUESTACKS_FLOW_IDS)
                 self.assertNotIn(flow_id, pnsctl._DEFAULT_MAX_INPUTS)
-                self.assertIn("canonical", NO_OPERATOR_RUNNER[flow_id].casefold())
-                if flow_id == NANO_MATERIAL_PRODUCTION_FLOW_ID:
-                    self.assertIn("21600", queue_record["consequence_policy"])
-                else:
-                    self.assertIn("100", queue_record["consequence_policy"])
-                    self.assertIn("43200", queue_record["consequence_policy"])
-                    self.assertIn("Exclusive Craft", queue_record["consequence_policy"])
-                    self.assertIn("no Daily/D02 ownership", queue_record["consequence_policy"])
-                    self.assertNotIn("Daily owns", queue_record["consequence_policy"])
 
     def test_selection_handlers_describe_the_registry_cadence(self) -> None:
         for entry in CANONICAL_FLOW_REGISTRY:

@@ -2,7 +2,7 @@
   "schema_version": 2,
   "flow_id": "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
   "product_purpose": "Maintain one zero-resource Nano Material Production batch under its own product authority. When combined with Normal Craft, this separately authorized record-70 maintenance is a required same-visit predecessor, never a substitute for Normal Craft and never a consumer of its reset allowance.",
-  "trigger_cadence_type": "timer",
+  "trigger_cadence_type": "cooldown_pulse",
   "reset_scope": "independent_six_hour_maintenance",
   "required_starting_context": [
     "home_canonical"
