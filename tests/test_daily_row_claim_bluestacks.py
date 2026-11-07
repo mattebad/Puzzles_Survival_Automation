@@ -17,6 +17,7 @@ import numpy as np
 from scripts import daily_row_claim_bluestacks as daily
 from scripts import navigation_development_boundary as boundary
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
+from safe_action_core import SafetyStore
 from tasks.home_nav_recognition import NAV_STRIP_BOX, _load_template
 from tests.support.capability_firewall import Clock
 
@@ -1359,85 +1360,168 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
                     ["unknown"] * 5,
                 )
 
-    def test_fake_no_aggregate_branch_still_reports_ready_chest_successor_gap(
-        self,
-    ) -> None:
-        payload, image, _recognition = self._native_daily_frame()
-        source_sha256 = hashlib.sha256(payload).hexdigest()
-        native_frame = CapturedNativeFrame(
-            image,
-            payload,
-            source_sha256,
-            time.monotonic(),
-            self.NATIVE_FIXTURE,
-        )
 
-        class FakeDailyRouteRecognizer(daily.DailyRowClaimRecognizer):
-            def recognize_home(self, frame: np.ndarray) -> daily.FrameRecognition:
-                return daily.FrameRecognition(
-                    daily.HOME_STATE,
-                    True,
-                    daily.HOME_QUEST_IDENTITY,
-                    (120, 1100, 240, 1200),
-                )
 
-        class FakeRuntime:
-            frame_actions: tuple[object, ...] = ()
-
-            def capture(self, _label: str) -> CapturedNativeFrame:
-                return native_frame
-
-        class FakeSession:
-            def observe(self, capture, *, label: str) -> CapturedNativeFrame:
-                return capture(label)
-
-        context = SimpleNamespace(
-            validate_identity=lambda: None,
-            accounting=lambda: SimpleNamespace(input_count=0, verified=True),
-            runtime=FakeRuntime(),
-            session=FakeSession(),
-            action_store=object(),
-            initial_frame=native_frame,
-            is_clean_home=lambda _frame: True,
-            bind_initial_observation=lambda *_args, **_kwargs: None,
-            utc_clock=time.time,
-            monotonic_clock=time.monotonic,
-            flow_id="daily-rewards-test",
-            identity=SimpleNamespace(
-                account_id="account",
-                server_id="server",
-                reset_id="reset",
-                task_id="daily-rewards-test",
-            ),
-            occurrence_key="occ:v1:daily-rewards-test",
-            invocation_id="daily-rewards-test",
-            owner="daily-rewards-test",
-        )
-        with patch.object(daily, "DailyRowClaimRecognizer", FakeDailyRouteRecognizer), patch.object(
-            daily,
-            "run_daily_row_reconnaissance",
-            return_value={"status": "observed"},
+    def _observed_chest_transition(self):
+        scans = []
+        recognitions = []
+        images = []
+        recognizer = daily.DailyRowClaimRecognizer()
+        game_day = None
+        for name, clock in (
+            ("native-chest1-ready-before-20261107.png", "2026-11-07T08:21:32Z"),
+            ("native-chest1-claimed-after-20261107.png", "2026-11-07T08:22:20Z"),
         ):
-            result = daily.run_daily_rewards_from_home(
-                context,
-                {"observation_interval_seconds": 3600},
+            payload = (self.NATIVE_FIXTURE.parent / name).read_bytes()
+            image = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+            recognition = recognizer.recognize_daily_claim(
+                image, observed_utc=clock, game_day_id=game_day,
             )
+            scan = daily.recognize_daily_milestone_chests(
+                image, recognition, source_frame_sha256=hashlib.sha256(payload).hexdigest(),
+            )
+            game_day = scan["game_day_id"]
+            scans.append(scan)
+            recognitions.append(recognition)
+            images.append(image)
+        return scans, recognitions, images
 
-        self.assertEqual(result["status"], "evidence_required")
-        self.assertEqual(result["aggregate_claim"]["status"], "none")
-        self.assertEqual(result["total_action_count"], 0)
-        self.assertFalse(result["terminal_home_verified"])
-        self.assertEqual(result["milestone_scan"]["observed_chest_count"], 5)
-        self.assertEqual(result["unclaimed_ready_chest_count"], 1)
-        self.assertIn("same-chest", result["reason"])
-        self.assertIn("claimed, opened, or removed", result["reason"])
+    def test_actual_same_slot_claimed_label_proves_success_without_points_change(self):
+        (before, after), _, _ = self._observed_chest_transition()
+        self.assertTrue(daily.daily_milestone_postcondition_verified(
+            before, after, "daily-milestone-slot-1",
+        ))
+        self.assertEqual(after["ready_chest_count"], 0)
+        self.assertEqual(after["milestones"][0]["milestone_state"], "claimed")
+        self.assertEqual((before["points"], after["points"]), (30, 30))
+        self.assertFalse(daily.daily_milestone_postcondition_verified(
+            before, after, "daily-milestone-slot-2",
+        ))
 
+    def test_claimed_label_must_be_unambiguous_current_and_bound_to_the_same_slot(self):
+        (before, after), (_, recognition), (_, image) = self._observed_chest_transition()
+        claimed = next(token for token in recognition.tokens if token["text"] == "claimed")
+        without = tuple(token for token in recognition.tokens if token is not claimed)
+        x0, y0, x1, y1 = claimed["roi"]
+        for label_tokens in (
+            (),
+            (claimed, claimed),
+            ({**claimed, "confidence": 20},),
+            ({**claimed, "roi": (x0 + 140, y0, x1 + 140, y1)},),
+        ):
+            fake = replace(recognition, tokens=without + label_tokens)
+            scan = daily.recognize_daily_milestone_chests(
+                image, fake, source_frame_sha256=after["source_frame_sha256"],
+            )
+            self.assertFalse(daily.daily_milestone_postcondition_verified(
+                before, scan, "daily-milestone-slot-1",
+            ))
+        self.assertFalse(daily.daily_milestone_postcondition_verified(
+            before, before, "daily-milestone-slot-1",
+        ))
+        self.assertFalse(daily.daily_milestone_postcondition_verified(
+            before, {**after, "game_day_id": "different-reset"}, "daily-milestone-slot-1",
+        ))
+
+    def test_five_ready_chests_are_individually_confirmed_without_a_150_point_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result, runtime, _ = self._run_fake_static_zero_claim_route(
+                Path(tmp), return_home=True, ready_count=5,
+            )
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["committed_action_count"], 5)
+        self.assertEqual(runtime.claim_attempts, 5)
+        self.assertEqual(len({row["action_key"] for row in runtime.journal_rows}), 5)
+        self.assertTrue(all(row["final_status"] == "confirmed" for row in runtime.journal_rows))
+        self.assertEqual(result["unclaimed_ready_chest_count"], 0)
+        self.assertTrue(result["terminal_home_verified"])
+        self.assertEqual(result["observed_points"], {"before": 30, "after": 30})
+
+    def test_one_aggregate_claim_then_every_ready_chest_share_the_canonical_journal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result, runtime, _ = self._run_fake_static_zero_claim_route(
+                Path(tmp), return_home=True, ready_count=5, aggregate_ready=True,
+            )
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual((runtime.aggregate_attempts, runtime.claim_attempts), (1, 5))
+        self.assertEqual(result["committed_action_count"], 6)
+        self.assertTrue(result["aggregate_claim"]["confirmed"])
+        self.assertEqual(len(runtime.journal_rows), 6)
+        self.assertTrue(all(row["final_status"] == "confirmed" for row in runtime.journal_rows))
+
+    def test_unknown_third_chest_preserves_two_confirmed_effects_and_restart_never_retries(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            daily, "DAILY_CLAIM_SUCCESS_POLL_MAX_ATTEMPTS", 2,
+        ), patch.object(daily, "DAILY_CLAIM_SUCCESS_POLL_INTERVAL_SECONDS", 0):
+            root = Path(tmp)
+            journal = root / "persistent-actions.sqlite3"
+            partial, runtime, _ = self._run_fake_static_zero_claim_route(
+                root / "first", return_home=True, ready_count=5,
+                unknown_after=3, journal_path=journal,
+            )
+            self.assertEqual(partial["status"], "unresolved")
+            self.assertEqual((runtime.claim_attempts, partial["committed_action_count"]), (3, 2))
+            self.assertTrue(partial["effect_reconciliation_required"])
+            resumed, restarted, _ = self._run_fake_static_zero_claim_route(
+                root / "restart", return_home=True, ready_count=5, journal_path=journal,
+                wall_utc=1794039693.0,
+            )
+            self.assertEqual(restarted.claim_attempts, 0)
+            self.assertTrue(resumed["identical_retry_denied"])
+            self.assertEqual([row["final_status"] for row in restarted.journal_rows].count("confirmed"), 2)
+
+    def test_confirmed_slot_cannot_repeat_after_restart_but_new_reset_is_independent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            journal = root / "persistent-actions.sqlite3"
+            first, _, _ = self._run_fake_static_zero_claim_route(
+                root / "first", return_home=True, ready_count=1, journal_path=journal,
+            )
+            repeated, runtime, _ = self._run_fake_static_zero_claim_route(
+                root / "restart", return_home=True, ready_count=1, journal_path=journal,
+                wall_utc=1794039693.0,
+            )
+            self.assertEqual(first["committed_action_count"], 1)
+            self.assertEqual(runtime.claim_attempts, 0)
+            self.assertTrue(repeated["identical_retry_denied"])
+            new_reset, runtime, _ = self._run_fake_static_zero_claim_route(
+                root / "new-reset", return_home=True, ready_count=1, journal_path=journal,
+                reset_id="reset-next", wall_utc=1794126092.0,
+            )
+            self.assertEqual(new_reset["committed_action_count"], 1)
+            self.assertEqual(len(runtime.journal_rows), 2)
+
+    def test_zero_effect_budget_and_already_claimed_manual_slot_do_not_claim(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            limited, runtime, _ = self._run_fake_static_zero_claim_route(
+                root / "limit", return_home=True, ready_count=1, max_actions=0,
+            )
+            self.assertEqual(runtime.claim_attempts, 0)
+            self.assertEqual(limited["committed_action_count"], 0)
+            self.assertNotEqual(limited["status"], "completed")
+            complete, runtime, _ = self._run_fake_static_zero_claim_route(
+                root / "already-claimed", return_home=True, start_claimed=True,
+                wall_utc=1794039740.0,
+            )
+            self.assertEqual(complete["status"], "completed")
+            self.assertTrue(complete["no_work"])
+            self.assertEqual(runtime.claim_attempts, 0)
+            self.assertEqual(complete["committed_action_count"], 0)
 
     def _run_fake_static_zero_claim_route(
         self,
         root: Path,
         *,
         return_home: bool,
+        ready_count: int = 0,
+        unknown_after: int | None = None,
+        max_actions: int = 6,
+        journal_path: Path | None = None,
+        start_claimed: bool = False,
+        reset_id: str = "reset",
+        wall_utc: float = 1794039692.0,
+        aggregate_ready: bool = False,
     ) -> tuple[dict[str, object], object, object]:
         _payload, native_image, native_recognition = self._native_daily_frame()
         native_scan = daily.recognize_daily_milestone_chests(
@@ -1472,6 +1556,36 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
             [chest["milestone_state"] for chest in fake_scan["milestones"]],
             ["not_ready"] * 5,
         )
+        claimed_patches: dict[int, np.ndarray] = {}
+        if ready_count:
+            fixture_root = self.NATIVE_FIXTURE.parent
+            fake_image = cv2.imread(str(fixture_root / "native-chest1-ready-before-20261107.png"))
+            claimed_image = cv2.imread(str(fixture_root / "native-chest1-claimed-after-20261107.png"))
+            assert fake_image is not None and claimed_image is not None
+            # Explicit multi-slot fake counterfactual using observed pixels.
+            # This does not establish native acceptance for any additional chest.
+            glow_patch = fake_image[178:275, 84:184].copy()
+            claimed_patch = claimed_image[178:275, 85:185].copy()
+            claimed_label = claimed_image[316:352, 65:205].copy()
+            for slot in range(ready_count):
+                offset = slot * 140
+                fake_image[178:275, 84 + offset:184 + offset] = glow_patch
+                claimed_patches[slot] = claimed_patch
+        else:
+            claimed_label = None
+        if start_claimed:
+            fake_image = cv2.imread(str(
+                self.NATIVE_FIXTURE.parent / "native-chest1-claimed-after-20261107.png"
+            ))
+            assert fake_image is not None
+
+        plain_daily_image = fake_image.copy()
+        if aggregate_ready:
+            cv2.rectangle(fake_image, (574, 444), (739, 503), (0, 180, 255), -1)
+            cv2.putText(
+                fake_image, "Claim", (601, 483), cv2.FONT_HERSHEY_SIMPLEX,
+                0.9, (255, 255, 255), 2,
+            )
 
         home_image = np.zeros((1280, 800, 3), dtype=np.uint8)
         unknown_image = np.full((1280, 800, 3), 19, dtype=np.uint8)
@@ -1481,14 +1595,35 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
         class FakeRuntime:
             execute = True
             frame_max_age_seconds = 30.0
+            session = session_directory
 
             def __init__(self) -> None:
                 self.current_image = fake_image
                 self.input_count = 0
                 self.frame_actions: list[object] = []
+                self.claim_attempts = 0
+                self.aggregate_attempts = 0
+                self.journal_rows: list[dict[str, object]] = []
 
             def capture(self, label: str) -> CapturedNativeFrame:
-                return _frame(session_directory, label, image=self.current_image)
+                return _frame(session_directory, label.replace(":", "_"), image=self.current_image)
+
+            def tap(self, _source, *, target_identity, target_roi, action_key, **_kwargs):
+                self.input_count += 1
+                self.claim_attempts += 1
+                self.frame_actions.append((action_key, target_identity, target_roi))
+                if target_identity == daily.DAILY_CLAIM_TARGET_IDENTITY:
+                    self.aggregate_attempts += 1
+                    self.claim_attempts -= 1
+                    self.current_image = plain_daily_image.copy()
+                    return
+                if self.claim_attempts == unknown_after:
+                    return
+                slot = int(round(((target_roi[0] + target_roi[2]) / 2 - 134) / 140))
+                offset = slot * 140
+                self.current_image = self.current_image.copy()
+                self.current_image[178:275, 84 + offset:184 + offset] = claimed_patches[slot]
+                self.current_image[316:352, 64 + offset:204 + offset] = claimed_label
 
             def back(self, _source, *, action_key: str, target_identity: str) -> None:
                 self.input_count += 1
@@ -1520,10 +1655,10 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
                 kwargs["dispatch"](before)
                 after = kwargs["capture"](f"{kwargs['label']}-immediate-post")
                 state = kwargs["recognize"](after)
-                if state == daily.UNKNOWN_STATE and kwargs.get("settled_successor"):
+                if state.lower() == "unknown" and kwargs.get("settled_successor"):
                     after = kwargs["settled_successor"]()
                     state = kwargs["recognize"](after)
-                status = "completed" if state != daily.UNKNOWN_STATE else "unknown"
+                status = "completed" if state.lower() != "unknown" else "unknown"
                 self.actions.append({"label": kwargs["label"], "state": state})
                 return SimpleNamespace(status=status, reason="replay")
 
@@ -1546,31 +1681,36 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
                     )
                 return super().recognize_home(frame)
 
+        store = SafetyStore(journal_path or (root / "actions.sqlite3"))
+        wall_clock = lambda: wall_utc
+        store.acquire_lease("daily-rewards-test", wall_clock(), 3600)
         context = SimpleNamespace(
             validate_identity=lambda: None,
+            checkpoint=lambda: None,
             accounting=lambda: SimpleNamespace(
                 input_count=session.input_count,
                 verified=session.input_count == runtime.input_count,
             ),
             runtime=runtime,
             session=session,
-            action_store=object(),
+            action_store=store,
             initial_frame=initial_home,
             is_clean_home=lambda frame: frame is home_image,
             bind_initial_observation=lambda *_args, **_kwargs: None,
-            utc_clock=time.time,
+            utc_clock=wall_clock,
             monotonic_clock=time.monotonic,
             flow_id="daily-rewards-test",
             identity=SimpleNamespace(
                 account_id="account",
                 server_id="server",
-                reset_id="reset",
+                reset_id=reset_id,
                 task_id="daily-rewards-test",
             ),
             occurrence_key="occ:v1:daily-rewards-test",
             invocation_id="daily-rewards-test",
             owner="daily-rewards-test",
             settle_seconds=0.0,
+            max_actions=max_actions,
         )
         with patch.object(
             daily,
@@ -1581,10 +1721,14 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
             "run_daily_row_reconnaissance",
             return_value={"status": "observed"},
         ):
-            result = daily.run_daily_rewards_from_home(
-                context,
-                {"observation_interval_seconds": 3600},
-            )
+            try:
+                result = daily.run_daily_rewards_from_home(
+                    context,
+                    {"observation_interval_seconds": 3600},
+                )
+                runtime.journal_rows = store.list_actions_for_task("daily-rewards-test")
+            finally:
+                store.close()
         return result, runtime, session
 
     def test_fake_static_zero_claim_replay_requires_verified_home_and_projects_no_work(
@@ -1632,7 +1776,6 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
         self.assertFalse(result["no_work"])
         self.assertFalse(result["terminal_home_verified"])
         self.assertNotIn("terminal_home_frame", result)
-        self.assertIn("clean Home return", result["reason"])
         self.assertEqual(runtime.input_count, session.input_count)
 
 
