@@ -172,6 +172,27 @@ NANOWEAPON_HANDLER_ID = "nanoweapon_execution_handler"
 NANOWEAPON_PROFILE_ID = WORLD_PROFILE_ID
 NANOWEAPON_PHASE_MODE = "phase_canary"
 NANOWEAPON_MAX_INPUTS = 22
+HERO_DUEL_FLOW_ID = "HERO-DUEL-EVIDENCE-GATE"
+HERO_DUEL_PRODUCT_ID = "hero_duel"
+HERO_DUEL_PRODUCT_REVISION = "hero_duel-v2"
+HERO_DUEL_HANDLER_ID = "hero_duel_execution_handler"
+HERO_DUEL_PROFILE_ID = WORLD_PROFILE_ID
+HERO_DUEL_PHASE_MODE = "phase_canary"
+HERO_DUEL_MAX_INPUTS = 64
+RECOMMENDED_RESEARCH_FLOW_ID = "RECOMMENDED-RESEARCH-BLUESTACKS-INTEGRATION"
+RECOMMENDED_RESEARCH_PRODUCT_ID = "recommended_research"
+RECOMMENDED_RESEARCH_PRODUCT_REVISION = "recommended_research-v1"
+RECOMMENDED_RESEARCH_HANDLER_ID = "recommended_research_execution_handler"
+RECOMMENDED_RESEARCH_PROFILE_ID = WORLD_PROFILE_ID
+RECOMMENDED_RESEARCH_PHASE_MODE = "phase_canary"
+RECOMMENDED_RESEARCH_MAX_INPUTS = 24
+FOOD_FARM_BOOST_FLOW_ID = "FOOD-FARM-OUTPUT-BOOST-DAILY-BLUESTACKS-INTEGRATION"
+FOOD_FARM_BOOST_PRODUCT_ID = "food_farm_output_boost"
+FOOD_FARM_BOOST_PRODUCT_REVISION = "food_farm_output_boost-v1"
+FOOD_FARM_BOOST_HANDLER_ID = "food_farm_boost_execution_handler"
+FOOD_FARM_BOOST_PROFILE_ID = WORLD_PROFILE_ID
+FOOD_FARM_BOOST_PHASE_MODE = "phase_canary"
+FOOD_FARM_BOOST_MAX_INPUTS = 16
 
 
 _FIXED_BINDINGS = {
@@ -352,6 +373,36 @@ _FIXED_BINDINGS = {
         "production_handler": NANOWEAPON_HANDLER_ID,
         "profile": NANOWEAPON_PROFILE_ID,
         "mode": NANOWEAPON_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    HERO_DUEL_FLOW_ID: {
+        "flow_id": HERO_DUEL_FLOW_ID,
+        "product_id": HERO_DUEL_PRODUCT_ID,
+        "product_revision": HERO_DUEL_PRODUCT_REVISION,
+        "production_handler": HERO_DUEL_HANDLER_ID,
+        "profile": HERO_DUEL_PROFILE_ID,
+        "mode": HERO_DUEL_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    RECOMMENDED_RESEARCH_FLOW_ID: {
+        "flow_id": RECOMMENDED_RESEARCH_FLOW_ID,
+        "product_id": RECOMMENDED_RESEARCH_PRODUCT_ID,
+        "product_revision": RECOMMENDED_RESEARCH_PRODUCT_REVISION,
+        "production_handler": RECOMMENDED_RESEARCH_HANDLER_ID,
+        "profile": RECOMMENDED_RESEARCH_PROFILE_ID,
+        "mode": RECOMMENDED_RESEARCH_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    FOOD_FARM_BOOST_FLOW_ID: {
+        "flow_id": FOOD_FARM_BOOST_FLOW_ID,
+        "product_id": FOOD_FARM_BOOST_PRODUCT_ID,
+        "product_revision": FOOD_FARM_BOOST_PRODUCT_REVISION,
+        "production_handler": FOOD_FARM_BOOST_HANDLER_ID,
+        "profile": FOOD_FARM_BOOST_PROFILE_ID,
+        "mode": FOOD_FARM_BOOST_PHASE_MODE,
         "registration_status": "REGISTERED",
         "scheduler_eligible": True,
     },
@@ -555,6 +606,11 @@ class CanonicalFlowRegistration:
             ALLIANCE_DONATION_FLOW_ID,
             ALLIANCE_SHOP_FLOW_ID,
             DAILY_SHOPS_FLOW_ID,
+            NANO_MATERIAL_PRODUCTION_FLOW_ID,
+            NANOWEAPON_FLOW_ID,
+            HERO_DUEL_FLOW_ID,
+            RECOMMENDED_RESEARCH_FLOW_ID,
+            FOOD_FARM_BOOST_FLOW_ID,
         }:
             # Only explicit supervised serve installs its executor and held-owner
             # checkpoint. Generic composition must never create native authority.
@@ -797,6 +853,31 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         cli_name="nanoweapon",
         family="nanoweapon",
         variant="normal_craft_100_nano_parts",
+        cadence="cooldown_pulse",
+    ),
+
+    _canonical_registration(
+        HERO_DUEL_FLOW_ID,
+        max_inputs=HERO_DUEL_MAX_INPUTS,
+        cli_name="hero-duel",
+        family="hero_duel",
+        variant="up_to_three_free_entry_flee_cycles",
+        cadence="cooldown_pulse",
+    ),
+    _canonical_registration(
+        RECOMMENDED_RESEARCH_FLOW_ID,
+        max_inputs=RECOMMENDED_RESEARCH_MAX_INPUTS,
+        cli_name="recommended-research",
+        family="recommended_research",
+        variant="first_displayed_recommendation_idle_affordable_start",
+        cadence="cooldown_pulse",
+    ),
+    _canonical_registration(
+        FOOD_FARM_BOOST_FLOW_ID,
+        max_inputs=FOOD_FARM_BOOST_MAX_INPUTS,
+        cli_name="food-farm-boost",
+        family="food_farm_boost",
+        variant="one_daily_food_farm_boost",
         cadence="cooldown_pulse",
     ),
 )
@@ -1333,6 +1414,27 @@ __all__ = [
     "NANOWEAPON_PROFILE_ID",
     "NANOWEAPON_PHASE_MODE",
     "NANOWEAPON_MAX_INPUTS",
+    'HERO_DUEL_FLOW_ID',
+    'HERO_DUEL_PRODUCT_ID',
+    'HERO_DUEL_PRODUCT_REVISION',
+    'HERO_DUEL_HANDLER_ID',
+    'HERO_DUEL_PROFILE_ID',
+    'HERO_DUEL_PHASE_MODE',
+    'HERO_DUEL_MAX_INPUTS',
+    'RECOMMENDED_RESEARCH_FLOW_ID',
+    'RECOMMENDED_RESEARCH_PRODUCT_ID',
+    'RECOMMENDED_RESEARCH_PRODUCT_REVISION',
+    'RECOMMENDED_RESEARCH_HANDLER_ID',
+    'RECOMMENDED_RESEARCH_PROFILE_ID',
+    'RECOMMENDED_RESEARCH_PHASE_MODE',
+    'RECOMMENDED_RESEARCH_MAX_INPUTS',
+    'FOOD_FARM_BOOST_FLOW_ID',
+    'FOOD_FARM_BOOST_PRODUCT_ID',
+    'FOOD_FARM_BOOST_PRODUCT_REVISION',
+    'FOOD_FARM_BOOST_HANDLER_ID',
+    'FOOD_FARM_BOOST_PROFILE_ID',
+    'FOOD_FARM_BOOST_PHASE_MODE',
+    'FOOD_FARM_BOOST_MAX_INPUTS',
     "consume_registered_entry",
     "consume_world_registration",
     "consume_nova_registration",

@@ -69,6 +69,9 @@ from .registry import (
     DAILY_SHOPS_FLOW_ID,
     NANO_MATERIAL_PRODUCTION_FLOW_ID,
     NANOWEAPON_FLOW_ID,
+    HERO_DUEL_FLOW_ID,
+    RECOMMENDED_RESEARCH_FLOW_ID,
+    FOOD_FARM_BOOST_FLOW_ID,
     RegisteredDispatchSnapshot,
     SUPPLY_FLOW_ID,
     ULTIMATE_FLOW_ID,
@@ -414,6 +417,9 @@ class AutomationService:
         alliance_shop_runner=None,
         nano_material_production_runner=None,
         nanoweapon_runner=None,
+        hero_duel_runner=None,
+        recommended_research_runner=None,
+        food_farm_boost_runner=None,
         daily_shops_runner=None,
         alliance_help_runner=None,
         application_startup=None,
@@ -443,6 +449,9 @@ class AutomationService:
         self.alliance_donation_runner = alliance_donation_runner
         self.nano_material_production_runner = nano_material_production_runner
         self.nanoweapon_runner = nanoweapon_runner
+        self.hero_duel_runner = hero_duel_runner
+        self.recommended_research_runner = recommended_research_runner
+        self.food_farm_boost_runner = food_farm_boost_runner
         self.alliance_shop_runner = alliance_shop_runner
         self.daily_shops_runner = daily_shops_runner
         self.alliance_help_runner = alliance_help_runner
@@ -478,6 +487,9 @@ class AutomationService:
                 self.alliance_shop_runner,
                 self.nano_material_production_runner,
                 self.nanoweapon_runner,
+                self.hero_duel_runner,
+                self.recommended_research_runner,
+                self.food_farm_boost_runner,
                 self.daily_shops_runner,
             )
         ) and not isinstance(
@@ -740,6 +752,19 @@ class AutomationService:
             PRODUCT_ID as NANOWEAPON_TASK_ID,
             nanoweapon_next_due,
         )
+        from .hero_duel import (
+            HeroDuelExecutionHandler,
+            PRODUCT_ID as HERO_DUEL_TASK_ID,
+            hero_duel_next_due,
+        )
+        from .recommended_research import (
+            RecommendedResearchExecutionHandler,
+            PRODUCT_ID as RECOMMENDED_RESEARCH_TASK_ID,
+        )
+        from .food_farm_boost import (
+            FoodFarmBoostExecutionHandler,
+            PRODUCT_ID as FOOD_FARM_BOOST_TASK_ID,
+        )
 
         if self.mode is not ServiceMode.SUPERVISED or self.state is None:
             raise ServiceError("serve requires an explicitly configured native runner")
@@ -794,6 +819,9 @@ class AutomationService:
                     DAILY_SHOPS_FLOW_ID: DAILY_SHOPS_TASK_ID,
                     NANO_MATERIAL_PRODUCTION_FLOW_ID: NANO_MATERIAL_PRODUCTION_TASK_ID,
                     NANOWEAPON_FLOW_ID: NANOWEAPON_TASK_ID,
+                    HERO_DUEL_FLOW_ID: HERO_DUEL_TASK_ID,
+                    RECOMMENDED_RESEARCH_FLOW_ID: RECOMMENDED_RESEARCH_TASK_ID,
+                    FOOD_FARM_BOOST_FLOW_ID: FOOD_FARM_BOOST_TASK_ID,
                 }[flow_id]
                 identity = SchedulerIdentity(account_id, server_id, facts.reset_id, task_id)
                 previous_reset = previous_resets.get(flow_id)
@@ -864,6 +892,9 @@ class AutomationService:
                     DAILY_SHOPS_FLOW_ID: "purchase_transport_calls",
                     NANO_MATERIAL_PRODUCTION_FLOW_ID: "production_transport_calls",
                     NANOWEAPON_FLOW_ID: "nanoweapon_dispatch_count",
+                    HERO_DUEL_FLOW_ID: "duel_dispatch_count",
+                    RECOMMENDED_RESEARCH_FLOW_ID: "research_transport_calls",
+                    FOOD_FARM_BOOST_FLOW_ID: "food_farm_dispatch_count",
                 }[flow_id]
 
                 def record_consumption():
@@ -934,6 +965,9 @@ class AutomationService:
                             DAILY_SHOPS_FLOW_ID,
                             NANO_MATERIAL_PRODUCTION_FLOW_ID,
                             NANOWEAPON_FLOW_ID,
+                            HERO_DUEL_FLOW_ID,
+                            RECOMMENDED_RESEARCH_FLOW_ID,
+                            FOOD_FARM_BOOST_FLOW_ID,
                         }
                         else {}
                     )
@@ -947,6 +981,9 @@ class AutomationService:
                         DAILY_SHOPS_FLOW_ID,
                         NANO_MATERIAL_PRODUCTION_FLOW_ID,
                         NANOWEAPON_FLOW_ID,
+                        HERO_DUEL_FLOW_ID,
+                        RECOMMENDED_RESEARCH_FLOW_ID,
+                        FOOD_FARM_BOOST_FLOW_ID,
                     }:
                         options["occurrence_key"] = run.occurrence_key
                     if operator_request_id is not None:
@@ -954,12 +991,53 @@ class AutomationService:
                             raise ServiceError("MANUAL_REPEAT_CLAIM_MISMATCH")
                         options["operator_request_id"] = operator_request_id
                     runner_entered = True
-                    result = runners[flow_id](identity, previous_reset, checkpoint, **options)
+                    route_normalized = None
+                    runner_output = runners[flow_id](
+                        identity, previous_reset, checkpoint, **options
+                    )
+                    if flow_id in {
+                        RECOMMENDED_RESEARCH_FLOW_ID,
+                        FOOD_FARM_BOOST_FLOW_ID,
+                    }:
+                        if not isinstance(runner_output, NormalizedResult):
+                            raise ServiceError(
+                                f"{prefix}_RUNNER_RESULT_NOT_NORMALIZED"
+                            )
+                        native_result = runner_output.consequence.get("native_result")
+                        if isinstance(native_result, dict):
+                            result = dict(native_result)
+                        elif (
+                            runner_output.outcome is NormalizedOutcome.BLOCKED
+                            and runner_output.action_count == 0
+                            and not runner_output.unresolved_action
+                            and not runner_output.consequence
+                        ):
+                            result = {
+                                "status": "blocked",
+                                "reason": runner_output.reason_code,
+                                "accounting_verified": True,
+                                "input_count": 0,
+                                "total_input_count": 0,
+                                action_count_field: 0,
+                                "committed_action_count": 0,
+                                "effect_reconciliation_required": False,
+                                "identical_retry_denied": False,
+                            }
+                        else:
+                            raise ServiceError(
+                                f"{prefix}_RUNNER_RESULT_MISSING_NATIVE_ACCOUNTING"
+                            )
+                        route_normalized = runner_output
+                    else:
+                        result = runner_output
                     if startup_result is not None:
                         result = dict(result, application_startup=startup_result,
                                       system_launch_count=startup_result.get("system_launch_count"))
                     executor_results[flow_id] = result
                     consumed_actions = record_consumption()
+                    if route_normalized is not None:
+                        checkpoint()
+                        return route_normalized
                     normalized_route_outcome = None
                     normalized_route_reason = None
                     normalized_route_actions = result.get("committed_action_count")
@@ -1081,6 +1159,21 @@ class AutomationService:
                             due = None
                             normalized_route_outcome = NormalizedOutcome.BLOCKED
                             normalized_route_reason = f"{prefix}_ROUTE_BLOCKED"
+                    elif flow_id == HERO_DUEL_FLOW_ID:
+                        due = hero_duel_next_due(result, identity, facts.now_utc_epoch)
+                        status = result.get("status")
+                        normalized_route_outcome = (
+                            NormalizedOutcome.DEFERRED
+                            if status == "deferred"
+                            else NormalizedOutcome.ALREADY_COMPLETE
+                            if status == "already_complete"
+                            else NormalizedOutcome.COMPLETE_FOR_RESET
+                        )
+                        normalized_route_reason = (
+                            f"{prefix}_DEFERRED"
+                            if status == "deferred"
+                            else f"{prefix}_PASS_VERIFIED"
+                        )
                     elif flow_id in {
                         NANO_MATERIAL_PRODUCTION_FLOW_ID,
                         NANOWEAPON_FLOW_ID,
@@ -1089,16 +1182,10 @@ class AutomationService:
                             NANO_MATERIAL_PRODUCTION_FLOW_ID: nano_material_production_next_due,
                             NANOWEAPON_FLOW_ID: nanoweapon_next_due,
                         }[flow_id](result, identity, facts.now_utc_epoch)
-                        normalized_route_outcome = (
-                            NormalizedOutcome.DEFERRED
-                            if result.get("status") == "deferred"
-                            else NormalizedOutcome.ACTION_PERFORMED
-                            if consumed_actions > 0
-                            else NormalizedOutcome.ALREADY_COMPLETE
-                        )
+                        normalized_route_outcome = NormalizedOutcome.DEFERRED
                         normalized_route_reason = (
                             f"{prefix}_DEFERRED"
-                            if normalized_route_outcome is NormalizedOutcome.DEFERRED
+                            if result.get("status") == "deferred"
                             else f"{prefix}_PASS_VERIFIED"
                         )
                     else:
@@ -1331,6 +1418,9 @@ class AutomationService:
                     ALLIANCE_DONATION_FLOW_ID: AllianceDonationExecutionHandler,
                     ALLIANCE_SHOP_FLOW_ID: AllianceShopExecutionHandler,
                     DAILY_SHOPS_FLOW_ID: DailyShopsExecutionHandler,
+                    HERO_DUEL_FLOW_ID: HeroDuelExecutionHandler,
+                    RECOMMENDED_RESEARCH_FLOW_ID: RecommendedResearchExecutionHandler,
+                    FOOD_FARM_BOOST_FLOW_ID: FoodFarmBoostExecutionHandler,
                 }[entry.flow_id]
                 options = (
                     {"stage": self.campaign_runner.stage}
@@ -1345,6 +1435,9 @@ class AutomationService:
                         DAILY_SHOPS_FLOW_ID,
                         NANO_MATERIAL_PRODUCTION_FLOW_ID,
                         NANOWEAPON_FLOW_ID,
+                        HERO_DUEL_FLOW_ID,
+                        RECOMMENDED_RESEARCH_FLOW_ID,
+                        FOOD_FARM_BOOST_FLOW_ID,
                     }
                     else {}
                 )

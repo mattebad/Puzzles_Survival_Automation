@@ -168,6 +168,25 @@ Existing layout exceptions:
   registration remains separate from production posture and SQLite controls: both routes stay
   runtime-disabled with live acceptance `evidence_required`; no live acceptance is claimed.
 
+* **Batch E Hero Duel, Recommended Research, and Food Farm Boost**: canonical-service-only routes
+  with fixed native bindings and no operator rows; preserve the existing twelve legacy operator
+  choices until Batch F. Product approval does not enable production registration or runtime
+  controls: each route remains disabled and `evidence_required`. Offline route contracts and native
+  scenarios model durable attempts separately from confirmed resource effects, restart/partial/
+  unknown outcomes, and no identical retry after unresolved effects. Hero Duel requires three
+  reset-scoped free entry/Flee cycles, a saved and verified first-five defense lineup, and all-five
+  eligible attack lineup with battle/Exit/Flee/result evidence; a win is not required. Research
+  considers only the first displayed ordinary-queue recommendation when idle and affordable, and
+  never uses Research Now diamonds, Queue 2, substitute research, boxes, or gathering. Food Farm
+  accounts for multi-building collection caused by the first Farm tap, chooses a matching owned
+  boost item before an exact approved current diamond option, and proves the same-Farm timer; item
+  action cost 1 is not a total-inventory claim and the global Food Output Boost is prohibited.
+  Current manual evidence is narrower than acceptance: Hero Duel has one free loss cycle and five
+  eligible defense heroes observed; Research Atlas and its idle recommendation were inspected but
+  no start/timer was proved; Food Farm has one owned-item boost with a positive timer and incidental
+  multi-building collection, while total inventory and the premium-choice branch remain unproven.
+  These raw investigations do not constitute route-level live acceptance.
+
 * **Campaign budgets**: the service route budget (`CAMPAIGN_MAX_INPUTS`, a whole AP drain) is a different
   fact from the single-battle development-session ceiling in `pnsctl`; the test lists the difference.
 

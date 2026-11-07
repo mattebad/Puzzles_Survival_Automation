@@ -12,61 +12,93 @@ import hashlib
 import json
 import re
 from typing import Optional, Tuple
-from .models import ActionClass, PolicyDecision, PolicyRequest
 
+# Fixed policy allowlist, independent of runtime composition and registration.
 DONATION_TASK = "ALLIANCE-TECH-DONATION-BLUESTACKS-INTEGRATION"
-
 DONATION_PRODUCT = "alliance_donation"
-
 DONATION_REVISION = "alliance_donation-v1"
-
 ALLIANCE_HELP_TASK = "ALLIANCE-HELP-TEN-FREE-REQUESTS"
-
 ALLIANCE_HELP_PRODUCT = "alliance_help"
-
 ALLIANCE_HELP_REVISION = "alliance_help-v1"
-
 ALLIANCE_SHOP_TASK = "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE"
-
 ALLIANCE_SHOP_REVISION = "alliance_shop_purchase-v2"
-
 DAILY_SHOPS_TASK = "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE"
-
 DAILY_SHOPS_REVISION = "daily_shops_purchase-v1"
-
+FOOD_FARM_TASK = "FOOD-FARM-OUTPUT-BOOST-DAILY-BLUESTACKS-INTEGRATION"
+FOOD_FARM_PRODUCT = "food_farm_output_boost"
+FOOD_FARM_REVISION = "food_farm_output_boost-v1"
+HERO_DUEL_TASK = "HERO-DUEL-EVIDENCE-GATE"
+HERO_DUEL_PRODUCT = "hero_duel"
+HERO_DUEL_REVISION = "hero_duel-v2"
 NANO_PRODUCTION_TASK = "NANO-MATERIAL-PRODUCTION-MAINTENANCE"
-
 NANO_PRODUCTION_PRODUCT = "nano_material_production"
-
 NANO_PRODUCTION_REVISION = "nano_material_production-v1"
-
 NANOWEAPON_TASK = "NANOWEAPON-BLUESTACKS-INTEGRATION"
-
 NANOWEAPON_PRODUCT = "nanoweapon_normal_craft"
-
 NANOWEAPON_REVISION = "nanoweapon_normal_craft-v2"
-
+RECOMMENDED_RESEARCH_TASK = "RECOMMENDED-RESEARCH-BLUESTACKS-INTEGRATION"
+RECOMMENDED_RESEARCH_PRODUCT = "recommended_research"
+RECOMMENDED_RESEARCH_REVISION = "recommended_research-v1"
 RUINS_FLOW = "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
-
 RUINS_PRODUCT = "ruins_challenge"
-
 RUINS_TASK = RUINS_PRODUCT
-
 RUINS_REVISION = "ruins_challenge-v1"
 
+from .models import ActionClass, PolicyDecision, PolicyRequest
+
 MAX_EXACT_ROUTE_INTEGER = 2_147_483_647
-
 MAX_ROUTE_QUANTITY = 1_000_000
-
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{0,127}$")
-
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+_APPROVED_ROUTE_TASKS = frozenset(
+    {
+        DONATION_TASK,
+        ALLIANCE_SHOP_TASK,
+        DAILY_SHOPS_TASK,
+        NANO_PRODUCTION_TASK,
+        NANOWEAPON_TASK,
+        RECOMMENDED_RESEARCH_TASK,
+        ALLIANCE_HELP_TASK,
+        RUINS_TASK,
+        HERO_DUEL_TASK,
+        FOOD_FARM_TASK,
+    }
+)
+_APPROVED_ROUTE_ACTION_TASKS = {
+    'DONATE_ALLIANCE_TECH': DONATION_TASK,
+    'PURCHASE_ALLIANCE_SHOP_OFFER': ALLIANCE_SHOP_TASK,
+    'PURCHASE_DAILY_SHOP_MATERIAL': DAILY_SHOPS_TASK,
+    'claim_nano_material_production': NANO_PRODUCTION_TASK,
+    'start_nano_material_production': NANO_PRODUCTION_TASK,
+    'claim_completed_nanoweapon': NANOWEAPON_TASK,
+    'start_one_normal_nanoweapon_craft': NANOWEAPON_TASK,
+    'START_RECOMMENDED_RESEARCH': RECOMMENDED_RESEARCH_TASK,
+    'HELP_ALLIANCE_REQUEST': ALLIANCE_HELP_TASK,
+    'ruins_zero_cost_npc_challenge_dispatch': RUINS_TASK,
+    'ruins_green_ready_stage_chest_claim': RUINS_TASK,
+    'hero_duel_free_entry': HERO_DUEL_TASK,
+    'hero_duel_flee': HERO_DUEL_TASK,
+    'hero_duel_save_defense': HERO_DUEL_TASK,
+    'collect_food_farm_resources': FOOD_FARM_TASK,
+    'apply_food_farm_output_boost_owned_item': FOOD_FARM_TASK,
+    'buy_food_farm_output_boost_diamonds': FOOD_FARM_TASK,
+}
+
+
+def is_approved_base_route_request(request: PolicyRequest) -> bool:
+    return request.task_id in _APPROVED_ROUTE_TASKS or request.semantic_action in _APPROVED_ROUTE_ACTION_TASKS
+
 
 def _deny(code: str, reason: str) -> Tuple[PolicyDecision, str, str]:
     return PolicyDecision.DENY, code, reason
 
+
 def _lock(code: str, reason: str) -> Tuple[PolicyDecision, str, str]:
     return PolicyDecision.GLOBAL_INPUT_LOCK, code, reason
+
+
+
 
 def _integer_token(value: object, *, minimum: int = 0, maximum: int = MAX_EXACT_ROUTE_INTEGER) -> Optional[int]:
     if type(value) is not str or not re.fullmatch(r"(?:0|[1-9][0-9]*)", value, flags=re.ASCII):
@@ -74,11 +106,14 @@ def _integer_token(value: object, *, minimum: int = 0, maximum: int = MAX_EXACT_
     number = int(value)
     return number if minimum <= number <= maximum else None
 
+
 def _slug(value: object) -> bool:
     return type(value) is str and _SLUG.fullmatch(value) is not None
 
+
 def _hash(value: object) -> bool:
     return type(value) is str and _SHA256.fullmatch(value) is not None
+
 
 def _tokens(request: PolicyRequest, length: int) -> Optional[Tuple[str, ...]]:
     values = request.semantic_preconditions
@@ -86,11 +121,13 @@ def _tokens(request: PolicyRequest, length: int) -> Optional[Tuple[str, ...]]:
         return None
     return values
 
+
 def _field(token: str, prefix: str) -> Optional[str]:
     if not token.startswith(prefix):
         return None
     value = token[len(prefix) :]
     return value if value else None
+
 
 def _route_runtime_guard(request: PolicyRequest) -> Optional[Tuple[PolicyDecision, str, str]]:
     observation = request.observation
@@ -101,6 +138,7 @@ def _route_runtime_guard(request: PolicyRequest) -> Optional[Tuple[PolicyDecisio
     if observation.overlay_state not in {"none", "none_observed"}:
         return _deny("APPROVED_BASE_ROUTE_OVERLAY", "the exact clear overlay state is not present")
     return None
+
 
 def _contract_matches(
     request: PolicyRequest,
@@ -155,9 +193,11 @@ def _contract_matches(
         return False
     return True
 
+
 def _exact_tuple(request: PolicyRequest, expected: Tuple[str, ...]) -> bool:
     values = _tokens(request, len(expected))
     return values == expected
+
 
 def _donation(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     deny = _deny("ALLIANCE_DONATION_ACTION_NOT_EXACT", "only the current exact ordinary Alliance Tech donation is allowed")
@@ -255,17 +295,18 @@ def _donation(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         return guard
     return PolicyDecision.AUTHORIZE, "AUTHORIZED_ALLIANCE_TECH_DONATION", "exact current HOT ordinary-resource donation and daily quota guards passed"
 
+
 _ALLIANCE_SHOP_ITEMS = frozenset({
     "joy_coin",
     "timed_recruit_coin",
     "bioenhance_scheme",
     "one_star_gear_enhance_material",
 })
-
 _DAILY_SHOP_ITEMS = {
     "3_star_chip_enhance_material": ("ruins_shop", "RUINS_COINS", "RUINS_SHOP_QUANTITY_DIALOG", "daily-shops:ruins:inner-buy", "RUINS_SHOP_PURCHASE_RECONCILED"),
     "3_star_module_enhance_material": ("rare_earth_shop", "RARE_EARTH", "RARE_EARTH_SHOP_QUANTITY_DIALOG", "daily-shops:rare-earth:inner-buy", "RARE_EARTH_SHOP_PURCHASE_RECONCILED"),
 }
+
 
 def _alliance_shop(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     deny = _deny("ALLIANCE_SHOP_ACTION_NOT_EXACT", "only one exact allowlisted quantity-one Alliance Shop offer may be bought")
@@ -334,6 +375,7 @@ def _alliance_shop(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         return guard
     return PolicyDecision.AUTHORIZE, "AUTHORIZED_ALLIANCE_SHOP_PURCHASE", "exact allowlisted Alliance offer, quantity one, current balance, and total passed"
 
+
 def _daily_shops(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     deny = _deny("DAILY_SHOPS_ACTION_NOT_EXACT", "only the exact current affordable maximum for a listed daily shop material may be bought")
     item = request.subject
@@ -401,6 +443,7 @@ def _daily_shops(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     if guard is not None:
         return guard
     return PolicyDecision.AUTHORIZE, "AUTHORIZED_DAILY_SHOP_PURCHASE", "exact item/currency pair and displayed affordable stock-bounded maximum passed"
+
 
 def _nanoweapon(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     action = request.semantic_action
@@ -526,13 +569,81 @@ def _nanoweapon(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     code = "AUTHORIZED_NANO_MATERIAL_PRODUCTION" if nano_claim or nano_start else "AUTHORIZED_NANOWEAPON_NORMAL_CRAFT"
     return PolicyDecision.AUTHORIZE, code, "exact current Nanoweapon tab, recipe, resource, and bounded action facts passed"
 
+
+def _recommended_research(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
+    deny = _deny("RECOMMENDED_RESEARCH_ACTION_NOT_EXACT", "only the first current recommended target on idle queue 1 with affordable ordinary costs is allowed")
+    target = request.subject
+    if not _slug(target):
+        return deny
+    tokens = _tokens(request, 24)
+    if tokens is None:
+        return deny
+    fixed = (
+        f"product_id={RECOMMENDED_RESEARCH_PRODUCT}",
+        f"product_revision={RECOMMENDED_RESEARCH_REVISION}",
+        f"recommended_research_reset={request.game_day_id}",
+        "recommended_research_start_ordinal=1",
+        "recommended_research_start_count_before=0",
+        f"first_displayed_recommendation_identity={target}",
+        "recommendation_position=1",
+        "queue1_state=idle",
+        "queue2_activate_tapped=false",
+        "prerequisites_known=true",
+        "prerequisites_met=true",
+    )
+    if tokens[:11] != fixed:
+        return deny
+    prerequisite_evidence = _field(tokens[11], "prerequisite_evidence=")
+    if not _slug(prerequisite_evidence):
+        return deny
+    resources = ("food", "wood", "steel", "gas")
+    for index, resource in enumerate(resources):
+        cost = _integer_token(_field(tokens[12 + index * 2], f"{resource}_cost="))
+        balance = _integer_token(_field(tokens[13 + index * 2], f"{resource}_balance="))
+        if cost is None or balance is None or balance < cost:
+            return deny
+    if tokens[20:] != (
+        "cost_source=detail_panel_scrolled_complete",
+        "affordable=true",
+        "premium_cost_excluded=true",
+        "research_now_diamonds_excluded=true",
+    ):
+        return deny
+    if not _contract_matches(
+        request,
+        action_class=ActionClass.SPEND_OR_STRATEGIC,
+        semantic_action="START_RECOMMENDED_RESEARCH",
+        action_kind="research_start",
+        subject=target,
+        source_state="RESEARCH_DETAIL",
+        target_identity=f"recommended-research:{target}:detail-research-button",
+        control_class="RESEARCH_START",
+        consequence="start_ordinary_recommended_research",
+        postcondition="RESEARCH_ACTIVE_WITH_TIMER_AND_MATCHED_RESOURCE_DEBIT",
+        cost_type="ordinary_resource_bundle",
+        cost_amount=1,
+        quantity=1,
+        resource_or_currency="food+wood+steel+gas",
+        maximum_cost=None,
+        free_only=False,
+    ):
+        return deny
+    guard = _route_runtime_guard(request)
+    if guard is not None:
+        return guard
+    return PolicyDecision.AUTHORIZE, "AUTHORIZED_RECOMMENDED_RESEARCH", "first displayed recommendation, idle queue 1, and all current ordinary resource rows passed"
+
+
+
+
+
 _RUINS_CHALLENGE_IDS = frozenset({
     "hero-challenge", "weapon-trial", "tech-challenge", "gear-challenge",
     "core-challenge", "nova-challenge", "module-challenge", "glory-challenge",
     "bioenhancer-challenge", "ultimate-challenge", "chip-challenge", "cube-challenge",
 })
-
 _RUINS_WEEKDAYS = frozenset({"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"})
+
 
 def _ruins(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     deny = _deny("RUINS_ACTION_NOT_EXACT", "only a current exact zero-cost NPC challenge or independently ready chest is allowed")
@@ -650,6 +761,110 @@ def _ruins(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         return PolicyDecision.AUTHORIZE, "AUTHORIZED_RUINS_READY_CHEST", "exact same-category green-ready chest and zero-cost claim passed"
     return deny
 
+
+def _hero_duel(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
+    deny = _deny("HERO_DUEL_ACTION_NOT_EXACT", "only exact free Survival setup, entry, or same-cycle Flee actions are allowed")
+    action = request.semantic_action
+    prefix = (f"hero_duel_product={HERO_DUEL_PRODUCT}", f"hero_duel_product_revision={HERO_DUEL_REVISION}")
+    if action == "hero_duel_free_entry":
+        tokens = _tokens(request, 16)
+        if tokens is None or tokens[:2] != prefix:
+            return deny
+        event_id = _field(tokens[2], "hero_duel_event_identity=")
+        allowance = _integer_token(_field(tokens[3], "hero_duel_free_allowance_before="), minimum=1, maximum=3)
+        pass_balance = _integer_token(_field(tokens[4], "hero_duel_pass_balance_before="))
+        ordinal = _integer_token(_field(tokens[5], "hero_duel_entry_ordinal="), minimum=1, maximum=3)
+        reset = _field(tokens[6], "hero_duel_entry_reset=")
+        if (
+            not _slug(event_id) or allowance is None or pass_balance is None or ordinal is None
+            or reset != request.game_day_id or allowance != 4 - ordinal
+        ):
+            return deny
+        if tokens[7:] != (
+            "current_event_is_hero_duel_survival", "event_active",
+            "emergency_details_exclusions_inspected", "defense_first_five_eligible_saved",
+            "attack_five_eligible_slots_populated", "listed_opponent_free_selected",
+            "entry_cost_exactly_zero", "premium_prompt_absent", "overlay_absent",
+        ):
+            return deny
+        source, target, control, consequence, post = (
+            "hero_duel_attack_formation", "hero-duel-attack-challenge",
+            "FREE_CHALLENGE", "bounded_hero_duel_participation", "hero_duel_battle_loaded",
+        )
+    elif action == "hero_duel_flee":
+        tokens = _tokens(request, 16)
+        if tokens is None or tokens[:2] != prefix:
+            return deny
+        event_id = _field(tokens[2], "hero_duel_event_identity=")
+        allowance = _integer_token(_field(tokens[3], "hero_duel_free_allowance_at_flee="), maximum=3)
+        pass_balance = _integer_token(_field(tokens[4], "hero_duel_pass_balance_before="))
+        ordinal = _integer_token(_field(tokens[5], "hero_duel_entry_ordinal="), minimum=1, maximum=3)
+        reset = _field(tokens[6], "hero_duel_entry_reset=")
+        if (
+            not _slug(event_id) or allowance is None or pass_balance is None or ordinal is None
+            or reset != request.game_day_id or allowance != 3 - ordinal
+        ):
+            return deny
+        if tokens[7:] != (
+            "current_event_is_hero_duel_survival", "entry_same_cycle_ordinal_confirmed",
+            "current_battle_loaded", "battle_exit_control_bound", "flee_warning_visible",
+            "flee_button_bound", "fight_control_excluded", "premium_prompt_absent", "overlay_absent",
+        ):
+            return deny
+        source, target, control, consequence, post = (
+            "hero_duel_flee_warning", "hero-duel-warning-flee",
+            "FLEE", "accept_hero_duel_loss", "hero_duel_loss_result",
+        )
+    elif action == "hero_duel_save_defense":
+        tokens = _tokens(request, 10)
+        if tokens is None or tokens[:2] != prefix:
+            return deny
+        event_id = _field(tokens[2], "hero_duel_event_identity=")
+        if not _slug(event_id) or tokens[3:] != (
+            "current_event_is_hero_duel_survival", "event_active",
+            "emergency_details_exclusions_inspected", "first_five_eligible_heroes_bound",
+            "five_defense_slots_exact", "prohibited_support_absent", "overlay_absent",
+        ):
+            return deny
+        source, target, control, consequence, post = (
+            "hero_duel_defense_formation", "hero-duel-defense-save-form",
+            "SAVE_FORM", "set_hero_duel_defense", "hero_duel_lineup_saved",
+        )
+    else:
+        return deny
+    if not _contract_matches(
+        request,
+        action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+        semantic_action=action,
+        action_kind=action,
+        subject=None,
+        source_state=source,
+        target_identity=target,
+        control_class=control,
+        consequence=consequence,
+        postcondition=post,
+        cost_type="none",
+        cost_amount=0,
+        quantity=1,
+        resource_or_currency="none",
+        maximum_cost=0,
+        free_only=True,
+    ):
+        return deny
+    guard = _route_runtime_guard(request)
+    if guard is not None:
+        return guard
+    return PolicyDecision.AUTHORIZE, "AUTHORIZED_HERO_DUEL_FREE_ACTION", "exact Survival event, numeric free/pass balances, bounded entry/Flee, or defense-save guards passed"
+
+
+
+
+
+
+
+
+
+
 def _alliance_help(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     deny = _deny("ALLIANCE_HELP_ACTION_NOT_EXACT", "only one exact individual free Help or bounded complete Help All action is allowed")
     if request.semantic_action != "HELP_ALLIANCE_REQUEST" or request.action_kind != "HELP_ALLIANCE_REQUEST":
@@ -739,15 +954,74 @@ def _alliance_help(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         return guard
     return PolicyDecision.AUTHORIZE, "AUTHORIZED_ALLIANCE_HELP", "exact current free request, reset-bound ordinal, and bounded quota passed"
 
-_APPROVED_ROUTE_TASKS = frozenset({DONATION_TASK, ALLIANCE_SHOP_TASK, DAILY_SHOPS_TASK, NANO_PRODUCTION_TASK, NANOWEAPON_TASK, ALLIANCE_HELP_TASK, RUINS_TASK})
 
-_APPROVED_ROUTE_ACTION_TASKS = {'DONATE_ALLIANCE_TECH': DONATION_TASK, 'PURCHASE_ALLIANCE_SHOP_OFFER': ALLIANCE_SHOP_TASK, 'PURCHASE_DAILY_SHOP_MATERIAL': DAILY_SHOPS_TASK, 'claim_nano_material_production': NANO_PRODUCTION_TASK, 'start_nano_material_production': NANO_PRODUCTION_TASK, 'claim_completed_nanoweapon': NANOWEAPON_TASK, 'start_one_normal_nanoweapon_craft': NANOWEAPON_TASK, 'HELP_ALLIANCE_REQUEST': ALLIANCE_HELP_TASK, 'ruins_zero_cost_npc_challenge_dispatch': RUINS_TASK, 'ruins_green_ready_stage_chest_claim': RUINS_TASK}
+def _food_farm(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
+    deny = _deny("FOOD_FARM_ACTION_NOT_EXACT", "only exact current Farm collection is authorizable while boost item identities remain unproven")
+    action = request.semantic_action
+    farm = request.subject if action == "collect_food_farm_resources" else None
+    if action == "collect_food_farm_resources":
+        tokens = _tokens(request, 8)
+        if tokens is None or type(farm) is not str or re.fullmatch(r"home\.building\.farm\.[0-9]{2}", farm, flags=re.ASCII) is None:
+            return deny
+        if (
+            _field(tokens[0], "product_id:") != FOOD_FARM_PRODUCT
+            or _field(tokens[1], "product_revision:") != FOOD_FARM_REVISION
+            or _field(tokens[2], "reset_identity:") != request.game_day_id
+            or tokens[3] != "effect_ordinal:collection=1"
+            or _field(tokens[4], "current_clean_home_atlas_binding:") != farm
+            or tokens[6] != f"canonical_collection_action_key_unclaimed:{request.action_key}"
+            or type(request.action_key) is not str
+            or re.fullmatch(r"food-farm-output-boost:occurrence:collection:[0-9a-f]{64}", request.action_key, flags=re.ASCII) is None
+            or tokens[7] != "current_runtime_lease_valid"
+        ):
+            return deny
+        balance = _field(tokens[5], "current_collection_balance_before:")
+        if balance is None or not _farm_resource_vector(balance):
+            return deny
+        if not _contract_matches(
+            request,
+            action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+            semantic_action=action,
+            action_kind=action,
+            subject=farm,
+            source_state="HOME_BASE",
+            target_identity=farm,
+            control_class="COLLECT",
+            consequence="collect_all_base_resource_building_output",
+            postcondition="FOOD_FARM_COLLECTION_RECONCILED",
+            cost_type="none",
+            cost_amount=0,
+            quantity=1,
+            resource_or_currency="none",
+            maximum_cost=0,
+            free_only=True,
+        ):
+            return deny
+        guard = _route_runtime_guard(request)
+        if guard is not None:
+            return guard
+        return PolicyDecision.AUTHORIZE, "AUTHORIZED_FOOD_FARM_COLLECTION", "fresh exact Atlas-bound Farm collection and reset-scoped collection key passed"
+    if action == "apply_food_farm_output_boost_owned_item":
+        return _deny("FOOD_FARM_OWNED_ITEM_IDENTITY_UNPROVEN", "the exact owned boost inventory identity and current count are not proven")
+    if action == "buy_food_farm_output_boost_diamonds":
+        return _deny("FOOD_FARM_DIAMOND_OFFER_IDENTITY_UNPROVEN", "the exact current diamond offer identity and direct-action semantics are not proven")
+    return deny
 
-def is_approved_base_route_request(request: PolicyRequest) -> bool:
-    return request.task_id in _APPROVED_ROUTE_TASKS or request.semantic_action in _APPROVED_ROUTE_ACTION_TASKS
+
+def _farm_resource_vector(value: str) -> bool:
+    parts = value.split(",")
+    if len(parts) != 4:
+        return False
+    for part, resource in zip(parts, ("food", "wood", "steel", "gas")):
+        if _integer_token(_field(part, f"{resource}=")) is None:
+            return False
+    return True
+
 
 def decide_approved_base_route(request: PolicyRequest) -> Optional[Tuple[PolicyDecision, str, str]]:
     """Return a route-specific decision, or ``None`` for unrelated legacy policy."""
+    # Route-owned recipes must not consume navigation-only requests. Let the
+    # central navigation policy retain its freshness, binding, and cost gates.
     if request.action_class is ActionClass.NAVIGATION_ONLY:
         return None
     known_task = request.task_id in _APPROVED_ROUTE_TASKS
@@ -755,7 +1029,7 @@ def decide_approved_base_route(request: PolicyRequest) -> Optional[Tuple[PolicyD
     if not known_task and expected_task is None:
         return None
     if expected_task is not None and request.task_id != expected_task:
-        return _deny('APPROVED_BASE_ROUTE_TASK_MISMATCH', 'route semantic action is bound to a different task')
+        return _deny("APPROVED_BASE_ROUTE_TASK_MISMATCH", "route semantic action is bound to a different task")
     if request.task_id == DONATION_TASK:
         return _donation(request)
     if request.task_id == ALLIANCE_SHOP_TASK:
@@ -764,8 +1038,14 @@ def decide_approved_base_route(request: PolicyRequest) -> Optional[Tuple[PolicyD
         return _daily_shops(request)
     if request.task_id in {NANO_PRODUCTION_TASK, NANOWEAPON_TASK}:
         return _nanoweapon(request)
+    if request.task_id == RECOMMENDED_RESEARCH_TASK:
+        return _recommended_research(request)
     if request.task_id == ALLIANCE_HELP_TASK:
         return _alliance_help(request)
     if request.task_id == RUINS_TASK:
         return _ruins(request)
-    return _deny('APPROVED_BASE_ROUTE_ACTION_NOT_EXACT', 'action is not in the route-specific policy set')
+    if request.task_id == HERO_DUEL_TASK:
+        return _hero_duel(request)
+    if request.task_id == FOOD_FARM_TASK:
+        return _food_farm(request)
+    return _deny("APPROVED_BASE_ROUTE_ACTION_NOT_EXACT", "action is not in the route-specific policy set")

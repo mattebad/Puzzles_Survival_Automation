@@ -1,36 +1,58 @@
 from __future__ import annotations
 
 import hashlib
-
 import json
-
 import unittest
-
 from dataclasses import replace
 
-from automation_service.registry import ALLIANCE_DONATION_FLOW_ID as DONATION, ALLIANCE_DONATION_PRODUCT_ID as DONATION_PRODUCT, ALLIANCE_DONATION_PRODUCT_REVISION as DONATION_REVISION, ALLIANCE_HELP_FLOW_ID as HELP, ALLIANCE_HELP_PRODUCT_ID as HELP_PRODUCT, ALLIANCE_HELP_PRODUCT_REVISION as HELP_REVISION, ALLIANCE_SHOP_FLOW_ID as ALLIANCE_SHOP, ALLIANCE_SHOP_PRODUCT_REVISION as ALLIANCE_SHOP_REVISION, DAILY_SHOPS_FLOW_ID as DAILY_SHOPS, DAILY_SHOPS_PRODUCT_REVISION as DAILY_SHOPS_REVISION, RUINS_FLOW_ID as RUINS, RUINS_PRODUCT_ID as RUINS_PRODUCT, RUINS_PRODUCT_REVISION as RUINS_REVISION
 from automation_service.registry import (
-    NANOWEAPON_FLOW_ID as NANOWEAPON,
-    NANOWEAPON_PRODUCT_ID as NANOWEAPON_PRODUCT,
-    NANOWEAPON_PRODUCT_REVISION as NANOWEAPON_REVISION,
+    ALLIANCE_DONATION_FLOW_ID as DONATION,
+    ALLIANCE_DONATION_PRODUCT_ID as DONATION_PRODUCT,
+    ALLIANCE_DONATION_PRODUCT_REVISION as DONATION_REVISION,
+    ALLIANCE_HELP_FLOW_ID as HELP,
+    ALLIANCE_HELP_PRODUCT_ID as HELP_PRODUCT,
+    ALLIANCE_HELP_PRODUCT_REVISION as HELP_REVISION,
+    ALLIANCE_SHOP_FLOW_ID as ALLIANCE_SHOP,
+    ALLIANCE_SHOP_PRODUCT_REVISION as ALLIANCE_SHOP_REVISION,
+    DAILY_SHOPS_FLOW_ID as DAILY_SHOPS,
+    DAILY_SHOPS_PRODUCT_REVISION as DAILY_SHOPS_REVISION,
+    FOOD_FARM_BOOST_FLOW_ID as FOOD_FARM,
+    FOOD_FARM_BOOST_PRODUCT_ID as FARM_PRODUCT,
+    FOOD_FARM_BOOST_PRODUCT_REVISION as FARM_REVISION,
+    HERO_DUEL_FLOW_ID as HERO_DUEL,
+    HERO_DUEL_PRODUCT_ID as HERO_PRODUCT,
+    HERO_DUEL_PRODUCT_REVISION as HERO_REVISION,
     NANO_MATERIAL_PRODUCTION_FLOW_ID as NANO_PRODUCTION,
     NANO_MATERIAL_PRODUCTION_PRODUCT_ID as NANO_PRODUCTION_PRODUCT,
-    NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION as NANO_PRODUCTION_REVISION
+    NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION as NANO_PRODUCTION_REVISION,
+    NANOWEAPON_FLOW_ID as NANOWEAPON,
+    RECOMMENDED_RESEARCH_FLOW_ID as RESEARCH,
+    NANOWEAPON_PRODUCT_ID as NANOWEAPON_PRODUCT,
+    NANOWEAPON_PRODUCT_REVISION as NANOWEAPON_REVISION,
+    RUINS_FLOW_ID as RUINS,
+    RECOMMENDED_RESEARCH_PRODUCT_ID as RESEARCH_PRODUCT,
+    RECOMMENDED_RESEARCH_PRODUCT_REVISION as RESEARCH_REVISION,
+    RUINS_PRODUCT_ID as RUINS_PRODUCT,
+    RUINS_PRODUCT_REVISION as RUINS_REVISION,
 )
-
 from safe_action_core.models import ActionClass, PolicyDecision
-
 from safe_action_core.policy import CentralPolicy
-
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
-
 from tests.support.safe_action import TEST_TASK_ID, observation, request as base_request
 
+
 DAY = "game-day-2026-07-15"
-
 FRAME = "a" * 64
-
 OTHER_TASK = "OTHER-SUPERVISED-TASK"
+
+POLICY = CentralPolicy(
+    {
+        DONATION, ALLIANCE_SHOP, DAILY_SHOPS, NANO_PRODUCTION, NANOWEAPON,
+        RESEARCH, HELP, RUINS_PRODUCT, HERO_DUEL, FOOD_FARM,
+        TEST_TASK_ID, OTHER_TASK,
+    }
+)
+
 
 def route_request(
     *,
@@ -104,6 +126,16 @@ def route_request(
         semantic_postconditions=(post,),
     )
 
+def navigation_request():
+    return route_request(
+        task=TRAINING, action="HOME_ATLAS_CAMERA_PAN", action_class=ActionClass.NAVIGATION_ONLY,
+        kind="navigation", subject=None, source="HOME_BASE", target="home.atlas.camera-pan",
+        control="GO", consequence="navigate_zero_cost", post="HOME_ATLAS_CAMERA_PAN_PROGRESS",
+        cost_type="none", cost=0, quantity=1, resource=None, maximum=0, free=True,
+        preconditions=(), action_key="home-atlas-camera-pan:frame-bound-1",
+    )
+
+
 def donation_request():
     cost = 25
     tokens = (
@@ -131,6 +163,7 @@ def donation_request():
         resource="FOOD", maximum=cost, free=False, preconditions=tokens,
     )
 
+
 def alliance_shop_request(item="joy_coin", shop="weekly_offers", currency="ALLIANCE_COINS", price=12, balance=80, quantity=1):
     stock = 3
     total = price * quantity
@@ -148,6 +181,7 @@ def alliance_shop_request(item="joy_coin", shop="weekly_offers", currency="ALLIA
         cost_type="ALLIANCE_COINS", cost=total, quantity=quantity, resource=currency, maximum=total,
         free=False, preconditions=tokens,
     )
+
 
 def daily_shop_request(item="3_star_chip_enhance_material", shop="ruins_shop", currency="RUINS_COINS", price=4, stock=8, balance=21, quantity=5):
     total = price * quantity
@@ -168,6 +202,7 @@ def daily_shop_request(item="3_star_chip_enhance_material", shop="ruins_shop", c
         consequence="daily_shops_purchase", post=post, cost_type=currency, cost=total,
         quantity=quantity, resource=currency, maximum=total, free=False, preconditions=tokens,
     )
+
 
 def nano_request(action, occurrence=f"{NANO_PRODUCTION}:{DAY}:1"):
     if action == "claim_nano_material_production":
@@ -207,6 +242,7 @@ def nano_request(action, occurrence=f"{NANO_PRODUCTION}:{DAY}:1"):
         free=free, preconditions=tokens, action_key=key,
     )
 
+
 def craft_claim_request():
     tokens = (
         f"product_id={NANOWEAPON_PRODUCT}", f"product_revision={NANOWEAPON_REVISION}",
@@ -220,6 +256,7 @@ def craft_claim_request():
         post="NANOWEAPON_CRAFT_CLAIMED", cost_type="none", cost=0, quantity=1, resource=None,
         maximum=0, free=True, preconditions=tokens,
     )
+
 
 def craft_start_request():
     tokens = (
@@ -236,6 +273,29 @@ def craft_start_request():
         post="NANOWEAPON_NORMAL_CRAFT_ACTIVE", cost_type="NANO_PARTS", cost=100, quantity=1,
         resource="NANO_PARTS", maximum=100, free=False, preconditions=tokens,
     )
+
+
+def research_request():
+    tokens = (
+        f"product_id={RESEARCH_PRODUCT}", f"product_revision={RESEARCH_REVISION}",
+        f"recommended_research_reset={DAY}", "recommended_research_start_ordinal=1",
+        "recommended_research_start_count_before=0", "first_displayed_recommendation_identity=research_alpha",
+        "recommendation_position=1", "queue1_state=idle", "queue2_activate_tapped=false",
+        "prerequisites_known=true", "prerequisites_met=true", "prerequisite_evidence=research_alpha",
+        "food_cost=100", "food_balance=500", "wood_cost=0", "wood_balance=200",
+        "steel_cost=25", "steel_balance=100", "gas_cost=0", "gas_balance=50",
+        "cost_source=detail_panel_scrolled_complete", "affordable=true", "premium_cost_excluded=true",
+        "research_now_diamonds_excluded=true",
+    )
+    return route_request(
+        task=RESEARCH, action="START_RECOMMENDED_RESEARCH", action_class=ActionClass.SPEND_OR_STRATEGIC,
+        kind="research_start", subject="research_alpha", source="RESEARCH_DETAIL",
+        target="recommended-research:research_alpha:detail-research-button", control="RESEARCH_START",
+        consequence="start_ordinary_recommended_research", post="RESEARCH_ACTIVE_WITH_TIMER_AND_MATCHED_RESOURCE_DEBIT",
+        cost_type="ordinary_resource_bundle", cost=1, quantity=1, resource="food+wood+steel+gas",
+        maximum=None, free=False, preconditions=tokens,
+    )
+
 
 def ruins_challenge_request():
     tokens = (
@@ -257,6 +317,7 @@ def ruins_challenge_request():
         cost_type="none", cost=0, quantity=1, resource=None, maximum=0, free=True, preconditions=tokens,
     )
 
+
 def ruins_chest_request():
     tokens = (
         f"ruins_product={RUINS_PRODUCT}", f"ruins_product_revision={RUINS_REVISION}",
@@ -275,6 +336,54 @@ def ruins_chest_request():
         consequence="ruins_zero_cost_ready_chest_reward", post="RUINS_STAGE_CHEST_CLAIMED",
         cost_type="none", cost=0, quantity=1, resource=None, maximum=0, free=True, preconditions=tokens,
     )
+
+
+def hero_request(action):
+    event = "survival_event_01"
+    prefix = (f"hero_duel_product={HERO_PRODUCT}", f"hero_duel_product_revision={HERO_REVISION}", f"hero_duel_event_identity={event}")
+    if action == "hero_duel_free_entry":
+        tokens = prefix + (
+            "hero_duel_free_allowance_before=3", "hero_duel_pass_balance_before=0",
+            "hero_duel_entry_ordinal=1", f"hero_duel_entry_reset={DAY}",
+            "current_event_is_hero_duel_survival", "event_active", "emergency_details_exclusions_inspected",
+            "defense_first_five_eligible_saved", "attack_five_eligible_slots_populated",
+            "listed_opponent_free_selected", "entry_cost_exactly_zero", "premium_prompt_absent", "overlay_absent",
+        )
+        source, target, control, consequence, post = (
+            "hero_duel_attack_formation", "hero-duel-attack-challenge", "FREE_CHALLENGE",
+            "bounded_hero_duel_participation", "hero_duel_battle_loaded",
+        )
+    elif action == "hero_duel_flee":
+        tokens = prefix + (
+            "hero_duel_free_allowance_at_flee=2", "hero_duel_pass_balance_before=0",
+            "hero_duel_entry_ordinal=1", f"hero_duel_entry_reset={DAY}",
+            "current_event_is_hero_duel_survival", "entry_same_cycle_ordinal_confirmed", "current_battle_loaded",
+            "battle_exit_control_bound", "flee_warning_visible", "flee_button_bound", "fight_control_excluded",
+            "premium_prompt_absent", "overlay_absent",
+        )
+        source, target, control, consequence, post = (
+            "hero_duel_flee_warning", "hero-duel-warning-flee", "FLEE", "accept_hero_duel_loss", "hero_duel_loss_result",
+        )
+    else:
+        tokens = prefix + (
+            "current_event_is_hero_duel_survival", "event_active", "emergency_details_exclusions_inspected",
+            "first_five_eligible_heroes_bound", "five_defense_slots_exact", "prohibited_support_absent", "overlay_absent",
+        )
+        source, target, control, consequence, post = (
+            "hero_duel_defense_formation", "hero-duel-defense-save-form", "SAVE_FORM",
+            "set_hero_duel_defense", "hero_duel_lineup_saved",
+        )
+    return route_request(
+        task=HERO_DUEL, action=action, action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+        kind=action, subject=None, source=source, target=target, control=control, consequence=consequence,
+        post=post, cost_type="none", cost=0, quantity=1, resource="none", maximum=0, free=True,
+        preconditions=tokens,
+    )
+
+
+
+
+
 
 def help_request(all=False):
     if all:
@@ -304,7 +413,67 @@ def help_request(all=False):
         quantity=quantity, resource=None, maximum=0, free=True, preconditions=tokens,
     )
 
-POLICY = CentralPolicy({DONATION, ALLIANCE_SHOP, DAILY_SHOPS, HELP, RUINS_PRODUCT, TEST_TASK_ID, OTHER_TASK, NANO_PRODUCTION, NANOWEAPON})
+
+def farm_collection_request():
+    farm = "home.building.farm.01"
+    key = f"food-farm-output-boost:occurrence:collection:{'9' * 64}"
+    tokens = (
+        f"product_id:{FARM_PRODUCT}", f"product_revision:{FARM_REVISION}",
+        f"reset_identity:{DAY}", "effect_ordinal:collection=1", f"current_clean_home_atlas_binding:{farm}",
+        "current_collection_balance_before:food=100,wood=200,steel=300,gas=400",
+        f"canonical_collection_action_key_unclaimed:{key}", "current_runtime_lease_valid",
+    )
+    return route_request(
+        task=FOOD_FARM, action="collect_food_farm_resources", action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+        kind="collect_food_farm_resources", subject=farm, source="HOME_BASE", target=farm, control="COLLECT",
+        consequence="collect_all_base_resource_building_output", post="FOOD_FARM_COLLECTION_RECONCILED",
+        cost_type="none", cost=0, quantity=1, resource="none", maximum=0, free=True,
+        preconditions=tokens, action_key=key,
+    )
+
+
+def farm_boost_request(diamonds=False):
+    farm = "home.building.farm.01"
+    item = "unproven_boost_product"
+    key = f"food-farm-output-boost:daily:boost:{'8' * 64}"
+    common = (
+        f"product_id:{FARM_PRODUCT}", f"product_revision:{FARM_REVISION}",
+        f"reset_identity:{DAY}", "effect_ordinal:boost=1", f"current_clean_home_atlas_binding:{farm}",
+        f"same_farm_identity_after_collection:{farm}", "current_food_farm_boost_panel", "boost_inactive",
+        f"exact_owned_item_name:{item}",
+    )
+    if diamonds:
+        tokens = common + (
+            "owned_inventory_count=0", f"exact_current_diamond_offer_item:{item}",
+            "diamond_offer_duration_seconds=86400", "diamond_offer_price=50", "current_diamond_balance=100",
+            "current_offer_action_or_confirmation:direct", f"canonical_food_farm_boost_action_key_unclaimed:{key}",
+            "current_runtime_lease_valid",
+        )
+        cost_type, cost, resource, maximum, consequence, action = (
+            "diamonds", 50, "diamonds", 50, "spend_exact_diamonds_for_one_food_farm_output_boost",
+            "buy_food_farm_output_boost_diamonds",
+        )
+    else:
+        tokens = common + (
+            "owned_inventory_count>=1:2", "panel_item_action_cost=1", "boost_duration_seconds=86400",
+            f"canonical_food_farm_boost_action_key_unclaimed:{key}", "current_runtime_lease_valid",
+        )
+        cost_type, cost, resource, maximum, consequence, action = (
+            "owned_item", 1, item, 1, "consume_one_exact_named_owned_food_farm_output_boost_item",
+            "apply_food_farm_output_boost_owned_item",
+        )
+    return route_request(
+        task=FOOD_FARM, action=action, action_class=ActionClass.SPEND_OR_STRATEGIC,
+        kind=action, subject=item, source="FOOD_FARM_BOOST_PANEL", target=farm, control="BOOST",
+        consequence=consequence, post="FOOD_FARM_POSITIVE_BOOSTING_TIMER", cost_type=cost_type,
+        cost=cost, quantity=1, resource=resource, maximum=maximum, free=False, preconditions=tokens,
+        action_key=key,
+    )
+
+
+
+
+
 
 class ApprovedBaseRoutePolicyTests(unittest.TestCase):
     def assert_authorized(self, req):
@@ -368,26 +537,47 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
         self.assert_denied(replace(req, subject="premium_pack"))
 
-def test_nanoweapon_claims_and_exact_production_and_craft_effects(self):
-        self.assert_authorized(nano_request('claim_nano_material_production'))
-        self.assert_authorized(nano_request('start_nano_material_production'))
+    def test_nanoweapon_claims_and_exact_production_and_craft_effects(self):
+        self.assert_authorized(nano_request("claim_nano_material_production"))
+        self.assert_authorized(nano_request("start_nano_material_production"))
         self.assert_authorized(craft_claim_request())
         self.assert_authorized(craft_start_request())
-        req = nano_request('start_nano_material_production')
+        req = nano_request("start_nano_material_production")
         tokens = list(req.semantic_preconditions)
-        tokens[8] = 'duration_seconds=21601'
+        tokens[8] = "duration_seconds=21601"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
-        self.assert_denied(replace(req, action_key=f'{NANO_PRODUCTION_PRODUCT}|{NANO_PRODUCTION}:{DAY}:2|start'))
-        opaque_occurrence = f'{NANO_PRODUCTION}:{DAY}:1|opaque_basis'
-        opaque_req = nano_request('start_nano_material_production', occurrence=opaque_occurrence)
+        self.assert_denied(replace(req, action_key=f"{NANO_PRODUCTION_PRODUCT}|{NANO_PRODUCTION}:{DAY}:2|start"))
+        opaque_occurrence = f"{NANO_PRODUCTION}:{DAY}:1|opaque_basis"
+        opaque_req = nano_request("start_nano_material_production", occurrence=opaque_occurrence)
         self.assert_authorized(opaque_req)
-        self.assert_denied(replace(opaque_req, action_key=f'{NANO_PRODUCTION_PRODUCT}|{NANO_PRODUCTION}:{DAY}:1|other_basis|start'))
+        self.assert_denied(replace(
+            opaque_req,
+            action_key=f"{NANO_PRODUCTION_PRODUCT}|{NANO_PRODUCTION}:{DAY}:1|other_basis|start",
+        ))
         req = craft_start_request()
-        self.assert_denied(replace(req, resource_or_currency='DIAMONDS'))
+        self.assert_denied(replace(req, resource_or_currency="DIAMONDS"))
         self.assert_denied(replace(req, observation=replace(req.observation, cost_amount=101), maximum_cost=101))
         tokens = list(req.semantic_preconditions)
-        tokens[8] = 'cost=NANO_PARTS:101'
+        tokens[8] = "cost=NANO_PARTS:101"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+
+    def test_recommended_research_only_first_idle_queue_ordinary_affordable_case(self):
+        req = research_request()
+        self.assert_authorized(req)
+        tokens = list(req.semantic_preconditions)
+        tokens[7] = "queue1_state=active"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        tokens = list(req.semantic_preconditions)
+        tokens[8] = "queue2_activate_tapped=true"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        tokens = list(req.semantic_preconditions)
+        tokens[13] = "food_balance=99"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        tokens = list(req.semantic_preconditions)
+        tokens[22] = "premium_cost_excluded=false"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        self.assert_denied(replace(req, subject="premium_research"))
+        self.assert_denied(replace(req, semantic_action="ACTIVATE_RESEARCH_QUEUE"))
 
     def test_ruins_zero_cost_challenge_and_same_category_chest(self):
         self.assert_authorized(ruins_challenge_request())
@@ -406,6 +596,35 @@ def test_nanoweapon_claims_and_exact_production_and_craft_effects(self):
         tokens = list(req.semantic_preconditions)
         tokens[16] = "ruins_premium=true"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+
+    def test_hero_duel_exact_free_entry_flee_and_defense_save(self):
+        for action in ("hero_duel_free_entry", "hero_duel_flee", "hero_duel_save_defense"):
+            with self.subTest(action=action):
+                self.assert_authorized(hero_request(action))
+        req = hero_request("hero_duel_free_entry")
+        tokens = list(req.semantic_preconditions)
+        tokens[7] = "current_event_is_hero_duel_survival=false"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        tokens = list(req.semantic_preconditions)
+        tokens[3] = "hero_duel_free_allowance_before=2"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        tokens = list(req.semantic_preconditions)
+        tokens[-2] = "premium_prompt_absent=false"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        req = hero_request("hero_duel_flee")
+        tokens = list(req.semantic_preconditions)
+        tokens[13] = "fight_control_excluded=false"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        tokens = list(req.semantic_preconditions)
+        tokens[3] = "hero_duel_free_allowance_at_flee=4"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        tokens = list(req.semantic_preconditions)
+        tokens[3] = "hero_duel_free_allowance_at_flee=1"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        tokens = list(req.semantic_preconditions)
+        tokens[4] = "hero_duel_pass_balance_before=-1"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+
 
     def test_free_alliance_help_individual_and_complete_help_all(self):
         self.assert_authorized(help_request())
@@ -428,6 +647,71 @@ def test_nanoweapon_claims_and_exact_production_and_craft_effects(self):
         tokens[4] = "alliance_help_request_count=11"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens),
                                   observation=replace(req.observation, quantity=11)))
+
+    def test_food_farm_collection_and_unproven_boosts(self):
+        self.assert_authorized(farm_collection_request())
+        self.assert_denied(farm_boost_request())
+        self.assert_denied(farm_boost_request(diamonds=True))
+        req = farm_collection_request()
+        invalid_key = "food-farm-output-boost:daily:collection:unbound"
+        invalid_key_tokens = list(req.semantic_preconditions)
+        invalid_key_tokens[6] = f"canonical_collection_action_key_unclaimed:{invalid_key}"
+        self.assert_denied(replace(
+            req, action_key=invalid_key, semantic_preconditions=tuple(invalid_key_tokens),
+        ))
+        tokens = list(req.semantic_preconditions)
+        tokens[5] = "current_collection_balance_before=food=100,wood=200,steel=300"
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+
+
+    def test_navigation_only_route_requests_use_generic_freshness_cost_and_binding_gates(self):
+        req = navigation_request()
+        result = POLICY.evaluate(req)
+        self.assertEqual(result.decision, PolicyDecision.AUTHORIZE, result.reason_code)
+        self.assertEqual(result.reason_code, "AUTHORIZED_NAVIGATION_ONLY")
+
+        stale = replace(
+            req,
+            observation=replace(req.observation, capture_completed_monotonic=994.0),
+        )
+        self.assertEqual(POLICY.evaluate(stale).reason_code, "STALE_FRAME")
+
+        cost_bearing = replace(
+            req,
+            observation=replace(req.observation, cost_type="ordinary_game_resources", cost_amount=1),
+            resource_or_currency="food",
+            maximum_cost=1,
+            free_only=False,
+        )
+        self.assertEqual(POLICY.evaluate(cost_bearing).reason_code, "NAVIGATION_COST_DENIED")
+        self.assert_denied(replace(req, action_class=ActionClass.ZERO_COST_CONSEQUENTIAL))
+
+        issue_request = replace(req, runtime_session_id="navigation-policy-session")
+        issued = POLICY.issue_capability(issue_request)
+        self.assertTrue(issued.authorized, issued.reason_code)
+        changed_target = replace(
+            issue_request,
+            policy_phase="pre_dispatch",
+            observation=replace(issue_request.observation, target_identity="home.atlas.changed-target"),
+        )
+        consumed = POLICY.consume_capability(issued.capability, changed_target)
+        self.assertFalse(consumed.allow_dispatch)
+        self.assertFalse(consumed.binding_matched)
+        self.assertEqual(consumed.reason_code, "CAPABILITY_TARGET_MISMATCH")
+
+    def test_unproved_preset_switch_and_generic_strategic_actions_stay_denied(self):
+        req = route_request(
+            task=TEST_TASK_ID, action="SWITCH_TALENT_PRESET", action_class=ActionClass.SPEND_OR_STRATEGIC,
+            kind="talent_preset_switch", subject="training", source="MILITARY_PRESETS", target="preset:training",
+            control="APPLY", consequence="switch_saved_talent_preset", post="TRAINING_PRESET_APPLIED",
+            cost_type="unknown", cost=0, quantity=1, resource=None, maximum=None, free=False, preconditions=(),
+        )
+        self.assert_denied(req)
+        generic = replace(req, semantic_action="UNAPPROVED_STRATEGIC_ACTION", action_kind="arbitrary")
+        self.assert_denied(generic)
+        unknown_route_action = replace(donation_request(), semantic_action="UNAPPROVED_ROUTE_ACTION")
+        self.assert_denied(unknown_route_action)
+
 
 if __name__ == "__main__":
     unittest.main()

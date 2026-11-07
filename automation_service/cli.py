@@ -31,6 +31,9 @@ from .registry import (
     RESOURCE_ITEM_FLOW_ID,
     NANO_MATERIAL_PRODUCTION_FLOW_ID,
     NANOWEAPON_FLOW_ID,
+    HERO_DUEL_FLOW_ID,
+    RECOMMENDED_RESEARCH_FLOW_ID,
+    FOOD_FARM_BOOST_FLOW_ID,
     RUINS_FLOW_ID,
     canonical_flow_specs,
     servable_flow_names,
@@ -486,6 +489,9 @@ def main(
                 alliance_shop_runner = None
                 nano_material_production_runner = None
                 nanoweapon_runner = None
+                hero_duel_runner = None
+                recommended_research_runner = None
+                food_farm_boost_runner = None
                 daily_shops_runner = None
                 selected = args.flow
                 if native_serve:
@@ -506,6 +512,9 @@ def main(
                     from .daily_shops import DailyShopsRunner
                     from .nano_material_production import NanoMaterialProductionRunner
                     from .nanoweapon import NanoweaponRunner
+                    from .hero_duel import HeroDuelRunner
+                    from .recommended_research import RecommendedResearchRunner
+                    from .food_farm_boost import FoodFarmBoostRunner
 
                     if "recruitment" in selected:
                         runner = RecruitmentRunner(
@@ -626,6 +635,33 @@ def main(
                             output_directory=args.output_directory or state_path.parent / "nanoweapon-sessions",
                             native=native_route_bindings[NANOWEAPON_FLOW_ID],
                         )
+                    if "hero-duel" in selected:
+                        if native_route_bindings is None or HERO_DUEL_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("hero-duel native binding is supplied by scripts/pnsctl.py automation-service")
+                        hero_duel_runner = HeroDuelRunner(
+                            adb=args.adb,
+                            serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "hero-duel-sessions",
+                            native=native_route_bindings[HERO_DUEL_FLOW_ID],
+                        )
+                    if "recommended-research" in selected:
+                        if native_route_bindings is None or RECOMMENDED_RESEARCH_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("recommended-research native binding is supplied by scripts/pnsctl.py automation-service")
+                        recommended_research_runner = RecommendedResearchRunner(
+                            adb=args.adb,
+                            serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "recommended-research-sessions",
+                            native=native_route_bindings[RECOMMENDED_RESEARCH_FLOW_ID],
+                        )
+                    if "food-farm-boost" in selected:
+                        if native_route_bindings is None or FOOD_FARM_BOOST_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("food-farm-boost native binding is supplied by scripts/pnsctl.py automation-service")
+                        food_farm_boost_runner = FoodFarmBoostRunner(
+                            adb=args.adb,
+                            serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "food-farm-boost-sessions",
+                            native=native_route_bindings[FOOD_FARM_BOOST_FLOW_ID],
+                        )
                 service_startup = None
                 if native_serve:
                     if application_startup is None:
@@ -657,6 +693,9 @@ def main(
                     daily_shops_runner=daily_shops_runner,
                     nano_material_production_runner=nano_material_production_runner,
                     nanoweapon_runner=nanoweapon_runner,
+                    hero_duel_runner=hero_duel_runner,
+                    recommended_research_runner=recommended_research_runner,
+                    food_farm_boost_runner=food_farm_boost_runner,
                 )
                 if native_serve:
                     flow_names = servable_flow_names()

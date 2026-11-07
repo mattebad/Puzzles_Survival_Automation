@@ -24,6 +24,9 @@ ROUTE_BOUNDARIES = {
     "daily-shops": "tests.test_daily_shops_bluestacks.DailyShopsNativeReplayTests.test_uses_live_stock_and_affordability_maximum_for_each_tab",
     "nano-material-production": "tests.test_nano_material_production_bluestacks.NanoMaterialProductionNativeSmokeTests.test_completed_production_claims_then_starts_as_two_effects",
     "nanoweapon": "tests.test_nanoweapon_bluestacks.NanoweaponNativeSmokeTests.test_same_visit_production_then_claim_and_exact_normal_start",
+    "hero-duel": "tests.test_service_hero_duel.HeroDuelServiceAdapterTests.test_attempted_unknown_entry_stays_unresolved_and_uncommitted",
+    "recommended-research": "tests.test_service_recommended_research.RecommendedResearchServiceRunnerTests.test_unknown_partial_and_restart_confirmation_never_repeat_start",
+    "food-farm-boost": "tests.test_service_food_farm_boost.FoodFarmBoostServiceTests.test_positive_timer_completion_counts_boost_and_collection_separately",
 }
 
 
@@ -249,6 +252,9 @@ FAMILIES = {
     "alliance_donation": ("alliance_donation",),
     "alliance_shop": ("alliance_shop",),
     "daily_shops": ("daily_shops",),
+    "hero_duel": ("hero_duel",),
+    "recommended_research": ("recommended_research", "tech_upgrade"),
+    "food_farm_boost": ("food_farm_boost", "resource_boost"),
     "nano_material_production": ("nano_material_production",),
     "troop": ("troop", "training"),
     "world": ("world", "stamina", "zombie_lair"),

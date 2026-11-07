@@ -1,0 +1,338 @@
+{
+  "schema_version": 2,
+  "flow_id": "RECOMMENDED-RESEARCH-BLUESTACKS-INTEGRATION",
+  "product_purpose": "Start at most the first currently displayed ordinary Recommended Research row per daily reset, only from idle Queue 1 with every current prerequisite met and all exact Food, Wood, Steel, and Gas costs affordable; use row Research only to open detail and the detail Research control to start.",
+  "trigger_cadence_type": "daily_once",
+  "reset_scope": "one_confirmed_first_recommended_research_start_per_daily_reset_identity",
+  "required_starting_context": [
+    "home_canonical"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_canonical",
+    "research_center",
+    "recommendation_list",
+    "research_detail",
+    "eligibility_checked",
+    "research_ready",
+    "shortage_deferred",
+    "research_started",
+    "queue1_active",
+    "queue1_busy",
+    "blocked",
+    "unknown_requires_evidence"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "open_research_center",
+      "from": "home_canonical",
+      "to": "research_center",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "navigate_to_research_center",
+      "postconditions": [
+        "Only the current bound Research Center route is used from canonical Home.",
+        "The exact Research Center screen is recognized before any row is selected."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "already_complete",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "recommended_research_native_acceptance"
+    },
+    {
+      "transition_id": "inspect_queue1_and_recommendations",
+      "from": "research_center",
+      "to": "recommendation_list",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "Queue 1 is positively recognized idle before eligibility; a busy, unknown, or occupied queue defers.",
+        "The first currently displayed Recommended Research row is bound by its current identity and exact position."
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "recommended_research_native_acceptance"
+    },
+    {
+      "transition_id": "select_first_recommendation_row",
+      "from": "recommendation_list",
+      "to": "research_detail",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "select_first_displayed_recommendation_row_research",
+      "postconditions": [
+        "Only position 1 is selected.",
+        "The row Research control navigates to that rowÃ¢â‚¬â„¢s detail; it does not start research."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "already_complete",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "recommended_research_native_acceptance"
+    },
+    {
+      "transition_id": "verify_prerequisites_costs_and_balances",
+      "from": "research_detail",
+      "to": "eligibility_checked",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "Every current prerequisite is positively known; unmet prerequisites and shortages take the explicit defer branch, while unknown facts block.",
+        "Exact current costs and balances are independently observed for Food, Wood, Steel, and Gas; each balance-to-cost comparison is recorded.",
+        "No start eligibility is inferred from an unknown prerequisite, cost, balance, or Queue 1 state."
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "recommended_research_native_acceptance"
+    },
+    {
+      "transition_id": "record_exact_shortages_and_defer",
+      "from": "eligibility_checked",
+      "to": "shortage_deferred",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "Every deficient ordinary resource and exact observed shortfall is durably recorded.",
+        "No Research input, resource box, gathering, purchase, or technology substitution occurs."
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ],
+      "evidence_gate_id": "recommended_research_native_acceptance"
+    },
+    {
+      "transition_id": "approve_affordable_research_start",
+      "from": "eligibility_checked",
+      "to": "research_ready",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "Every current prerequisite is met and every exact Food, Wood, Steel, and Gas balance covers its matching current cost.",
+        "Queue 1 is idle and the reset-scoped one-start attempt quota is unused.",
+        "A shortage never reaches this state; only this fully affordable first recommendation may proceed to detail Research."
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "recommended_research_native_acceptance"
+    },
+    {
+      "transition_id": "start_one_detail_research",
+      "from": "research_ready",
+      "to": "research_started",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "tap_detail_research_once",
+      "postconditions": [
+        "Only the detail Research control for the bound first recommendation is used once.",
+        "Current exact prerequisites, costs, balances, and Queue 1 idle evidence are rechecked immediately before dispatch.",
+        "Research Now, Diamonds, Queue 2, Activate, boxes, purchases, alternate technology, substitutions, and gathering are excluded."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "already_complete",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "recommended_research_native_acceptance"
+    },
+    {
+      "transition_id": "verify_queue1_start_and_timer",
+      "from": "research_started",
+      "to": "queue1_active",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "A current Queue 1 successor identifies the same technology and a positive remaining timer.",
+        "All four ordinary resource debits reconcile independently; dispatch alone is not success proof.",
+        "Attempt and confirmed-start counts are reconciled under the current reset identity; no identical retry."
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "recommended_research_native_acceptance"
+    },
+    {
+      "transition_id": "return_canonical_home",
+      "from": "queue1_active",
+      "to": "home_canonical",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "return_to_canonical_home",
+      "postconditions": [
+        "The route-owned source-bound return reaches current canonical Home."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "complete_for_reset",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "recommended_research_native_acceptance"
+    }
+  ],
+  "permitted_inputs": [
+    "navigate_to_research_center",
+    "select_first_displayed_recommendation_row_research",
+    "tap_detail_research_once",
+    "return_to_canonical_home"
+  ],
+  "consequential_action_class": "one_ordinary_recommended_research_start",
+  "cost_quantity_requirements": {
+    "free_only": false,
+    "maximum_cost": null,
+    "quantity": 1,
+    "resource_or_currency": "FOOD_WOOD_STEEL_GAS",
+    "notes": "Use exact current ordinary-resource prices and independently observed balances for all four resources; there is no numeric cost cap or premium substitute."
+  },
+  "completion_identity": "recommended-research:first-displayed-row:confirmed-start:daily-reset-identity",
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "complete_for_reset",
+    "already_complete",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "Defer when Queue 1 is busy, the reset-scoped start is already attempted or confirmed, or any exact ordinary resource balance is short; record the precise shortages and preserve partial attempt-versus-confirmed state.",
+  "bounded_recovery_behavior": "Fail closed on unknown or changed row identity, prerequisites, cost, balance, Queue 1, detail binding, start result, or canonical Home. Never select a later row, use a substitute, retry an unresolved start, spend Diamonds, activate Queue 2, inspect Daily, or attribute points.",
+  "evidence_requirements": [
+    "Current source-bound native evidence for first displayed row identity, idle Queue 1, every prerequisite, exact four-resource costs and balances, row Research navigation, detail Research dispatch, resource debit, same-identity Queue 1 timer successor, attempt-versus-confirmed persistence, reset identity, and canonical Home.",
+    "Negative evidence must demonstrate no Research Now/Diamonds, Queue 2/Activate, boxes, purchases, alternate technology, substitutions, gathering, Daily/D02, points attribution, or identical retry. No native acceptance or capture identifier is asserted."
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "recommended_research_native_acceptance",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "No synthetic fixture or prior observation substitutes for current source-bound native start and successor evidence."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "unknown or changed recommendation row",
+    "second or later recommendation row",
+    "unknown or unmet prerequisite",
+    "unknown or insufficient ordinary resource balance",
+    "unknown or changed cost",
+    "busy or unknown Queue 1",
+    "Research Now",
+    "Diamonds",
+    "Queue 2",
+    "Activate",
+    "resource boxes",
+    "purchase or refill",
+    "alternate technology",
+    "technology substitution",
+    "gathering",
+    "Daily inspection",
+    "D02 prerequisite",
+    "points attribution",
+    "unresolved or repeated start",
+    "unknown canonical Home",
+    "scheduler promotion"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "evidence_required",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "product_policy_refs": [
+    {
+      "policy_id": "recommended-research-policy",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
+  "registration_state": "disabled",
+  "production_eligible": false,
+  "evidence_gates": [
+    {
+      "gate_id": "recommended_research_native_acceptance",
+      "status": "evidence_required",
+      "blocks": [
+        "open_research_center",
+        "inspect_queue1_and_recommendations",
+        "select_first_recommendation_row",
+        "verify_prerequisites_costs_and_balances",
+        "approve_affordable_research_start",
+        "record_exact_shortages_and_defer",
+        "start_one_detail_research",
+        "verify_queue1_start_and_timer",
+        "return_canonical_home",
+        "recommended_research_one_start"
+      ],
+      "required_evidence": [
+        "The complete current native evidence set listed in evidence_requirements, including precise reset identity and durable attempt-versus-confirmed reconciliation."
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "recommended_research_one_start",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [],
+      "required_transitions": [
+        "open_research_center",
+        "inspect_queue1_and_recommendations",
+        "select_first_recommendation_row",
+        "verify_prerequisites_costs_and_balances",
+        "approve_affordable_research_start",
+        "record_exact_shortages_and_defer",
+        "start_one_detail_research",
+        "verify_queue1_start_and_timer",
+        "return_canonical_home"
+      ],
+      "evidence_gate_ids": [
+        "recommended_research_native_acceptance"
+      ],
+      "notes": "This is a disabled, evidence-gated contract. Typed policy lists only the route-owned input classes; this scenario authorizes no runtime input until the native gate is satisfied."
+    }
+  ],
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ],
+    "selected_daily_prerequisite": false,
+    "product_authority_revision": "flow-delivery-product-authority-v2-r18",
+    "product_authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528",
+    "product_record_id": "recommended_research",
+    "product_record_revision": "recommended_research-v1",
+    "product_record_digest": "5f418fa51ad2bb8c242d2ffd6789ab6ff43ab9ed47aaefcbcf4bb456bba683f0"
+  }
+}

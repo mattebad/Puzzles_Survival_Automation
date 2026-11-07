@@ -260,14 +260,63 @@
     {
       "policy_id": "hero-duel-policy",
       "scope": "hero_duel.daily",
-      "status": "prohibited",
-      "decision": "Do not authorize Hero Duel entry. PvP entry, lineup changes, combat, and loss or participation consequences remain prohibited; current event, free-opponent, Join, attempts, successor, and canonical Home evidence are unresolved.",
-      "candidate_event": "unknown_current_hero_duel_event",
+      "status": "explicitly_approved",
+      "decision": "Approve at most three free Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival entry/flee cycles per reset. Save the first five current eligible defense heroes, preserve a complete valid independent attack lineup and fill only missing eligible slots, then leave each loaded battle through Exit and Flee without a win requirement. Unknown cost/event/effect blocks; runtime controls remain disabled pending native acceptance.",
+      "candidate_event": "hero_duel_survival",
       "candidate_attempts_remaining": null,
       "daily_completion_target": 3,
-      "pvp_entry_allowed": false,
+      "maximum_confirmed_cycles_per_reset": 3,
+      "hero_slots": 5,
+      "pvp_entry_allowed": true,
+      "defense_save_allowed": true,
+      "attack_fill_missing_only": true,
+      "combat_actions_allowed": false,
       "terminal_state": "home_canonical",
-      "source": "execution_matrix_and_explicit_user_direction"
+      "dispatch_authority": null,
+      "source": "issue-75-owner-decision-2026-11-06"
+    },
+    {
+      "policy_id": "recommended-research-policy",
+      "scope": "research_center.recommended_research",
+      "status": "explicitly_approved",
+      "decision": "Approve at most one start per reset for only the first currently displayed Recommended Research row, and only on idle Queue 1 after all prerequisites and every exact current ordinary-resource cost/balance are verified affordable. Record exact resource shortages and defer normally; never substitute a technology, use premium currency, open boxes, purchase/refill, or gather resources.",
+      "first_displayed_recommendation_only": true,
+      "maximum_starts_per_reset": 1,
+      "queue1_idle_required": true,
+      "queue2_activation_allowed": false,
+      "ordinary_resources": ["food", "wood", "steel", "gas"],
+      "exact_cost_and_balance_required": true,
+      "shortage_behavior": "record_exact_shortages_and_defer",
+      "dispatch_authority": null,
+      "source": "issue-76-owner-decision-2026-11-06"
+    },
+    {
+      "policy_id": "food-farm-output-boost-policy",
+      "scope": "daily.food_farm_output_boost",
+      "status": "explicitly_approved",
+      "decision": "Approve at most one Food Farm output boost per reset. Use the exact matching owned item first; only when its independently observed inventory count is zero may the current 'Boost output (1-day)' / one-day DIAMONDS offer be considered. Its current numeric price must be freshly read and may not exceed the 48-diamond authorization cap; sufficient current balance and the same exact offer must be verified, including again if a confirmation appears. The cap is not a presumed current price. Reconcile any multi-building collection caused by the first Farm tap as a separate effect.",
+      "maximum_boosts_per_reset": 1,
+      "resource_type": "FOOD",
+      "owned_item_preferred": true,
+      "inventory_count_must_be_independently_observed": true,
+      "item_action_cost_is_not_inventory_count": true,
+      "diamond_fallback_only_when_owned_item_count_is_zero": true,
+      "current_offer_identity_duration_cost_balance_required": true,
+      "diamond_fallback_offer": {
+        "control": "Boost output (1-day)",
+        "duration": "1-day",
+        "currency": "DIAMONDS",
+        "maximum_authorized_price_diamonds": 48,
+        "current_numeric_price_must_be_observed": true,
+        "current_numeric_price_must_not_exceed_authorized_cap": true,
+        "current_balance_must_cover_exact_observed_price": true,
+        "price_and_balance_rechecked_if_confirmation_appears": true
+      },
+      "diamond_price_cap_not_assumed_current_price": true,
+      "collection_effect_accounting_required": true,
+      "buy_box_is_separate": true,
+      "dispatch_authority": null,
+      "source": "issue-78-owner-decision-2026-11-06"
     },
     {
       "policy_id": "hero-upgrade-policy",
@@ -306,7 +355,7 @@
       ],
       "preferred_currency": "Alliance Coins",
       "fallback_shop": "Other",
-      "fallback_item": "1★ Gear Enhance Material",
+      "fallback_item": "1ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Gear Enhance Material",
       "fallback_rarity": 1,
       "fallback_currency": "Alliance Coins",
       "maximum_quantity_total": 1,
@@ -339,17 +388,17 @@
       "policy_id": "daily-shops-purchase-policy",
       "scope": "daily_shops.purchase",
       "status": "explicitly_approved",
-      "decision": "During one visit, independently evaluate Ruins Shop 3★ Chip Enhance Material and Rare Earth Shop 3★ Module Enhance Material. Each tab's quantity must equal min(current stock, floor(current balance/current unit price)); reread the numeric quantity and total before its inner Buy. Preserve per-tab results; the static product decision does not authorize runtime dispatch or Daily/points attribution.",
+      "decision": "During one visit, independently evaluate Ruins Shop 3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material and Rare Earth Shop 3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material. Each tab's quantity must equal min(current stock, floor(current balance/current unit price)); reread the numeric quantity and total before its inner Buy. Preserve per-tab results; the static product decision does not authorize runtime dispatch or Daily/points attribution.",
       "shops": [
         {
           "shop": "RUINS_SHOP",
-          "item": "3★ Chip Enhance Material",
+          "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material",
           "rarity": 3,
           "currency": "Ruins Coins"
         },
         {
           "shop": "RARE_EARTH_SHOP",
-          "item": "3★ Module Enhance Material",
+          "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material",
           "rarity": 3,
           "currency": "Rare Earth"
         }
@@ -513,7 +562,7 @@
     {"policy_id": "daily-control-cost-boundary", "scope": "global.daily_control_costs", "status": "explicitly_approved", "decision": "Universal Daily control safety boundary: premium/cash purchases, paid or ambiguous controls, refills, 10x controls, and item-backed substitutes are prohibited. Route-approved resource, AP, and stamina effects remain governed by their own R/P ticket and are not globally forbidden.", "prohibited_controls": ["premium_purchase", "cash_purchase", "paid_control", "ambiguous_control", "refill", "10x", "item_backed_substitute"], "premium_allowed": false, "cash_allowed": false, "paid_allowed": false, "ambiguous_allowed": false, "refill_allowed": false, "ten_x_allowed": false, "item_backed_substitute_allowed": false, "unknown_cost_allowed": false, "route_owned_effects_globally_forbidden": false, "route_owner_ticket_required": true, "governing_owner_ticket_families": ["REC-R*", "REC-P*"], "dispatch_authority": null, "source": "REC-D01_explicit_cost_boundary"},
     {"policy_id": "current-positive-completion-postcondition", "scope": "global.completion_semantics", "status": "explicitly_approved", "decision": "Training and march completion require a current positive postcondition. Queue, timer, outbound, return, or other projected state alone never proves completion.", "applies_to": ["training", "march"], "current_positive_postcondition_required": true, "queue_projection_is_completion": false, "timer_projection_is_completion": false, "outbound_projection_is_completion": false, "return_projection_is_completion": false, "dispatch_is_completion": false, "source": "REC-D01_explicit_completion_boundary"}
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r17",
+  "authority_revision": "flow-delivery-product-authority-v2-r18",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -1314,73 +1363,189 @@
     {
       "record_id": "hero_duel",
       "record_type": "hero_duel",
-      "purpose": "Record an unresolved, evidence-gated Hero Duel participation candidate without authorizing PvP entry, lineup change, combat, or resource spend.",
+      "purpose": "Perform at most three current-reset free Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival participation cycles; win is not required.",
       "recurrence": "daily_reset_scoped",
       "semantic_entry_route": {
-        "source_home_authorities": [
-          "HOME_CANONICAL"
-        ],
+        "source_home_authorities": ["HOME_CANONICAL"],
         "target": "HERO_DUEL",
-        "route": [
-          "HERO_DUEL"
-        ]
+        "route": ["ARENA", "HERO_DUEL_SURVIVAL"]
       },
-      "objective": "join_hero_duel",
-      "action": "observe_one_hero_duel_candidate",
+      "objective": "bounded_hero_duel_participation",
+      "action": "complete_up_to_three_free_hero_duel_cycles",
       "target": {
         "kind": "hero_duel",
-        "event_identity": "unknown_current_hero_duel_event",
-        "event_active": null,
-        "target_identity": "HERO_DUEL_JOIN",
-        "candidate_attempts_remaining": null,
-        "daily_progress_before": 0,
-        "daily_completion_target": 3,
-        "policy_status": "prohibited",
-        "pvp_entry_allowed": false,
+        "event_identity": "hero_duel_survival",
+        "event_variant": "SURVIVAL",
+        "event_active_required": true,
+        "target_identity": "HERO_DUEL_FREE_CHALLENGE",
+        "maximum_cycles_per_reset": 3,
+        "maximum_hero_slots": 5,
+        "hero_selection": "first_five_eligible_displayed",
+        "attack_selection": "first_five_eligible_displayed",
+        "excluded_heroes_skipped": true,
+        "attack_lineup_independent": true,
+        "attack_lineup_fill_missing_only": true,
         "terminal_home": "HOME_CANONICAL"
       },
       "quantity_cost": {
         "quantity": 1,
         "cost": {
-          "kind": "prohibited_pvp_cost",
+          "kind": "zero_cost_hero_duel_free_entry",
+          "amount": 0,
+          "unit": "entry",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "maximum_confirmed_cycles_per_reset": 3,
+        "event_active_evidence_required": true,
+        "survival_event_identity_must_remain_current": true,
+        "free_allowance_and_zero_cost_required": true,
+        "defense_formation_save_required": true,
+        "defense_formation_slots": 5,
+        "defense_selection": "first_five_eligible_displayed",
+        "attack_selection": "first_five_eligible_displayed",
+        "current_event_exclusions_skipped": true,
+        "attack_formation_slots": 5,
+        "attack_formation_is_independent": true,
+        "fill_missing_attack_slots_only": true,
+        "preserve_complete_valid_attack_formation": true,
+        "battle_loaded_state_required": true,
+        "exit_as_soon_as_wave_one_battle_loaded": true,
+        "flee_warning_and_flee_control_required": true,
+        "fight_allowed": false,
+        "loss_result_acceptable": true,
+        "result_continue_required": true,
+        "positive_participation_successor_required": true,
+        "confirmed_cycle_progress_persisted": true,
+        "transport_is_not_success_proof": true,
+        "pass_balance_decrease_allowed": false,
+        "daily_progress_maximum": 3,
+        "canonical_home_successor_required": true,
+        "daily_ownership": "none",
+        "daily_inspection_required": false,
+        "points_attribution_required": false,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Glory",
+        "paid entry",
+        "premium entry",
+        "Activate",
+        "Refresh opponent",
+        "Fight",
+        "combat loop",
+        "reward farming",
+        "unknown event",
+        "inactive event",
+        "unknown cost",
+        "unknown attempts",
+        "insufficient attempts",
+        "identical retry",
+        "real-money confirmation",
+        "Daily inspection",
+        "D02 prerequisite",
+        "points attribution"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Hero Duel completion owns no Daily provider or points attribution; the route's three confirmed free participation cycles are its only completion condition."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:issue-75-bounded-survival-entry-flee",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-hero-duel-survival-route",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "hero_duel-v2",
+      "record_digest": "6eef740d0ef6f726966573dd2886404a8a3c08d68c5ecac31833c3e32262e63c"
+    },
+    {
+      "record_id": "recommended_research",
+      "record_type": "recommended_research",
+      "purpose": "Start only the first current Recommended Research row when Queue 1 is idle, every prerequisite is met, and all exact ordinary resource costs are affordable.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": ["HOME_CANONICAL"],
+        "target": "RESEARCH_CENTER",
+        "route": ["RESEARCH_CENTER", "RECOMMENDED_RESEARCH"]
+      },
+      "objective": "start_first_recommended_research",
+      "action": "start_one_affordable_recommended_research",
+      "target": {
+        "kind": "recommended_research",
+        "recommendation_position": 1,
+        "recommendation_selection": "first_displayed_row",
+        "recommendation_row_control": "ROW_RESEARCH_NAVIGATION",
+        "detail_start_control": "DETAIL_RESEARCH_START",
+        "row_research_only_navigates": true,
+        "queue1_idle_required": true,
+        "queue2_activation_allowed": false,
+        "all_prerequisites_known_and_met": true,
+        "ordinary_resources": ["food", "wood", "steel", "gas"],
+        "exact_cost_and_balance_required": true,
+        "maximum_starts_per_reset": 1,
+        "shortage_behavior": "record_exact_shortages_and_defer",
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "exact_current_ordinary_resources",
           "amount": null,
-          "unit": "NO_PVP_RESOURCE_SPEND",
+          "unit": "FOOD_WOOD_STEEL_GAS",
           "free_only": false
         }
       },
       "semantic_effect": {
-        "effect_ordinal": 1,
-        "exact_event_evidence_required": true,
-        "event_active_evidence_required": true,
-        "free_opponent_evidence_required": true,
-        "join_control_evidence_required": true,
-        "attempts_remaining_evidence_required": true,
-        "participation_successor_required": true,
-        "daily_progress_successor_required": true,
-        "daily_progress_maximum": 3,
-        "pvp_entry_allowed": false,
-        "combat_dispatch_allowed": false,
-        "lineup_change_allowed": false,
-        "canonical_home_successor_required": true,
+        "maximum_starts_per_reset": 1,
+        "first_recommendation_only": true,
+        "queue1_idle_before_start": true,
+        "all_prerequisites_must_be_current_and_met": true,
+        "all_four_ordinary_costs_and_balances_required": true,
+        "shortages_recorded_and_deferred": true,
+        "recommendation_row_research_navigates_only": true,
+        "detail_research_control_starts_action": true,
+        "active_queue_successor_for_same_identity_required": true,
+        "positive_remaining_timer_required": true,
+        "all_four_resource_debits_required": true,
         "dispatch_is_not_success_proof": true,
+        "queue2_activation_allowed": false,
+        "research_now_diamonds_allowed": false,
+        "alternate_technology_allowed": false,
         "daily_ownership": "none",
+        "daily_inspection_required": false,
+        "points_attribution_required": false,
         "identical_retry": false
       },
       "forbidden_actions": [
-        "Join",
-        "PvP entry",
-        "combat dispatch",
-        "lineup change",
-        "attack",
-        "loss consequence",
-        "premium opponent",
-        "unknown event",
-        "ambiguous event",
-        "inactive event",
-        "unknown opponent",
-        "ambiguous opponent",
-        "unknown attempts",
-        "insufficient attempts",
+        "Research Now",
+        "diamonds",
+        "Queue 2",
+        "Activate",
+        "box",
+        "purchase",
+        "refill",
+        "alternate technology",
+        "technology substitution",
+        "gathering",
+        "base resource collection",
+        "unknown target",
+        "unknown prerequisite",
+        "unknown cost",
+        "insufficient ordinary balance",
         "identical retry",
         "real-money confirmation"
       ],
@@ -1392,22 +1557,137 @@
         "daily_owner": null,
         "point_credit_trigger": null,
         "selected_daily_prerequisite": false,
-        "notes": "Hero Duel candidate owns no Daily Claim or points; aggregate_daily_claim remains the sole ordinary Claim owner."
+        "notes": "Recommended Research is a direct technology action; it does not require Daily, D02, or points evidence."
       },
       "authority_references": [
         {
-          "reference_id": "user-direction:hero-duel-pvp-prohibited-until-approved",
+          "reference_id": "user-direction:issue-76-first-recommended-research-only",
           "reference_kind": "user_direction",
           "immutable": true
         },
         {
-          "reference_id": "native-authority:bluestacks-hero-duel-surface",
+          "reference_id": "native-authority:bluestacks-recommended-research-resource-rows",
           "reference_kind": "native_authority",
           "immutable": true
         }
       ],
-      "record_revision": "hero_duel-v1",
-      "record_digest": "1548299f91f76c377167b8a0bef74c62d241886c3198753eb5dd65cb3c9efc12"
+      "record_revision": "recommended_research-v1",
+      "record_digest": "5f418fa51ad2bb8c242d2ffd6789ab6ff43ab9ed47aaefcbcf4bb456bba683f0"
+    },
+    {
+      "record_id": "food_farm_output_boost",
+      "record_type": "food_farm_output_boost",
+      "purpose": "Apply at most one daily Food Farm output boost, preferring the exact matching owned item and permitting only the currently re-observed one-day Food Farm diamond option at or below its 48-diamond authorization cap when no matching item is owned.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": ["HOME_CANONICAL"],
+        "target": "FOOD_FARM",
+        "route": ["MAPPED_FOOD_FARM", "BOOST"]
+      },
+      "objective": "food_farm_output_boost",
+      "action": "apply_one_food_farm_output_boost",
+      "target": {
+        "kind": "food_farm_output_boost",
+        "resource_type": "FOOD",
+        "farm_identity": "current_safely_bound_mapped_farm",
+        "maximum_boosts_per_reset": 1,
+        "owned_item_preferred": true,
+        "owned_item_count_must_be_independently_observed": true,
+        "item_action_cost": 1,
+        "item_action_cost_is_not_inventory_count": true,
+        "diamond_fallback_only_when_owned_item_count_is_zero": true,
+        "diamond_offer_must_match_current_item_duration_cost_and_balance": true,
+        "diamond_fallback_offer": {
+          "control": "Boost output (1-day)",
+          "duration": "1-day",
+          "currency": "DIAMONDS",
+          "maximum_authorized_price_diamonds": 48,
+          "current_numeric_price_must_be_observed": true,
+          "current_numeric_price_must_not_exceed_authorized_cap": true,
+          "current_balance_must_cover_exact_observed_price": true,
+          "price_and_balance_rechecked_if_confirmation_appears": true
+        },
+        "diamond_price_cap_not_assumed_current_price": true,
+        "unknown_or_changed_offer_blocks": true,
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "owned_item_preferred_or_exact_diamond_offer",
+          "amount": null,
+          "unit": "food_farm_boost_item_or_diamonds",
+          "free_only": false
+        }
+      },
+      "semantic_effect": {
+        "maximum_boosts_per_reset": 1,
+        "item_preferred_over_diamonds": true,
+        "owned_item_identity_count_and_duration_required": true,
+        "exact_current_diamond_item_duration_cost_balance_required": true,
+        "diamond_price_cap_not_assumed_current_price": true,
+        "exact_current_numeric_price_and_balance_required": true,
+        "current_price_must_not_exceed_authorized_cap": true,
+        "current_price_rechecked_if_confirmation_appears": true,
+        "changed_confirmation_prompt_blocks": true,
+        "same_farm_active_boost_successor_required": true,
+        "positive_boosting_timer_required": true,
+        "dispatch_is_not_success_proof": true,
+        "first_farm_tap_may_collect_multiple_buildings": true,
+        "collection_balances_must_be_reconciled_before_boost": true,
+        "collection_exact_balance_delta_for_each_resource_required": true,
+        "collection_balance_resources": ["food", "wood", "steel", "gas"],
+        "collection_is_not_boost_success": true,
+        "global_food_output_boost_item_allowed": false,
+        "daily_progress_maximum": 1,
+        "daily_ownership": "none",
+        "daily_inspection_required": false,
+        "points_attribution_required": false,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "Buy Box",
+        "Resource Building Boost",
+        "global Food Output Boost",
+        "unknown item",
+        "ambiguous item",
+        "unknown inventory count",
+        "inventory count inferred from action cost",
+        "unknown duration",
+        "unknown diamond price",
+        "unknown balance",
+        "changed prompt",
+        "real-money confirmation",
+        "second boost",
+        "identical retry",
+        "Daily inspection",
+        "D02 prerequisite",
+        "points attribution"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Food Farm output boost is distinct from Buy Box and global Food Output Boost; collection output is separately reconciled and not treated as boost completion."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:issue-78-food-farm-item-first-one-daily-boost",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-food-farm-boost-and-collection-effect",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "food_farm_output_boost-v1",
+      "record_digest": "7ef1742cf67b28a27dde83d7c39244228e43ea8085e379a796589a0002afe2e4"
     },
     {
       "record_id": "hero_upgrade",
@@ -1555,7 +1835,7 @@
         ],
         "preferred_currency": "Alliance Coins",
         "fallback_shop": "Other",
-        "fallback_item": "1★ Gear Enhance Material",
+        "fallback_item": "1ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Gear Enhance Material",
         "fallback_rarity": 1,
         "fallback_currency": "Alliance Coins",
         "maximum_quantity_total": 1,
@@ -1766,7 +2046,7 @@
           {
             "shop": "RUINS_SHOP",
             "tab": "Ruins Shop",
-            "item": "3★ Chip Enhance Material",
+            "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material",
             "rarity": 3,
             "currency": "Ruins Coins",
             "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))"
@@ -1774,7 +2054,7 @@
           {
             "shop": "RARE_EARTH_SHOP",
             "tab": "Rare Earth Shop",
-            "item": "3★ Module Enhance Material",
+            "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material",
             "rarity": 3,
             "currency": "Rare Earth",
             "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))"
@@ -3051,5 +3331,5 @@
       "record_digest": "3ed8f746336bfa3a0544591b42e8cea832ee3a0b10d10dda54cedcf390c57d78"
     }
   ],
-  "authority_digest": "874c5fa56867cf47dbff7673adbe4cf6715a2fc55c022a35e3bdc7e9f2b08fd4"
+  "authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528"
 }

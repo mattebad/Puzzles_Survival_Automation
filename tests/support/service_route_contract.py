@@ -11,10 +11,11 @@ from unittest.mock import patch
 from automation_service.registry import (
     ALLIANCE_DONATION_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
     BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, DAILY_REWARDS_FLOW_ID,
-    DAILY_SHOPS_FLOW_ID, ENHANCEMENT_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
-    NANOWEAPON_FLOW_ID, NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID,
-    RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
-    WORLD_FLOW_ID, canonical_entry,
+    DAILY_SHOPS_FLOW_ID, ENHANCEMENT_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
+    HERO_DUEL_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
+    NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID,
+    RECRUITMENT_FLOW_ID, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, SUPPLY_FLOW_ID,
+    ULTIMATE_FLOW_ID, WORLD_FLOW_ID, canonical_entry,
 )
 from automation_service.service import AutomationService
 from automation_service.state import BotStateManager
@@ -24,9 +25,10 @@ from tests.support.service_route_fakes import (
     GuardedAllianceDonationRunner, GuardedAllianceHelpRunner,
     GuardedAllianceShopRunner, GuardedBioenhancerRunner,
     GuardedCampaignRunner, GuardedDailyRewardsRunner, GuardedDailyShopsRunner,
-    GuardedEnhancementRunner, GuardedNanoMaterialProductionRunner,
-    GuardedNanoweaponRunner, GuardedNovaRunner, GuardedPersonalMightRunner,
-    GuardedRecruitmentRunner, GuardedResourceItemRunner, GuardedRuinsRunner,
+    GuardedEnhancementRunner, GuardedFoodFarmBoostRunner, GuardedHeroDuelRunner,
+    GuardedNanoMaterialProductionRunner, GuardedNanoweaponRunner, GuardedNovaRunner,
+    GuardedPersonalMightRunner, GuardedRecruitmentRunner,
+    GuardedRecommendedResearchRunner, GuardedResourceItemRunner, GuardedRuinsRunner,
     GuardedSupplyRunner, GuardedUltimateRunner,
 )
 from tests.support.service_stop import VirtualStop
@@ -65,8 +67,13 @@ def _ruins_partial(runner):
 def _alliance_help_partial(runner):
     runner.partial = True
 
+
 def _work_by_default(runner):
     """The fake's initial state already exercises a resource-affecting run."""
+
+
+def _e_route_partial(runner):
+    runner.partial = True
 
 
 ROUTES = {
@@ -160,6 +167,19 @@ ROUTES = {
         _work_by_default, lambda runner: setattr(runner, "partial", True),
         (13, 2), (1, 0), 22,
     ),
+    HERO_DUEL_FLOW_ID: RouteSpec(
+        HERO_DUEL_FLOW_ID, lambda stop, root: GuardedHeroDuelRunner(stop, root),
+        _work_by_default, _e_route_partial, (11, 1), (1, 0), 20,
+    ),
+    RECOMMENDED_RESEARCH_FLOW_ID: RouteSpec(
+        RECOMMENDED_RESEARCH_FLOW_ID,
+        lambda stop, root: GuardedRecommendedResearchRunner(stop, root),
+        _work_by_default, _e_route_partial, (8, 1), (1, 0), 5,
+    ),
+    FOOD_FARM_BOOST_FLOW_ID: RouteSpec(
+        FOOD_FARM_BOOST_FLOW_ID, lambda stop, root: GuardedFoodFarmBoostRunner(stop, root),
+        _work_by_default, _e_route_partial, (3, 1), (1, 0), 4,
+    ),
 }
 
 NOT_SERVABLE = {
@@ -185,6 +205,10 @@ EXCEPTIONS = {
     (RECRUITMENT_FLOW_ID, "restart_before_due"): (
         "Recruitment eligibility follows a cooldown, not the next reset",
         "tests.test_service_recruitment.ServiceRecruitmentTests.test_native_pass_cooldown_restart_and_later_eligibility",
+    ),
+    (RECOMMENDED_RESEARCH_FLOW_ID, "restart_before_due"): (
+        "a confirmed recommendation may settle its timer within the same reset but must not start twice",
+        "tests.test_service_route_contract.BatchESemanticContractTests.test_research_start_is_not_replayed_after_same_reset_restart",
     ),
     (DAILY_REWARDS_FLOW_ID, "restart_before_due"): (
         "the 300-second cooldown is an observation interval; a distinct ready batch may run within the same reset",
@@ -232,6 +256,7 @@ class RouteRig:
             ALLIANCE_DONATION_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
             DAILY_REWARDS_FLOW_ID, DAILY_SHOPS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
             RUINS_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
+            HERO_DUEL_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
         }:
             from datetime import datetime, timezone
             backend = derive_resource_runtime_identity(

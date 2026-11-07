@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r17"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r18"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -63,6 +63,8 @@ RECORD_TYPES = frozenset(
         "daily_shops_purchase",
         "hero_upgrade",
         "hero_duel",
+        "recommended_research",
+        "food_farm_output_boost",
         "nanoweapon_normal_craft",
         "nano_material_production",
         "vip_points_popup_dismissal",
@@ -93,6 +95,8 @@ RECORD_IDS = frozenset(
         "daily_shops_purchase",
         "hero_upgrade",
         "hero_duel",
+        "recommended_research",
+        "food_farm_output_boost",
         "nanoweapon_normal_craft",
         "nano_material_production",
         "vip_points_popup_dismissal",
@@ -327,11 +331,13 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "alliance_shop_purchase": "ALLIANCE_SHOP",
         "hero_upgrade": "HERO",
         "hero_duel": "HERO_DUEL",
+        "recommended_research": "RESEARCH_CENTER",
+        "food_farm_output_boost": "FOOD_FARM",
         "nanoweapon_normal_craft": "NANOWEAPON",
         "nano_material_production": "NANOWEAPON",
         "world_map_navigation": "WORLD",
         "vip_points_popup_dismissal": "HOME",
-    }[record_type]
+    }
     if target != expected_target:
         raise ProductAuthorityError(
             f"{record_type} semantic entry route must target {expected_target}"
@@ -369,11 +375,13 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "daily_shops_purchase": "daily_shops_purchase",
         "hero_upgrade": "hero_upgrade",
         "hero_duel": "hero_duel",
+        "recommended_research": "recommended_research",
+        "food_farm_output_boost": "food_farm_output_boost",
         "nanoweapon_normal_craft": "nanoweapon_normal_craft",
         "nano_material_production": "nano_material_production",
         "world_map_navigation": "world_map_navigation",
         "vip_points_popup_dismissal": "vip_points_popup_dismissal",
-    }[record_id]
+    }
     if record_type != expected_type:
         raise ProductAuthorityError("product record id/type discriminator mismatch")
     for field in (
@@ -1358,108 +1366,336 @@ def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
                 f"Gathering forbidden actions must include {marker}"
             )
 def _validate_hero_duel_record(record: Mapping[str, Any]) -> None:
-    """Validate an unresolved, non-dispatch Hero Duel candidate."""
+    """Validate approved three-cycle Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival product semantics."""
 
-    if record["objective"] != "join_hero_duel":
-        raise ProductAuthorityError(
-            "Hero Duel record objective must be join_hero_duel"
-        )
-    if record["action"] != "observe_one_hero_duel_candidate":
-        raise ProductAuthorityError(
-            "Hero Duel action must remain observation-only until product approval"
-        )
+    if record["objective"] != "bounded_hero_duel_participation":
+        raise ProductAuthorityError("Hero Duel objective must be bounded participation")
+    if record["action"] != "complete_up_to_three_free_hero_duel_cycles":
+        raise ProductAuthorityError("Hero Duel action must be the approved free cycle")
     if record["recurrence"] != "daily_reset_scoped":
         raise ProductAuthorityError("Hero Duel recurrence must be daily_reset_scoped")
     route = record["semantic_entry_route"]
-    if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
-        "route"
-    ) != ["HERO_DUEL"]:
-        raise ProductAuthorityError(
-            "Hero Duel entry route must bind canonical Home to Hero Duel"
-        )
-    target = record["target"]
     if (
-        not isinstance(target, Mapping)
-        or target.get("kind") != "hero_duel"
-        or target.get("event_identity") != "unknown_current_hero_duel_event"
-        or target.get("event_active") is not None
-        or target.get("target_identity") != "HERO_DUEL_JOIN"
-        or target.get("candidate_attempts_remaining") is not None
-        or target.get("daily_progress_before") != 0
-        or target.get("daily_completion_target") != 3
-        or target.get("policy_status") != "prohibited"
-        or target.get("pvp_entry_allowed") is not False
-        or target.get("terminal_home") != "HOME_CANONICAL"
+        route.get("source_home_authorities") != ["HOME_CANONICAL"]
+        or route.get("target") != "HERO_DUEL"
+        or route.get("route") != ["ARENA", "HERO_DUEL_SURVIVAL"]
     ):
         raise ProductAuthorityError(
-            "Hero Duel target must preserve unknown event and attempt bounds"
+            "Hero Duel must enter the exact Survival event from canonical Home"
+        )
+    target = record["target"]
+    target_requirements = {
+        "kind": "hero_duel",
+        "event_identity": "hero_duel_survival",
+        "event_variant": "SURVIVAL",
+        "event_active_required": True,
+        "target_identity": "HERO_DUEL_FREE_CHALLENGE",
+        "maximum_cycles_per_reset": 3,
+        "maximum_hero_slots": 5,
+        "hero_selection": "first_five_eligible_displayed",
+        "attack_selection": "first_five_eligible_displayed",
+        "excluded_heroes_skipped": True,
+        "attack_lineup_independent": True,
+        "attack_lineup_fill_missing_only": True,
+        "terminal_home": "HOME_CANONICAL",
+    }
+    if not isinstance(target, Mapping) or any(
+        target.get(key) != value for key, value in target_requirements.items()
+    ):
+        raise ProductAuthorityError("Hero Duel target exceeds or weakens the approved bounds")
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != 1
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "zero_cost_hero_duel_free_entry"
+        or cost.get("amount") != 0
+        or cost.get("unit") != "entry"
+        or cost.get("free_only") is not True
+    ):
+        raise ProductAuthorityError("Hero Duel entry must be an exact zero-cost Free action")
+    effect = record["semantic_effect"]
+    required_effects = {
+        "maximum_confirmed_cycles_per_reset": 3,
+        "event_active_evidence_required": True,
+        "survival_event_identity_must_remain_current": True,
+        "free_allowance_and_zero_cost_required": True,
+        "defense_formation_save_required": True,
+        "defense_formation_slots": 5,
+        "defense_selection": "first_five_eligible_displayed",
+        "attack_selection": "first_five_eligible_displayed",
+        "current_event_exclusions_skipped": True,
+        "attack_formation_slots": 5,
+        "attack_formation_is_independent": True,
+        "fill_missing_attack_slots_only": True,
+        "preserve_complete_valid_attack_formation": True,
+        "battle_loaded_state_required": True,
+        "exit_as_soon_as_wave_one_battle_loaded": True,
+        "flee_warning_and_flee_control_required": True,
+        "fight_allowed": False,
+        "loss_result_acceptable": True,
+        "result_continue_required": True,
+        "positive_participation_successor_required": True,
+        "confirmed_cycle_progress_persisted": True,
+        "transport_is_not_success_proof": True,
+        "pass_balance_decrease_allowed": False,
+        "daily_progress_maximum": 3,
+        "canonical_home_successor_required": True,
+        "daily_ownership": "none",
+        "daily_inspection_required": False,
+        "points_attribution_required": False,
+        "identical_retry": False,
+    }
+    if any(effect.get(key) != value for key, value in required_effects.items()):
+        raise ProductAuthorityError("Hero Duel effect does not match the bounded free cycle")
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError("Hero Duel must return to canonical Home")
+    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    for marker in (
+        "hero duel glory",
+        "paid entry",
+        "premium entry",
+        "activate",
+        "refresh opponent",
+        "fight",
+        "combat loop",
+        "reward farming",
+        "unknown event",
+        "inactive event",
+        "unknown cost",
+        "unknown attempts",
+        "insufficient attempts",
+        "identical retry",
+        "real-money",
+        "daily inspection",
+        "d02",
+        "points attribution",
+    ):
+        if marker not in forbidden:
+            raise ProductAuthorityError(f"Hero Duel must forbid {marker}")
+
+
+def _validate_recommended_research_record(record: Mapping[str, Any]) -> None:
+    """Validate one first-row Recommended Research start with ordinary resources."""
+
+    if record["objective"] != "start_first_recommended_research":
+        raise ProductAuthorityError("Recommended Research objective must use the first row")
+    if record["action"] != "start_one_affordable_recommended_research":
+        raise ProductAuthorityError("Recommended Research action must be one start")
+    if record["recurrence"] != "daily_reset_scoped":
+        raise ProductAuthorityError("Recommended Research must be reset-scoped")
+    route = record["semantic_entry_route"]
+    if (
+        route.get("source_home_authorities") != ["HOME_CANONICAL"]
+        or route.get("target") != "RESEARCH_CENTER"
+        or route.get("route") != ["RESEARCH_CENTER", "RECOMMENDED_RESEARCH"]
+    ):
+        raise ProductAuthorityError("Recommended Research route must use Research Center")
+    target = record["target"]
+    target_requirements = {
+        "kind": "recommended_research",
+        "recommendation_position": 1,
+        "recommendation_selection": "first_displayed_row",
+        "recommendation_row_control": "ROW_RESEARCH_NAVIGATION",
+        "detail_start_control": "DETAIL_RESEARCH_START",
+        "row_research_only_navigates": True,
+        "queue1_idle_required": True,
+        "queue2_activation_allowed": False,
+        "all_prerequisites_known_and_met": True,
+        "ordinary_resources": ["food", "wood", "steel", "gas"],
+        "exact_cost_and_balance_required": True,
+        "maximum_starts_per_reset": 1,
+        "shortage_behavior": "record_exact_shortages_and_defer",
+        "terminal_home": "HOME_CANONICAL",
+    }
+    if not isinstance(target, Mapping) or any(
+        target.get(key) != value for key, value in target_requirements.items()
+    ):
+        raise ProductAuthorityError(
+            "Recommended Research must be first-row, idle, prerequisite, and cost bounded"
         )
     quantity_cost = record["quantity_cost"]
     cost = quantity_cost.get("cost")
     if (
         quantity_cost.get("quantity") != 1
         or not isinstance(cost, Mapping)
-        or cost.get("kind") != "prohibited_pvp_cost"
+        or cost.get("kind") != "exact_current_ordinary_resources"
         or cost.get("amount") is not None
-        or cost.get("unit") != "NO_PVP_RESOURCE_SPEND"
+        or cost.get("unit") != "FOOD_WOOD_STEEL_GAS"
         or cost.get("free_only") is not False
     ):
         raise ProductAuthorityError(
-            "Hero Duel candidate must keep PvP cost fail-closed"
+            "Recommended Research cost must be the exact current ordinary-resource rows"
         )
     effect = record["semantic_effect"]
     required_effects = {
-        "effect_ordinal": 1,
-        "exact_event_evidence_required": True,
-        "event_active_evidence_required": True,
-        "free_opponent_evidence_required": True,
-        "join_control_evidence_required": True,
-        "attempts_remaining_evidence_required": True,
-        "participation_successor_required": True,
-        "daily_progress_successor_required": True,
-        "daily_progress_maximum": 3,
-        "pvp_entry_allowed": False,
-        "combat_dispatch_allowed": False,
-        "lineup_change_allowed": False,
-        "canonical_home_successor_required": True,
+        "maximum_starts_per_reset": 1,
+        "first_recommendation_only": True,
+        "queue1_idle_before_start": True,
+        "all_prerequisites_must_be_current_and_met": True,
+        "all_four_ordinary_costs_and_balances_required": True,
+        "shortages_recorded_and_deferred": True,
+        "recommendation_row_research_navigates_only": True,
+        "detail_research_control_starts_action": True,
+        "active_queue_successor_for_same_identity_required": True,
+        "positive_remaining_timer_required": True,
+        "all_four_resource_debits_required": True,
         "dispatch_is_not_success_proof": True,
+        "queue2_activation_allowed": False,
+        "research_now_diamonds_allowed": False,
+        "alternate_technology_allowed": False,
         "daily_ownership": "none",
+        "daily_inspection_required": False,
+        "points_attribution_required": False,
         "identical_retry": False,
     }
     if any(effect.get(key) != value for key, value in required_effects.items()):
         raise ProductAuthorityError(
-            "Hero Duel candidate must stay evidence-gated and non-dispatching"
+            "Recommended Research effect weakens queue, cost, or shortage policy"
         )
     terminal = record["terminal_requirement"]
     if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
         "return_required"
     ) is not True:
-        raise ProductAuthorityError(
-            "Hero Duel terminal requirement must return to canonical Home"
-        )
+        raise ProductAuthorityError("Recommended Research must return to canonical Home")
     forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
     for marker in (
-        "join",
-        "pvp entry",
-        "combat dispatch",
-        "lineup change",
-        "attack",
-        "loss consequence",
-        "premium opponent",
-        "unknown event",
-        "ambiguous event",
-        "inactive event",
-        "unknown opponent",
-        "unknown attempts",
-        "insufficient attempts",
+        "research now",
+        "diamonds",
+        "queue 2",
+        "activate",
+        "box",
+        "purchase",
+        "refill",
+        "alternate technology",
+        "technology substitution",
+        "gathering",
+        "base resource collection",
+        "unknown target",
+        "unknown prerequisite",
+        "unknown cost",
+        "insufficient ordinary balance",
         "identical retry",
         "real-money",
     ):
         if marker not in forbidden:
-            raise ProductAuthorityError(
-                f"Hero Duel candidate must forbid {marker} actions"
-            )
+            raise ProductAuthorityError(f"Recommended Research must forbid {marker}")
 
+
+def _validate_food_farm_output_boost_record(record: Mapping[str, Any]) -> None:
+    """Validate one reset-scoped Food Farm boost and any prerequisite collection."""
+
+    if record["objective"] != "food_farm_output_boost":
+        raise ProductAuthorityError("Food Farm objective must be food_farm_output_boost")
+    if record["action"] != "apply_one_food_farm_output_boost":
+        raise ProductAuthorityError("Food Farm action must be one boost")
+    if record["recurrence"] != "daily_reset_scoped":
+        raise ProductAuthorityError("Food Farm boost must be reset-scoped")
+    route = record["semantic_entry_route"]
+    if (
+        route.get("source_home_authorities") != ["HOME_CANONICAL"]
+        or route.get("target") != "FOOD_FARM"
+        or route.get("route") != ["MAPPED_FOOD_FARM", "BOOST"]
+    ):
+        raise ProductAuthorityError("Food Farm route must bind a current mapped Farm")
+    target = record["target"]
+    target_requirements = {
+        "kind": "food_farm_output_boost",
+        "resource_type": "FOOD",
+        "farm_identity": "current_safely_bound_mapped_farm",
+        "maximum_boosts_per_reset": 1,
+        "owned_item_preferred": True,
+        "owned_item_count_must_be_independently_observed": True,
+        "item_action_cost": 1,
+        "item_action_cost_is_not_inventory_count": True,
+        "diamond_fallback_only_when_owned_item_count_is_zero": True,
+        "diamond_offer_must_match_current_item_duration_cost_and_balance": True,
+        "diamond_fallback_offer": {
+            "control": "Boost output (1-day)",
+            "duration": "1-day",
+            "currency": "DIAMONDS",
+            "maximum_authorized_price_diamonds": 48,
+            "current_numeric_price_must_be_observed": True,
+            "current_numeric_price_must_not_exceed_authorized_cap": True,
+            "current_balance_must_cover_exact_observed_price": True,
+            "price_and_balance_rechecked_if_confirmation_appears": True,
+        },
+        "diamond_price_cap_not_assumed_current_price": True,
+        "unknown_or_changed_offer_blocks": True,
+        "terminal_home": "HOME_CANONICAL",
+    }
+    if not isinstance(target, Mapping) or any(
+        target.get(key) != value for key, value in target_requirements.items()
+    ):
+        raise ProductAuthorityError("Food Farm target weakens the one-boost policy")
+    quantity_cost = record["quantity_cost"]
+    cost = quantity_cost.get("cost")
+    if (
+        quantity_cost.get("quantity") != 1
+        or not isinstance(cost, Mapping)
+        or cost.get("kind") != "owned_item_preferred_or_exact_diamond_offer"
+        or cost.get("amount") is not None
+        or cost.get("unit") != "food_farm_boost_item_or_diamonds"
+        or cost.get("free_only") is not False
+    ):
+        raise ProductAuthorityError("Food Farm cost must preserve item-first exact fallback")
+    effect = record["semantic_effect"]
+    required_effects = {
+        "maximum_boosts_per_reset": 1,
+        "item_preferred_over_diamonds": True,
+        "owned_item_identity_count_and_duration_required": True,
+        "exact_current_diamond_item_duration_cost_balance_required": True,
+        "diamond_price_cap_not_assumed_current_price": True,
+        "exact_current_numeric_price_and_balance_required": True,
+        "current_price_must_not_exceed_authorized_cap": True,
+        "current_price_rechecked_if_confirmation_appears": True,
+        "changed_confirmation_prompt_blocks": True,
+        "same_farm_active_boost_successor_required": True,
+        "positive_boosting_timer_required": True,
+        "dispatch_is_not_success_proof": True,
+        "first_farm_tap_may_collect_multiple_buildings": True,
+        "collection_exact_balance_delta_for_each_resource_required": True,
+        "collection_balances_must_be_reconciled_before_boost": True,
+        "collection_is_not_boost_success": True,
+        "global_food_output_boost_item_allowed": False,
+        "daily_progress_maximum": 1,
+        "daily_ownership": "none",
+        "daily_inspection_required": False,
+        "points_attribution_required": False,
+        "identical_retry": False,
+    }
+    if any(effect.get(key) != value for key, value in required_effects.items()):
+        raise ProductAuthorityError("Food Farm effect weakens inventory or boost accounting")
+    terminal = record["terminal_requirement"]
+    if terminal.get("home_authority") != "HOME_CANONICAL" or terminal.get(
+        "return_required"
+    ) is not True:
+        raise ProductAuthorityError("Food Farm boost must return to canonical Home")
+    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    for marker in (
+        "buy box",
+        "resource building boost",
+        "global food output boost",
+        "unknown item",
+        "ambiguous item",
+        "unknown inventory count",
+        "inventory count inferred from action cost",
+        "unknown duration",
+        "unknown diamond price",
+        "unknown balance",
+        "changed prompt",
+        "real-money",
+        "second boost",
+        "identical retry",
+        "daily inspection",
+        "d02",
+        "points attribution",
+    ):
+        if marker not in forbidden:
+            raise ProductAuthorityError(f"Food Farm boost must forbid {marker}")
 
 def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
     """Validate approved Wali upgrade semantics with dispatch still disabled."""
@@ -1616,7 +1852,7 @@ def _validate_alliance_shop_purchase_record(record: Mapping[str, Any]) -> None:
         "preferred_items": ["Joy Coin", "Timed Recruit Coin", "Bioenhance Scheme"],
         "preferred_currency": "Alliance Coins",
         "fallback_shop": "Other",
-        "fallback_item": "1★ Gear Enhance Material",
+        "fallback_item": "1ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Gear Enhance Material",
         "fallback_rarity": 1,
         "fallback_currency": "Alliance Coins",
         "maximum_quantity_total": 1,
@@ -1807,7 +2043,7 @@ def _validate_daily_shops_purchase_record(record: Mapping[str, Any]) -> None:
         {
             "shop": "RUINS_SHOP",
             "tab": "Ruins Shop",
-            "item": "3★ Chip Enhance Material",
+            "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material",
             "rarity": 3,
             "currency": "Ruins Coins",
             "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))",
@@ -1815,7 +2051,7 @@ def _validate_daily_shops_purchase_record(record: Mapping[str, Any]) -> None:
         {
             "shop": "RARE_EARTH_SHOP",
             "tab": "Rare Earth Shop",
-            "item": "3★ Module Enhance Material",
+            "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material",
             "rarity": 3,
             "currency": "Rare Earth",
             "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))",
@@ -3018,6 +3254,10 @@ def validate_product_record(record: Mapping[str, Any]) -> dict[str, Any]:
         _validate_rare_earth_shop_purchase_record(record)
     elif record_type == "hero_duel":
         _validate_hero_duel_record(record)
+    elif record_type == "recommended_research":
+        _validate_recommended_research_record(record)
+    elif record_type == "food_farm_output_boost":
+        _validate_food_farm_output_boost_record(record)
     elif record_type == "hero_upgrade":
         _validate_hero_upgrade_record(record)
     elif record_type == "alliance_shop_purchase":
@@ -3191,6 +3431,72 @@ def _validate_d01_boundary_policies(payload: Mapping[str, Any]) -> None:
             "REC-D01 static policy facts must be non-authorizing"
         )
 
+
+def _validate_e_product_decision_policies(payload: Mapping[str, Any]) -> None:
+    """Enforce the approved #75/#76/#78 decisions without granting runtime authority."""
+
+    policies = {
+        policy["policy_id"]: policy
+        for policy in payload["policies"]
+        if isinstance(policy, Mapping)
+    }
+    expected = {
+        "hero-duel-policy": {
+            "status": "explicitly_approved",
+            "candidate_event": "hero_duel_survival",
+            "daily_completion_target": 3,
+            "maximum_confirmed_cycles_per_reset": 3,
+            "hero_slots": 5,
+            "pvp_entry_allowed": True,
+            "defense_save_allowed": True,
+            "attack_fill_missing_only": True,
+            "combat_actions_allowed": False,
+            "dispatch_authority": None,
+        },
+        "recommended-research-policy": {
+            "status": "explicitly_approved",
+            "first_displayed_recommendation_only": True,
+            "maximum_starts_per_reset": 1,
+            "queue1_idle_required": True,
+            "queue2_activation_allowed": False,
+            "ordinary_resources": ["food", "wood", "steel", "gas"],
+            "exact_cost_and_balance_required": True,
+            "shortage_behavior": "record_exact_shortages_and_defer",
+            "dispatch_authority": None,
+        },
+        "food-farm-output-boost-policy": {
+            "status": "explicitly_approved",
+            "maximum_boosts_per_reset": 1,
+            "resource_type": "FOOD",
+            "owned_item_preferred": True,
+            "inventory_count_must_be_independently_observed": True,
+            "item_action_cost_is_not_inventory_count": True,
+            "diamond_fallback_only_when_owned_item_count_is_zero": True,
+            "current_offer_identity_duration_cost_balance_required": True,
+            "diamond_fallback_offer": {
+                "control": "Boost output (1-day)",
+                "duration": "1-day",
+                "currency": "DIAMONDS",
+                "maximum_authorized_price_diamonds": 48,
+                "current_numeric_price_must_be_observed": True,
+                "current_numeric_price_must_not_exceed_authorized_cap": True,
+                "current_balance_must_cover_exact_observed_price": True,
+                "price_and_balance_rechecked_if_confirmation_appears": True,
+            },
+            "diamond_price_cap_not_assumed_current_price": True,
+            "collection_effect_accounting_required": True,
+            "buy_box_is_separate": True,
+            "dispatch_authority": None,
+        },
+    }
+    for policy_id, fields in expected.items():
+        policy = policies.get(policy_id)
+        if policy is None or any(policy.get(key) != value for key, value in fields.items()):
+            raise ProductAuthorityError(
+                f"approved product policy has invalid typed facts: {policy_id}"
+            )
+
+
 def validate_daily_reset_policy(
     authority_or_policy: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -3243,6 +3549,7 @@ def validate_product_authority(payload: Mapping[str, Any]) -> dict[str, Any]:
     _policy_ids(payload)
     validate_daily_reset_policy(payload)
     _validate_d01_boundary_policies(payload)
+    _validate_e_product_decision_policies(payload)
     seen: set[str] = set()
     records_by_id: dict[str, Mapping[str, Any]] = {}
     for record in _records(payload):
@@ -3589,9 +3896,12 @@ def validate_contract_product_authority_binding(
     ):
         raise ProductAuthorityError("Alliance Help route must bind the Alliance Help record")
     for reserved_id, reserved_flow in (
+        ("hero_duel", "HERO-DUEL-EVIDENCE-GATE"),
         ("alliance_shop_purchase", "ALLIANCE-SHOP-PURCHASE-EVIDENCE-GATE"),
         ("alliance_donation", "ALLIANCE-TECH-DONATION-BLUESTACKS-INTEGRATION"),
         ("daily_shops_purchase", "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE"),
+        ("recommended_research", "RECOMMENDED-RESEARCH-BLUESTACKS-INTEGRATION"),
+        ("food_farm_output_boost", "FOOD-FARM-OUTPUT-BOOST-DAILY-BLUESTACKS-INTEGRATION"),
     ):
         if record_id == reserved_id and flow_id != reserved_flow:
             raise ProductAuthorityError(

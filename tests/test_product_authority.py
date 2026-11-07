@@ -94,6 +94,8 @@ class ProductAuthorityTests(unittest.TestCase):
                 "daily_shops_purchase",
                 "hero_upgrade",
                 "hero_duel",
+                "recommended_research",
+                "food_farm_output_boost",
                 "nanoweapon_normal_craft",
                 "nano_material_production",
                 "vip_points_popup_dismissal",
@@ -163,6 +165,8 @@ class ProductAuthorityTests(unittest.TestCase):
             "daily_shops_purchase",
             "hero_upgrade",
             "hero_duel",
+            "recommended_research",
+            "food_farm_output_boost",
             "nanoweapon_normal_craft",
             "nano_material_production",
             "world_map_navigation",
@@ -493,47 +497,265 @@ class ProductAuthorityTests(unittest.TestCase):
         with self.assertRaises(ProductAuthorityError):
             validate_product_record(invalid_daily)
 
-    def test_hero_duel_candidate_keeps_pvp_fail_closed(self) -> None:
+    def test_hero_duel_approves_bounded_free_survival_cycles_only(self) -> None:
         record = self.records["hero_duel"]
         policy = next(
             item
             for item in self.authority["policies"]
             if item["policy_id"] == "hero-duel-policy"
         )
-        self.assertEqual(policy["status"], "prohibited")
-        self.assertFalse(policy["pvp_entry_allowed"])
-        self.assertEqual(record["record_type"], "hero_duel")
-        self.assertEqual(record["semantic_entry_route"]["route"], ["HERO_DUEL"])
+        self.assertEqual(policy["status"], "explicitly_approved")
+        self.assertTrue(policy["pvp_entry_allowed"])
+        self.assertEqual(policy["maximum_confirmed_cycles_per_reset"], 3)
+        self.assertEqual(record["record_revision"], "hero_duel-v2")
+        self.assertEqual(
+            record["semantic_entry_route"]["route"], ["ARENA", "HERO_DUEL_SURVIVAL"]
+        )
         target = record["target"]
-        self.assertEqual(target["event_identity"], "unknown_current_hero_duel_event")
-        self.assertIsNone(target["event_active"])
-        self.assertEqual(target["target_identity"], "HERO_DUEL_JOIN")
-        self.assertIsNone(target["candidate_attempts_remaining"])
-        self.assertEqual(target["daily_completion_target"], 3)
-        self.assertFalse(target["pvp_entry_allowed"])
+        self.assertEqual(target["event_identity"], "hero_duel_survival")
+        self.assertTrue(target["event_active_required"])
+        self.assertEqual(target["maximum_cycles_per_reset"], 3)
+        self.assertEqual(target["maximum_hero_slots"], 5)
+        self.assertEqual(target["hero_selection"], "first_five_eligible_displayed")
+        self.assertEqual(
+            target["attack_selection"], "first_five_eligible_displayed"
+        )
+        self.assertTrue(target["excluded_heroes_skipped"])
+        self.assertTrue(target["attack_lineup_independent"])
+        self.assertTrue(target["attack_lineup_fill_missing_only"])
         cost = record["quantity_cost"]["cost"]
-        self.assertIsNone(cost["amount"])
-        self.assertEqual(cost["unit"], "NO_PVP_RESOURCE_SPEND")
-        self.assertFalse(cost["free_only"])
+        self.assertEqual(cost["amount"], 0)
+        self.assertTrue(cost["free_only"])
         effect = record["semantic_effect"]
-        self.assertTrue(effect["exact_event_evidence_required"])
-        self.assertTrue(effect["free_opponent_evidence_required"])
-        self.assertTrue(effect["join_control_evidence_required"])
-        self.assertTrue(effect["participation_successor_required"])
-        self.assertFalse(effect["pvp_entry_allowed"])
-        self.assertFalse(effect["combat_dispatch_allowed"])
-        self.assertFalse(effect["lineup_change_allowed"])
+        self.assertTrue(effect["defense_formation_save_required"])
+        self.assertTrue(effect["preserve_complete_valid_attack_formation"])
+        self.assertEqual(
+            effect["attack_selection"], "first_five_eligible_displayed"
+        )
+        self.assertTrue(effect["loss_result_acceptable"])
+        self.assertTrue(effect["positive_participation_successor_required"])
+        self.assertFalse(effect["daily_inspection_required"])
+        self.assertFalse(effect["points_attribution_required"])
+        self.assertEqual(record["daily_ownership"]["daily_owner"], None)
         forbidden = json.dumps(record["forbidden_actions"]).casefold()
         for marker in (
-            "join",
-            "pvp entry",
-            "combat dispatch",
-            "lineup change",
+            "hero duelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“glory",
+            "premium entry",
+            "activate",
+            "fight",
             "unknown event",
-            "unknown opponent",
+            "unknown cost",
             "insufficient attempts",
+            "identical retry",
+            "daily inspection",
+            "points attribution",
         ):
             self.assertIn(marker, forbidden)
+
+        for mutate in (
+            lambda invalid: invalid["target"].__setitem__("maximum_cycles_per_reset", 4),
+            lambda invalid: invalid["target"].__setitem__("maximum_hero_slots", 6),
+            lambda invalid: invalid["target"].__setitem__("attack_selection", "keep_current"),
+            lambda invalid: invalid["semantic_effect"].__setitem__(
+                "fill_missing_attack_slots_only", False
+            ),
+            lambda invalid: invalid["quantity_cost"]["cost"].__setitem__("amount", 1),
+        ):
+            invalid = deepcopy(record)
+            mutate(invalid)
+            invalid["record_digest"] = record_digest(invalid)
+            with self.assertRaises(ProductAuthorityError):
+                validate_product_record(invalid)
+
+    def test_recommended_research_is_first_row_idle_and_ordinary_only(self) -> None:
+        record = self.records["recommended_research"]
+        policy = next(
+            item
+            for item in self.authority["policies"]
+            if item["policy_id"] == "recommended-research-policy"
+        )
+        self.assertEqual(policy["status"], "explicitly_approved")
+        self.assertEqual(policy["maximum_starts_per_reset"], 1)
+        self.assertFalse(policy["queue2_activation_allowed"])
+        self.assertEqual(
+            policy["shortage_behavior"], "record_exact_shortages_and_defer"
+        )
+        self.assertEqual(record["record_revision"], "recommended_research-v1")
+        self.assertEqual(
+            record["semantic_entry_route"]["route"],
+            ["RESEARCH_CENTER", "RECOMMENDED_RESEARCH"],
+        )
+        target = record["target"]
+        self.assertEqual(target["recommendation_position"], 1)
+        self.assertEqual(
+            target["recommendation_row_control"], "ROW_RESEARCH_NAVIGATION"
+        )
+        self.assertEqual(target["detail_start_control"], "DETAIL_RESEARCH_START")
+        self.assertTrue(target["row_research_only_navigates"])
+        self.assertEqual(
+            target["ordinary_resources"], ["food", "wood", "steel", "gas"]
+        )
+        self.assertEqual(target["maximum_starts_per_reset"], 1)
+        self.assertEqual(
+            target["shortage_behavior"], "record_exact_shortages_and_defer"
+        )
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["queue1_idle_before_start"])
+        self.assertTrue(effect["all_four_ordinary_costs_and_balances_required"])
+        self.assertTrue(effect["shortages_recorded_and_deferred"])
+        self.assertTrue(effect["recommendation_row_research_navigates_only"])
+        self.assertTrue(effect["detail_research_control_starts_action"])
+        self.assertTrue(effect["active_queue_successor_for_same_identity_required"])
+        self.assertFalse(effect["queue2_activation_allowed"])
+        self.assertFalse(effect["research_now_diamonds_allowed"])
+        self.assertFalse(effect["alternate_technology_allowed"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in ("research now", "queue 2", "box", "alternate technology", "gathering"):
+            self.assertIn(marker, forbidden)
+        for mutate in (
+            lambda invalid: invalid["target"].__setitem__("recommendation_position", 2),
+            lambda invalid: invalid["target"].__setitem__("queue2_activation_allowed", True),
+            lambda invalid: invalid["semantic_effect"].__setitem__(
+                "all_four_ordinary_costs_and_balances_required", False
+            ),
+            lambda invalid: invalid["target"].__setitem__(
+                "shortage_behavior", "switch_to_another_technology"
+            ),
+        ):
+            invalid = deepcopy(record)
+            mutate(invalid)
+            invalid["record_digest"] = record_digest(invalid)
+            with self.assertRaises(ProductAuthorityError):
+                validate_product_record(invalid)
+
+    def test_food_farm_boost_requires_independent_inventory_and_collection_accounting(self) -> None:
+        record = self.records["food_farm_output_boost"]
+        policy = next(
+            item
+            for item in self.authority["policies"]
+            if item["policy_id"] == "food-farm-output-boost-policy"
+        )
+        self.assertEqual(policy["status"], "explicitly_approved")
+        self.assertEqual(policy["maximum_boosts_per_reset"], 1)
+        self.assertTrue(policy["owned_item_preferred"])
+        self.assertEqual(
+            policy["diamond_fallback_offer"],
+            {
+                "control": "Boost output (1-day)",
+                "duration": "1-day",
+                "currency": "DIAMONDS",
+                "maximum_authorized_price_diamonds": 48,
+                "current_numeric_price_must_be_observed": True,
+                "current_numeric_price_must_not_exceed_authorized_cap": True,
+                "current_balance_must_cover_exact_observed_price": True,
+                "price_and_balance_rechecked_if_confirmation_appears": True,
+            },
+        )
+        self.assertTrue(policy["collection_effect_accounting_required"])
+        self.assertTrue(policy["diamond_price_cap_not_assumed_current_price"])
+        self.assertEqual(record["record_revision"], "food_farm_output_boost-v1")
+        self.assertEqual(record["semantic_entry_route"]["target"], "FOOD_FARM")
+        target = record["target"]
+        self.assertEqual(target["resource_type"], "FOOD")
+        self.assertEqual(target["maximum_boosts_per_reset"], 1)
+        self.assertTrue(target["owned_item_preferred"])
+        self.assertTrue(target["owned_item_count_must_be_independently_observed"])
+        self.assertEqual(target["item_action_cost"], 1)
+        self.assertTrue(target["item_action_cost_is_not_inventory_count"])
+        self.assertTrue(target["diamond_fallback_only_when_owned_item_count_is_zero"])
+        self.assertEqual(
+            target["diamond_fallback_offer"],
+            {
+                "control": "Boost output (1-day)",
+                "duration": "1-day",
+                "currency": "DIAMONDS",
+                "maximum_authorized_price_diamonds": 48,
+                "current_numeric_price_must_be_observed": True,
+                "current_numeric_price_must_not_exceed_authorized_cap": True,
+                "current_balance_must_cover_exact_observed_price": True,
+                "price_and_balance_rechecked_if_confirmation_appears": True,
+            },
+        )
+        self.assertTrue(target["diamond_price_cap_not_assumed_current_price"])
+        effect = record["semantic_effect"]
+        self.assertTrue(effect["diamond_price_cap_not_assumed_current_price"])
+        self.assertTrue(effect["exact_current_numeric_price_and_balance_required"])
+        self.assertTrue(effect["current_price_must_not_exceed_authorized_cap"])
+        self.assertTrue(effect["current_price_rechecked_if_confirmation_appears"])
+        self.assertTrue(effect["collection_balances_must_be_reconciled_before_boost"])
+        self.assertTrue(
+            effect["collection_exact_balance_delta_for_each_resource_required"]
+        )
+        self.assertEqual(
+            effect["collection_balance_resources"], ["food", "wood", "steel", "gas"]
+        )
+        self.assertTrue(effect["collection_is_not_boost_success"])
+        self.assertTrue(effect["same_farm_active_boost_successor_required"])
+        self.assertFalse(effect["global_food_output_boost_item_allowed"])
+        forbidden = json.dumps(record["forbidden_actions"]).casefold()
+        for marker in (
+            "buy box",
+            "resource building boost",
+            "unknown inventory count",
+            "inventory count inferred from action cost",
+            "changed prompt",
+            "second boost",
+        ):
+            self.assertIn(marker, forbidden)
+        for mutate in (
+            lambda invalid: invalid["target"].__setitem__("maximum_boosts_per_reset", 2),
+            lambda invalid: invalid["target"].__setitem__(
+                "item_action_cost_is_not_inventory_count", False
+            ),
+            lambda invalid: invalid["semantic_effect"].__setitem__(
+                "collection_balances_must_be_reconciled_before_boost", False
+            ),
+            lambda invalid: invalid["semantic_effect"].__setitem__(
+                "same_farm_active_boost_successor_required", False
+            ),
+            lambda invalid: invalid["target"]["diamond_fallback_offer"].__setitem__(
+                "maximum_authorized_price_diamonds", 49
+            ),
+            lambda invalid: invalid["target"]["diamond_fallback_offer"].__setitem__(
+                "current_numeric_price_must_be_observed", False
+            ),
+            lambda invalid: invalid["target"]["diamond_fallback_offer"].__setitem__(
+                "current_numeric_price_must_not_exceed_authorized_cap", False
+            ),
+        ):
+            invalid = deepcopy(record)
+            mutate(invalid)
+            invalid["record_digest"] = record_digest(invalid)
+            with self.assertRaises(ProductAuthorityError):
+                validate_product_record(invalid)
+
+    def test_e_product_policy_statuses_are_enforced_and_non_authorizing(self) -> None:
+        for policy_id in (
+            "hero-duel-policy",
+            "recommended-research-policy",
+            "food-farm-output-boost-policy",
+        ):
+            with self.subTest(policy_id=policy_id):
+                changed = deepcopy(self.authority)
+                policy = next(
+                    item
+                    for item in changed["policies"]
+                    if item["policy_id"] == policy_id
+                )
+                policy["status"] = "prohibited"
+                changed["authority_digest"] = authority_digest(changed)
+                with self.assertRaises(ProductAuthorityError):
+                    validate_product_authority(changed)
+        changed = deepcopy(self.authority)
+        farm_policy = next(
+            item
+            for item in changed["policies"]
+            if item["policy_id"] == "food-farm-output-boost-policy"
+        )
+        farm_policy["diamond_fallback_offer"]["maximum_authorized_price_diamonds"] = 49
+        changed["authority_digest"] = authority_digest(changed)
+        with self.assertRaises(ProductAuthorityError):
+            validate_product_authority(changed)
 
     def test_ruins_shop_candidate_is_unresolved_and_non_dispatching(self) -> None:
         record = self.records["ruins_shop_purchase"]

@@ -18,6 +18,9 @@ from automation_service.registry import (
     DAILY_SHOPS_FLOW_ID,
     NANO_MATERIAL_PRODUCTION_FLOW_ID,
     NANOWEAPON_FLOW_ID,
+    HERO_DUEL_FLOW_ID,
+    RECOMMENDED_RESEARCH_FLOW_ID,
+    FOOD_FARM_BOOST_FLOW_ID,
     RESOURCE_ITEM_FLOW_ID,
     RUINS_FLOW_ID,
     canonical_flow_specs,
@@ -56,6 +59,9 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                     "daily-shops",
                     "nano-material-production",
                     "nanoweapon",
+                    "hero-duel",
+                    "recommended-research",
+                    "food-farm-boost",
                 ):
                     argv.extend(["--flow", flow])
                 argv.extend(["--campaign-stage", "1-15-9", "--campaign-cadence-seconds", "300",
@@ -63,8 +69,8 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                              "--account-id", "account", "--server-id", "server", "--output-directory", "captures with spaces"])
                 parsed = cli.build_parser().parse_args(argv[1:])
                 self.assertEqual(parsed.mode, "supervised")
-                self.assertEqual(len(parsed.flow), 17)
-                self.assertEqual(len(servable_flow_names()), 17)
+                self.assertEqual(len(parsed.flow), 20)
+                self.assertEqual(len(servable_flow_names()), 20)
                 with patch.object(cli, "main", return_value=17) as canonical:
                     self.assertEqual(pnsctl.main(argv), 17)
                 canonical.assert_called_once()
@@ -87,11 +93,40 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                         NANO_MATERIAL_PRODUCTION_FLOW_ID,
                         NANOWEAPON_FLOW_ID,
                         DAILY_SHOPS_FLOW_ID,
+                        HERO_DUEL_FLOW_ID,
+                        RECOMMENDED_RESEARCH_FLOW_ID,
+                        FOOD_FARM_BOOST_FLOW_ID,
                     },
                 )
                 self.assertTrue(
                     all(callable(binding.run) for binding in native_bindings.values())
                 )
+                for flow_id, contract in {
+                    HERO_DUEL_FLOW_ID: ("hero_duel", "hero_duel-v2", 64, 3),
+                    RECOMMENDED_RESEARCH_FLOW_ID: (
+                        "recommended_research",
+                        "recommended_research-v1",
+                        24,
+                        1,
+                    ),
+                    FOOD_FARM_BOOST_FLOW_ID: (
+                        "food_farm_output_boost",
+                        "food_farm_output_boost-v1",
+                        16,
+                        2,
+                    ),
+                }.items():
+                    binding = native_bindings[flow_id]
+                    self.assertEqual(
+                        (
+                            binding.flow_id,
+                            binding.product_id,
+                            binding.product_revision,
+                            binding.max_inputs,
+                            binding.max_actions,
+                        ),
+                        (flow_id, *contract),
+                    )
 
     def test_a_global_option_value_named_serve_is_not_the_command(self):
         for common in (["--state-path", "serve"], ["--state-path=serve"], ["--mode", "serve"]):
@@ -121,6 +156,9 @@ class CanonicalServeFacadeTests(unittest.TestCase):
             "alliance-help",
             "nano-material-production",
             "nanoweapon",
+            "hero-duel",
+            "recommended-research",
+            "food-farm-boost",
         ):
             self.assertIn(option, output.getvalue())
         with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as error:
@@ -155,18 +193,20 @@ class CanonicalServeFacadeTests(unittest.TestCase):
         adb.assert_not_called()
         connect.assert_not_called()
 
-    def test_batch_d_flows_keep_disabled_sqlite_controls_and_do_not_start_runtime(self):
-        for flow in ("nano-material-production", "nanoweapon"):
+    def test_batch_d_and_e_flows_keep_disabled_sqlite_controls_and_do_not_start_runtime(self):
+        for flow, flow_id in (
+            ("nano-material-production", NANO_MATERIAL_PRODUCTION_FLOW_ID),
+            ("nanoweapon", NANOWEAPON_FLOW_ID),
+            ("hero-duel", HERO_DUEL_FLOW_ID),
+            ("recommended-research", RECOMMENDED_RESEARCH_FLOW_ID),
+            ("food-farm-boost", FOOD_FARM_BOOST_FLOW_ID),
+        ):
             with self.subTest(flow=flow), tempfile.TemporaryDirectory() as directory:
                 database = Path(directory) / "isolated-state.sqlite3"
                 with BotStateManager(database) as state:
                     state.initialize_flows(canonical_flow_specs())
                     self.assertFalse(state.get_service_enabled())
-                    self.assertFalse(state.get_flow(
-                        NANO_MATERIAL_PRODUCTION_FLOW_ID
-                        if flow == "nano-material-production"
-                        else NANOWEAPON_FLOW_ID
-                    ).enabled)
+                    self.assertFalse(state.get_flow(flow_id).enabled)
                 output = io.StringIO()
                 with patch.object(boundary, "RuntimeInputLock", return_value=nullcontext()), patch.object(
                     LocalBlueStacksRuntime, "connect"
@@ -182,11 +222,7 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                 connect.assert_not_called()
                 with BotStateManager(database, read_only=True) as state:
                     self.assertFalse(state.get_service_enabled())
-                    self.assertFalse(state.get_flow(
-                        NANO_MATERIAL_PRODUCTION_FLOW_ID
-                        if flow == "nano-material-production"
-                        else NANOWEAPON_FLOW_ID
-                    ).enabled)
+                    self.assertFalse(state.get_flow(flow_id).enabled)
                     self.assertEqual(state._db.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 0)
 
     def test_a_valid_native_command_respects_disabled_controls(self):

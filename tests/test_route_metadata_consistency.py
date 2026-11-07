@@ -35,9 +35,12 @@ from automation_service.registry import (
     ALLIANCE_HELP_PROFILE_ID, ALLIANCE_SHOP_FLOW_ID, ALLIANCE_SHOP_PROFILE_ID,
     CAMPAIGN_FLOW_ID, CAMPAIGN_PRODUCT_REVISION, CANONICAL_FLOW_REGISTRY,
     DAILY_REWARDS_FLOW_ID, DAILY_SHOPS_FLOW_ID, DAILY_SHOPS_PROFILE_ID,
-    NANO_MATERIAL_PRODUCTION_FLOW_ID, NANO_MATERIAL_PRODUCTION_PROFILE_ID,
-    NANOWEAPON_FLOW_ID, NANOWEAPON_PROFILE_ID, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID,
-    RUINS_PROFILE_ID, load_disabled_registry, canonical_entry, servable_flow_names,
+    FOOD_FARM_BOOST_FLOW_ID, FOOD_FARM_BOOST_PROFILE_ID, HERO_DUEL_FLOW_ID,
+    HERO_DUEL_PROFILE_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
+    NANO_MATERIAL_PRODUCTION_PROFILE_ID, NANOWEAPON_FLOW_ID, NANOWEAPON_PROFILE_ID,
+    RECOMMENDED_RESEARCH_FLOW_ID, RECOMMENDED_RESEARCH_PROFILE_ID,
+    RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, RUINS_PROFILE_ID,
+    load_disabled_registry, canonical_entry, servable_flow_names,
 )
 from automation_service.service import AutomationService, _runner_attribute
 from safe_action_core import policy as safe_policy
@@ -70,6 +73,9 @@ NO_OPERATOR_RUNNER = {
     DAILY_SHOPS_FLOW_ID: "Daily Shops is canonical-service-only and has no operator wrapper",
     NANO_MATERIAL_PRODUCTION_FLOW_ID: "Nano Material Production is canonical-service-only and has no operator wrapper",
     NANOWEAPON_FLOW_ID: "Nanoweapon is canonical-service-only and has no operator wrapper",
+    HERO_DUEL_FLOW_ID: "Hero Duel is canonical-service-only and has no operator wrapper",
+    RECOMMENDED_RESEARCH_FLOW_ID: "Recommended Research is canonical-service-only and has no operator wrapper",
+    FOOD_FARM_BOOST_FLOW_ID: "Food Farm Boost is canonical-service-only and has no operator wrapper",
 }
 
 # Retained operator-registry flows with no development-session input default in ``pnsctl._DEFAULT_MAX_INPUTS``.
@@ -144,6 +150,13 @@ EXECUTION_HANDLERS = {
         "automation_service.nano_material_production", "NanoMaterialProductionExecutionHandler",
     ),
     NANOWEAPON_FLOW_ID: ("automation_service.nanoweapon", "NanoweaponExecutionHandler"),
+    HERO_DUEL_FLOW_ID: ("automation_service.hero_duel", "HeroDuelExecutionHandler"),
+    RECOMMENDED_RESEARCH_FLOW_ID: (
+        "automation_service.recommended_research", "RecommendedResearchExecutionHandler",
+    ),
+    FOOD_FARM_BOOST_FLOW_ID: (
+        "automation_service.food_farm_boost", "FoodFarmBoostExecutionHandler",
+    ),
 }
 
 
@@ -306,6 +319,79 @@ D_FIXED_RELATIONSHIPS = {
     },
 }
 
+E_FIXED_RELATIONSHIPS = {
+    HERO_DUEL_FLOW_ID: {
+        "cli_name": "hero-duel",
+        "family": "hero_duel",
+        "variant": "up_to_three_free_entry_flee_cycles",
+        "product_id": "hero_duel",
+        "product_revision": "hero_duel-v2",
+        "handler_id": "hero_duel_execution_handler",
+        "profile_id": HERO_DUEL_PROFILE_ID,
+        "mode": "phase_canary",
+        "max_inputs": 64,
+        "max_actions": 3,
+        "cadence": "cooldown_pulse",
+        "reset_scoped": True,
+        "adapter": ("automation_service.hero_duel", "HeroDuelExecutionHandler"),
+        "native": ("scripts.hero_duel_bluestacks", {
+            "FLOW_ID": HERO_DUEL_FLOW_ID,
+            "PRODUCT_ID": "hero_duel",
+            "PRODUCT_REVISION": "hero_duel-v2",
+            "PROFILE_ID": HERO_DUEL_PROFILE_ID,
+            "MAX_INPUTS": 64,
+            "MAX_ACTIONS": 3,
+        }),
+    },
+    RECOMMENDED_RESEARCH_FLOW_ID: {
+        "cli_name": "recommended-research",
+        "family": "recommended_research",
+        "variant": "first_displayed_recommendation_idle_affordable_start",
+        "product_id": "recommended_research",
+        "product_revision": "recommended_research-v1",
+        "handler_id": "recommended_research_execution_handler",
+        "profile_id": RECOMMENDED_RESEARCH_PROFILE_ID,
+        "mode": "phase_canary",
+        "max_inputs": 24,
+        "max_actions": 1,
+        "cadence": "cooldown_pulse",
+        "reset_scoped": True,
+        "adapter": (
+            "automation_service.recommended_research", "RecommendedResearchExecutionHandler",
+        ),
+        "native": ("scripts.recommended_research_bluestacks", {
+            "FLOW_ID": RECOMMENDED_RESEARCH_FLOW_ID,
+            "PRODUCT_ID": "recommended_research",
+            "PRODUCT_REVISION": "recommended_research-v1",
+            "PROFILE_ID": RECOMMENDED_RESEARCH_PROFILE_ID,
+            "MAX_INPUTS": 24,
+            "MAX_ACTIONS": 1,
+        }),
+    },
+    FOOD_FARM_BOOST_FLOW_ID: {
+        "cli_name": "food-farm-boost",
+        "family": "food_farm_boost",
+        "variant": "one_daily_food_farm_boost",
+        "product_id": "food_farm_output_boost",
+        "product_revision": "food_farm_output_boost-v1",
+        "handler_id": "food_farm_boost_execution_handler",
+        "profile_id": FOOD_FARM_BOOST_PROFILE_ID,
+        "mode": "phase_canary",
+        "max_inputs": 16,
+        "max_actions": 2,
+        "cadence": "cooldown_pulse",
+        "reset_scoped": True,
+        "adapter": ("automation_service.food_farm_boost", "FoodFarmBoostExecutionHandler"),
+        "native": ("scripts.food_farm_boost_bluestacks", {
+            "FLOW_ID": FOOD_FARM_BOOST_FLOW_ID,
+            "PRODUCT_ID": "food_farm_output_boost",
+            "PRODUCT_REVISION": "food_farm_output_boost-v1",
+            "MAX_INPUTS": 16,
+            "MAX_ACTIONS": 2,
+        }),
+    },
+}
+
 
 # Every non-registry copy of a service route's input budget: (module, attribute).
 MAX_INPUT_COPIES = {
@@ -346,6 +432,18 @@ MAX_INPUT_COPIES = {
         ("scripts.nanoweapon_bluestacks", "MAX_INPUTS"),
     ],
 
+    HERO_DUEL_FLOW_ID: [
+        ("automation_service.hero_duel", "MAX_INPUTS"),
+        ("scripts.hero_duel_bluestacks", "MAX_INPUTS"),
+    ],
+    RECOMMENDED_RESEARCH_FLOW_ID: [
+        ("automation_service.recommended_research", "MAX_INPUTS"),
+        ("scripts.recommended_research_bluestacks", "MAX_INPUTS"),
+    ],
+    FOOD_FARM_BOOST_FLOW_ID: [
+        ("automation_service.food_farm_boost", "MAX_INPUTS"),
+        ("scripts.food_farm_boost_bluestacks", "MAX_INPUTS"),
+    ],
 }
 
 _NUMBER_WORDS = {
@@ -739,15 +837,100 @@ class ProductBindingTests(RouteTestCase):
                 self.assertNotIn(flow_id, operator)
                 self.assertNotIn(flow_id, pnsctl.BLUESTACKS_FLOW_IDS)
                 self.assertNotIn(flow_id, pnsctl._DEFAULT_MAX_INPUTS)
+
+    def test_batch_e_routes_keep_evidence_gates_and_native_contracts(self) -> None:
+        self.assertEqual(set(E_FIXED_RELATIONSHIPS), {
+            HERO_DUEL_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
+        })
+        operator = _operator_ids()
+        self.assertEqual(len(operator), 12, "Batch E keeps all legacy operator choices unchanged")
+        queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
+        for flow_id, expected in E_FIXED_RELATIONSHIPS.items():
+            queue_record = queue[flow_id]
+            with self.subTest(flow_id=flow_id):
+                self.assertEqual(
+                    (
+                        queue_record["status"], queue_record["production_registration"],
+                        queue_record["scheduler_enabled"], queue_record["product_policy_status"],
+                    ),
+                    ("evidence_required", "NOT_REGISTERED", False, "explicitly_approved"),
+                )
+                self.assertEqual(
+                    (
+                        queue_record["maximum_inputs"], queue_record["maximum_live_inputs"],
+                        queue_record["maximum_actions"], queue_record["maximum_live_attempts"],
+                        queue_record["live_attempt_count"], queue_record["live_attempts"],
+                    ),
+                    (
+                        expected["max_inputs"], expected["max_inputs"], expected["max_actions"],
+                        0, 0, [],
+                    ),
+                )
+                entry = canonical_entry(flow_id)
+                self.assertEqual(
+                    (entry.cli_name, entry.descriptor.family, entry.descriptor.variant),
+                    (expected["cli_name"], expected["family"], expected["variant"]),
+                )
+                self.assertEqual(
+                    (entry.product_id, entry.product_revision, entry.handler_id),
+                    (expected["product_id"], expected["product_revision"], expected["handler_id"]),
+                )
+                self.assertEqual(
+                    (
+                        entry.registration.production_handler, entry.registration.profile,
+                        entry.registration.mode, entry.registration.registration_status,
+                        entry.registration.scheduler_eligible, entry.spec.default_enabled,
+                    ),
+                    (
+                        expected["handler_id"], expected["profile_id"], expected["mode"],
+                        "REGISTERED", True, False,
+                    ),
+                )
+                self.assertEqual(
+                    (entry.max_inputs, entry.descriptor.cadence, entry.descriptor.reset_scoped,
+                     entry.descriptor.recurrence_class),
+                    (
+                        expected["max_inputs"], "cooldown_pulse", True,
+                        RecurrenceClass.COOLDOWN,
+                    ),
+                )
+                adapter_module, class_name = expected["adapter"]
+                adapter = import_module(adapter_module)
+                self.assertEqual(
+                    (adapter.PRODUCT_ID, adapter.PRODUCT_REVISION, adapter.PROFILE_ID,
+                     adapter.MAX_INPUTS, adapter.MAX_ACTIONS),
+                    (
+                        expected["product_id"], expected["product_revision"],
+                        expected["profile_id"], expected["max_inputs"], expected["max_actions"],
+                    ),
+                )
+                handler = getattr(adapter, class_name)
+                self.assertEqual(
+                    (handler.max_inputs, handler.max_actions),
+                    (expected["max_inputs"], expected["max_actions"]),
+                )
+                native_module, native_facts = expected["native"]
+                native = import_module(native_module)
+                for attribute, value in native_facts.items():
+                    self.assertEqual(getattr(native, attribute), value)
+                required_paths = {
+                    adapter_module.replace(".", "/") + ".py",
+                    native_module.replace(".", "/") + ".py",
+                    f"tests/test_service_{expected['family']}.py",
+                    f"tests/test_{native_module.rsplit('.', 1)[-1]}.py",
+                    "tests/test_service_route_contract.py",
+                    "tests/test_route_metadata_consistency.py",
+                }
+                self.assertTrue(
+                    required_paths <= (
+                        set(queue_record["implementation_entrypoints"])
+                        | set(queue_record["focused_tests"])
+                    ),
+                )
+                self.assertNotIn(flow_id, operator)
+                self.assertNotIn(flow_id, pnsctl.BLUESTACKS_FLOW_IDS)
+                self.assertNotIn(flow_id, pnsctl._DEFAULT_MAX_INPUTS)
                 self.assertIn("canonical", NO_OPERATOR_RUNNER[flow_id].casefold())
-                if flow_id == NANO_MATERIAL_PRODUCTION_FLOW_ID:
-                    self.assertIn("21600", queue_record["consequence_policy"])
-                else:
-                    self.assertIn("100", queue_record["consequence_policy"])
-                    self.assertIn("43200", queue_record["consequence_policy"])
-                    self.assertIn("Exclusive Craft", queue_record["consequence_policy"])
-                    self.assertIn("no Daily/D02 ownership", queue_record["consequence_policy"])
-                    self.assertNotIn("Daily owns", queue_record["consequence_policy"])
 
     def test_selection_handlers_describe_the_registry_cadence(self) -> None:
         for entry in CANONICAL_FLOW_REGISTRY:

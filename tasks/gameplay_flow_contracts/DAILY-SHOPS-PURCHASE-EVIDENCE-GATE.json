@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "flow_id": "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE",
-  "product_purpose": "In one current visit, independently evaluate Ruins Shop 3★ Chip Enhance Material and Rare Earth Shop 3★ Module Enhance Material, selecting only the observed stock-and-affordability maximum for each tab.",
+  "product_purpose": "In one current visit, independently evaluate Ruins Shop 3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material and Rare Earth Shop 3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material, selecting only the observed stock-and-affordability maximum for each tab.",
   "trigger_cadence_type": "cooldown_pulse",
   "reset_scope": "daily_reset",
   "required_starting_context": [
@@ -72,7 +72,7 @@
       "planner": "scripts/daily_shops_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "Ruins Shop exact 3★ Chip Enhance Material, current Ruins Coins unit price, balance, availability, and stock are rebound",
+        "Ruins Shop exact 3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material, current Ruins Coins unit price, balance, availability, and stock are rebound",
         "maximum quantity is min(current stock, floor(current balance/current unit price))"
       ],
       "terminal_outcomes": [
@@ -155,7 +155,7 @@
       "planner": "scripts/daily_shops_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "Rare Earth Shop exact 3★ Module Enhance Material, current Rare Earth unit price, balance, availability, and stock are rebound",
+        "Rare Earth Shop exact 3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material, current Rare Earth unit price, balance, availability, and stock are rebound",
         "maximum quantity is min(current stock, floor(current balance/current unit price))"
       ],
       "terminal_outcomes": [
@@ -437,8 +437,8 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r17",
-    "product_authority_digest": "874c5fa56867cf47dbff7673adbe4cf6715a2fc55c022a35e3bdc7e9f2b08fd4",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r18",
+    "product_authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528",
     "product_record_id": "daily_shops_purchase",
     "product_record_revision": "daily_shops_purchase-v1",
     "product_record_digest": "4938325d72f7ac359a96716b78f9c4826feef2e611f3249f4bf16bed32b9c6c5",

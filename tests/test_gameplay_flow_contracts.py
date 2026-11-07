@@ -296,30 +296,58 @@ class GameplayFlowContractTests(unittest.TestCase):
             "hero_upgrade",
         )
 
-    def test_hero_duel_contract_is_observation_only_and_pvp_fails_closed(self):
+    def test_hero_duel_contract_binds_approved_cycle_semantics_but_stays_disabled(self):
         contract = load_flow_contract("HERO-DUEL-EVIDENCE-GATE")
         self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(
             contract["product_policy_refs"][0]["policy_id"],
             "hero-duel-policy",
         )
-        self.assertEqual(contract["permitted_inputs"], [])
-        self.assertIsNone(contract["cost_quantity_requirements"]["maximum_cost"])
-        self.assertEqual(
-            contract["cost_quantity_requirements"]["resource_or_currency"],
-            "NO_PVP_RESOURCE_SPEND",
+        inputs = set(contract["permitted_inputs"])
+        self.assertIn("select the exact current Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival event", inputs)
+        self.assertIn(
+            "select the first five eligible displayed defense heroes and use Save Form when a save is required",
+            inputs,
         )
-        self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
-        self.assertEqual(contract["implementation_status"], "contract_only")
+        self.assertIn(
+            "fill only missing attack slots from the first five current eligible heroes and leave a complete valid lineup unchanged",
+            inputs,
+        )
+        self.assertIn(
+            "Challenge the selected listed opponent only with current exact zero-cost Free", inputs
+        )
+        self.assertIn("select Flee on the current warning and never Fight", inputs)
+        self.assertNotIn("Fight", inputs)
+        cost = contract["cost_quantity_requirements"]
+        self.assertEqual(cost["maximum_cost"], 0)
+        self.assertTrue(cost["free_only"])
+        self.assertEqual(cost["resource_or_currency"], "NO_RESOURCE_SPEND")
+        self.assertEqual(cost["quantity"], 1)
+        self.assertEqual(contract["implementation_status"], "reference_implemented")
         self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["offline_proof_state"], "evidence_required")
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["product_authority_binding"]["product_record_id"], "hero_duel")
+        self.assertEqual(
+            contract["product_authority_binding"]["product_record_revision"], "hero_duel-v2"
+        )
+        self.assertFalse(
+            contract["product_authority_binding"]["selected_daily_prerequisite"]
+        )
+        self.assertEqual(contract["evidence_gates"][0]["status"], "evidence_required")
+        self.assertEqual(contract["evidence_gates"][0]["permitted_inputs"], [])
         scenario = contract["scenarios"][0]
         self.assertEqual(scenario["mode"], "blocked_until_evidence")
         self.assertEqual(scenario["permitted_inputs"], [])
-        self.assertEqual(
-            contract["product_authority_binding"]["product_record_id"],
-            "hero_duel",
+        transitions = contract["transition_contracts"]
+        self.assertIn(
+            "dispatch_one_free_entry",
+            {transition["transition_id"] for transition in transitions},
+        )
+        self.assertIn(
+            "return_canonical_home",
+            {transition["transition_id"] for transition in transitions},
         )
 
     def test_ultimate_challenge_is_blocked_by_evidence_not_policy(self):
@@ -523,6 +551,136 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertIn("select_food", contract["scenarios"][0]["forbidden_inputs"])
         self.assertIn("dispatch_attack", contract["scenarios"][0]["forbidden_inputs"])
         self.assertIn("retry_identical_dispatch", contract["scenarios"][0]["forbidden_inputs"])
+
+    def test_recommended_research_contract_enforces_first_row_idle_queue_and_exact_costs(self):
+        contract = load_flow_contract("RECOMMENDED-RESEARCH-BLUESTACKS-INTEGRATION")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertEqual(contract["trigger_cadence_type"], "daily_once")
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "recommended_research")
+        self.assertEqual(binding["product_record_revision"], "recommended_research-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(
+            set(contract["permitted_inputs"]),
+            {
+                "navigate_to_research_center",
+                "select_first_displayed_recommendation_row_research",
+                "tap_detail_research_once",
+                "return_to_canonical_home",
+            },
+        )
+        cost = contract["cost_quantity_requirements"]
+        self.assertEqual(cost["quantity"], 1)
+        self.assertIsNone(cost["maximum_cost"])
+        self.assertEqual(cost["resource_or_currency"], "FOOD_WOOD_STEEL_GAS")
+        transitions = {item["transition_id"]: item for item in contract["transition_contracts"]}
+        self.assertEqual(
+            transitions["select_first_recommendation_row"]["to"], "research_detail"
+        )
+        self.assertEqual(
+            transitions["select_first_recommendation_row"]["permitted_input"],
+            "select_first_displayed_recommendation_row_research",
+        )
+        self.assertEqual(
+            transitions["start_one_detail_research"]["permitted_input"],
+            "tap_detail_research_once",
+        )
+        self.assertIn(
+            "every current prerequisite",
+            " ".join(transitions["verify_prerequisites_costs_and_balances"]["postconditions"]).casefold(),
+        )
+        self.assertIn(
+            "all four ordinary resource debits",
+            " ".join(transitions["verify_queue1_start_and_timer"]["postconditions"]).casefold(),
+        )
+        unsupported = " ".join(contract["unsupported_or_manual_only_states"]).casefold()
+        for marker in ("research now", "queue 2", "box", "alternate technology", "gathering"):
+            self.assertIn(marker, unsupported)
+        self.assertEqual(contract["implementation_status"], "reference_implemented")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["evidence_gates"][0]["permitted_inputs"], [])
+        self.assertEqual(contract["scenarios"][0]["permitted_inputs"], [])
+
+        invalid = deepcopy(contract)
+        next(
+            item
+            for item in invalid["transition_contracts"]
+            if item["transition_id"] == "start_one_detail_research"
+        )["permitted_input"] = "research_now_diamonds"
+        with self.assertRaises(FlowContractError):
+            validate_flow_contract(invalid)
+
+    def test_food_farm_contract_accounts_for_collection_and_caps_exact_diamond_fallback(self):
+        contract = load_flow_contract("FOOD-FARM-OUTPUT-BOOST-DAILY-BLUESTACKS-INTEGRATION")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["trigger_cadence_type"], "daily_once")
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "food_farm_output_boost")
+        self.assertEqual(binding["product_record_revision"], "food_farm_output_boost-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(
+            set(contract["permitted_inputs"]),
+            {
+                "tap_current_mapped_food_farm_once",
+                "use_one_owned_matching_food_farm_item",
+                "buy_one_current_food_farm_one_day_diamond_option",
+                "return_to_canonical_home",
+            },
+        )
+        cost = contract["cost_quantity_requirements"]
+        self.assertEqual(cost["quantity"], 1)
+        self.assertEqual(cost["maximum_cost"], 48)
+        self.assertEqual(cost["resource_or_currency"], "MATCHING_FOOD_FARM_ITEM_OR_DIAMONDS")
+        self.assertIn("cap is not the current price", cost["notes"])
+        transitions = {item["transition_id"]: item for item in contract["transition_contracts"]}
+        self.assertLess(
+            [item["transition_id"] for item in contract["transition_contracts"]].index(
+                "reconcile_entry_collection"
+            ),
+            [item["transition_id"] for item in contract["transition_contracts"]].index(
+                "apply_one_owned_matching_item"
+            ),
+        )
+        self.assertIn(
+            "multiple buildings",
+            " ".join(transitions["enter_mapped_food_farm"]["postconditions"]).casefold(),
+        )
+        self.assertIn(
+            "independently observed as zero",
+            " ".join(transitions["observe_exact_diamond_offer_when_no_item"]["postconditions"]).casefold(),
+        )
+        self.assertIn(
+            "48-diamond authorization cap",
+            " ".join(transitions["apply_one_exact_diamond_boost"]["postconditions"]).casefold(),
+        )
+        self.assertIn(
+            "positive current timer",
+            " ".join(transitions["verify_active_boosting_timer"]["postconditions"]).casefold(),
+        )
+        unsupported = " ".join(contract["unsupported_or_manual_only_states"]).casefold()
+        for marker in ("item action cost mistaken for inventory count", "global food output boost", "second boost"):
+            self.assertIn(marker, unsupported)
+        self.assertEqual(contract["implementation_status"], "reference_implemented")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["evidence_gates"][0]["permitted_inputs"], [])
+        self.assertEqual(contract["scenarios"][0]["permitted_inputs"], [])
+
+        invalid = deepcopy(contract)
+        next(
+            item
+            for item in invalid["transition_contracts"]
+            if item["transition_id"] == "apply_one_exact_diamond_boost"
+        )["permitted_input"] = "buy_global_food_output_boost"
+        with self.assertRaises(FlowContractError):
+            validate_flow_contract(invalid)
+
 
     def test_zombie_lair_contracts_bind_one_record_and_stay_disabled(self):
         for flow_id in (

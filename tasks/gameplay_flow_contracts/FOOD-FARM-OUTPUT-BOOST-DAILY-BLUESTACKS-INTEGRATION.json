@@ -1,0 +1,313 @@
+{
+  "schema_version": 2,
+  "flow_id": "FOOD-FARM-OUTPUT-BOOST-DAILY-BLUESTACKS-INTEGRATION",
+  "product_purpose": "Apply at most one daily boost to the current mapped Food Farm, preferring one exact matching owned item; only when no matching item is owned may the exact current one-day Food Farm Diamond option be used at or below the 48-Diamond authorization cap after fresh price/balance checks and confirmation recheck.",
+  "trigger_cadence_type": "daily_once",
+  "reset_scope": "one_confirmed_food_farm_boost_per_daily_reset_identity",
+  "required_starting_context": [
+    "home_canonical"
+  ],
+  "shared_primitive_dependencies": [
+    {
+      "primitive_id": "home_navigation_primitives",
+      "version_digest_field": "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "required": true
+    }
+  ],
+  "recognized_states": [
+    "home_canonical",
+    "food_farm_entry",
+    "collection_reconciled",
+    "boost_inventory_checked",
+    "diamond_offer_checked",
+    "boost_started",
+    "boost_active",
+    "blocked",
+    "unknown_requires_evidence"
+  ],
+  "transition_contracts": [
+    {
+      "transition_id": "enter_mapped_food_farm",
+      "from": "home_canonical",
+      "to": "food_farm_entry",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "tap_current_mapped_food_farm_once",
+      "postconditions": [
+        "Only the current safely bound mapped Food Farm is entered.",
+        "The initial Farm tap may collect output from multiple buildings; record before-and-after balances and each resource delta before any boost decision."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "already_complete",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "food_farm_native_acceptance"
+    },
+    {
+      "transition_id": "reconcile_entry_collection",
+      "from": "food_farm_entry",
+      "to": "collection_reconciled",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "Reconcile exact current balances and deltas for Food, Wood, Steel, and Gas, including all buildings collected by the initial tap.",
+        "Collection is not boost completion; unknown or partial balance effects block further input."
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "food_farm_native_acceptance"
+    },
+    {
+      "transition_id": "observe_matching_item_inventory",
+      "from": "collection_reconciled",
+      "to": "boost_inventory_checked",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "Observe exact matching owned Food Farm boost item identity, quantity, and duration independently.",
+        "An action cost of one item is not evidence of total inventory count."
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "food_farm_native_acceptance"
+    },
+    {
+      "transition_id": "apply_one_owned_matching_item",
+      "from": "boost_inventory_checked",
+      "to": "boost_started",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "use_one_owned_matching_food_farm_item",
+      "postconditions": [
+        "This branch is allowed only when the exact matching owned item is independently observed with positive quantity and matching duration.",
+        "Use exactly one item; item-first preference forbids Diamonds when an eligible owned item exists."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "already_complete",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "food_farm_native_acceptance"
+    },
+    {
+      "transition_id": "observe_exact_diamond_offer_when_no_item",
+      "from": "boost_inventory_checked",
+      "to": "diamond_offer_checked",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "This branch is allowed only when the exact matching owned item count is independently observed as zero.",
+        "Observe the exact current one-day Food Farm option, fresh numeric Diamond price, and current Diamond balance; price must be no more than the 48-Diamond authorization cap and balance must cover the exact observed price.",
+        "The cap is not the current price; unknown, changed, or mismatched offer blocks."
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "food_farm_native_acceptance"
+    },
+    {
+      "transition_id": "apply_one_exact_diamond_boost",
+      "from": "diamond_offer_checked",
+      "to": "boost_started",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "buy_one_current_food_farm_one_day_diamond_option",
+      "postconditions": [
+        "Recheck exact current offer, numeric price, and balance immediately before any confirmation; a changed confirmation blocks.",
+        "Buy exactly one matching one-day Food Farm option at or below the 48-Diamond authorization cap, never infer current price from the cap."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "already_complete",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "food_farm_native_acceptance"
+    },
+    {
+      "transition_id": "verify_active_boosting_timer",
+      "from": "boost_started",
+      "to": "boost_active",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": null,
+      "postconditions": [
+        "Same mapped Food Farm identity positively shows Boosting with a positive current timer.",
+        "A purchase/item dispatch or collection output alone is not success proof; reconcile attempt and confirmed counts under the reset identity."
+      ],
+      "terminal_outcomes": [
+        "complete_for_reset",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "food_farm_native_acceptance"
+    },
+    {
+      "transition_id": "return_canonical_home",
+      "from": "boost_active",
+      "to": "home_canonical",
+      "planner": "ProductBoundedNativeFlow",
+      "permitted_input": "return_to_canonical_home",
+      "postconditions": [
+        "The route-owned source-bound return reaches current canonical Home."
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "complete_for_reset",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "food_farm_native_acceptance"
+    }
+  ],
+  "permitted_inputs": [
+    "tap_current_mapped_food_farm_once",
+    "use_one_owned_matching_food_farm_item",
+    "buy_one_current_food_farm_one_day_diamond_option",
+    "return_to_canonical_home"
+  ],
+  "consequential_action_class": "one_food_farm_output_boost",
+  "cost_quantity_requirements": {
+    "free_only": false,
+    "maximum_cost": 48,
+    "quantity": 1,
+    "resource_or_currency": "MATCHING_FOOD_FARM_ITEM_OR_DIAMONDS",
+    "notes": "Owned matching item is first choice; action cost 1 is not inventory count. The 48-Diamond authorization cap is not the current price; Diamond fallback requires exact observed current price Ã¢â€°Â¤48 when matching owned count is zero, current balance covering that exact price, and confirmation recheck."
+  },
+  "completion_identity": "food-farm-output-boost:confirmed-active-timer:daily-reset-identity",
+  "terminal_outcomes": [
+    "action_performed",
+    "deferred",
+    "complete_for_reset",
+    "already_complete",
+    "blocked",
+    "manual_required"
+  ],
+  "cooldown_deferred_behavior": "Defer when one boost was already attempted or confirmed this reset, matching inventory/offer is unavailable, or the exact current Diamond balance is insufficient; retain separately reconciled collection and boost effects.",
+  "bounded_recovery_behavior": "Stop before boosting on unknown mapped Farm, partial multi-building collection accounting, inventory count, item identity/duration, exact current offer/price/balance, changed confirmation, timer successor, reset identity, or Home. Never use Buy Box, Resource Building Boost, global Food Output Boost, real-money confirmation, second boost, or identical retry.",
+  "evidence_requirements": [
+    "Current source-bound native evidence for mapped Farm identity; initial Farm tap and exact per-resource pre/post balances/deltas across all collected buildings; matching item inventory identity/count/duration; item-first branch; exact current one-day Diamond offer, fresh numeric price Ã¢â€°Â¤48 authorization cap, current balance and confirmation recheck only when item count is zero; same-Farm Boosting positive timer; attempt-versus-confirmed persistence; reset identity; and canonical Home.",
+    "No native acceptance, capture identifier, or live readiness is asserted."
+  ],
+  "replay_fixture_requirements": [
+    {
+      "fixture_id": "food_farm_boost_native_acceptance",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "No synthetic fixture substitutes for current Farm collection, item inventory, exact price/balance, and active timer evidence."
+    }
+  ],
+  "unsupported_or_manual_only_states": [
+    "unknown mapped Farm",
+    "unknown or partially reconciled multi-building collection",
+    "unknown item inventory count",
+    "item action cost mistaken for inventory count",
+    "unknown item identity or duration",
+    "unknown or changed Diamond offer",
+    "unknown numeric price or balance",
+    "price greater than 48-Diamond authorization cap",
+    "balance below exact current price",
+    "changed confirmation prompt",
+    "Buy Box",
+    "Resource Building Boost",
+    "global Food Output Boost",
+    "real-money confirmation",
+    "second boost",
+    "unresolved or repeated boost",
+    "Daily inspection",
+    "D02 prerequisite",
+    "points attribution",
+    "unknown canonical Home",
+    "scheduler promotion"
+  ],
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "evidence_required",
+  "replay_fixture_proof_state": "evidence_required",
+  "supervised_live_proof_state": "evidence_required",
+  "product_policy_refs": [
+    {
+      "policy_id": "food-farm-output-boost-policy",
+      "source": "tasks/flow_delivery_product_policy.json"
+    }
+  ],
+  "registration_state": "disabled",
+  "production_eligible": false,
+  "evidence_gates": [
+    {
+      "gate_id": "food_farm_native_acceptance",
+      "status": "evidence_required",
+      "blocks": [
+        "enter_mapped_food_farm",
+        "reconcile_entry_collection",
+        "observe_matching_item_inventory",
+        "apply_one_owned_matching_item",
+        "observe_exact_diamond_offer_when_no_item",
+        "apply_one_exact_diamond_boost",
+        "verify_active_boosting_timer",
+        "return_canonical_home",
+        "food_farm_one_boost"
+      ],
+      "required_evidence": [
+        "The complete native evidence set listed in evidence_requirements, including exact collection and boost effect reconciliation."
+      ],
+      "permitted_inputs": []
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "food_farm_one_boost",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_canonical",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
+      "forbidden_inputs": [],
+      "required_transitions": [
+        "enter_mapped_food_farm",
+        "reconcile_entry_collection",
+        "observe_matching_item_inventory",
+        "apply_one_owned_matching_item",
+        "observe_exact_diamond_offer_when_no_item",
+        "apply_one_exact_diamond_boost",
+        "verify_active_boosting_timer",
+        "return_canonical_home"
+      ],
+      "evidence_gate_ids": [
+        "food_farm_native_acceptance"
+      ],
+      "notes": "This is a disabled, evidence-gated contract. Product authority lists the only route-owned action classes; this scenario authorizes no runtime input until the native gate is satisfied."
+    }
+  ],
+  "product_authority_binding": {
+    "binding_type": "typed_product_record",
+    "platform": "bluestacks",
+    "platform_binding_ids": [
+      "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",
+      "HOME_NAVIGATION_PRIMITIVES_DIGEST",
+      "pns-bluestacks-5-p64-800x1280-v1",
+      "com.global.ztmslg"
+    ],
+    "platform_profile_id": "pns-bluestacks-5-p64-800x1280-v1",
+    "package_id": "com.global.ztmslg",
+    "home_authority": "HOME_CANONICAL",
+    "terminal_home_authority": "HOME_CANONICAL",
+    "accepted_home_authorities": [
+      "HOME_CANONICAL"
+    ],
+    "selected_daily_prerequisite": false,
+    "product_authority_revision": "flow-delivery-product-authority-v2-r18",
+    "product_authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528",
+    "product_record_id": "food_farm_output_boost",
+    "product_record_revision": "food_farm_output_boost-v1",
+    "product_record_digest": "7ef1742cf67b28a27dde83d7c39244228e43ea8085e379a796589a0002afe2e4"
+  }
+}
