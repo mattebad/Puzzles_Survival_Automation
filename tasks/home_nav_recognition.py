@@ -2,9 +2,10 @@
 
 The bottom navigation bar (World | Hero | Quest | Bag | Mail | Alliance | More) is a
 fixed, opaque UI overlay at a stable location on the locked runtime profile. It is
-recognized by normalized template correlation of that fixed strip against a checked-in
-ground-truth template -- NOT by OCR of a wide band that also captures the scrolling
-world map and chat feed. Button tap points are fixed profile coordinates.
+recognized by normalized template correlation of that fixed strip against checked-in
+ground-truth templates for the retained native layouts -- NOT by OCR of a wide band
+that also captures the scrolling world map and chat feed. Button tap points are fixed
+profile coordinates shared by those layouts.
 
 This intentionally replaces the earlier wide-band, PSM-11 OCR geometry that produced
 nondeterministic results (e.g. missing a visible "Quest" label because the chat feed
@@ -47,6 +48,7 @@ NAV_BUTTON_TAP_POINTS: Mapping[str, Tuple[int, int]] = {
 }
 
 _TEMPLATE_PATH = Path(__file__).with_suffix("").parent / "assets" / "home_nav" / "800x1280" / "home_nav_strip.png"
+_TEMPLATE_FILENAMES = ("home_nav_strip.png", "home_nav_strip_compact.png")
 
 
 class HomeNavRecognitionError(ValueError):
@@ -70,11 +72,12 @@ class HomeNavRecognition:
         return self.button_tap_point("quest")
 
 
-@lru_cache(maxsize=1)
-def _load_template() -> np.ndarray:
-    template = cv2.imread(str(_TEMPLATE_PATH), cv2.IMREAD_COLOR)
+@lru_cache(maxsize=2)
+def _load_template(filename: str = "home_nav_strip.png") -> np.ndarray:
+    template_path = _TEMPLATE_PATH.parent / filename
+    template = cv2.imread(str(template_path), cv2.IMREAD_COLOR)
     if template is None:
-        raise HomeNavRecognitionError(f"nav template not found: {_TEMPLATE_PATH}")
+        raise HomeNavRecognitionError(f"nav template not found: {template_path}")
     x0, y0, x1, y1 = NAV_STRIP_BOX
     if template.shape[:2] != (y1 - y0, x1 - x0):
         raise HomeNavRecognitionError("nav template geometry does not match NAV_STRIP_BOX")
@@ -82,16 +85,19 @@ def _load_template() -> np.ndarray:
 
 
 def nav_strip_correlation(frame_bgr: np.ndarray) -> float:
-    """Normalized correlation of the fixed nav strip against the ground-truth template."""
+    """Return the best fixed-strip correlation across the retained native layouts."""
     if not isinstance(frame_bgr, np.ndarray) or frame_bgr.ndim != 3:
         raise HomeNavRecognitionError("frame must be an HxWx3 BGR image")
     if frame_bgr.shape[:2] != (NATIVE_HEIGHT, NATIVE_WIDTH):
         raise HomeNavRecognitionError("frame geometry is not the native 800x1280 profile")
     x0, y0, x1, y1 = NAV_STRIP_BOX
     strip = frame_bgr[y0:y1, x0:x1]
-    template = _load_template()
-    result = cv2.matchTemplate(strip, template, cv2.TM_CCOEFF_NORMED)
-    return float(result.max())
+    best = -1.0
+    for filename in _TEMPLATE_FILENAMES:
+        template = _load_template(filename)
+        result = cv2.matchTemplate(strip, template, cv2.TM_CCOEFF_NORMED)
+        best = max(best, float(result.max()))
+    return best
 
 
 def recognize_home_nav(
