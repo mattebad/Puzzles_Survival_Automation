@@ -261,7 +261,7 @@
       "policy_id": "hero-duel-policy",
       "scope": "hero_duel.daily",
       "status": "explicitly_approved",
-      "decision": "Approve at most three free Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival entry/flee cycles per reset. Save the first five current eligible defense heroes, preserve a complete valid independent attack lineup and fill only missing eligible slots, then leave each loaded battle through Exit and Flee without a win requirement. Unknown cost/event/effect blocks; runtime controls remain disabled pending native acceptance.",
+      "decision": "Approve at most three free Hero Duel–Survival entry/flee cycles per reset. Save the first five current eligible defense heroes, preserve a complete valid independent attack lineup and fill only missing eligible slots, then leave each loaded battle through Exit and Flee without a win requirement. Unknown cost/event/effect blocks; runtime controls remain disabled pending native acceptance.",
       "candidate_event": "hero_duel_survival",
       "candidate_attempts_remaining": null,
       "daily_completion_target": 3,
@@ -355,7 +355,7 @@
       ],
       "preferred_currency": "Alliance Coins",
       "fallback_shop": "Other",
-      "fallback_item": "1ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Gear Enhance Material",
+      "fallback_item": "1★ Gear Enhance Material",
       "fallback_rarity": 1,
       "fallback_currency": "Alliance Coins",
       "maximum_quantity_total": 1,
@@ -388,17 +388,17 @@
       "policy_id": "daily-shops-purchase-policy",
       "scope": "daily_shops.purchase",
       "status": "explicitly_approved",
-      "decision": "During one visit, independently evaluate Ruins Shop 3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material and Rare Earth Shop 3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material. Each tab's quantity must equal min(current stock, floor(current balance/current unit price)); reread the numeric quantity and total before its inner Buy. Preserve per-tab results; the static product decision does not authorize runtime dispatch or Daily/points attribution.",
+      "decision": "During one visit, independently evaluate Ruins Shop 3★ Chip Enhance Material and Rare Earth Shop 3★ Module Enhance Material. Each tab's quantity must equal min(current stock, floor(current balance/current unit price)); reread the numeric quantity and total before its inner Buy. Preserve per-tab results; the static product decision does not authorize runtime dispatch or Daily/points attribution.",
       "shops": [
         {
           "shop": "RUINS_SHOP",
-          "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material",
+          "item": "3★ Chip Enhance Material",
           "rarity": 3,
           "currency": "Ruins Coins"
         },
         {
           "shop": "RARE_EARTH_SHOP",
-          "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material",
+          "item": "3★ Module Enhance Material",
           "rarity": 3,
           "currency": "Rare Earth"
         }
@@ -1363,7 +1363,7 @@
     {
       "record_id": "hero_duel",
       "record_type": "hero_duel",
-      "purpose": "Perform at most three current-reset free Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival participation cycles; win is not required.",
+      "purpose": "Perform at most three current-reset free Hero Duel–Survival participation cycles; win is not required.",
       "recurrence": "daily_reset_scoped",
       "semantic_entry_route": {
         "source_home_authorities": ["HOME_CANONICAL"],
@@ -1428,7 +1428,7 @@
         "identical_retry": false
       },
       "forbidden_actions": [
-        "Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Glory",
+        "Hero Duel–Glory",
         "paid entry",
         "premium entry",
         "Activate",
@@ -1835,7 +1835,7 @@
         ],
         "preferred_currency": "Alliance Coins",
         "fallback_shop": "Other",
-        "fallback_item": "1ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Gear Enhance Material",
+        "fallback_item": "1★ Gear Enhance Material",
         "fallback_rarity": 1,
         "fallback_currency": "Alliance Coins",
         "maximum_quantity_total": 1,
@@ -2046,7 +2046,7 @@
           {
             "shop": "RUINS_SHOP",
             "tab": "Ruins Shop",
-            "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material",
+            "item": "3★ Chip Enhance Material",
             "rarity": 3,
             "currency": "Ruins Coins",
             "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))"
@@ -2054,7 +2054,7 @@
           {
             "shop": "RARE_EARTH_SHOP",
             "tab": "Rare Earth Shop",
-            "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material",
+            "item": "3★ Module Enhance Material",
             "rarity": 3,
             "currency": "Rare Earth",
             "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))"

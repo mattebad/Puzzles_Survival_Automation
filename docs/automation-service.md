@@ -140,17 +140,22 @@ All three are explicitly product-approved, but code composition is not productio
 runtime enablement. Their runtime controls remain off and current live acceptance is
 `evidence_required`. Hero Duel investigation recorded five eligible defense heroes and one free
 entry/Flee/loss/result cycle, not the required three reset-scoped cycles and lineup/battle acceptance.
-Research Atlas binding and an idle first recommendation were inspected, but no research start or
-active timer was verified. One owned-item Farm boost and positive timer were observed, along with
-incidental output collection from multiple buildings; total inventory and the exact premium-choice
-branch remain unproven. None of this raw investigation is route-level live acceptance.
+Research binds the mapped Home Atlas Research dome from fresh localization. If HUD obscures the
+target, safely pan/rebind or defer; never tap through the HUD. The idle first recommendation was
+inspected, but no research start or timer was verified. Farm accounts for incidental multi-building
+collection effects and prefers an exact owned-item boost. A diamond alternative requires exact
+observed zero inventory, an exact current offer within the approved price ceiling, and confirmation/
+effect proof; unknown inventory is not zero. One owned-item boost and positive timer were observed;
+total inventory and the exact premium branch remain unproven. None of this raw investigation is
+route-level live acceptance.
 
 Daily performs at most one current aggregate Claim, then separately claims glowing chests with
 same-slot `Claimed` and canonical journal confirmation. Restart-stable reset/slot keys protect
 effects; UNKNOWN stops without identical retry, and already-claimed manual work is skipped.
-Complete zero-ready scans return to verified Home. The owner-authorized November 7 single-chest
-investigation supplied actual ready/Claimed pixels, not completed-route acceptance. Current native
-acceptance for all these new routes remains `evidence_required`.
+Complete zero-ready scans return to verified Home. The owner-authorized November 7 #54 observation
+was exactly one manual chest tap at zero spend; `glowing` to `Claimed` is its recognition basis.
+Keep the raw `UNKNOWN` record unchanged; this one-chest observation is not completed-route
+acceptance. Current native acceptance for all these new routes remains `evidence_required`.
 Existing individual effect/Home acceptance, uninterrupted Enhancement proof, independent recruit
 timers, and cadence scope are historical context in [`BACKLOG.md`](../BACKLOG.md), not active
 sequencing. The current planning authority is tracker #53, with volatile state in the handoff.

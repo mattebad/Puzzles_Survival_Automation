@@ -394,44 +394,63 @@ class RecommendedResearchNativeParserTests(unittest.TestCase):
             self.assertTrue(failure.exception.partial_result["effect_reconciliation_required"])
             self.assertEqual(failure.exception.partial_result["research_transport_calls"], 0)
 
+    def test_corrected_research_anchor_hits_reference_dome_not_left_ground(self) -> None:
+        atlas = route.load_home_atlas(route.ATLAS_PATH)
+        localizer = BlueStacksHomeLocalizer(atlas, route.ATLAS_PATH)
+        viewport = next(view for view in atlas.viewports if view.viewport_id == "viewport-009")
+        frame = cv2.imread(str(route.ATLAS_PATH.parent / viewport.image_path), cv2.IMREAD_COLOR)
+        localization = localizer.localize(frame, home_recognized=True)
+        building = atlas.lookup_building(route.RESEARCH_CENTER_ID)
+        binding = bind_visible_building(
+            frame, localization, building, home_is_clean=lambda _frame: True,
+        )
+        self.assertIsNotNone(binding)
+        sx, sy = binding.screen_anchor
+        # Golden image annotation, not production input coordinates: the dome
+        # is here; the superseded anchor projected onto ground to its left.
+        self.assertTrue(320 <= sx <= 430 and 330 <= sy <= 465)
+        self.assertTrue(point_in_polygon(binding.atlas_anchor, building.polygon))
+
     @requires_local_captures
-    def test_multiple_retained_home_frames_freshly_bind_corrected_research_center(self) -> None:
+    def test_current_native_research_anchor_hits_the_observed_dome(self) -> None:
+        path = (
+            RESEARCH_CAPTURE_DIR.parent
+            / "gh72-76-step-20261106T225637718601Z"
+            / "runtime/investigation-20261106T225637884285Z/frames"
+            / "0001-home.building.research_center-immediate-before.png"
+        )
+        require_capture(path)
+        frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
         atlas = route.load_home_atlas(route.ATLAS_PATH)
         localizer = BlueStacksHomeLocalizer(atlas, route.ATLAS_PATH)
         building = atlas.lookup_building(route.RESEARCH_CENTER_ID)
-        names = (
-            "0063-research-center-visual-entry-before.png",
-            "0064-research-center-visual-entry-after.png",
-            "0065-research-center-visual-entry-settled.png",
-            "0089-research-center-home-back-settled.png",
+        localization = localizer.localize(frame, home_recognized=True)
+        binding = bind_visible_building(
+            frame, localization, building, home_is_clean=lambda _frame: True,
         )
-        for name in names:
-            path = RESEARCH_CAPTURE_DIR / name
-            require_capture(path)
-            source_frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
-            self.assertIsNotNone(source_frame, str(path))
-            # Retained BlueStacks captures are 770x1212; normalize only their
-            # screenshot viewport to the route's 800x1280 native profile.
-            frame = cv2.resize(source_frame, (800, 1280), interpolation=cv2.INTER_CUBIC)
-            localization = localizer.localize(frame, home_recognized=True)
-            binding = bind_visible_building(
-                frame, localization, building, home_is_clean=lambda _frame: True
-            )
-            self.assertIsNotNone(binding, name)
-            self.assertEqual(binding.building_id, route.RESEARCH_CENTER_ID)
-            self.assertIsNotNone(binding.atlas_anchor)
-            self.assertTrue(point_in_polygon(binding.atlas_anchor, building.polygon))
-            self.assertEqual(binding.atlas_anchor, building.interaction_anchor)
-            self.assertIsNotNone(binding.screen_anchor)
-            sx, sy = binding.screen_anchor
-            # The retained globe-topped building occupies this screen footprint; the old
-            # left-shifted interaction projection landed on open ground beside it.
-            self.assertGreaterEqual(sx, 520)
-            self.assertLessEqual(sx, 700)
-            self.assertGreaterEqual(sy, 440)
-            self.assertLessEqual(sy, 650)
-            x0, y0, x1, y1 = binding.target_roi
-            self.assertTrue(x0 <= sx <= x1 and y0 <= sy <= y1)
+        self.assertIsNotNone(binding)
+        sx, sy = binding.screen_anchor
+        # Independent current native-frame annotation of the same facility.
+        self.assertTrue(340 <= sx <= 430 and 530 <= sy <= 630)
+
+    @requires_local_captures
+    def test_desktop_research_view_does_not_bind_through_fixed_hud(self) -> None:
+        path = RESEARCH_CAPTURE_DIR / "0063-research-center-visual-entry-before.png"
+        require_capture(path)
+        source_frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        # This historical desktop capture includes BlueStacks chrome. Remove
+        # it only for offline replay; production still requires native frames.
+        frame = cv2.resize(source_frame[34:1212, 0:738], (800, 1280), interpolation=cv2.INTER_CUBIC)
+        atlas = route.load_home_atlas(route.ATLAS_PATH)
+        localizer = BlueStacksHomeLocalizer(atlas, route.ATLAS_PATH)
+        localization = localizer.localize(frame, home_recognized=True)
+        self.assertTrue(localization.recognized)
+        binding = bind_visible_building(
+            frame, localization, atlas.lookup_building(route.RESEARCH_CENTER_ID),
+            home_is_clean=lambda _frame: True,
+        )
+        self.assertIsNone(binding)
+
 
 
 if __name__ == "__main__":

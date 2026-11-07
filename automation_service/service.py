@@ -1521,7 +1521,17 @@ class AutomationService:
                     if report.result is not None:
                         result = report.result
                         prefix = _reason_prefix(entry.cli_name)
-                        completed = result.verified and result.reason_code == f"{prefix}_PASS_VERIFIED"
+                        completed = result.verified and (
+                            result.outcome in {
+                                SchedulerTaskOutcome.ACTION_PERFORMED,
+                                SchedulerTaskOutcome.COMPLETE_FOR_RESET,
+                                SchedulerTaskOutcome.ALREADY_COMPLETE,
+                            }
+                            or (
+                                result.outcome is SchedulerTaskOutcome.DEFERRED
+                                and result.observed_progress.get("status") == "completed"
+                            )
+                        )
                         rollover_deferred = (
                             result.reason_code == f"{prefix}_RESET_ROLLOVER_DEFERRED"
                             and result.verified is False

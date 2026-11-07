@@ -7,6 +7,10 @@ the next one.
 
 **Status:** Batches A-E add canonical-only Daily Rewards, Resource Item, Ruins, Alliance Help, Alliance Donation, Alliance Shop, Daily Shops, zero-resource Nano Material Production, reset-scoped Normal Craft, Hero Duel, Recommended Research, and Food Farm Boost. Code registration remains separate from runtime enablement: all controls stay off and current live acceptance remains `evidence_required`. Daily Rewards uses the direct canonical Home-to-Daily arrival transition, source/provenance-bound fresh evidence, durable reset/slot identity, individually ready chest claims with same-slot `Claimed` proof, and verified Home closure; a 150-point gate is not required. The bounded #54 canary recognized one glowing 30-point chest and stopped on missing successor proof; the later owner-authorized manual claim supplied actual before/after `Claimed` recognition, not finished-route acceptance. Hero Duel investigation recorded five eligible defense heroes and one free entry/Flee/loss/result cycle, not the required three reset-scoped cycles and lineup/battle acceptance. Research Atlas binding and an idle first recommendation were inspected without a research start or active timer. One owned-item Farm boost and positive timer were observed, with incidental output collection; total inventory and the exact premium-choice branch remain unproven. These are partial observations, not route-level live acceptance. The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical evidence, not authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53).
 
+The owner-authorized #54 observation is exactly one manual chest tap with zero spend; `glowing` to
+`Claimed` is its recognition basis. Keep the raw `UNKNOWN` record unchanged. This is not combined
+route live acceptance (`evidence_required`).
+
 ## Routes
 
 The service code registers each route in `automation_service/registry.py`. Each row below is one
@@ -33,8 +37,8 @@ registration: 20 executable `serve --flow` routes plus one navigation-only flow 
 | `nano-material-production` | `nano_material_production` | One zero-resource 21600-second production slot: start when idle, claim then restart when complete, and refresh the observed timer without dispatch while active. Its timer persists across game-day boundaries. Runtime disabled; evidence_required; no live acceptance. |
 | `nanoweapon` | `nanoweapon` | Same-visit Nano Material maintenance followed by at most one reset-scoped Normal Craft start, exactly 100 Nano Parts and 43200 seconds; claim completed craft when recognized. No Exclusive Craft, Daily/D02 ownership, or points attribution. Runtime disabled; evidence_required; no live acceptance. |
 | `hero-duel` | `hero_duel` | Up to three confirmed free entry/Flee/loss cycles per reset after lineup save/verification. One manual investigation cycle is not route acceptance; runtime disabled. |
-| `recommended-research` | `recommended_research` | Start only the first displayed recommendation when queue 1 is idle and exact costs/prerequisites are met; defer busy/shortage. Runtime disabled; no start/timer live acceptance. |
-| `food-farm-boost` | `food_farm_boost` | Account for incidental Farm collection, then one matching owned-item boost (or exact approved current diamond option) and same-Farm timer proof. Runtime disabled; no route-level live acceptance. |
+| `recommended-research` | `recommended_research` | Start only the first displayed recommendation when queue 1 is idle and exact costs/prerequisites are met; freshly bind the mapped Home Atlas Research dome, pan/rebind when HUD-obscured or defer, and never tap through HUD. Runtime disabled; no start/timer live acceptance. |
+| `food-farm-boost` | `food_farm_boost` | Reconcile incidental Farm collection, then prefer one exact matching owned-item boost. Consider an exact current diamond option only after exact observed zero inventory, within approved price ceiling and with confirmation/effect proof; unknown inventory is not zero. Verify same-Farm timer. Runtime disabled; no route-level live acceptance. |
 | none (navigation-only) | `world_map_navigation` | Registered but never executed by `serve`. |
 
 The `world_map_navigation` registration is navigation-only (registry variant `navigation_only`).

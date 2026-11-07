@@ -8,6 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 from typing import Iterator
 import unittest
 from unittest.mock import patch
@@ -76,6 +77,29 @@ class _NativeFixtureRuntime:
 
     def clock(self) -> float:
         return self.now + 0.01
+
+
+class _RoutePanFixtureRuntime(_NativeFixtureRuntime):
+    def capture(self, label: str) -> CapturedNativeFrame:
+        return super().capture("native-pan-settled" if self.swipes else label)
+
+
+class _RoutePanSession:
+    owner = "owner"
+    invocation_id = "route-pan-replay"
+
+    def observe(self, capture, *, label):
+        return capture(label)
+
+    def run_action(self, **action):
+        before = action["capture"]("route-pan-before")
+        action["authorize"](before)
+        action["dispatch"](before)
+        after = action["settled_successor"]()
+        state = action["recognize"](after)
+        return SimpleNamespace(
+            status="completed" if state == "HOME_BASE" else "unknown", state=state,
+        )
 
 
 class _PanCase:
@@ -339,6 +363,73 @@ class HomeAtlasActualPanProposalTests(unittest.TestCase):
                 self.assertEqual(case.post_calls, 1)
                 self.assertFalse(telemetry.get("verified", False))
                 self.assertEqual(case.store.get_action("native-home-pan")["final_status"], ActionStatus.UNRESOLVED.value)
+
+
+    @contextmanager
+    def route_pan_case(self):
+        with self.case() as case:
+            runtime = _RoutePanFixtureRuntime(case.runtime.session)
+            context = SimpleNamespace(
+                runtime=runtime, session=_RoutePanSession(), action_store=case.store,
+                occurrence_key="route-pan-reset", monotonic_clock=runtime.clock,
+                utc_clock=lambda: 1000.0, checkpoint=lambda: None,
+                settle_seconds=0.0, is_clean_home=home.is_clean_home_frame,
+            )
+
+            def fully_visible_binding(frame):
+                localization = self.localizer.localize(frame)
+                if not localization.recognized:
+                    return None
+                safe, _calibration = home.bluestacks_direct_pan_contract()
+                origin = home.camera_origin(localization)
+                sx0, sy0, sx1, sy1 = safe.screen_box
+                building = self.atlas.lookup_building("home.building.research_lab")
+                if not all(
+                    sx0 <= x - origin[0] <= sx1 and sy0 <= y - origin[1] <= sy1
+                    for x, y in building.polygon
+                ):
+                    return None
+                return home.bind_visible_building(
+                    frame, localization,
+                    self.atlas.lookup_building("home.building.research_lab"),
+                    home_is_clean=home.is_clean_home_frame,
+                )
+
+            arguments = dict(
+                atlas=self.atlas, localizer=self.localizer,
+                building_id="home.building.research_lab", product_id="route-pan-replay",
+                binding_for_frame=fully_visible_binding, maximum_pans=1,
+            )
+            yield context, runtime, arguments
+
+    def test_route_wrapper_rebinds_after_one_real_camera_pan(self) -> None:
+        with self.route_pan_case() as (context, runtime, arguments):
+            frame, binding, error = home.bind_or_pan_mapped_home_building(
+                context, current=runtime.capture("route-home"), **arguments,
+            )
+            self.assertIsNone(error)
+            self.assertIsNotNone(binding)
+            self.assertIsNotNone(frame)
+            self.assertTrue(np.array_equal(frame.frame, cv2.imread(str(FIXTURES / SETTLED))))
+            self.assertEqual(len(runtime.swipes), 1)
+
+    def test_route_wrapper_stops_after_unknown_pan_without_identical_retry(self) -> None:
+        with self.route_pan_case() as (context, runtime, arguments):
+            runtime.post_fixture = None
+            frame, binding, error = home.bind_or_pan_mapped_home_building(
+                context, current=runtime.capture("route-home"), **arguments,
+            )
+            self.assertIsNone(frame)
+            self.assertIsNone(binding)
+            self.assertEqual(error, "mapped_home_atlas_pan_not_verified")
+            self.assertEqual(len(runtime.swipes), 1)
+            retry_frame, retry_binding, retry_error = home.bind_or_pan_mapped_home_building(
+                context, current=runtime.capture("route-reentry"), **arguments,
+            )
+            self.assertIsNone(retry_frame)
+            self.assertIsNone(retry_binding)
+            self.assertEqual(retry_error, "mapped_home_atlas_localization_unknown")
+            self.assertEqual(len(runtime.swipes), 1)
 
 
 if __name__ == "__main__":

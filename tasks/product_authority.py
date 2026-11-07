@@ -338,6 +338,7 @@ def _validate_home_route(record: Mapping[str, Any], record_type: str) -> None:
         "world_map_navigation": "WORLD",
         "vip_points_popup_dismissal": "HOME",
     }
+    expected_target = expected_target[record_type]
     if target != expected_target:
         raise ProductAuthorityError(
             f"{record_type} semantic entry route must target {expected_target}"
@@ -382,7 +383,7 @@ def _validate_common_record(record: Mapping[str, Any]) -> tuple[str, str]:
         "world_map_navigation": "world_map_navigation",
         "vip_points_popup_dismissal": "vip_points_popup_dismissal",
     }
-    if record_type != expected_type:
+    if record_type != expected_type[record_id]:
         raise ProductAuthorityError("product record id/type discriminator mismatch")
     for field in (
         "purpose",
@@ -1366,7 +1367,7 @@ def _validate_gathering_resources_record(record: Mapping[str, Any]) -> None:
                 f"Gathering forbidden actions must include {marker}"
             )
 def _validate_hero_duel_record(record: Mapping[str, Any]) -> None:
-    """Validate approved three-cycle Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival product semantics."""
+    """Validate approved three-cycle Hero Duel–Survival product semantics."""
 
     if record["objective"] != "bounded_hero_duel_participation":
         raise ProductAuthorityError("Hero Duel objective must be bounded participation")
@@ -1453,7 +1454,7 @@ def _validate_hero_duel_record(record: Mapping[str, Any]) -> None:
         "return_required"
     ) is not True:
         raise ProductAuthorityError("Hero Duel must return to canonical Home")
-    forbidden = json.dumps(record["forbidden_actions"], sort_keys=True).casefold()
+    forbidden = json.dumps(record["forbidden_actions"], ensure_ascii=False, sort_keys=True).casefold().replace("–", " ")
     for marker in (
         "hero duel glory",
         "paid entry",
@@ -1852,7 +1853,7 @@ def _validate_alliance_shop_purchase_record(record: Mapping[str, Any]) -> None:
         "preferred_items": ["Joy Coin", "Timed Recruit Coin", "Bioenhance Scheme"],
         "preferred_currency": "Alliance Coins",
         "fallback_shop": "Other",
-        "fallback_item": "1ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Gear Enhance Material",
+        "fallback_item": "1★ Gear Enhance Material",
         "fallback_rarity": 1,
         "fallback_currency": "Alliance Coins",
         "maximum_quantity_total": 1,
@@ -2043,7 +2044,7 @@ def _validate_daily_shops_purchase_record(record: Mapping[str, Any]) -> None:
         {
             "shop": "RUINS_SHOP",
             "tab": "Ruins Shop",
-            "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material",
+            "item": "3★ Chip Enhance Material",
             "rarity": 3,
             "currency": "Ruins Coins",
             "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))",
@@ -2051,7 +2052,7 @@ def _validate_daily_shops_purchase_record(record: Mapping[str, Any]) -> None:
         {
             "shop": "RARE_EARTH_SHOP",
             "tab": "Rare Earth Shop",
-            "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material",
+            "item": "3★ Module Enhance Material",
             "rarity": 3,
             "currency": "Rare Earth",
             "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))",

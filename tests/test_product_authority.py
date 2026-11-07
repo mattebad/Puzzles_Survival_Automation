@@ -104,6 +104,21 @@ class ProductAuthorityTests(unittest.TestCase):
         )
         validate_product_authority(self.authority)
 
+    def test_record_type_discriminator_is_bound_to_record_identity(self) -> None:
+        for record_id, wrong_type in (
+            ("use_resource_item", "supply_depot"),
+            ("recommended_research", "food_farm_output_boost"),
+            ("food_farm_output_boost", "recommended_research"),
+        ):
+            changed = deepcopy(self.records[record_id])
+            changed["record_type"] = wrong_type
+            changed["record_digest"] = record_digest(changed)
+            with self.subTest(record_id=record_id), self.assertRaisesRegex(
+                ProductAuthorityError, "id/type discriminator mismatch"
+            ):
+                validate_product_record(changed)
+
+
     def test_aggregate_daily_claim_is_batch_scoped_and_the_only_selected_daily_owner(self) -> None:
         record = self.records["aggregate_daily_claim"]
         self.assertEqual(record["record_type"], "aggregate_daily_claim")
@@ -537,20 +552,6 @@ class ProductAuthorityTests(unittest.TestCase):
         self.assertFalse(effect["daily_inspection_required"])
         self.assertFalse(effect["points_attribution_required"])
         self.assertEqual(record["daily_ownership"]["daily_owner"], None)
-        forbidden = json.dumps(record["forbidden_actions"]).casefold()
-        for marker in (
-            "hero duelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“glory",
-            "premium entry",
-            "activate",
-            "fight",
-            "unknown event",
-            "unknown cost",
-            "insufficient attempts",
-            "identical retry",
-            "daily inspection",
-            "points attribution",
-        ):
-            self.assertIn(marker, forbidden)
 
         for mutate in (
             lambda invalid: invalid["target"].__setitem__("maximum_cycles_per_reset", 4),

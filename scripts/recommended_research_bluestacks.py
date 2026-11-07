@@ -33,6 +33,7 @@ from tasks.home_atlas_vision import (
     bind_visible_building,
     native_frame_guard,
 )
+from scripts.home_atlas_bluestacks import bind_or_pan_mapped_home_building
 from tasks.profile import BLUESTACKS_NATIVE_TARGET_PROVENANCE
 from tasks.tech_upgrade_disabled import (
     ACTIVE_SCREEN,
@@ -1426,9 +1427,33 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         atlas: HomeAtlas = load_home_atlas(ATLAS_PATH)
         localizer = BlueStacksHomeLocalizer(atlas, ATLAS_PATH)
         building = atlas.lookup_building(RESEARCH_CENTER_ID)
-        binding = _binding_for_home(context, home.frame, localizer, building)
-        if binding is None:
-            return _normal_result(context, status="blocked", reason="fresh_research_center_binding_unavailable", game_day_id=game_day_id)
+        entry_home, binding, binding_error = bind_or_pan_mapped_home_building(
+            context, current=home, atlas=atlas, localizer=localizer,
+            building_id=RESEARCH_CENTER_ID, product_id=PRODUCT_ID,
+            binding_for_frame=lambda frame: _binding_for_home(context, frame, localizer, building),
+        )
+        if entry_home is None or binding is None:
+            return _normal_result(
+                context, status="blocked",
+                reason=binding_error or "fresh_research_center_binding_unavailable",
+                game_day_id=game_day_id,
+            )
+        if entry_home is not home:
+            home_screen = _source_screen(context, entry_home)
+            queue_state = home_screen.queue1_state
+            queue_remaining = home_screen.queue1_remaining_seconds
+            if queue_state == "busy" and type(queue_remaining) is int and queue_remaining > 0:
+                return _normal_result(
+                    context, status="deferred", reason="research_queue1_busy",
+                    game_day_id=game_day_id, queue1_state=queue_state,
+                    queue1_remaining_seconds=queue_remaining, terminal_home_verified=True,
+                )
+            if queue_state != "idle":
+                return _normal_result(
+                    context, status="blocked", reason="research_queue1_state_unknown_or_timer_unproven",
+                    game_day_id=game_day_id, queue1_state=queue_state,
+                )
+        home = entry_home
         center_level = _building_level_from_words(home_screen, binding)
         context._recommended_research_center_level = center_level
         context._recommended_research_queue1_state = queue_state
