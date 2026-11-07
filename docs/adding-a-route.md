@@ -122,6 +122,11 @@ canonical action-store lease, checkpoints, capture/replay, startup recovery,
 input accounting and teardown. Drivers retain route-specific recognition,
 consequential policy and semantic acceptance. The shared boundary does not
 authorize gameplay or convert transport success into a committed effect.
+Resource Item selects `driver_manages_action_lease=True`: its existing
+`ResourceEffectAuthority` owns and releases the sole Core controller lease, rather than
+competing with a second bridge lease. Its `DevelopmentSession.assert_held` fences the exact
+route scope through the actual canonical input lock and checkpoint; it does not acquire
+another operator or bypass lost ownership.
 
 Existing layout exceptions:
 

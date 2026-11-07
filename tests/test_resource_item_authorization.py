@@ -410,6 +410,93 @@ class ResourceItemAuthorizationTests(unittest.TestCase):
                         )
                     self.assertEqual(second.input_count, 0)
 
+    def test_canonical_native_boundary_preserves_unknown_without_double_leasing(self):
+        from automation_service.native_execution import NativeRouteRequest
+        from scripts import base_route_native_runtime as bridge
+        from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
+        from tests.test_native_execution import _Runtime
+
+        identity, payload = _resource_identity()
+        now = datetime.fromisoformat(payload["evaluated_utc"].replace("Z", "+00:00"))
+
+        class Replay(_Runtime):
+            execute = True
+            frame_max_age_seconds = 30.0
+            dispatch_calls = 0
+
+            def dispatch_prepared_resource_item_use(self, *_args, **_kwargs):
+                type(self).dispatch_calls += 1
+                self.input_count += 1
+                self.route_session.adopt_retained_transport_count(
+                    self.input_count, source="events.jsonl",
+                )
+                return TransportResult(False, "NOT_SENT")
+
+        def exercise(context, _arguments):
+            context.runtime.route_session = context.session
+            components = authorization.build_resource_runtime_components(
+                session=context.session, verified_identity=identity,
+                deadline_payload=payload, action_store=context.action_store,
+                wall_clock=lambda: now,
+            )
+            try:
+                runtime = components["runtime_factory"](context.runtime)
+                runtime.dispatch_one_food_use(
+                    _frame(context.session.session_directory / "owned-food.png"),
+                    target_roi=(100, 100, 140, 140),
+                    action_key=authorization.ITEM_USE_ACTION_KEY,
+                )
+                return {"status": "blocked", "effect_reconciliation_required": True}
+            finally:
+                authorization.release_resource_runtime_components(components)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store_path = root / "actions.sqlite3"
+            SafetyStore(store_path).close()
+
+            def make(**kwargs):
+                kwargs["driver"] = exercise
+                kwargs["action_store_factory"] = lambda _: SafetyStore(store_path)
+                return bridge.make_native_route_binding(**kwargs)
+
+            with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"), patch.object(
+                bridge.LocalBlueStacksRuntime, "connect", Replay.connect,
+            ):
+                with boundary.RuntimeInputLock(
+                    owner="automation-service", invocation_id="actual-operator",
+                ) as lock:
+                    binding = resource_route.create_service_binding(make)
+                    request = NativeRouteRequest(
+                        flow_id=binding.flow_id, product_id=binding.product_id,
+                        product_revision=binding.product_revision,
+                        runtime_profile_id=binding.runtime_profile_id,
+                        identity=identity, previous_reset_id=None,
+                        occurrence_key="same-resource-occurrence",
+                        checkpoint=lambda: None, validate_identity=lambda: None,
+                        runtime_input_lock=lock, adb=str(BLUESTACKS_ADB),
+                        serial=BLUESTACKS_SERIAL, output_directory=root / "native",
+                        max_inputs=binding.max_inputs, max_actions=binding.max_actions,
+                        settle_seconds=0, utc_clock=lambda: now.timestamp(),
+                    )
+                    first = binding.run(request)
+                    second = binding.run(request)
+                    self.assertEqual(first.input_count, 1)
+                    self.assertTrue(first.accounting_verified)
+                    self.assertTrue(first.native_result["effect_reconciliation_required"])
+                    self.assertFalse(second.execution_verified)
+                    self.assertEqual(second.input_count, 0)
+                    self.assertEqual(Replay.dispatch_calls, 1)
+                    with self.assertRaises(boundary.NavigationBoundaryError):
+                        boundary.RuntimeInputLock(
+                            owner="competing-operator", invocation_id="competing",
+                        ).acquire()
+            with closing(SafetyStore(store_path)) as reopened:
+                self.assertEqual(
+                    reopened.connection.execute("SELECT state FROM resource_reservations").fetchone()[0],
+                    "TRANSPORT_UNKNOWN",
+                )
+
     def test_service_use_resamples_utc_after_navigation_and_cancels_before_transport(self):
         from automation_service.recruitment import recruitment_reset
 
