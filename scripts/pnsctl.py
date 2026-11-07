@@ -47,6 +47,9 @@ from automation_service.registry import (  # noqa: E402
     RECOMMENDED_RESEARCH_FLOW_ID,
     FOOD_FARM_BOOST_FLOW_ID,
     SUPPLY_FLOW_ID,
+    HALL_OF_WAR_FLOW_ID,
+    TROOP_TRAINING_FLOW_ID,
+    TROOP_TRAINING_MAX_INPUTS,
     ULTIMATE_FLOW_ID,
     WORLD_FLOW_ID,
 )
@@ -57,7 +60,6 @@ from scripts import (  # noqa: E402
     flow_delivery_personal_might_bluestacks,
     flow_delivery_recruitment_bluestacks,
     flow_delivery_supply_depot_bluestacks,
-    flow_delivery_troop_training_bluestacks,
     flow_delivery_ultimate_challenge_bluestacks,
 )
 from scripts.bluestacks_adb_readiness import (  # noqa: E402
@@ -90,11 +92,10 @@ DEVELOPMENT_CHECKPOINT_PATHS = (
     REPO_ROOT / "tasks" / "flow_delivery_queue.json",
     REPO_ROOT / "docs" / "agent" / "CURRENT_HANDOFF.md",
 )
-# Flow ids and input budgets are owned by the canonical registry (service routes) or by the
-# route's flow_delivery module (development-only routes); pnsctl only aliases them.
+# Flow identities and native route budgets are owned by the canonical registry;
+# pnsctl only aliases facts needed by its legacy development routes.
 RECRUITMENT_MAINTENANCE_FLOW_ID = RECRUITMENT_FLOW_ID
 CAMPAIGN_AP_FLOW_ID = CAMPAIGN_FLOW_ID
-TROOP_TRAINING_FLOW_ID = flow_delivery_troop_training_bluestacks.FLOW_ID
 CAMPAIGN_PROVING_FLOW_ID = flow_delivery_campaign_bluestacks.PROVING_FLOW_ID
 # The Campaign development session budget is its own fact: it is not the service route cap.
 CAMPAIGN_DEVELOPMENT_SESSION_MAX_INPUTS = 16
@@ -107,7 +108,6 @@ _DEFAULT_MAX_INPUTS = {
     ENHANCEMENT_FLOW_ID: ENHANCEMENT_MAX_INPUTS,
     RECRUITMENT_MAINTENANCE_FLOW_ID: flow_delivery_recruitment_bluestacks.MAX_INPUTS,
     CAMPAIGN_AP_FLOW_ID: CAMPAIGN_DEVELOPMENT_SESSION_MAX_INPUTS,
-    TROOP_TRAINING_FLOW_ID: flow_delivery_troop_training_bluestacks.MAX_INPUTS,
 }
 FLOW_DELIVERY_QUEUE = REPO_ROOT / "tasks" / "flow_delivery_queue.json"
 FLOW_DELIVERY_LEASE = REPO_ROOT / ".local-orchestrator" / "flow-delivery-lease.json"
@@ -145,14 +145,6 @@ def _register_checked_in_bluestacks_handlers() -> None:
     except ImportError:
         from flow_delivery_ultimate_challenge_bluestacks import (
             register as register_ultimate_challenge,
-        )
-    try:
-        from scripts.flow_delivery_troop_training_bluestacks import (
-            register as register_troop_training,
-        )
-    except ImportError:
-        from flow_delivery_troop_training_bluestacks import (
-            register as register_troop_training,
         )
     try:
         from scripts.flow_delivery_enhancement_bluestacks import (
@@ -214,11 +206,6 @@ def _register_checked_in_bluestacks_handlers() -> None:
         _BLUESTACKS_RECOVERY_HANDLERS,
     )
     register_ultimate_challenge(
-        _BLUESTACKS_FLOW_RUNNERS,
-        _BLUESTACKS_EVIDENCE_VALIDATORS,
-        _BLUESTACKS_RECOVERY_HANDLERS,
-    )
-    register_troop_training(
         _BLUESTACKS_FLOW_RUNNERS,
         _BLUESTACKS_EVIDENCE_VALIDATORS,
         _BLUESTACKS_RECOVERY_HANDLERS,
@@ -297,6 +284,12 @@ def _native_service_route_bindings() -> Mapping[str, NativeRouteBoundary]:
     from scripts.food_farm_boost_bluestacks import (
         create_service_binding as create_food_farm_boost_binding,
     )
+    from scripts.hall_of_war_bluestacks import (
+        create_service_binding as create_hall_of_war_binding,
+    )
+    from scripts.troop_training_bluestacks import (
+        create_service_binding as create_troop_training_binding,
+    )
 
     return {
         DAILY_REWARDS_FLOW_ID: create_daily_rewards_binding(
@@ -321,6 +314,8 @@ def _native_service_route_bindings() -> Mapping[str, NativeRouteBoundary]:
         HERO_DUEL_FLOW_ID: create_hero_duel_binding(make_native_route_binding),
         RECOMMENDED_RESEARCH_FLOW_ID: create_recommended_research_binding(make_native_route_binding),
         FOOD_FARM_BOOST_FLOW_ID: create_food_farm_boost_binding(make_native_route_binding),
+        HALL_OF_WAR_FLOW_ID: create_hall_of_war_binding(make_native_route_binding),
+        TROOP_TRAINING_FLOW_ID: create_troop_training_binding(make_native_route_binding),
     }
 
 
@@ -385,6 +380,7 @@ def reconcile(args: argparse.Namespace) -> str:
 def _load_flow_delivery_state(
     *,
     require_runtime_held: bool = True,
+    allow_troop_training_recovery: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     try:
         queue = json.loads(FLOW_DELIVERY_QUEUE.read_text(encoding="utf-8"))
@@ -405,59 +401,19 @@ def _load_flow_delivery_state(
         "held",
     }:
         raise OperatorError("BlueStacks runtime ownership is unknown")
-    if lease.get("unresolved_action_state") != "clear":
-        raise OperatorError("the global unresolved-action gate is not clear")
     active_flow = queue.get("active_flow_id")
     if not active_flow or lease.get("active_flow") != active_flow:
         raise OperatorError("queue and lease must identify one active development flow")
-    if active_flow not in BLUESTACKS_FLOW_IDS:
+    if active_flow not in BLUESTACKS_FLOW_IDS and not (
+        allow_troop_training_recovery and active_flow == TROOP_TRAINING_FLOW_ID
+    ):
         raise OperatorError("active flow is not in the BlueStacks allowlist")
+    if lease.get("unresolved_action_state") != "clear" and not (
+        allow_troop_training_recovery and active_flow == TROOP_TRAINING_FLOW_ID
+    ):
+        raise OperatorError("the global unresolved-action gate is not clear")
     return queue, lease
 
-
-def _retained_troop_training_state(
-    session_directory: Path,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Build evidence-only context for a released Troop Training session.
-
-    This deliberately does not recreate a queue lease or runtime ownership.  It
-    only lets the registered validator inspect native artifacts retained by a
-    completed development session.
-    """
-
-    session = Path(session_directory).resolve()
-    allowed_root = (REPO_ROOT / ".local-captures").resolve()
-    try:
-        session.relative_to(allowed_root)
-    except ValueError as exc:
-        raise OperatorError(
-            "retained Troop Training session is outside .local-captures"
-        ) from exc
-    result_path = session / "flow-delivery-result.json"
-    try:
-        result = json.loads(result_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise OperatorError("retained Troop Training result is unavailable") from exc
-    if (
-        not isinstance(result, dict)
-        or result.get("flow_id") != TROOP_TRAINING_FLOW_ID
-    ):
-        raise OperatorError("retained session is not Troop Training evidence")
-    return (
-        {
-            "queue_kind": "development_flow_delivery",
-            "active_flow_id": result["flow_id"],
-            "retained_evidence": True,
-        },
-        {
-            "workflow": "pns-flow-delivery",
-            "active_flow": result["flow_id"],
-            "active_stage": "evidence_review",
-            "runtime_ownership_state": "released",
-            "unresolved_action_state": "clear",
-            "retained_evidence": True,
-        },
-    )
 
 
 def _retained_enhancement_state(
@@ -499,56 +455,146 @@ def _retained_enhancement_state(
         },
     )
 
+def _troop_training_recovery_history() -> dict[str, Any] | None:
+    """Read canonical Training and Resource effect history without mutating it."""
 
-def _latest_troop_training_recovery_candidate() -> Path | None:
-    """Find a retained unresolved dispatch that permits safe Home recovery."""
+    from automation_service.recruitment import recruitment_reset
+    from automation_service.troop_training import derive_training_action_state
+    from safe_action_core.store import CURRENT_SCHEMA_VERSION
+    from scripts.navigation_development_boundary import CANONICAL_ACTION_STORE_PATH
+    from tasks.runtime_identity import resource_fixed_runtime_binding
 
-    root = (
-        BLUESTACKS_ARTIFACT_ROOT / TROOP_TRAINING_FLOW_ID
-    ).resolve()
-    if not root.is_dir() or root.is_symlink():
+    path = CANONICAL_ACTION_STORE_PATH
+    if not path.exists():
         return None
-    for result_path in sorted(root.rglob("flow-delivery-result.json"), reverse=True):
-        if result_path.is_symlink() or not result_path.is_file():
-            raise OperatorError("Troop Training recovery result path is unsafe")
+    if path.is_symlink() or not path.is_file():
+        raise OperatorError("canonical action history path is unsafe")
+    now = time.time()
+    reset_id = recruitment_reset(now)
+    binding = resource_fixed_runtime_binding()
+    try:
+        connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
+        connection.row_factory = sqlite3.Row
         try:
-            result = json.loads(result_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise OperatorError("Troop Training recovery result is unreadable") from exc
-        if not isinstance(result, dict) or result.get("flow_id") != root.name:
-            continue
-        if result.get("status") not in {"blocked", "unresolved", "manual_required"}:
-            continue
-        session = result_path.parent.resolve()
-        try:
-            session.relative_to(root)
-        except ValueError as exc:
-            raise OperatorError(
-                "Troop Training recovery session escaped the flow root"
-            ) from exc
-        events = session / str(result.get("events_path") or "events.jsonl")
-        if events.is_symlink() or not events.is_file():
-            continue
-        try:
-            rows = [
-                json.loads(line)
-                for line in events.read_text(encoding="utf-8").splitlines()
-                if line.strip()
+            schema = connection.execute(
+                "SELECT version FROM schema_version WHERE singleton=1"
+            ).fetchone()
+            if schema is None or schema["version"] != CURRENT_SCHEMA_VERSION:
+                raise OperatorError("canonical action history schema is not current")
+            action_rows = [
+                dict(row)
+                for row in connection.execute(
+                    "SELECT * FROM actions WHERE task_id=? ORDER BY prepared_at, action_id",
+                    (TROOP_TRAINING_FLOW_ID,),
+                ).fetchall()
             ]
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise OperatorError(
-                "Troop Training recovery events are unreadable"
-            ) from exc
-        if any(
-            isinstance(row, dict)
-            and row.get("type") == "reconcile"
-            and row.get("status") == "unresolved"
-            and isinstance(row.get("action_key"), str)
-            and row["action_key"].startswith("training:")
-            for row in rows
-        ):
-            return session
-    return None
+            state = derive_training_action_state(
+                action_rows,
+                runtime_scope=binding.runtime_scope,
+                account_id=binding.account_id,
+                server_id=binding.server_id,
+                game_day_id=reset_id,
+            )
+            prefix = f"troop-training:{state.runtime_identity_sha256}:"
+            unresolved = [
+                row
+                for row in action_rows
+                if str(row.get("action_key") or "").startswith(prefix)
+                and row.get("final_status") in {"prepared", "input_sent", "unresolved"}
+            ]
+            if any(row.get("consequential") != 1 for row in unresolved):
+                raise OperatorError(
+                    "canonical Training pending action is not consequentially bound"
+                )
+            confirmed_queue_keys = set(state.pending_start_action_keys.values())
+            confirmed_queue_rows = [
+                row
+                for row in action_rows
+                if row.get("action_key") in confirmed_queue_keys
+                and row.get("final_status") == "confirmed"
+            ]
+            candidate_rows = {row["action_id"]: row for row in unresolved}
+            candidate_rows.update(
+                {row["action_id"]: row for row in confirmed_queue_rows}
+            )
+            if not candidate_rows:
+                return None
+            candidate_ids = set(candidate_rows)
+            global_blockers = {
+                str(row["action_id"])
+                for row in connection.execute(
+                    """SELECT action_id FROM actions
+                       WHERE consequential=1
+                         AND final_status IN ('prepared','input_sent','unresolved')"""
+                ).fetchall()
+            }
+            if not global_blockers.issubset(candidate_ids):
+                raise OperatorError(
+                    "canonical action history contains an unrelated unresolved effect"
+                )
+            block_rows = connection.execute(
+                """SELECT p.projection_state,p.current_reset_id,b.scope_key,
+                          b.account_id,b.server_id,b.reset_identity_id,b.occurrence_key
+                   FROM resource_effect_block_projection p
+                   JOIN resource_effect_block_facts b ON b.block_id=p.block_id
+                   WHERE p.projection_state IN ('ACTIVE','CONFLICT','CLEARED')"""
+            ).fetchall()
+            scope_values = {binding.account_id, binding.server_id}
+            for row in block_rows:
+                matches = any(
+                    value in scope_values
+                    for value in (
+                        row["scope_key"],
+                        row["account_id"],
+                        row["server_id"],
+                        row["reset_identity_id"],
+                        row["occurrence_key"],
+                    )
+                    if value is not None
+                )
+                broad_unknown = (
+                    str(row["scope_key"]).startswith("runtime-objective:")
+                    and row["account_id"] is None
+                    and row["server_id"] is None
+                    and row["reset_identity_id"] is None
+                    and row["occurrence_key"] is None
+                )
+                if not matches and not broad_unknown:
+                    continue
+                if row["projection_state"] in {"ACTIVE", "CONFLICT"} or (
+                    row["projection_state"] == "CLEARED"
+                    and row["current_reset_id"] != reset_id
+                ):
+                    raise OperatorError(
+                        "canonical Resource effect history blocks Training recovery"
+                    )
+            return {
+                "task_id": TROOP_TRAINING_FLOW_ID,
+                "runtime_identity_sha256": state.runtime_identity_sha256,
+                "reset_id": reset_id,
+                "action_ids": sorted(candidate_ids),
+                "action_keys": sorted(
+                    str(row["action_key"]) for row in candidate_rows.values()
+                ),
+                "pending_statuses": sorted(
+                    {
+                        str(row["final_status"])
+                        for row in unresolved
+                    }
+                ),
+                "confirmed_queue_action_ids": sorted(
+                    row["action_id"] for row in confirmed_queue_rows
+                ),
+                "source": "canonical_sqlite_action_and_resource_history",
+            }
+        finally:
+            connection.close()
+    except sqlite3.Error as exc:
+        raise OperatorError("canonical Training action history is unavailable") from exc
+    except (TypeError, ValueError) as exc:
+        raise OperatorError("canonical Training action history is malformed") from exc
+
+
 
 
 def _load_bluestacks_flow_registry() -> dict[str, dict[str, str]]:
@@ -1944,10 +1990,14 @@ def development_session_run_flow(
         )
         delegated_scope = delegated_runtime_context(delegated_context)
 
-    troop_training_reset_identity: str | None = None
     enhancement_reset_identity: str | None = None
 
 
+    if flow_id == TROOP_TRAINING_FLOW_ID:
+        raise OperatorError(
+            "ordinary Training execution uses the canonical automation service; "
+            "recover-home is navigation-only"
+        )
     if flow_id not in BLUESTACKS_FLOW_IDS:
         raise OperatorError("flow ID is not in the checked-in runtime allowlist")
     contract = _load_bluestacks_flow_registry().get(flow_id)
@@ -1978,7 +2028,6 @@ def development_session_run_flow(
         if flow_id not in {
             CAMPAIGN_AP_FLOW_ID,
             ULTIMATE_FLOW_ID,
-            TROOP_TRAINING_FLOW_ID,
             ENHANCEMENT_FLOW_ID,
             WORLD_FLOW_ID,
             PERSONAL_MIGHT_FLOW_ID,
@@ -1986,15 +2035,7 @@ def development_session_run_flow(
             raise OperatorError(
                 "recovery-only is unsupported for this development flow"
             )
-    if flow_id == TROOP_TRAINING_FLOW_ID:
-        # Reset-scoped training state is bound once for this development session.
-        # The child route receives this exact value; it must not derive a second
-        # identity after runtime ownership or observation begins.
-        identity_now = datetime.now(timezone.utc)
-        troop_training_reset_identity = (
-            f"local-{identity_now.date().isoformat()}-troop-training-consolidation"
-        )
-    elif flow_id == ENHANCEMENT_FLOW_ID:
+    if flow_id == ENHANCEMENT_FLOW_ID:
         enhancement_variant = str(enhancement_variant).strip().lower()
         if enhancement_variant not in {"gear", "chip", "module"}:
             raise OperatorError(
@@ -2209,11 +2250,6 @@ def development_session_run_flow(
                 "recovery_session": str(recovery_session)
                 if recovery_session is not None
                 else None,
-                "troop_training_reset_identity": troop_training_reset_identity,
-                "troop_training_recovery_only": (
-                    recovery_only
-                    and flow_id == TROOP_TRAINING_FLOW_ID
-                ),
                 "enhancement_variant": enhancement_variant,
                 "enhancement_reset_identity": enhancement_reset_identity,
                 "enhancement_recovery_only": (
@@ -2326,13 +2362,6 @@ def development_session_run_flow(
                         "Campaign AP route did not report retained transport accounting"
                     )
                 route_retained_count = campaign_retained
-            if flow_id == TROOP_TRAINING_FLOW_ID and live:
-                troop_retained = result.get("troop_training_transport_count")
-                if type(troop_retained) is not int or troop_retained < 0:
-                    raise OperatorError(
-                        "Troop Training route did not report retained transport accounting"
-                    )
-                route_retained_count = troop_retained
             if flow_id == ULTIMATE_FLOW_ID:
                 ultimate_retained = result.get("retained_transport_count")
                 if type(ultimate_retained) is not int or ultimate_retained < 0:
@@ -2420,7 +2449,6 @@ def development_session_run_flow(
                             ENHANCEMENT_FLOW_ID,
                             BIOENHANCER_FLOW_ID,
                             SUPPLY_FLOW_ID,
-                            TROOP_TRAINING_FLOW_ID,
                         }
                         else "composite",
                     )
@@ -2546,9 +2574,7 @@ def _verify_flow_structure(session_directory: Path) -> dict[str, Any]:
     ):
         raise OperatorError("flow result does not identify the runtime owner")
     allowed_terminal_states = {"recognized_home", "safe_blocked_terminal"}
-    if result.get("flow_id") == TROOP_TRAINING_FLOW_ID:
-        allowed_terminal_states |= {"blocked", "unresolved", "manual_required"}
-    elif result.get("flow_id") == ENHANCEMENT_FLOW_ID:
+    if result.get("flow_id") == ENHANCEMENT_FLOW_ID:
         allowed_terminal_states |= {"recognized_safe_terminal"}
     if result.get("terminal_runtime_state") not in allowed_terminal_states:
         raise OperatorError("terminal runtime state is missing or unsafe")
@@ -2675,7 +2701,9 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
                 "unresolved_action_state": "clear",
             }
         else:
-            queue, lease = _retained_troop_training_state(session)
+            raise OperatorError(
+                "released flow has no retained evidence adapter"
+            )
     if lease.get("active_stage") != "evidence_review":
         raise OperatorError("verify-flow requires the active evidence_review stage")
     flow_id = queue["active_flow_id"]
@@ -2702,23 +2730,192 @@ def bluestacks_verify_flow(session_directory: Path) -> str:
     return json.dumps(verdict, sort_keys=True)
 
 
-def bluestacks_recover_home() -> str:
-    try:
-        queue, lease = _load_flow_delivery_state()
-    except OperatorError:
-        if _latest_troop_training_recovery_candidate() is None:
-            raise
-        # A released ordinary session cannot use the old lease-bound recovery
-        # handler.  Reacquire singleton ownership through the same development
-        # session path, and let the existing route perform only safe Back/Home
-        # recovery from a positively recognized active queue.
-        return development_session_run_flow(
-            TROOP_TRAINING_FLOW_ID,
-            live=True,
-            yes=True,
-            max_inputs=_DEFAULT_MAX_INPUTS[TROOP_TRAINING_FLOW_ID],
-            recovery_only=True,
+
+def _run_troop_training_return_home(
+    queue: Mapping[str, Any],
+    lease: Mapping[str, Any],
+    *,
+    history_required: bool,
+    runtime_input_lock=None,
+    checkpoint=None,
+) -> str:
+    from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+    from scripts.navigation_development_boundary import (
+        DevelopmentInitialObservation,
+        DevelopmentSession,
+    )
+    from scripts.startup_recovery import classify_startup_frame
+    from scripts.troop_training_bluestacks import (
+        run_troop_training_home_recovery,
+    )
+
+    if queue.get("active_flow_id") != TROOP_TRAINING_FLOW_ID:
+        raise OperatorError("manual Training recovery requires the active Training route")
+    if (runtime_input_lock is None) != (checkpoint is None):
+        raise OperatorError("borrowed Training recovery requires a lock and checkpoint")
+    if lease.get("runtime_ownership_state") == "held" and runtime_input_lock is None:
+        raise OperatorError(
+            "the active controller must call recover-home with its held runtime lock"
         )
+    invocation_id = (
+        f"troop-training-recover-home-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    )
+    session_directory = _development_session_directory(invocation_id)
+    max_inputs = TROOP_TRAINING_MAX_INPUTS
+    before = _checkpoint_hashes()
+    session_options: dict[str, Any] = {}
+    if runtime_input_lock is not None:
+        session_options = {
+            "runtime_input_lock": runtime_input_lock,
+            "checkpoint": checkpoint,
+        }
+    result: dict[str, Any] = {
+        "status": "blocked",
+        "flow_id": TROOP_TRAINING_FLOW_ID,
+        "recovery_mode": "manual_navigation_only",
+        "training_action_resolved": False,
+        "training_dispatch_count": 0,
+        "controls_changed": False,
+        "input_count": 0,
+        "max_inputs": max_inputs,
+        "session_directory": str(session_directory),
+    }
+    with DevelopmentSession(
+        owner=f"pnsctl-troop-training-recover-home:{TROOP_TRAINING_FLOW_ID}",
+        invocation_id=invocation_id,
+        session_directory=session_directory,
+        max_inputs=max_inputs,
+        **session_options,
+    ) as session:
+        lock = session.runtime_input_lock
+        lock_owner, lock_invocation = lock.owner, lock.invocation_id
+
+        def fence() -> None:
+            lock.assert_held(lock_owner, lock_invocation)
+            if checkpoint is not None:
+                checkpoint()
+
+        current_queue, current_lease = _load_flow_delivery_state(
+            require_runtime_held=False,
+            allow_troop_training_recovery=True,
+        )
+        if (
+            current_queue.get("active_flow_id") != TROOP_TRAINING_FLOW_ID
+            or current_lease.get("active_stage") != lease.get("active_stage")
+        ):
+            raise OperatorError("Training flow-delivery authorization changed before recovery")
+        history = _troop_training_recovery_history()
+        if history_required and history is None:
+            raise OperatorError(
+                "released Training recovery requires canonical pending queue/action history"
+            )
+        if (
+            current_lease.get("unresolved_action_state") != "clear"
+            and history is None
+        ):
+            raise OperatorError(
+                "Training recovery lacks its canonical unresolved action history"
+            )
+        runtime = LocalBlueStacksRuntime.connect(
+            adb=str(BLUESTACKS_ADB),
+            serial=BLUESTACKS_SERIAL,
+            output_directory=session_directory / "native-runtime",
+            workflow="troop-training-manual-recovery",
+            execute=True,
+        )
+        runtime.max_inputs = max_inputs
+        runtime.checkpoint = fence
+        initial = runtime.capture("training-recovery-startup-source")
+        source_path = session_directory / "source.png"
+        source_path.write_bytes(initial.png)
+        (session_directory / "startup-source.png").write_bytes(initial.png)
+        startup_plan = classify_startup_frame(
+            TROOP_TRAINING_FLOW_ID,
+            initial.png,
+        )
+        observation = {
+            "device_state": "device",
+            "foreground_package": BLUESTACKS_PACKAGE,
+            "native_width": BLUESTACKS_NATIVE_WIDTH,
+            "native_height": BLUESTACKS_NATIVE_HEIGHT,
+            "frame_sha256": initial.sha256,
+        }
+        typed_observation = DevelopmentInitialObservation(
+            observation=observation,
+            frame_sha256=initial.sha256,
+            frame_path="source.png",
+            invocation_id=invocation_id,
+        )
+        session.set_initial_observation(typed_observation)
+        session.remember_control(
+            "startup_recovery_plan",
+            startup_plan.to_mapping(),
+        )
+        session.remember_control("canonical_training_history", history)
+        session.remember_control("training_effect_mutated", False)
+        if startup_plan.status != "clear":
+            session.blocker = startup_plan.reason
+            session.next_action = (
+                "retain the startup source and require its exact startup recovery owner"
+            )
+            session.terminal_status = "blocked"
+            recovery_result: dict[str, Any] = {
+                "status": "blocked",
+                "reason": startup_plan.reason,
+                "input_count": 0,
+                "training_execution_attempted": False,
+                "training_action_resolved": False,
+                "training_dispatch_count": 0,
+                "controls_changed": False,
+            }
+        else:
+            recovery_result = dict(
+                run_troop_training_home_recovery(
+                    runtime,
+                    session=session,
+                    checkpoint=fence,
+                    max_inputs=max_inputs,
+                )
+            )
+            session.terminal_status = (
+                "navigation_complete"
+                if recovery_result.get("status") == "completed"
+                and recovery_result.get("final_home_recognized") is True
+                else "blocked"
+            )
+            if session.terminal_status == "blocked":
+                session.blocker = str(
+                    recovery_result.get("reason") or "native Home recovery was not proven"
+                )
+                session.next_action = (
+                    "retain Training action state and repair only the reported navigation proof"
+                )
+        result.update(
+            {
+                "status": session.terminal_status,
+                "runtime_session_directory": str(runtime.session),
+                "input_count": session.input_count,
+                "action_count": len(session.actions),
+                "startup_recovery_plan": startup_plan.to_mapping(),
+                "canonical_training_history": history,
+                "training_effect_status": (
+                    "unchanged_unresolved"
+                    if history and history.get("pending_statuses")
+                    else "unchanged"
+                ),
+                "route_result": recovery_result,
+            }
+        )
+    if _checkpoint_hashes() != before:
+        raise OperatorError("manual Training recovery mutated a persistent checkpoint artifact")
+    return json.dumps(result, sort_keys=True)
+
+
+def bluestacks_recover_home(*, runtime_input_lock=None, checkpoint=None) -> str:
+    queue, lease = _load_flow_delivery_state(
+        require_runtime_held=False,
+        allow_troop_training_recovery=True,
+    )
     if lease.get("active_stage") not in {
         "live_preflight",
         "live_execution",
@@ -2727,6 +2924,23 @@ def bluestacks_recover_home() -> str:
         raise OperatorError(
             "recover-home is available only during an admitted live delivery stage"
         )
+    if queue.get("active_flow_id") == TROOP_TRAINING_FLOW_ID:
+        history = _troop_training_recovery_history()
+        unresolved = lease.get("unresolved_action_state") != "clear"
+        released = lease.get("runtime_ownership_state") != "held"
+        if (unresolved or released) and history is None:
+            raise OperatorError(
+                "Training recovery requires canonical SQLite action/resource history"
+            )
+        return _run_troop_training_return_home(
+            queue,
+            lease,
+            history_required=unresolved or released,
+            runtime_input_lock=runtime_input_lock,
+            checkpoint=checkpoint,
+        )
+    if lease.get("runtime_ownership_state") != "held":
+        raise OperatorError("legacy flow recovery requires its held controller runtime")
     contract = _load_bluestacks_flow_registry().get(queue["active_flow_id"])
     if (
         contract is None

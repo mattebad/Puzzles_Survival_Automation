@@ -15,12 +15,12 @@ from automation_service.registry import (
     ALLIANCE_DONATION_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
     BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, CANONICAL_FLOW_REGISTRY,
     DAILY_REWARDS_FLOW_ID, DAILY_SHOPS_FLOW_ID, ENHANCEMENT_FLOW_ID,
-    FOOD_FARM_BOOST_FLOW_ID, HERO_DUEL_FLOW_ID,
+    FOOD_FARM_BOOST_FLOW_ID, HALL_OF_WAR_FLOW_ID, HERO_DUEL_FLOW_ID,
     NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID, NOVA_FLOW_ID,
     PERSONAL_MIGHT_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID, RECRUITMENT_FLOW_ID,
     REGISTRY_PATH, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, SUPPLY_FLOW_ID,
-    ULTIMATE_FLOW_ID,
-    canonical_entry, canonical_flow_specs,
+    TROOP_TRAINING_FLOW_ID, ULTIMATE_FLOW_ID, canonical_entry,
+    canonical_flow_specs,
 )
 from automation_service.alliance_donation import alliance_donation_next_due
 from automation_service.alliance_shop import alliance_shop_next_due
@@ -38,7 +38,8 @@ from tests.support.service_route_contract import (
     EXCEPTIONS, NOT_SERVABLE, ROUTES, RouteRig, _runner_kwarg,
 )
 from tests.support.service_route_fakes import (
-    GuardedNanoMaterialProductionRunner, GuardedNanoweaponRunner,
+    GuardedHallOfWarRunner, GuardedNanoMaterialProductionRunner,
+    GuardedNanoweaponRunner, GuardedTroopTrainingRunner,
 )
 
 
@@ -102,6 +103,7 @@ class DisabledByDefaultTests(unittest.TestCase):
                         DAILY_SHOPS_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
                         NANOWEAPON_FLOW_ID, HERO_DUEL_FLOW_ID,
                         RECOMMENDED_RESEARCH_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
+                        TROOP_TRAINING_FLOW_ID, HALL_OF_WAR_FLOW_ID,
                     }:
                         adapter = importlib.import_module(
                             "automation_service." + entry.cli_name.replace("-", "_"),
@@ -122,6 +124,16 @@ class DisabledByDefaultTests(unittest.TestCase):
                             self.assertTrue(entry.descriptor.reset_scoped)
                             self.assertEqual(entry.descriptor.cadence, "cooldown_pulse")
                             self.assertEqual(entry.descriptor.recurrence_class, RecurrenceClass.COOLDOWN)
+                        elif flow_id == HALL_OF_WAR_FLOW_ID:
+                            self.assertTrue(entry.descriptor.reset_scoped)
+                            self.assertEqual(entry.descriptor.cadence, "cooldown_pulse")
+                            self.assertEqual(entry.descriptor.recurrence_class, RecurrenceClass.COOLDOWN)
+                            self.assertTrue(entry.spec.observation_only_completion)
+                        elif flow_id == TROOP_TRAINING_FLOW_ID:
+                            self.assertTrue(entry.descriptor.reset_scoped)
+                            self.assertEqual(entry.descriptor.cadence, "timer")
+                            self.assertEqual(entry.descriptor.recurrence_class, RecurrenceClass.TIMER)
+                            self.assertTrue(entry.spec.observation_only_completion)
                         elif flow_id == DAILY_REWARDS_FLOW_ID or flow_id in {
                             ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
                             DAILY_SHOPS_FLOW_ID, HERO_DUEL_FLOW_ID,
@@ -154,6 +166,7 @@ class OccurrenceIdentityTests(unittest.TestCase):
             ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
             NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
             HERO_DUEL_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
+            HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID,
         ):
             with self.subTest(flow_id=flow_id), RouteRig(self, ROUTES[flow_id]) as rig:
                 report, = rig.once()
@@ -201,6 +214,7 @@ class RestartBeforeDueTests(unittest.TestCase):
             ALLIANCE_DONATION_FLOW_ID: (40, 10),
             ALLIANCE_SHOP_FLOW_ID: (24, 1), DAILY_SHOPS_FLOW_ID: (48, 2),
             HERO_DUEL_FLOW_ID: (20, 3), FOOD_FARM_BOOST_FLOW_ID: (4, 2),
+            HALL_OF_WAR_FLOW_ID: (18, 2),
         }
         for flow_id, spec in ROUTES.items():
             if (flow_id, "restart_before_due") in EXCEPTIONS:
@@ -258,6 +272,7 @@ class BorrowedOwnerTests(unittest.TestCase):
             RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_DONATION_FLOW_ID,
             ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
             NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
+            HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID,
         }
         for flow_id, spec in ROUTES.items():
             with self.subTest(route=flow_id):
@@ -300,6 +315,7 @@ class BorrowedOwnerTests(unittest.TestCase):
                             RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_DONATION_FLOW_ID,
                             ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
                             NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
+                            HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID,
                         }:
                             run, = rig.runs()
                             action_budgets = {
@@ -307,6 +323,7 @@ class BorrowedOwnerTests(unittest.TestCase):
                                 ALLIANCE_DONATION_FLOW_ID: 10, ALLIANCE_SHOP_FLOW_ID: 1,
                                 DAILY_SHOPS_FLOW_ID: 2, NANO_MATERIAL_PRODUCTION_FLOW_ID: 2,
                                 NANOWEAPON_FLOW_ID: 4,
+                                HALL_OF_WAR_FLOW_ID: 2, TROOP_TRAINING_FLOW_ID: 12,
                             }
                             self.assertEqual(run.max_actions, action_budgets[flow_id])
                             self.assertLessEqual(run.consumed_actions, action_budgets[flow_id])
@@ -316,6 +333,7 @@ class BorrowedOwnerTests(unittest.TestCase):
                             ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
                             DAILY_SHOPS_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
                             NANOWEAPON_FLOW_ID,
+                            HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID,
                         }:
                             run, = rig.runs()
                             transport_fields = {
@@ -328,6 +346,8 @@ class BorrowedOwnerTests(unittest.TestCase):
                                 DAILY_SHOPS_FLOW_ID: "purchase_transport_calls",
                                 NANO_MATERIAL_PRODUCTION_FLOW_ID: "production_transport_calls",
                                 NANOWEAPON_FLOW_ID: "nanoweapon_dispatch_count",
+                                HALL_OF_WAR_FLOW_ID: "hall_of_war_dispatch_count",
+                                TROOP_TRAINING_FLOW_ID: "training_dispatch_count",
                             }
                             expected_calls = {
                                 DAILY_REWARDS_FLOW_ID: 1,
@@ -339,6 +359,7 @@ class BorrowedOwnerTests(unittest.TestCase):
                                 DAILY_SHOPS_FLOW_ID: 2,
                                 NANO_MATERIAL_PRODUCTION_FLOW_ID: 1,
                                 NANOWEAPON_FLOW_ID: 2,
+                                HALL_OF_WAR_FLOW_ID: 2, TROOP_TRAINING_FLOW_ID: 4,
                             }
                             result = reports[0]["result"]
                             expected = expected_calls[flow_id]
@@ -476,6 +497,27 @@ class PartialResultTests(unittest.TestCase):
                         self.assertFalse(result["collection_effect_accounted"])
                         self.assertTrue(result["effect_reconciliation_required"])
                         self.assertTrue(result["identical_retry_denied"])
+                    elif flow_id == HALL_OF_WAR_FLOW_ID:
+                        result = rig.runner.last_result
+                        self.assertEqual(
+                            (result["dispatch_transport_calls"], result["reward_claim_transport_calls"],
+                             result["hall_of_war_dispatch_count"], result["committed_action_count"]),
+                            (1, 0, 1, 0),
+                        )
+                        self.assertTrue(result["effect_reconciliation_required"])
+                        self.assertTrue(result["identical_retry_denied"])
+                        self.assertFalse(result["terminal_home_verified"])
+                    elif flow_id == TROOP_TRAINING_FLOW_ID:
+                        result = rig.runner.last_result
+                        self.assertEqual(
+                            (result["training_start_transport_calls"], result["training_dispatch_count"],
+                             result["committed_action_count"]),
+                            (2, 2, 1),
+                        )
+                        self.assertEqual(result["resource_box_dispatch_count"], 0)
+                        self.assertTrue(result["effect_reconciliation_required"])
+                        self.assertTrue(result["identical_retry_denied"])
+                        self.assertFalse(result["terminal_home_verified"])
                     if flow_id == ULTIMATE_FLOW_ID:
                         self.assertEqual(rig.runner.flee_calls, 1)
 
@@ -1311,5 +1353,245 @@ class BatchESemanticContractTests(unittest.TestCase):
             self.assertEqual(result["food_farm_dispatch_count"], 1)
             self.assertFalse(result["effect_reconciliation_required"])
             self.assertFalse(result["identical_retry_denied"])
+
+
+class BatchFSemanticContractTests(unittest.TestCase):
+    def test_hall_dispatch_reward_and_prior_use_are_distinct(self):
+        with RouteRig(self, ROUTES[HALL_OF_WAR_FLOW_ID]) as rig:
+            report, = rig.once()
+            run, = rig.runs()
+            result = rig.runner.last_result
+            self.assertEqual(report["status"], "completed")
+            self.assertEqual(
+                (result["status"], result["challenge_status"], result["reward_status"]),
+                ("complete_for_reset", "confirmed", "claimed"),
+            )
+            self.assertEqual(
+                (result["challenge_transport_calls"], result["dispatch_transport_calls"],
+                 result["reward_claim_transport_calls"], result["talent_switch_transport_calls"],
+                 result["hall_of_war_dispatch_count"], result["committed_action_count"]),
+                (1, 1, 1, 0, 2, 2),
+            )
+            self.assertEqual((run.consumed_inputs, run.consumed_actions), (18, 2))
+            self.assertTrue(result["accounting_verified"])
+            self.assertFalse(result["effect_reconciliation_required"])
+            self.assertFalse(result["identical_retry_denied"])
+            self.assertEqual(result["scheduler_reset_id"], run.reset_id)
+            self.assertEqual(result["reset_id"], run.reset_id)
+            self.assertEqual(result["occurrence_key"], run.occurrence_key)
+            self.assertTrue(result["saved_military_verified"])
+            self.assertEqual(
+                result["military_preset_verification"]["preset_name"], "Military",
+            )
+            self.assertFalse(result["military_preset_verification"]["switch_transport_attempted"])
+            self.assertEqual(
+                (
+                    result["troop_set_one"]["hero_count"],
+                    result["troop_set_one"]["current_troops"],
+                    result["troop_set_one"]["troop_capacity"],
+                ),
+                (5, 160_200, 160_200),
+            )
+            self.assertEqual(result["reward_result_frame"]["frame_sha256"], "c" * 64)
+            self.assertTrue(result["terminal_home_verified"])
+            self.assertEqual(len(result["terminal_home_frame"]["frame_sha256"]), 64)
+            self.assertIn("confirm-result", result["verified_navigation"])
+            self.assertEqual((rig.runner.actions, rig.runner.effects), (2, 2))
+
+        for mode, expected_status, expected_counts in (
+            ("unavailable", "deferred", (0, 0, 0, 0)),
+            ("reward_unavailable", "deferred", (1, 0, 1, 1)),
+            ("manual_prior_use", "blocked", (0, 0, 0, 0)),
+        ):
+            with self.subTest(mode=mode), RouteRig(
+                self, ROUTES[HALL_OF_WAR_FLOW_ID],
+            ) as rig:
+                rig.runner.hall_mode = mode
+                rig.once()
+                result = rig.runner.last_result
+                self.assertEqual(result["status"], expected_status)
+                self.assertEqual(
+                    (result["dispatch_transport_calls"], result["reward_claim_transport_calls"],
+                     result["hall_of_war_dispatch_count"], result["committed_action_count"]),
+                    expected_counts,
+                )
+                self.assertTrue(result["terminal_home_verified"])
+                self.assertFalse(result["effect_reconciliation_required"])
+                if mode == "manual_prior_use":
+                    self.assertEqual(
+                        result["challenge_status"], "deferred_unexplained_prior_same_reset_use",
+                    )
+                    self.assertEqual(len(rig.runner.calls), 1)
+
+        with RouteRig(self, ROUTES[HALL_OF_WAR_FLOW_ID]) as rig:
+            rig.runner.hall_mode = "already_reconciled"
+            report, = rig.once()
+            result = rig.runner.last_result
+            run, = rig.runs()
+            self.assertEqual(result["status"], "complete_for_reset")
+            self.assertEqual(
+                (result["challenge_status"], result["reward_status"],
+                 result["dispatch_transport_calls"], result["reward_claim_transport_calls"],
+                 result["hall_of_war_dispatch_count"], result["committed_action_count"]),
+                ("confirmed_prior_canonical_action", "already_claimed", 0, 0, 0, 0),
+            )
+            self.assertEqual(report["result"]["committed_action_count"], 0)
+            self.assertEqual(run.consumed_actions, 0)
+            self.assertTrue(result["terminal_home_verified"])
+            self.assertFalse(result["effect_reconciliation_required"])
+            self.assertFalse(result["identical_retry_denied"])
+
+    def test_training_resource_and_timer_transitions_match_native_actions(self):
+        with RouteRig(self, ROUTES[TROOP_TRAINING_FLOW_ID]) as rig:
+            report, = rig.once()
+            run, = rig.runs()
+            result = rig.runner.last_result
+            self.assertEqual(report["status"], "completed")
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(
+                (result["training_start_transport_calls"], result["claim_dispatch_count"],
+                 result["resource_box_dispatch_count"], result["warehouse_dispatch_count"],
+                 result["training_dispatch_count"], result["committed_action_count"]),
+                (4, 0, 0, 0, 4, 4),
+            )
+            self.assertEqual((run.consumed_inputs, run.consumed_actions), (28, 4))
+            self.assertEqual(result["occurrence_key"], run.occurrence_key)
+            self.assertEqual(result["reset_id"], run.reset_id)
+            self.assertTrue(result["accounting_verified"])
+            self.assertTrue(result["terminal_home_verified"])
+            self.assertTrue(result["saved_training_preset_verified"])
+            self.assertTrue(result["entry_navigation"]["canonical_home_entry_verified"])
+            self.assertTrue(result["entry_navigation"]["terminal_home_verified"])
+            self.assertEqual(result["resource_box_approvals"], [])
+            self.assertEqual(result["warehouse_approvals"], [])
+
+            expected = {
+                "fighter": (8, "current_max", "continuous", True),
+                "shooter": (8, "fixed", "once_daily", False),
+                "rider": (1, "fixed", "once_daily", False),
+                "vehicle": (1, "current_max", "continuous", True),
+            }
+            self.assertEqual([row["troop_type"] for row in result["training"]],
+                             ["fighter", "shooter", "rider", "vehicle"])
+            for row in result["training"]:
+                with self.subTest(troop_type=row["troop_type"]):
+                    tier, quantity_mode, policy, boxes_allowed = expected[row["troop_type"]]
+                    self.assertEqual(
+                        (row["selected_tier"], row["quantity_mode"], row["training_policy"],
+                         result["resolved_config"][row["troop_type"]]["allow_resource_boxes"]),
+                        (tier, quantity_mode, policy, boxes_allowed),
+                    )
+                    self.assertEqual(row["queue_state"], "active")
+                    self.assertEqual(row["queue_troop_type"], row["troop_type"])
+                    self.assertEqual(row["queue_tier"], tier)
+                    self.assertEqual(row["queue_quantity"], row["quantity"])
+                    self.assertTrue(row["queue_spatially_associated"])
+                    self.assertEqual(row["reset_identity"], run.reset_id)
+                    completion = datetime.fromisoformat(
+                        row["expected_completion_timestamp"].replace("Z", "+00:00"),
+                    ).timestamp()
+                    self.assertGreater(completion, rig.stop.now)
+                    resolved = result["resolved_config"][row["troop_type"]]
+                    self.assertEqual(resolved["per_reset_variant_start_count"], 1)
+                    self.assertEqual(
+                        resolved["daily_initiation_state"],
+                        "initiated" if policy == "once_daily" else "not_started",
+                    )
+                    if policy == "once_daily":
+                        eligible_at = datetime.fromisoformat(
+                            row["next_eligible_timestamp"].replace("Z", "+00:00"),
+                        ).timestamp()
+                        self.assertGreater(eligible_at, rig.stop.now)
+                    else:
+                        self.assertIsNone(row["next_eligible_timestamp"])
+                    if quantity_mode == "current_max":
+                        self.assertGreater(row["quantity_maximum"], 0)
+                        self.assertEqual(row["quantity"], row["quantity_maximum"])
+                        self.assertTrue(row["maximum_equality_proven"])
+                        self.assertEqual(
+                            result["resolved_config"][row["troop_type"]]["resolved_quantity"],
+                            row["quantity_maximum"],
+                        )
+                    else:
+                        self.assertEqual(row["quantity"], 250)
+                        self.assertEqual(row["configured_quantity"], 250)
+                        self.assertEqual(resolved["resolved_quantity"], 250)
+                    before = {
+                        resource["name"]: resource
+                        for resource in row["resources_before"]
+                    }
+                    after = {
+                        resource["name"]: resource
+                        for resource in row["resources_after"]
+                    }
+                    self.assertEqual(set(before), {"food", "wood", "steel", "gas"})
+                    self.assertEqual(set(after), set(before))
+                    for name in before:
+                        self.assertIsNotNone(before[name]["held"])
+                        self.assertIsNotNone(after[name]["held"])
+                        self.assertGreaterEqual(before[name]["held"], before[name]["required"])
+                        self.assertEqual(before[name]["held"] - after[name]["held"],
+                                         before[name]["required"])
+
+        for mode in ("resource_shortage", "box_deferred"):
+            with self.subTest(mode=mode), RouteRig(
+                self, ROUTES[TROOP_TRAINING_FLOW_ID],
+            ) as rig:
+                rig.runner.training_mode = mode
+                rig.once()
+                result = rig.runner.last_result
+                self.assertEqual(result["status"], "deferred")
+                self.assertEqual(
+                    (result["training_start_transport_calls"], result["training_dispatch_count"],
+                     result["resource_box_dispatch_count"], result["warehouse_dispatch_count"],
+                     result["committed_action_count"]),
+                    (0, 0, 0, 0, 0),
+                )
+                self.assertEqual(result["resource_box_approvals"], [])
+                self.assertEqual(result["warehouse_approvals"], [])
+                self.assertEqual(result["training"][0]["queue_state"], "empty")
+                self.assertEqual(result["training"][0]["status"], "deferred_resource_shortage")
+                self.assertFalse(result["effect_reconciliation_required"])
+                self.assertFalse(result["identical_retry_denied"])
+
+    def test_training_active_queue_survives_restart_without_duplicate_start(self):
+        with RouteRig(self, ROUTES[TROOP_TRAINING_FLOW_ID]) as rig:
+            report, = rig.once()
+            first, = rig.runs()
+            due = rig.state.get_flow(TROOP_TRAINING_FLOW_ID).next_due_at_utc
+            first_inputs = list(rig.runner.inputs)
+            self.assertEqual(report["status"], "completed")
+            with BotStateManager(rig.path) as restarted:
+                self.assertEqual(rig.once(state=restarted), [])
+            self.assertEqual(len(rig.runner.calls), 1)
+            self.assertEqual(rig.runner.inputs, first_inputs)
+
+            rig.stop.now = due
+            rig.runner.input_count = 0
+            with BotStateManager(rig.path) as restarted:
+                second_report, = rig.once(state=restarted)
+            second, = rig.runs()[1:]
+            result = rig.runner.last_result
+            self.assertEqual(second_report["result"]["status"], "deferred")
+            self.assertEqual(first.reset_id, second.reset_id)
+            self.assertNotEqual(first.occurrence_key, second.occurrence_key)
+            self.assertEqual((second.consumed_inputs, second.consumed_actions), (0, 0))
+            self.assertEqual(
+                (result["training_start_transport_calls"], result["training_dispatch_count"],
+                 result["committed_action_count"]),
+                (0, 0, 0),
+            )
+            self.assertEqual(len(result["training"]), 4)
+            self.assertTrue(all(row["queue_state"] == "active" for row in result["training"]))
+            self.assertTrue(all(
+                datetime.fromisoformat(row["expected_completion_timestamp"].replace("Z", "+00:00"))
+                > datetime.fromtimestamp(due, timezone.utc)
+                for row in result["training"]
+            ))
+            self.assertEqual(rig.state.get_flow(TROOP_TRAINING_FLOW_ID).next_due_at_utc, due + 1_800)
+            self.assertEqual(len(rig.runner.calls), 2)
+            self.assertEqual(rig.runner.inputs, first_inputs)
+
+
 if __name__ == "__main__":
     unittest.main()

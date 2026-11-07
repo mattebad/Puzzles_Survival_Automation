@@ -21,9 +21,11 @@ from automation_service.registry import (
     HERO_DUEL_FLOW_ID,
     RECOMMENDED_RESEARCH_FLOW_ID,
     FOOD_FARM_BOOST_FLOW_ID,
+    HALL_OF_WAR_FLOW_ID,
     RESOURCE_ITEM_FLOW_ID,
     RUINS_FLOW_ID,
     canonical_flow_specs,
+    TROOP_TRAINING_FLOW_ID,
     servable_flow_names,
 )
 from automation_service.state import BotStateManager
@@ -62,6 +64,8 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                     "hero-duel",
                     "recommended-research",
                     "food-farm-boost",
+                    "hall-of-war",
+                    "troop-training",
                 ):
                     argv.extend(["--flow", flow])
                 argv.extend(["--campaign-stage", "1-15-9", "--campaign-cadence-seconds", "300",
@@ -69,8 +73,8 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                              "--account-id", "account", "--server-id", "server", "--output-directory", "captures with spaces"])
                 parsed = cli.build_parser().parse_args(argv[1:])
                 self.assertEqual(parsed.mode, "supervised")
-                self.assertEqual(len(parsed.flow), 20)
-                self.assertEqual(len(servable_flow_names()), 20)
+                self.assertEqual(len(parsed.flow), 22)
+                self.assertEqual(len(servable_flow_names()), 22)
                 with patch.object(cli, "main", return_value=17) as canonical:
                     self.assertEqual(pnsctl.main(argv), 17)
                 canonical.assert_called_once()
@@ -95,6 +99,8 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                         DAILY_SHOPS_FLOW_ID,
                         HERO_DUEL_FLOW_ID,
                         RECOMMENDED_RESEARCH_FLOW_ID,
+                        HALL_OF_WAR_FLOW_ID,
+                        TROOP_TRAINING_FLOW_ID,
                         FOOD_FARM_BOOST_FLOW_ID,
                     },
                 )
@@ -114,6 +120,18 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                         "food_farm_output_boost-v1",
                         16,
                         2,
+                    ),
+                    HALL_OF_WAR_FLOW_ID: (
+                        "hall_of_war_zombie_zero",
+                        "hall_of_war_zombie_zero-v1",
+                        24,
+                        2,
+                    ),
+                    TROOP_TRAINING_FLOW_ID: (
+                        "troop_training",
+                        "troop_training-v3",
+                        32,
+                        12,
                     ),
                 }.items():
                     binding = native_bindings[flow_id]
@@ -159,6 +177,8 @@ class CanonicalServeFacadeTests(unittest.TestCase):
             "hero-duel",
             "recommended-research",
             "food-farm-boost",
+            "hall-of-war",
+            "troop-training",
         ):
             self.assertIn(option, output.getvalue())
         with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as error:
@@ -193,13 +213,15 @@ class CanonicalServeFacadeTests(unittest.TestCase):
         adb.assert_not_called()
         connect.assert_not_called()
 
-    def test_batch_d_and_e_flows_keep_disabled_sqlite_controls_and_do_not_start_runtime(self):
+    def test_batch_d_e_f_flows_keep_disabled_sqlite_controls_and_do_not_start_runtime(self):
         for flow, flow_id in (
             ("nano-material-production", NANO_MATERIAL_PRODUCTION_FLOW_ID),
             ("nanoweapon", NANOWEAPON_FLOW_ID),
             ("hero-duel", HERO_DUEL_FLOW_ID),
             ("recommended-research", RECOMMENDED_RESEARCH_FLOW_ID),
             ("food-farm-boost", FOOD_FARM_BOOST_FLOW_ID),
+            ("hall-of-war", HALL_OF_WAR_FLOW_ID),
+            ("troop-training", TROOP_TRAINING_FLOW_ID),
         ):
             with self.subTest(flow=flow), tempfile.TemporaryDirectory() as directory:
                 database = Path(directory) / "isolated-state.sqlite3"

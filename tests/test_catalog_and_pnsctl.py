@@ -17,6 +17,8 @@ from automation_service.registry import (
     HERO_DUEL_FLOW_ID,
     RECOMMENDED_RESEARCH_FLOW_ID,
     FOOD_FARM_BOOST_FLOW_ID,
+    HALL_OF_WAR_FLOW_ID,
+    TROOP_TRAINING_FLOW_ID,
     canonical_entry,
     servable_flow_names,
 )
@@ -204,14 +206,16 @@ class OperatorCliTests(unittest.TestCase):
             payload = (asset_root / asset["path"]).read_bytes()
             self.assertEqual(hashlib.sha256(payload).hexdigest(), asset["sha256"])
 
-    def test_batch_d_and_e_routes_are_canonical_service_only_and_disabled(self):
-        self.assertEqual(len(CANONICAL_FLOW_REGISTRY), 21)
-        self.assertEqual(len(servable_flow_names()), 20)
+    def test_batch_d_e_f_routes_are_canonical_service_only_and_disabled(self):
+        self.assertEqual(len(CANONICAL_FLOW_REGISTRY), 23)
+        self.assertEqual(len(servable_flow_names()), 22)
         material = canonical_entry(NANO_MATERIAL_PRODUCTION_FLOW_ID)
         weapon = canonical_entry(NANOWEAPON_FLOW_ID)
         hero = canonical_entry(HERO_DUEL_FLOW_ID)
         research = canonical_entry(RECOMMENDED_RESEARCH_FLOW_ID)
         farm = canonical_entry(FOOD_FARM_BOOST_FLOW_ID)
+        hall = canonical_entry(HALL_OF_WAR_FLOW_ID)
+        training = canonical_entry(TROOP_TRAINING_FLOW_ID)
         self.assertEqual(
             (material.descriptor.family, material.descriptor.variant, material.descriptor.cadence,
              material.descriptor.reset_scoped, material.max_inputs),
@@ -241,6 +245,42 @@ class OperatorCliTests(unittest.TestCase):
             ("food_farm_boost", "one_daily_food_farm_boost", "cooldown_pulse", True,
              "food_farm_output_boost-v1", 16),
         )
+        self.assertEqual(
+            (
+                hall.descriptor.family,
+                hall.descriptor.variant,
+                hall.descriptor.cadence,
+                hall.descriptor.reset_scoped,
+                hall.product_revision,
+                hall.max_inputs,
+            ),
+            (
+                "hall_of_war",
+                "zombie_zero_attack_and_daily_reward",
+                "cooldown_pulse",
+                True,
+                "hall_of_war_zombie_zero-v1",
+                24,
+            ),
+        )
+        self.assertEqual(
+            (
+                training.descriptor.family,
+                training.descriptor.variant,
+                training.descriptor.cadence,
+                training.descriptor.reset_scoped,
+                training.product_revision,
+                training.max_inputs,
+            ),
+            (
+                "troop_training",
+                "four_fixed_training_variants",
+                "timer",
+                True,
+                "troop_training-v3",
+                32,
+            ),
+        )
         for entry, product_id, handler_id, cli_name in (
             (hero, "hero_duel", "hero_duel_execution_handler", "hero-duel"),
             (
@@ -255,6 +295,8 @@ class OperatorCliTests(unittest.TestCase):
                 "food_farm_boost_execution_handler",
                 "food-farm-boost",
             ),
+            (hall, "hall_of_war_zombie_zero", "hall_of_war_execution_handler", "hall-of-war"),
+            (training, "troop_training", "troop_training_execution_handler", "troop-training"),
         ):
             self.assertEqual(
                 (
@@ -267,7 +309,7 @@ class OperatorCliTests(unittest.TestCase):
                 ),
                 (product_id, handler_id, cli_name, "phase_canary", "REGISTERED", True),
             )
-        for entry in (material, weapon, hero, research, farm):
+        for entry in (material, weapon, hero, research, farm, hall, training):
             self.assertFalse(entry.spec.default_enabled)
 
         disabled = json.loads(
@@ -281,6 +323,8 @@ class OperatorCliTests(unittest.TestCase):
             HERO_DUEL_FLOW_ID,
             RECOMMENDED_RESEARCH_FLOW_ID,
             FOOD_FARM_BOOST_FLOW_ID,
+            HALL_OF_WAR_FLOW_ID,
+            TROOP_TRAINING_FLOW_ID,
         ):
             with self.subTest(flow_id=flow_id):
                 self.assertNotIn(flow_id, operator)
@@ -413,7 +457,7 @@ class OperatorCliTests(unittest.TestCase):
 
     def test_canonical_ruins_is_not_a_legacy_development_operator(self):
         registry = pnsctl._load_bluestacks_flow_registry()
-        self.assertEqual(len(pnsctl.BLUESTACKS_FLOW_IDS), 12)
+        self.assertEqual(len(pnsctl.BLUESTACKS_FLOW_IDS), 11)
         self.assertNotIn(pnsctl.RUINS_FLOW_ID, pnsctl.BLUESTACKS_FLOW_IDS)
         self.assertNotIn(pnsctl.RUINS_FLOW_ID, registry)
         self.assertFalse(
@@ -439,6 +483,33 @@ class OperatorCliTests(unittest.TestCase):
         argument_destinations = {action.dest for action in run_flow._actions}
         self.assertNotIn("chests_only", argument_destinations)
         self.assertNotIn("chest_continuation", argument_destinations)
+
+
+    def test_troop_training_is_service_only_with_manual_recovery_preserved(self):
+        registry = pnsctl._load_bluestacks_flow_registry()
+        self.assertNotIn(TROOP_TRAINING_FLOW_ID, registry)
+        self.assertNotIn(TROOP_TRAINING_FLOW_ID, pnsctl.BLUESTACKS_FLOW_IDS)
+        self.assertNotIn(
+            "troop_training_consolidation_runner",
+            pnsctl._BLUESTACKS_FLOW_RUNNERS,
+        )
+        self.assertNotIn(
+            "troop_training_consolidation_evidence",
+            pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS,
+        )
+        self.assertNotIn(
+            "troop_training_consolidation_recovery",
+            pnsctl._BLUESTACKS_RECOVERY_HANDLERS,
+        )
+        choices = _flow_id_choices(
+            pnsctl.parser(),
+            ["development-session", "run-flow"],
+        )
+        self.assertNotIn(TROOP_TRAINING_FLOW_ID, choices)
+        self.assertTrue(
+            callable(pnsctl.bluestacks_recover_home),
+            "manual Home recovery remains a supported pnsctl route",
+        )
 
     def test_flow_commands_offer_exactly_the_selectable_flow_ids(self):
         selectable = set(pnsctl.BLUESTACKS_FLOW_IDS)

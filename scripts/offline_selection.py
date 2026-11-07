@@ -27,6 +27,8 @@ ROUTE_BOUNDARIES = {
     "hero-duel": "tests.test_service_hero_duel.HeroDuelServiceAdapterTests.test_attempted_unknown_entry_stays_unresolved_and_uncommitted",
     "recommended-research": "tests.test_service_recommended_research.RecommendedResearchServiceRunnerTests.test_unknown_partial_and_restart_confirmation_never_repeat_start",
     "food-farm-boost": "tests.test_service_food_farm_boost.FoodFarmBoostServiceTests.test_positive_timer_completion_counts_boost_and_collection_separately",
+    "hall-of-war": "tests.test_service_route_contract.BatchFSemanticContractTests.test_hall_dispatch_reward_and_prior_use_are_distinct",
+    "troop-training": "tests.test_service_route_contract.BatchFSemanticContractTests.test_training_resource_and_timer_transitions_match_native_actions",
 }
 
 
@@ -137,8 +139,6 @@ WINDOWS_BASELINE = (
     "tests.test_donation_disabled.DisabledDonationContractTests.test_matrix_keeps_donation_disabled_and_dormant",
     "tests.test_resource_boost_disabled.DisabledResourceBoostContractTests.test_disabled_policy_blocks_dispatch_and_keeps_claim_separate",
     "tests.test_resource_boost_disabled.DisabledResourceBoostContractTests.test_matrix_keeps_resource_boost_disabled_and_dormant",
-    "tests.test_training_disabled.DisabledTrainingContractTests.test_disabled_policy_blocks_valid_queue_observation",
-    "tests.test_training_disabled.DisabledTrainingContractTests.test_matrix_keeps_all_training_rows_disabled_and_dormant",
     "tests.test_hero_duel_disabled.DisabledHeroDuelContractTests.test_disabled_policy_blocks_dispatch_and_keeps_claim_separate",
     "tests.test_hero_duel_disabled.DisabledHeroDuelContractTests.test_matrix_keeps_duel_disabled_and_dormant",
     "tests.test_purchases_disabled.DisabledPurchaseContractTests.test_disabled_policy_blocks_dispatch_and_keeps_claim_separate",
@@ -259,6 +259,7 @@ FAMILIES = {
     "troop": ("troop", "training"),
     "world": ("world", "stamina", "zombie_lair"),
     "gathering": ("gathering",),
+    "hall_of_war": ("hall_of_war",),
 }
 
 

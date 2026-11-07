@@ -35,11 +35,12 @@ from automation_service.registry import (
     ALLIANCE_HELP_PROFILE_ID, ALLIANCE_SHOP_FLOW_ID, ALLIANCE_SHOP_PROFILE_ID,
     CAMPAIGN_FLOW_ID, CAMPAIGN_PRODUCT_REVISION, CANONICAL_FLOW_REGISTRY,
     DAILY_REWARDS_FLOW_ID, DAILY_SHOPS_FLOW_ID, DAILY_SHOPS_PROFILE_ID,
-    FOOD_FARM_BOOST_FLOW_ID, FOOD_FARM_BOOST_PROFILE_ID, HERO_DUEL_FLOW_ID,
-    HERO_DUEL_PROFILE_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
-    NANO_MATERIAL_PRODUCTION_PROFILE_ID, NANOWEAPON_FLOW_ID, NANOWEAPON_PROFILE_ID,
-    RECOMMENDED_RESEARCH_FLOW_ID, RECOMMENDED_RESEARCH_PROFILE_ID,
-    RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, RUINS_PROFILE_ID,
+    FOOD_FARM_BOOST_FLOW_ID, FOOD_FARM_BOOST_PROFILE_ID, HALL_OF_WAR_FLOW_ID,
+    HALL_OF_WAR_PROFILE_ID, HERO_DUEL_FLOW_ID, HERO_DUEL_PROFILE_ID,
+    NANO_MATERIAL_PRODUCTION_FLOW_ID, NANO_MATERIAL_PRODUCTION_PROFILE_ID,
+    NANOWEAPON_FLOW_ID, NANOWEAPON_PROFILE_ID, RECOMMENDED_RESEARCH_FLOW_ID,
+    RECOMMENDED_RESEARCH_PROFILE_ID, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID,
+    RUINS_PROFILE_ID, TROOP_TRAINING_FLOW_ID, TROOP_TRAINING_PROFILE_ID,
     load_disabled_registry, canonical_entry, servable_flow_names,
 )
 from automation_service.service import AutomationService, _runner_attribute
@@ -76,6 +77,8 @@ NO_OPERATOR_RUNNER = {
     HERO_DUEL_FLOW_ID: "Hero Duel is canonical-service-only and has no operator wrapper",
     RECOMMENDED_RESEARCH_FLOW_ID: "Recommended Research is canonical-service-only and has no operator wrapper",
     FOOD_FARM_BOOST_FLOW_ID: "Food Farm Boost is canonical-service-only and has no operator wrapper",
+    HALL_OF_WAR_FLOW_ID: "Hall of War is canonical-service-only and has no operator wrapper",
+    TROOP_TRAINING_FLOW_ID: "Troop Training legacy runner/validator retired in Batch F; canonical serve uses its fixed native binding",
 }
 
 # Retained operator-registry flows with no development-session input default in ``pnsctl._DEFAULT_MAX_INPUTS``.
@@ -157,6 +160,8 @@ EXECUTION_HANDLERS = {
     FOOD_FARM_BOOST_FLOW_ID: (
         "automation_service.food_farm_boost", "FoodFarmBoostExecutionHandler",
     ),
+    HALL_OF_WAR_FLOW_ID: ("automation_service.hall_of_war", "HallOfWarExecutionHandler"),
+    TROOP_TRAINING_FLOW_ID: ("automation_service.troop_training", "TroopTrainingExecutionHandler"),
 }
 
 
@@ -393,6 +398,58 @@ E_FIXED_RELATIONSHIPS = {
 }
 
 
+F_FIXED_RELATIONSHIPS = {
+    HALL_OF_WAR_FLOW_ID: {
+        "cli_name": "hall-of-war",
+        "family": "hall_of_war",
+        "variant": "zombie_zero_attack_and_daily_reward",
+        "product_id": "hall_of_war_zombie_zero",
+        "product_revision": "hall_of_war_zombie_zero-v1",
+        "handler_id": "hall_of_war_execution_handler",
+        "profile_id": HALL_OF_WAR_PROFILE_ID,
+        "mode": "phase_canary",
+        "max_inputs": 24,
+        "max_actions": 2,
+        "cadence": "cooldown_pulse",
+        "reset_scoped": True,
+        "adapter": ("automation_service.hall_of_war", "HallOfWarExecutionHandler"),
+        "native": ("scripts.hall_of_war_bluestacks", {
+            "FLOW_ID": HALL_OF_WAR_FLOW_ID,
+            "PRODUCT_ID": "hall_of_war_zombie_zero",
+            "PRODUCT_REVISION": "hall_of_war_zombie_zero-v1",
+            "PROFILE_ID": HALL_OF_WAR_PROFILE_ID,
+            "MAX_INPUTS": 24,
+            "MAX_ACTIONS": 2,
+        }),
+        "native_tests": ("tests/test_hall_of_war.py",),
+    },
+    TROOP_TRAINING_FLOW_ID: {
+        "cli_name": "troop-training",
+        "family": "troop_training",
+        "variant": "four_fixed_training_variants",
+        "product_id": "troop_training",
+        "product_revision": "troop_training-v3",
+        "handler_id": "troop_training_execution_handler",
+        "profile_id": TROOP_TRAINING_PROFILE_ID,
+        "mode": "phase_canary",
+        "max_inputs": 32,
+        "max_actions": 12,
+        "cadence": "timer",
+        "reset_scoped": True,
+        "adapter": ("automation_service.troop_training", "TroopTrainingExecutionHandler"),
+        "native": ("scripts.troop_training_bluestacks", {
+            "FLOW_ID": TROOP_TRAINING_FLOW_ID,
+            "PRODUCT_ID": "troop_training",
+            "PRODUCT_REVISION": "troop_training-v3",
+            "PROFILE_ID": TROOP_TRAINING_PROFILE_ID,
+            "MAX_INPUTS": 32,
+            "MAX_ACTIONS": 12,
+        }),
+        "native_tests": ("tests/test_troop_training.py", "tests/test_troop_training_entry.py"),
+    },
+}
+
+
 # Every non-registry copy of a service route's input budget: (module, attribute).
 MAX_INPUT_COPIES = {
     "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE": [("scripts.flow_delivery_recruitment_bluestacks", "MAX_INPUTS")],
@@ -443,6 +500,14 @@ MAX_INPUT_COPIES = {
     FOOD_FARM_BOOST_FLOW_ID: [
         ("automation_service.food_farm_boost", "MAX_INPUTS"),
         ("scripts.food_farm_boost_bluestacks", "MAX_INPUTS"),
+    ],
+    HALL_OF_WAR_FLOW_ID: [
+        ("automation_service.hall_of_war", "MAX_INPUTS"),
+        ("scripts.hall_of_war_bluestacks", "MAX_INPUTS"),
+    ],
+    TROOP_TRAINING_FLOW_ID: [
+        ("automation_service.troop_training", "MAX_INPUTS"),
+        ("scripts.troop_training_bluestacks", "MAX_INPUTS"),
     ],
 }
 
@@ -673,7 +738,7 @@ class ProductBindingTests(RouteTestCase):
             ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
         })
         operator = _operator_ids()
-        self.assertEqual(len(operator), 12, "Batch C adds canonical-only service routes, not operator runners")
+        self.assertEqual(len(operator), 11, "Batch F retires Training's legacy choice; Batch C remains canonical-only")
         queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
         for flow_id, expected in C_FIXED_RELATIONSHIPS.items():
             queue_record = queue[flow_id]
@@ -755,7 +820,7 @@ class ProductBindingTests(RouteTestCase):
             NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
         })
         operator = _operator_ids()
-        self.assertEqual(len(operator), 12, "Batch D preserves the existing operator routes")
+        self.assertEqual(len(operator), 11, "Batch F retires only the Training legacy operator choice")
         queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
         for flow_id, expected in D_FIXED_RELATIONSHIPS.items():
             queue_record = queue[flow_id]
@@ -843,7 +908,7 @@ class ProductBindingTests(RouteTestCase):
             HERO_DUEL_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
         })
         operator = _operator_ids()
-        self.assertEqual(len(operator), 12, "Batch E keeps all legacy operator choices unchanged")
+        self.assertEqual(len(operator), 11, "Batch F retires only the Training legacy operator choice")
         queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
         for flow_id, expected in E_FIXED_RELATIONSHIPS.items():
             queue_record = queue[flow_id]
@@ -931,6 +996,124 @@ class ProductBindingTests(RouteTestCase):
                 self.assertNotIn(flow_id, pnsctl.BLUESTACKS_FLOW_IDS)
                 self.assertNotIn(flow_id, pnsctl._DEFAULT_MAX_INPUTS)
 
+    def test_batch_f_routes_are_canonical_only_with_native_contracts(self) -> None:
+        self.assertEqual(set(F_FIXED_RELATIONSHIPS), {HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID})
+        operator = _operator_ids()
+        self.assertEqual(len(operator), 11)
+        queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
+        for flow_id, expected in F_FIXED_RELATIONSHIPS.items():
+            record = queue[flow_id]
+            with self.subTest(flow_id=flow_id):
+                self.assertEqual(
+                    (
+                        record["status"], record["production_registration"],
+                        record["scheduler_enabled"], record["product_policy_status"],
+                    ),
+                    ("evidence_required", "NOT_REGISTERED", False, "explicitly_approved"),
+                )
+                self.assertEqual(
+                    (
+                        record["maximum_inputs"], record["maximum_live_inputs"],
+                        record["maximum_actions"], record["maximum_live_attempts"],
+                        record["live_attempt_count"], record["live_attempts"],
+                    ),
+                    (expected["max_inputs"], expected["max_inputs"], expected["max_actions"], 0, 0, []),
+                )
+                entry = canonical_entry(flow_id)
+                self.assertEqual(
+                    (entry.cli_name, entry.descriptor.family, entry.descriptor.variant),
+                    (expected["cli_name"], expected["family"], expected["variant"]),
+                )
+                self.assertEqual(
+                    (entry.product_id, entry.product_revision, entry.handler_id),
+                    (expected["product_id"], expected["product_revision"], expected["handler_id"]),
+                )
+
+                self.assertEqual(
+                    (
+                        entry.registration.production_handler, entry.registration.profile,
+                        entry.registration.mode, entry.registration.registration_status,
+                        entry.registration.scheduler_eligible, entry.spec.default_enabled,
+                    ),
+                    (
+                        expected["handler_id"], expected["profile_id"], expected["mode"],
+                        "REGISTERED", True, False,
+                    ),
+                )
+                self.assertEqual(
+                    (entry.max_inputs, entry.descriptor.cadence, entry.descriptor.reset_scoped),
+                    (expected["max_inputs"], expected["cadence"], expected["reset_scoped"]),
+                )
+                recurrence = (
+                    RecurrenceClass.TIMER if expected["cadence"] == "timer"
+                    else RecurrenceClass.COOLDOWN
+                )
+                self.assertEqual(entry.descriptor.recurrence_class, recurrence)
+                adapter_module, class_name = expected["adapter"]
+                adapter = import_module(adapter_module)
+                self.assertEqual(
+                    (adapter.PRODUCT_ID, adapter.PRODUCT_REVISION, adapter.PROFILE_ID,
+                     adapter.MAX_INPUTS, adapter.MAX_ACTIONS),
+                    (expected["product_id"], expected["product_revision"], expected["profile_id"],
+                     expected["max_inputs"], expected["max_actions"]),
+                )
+                handler = getattr(adapter, class_name)
+                self.assertEqual((handler.max_inputs, handler.max_actions),
+                                 (expected["max_inputs"], expected["max_actions"]))
+                native_module, native_facts = expected["native"]
+                native = import_module(native_module)
+                for attribute, value in native_facts.items():
+                    self.assertEqual(getattr(native, attribute), value)
+                required_paths = {
+                    adapter_module.replace(".", "/") + ".py",
+                    native_module.replace(".", "/") + ".py",
+                    f"tests/test_service_{expected['family']}.py",
+                    "tests/test_service_route_contract.py",
+                    "tests/test_route_metadata_consistency.py",
+                    *expected["native_tests"],
+                }
+                self.assertTrue(
+                    required_paths <= (set(record["implementation_entrypoints"]) | set(record["focused_tests"])),
+                )
+                self.assertNotIn(flow_id, operator)
+                self.assertNotIn(flow_id, pnsctl.BLUESTACKS_FLOW_IDS)
+                self.assertNotIn(flow_id, pnsctl._DEFAULT_MAX_INPUTS)
+                self.assertIn("canonical", NO_OPERATOR_RUNNER[flow_id].casefold())
+        self.assertFalse(any(
+            "commander" in entry.descriptor.family.casefold()
+            or "commander" in (entry.product_id or "").casefold()
+            for entry in CANONICAL_FLOW_REGISTRY
+        ))
+
+        from tasks.troop_training import default_troop_training_config
+
+        profile = default_troop_training_config().resolved_profile()
+        self.assertEqual(
+            profile,
+            {
+                "fighter": {
+                    "enabled": True, "target_tier": 8, "quantity": None,
+                    "quantity_mode": "current_max", "training_policy": "continuous",
+                    "allow_resource_boxes": True,
+                },
+                "shooter": {
+                    "enabled": True, "target_tier": 8, "quantity": 250,
+                    "quantity_mode": "fixed", "training_policy": "once_daily",
+                    "allow_resource_boxes": False,
+                },
+                "rider": {
+                    "enabled": True, "target_tier": 1, "quantity": 250,
+                    "quantity_mode": "fixed", "training_policy": "once_daily",
+                    "allow_resource_boxes": False,
+                },
+                "vehicle": {
+                    "enabled": True, "target_tier": 1, "quantity": None,
+                    "quantity_mode": "current_max", "training_policy": "continuous",
+                    "allow_resource_boxes": True,
+                },
+            },
+        )
+
     def test_selection_handlers_describe_the_registry_cadence(self) -> None:
         for entry in CANONICAL_FLOW_REGISTRY:
             if entry.registration_status != "REGISTERED":
@@ -987,7 +1170,6 @@ class MaxInputTests(RouteTestCase):
 
     def test_batch_a_routes_are_canonical_only_and_resource_copies_agree(self) -> None:
         from scripts import daily_resource_item_bluestacks as resource_route
-        from scripts import flow_delivery_troop_training_bluestacks as troop_delivery
 
         queue = {flow["flow_id"]: flow for flow in _queue()["flows"]}
         staging = {
@@ -1025,11 +1207,6 @@ class MaxInputTests(RouteTestCase):
             resource_route.MAX_RESOURCE_LIST_SWIPES,
         )
 
-        troop = troop_delivery.FLOW_ID
-        self.assertEqual(defaults[troop], troop_delivery.MAX_INPUTS)
-        self.assertEqual(
-            queue[troop]["development_session_max_inputs"], troop_delivery.MAX_INPUTS,
-        )
 
 
 class ServeWiringTests(RouteTestCase):

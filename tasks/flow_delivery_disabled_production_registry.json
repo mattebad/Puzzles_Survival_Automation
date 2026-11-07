@@ -150,6 +150,16 @@
       "scheduler_eligible": false,
       "supported_profiles": []
     },
+    "HALL-OF-WAR-ZOMBIE-ZERO-BLUESTACKS-INTEGRATION": {
+      "mode": "disabled",
+      "product_id": null,
+      "product_revision": null,
+      "production_handler": null,
+      "profile": null,
+      "registration_status": "NOT_REGISTERED",
+      "scheduler_eligible": false,
+      "supported_profiles": []
+    },
     "HERO-DUEL-EVIDENCE-GATE": {
       "mode": "disabled",
       "product_id": null,

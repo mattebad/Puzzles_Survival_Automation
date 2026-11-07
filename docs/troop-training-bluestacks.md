@@ -1,13 +1,18 @@
 # Daily troop training — local BlueStacks route
 
-This workflow owns four per-type configurations: `fighter`, `shooter`, `rider`, and
-`vehicle`. Each configuration has `enabled`, an explicit `target_tier` (T1–T13), `quantity` or
-`quantity_mode` (`fixed` or `current_max`), `training_policy` (`once_daily`, `continuous`, or
-`disabled`), and resource-box policy. The named default is Fighter T8/current maximum/continuous
-with boxes, Vehicle T1/current maximum/continuous with boxes, Shooter T8/fixed 250/once_daily
-without boxes, and Rider T1/fixed 250/once_daily without boxes. Every override is retained exactly;
-locked tiers, unresolved maxima, and mismatched queues fail closed. Daily Quest Claim remains
-separate; registration and scheduler eligibility remain disabled.
+This canonical service route owns the four fixed Training variants: Fighter T8/current numeric
+maximum/continuous, Vehicle T1/current numeric maximum/continuous, Shooter T8/fixed 250/daily,
+and Rider T1/fixed 250/daily. The saved Training preset is required. The fixed product and
+recurrence bindings are `troop_training-v3` and timer/reset-scoped; the route is registered but
+both flow and service controls remain disabled by default. Registration does not enable execution.
+Locked tiers, unresolved maxima, mismatched queues, unknown costs, and uncertain successors fail
+closed. Fighter/Vehicle box continuations require exact current inventory and effect authority;
+without it the branch stays `evidence_required` and dispatches no boxes or blind warehouse Train.
+Shooter/Rider boxes are prohibited; boxes are never selected as a separate action. Daily Quest Claim
+remains separate. Every Commander preset use requires fresh exact `Applied` recognition; cached
+readiness is not proof, and an already-Applied preset is not switched again. Any real switch needs
+a recognized saved-preset Apply branch and known cost/confirmation. Talent-tree edits and Reset are
+never part of this flow. No standalone Commander-talents scheduled flow is introduced.
 
 Example configuration:
 
@@ -20,68 +25,67 @@ Example configuration:
 }
 ```
 
-The equivalent CLI toggles are `--<troop>-allow-resource-boxes` and
-`--no-<troop>-allow-resource-boxes`.
+The route is served only by the canonical automation service. The previous direct Training CLI and
+flow-delivery runner are retired; ordinary Training execution must not use a development-session
+runner or a parallel operator registry.
 
-## Native route
+## Canonical service route
 
-The executable route is dry-run by default and uses the shared native 800×1280 capture/transport
-boundary:
+The service binding uses the existing native Training factory, handler, account/server/reset
+identity, singleton runtime lock, occurrence claim, checkpoints, and bounded route budget. The
+route is capped at 96 inputs and 12 consequential actions. Its configured profile is fixed to:
 
-```powershell
-python scripts\troop_training_bluestacks.py `
-  --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" `
-  --serial emulator-5554 `
-  --reset-identity <recognized-reset> `
-  --fighter-tier 8 --fighter-quantity-mode current_max `
-  --shooter-tier 8 --shooter-quantity-mode fixed --shooter-quantity 250 `
-  --rider-tier 1 --rider-quantity-mode fixed --rider-quantity 250 `
-  --vehicle-tier 1 --vehicle-quantity-mode current_max `
-  --execute --yes
+- Fighter: T8, current numeric maximum, continuous; boxes only with exact current inventory and effect authority.
+- Vehicle: T1, current numeric maximum, continuous; boxes only with exact current inventory and effect authority.
+- Shooter: T8, 250, once per daily reset; boxes forbidden.
+- Rider: T1, 250, once per daily reset; boxes forbidden.
+
+Before an independently authorized live run, inspect the persisted controls:
+
+```text
+python scripts/pnsctl.py automation-service status
 ```
 
-The canonical consolidation route recognizes canonical Home Atlas state, opens one configured
-training facility, and uses the four verified top tabs to process each enabled troop type. Each tab
-freshly proves troop identity, tier, quantity, resources, and queue state. The route returns to
-canonical Home once after the configured tab pass. Every dispatch has
-fresh source/immediate-before/immediate-post evidence and an exact successor queue label/tier/
-quantity/timer; no Train Now or premium control is authorized.
+The supervised serving boundary is `pnsctl automation-service ... serve --flow troop-training`.
+The flow and service gates are currently disabled; this integration does not enable either gate or
+authorize live execution. The service requires a saved `Training` preset and a fresh canonical Home
+Atlas proof. Each accepted queue transition is bound to the exact variant, tier, numeric quantity,
+resources, timer, account/server, and reset identity. Unknown screens, costs, quantities, or
+successors fail closed; an unresolved Training action is never retried or inferred successful.
 
-`--reconcile-unresolved-session <session>` is a recovery-only route. It requires the prior
-immediate-post evidence and a fresh live queue matching troop type, tier, quantity, and timer. It
-records the reconciliation and may navigate Home, but it has no consequential dispatch path.
+## Manual Home recovery
 
-## Live BlueStacks observations
+`python scripts/pnsctl.py bluestacks recover-home` is a manual, navigation-only operation for an
+admitted Training queue. A released-session recovery reacquires the existing singleton runtime
+input lock, rechecks the current flow-delivery stage, and uses the canonical SQLite action/resource
+history rather than retained receipts, artifacts, or event text. It runs only the retained native
+`TroopTrainingReturnHomeRoute` with the canonical 32-input ceiling, requires exact current queue
+recognition and canonical Home Atlas proof, and preserves startup-source evidence. It never runs
+the Training service runner, confirms or clears an action, retries a dispatch, changes counters,
+claims a reward, or enables a control. A Home recovery result is navigation evidence only, not
+Training completion.
 
-Fresh native frames showed Fighter Camp, Shooter Camp, Rider Camp, and Vehicle Depot on Home/Base.
-The facility radial menu exposes Details, Upgrade, and Train. The training view has four tabs;
-selecting a tab navigates to that troop type, and a completed banner can indicate automatic claim
-behavior, so an unproven completed pre-state is never silently accepted as a claim.
+## Historical manual observations — not native acceptance
 
-The live account displayed T1–T8 as trainable and T9+ as question-mark locked tiers. Quantity is
-edited through the numeric control and verified after entry. Normal Train displayed a live duration;
-Train Now displayed a premium-currency cost and was never targeted. The default profile uses
-current maximums for Fighter/Vehicle and fixed 250 for Shooter/Rider at their configured tiers.
-No warehouse continuation was required in the validated run.
+The following notes preserve prior manual BlueStacks exploration only. They are not current
+native-route evidence, end-to-end acceptance, scheduler enablement, or proof that the service is
+safe to enable.
 
-## Safety boundary
+Manual frames showed Fighter Camp, Shooter Camp, Rider Camp, and Vehicle Depot on Home/Base. The
+facility radial menu exposed Details, Upgrade, and Train. The training view had four tabs; selecting
+a tab navigated to that troop type, and a completed banner could indicate automatic claim behavior,
+so an unproven completed pre-state must never be silently accepted as a claim.
 
-The adapter rejects non-native frames, unknown screens/facilities/tabs/tiers, question-mark tiers,
-wrong quantities, active queues, overlays, ambiguous resource popups, and forbidden premium,
-purchase, speedup, ticket, resource-item, AP, or stamina controls. Every live capture and dispatch
-is retained under `.local-captures/troop-training-*`; these are BlueStacks validation artifacts,
-not production evidence or registration.
+The manual account displayed T1–T8 as trainable and T9+ as question-mark locked tiers. Quantity was
+edited through a numeric control. Normal Train displayed a duration; Train Now displayed a
+premium-currency cost and was not targeted. The owner-authorized #54 observation was exactly one
+manual chest tap at zero spend; `glowing` to `Claimed` is its recognition basis. Preserve the raw
+`UNKNOWN` record unchanged; the observation is historical context, not combined native route
+acceptance (`evidence_required`).
 
-The live shortage successor observed on 2026-07-16 was titled `Auto Use`, displayed selected food
-resource boxes, and explicitly offered `Auto-use Resource Boxes`. It is an inventory-item popup,
-not a warehouse-only confirmation. The route binds Cancel and Confirm independently. Confirm is
-available only when the corresponding troop configuration explicitly enables resource boxes, the
-popup's four required resource amounts match the exact pre-dispatch training transaction, and the
-immediate postcondition proves either the configured active queue or the exact projected resource
-holdings. The live UI applies boxes first, returns queue-empty, and may change the slider quantity;
-the route terminally reconciles that acquisition, restores the configured quantity, and creates a
-new separately keyed normal Train transaction. It never treats the second Train as a retry of an
-unresolved action. When disabled, the route presses only Cancel, proves the queue remained empty,
-terminally rejects the Train, and returns Home. The
-recovery-only `--reconcile-forbidden-resource-popup-session` remains available for older unresolved
-sessions and never retries Train.
+The historical shortage successor observed on 2026-07-16 was titled `Auto Use`, displayed selected
+food resource boxes, and explicitly offered `Auto-use Resource Boxes`. It was an inventory-item
+popup, not a warehouse-only confirmation. Fighter/Vehicle box continuations require exact current
+inventory and effect authority; absent proof the branch remains `evidence_required`, with no box
+dispatch, no expected-warehouse assumption, and no blind Train. Shooter/Rider never use boxes.
+A successful Home recovery is navigation-only and does not resolve or complete a Training action.
