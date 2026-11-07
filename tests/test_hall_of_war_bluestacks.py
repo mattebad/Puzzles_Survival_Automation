@@ -1,0 +1,254 @@
+"""Replay-only Hall route tests; synthetic pixels are not native evidence or acceptance."""
+from __future__ import annotations
+
+import hashlib
+import tempfile
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import numpy as np
+
+from safe_action_core import SafetyStore
+from scripts.bluestacks_native_runtime import (
+    CapturedNativeFrame,
+    NATIVE_HEIGHT,
+    NATIVE_WIDTH,
+)
+from scripts.hall_of_war_bluestacks import (
+    BoundTarget,
+    HallOfWarBoundary,
+    HallOfWarRouteError,
+    HallOfWarVision,
+)
+from tasks.hall_of_war import (
+    CostState,
+    DISPATCH_ACTION,
+    DISPATCH_CONSEQUENCE,
+    DISPATCH_POSTCONDITION,
+    DISPATCH_SOURCE,
+    DISPATCH_TARGET,
+    REWARD_ACTION,
+    REWARD_CONSEQUENCE,
+    REWARD_POSTCONDITION,
+    REWARD_SOURCE,
+    REWARD_TARGET,
+    action_key,
+)
+
+
+OWNER = "hall-of-war-native-replay"
+RESET_ID = "game-day-2025-01-02"
+NOW = 1_700_000_000.0
+
+
+class _ReplayLock:
+    owner = OWNER
+    invocation_id = "hall-replay-invocation"
+
+    def assert_held(self, owner, invocation_id):
+        if (owner, invocation_id) != (self.owner, self.invocation_id):
+            raise AssertionError("replay lock ownership changed")
+
+
+class _ReplayRuntime:
+    session = "hall-of-war-replay-session"
+
+    def __init__(self, root: Path, *, effects_confirmed: bool) -> None:
+        self.root = root
+        self.effects_confirmed = effects_confirmed
+        self.state = 0
+        self.capture_count = 0
+        self.tap_count = 0
+        self.last_capture_monotonic = 100.0
+
+    def capture(self, label: str) -> CapturedNativeFrame:
+        self.capture_count += 1
+        self.last_capture_monotonic += 0.1
+        frame = np.full((NATIVE_HEIGHT, NATIVE_WIDTH, 3), self.state, dtype=np.uint8)
+        digest = hashlib.sha256(frame.tobytes()).hexdigest()
+        path = self.root / f"{self.capture_count:03d}-{label}.png"
+        return CapturedNativeFrame(
+            frame, b"replay-only", digest, self.last_capture_monotonic, path
+        )
+
+    def measure_foreground_package(self) -> str:
+        return "com.global.ztmslg"
+
+    def tap(self, _before, *, action_class: str, **_kwargs) -> None:
+        self.tap_count += 1
+        if self.effects_confirmed:
+            self.state = 1 if action_class == "combat" else 2
+
+
+class _ReplaySession:
+    owner = OWNER
+    input_limit = 24
+
+    def __init__(self, runtime: _ReplayRuntime) -> None:
+        self.runtime_input_lock = _ReplayLock()
+        self.runtime = runtime
+        self.input_count = 0
+
+    def observe(self, capture, *, label):
+        return capture(label)
+
+    def run_action(
+        self,
+        *,
+        action_class,
+        label,
+        capture,
+        dispatch,
+        recognize,
+        authorize=None,
+        settled_successor=None,
+        **_kwargs,
+    ):
+        before = self.observe(capture, label=f"{label}-immediate-before")
+        if authorize is not None:
+            authorize(before)
+        self.input_count += 1
+        dispatch(before)
+        after = self.observe(capture, label=f"{label}-immediate-post")
+        state = recognize(after)
+        if str(state).lower() == "unknown" and settled_successor is not None:
+            after = settled_successor()
+            state = recognize(after)
+        return SimpleNamespace(status=state, action_class=action_class)
+
+
+class _ReplayVision:
+    def cost_proof(self, _frame):
+        return CostState.EXPLICIT_ZERO, 0, (0, 0, 100, 40)
+
+    def loss_effect_proof(self, _frame):
+        return True, (0, 40, 100, 80)
+
+    @staticmethod
+    def roi_sha256(_frame, roi):
+        return hashlib.sha256(repr(roi).encode("ascii")).hexdigest()
+
+
+def _route(root: Path, *, effects_confirmed: bool):
+    runtime = _ReplayRuntime(root, effects_confirmed=effects_confirmed)
+    session = _ReplaySession(runtime)
+    store = SafetyStore(root / "safety.sqlite3")
+    store.acquire_lease(OWNER, NOW, 3600.0)
+    route = object.__new__(HallOfWarBoundary)
+    route.session = session
+    route.runtime = runtime
+    route.store = store
+    route.game_day_id = RESET_ID
+    route.monotonic_clock = lambda: runtime.last_capture_monotonic
+    route.wall_clock = lambda: NOW
+    route.validate_identity = lambda: None
+    route.vision = _ReplayVision()
+    route.settle_seconds = 0.0
+    route.result = {}
+    return route, runtime, store
+
+
+def _perform(route: HallOfWarBoundary, category: str):
+    if category == "dispatch":
+        target = DISPATCH_TARGET
+        return route._perform_canonical_action(
+            category=category,
+            action_id=f"hall-of-war-dispatch:{RESET_ID}",
+            key=action_key(
+                category="dispatch", runtime_scope="replay-slot", account_id="account",
+                server_id="server", reset_id=RESET_ID,
+            ),
+            semantic_action=DISPATCH_ACTION,
+            source_state=DISPATCH_SOURCE,
+            target_identity=target,
+            consequence=DISPATCH_CONSEQUENCE,
+            postcondition=DISPATCH_POSTCONDITION,
+            binder=lambda _frame: BoundTarget(target, (100, 100, 220, 160)),
+            postcondition_checker=lambda frame: int(frame[0, 0, 0]) == 1,
+            action_class="combat",
+        )
+    target = REWARD_TARGET
+    return route._perform_canonical_action(
+        category=category,
+        action_id=f"hall-of-war-reward:{RESET_ID}",
+        key=action_key(
+            category="reward", runtime_scope="replay-slot", account_id="account",
+            server_id="server", reset_id=RESET_ID,
+        ),
+        semantic_action=REWARD_ACTION,
+        source_state=REWARD_SOURCE,
+        target_identity=target,
+        consequence=REWARD_CONSEQUENCE,
+        postcondition=REWARD_POSTCONDITION,
+        binder=lambda _frame: BoundTarget(target, (300, 800, 700, 900)),
+        postcondition_checker=lambda frame: int(frame[0, 0, 0]) == 2,
+        action_class="reward",
+    )
+
+
+class HallOfWarNativeReplayTests(unittest.TestCase):
+    def test_vision_normalizes_unicode_and_recognizes_zombie_zero_page(self):
+        vision = HallOfWarVision()
+        frame = np.zeros((NATIVE_HEIGHT, NATIVE_WIDTH, 3), dtype=np.uint8)
+        self.assertEqual(vision._normal("  TÓDAY's   Highest   Dmg  "), "today's highest dmg")
+        with patch.object(
+            vision, "text", return_value="Zombie Zero Today's Highest Dmg Daily Reward"
+        ):
+            self.assertTrue(vision.zombie_zero_page(frame))
+        with patch.object(vision, "text", return_value="Zombie Zero Daily Reward"):
+            self.assertFalse(vision.zombie_zero_page(frame))
+
+    def test_real_executor_and_temporary_safety_store_confirm_both_effects(self):
+        with tempfile.TemporaryDirectory() as directory:
+            route, runtime, store = _route(Path(directory), effects_confirmed=True)
+            try:
+                dispatch = _perform(route, "dispatch")
+                reward = _perform(route, "reward")
+                self.assertEqual(dispatch[:2], ("confirmed", 1))
+                self.assertEqual(reward[:2], ("confirmed", 1))
+                dispatch_row = store.get_action_by_key(
+                    action_key(
+                        category="dispatch", runtime_scope="replay-slot", account_id="account",
+                        server_id="server", reset_id=RESET_ID,
+                    )
+                )
+                reward_row = store.get_action_by_key(
+                    action_key(
+                        category="reward", runtime_scope="replay-slot", account_id="account",
+                        server_id="server", reset_id=RESET_ID,
+                    )
+                )
+                self.assertEqual(dispatch_row["final_status"], "confirmed")
+                self.assertEqual(reward_row["final_status"], "confirmed")
+                self.assertEqual(runtime.tap_count, 2)
+                self.assertEqual(route.result["dispatch_transport_calls"], 1)
+                self.assertEqual(route.result["reward_claim_transport_calls"], 1)
+            finally:
+                store.release_lease(OWNER, NOW)
+                store.close()
+
+    def test_unknown_dispatch_is_durable_and_same_action_cannot_be_retried(self):
+        with tempfile.TemporaryDirectory() as directory:
+            route, runtime, store = _route(Path(directory), effects_confirmed=False)
+            try:
+                state, calls, _payload = _perform(route, "dispatch")
+                self.assertEqual((state, calls), ("unresolved", 1))
+                key = action_key(
+                    category="dispatch", runtime_scope="replay-slot", account_id="account",
+                    server_id="server", reset_id=RESET_ID,
+                )
+                row = store.get_action_by_key(key)
+                self.assertEqual(row["final_status"], "unresolved")
+                with self.assertRaises(HallOfWarRouteError):
+                    _perform(route, "dispatch")
+                self.assertEqual(runtime.tap_count, 1)
+                self.assertEqual(route.result["dispatch_transport_calls"], 1)
+            finally:
+                store.release_lease(OWNER, NOW)
+                store.close()
+
+
+if __name__ == "__main__":
+    unittest.main()
