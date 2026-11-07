@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "flow_id": "HERO-DUEL-EVIDENCE-GATE",
-  "product_purpose": "From canonical Home, complete at most three confirmed free Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival entry/exit cycles per reset. Save the first five current eligible defense heroes; retain a complete valid independent attack lineup and fill only missing eligible slots; exit each loaded battle and Flee without requiring a win.",
+  "product_purpose": "From canonical Home, complete at most three confirmed free Hero Duel–Survival entry/exit cycles per reset. Save the first five current eligible defense heroes; retain a complete valid independent attack lineup and fill only missing eligible slots; exit each loaded battle and Flee without requiring a win.",
   "trigger_cadence_type": "evidence_gated",
   "reset_scope": "at_most_three_confirmed_cycles_per_daily_reset",
   "required_starting_context": [
@@ -52,10 +52,10 @@
       "from": "arena",
       "to": "hero_duel_survival",
       "planner": "HeroDuelNativeFlow",
-      "permitted_input": "select the exact current Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival event",
+      "permitted_input": "select the exact current Hero Duel–Survival event",
       "postconditions": [
         "current event identity and active state are bound",
-        "Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Glory is not treated as the same event",
+        "Hero Duel–Glory is not treated as the same event",
         "Emergency Details exclusions are read from the current event"
       ],
       "terminal_outcomes": ["blocked", "deferred", "manual_required"],
@@ -68,7 +68,7 @@
       "planner": "HeroDuelNativeFlow",
       "permitted_input": "dismiss only the current recognized informational Emergency Details popup",
       "postconditions": [
-        "current event identity remains Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival",
+        "current event identity remains Hero Duel–Survival",
         "the event's prohibited heroes remain bound as current exclusions"
       ],
       "terminal_outcomes": ["blocked", "manual_required"],
@@ -221,7 +221,7 @@
   ],
   "permitted_inputs": [
     "current-frame-bound Arena navigation from canonical Home",
-    "select the exact current Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival event",
+    "select the exact current Hero Duel–Survival event",
     "dismiss only the current recognized informational Emergency Details popup",
     "select the first five eligible displayed defense heroes and use Save Form when a save is required",
     "use current Challenge and only Challenge Now if the free-path upsell is shown; never Activate",
@@ -291,15 +291,7 @@
       "start_state": "home_canonical",
       "terminal_state": "blocked",
       "permitted_inputs": [],
-      "forbidden_inputs": [
-        "Fight",
-        "Activate",
-        "paid entry",
-        "premium entry",
-        "opponent refresh",
-        "combat loop",
-        "identical retry"
-      ],
+      "forbidden_inputs": [],
       "required_transitions": [
         "enter_arena",
         "select_survival_event",
@@ -327,7 +319,7 @@
     }
   ],
   "unsupported_or_manual_only_states": [
-    "Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Glory",
+    "Hero Duel–Glory",
     "unknown or changed event",
     "inactive event",
     "unknown or nonzero entry cost",
@@ -364,8 +356,8 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r18",
-    "product_authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r19",
+    "product_authority_digest": "a343f9f592ad18fa367b2d3e82be179866677fd3278cdc0cb4e31f54fae79057",
     "product_record_id": "hero_duel",
     "product_record_revision": "hero_duel-v2",
     "product_record_digest": "6eef740d0ef6f726966573dd2886404a8a3c08d68c5ecac31833c3e32262e63c",

@@ -489,6 +489,11 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "troop_training")
+        self.assertEqual(binding["product_record_revision"], "troop_training-v3")
+        self.assertIn(
+            "commander-talent-preset-helper",
+            [ref["policy_id"] for ref in contract["product_policy_refs"]],
+        )
         self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
         self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
         self.assertFalse(binding["selected_daily_prerequisite"])
@@ -537,6 +542,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["reset_scope"], "pulse_and_march_slot_timer")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
         self.assertEqual(binding["product_record_id"], "gathering_resources")
+        self.assertEqual(binding["product_record_revision"], "gathering_resources-v3")
         self.assertEqual(binding["home_authority"], "HOME_READY")
         self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
         self.assertFalse(binding["selected_daily_prerequisite"])
@@ -678,6 +684,61 @@ class GameplayFlowContractTests(unittest.TestCase):
         with self.assertRaises(FlowContractError):
             validate_flow_contract(invalid)
 
+    def test_hall_zombie_zero_contract_separates_dispatch_and_reward_claim(self):
+        contract = load_flow_contract("HALL-OF-WAR-ZOMBIE-ZERO-BLUESTACKS-INTEGRATION")
+        binding = contract["product_authority_binding"]
+        self.assertEqual(contract["trigger_cadence_type"], "daily_once")
+        self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
+        self.assertEqual(binding["product_record_id"], "hall_of_war_zombie_zero")
+        self.assertEqual(binding["product_record_revision"], "hall_of_war_zombie_zero-v1")
+        self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
+        self.assertFalse(binding["selected_daily_prerequisite"])
+        self.assertEqual(
+            set(contract["permitted_inputs"]),
+            {
+                "navigate_to_hall_of_war",
+                "open_zombie_zero",
+                "select_and_apply_saved_troop_set_one",
+                "dispatch_one_zombie_zero",
+                "tap_own_glowing_daily_reward_row_once",
+                "return_to_canonical_home",
+            },
+        )
+        cost = contract["cost_quantity_requirements"]
+        self.assertTrue(cost["free_only"])
+        self.assertEqual(cost["maximum_cost"], 0)
+        self.assertEqual(cost["quantity"], 1)
+        transitions = {item["transition_id"]: item for item in contract["transition_contracts"]}
+        self.assertIn("already Applied saved commander preset is exactly Military", " ".join(transitions["verify_current_military_preset"]["postconditions"]))
+        self.assertIn("Troop Set 1", " ".join(transitions["apply_saved_troop_set_one"]["postconditions"]))
+        self.assertIn("five heroes", " ".join(transitions["apply_saved_troop_set_one"]["postconditions"]).casefold())
+        self.assertIn("current troops equal to capacity", " ".join(transitions["apply_saved_troop_set_one"]["postconditions"]))
+        self.assertIn("explicit zero cost", " ".join(transitions["dispatch_one_zombie_zero"]["postconditions"]).casefold())
+        self.assertIsNone(transitions["reconcile_prior_attempt_without_redispatch"]["permitted_input"])
+        self.assertIn("without another dispatch", " ".join(transitions["reconcile_prior_attempt_without_redispatch"]["postconditions"]).casefold())
+        self.assertEqual(
+            transitions["claim_own_glowing_reward_row_once"]["permitted_input"],
+            "tap_own_glowing_daily_reward_row_once",
+        )
+        self.assertIn("claimed successor/checkmarks", " ".join(transitions["verify_claimed_row_checkmarks"]["postconditions"]))
+        unsupported = " ".join(contract["unsupported_or_manual_only_states"]).casefold()
+        for marker in ("quick select", "troop set 2", "duplicate dispatch", "daily objective-row inspection", "d02 prerequisite", "points attribution"):
+            self.assertIn(marker, unsupported)
+        self.assertEqual(contract["implementation_status"], "reference_implemented")
+        self.assertEqual(contract["proof_state"], "evidence_required")
+        self.assertEqual(contract["registration_state"], "disabled")
+        self.assertFalse(contract["production_eligible"])
+        self.assertEqual(contract["evidence_gates"][0]["permitted_inputs"], [])
+        self.assertEqual(contract["scenarios"][0]["permitted_inputs"], [])
+
+        invalid = deepcopy(contract)
+        next(
+            item
+            for item in invalid["transition_contracts"]
+            if item["transition_id"] == "dispatch_one_zombie_zero"
+        )["permitted_input"] = "dispatch_second_zombie_zero"
+        with self.assertRaises(FlowContractError):
+            validate_flow_contract(invalid)
 
     def test_zombie_lair_contracts_bind_one_record_and_stay_disabled(self):
         for flow_id in (

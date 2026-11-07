@@ -27,6 +27,9 @@ DAILY_SHOPS_REVISION = "daily_shops_purchase-v1"
 FOOD_FARM_TASK = "FOOD-FARM-OUTPUT-BOOST-DAILY-BLUESTACKS-INTEGRATION"
 FOOD_FARM_PRODUCT = "food_farm_output_boost"
 FOOD_FARM_REVISION = "food_farm_output_boost-v1"
+HALL_OF_WAR_TASK = "HALL-OF-WAR-ZOMBIE-ZERO-BLUESTACKS-INTEGRATION"
+HALL_OF_WAR_PRODUCT = "hall_of_war_zombie_zero"
+HALL_OF_WAR_REVISION = "hall_of_war_zombie_zero-v1"
 HERO_DUEL_TASK = "HERO-DUEL-EVIDENCE-GATE"
 HERO_DUEL_PRODUCT = "hero_duel"
 HERO_DUEL_REVISION = "hero_duel-v2"
@@ -43,6 +46,9 @@ RUINS_FLOW = "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
 RUINS_PRODUCT = "ruins_challenge"
 RUINS_TASK = RUINS_PRODUCT
 RUINS_REVISION = "ruins_challenge-v1"
+TROOP_TRAINING_TASK = "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
+TROOP_TRAINING_PRODUCT = "troop_training"
+TROOP_TRAINING_REVISION = "troop_training-v3"
 
 from .models import ActionClass, PolicyDecision, PolicyRequest
 
@@ -51,38 +57,34 @@ MAX_ROUTE_QUANTITY = 1_000_000
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{0,127}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
-_APPROVED_ROUTE_TASKS = frozenset(
-    {
-        DONATION_TASK,
-        ALLIANCE_SHOP_TASK,
-        DAILY_SHOPS_TASK,
-        NANO_PRODUCTION_TASK,
-        NANOWEAPON_TASK,
-        RECOMMENDED_RESEARCH_TASK,
-        ALLIANCE_HELP_TASK,
-        RUINS_TASK,
-        HERO_DUEL_TASK,
-        FOOD_FARM_TASK,
-    }
-)
+_APPROVED_ROUTE_TASKS = frozenset({
+    DONATION_TASK, ALLIANCE_SHOP_TASK, DAILY_SHOPS_TASK, NANO_PRODUCTION_TASK,
+    NANOWEAPON_TASK, RECOMMENDED_RESEARCH_TASK, TROOP_TRAINING_TASK, ALLIANCE_HELP_TASK,
+    RUINS_TASK, HERO_DUEL_TASK, FOOD_FARM_TASK, HALL_OF_WAR_TASK,
+})
 _APPROVED_ROUTE_ACTION_TASKS = {
-    'DONATE_ALLIANCE_TECH': DONATION_TASK,
-    'PURCHASE_ALLIANCE_SHOP_OFFER': ALLIANCE_SHOP_TASK,
-    'PURCHASE_DAILY_SHOP_MATERIAL': DAILY_SHOPS_TASK,
-    'claim_nano_material_production': NANO_PRODUCTION_TASK,
-    'start_nano_material_production': NANO_PRODUCTION_TASK,
-    'claim_completed_nanoweapon': NANOWEAPON_TASK,
-    'start_one_normal_nanoweapon_craft': NANOWEAPON_TASK,
-    'START_RECOMMENDED_RESEARCH': RECOMMENDED_RESEARCH_TASK,
-    'HELP_ALLIANCE_REQUEST': ALLIANCE_HELP_TASK,
-    'ruins_zero_cost_npc_challenge_dispatch': RUINS_TASK,
-    'ruins_green_ready_stage_chest_claim': RUINS_TASK,
-    'hero_duel_free_entry': HERO_DUEL_TASK,
-    'hero_duel_flee': HERO_DUEL_TASK,
-    'hero_duel_save_defense': HERO_DUEL_TASK,
-    'collect_food_farm_resources': FOOD_FARM_TASK,
-    'apply_food_farm_output_boost_owned_item': FOOD_FARM_TASK,
-    'buy_food_farm_output_boost_diamonds': FOOD_FARM_TASK,
+    "DONATE_ALLIANCE_TECH": DONATION_TASK,
+    "PURCHASE_ALLIANCE_SHOP_OFFER": ALLIANCE_SHOP_TASK,
+    "PURCHASE_DAILY_SHOP_MATERIAL": DAILY_SHOPS_TASK,
+    "claim_nano_material_production": NANO_PRODUCTION_TASK,
+    "start_nano_material_production": NANO_PRODUCTION_TASK,
+    "claim_completed_nanoweapon": NANOWEAPON_TASK,
+    "start_one_normal_nanoweapon_craft": NANOWEAPON_TASK,
+    "START_RECOMMENDED_RESEARCH": RECOMMENDED_RESEARCH_TASK,
+    "TROOP_TRAINING_START": TROOP_TRAINING_TASK,
+    "TROOP_TRAINING_COMPLETED_BATCH_CLAIM": TROOP_TRAINING_TASK,
+    "TROOP_TRAINING_RESOURCE_BOX_CONTINUATION": TROOP_TRAINING_TASK,
+    "HELP_ALLIANCE_REQUEST": ALLIANCE_HELP_TASK,
+    "ruins_zero_cost_npc_challenge_dispatch": RUINS_TASK,
+    "ruins_green_ready_stage_chest_claim": RUINS_TASK,
+    "hero_duel_free_entry": HERO_DUEL_TASK,
+    "hero_duel_flee": HERO_DUEL_TASK,
+    "hero_duel_save_defense": HERO_DUEL_TASK,
+    "collect_food_farm_resources": FOOD_FARM_TASK,
+    "apply_food_farm_output_boost_owned_item": FOOD_FARM_TASK,
+    "buy_food_farm_output_boost_diamonds": FOOD_FARM_TASK,
+    "HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH": HALL_OF_WAR_TASK,
+    "HALL_OF_WAR_ZOMBIE_ZERO_DAILY_REWARD_CLAIM": HALL_OF_WAR_TASK,
 }
 
 
@@ -856,13 +858,344 @@ def _hero_duel(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         return guard
     return PolicyDecision.AUTHORIZE, "AUTHORIZED_HERO_DUEL_FREE_ACTION", "exact Survival event, numeric free/pass balances, bounded entry/Flee, or defense-save guards passed"
 
+def _hall_of_war(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
+    deny = _deny("HALL_OF_WAR_ACTION_NOT_EXACT", "only the bounded Zombie Zero action and its exact own reward claim are in scope")
+    action = request.semantic_action
+    if action == "HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH":
+        tokens = request.semantic_preconditions
+        if type(tokens) is not tuple or len(tokens) != 19:
+            return _deny("HALL_OF_WAR_LOSS_EFFECT_UNPROVEN", "current exact cost and independent current no-loss ROI proof are required before Dispatch")
+        frame_hash = request.observation.frame_sha256
+        reset = _field(tokens[2], "hall_of_war_reset=")
+        cost_frame = _field(tokens[13], "dispatch_cost_source_frame=")
+        cost_roi = _field(tokens[14], "hall_of_war_explicit_zero_cost=")
+        loss_frame = _field(tokens[16], "troop_loss_effect_source_frame=")
+        loss_roi = _field(tokens[17], "hall_of_war_no_loss_rule=")
+        fixed = (
+            f"hall_of_war_product={HALL_OF_WAR_PRODUCT}",
+            f"hall_of_war_product_revision={HALL_OF_WAR_REVISION}",
+            f"hall_of_war_reset={request.game_day_id}",
+            "current_reset_id_bound_to_game_day_id",
+            "challenge_action_ordinal=1",
+            "challenge_action_key_binds_attempt_ordinal_one_for_current_reset",
+            "exact_zombie_zero_page_and_today_highest_damage_zero",
+            "challenge_attempt_ready_and_not_busy_or_cooling_down",
+            "saved_military_preset_verified",
+            "troop_set_1_saved_identity_selected_not_edit_or_quick_select",
+            "troop_set_1_application_toast_verified",
+            "five_hero_slots_populated",
+            "current_troop_count_exactly_matches_visible_capacity_and_positive",
+            f"dispatch_cost_source_frame={frame_hash}",
+            f"hall_of_war_explicit_zero_cost={cost_roi}" if cost_roi is not None else "",
+            "troop_loss_effect=explicit_no_loss",
+            f"troop_loss_effect_source_frame={frame_hash}",
+            f"hall_of_war_no_loss_rule={loss_roi}" if loss_roi is not None else "",
+            "one_dispatch_transport_remaining",
+        )
+        roi_hashes = request.observation.critical_roi_hashes
+        action_key_pattern = rf"hall-of-war:dispatch:daily:{re.escape(request.game_day_id or '')}:attempt-1:[0-9a-f]{{64}}"
+        if (
+            reset != request.game_day_id or not _slug(reset)
+            or frame_hash != cost_frame or frame_hash != loss_frame
+            or not _hash(cost_roi) or not _hash(loss_roi)
+            or sum(name == "hall_of_war_explicit_zero_cost" for name, _digest in roi_hashes) != 1
+            or sum(name == "hall_of_war_no_loss_rule" for name, _digest in roi_hashes) != 1
+            or not any(name == "hall_of_war_explicit_zero_cost" and digest == cost_roi for name, digest in roi_hashes)
+            or not any(name == "hall_of_war_no_loss_rule" and digest == loss_roi for name, digest in roi_hashes)
+            or re.fullmatch(action_key_pattern, request.action_key, flags=re.ASCII) is None
+            or tokens != fixed
+        ):
+            return _deny("HALL_OF_WAR_LOSS_EFFECT_UNPROVEN", "current exact zero-cost and frame-bound explicit no-loss proof did not match")
+        if not _contract_matches(
+            request,
+            action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+            semantic_action=action,
+            action_kind=action,
+            subject=None,
+            source_state="HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH",
+            target_identity="hall-of-war:zombie-zero:dispatch",
+            control_class="DISPATCH",
+            consequence="hall_of_war_zombie_zero_attempt",
+            postcondition="HALL_OF_WAR_ZOMBIE_ZERO_HISTORY_HIGH_RESULT",
+            cost_type="none",
+            cost_amount=0,
+            quantity=1,
+            resource_or_currency=None,
+            maximum_cost=0,
+            free_only=True,
+        ):
+            return deny
+        guard = _route_runtime_guard(request)
+        if guard is not None:
+            return guard
+        return PolicyDecision.AUTHORIZE, "AUTHORIZED_HALL_OF_WAR_ZOMBIE_ZERO", "exact current zero-cost ROI and independently frame-bound explicit no-loss rule passed"
+    if action == "HALL_OF_WAR_ZOMBIE_ZERO_DAILY_REWARD_CLAIM":
+        tokens = _tokens(request, 11)
+        expected = (
+            f"hall_of_war_product={HALL_OF_WAR_PRODUCT}",
+            f"hall_of_war_product_revision={HALL_OF_WAR_REVISION}",
+            f"hall_of_war_reset={request.game_day_id}",
+            "current_reset_id_bound_to_game_day_id",
+            "daily_reward_claim_ordinal=1",
+            "reward_action_key_independent_from_challenge_key_and_binds_current_reset",
+            "same_reset_zombie_zero_participation_proven_by_confirmed_dispatch_or_exact_positive_today_highest_damage",
+            "exact_zombie_zero_daily_reward_row_identity",
+            "current_reward_row_explicitly_glowing_and_enabled",
+            "claimed_label_and_green_checkmarks_absent",
+            "one_reward_claim_transport_remaining",
+        )
+        reward_key_pattern = rf"hall-of-war:reward:daily:{re.escape(request.game_day_id or '')}:claim-1:[0-9a-f]{{64}}"
+        if (
+            tokens is None or not request.game_day_id or tokens != expected
+            or re.fullmatch(reward_key_pattern, request.action_key, flags=re.ASCII) is None
+        ):
+            return deny
+        if not _contract_matches(
+            request,
+            action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+            semantic_action=action,
+            action_kind=action,
+            subject=None,
+            source_state="HALL_OF_WAR_ZOMBIE_ZERO_DAILY_REWARD_READY",
+            target_identity="hall-of-war:zombie-zero:daily-reward-row",
+            control_class="CLAIM",
+            consequence="hall_of_war_daily_reward_claim",
+            postcondition="HALL_OF_WAR_ZOMBIE_ZERO_DAILY_REWARD_CLAIMED_CHECKMARKS",
+            cost_type="none",
+            cost_amount=0,
+            quantity=1,
+            resource_or_currency=None,
+            maximum_cost=0,
+            free_only=True,
+        ):
+            return deny
+        guard = _route_runtime_guard(request)
+        if guard is not None:
+            return guard
+        return PolicyDecision.AUTHORIZE, "AUTHORIZED_HALL_OF_WAR_OWN_REWARD", "exact current own-reward readiness and once-per-reset claim guards passed"
+    return deny
 
 
+_TRAINING_VARIANTS = {
+    "fighter": ("fighter_camp", 8, "current_max", "current_max", "continuous", True),
+    "vehicle": ("vehicle_depot", 1, "current_max", "current_max", "continuous", True),
+    "shooter": ("shooter_camp", 8, "fixed", "250", "once_daily", False),
+    "rider": ("rider_camp", 1, "fixed", "250", "once_daily", False),
+}
+
+_TRAINING_START_KEY = re.compile(
+    r"^troop-training:([0-9a-f]{64}):([0-9a-f]{64}):(fighter|vehicle|shooter|rider):g([1-9][0-9]*):start$",
+    flags=re.ASCII,
+)
 
 
+def _training_key_parts(value: object) -> Optional[Tuple[str, str, str, int]]:
+    if type(value) is not str:
+        return None
+    match = _TRAINING_START_KEY.fullmatch(value)
+    if match is None:
+        return None
+    generation = _integer_token(match.group(4), minimum=1)
+    if generation is None:
+        return None
+    return match.group(1), match.group(2), match.group(3), generation
 
 
-
+def _training(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
+    deny = _deny("TROOP_TRAINING_ACTION_NOT_EXACT", "only an exact configured ordinary-resource training start or confirmed outstanding batch claim is allowed")
+    action = request.semantic_action
+    if action == "TROOP_TRAINING_RESOURCE_BOX_CONTINUATION":
+        return _deny(
+            "TROOP_TRAINING_BOX_COST_UNPROVEN",
+            "the policy request does not bind exact resource-box identity/count or an authorized inventory-effect record; popup recognition and projected resource changes do not prove the consumed inventory effect",
+        )
+    if action == "TROOP_TRAINING_COMPLETED_BATCH_CLAIM":
+        tokens = _tokens(request, 28)
+        if tokens is None:
+            return deny
+        variant = _field(tokens[7], "variant=")
+        if variant not in _TRAINING_VARIANTS:
+            return deny
+        facility, tier, mode, configured, policy, _allow_boxes = _TRAINING_VARIANTS[variant]
+        scope = _field(tokens[3], "runtime_scope=")
+        account = _field(tokens[4], "account_id=")
+        server = _field(tokens[5], "server_id=")
+        runtime_hash = _field(tokens[6], "runtime_identity_sha256=")
+        quantity = _integer_token(_field(tokens[13], "selected_quantity="), minimum=1, maximum=MAX_ROUTE_QUANTITY)
+        batch_quantity = _integer_token(_field(tokens[20], "completed_batch_quantity="), minimum=1, maximum=MAX_ROUTE_QUANTITY)
+        batch_id = _field(tokens[15], "completed_batch_id=")
+        confirmed_key = _field(tokens[16], "confirmed_start_action_key=")
+        confirmed_reset = _field(tokens[17], "confirmed_start_reset_id=")
+        generation = _integer_token(_field(tokens[22], "queue_generation="), minimum=1)
+        starts = _integer_token(_field(tokens[23], "per_reset_variant_start_count="), maximum=MAX_ROUTE_QUANTITY)
+        claims = _integer_token(_field(tokens[24], "per_reset_variant_claim_count="), maximum=MAX_ROUTE_QUANTITY)
+        start_key_parts = _training_key_parts(batch_id)
+        if scope is None or account is None or server is None or runtime_hash is None or confirmed_reset is None:
+            return deny
+        expected_runtime_hash = hashlib.sha256(f"{scope}\0{account}\0{server}".encode("utf-8")).hexdigest()
+        expected = (
+            f"troop_training_product={TROOP_TRAINING_PRODUCT}",
+            f"troop_training_product_revision={TROOP_TRAINING_REVISION}",
+            "approved_profile=true",
+            f"runtime_scope={scope}",
+            f"account_id={account}",
+            f"server_id={server}",
+            f"runtime_identity_sha256={expected_runtime_hash}",
+            f"variant={variant}",
+            f"facility_identity={facility}",
+            f"troop_type={variant}",
+            f"tier={tier}",
+            f"quantity_mode={mode}",
+            f"configured_quantity={configured}",
+            f"selected_quantity={quantity}" if quantity is not None else "",
+            "completed_batch_ready=true",
+            f"completed_batch_id={batch_id}" if batch_id is not None else "",
+            f"confirmed_start_action_key={batch_id}" if batch_id is not None else "",
+            f"confirmed_start_reset_id={confirmed_reset}",
+            f"completed_batch_troop_type={variant}",
+            f"completed_batch_tier={tier}",
+            f"completed_batch_quantity={quantity}" if quantity is not None else "",
+            "queue_state=positively_completed",
+            f"queue_generation={generation}" if generation is not None else "",
+            f"per_reset_variant_start_count={starts}" if starts is not None else "",
+            f"per_reset_variant_claim_count={claims}" if claims is not None else "",
+            f"reset_id={request.game_day_id}",
+            "overlay=none",
+            "forbidden_controls=none",
+        )
+        if (
+            runtime_hash != expected_runtime_hash or quantity is None or batch_quantity is None
+            or quantity != batch_quantity or generation is None or starts is None or claims is None
+            or request.game_day_id is None or not _slug(request.game_day_id) or not _slug(confirmed_reset)
+            or start_key_parts is None or batch_id != confirmed_key or request.action_key != f"{batch_id}:claim"
+            or start_key_parts[0] != runtime_hash
+            or start_key_parts[1] != hashlib.sha256(confirmed_reset.encode("utf-8")).hexdigest()
+            or start_key_parts[2] != variant or start_key_parts[3] != generation
+            or tokens != expected
+        ):
+            return deny
+        post = f"TROOP_TRAINING_BATCH_CLAIMED:{variant}:{batch_id}"
+        if not _contract_matches(
+            request,
+            action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+            semantic_action=action,
+            action_kind=action,
+            subject=action,
+            source_state="TROOP_TRAINING_SCREEN",
+            target_identity=f"troop_training:completed_batch_claim:{variant}",
+            control_class=f"tab:{variant}:claim-completed",
+            consequence="claim_zero_cost_reward",
+            postcondition=post,
+            cost_type="none",
+            cost_amount=0,
+            quantity=1,
+            resource_or_currency=None,
+            maximum_cost=0,
+            free_only=True,
+        ):
+            return deny
+        guard = _route_runtime_guard(request)
+        if guard is not None:
+            return guard
+        return PolicyDecision.AUTHORIZE, "AUTHORIZED_TROOP_TRAINING_BATCH_CLAIM", "exact outstanding confirmed start key and completed variant batch passed"
+    if action != "TROOP_TRAINING_START" or request.task_id != TROOP_TRAINING_TASK:
+        return deny
+    tokens = _tokens(request, 33)
+    if tokens is None:
+        return deny
+    scope = _field(tokens[2], "runtime_scope=")
+    account = _field(tokens[3], "account_id=")
+    server = _field(tokens[4], "server_id=")
+    runtime_hash = _field(tokens[5], "runtime_identity_sha256=")
+    if scope is None or account is None or server is None or runtime_hash is None:
+        return deny
+    expected_runtime_hash = hashlib.sha256(f"{scope}\0{account}\0{server}".encode("utf-8")).hexdigest()
+    variant = _field(tokens[8], "variant=")
+    if variant not in _TRAINING_VARIANTS:
+        return deny
+    facility, tier, mode, configured, policy, allow_boxes = _TRAINING_VARIANTS[variant]
+    qty = _integer_token(_field(tokens[14], "selected_quantity="), minimum=1, maximum=MAX_ROUTE_QUANTITY)
+    maximum = _integer_token(_field(tokens[15], "quantity_maximum="), minimum=1, maximum=MAX_ROUTE_QUANTITY)
+    generation = _integer_token(_field(tokens[19], "queue_generation="), minimum=1)
+    count = _integer_token(_field(tokens[20], "per_reset_variant_start_count="), maximum=MAX_ROUTE_QUANTITY)
+    if qty is None or maximum is None or generation is None or count is None:
+        return deny
+    fixed = (
+        f"troop_training_product={TROOP_TRAINING_PRODUCT}",
+        f"troop_training_product_revision={TROOP_TRAINING_REVISION}",
+        f"runtime_scope={scope}",
+        f"account_id={account}",
+        f"server_id={server}",
+        f"runtime_identity_sha256={expected_runtime_hash}",
+        f"game_day_id={request.game_day_id}",
+        "approved_profile=true",
+        f"variant={variant}",
+        f"facility_identity={facility}",
+        f"troop_type={variant}",
+        f"tier={tier}",
+        f"quantity_mode={mode}",
+        f"configured_quantity={configured}",
+        f"selected_quantity={qty}",
+        f"quantity_maximum={maximum}",
+        f"training_policy={policy}",
+        f"allow_resource_boxes={str(allow_boxes).lower()}",
+        "queue_state=positively_empty",
+        f"queue_generation={generation}",
+        f"per_reset_variant_start_count={count}",
+        "saved_commander_talent_preset=Training",
+        "saved_commander_talent_preset_verified=true",
+    )
+    key_parts = _training_key_parts(request.action_key)
+    if (
+        not request.game_day_id or not _slug(request.game_day_id)
+        or runtime_hash != expected_runtime_hash or tokens[:23] != fixed
+        or key_parts is None or key_parts[0] != runtime_hash
+        or key_parts[1] != hashlib.sha256(request.game_day_id.encode("utf-8")).hexdigest()
+        or key_parts[2] != variant or key_parts[3] != generation
+    ):
+        return deny
+    resource_costs = []
+    for index, resource in enumerate(("food", "wood", "steel", "gas")):
+        held = _integer_token(_field(tokens[23 + index * 2], f"resource.{resource}.held="))
+        required = _integer_token(_field(tokens[24 + index * 2], f"resource.{resource}.required="))
+        if held is None or required is None or held < required:
+            return deny
+        resource_costs.append(required)
+    if tokens[31:] != ("forbidden_controls=none", "overlay=none"):
+        return deny
+    if (
+        (mode == "current_max" and qty != maximum)
+        or (mode == "fixed" and (qty != 250 or maximum < 250))
+        or (policy == "once_daily" and count != 0)
+    ):
+        return deny
+    total_cost = sum(resource_costs)
+    if total_cost > MAX_EXACT_ROUTE_INTEGER:
+        return deny
+    post = f"active_queue_confirmed:{variant}:{tier}:{qty}:positive_current_timer"
+    if not _contract_matches(
+        request,
+        action_class=ActionClass.SPEND_OR_STRATEGIC,
+        semantic_action=action,
+        action_kind="troop_training_start",
+        subject=variant,
+        source_state="TROOP_TRAINING_SCREEN",
+        target_identity=f"troop_training:normal_train:{variant}",
+        control_class="TRAIN",
+        consequence="troop_training_start",
+        postcondition=post,
+        cost_type="ordinary_game_resources",
+        cost_amount=total_cost,
+        quantity=qty,
+        resource_or_currency="food+wood+steel+gas",
+        maximum_cost=total_cost,
+        free_only=False,
+    ):
+        return deny
+    guard = _route_runtime_guard(request)
+    if guard is not None:
+        return guard
+    return PolicyDecision.AUTHORIZE, "AUTHORIZED_TROOP_TRAINING_START", "fixed variant, global generation key, live queue/quantity, Training preset, and exact affordable resource vector passed"
 
 
 def _alliance_help(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
@@ -1040,6 +1373,8 @@ def decide_approved_base_route(request: PolicyRequest) -> Optional[Tuple[PolicyD
         return _nanoweapon(request)
     if request.task_id == RECOMMENDED_RESEARCH_TASK:
         return _recommended_research(request)
+    if request.task_id == TROOP_TRAINING_TASK:
+        return _training(request)
     if request.task_id == ALLIANCE_HELP_TASK:
         return _alliance_help(request)
     if request.task_id == RUINS_TASK:
@@ -1048,4 +1383,6 @@ def decide_approved_base_route(request: PolicyRequest) -> Optional[Tuple[PolicyD
         return _hero_duel(request)
     if request.task_id == FOOD_FARM_TASK:
         return _food_farm(request)
+    if request.task_id == HALL_OF_WAR_TASK:
+        return _hall_of_war(request)
     return _deny("APPROVED_BASE_ROUTE_ACTION_NOT_EXACT", "action is not in the route-specific policy set")

@@ -227,7 +227,18 @@
       "scheduler_eligibility": false,
       "daily_quest_inheritance": "prohibited",
       "resource_box_restriction": "Fighter and Vehicle only; Shooter and Rider are structurally prohibited",
-      "completion_contract": {"current_positive_postcondition_required": true, "queue_projection_is_completion": false, "timer_projection_is_completion": false, "return_projection_is_completion": false}
+      "completion_contract": {"current_positive_postcondition_required": true, "queue_projection_is_completion": false, "timer_projection_is_completion": false, "return_projection_is_completion": false},
+      "current_max_requires_current_numeric_maximum": true,
+      "historical_numeric_maxima_are_not_policy": true,
+      "resource_box_continuation": {
+        "allowed_types": ["fighter", "vehicle"],
+        "requires_exact_configured_training_context": true,
+        "requires_current_recognized_resource_box_popup": true,
+        "requires_observed_shortage_and_sufficient_post_box_balances": true,
+        "warehouse_only_rejected": true,
+        "effect_authority_required_before_consumption": true,
+        "shooter_or_rider_allowed": false
+      }
     },
     {
       "policy_id": "recruitment-quantity-and-resource-policy",
@@ -261,7 +272,7 @@
       "policy_id": "hero-duel-policy",
       "scope": "hero_duel.daily",
       "status": "explicitly_approved",
-      "decision": "Approve at most three free Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival entry/flee cycles per reset. Save the first five current eligible defense heroes, preserve a complete valid independent attack lineup and fill only missing eligible slots, then leave each loaded battle through Exit and Flee without a win requirement. Unknown cost/event/effect blocks; runtime controls remain disabled pending native acceptance.",
+      "decision": "Approve at most three free Hero Duel–Survival entry/flee cycles per reset. Save the first five current eligible defense heroes, preserve a complete valid independent attack lineup and fill only missing eligible slots, then leave each loaded battle through Exit and Flee without a win requirement. Unknown cost/event/effect blocks; runtime controls remain disabled pending native acceptance.",
       "candidate_event": "hero_duel_survival",
       "candidate_attempts_remaining": null,
       "daily_completion_target": 3,
@@ -319,6 +330,50 @@
       "source": "issue-78-owner-decision-2026-11-06"
     },
     {
+      "policy_id": "commander-talent-preset-helper",
+      "scope": "commander_talents.saved_preset_precondition",
+      "status": "explicitly_approved",
+      "decision": "Use the existing saved Military, Economy, or Training preset only through its declared consuming route and the existing caller-owned DevelopmentSession helper. Verify the exact Applied preset and avoid redundant switches when already applied. A switch requires the current bound Apply control, exact observed cost, any confirmation and cooldown facts, route approval, and a positive same-preset Applied successor; only an explicitly observed zero-cost switch is currently approved. Unknown, changed, nonzero, or premium switch costs defer. Cache proof is valid only for its exact source generation and runtime context and is invalidated after manual/external change, restart, generation change, or relevant context loss. Never edit/reset trees, create or alter presets, retry an uncertain switch, or schedule the helper independently.",
+      "saved_presets": ["Military", "Economy", "Training"],
+      "existing_caller_owned_session_required": true,
+      "standalone_route_or_scheduler_allowed": false,
+      "exact_applied_state_required": true,
+      "already_applied_redundant_switch_allowed": false,
+      "cache_scope": "source_generation_and_runtime_context",
+      "cache_invalidation_events": ["manual_or_external_change", "restart", "generation_change", "relevant_context_loss"],
+      "switch_requires_current_bound_control_and_cost_confirmation_cooldown": true,
+      "switch_cost_allowance": "explicitly_observed_zero_cost_only",
+      "route_approval_required": true,
+      "changed_or_unknown_switch_facts": "defer",
+      "positive_successor": "same_named_preset_row_applied",
+      "uncertain_switch_retry_allowed": false,
+      "talent_tree_edit_or_reset_allowed": false,
+      "preset_creation_or_alteration_allowed": false,
+      "dispatch_authority": null,
+      "source": "issue-95-owner-decision-2026-11-06"
+    },
+    {
+      "policy_id": "hall-of-war-zombie-zero-policy",
+      "scope": "hall_of_war.zombie_zero",
+      "status": "explicitly_approved",
+      "decision": "Approve one bounded Zombie Zero attempt per route reset only on exact current page, available attempt state, numeric current explicit-zero cost, approved troop-loss effect evidence, Military preset, and applied populated saved Troop Set 1. Require a positive result before considering the separate one-tap glowing Daily Reward row; a claimed/unavailable reward is not repeated. Unknown or nonzero/unapproved cost, premium/refill prompt, unapproved loss, stale formation, ambiguous result, or uncertain dispatch/claim blocks without identical retry.",
+      "maximum_dispatches_per_reset": 1,
+      "attempt_state_must_be_current": true,
+      "busy_or_unavailable_attempt_must_not_dispatch": true,
+      "dispatch_cost_allowance": "current_explicit_zero_only",
+      "premium_or_refill_allowed": false,
+      "current_troop_loss_effect_must_be_known_and_approved": true,
+      "saved_commander_talent_preset": "Military",
+      "saved_troop_set": "Troop Set 1",
+      "maximum_reward_claims_per_reset": 1,
+      "reward_requires_same_reset_positive_participation": true,
+      "reward_requires_current_glowing_ready_row": true,
+      "reward_claim_is_one_row_tap": true,
+      "daily_quest_or_points_attribution_required": false,
+      "dispatch_authority": null,
+      "source": "issue-96-owner-approved-route-and-investigation-2026-11-06"
+    },
+    {
       "policy_id": "hero-upgrade-policy",
       "scope": "hero_upgrade.daily",
       "status": "explicitly_approved",
@@ -355,7 +410,7 @@
       ],
       "preferred_currency": "Alliance Coins",
       "fallback_shop": "Other",
-      "fallback_item": "1ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Gear Enhance Material",
+      "fallback_item": "1★ Gear Enhance Material",
       "fallback_rarity": 1,
       "fallback_currency": "Alliance Coins",
       "maximum_quantity_total": 1,
@@ -388,17 +443,17 @@
       "policy_id": "daily-shops-purchase-policy",
       "scope": "daily_shops.purchase",
       "status": "explicitly_approved",
-      "decision": "During one visit, independently evaluate Ruins Shop 3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material and Rare Earth Shop 3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material. Each tab's quantity must equal min(current stock, floor(current balance/current unit price)); reread the numeric quantity and total before its inner Buy. Preserve per-tab results; the static product decision does not authorize runtime dispatch or Daily/points attribution.",
+      "decision": "During one visit, independently evaluate Ruins Shop 3★ Chip Enhance Material and Rare Earth Shop 3★ Module Enhance Material. Each tab's quantity must equal min(current stock, floor(current balance/current unit price)); reread the numeric quantity and total before its inner Buy. Preserve per-tab results; the static product decision does not authorize runtime dispatch or Daily/points attribution.",
       "shops": [
         {
           "shop": "RUINS_SHOP",
-          "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material",
+          "item": "3★ Chip Enhance Material",
           "rarity": 3,
           "currency": "Ruins Coins"
         },
         {
           "shop": "RARE_EARTH_SHOP",
-          "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material",
+          "item": "3★ Module Enhance Material",
           "rarity": 3,
           "currency": "Rare Earth"
         }
@@ -562,7 +617,7 @@
     {"policy_id": "daily-control-cost-boundary", "scope": "global.daily_control_costs", "status": "explicitly_approved", "decision": "Universal Daily control safety boundary: premium/cash purchases, paid or ambiguous controls, refills, 10x controls, and item-backed substitutes are prohibited. Route-approved resource, AP, and stamina effects remain governed by their own R/P ticket and are not globally forbidden.", "prohibited_controls": ["premium_purchase", "cash_purchase", "paid_control", "ambiguous_control", "refill", "10x", "item_backed_substitute"], "premium_allowed": false, "cash_allowed": false, "paid_allowed": false, "ambiguous_allowed": false, "refill_allowed": false, "ten_x_allowed": false, "item_backed_substitute_allowed": false, "unknown_cost_allowed": false, "route_owned_effects_globally_forbidden": false, "route_owner_ticket_required": true, "governing_owner_ticket_families": ["REC-R*", "REC-P*"], "dispatch_authority": null, "source": "REC-D01_explicit_cost_boundary"},
     {"policy_id": "current-positive-completion-postcondition", "scope": "global.completion_semantics", "status": "explicitly_approved", "decision": "Training and march completion require a current positive postcondition. Queue, timer, outbound, return, or other projected state alone never proves completion.", "applies_to": ["training", "march"], "current_positive_postcondition_required": true, "queue_projection_is_completion": false, "timer_projection_is_completion": false, "outbound_projection_is_completion": false, "return_projection_is_completion": false, "dispatch_is_completion": false, "source": "REC-D01_explicit_completion_boundary"}
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r18",
+  "authority_revision": "flow-delivery-product-authority-v2-r19",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -1294,6 +1349,24 @@
             "training_policy": "once_daily",
             "allow_resource_boxes": false
           }
+        },
+        "current_max_quantity_source": "fresh_current_frame_numeric_maximum",
+        "current_max_fixed_fallback": null,
+        "commander_talent_requirement": {
+          "policy_id": "commander-talent-preset-helper",
+          "required_preset": "Training",
+          "verification_before_each_start": true,
+          "switch_cost_allowance": "explicitly_observed_zero_cost_only",
+          "route_approval_required": true
+        },
+        "resource_box_continuation": {
+          "allowed_types": ["fighter", "vehicle"],
+          "requires_exact_type_tier_and_quantity_match": true,
+          "requires_current_recognized_resource_box_popup": true,
+          "requires_observed_shortage_and_sufficient_post_box_balances": true,
+          "warehouse_only_rejected": true,
+          "effect_authority_required_before_consumption": true,
+          "shooter_or_rider_allowed": false
         }
       },
       "quantity_cost": {
@@ -1315,6 +1388,11 @@
         "return_projection_is_completion": false,
         "positive_timer_spatial_association_required": true,
         "current_max_numeric_reconciliation_required": true,
+        "current_max_numeric_value_must_be_observed_each_start": true,
+        "historical_numeric_maxima_are_not_policy": true,
+        "commander_talent_preset_verified_before_start": true,
+        "resource_box_continuation_requires_exact_configured_branch": true,
+        "resource_box_consumption_requires_effect_authority": true,
         "fixed_quantity_exact_required": true,
         "known_resources_required": true,
         "resource_box_policy_bound": true,
@@ -1355,15 +1433,20 @@
           "reference_id": "native-authority:bluestacks-troop-training-queue-and-timer",
           "reference_kind": "native_authority",
           "immutable": true
+        },
+        {
+          "reference_id": "user-direction:issue-95-saved-commander-talent-preset-precondition",
+          "reference_kind": "user_direction",
+          "immutable": true
         }
       ],
-      "record_revision": "troop_training-v2",
-      "record_digest": "5cc24fffa0a7d3bf14a7f25bb19964a9475c204f6fa19e38b6aad3899cdd8fce"
+      "record_revision": "troop_training-v3",
+      "record_digest": "9dc451e87f326f08c23ca0c07214341e89a58d3bb4883bb759a0517e8e840cc2"
     },
     {
       "record_id": "hero_duel",
       "record_type": "hero_duel",
-      "purpose": "Perform at most three current-reset free Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Survival participation cycles; win is not required.",
+      "purpose": "Perform at most three current-reset free Hero Duel–Survival participation cycles; win is not required.",
       "recurrence": "daily_reset_scoped",
       "semantic_entry_route": {
         "source_home_authorities": ["HOME_CANONICAL"],
@@ -1428,7 +1511,7 @@
         "identical_retry": false
       },
       "forbidden_actions": [
-        "Hero DuelÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Glory",
+        "Hero Duel–Glory",
         "paid entry",
         "premium entry",
         "Activate",
@@ -1625,10 +1708,6 @@
         "item_preferred_over_diamonds": true,
         "owned_item_identity_count_and_duration_required": true,
         "exact_current_diamond_item_duration_cost_balance_required": true,
-        "diamond_price_cap_not_assumed_current_price": true,
-        "exact_current_numeric_price_and_balance_required": true,
-        "current_price_must_not_exceed_authorized_cap": true,
-        "current_price_rechecked_if_confirmation_appears": true,
         "changed_confirmation_prompt_blocks": true,
         "same_farm_active_boost_successor_required": true,
         "positive_boosting_timer_required": true,
@@ -1643,7 +1722,11 @@
         "daily_ownership": "none",
         "daily_inspection_required": false,
         "points_attribution_required": false,
-        "identical_retry": false
+        "identical_retry": false,
+        "diamond_price_cap_not_assumed_current_price": true,
+        "exact_current_numeric_price_and_balance_required": true,
+        "current_price_must_not_exceed_authorized_cap": true,
+        "current_price_rechecked_if_confirmation_appears": true
       },
       "forbidden_actions": [
         "Buy Box",
@@ -1688,6 +1771,140 @@
       ],
       "record_revision": "food_farm_output_boost-v1",
       "record_digest": "7ef1742cf67b28a27dde83d7c39244228e43ea8085e379a796589a0002afe2e4"
+    },
+    {
+      "record_id": "hall_of_war_zombie_zero",
+      "record_type": "hall_of_war_zombie_zero",
+      "purpose": "Perform at most one current-reset Zombie Zero challenge dispatch and, only after positive same-reset participation, one claim of its own currently glowing daily reward row.",
+      "recurrence": "daily_reset_scoped",
+      "semantic_entry_route": {
+        "source_home_authorities": ["HOME_CANONICAL"],
+        "target": "HALL_OF_WAR",
+        "route": ["HALL_OF_WAR", "ZOMBIE_ZERO"]
+      },
+      "objective": "hall_of_war_zombie_zero_dispatch_and_reward",
+      "action": "dispatch_once_then_claim_own_ready_daily_reward",
+      "target": {
+        "kind": "hall_of_war_zombie_zero",
+        "page_identity": "ZOMBIE_ZERO",
+        "dispatch_page_identity": "ZOMBIE_ZERO_DISPATCH",
+        "maximum_dispatches_per_reset": 1,
+        "attempt_ordinal": 1,
+        "attempt_state_must_be_current": true,
+        "attempt_state_values": ["ready", "busy", "unavailable", "unknown"],
+        "busy_or_unavailable_no_dispatch": true,
+        "attempt_availability_or_cooldown_is_not_hardcoded": true,
+        "dispatch_cost_state_values": ["explicit_zero", "nonzero", "unknown"],
+        "dispatch_requires_current_explicit_zero_cost": true,
+        "unknown_or_nonzero_cost_blocks": true,
+        "premium_or_refill_allowed": false,
+        "current_troop_loss_effect_must_be_known_and_approved": true,
+        "loss_free_behavior_assumed": false,
+        "commander_talent_requirement": {
+          "policy_id": "commander-talent-preset-helper",
+          "required_preset": "Military",
+          "verification_before_dispatch": true,
+          "switch_policy": "verify_only_without_route_cost_approval",
+          "route_approval_required": true
+        },
+        "saved_troop_set_identity": "Troop Set 1",
+        "saved_troop_set_must_be_selected_and_applied": true,
+        "five_heroes_must_be_populated": true,
+        "current_troop_capacity_must_be_numeric_and_positive": true,
+        "current_troops_must_equal_current_capacity": true,
+        "quick_select_allowed": false,
+        "formation_edit_allowed": false,
+        "positive_result_identity": "HALL_OF_WAR_ZOMBIE_ZERO_HISTORY_HIGH_RESULT",
+        "minimum_damage_threshold": null,
+        "maximum_reward_claims_per_reset": 1,
+        "reward_state_values": ["ready", "unavailable", "claimed", "unknown"],
+        "reward_claim_requires_current_glowing_ready_row": true,
+        "reward_claim_is_one_daily_row_tap": true,
+        "claimed_reward_successor_requires_current_row_checkmarks": true,
+        "individual_reward_icon_taps_allowed": false,
+        "terminal_home": "HOME_CANONICAL"
+      },
+      "quantity_cost": {
+        "quantity": 1,
+        "cost": {
+          "kind": "current_explicit_zero_only",
+          "amount": 0,
+          "unit": "resource_or_currency",
+          "free_only": true
+        }
+      },
+      "semantic_effect": {
+        "maximum_dispatches_per_reset": 1,
+        "current_attempt_state_and_ordinal_required": true,
+        "busy_or_unavailable_is_no_input": true,
+        "daily_attempt_limit_and_cooldown_not_hardcoded": true,
+        "exact_current_zero_cost_source_required": true,
+        "no_cost_inferred_from_missing_price_label": true,
+        "premium_or_changed_confirmation_blocks": true,
+        "current_troop_loss_effect_must_be_known_and_approved": true,
+        "loss_free_behavior_assumed": false,
+        "saved_commander_talent_preset_verified_before_dispatch": true,
+        "saved_troop_set_one_must_be_applied": true,
+        "five_heroes_and_full_current_troop_capacity_required": true,
+        "history_high_result_successor_required": true,
+        "minimum_damage_threshold": null,
+        "daily_reward_is_a_separate_effect": true,
+        "reward_claim_requires_same_reset_positive_participation": true,
+        "reward_claim_requires_current_glowing_ready_row": true,
+        "one_row_tap_and_current_claimed_checkmark_successor_required": true,
+        "reward_claim_is_not_inferred_from_dispatch": true,
+        "unavailable_or_claimed_reward_no_input": true,
+        "challenge_and_reward_outcomes_reconciled_independently": true,
+        "daily_ownership": "none",
+        "daily_inspection_required": false,
+        "d02_prerequisite": false,
+        "points_attribution_required": false,
+        "identical_retry": false
+      },
+      "forbidden_actions": [
+        "unknown or nonzero dispatch cost",
+        "premium or refill prompt",
+        "unapproved troop loss",
+        "Quick Select",
+        "formation editing",
+        "Troop Set 2",
+        "Troop Set 3",
+        "Share",
+        "Achievement",
+        "damage optimization loop",
+        "world zombie combat",
+        "individual reward icon tap",
+        "duplicate dispatch",
+        "duplicate reward claim",
+        "Daily objective-row inspection",
+        "D02 prerequisite",
+        "points attribution",
+        "identical retry"
+      ],
+      "terminal_requirement": {
+        "home_authority": "HOME_CANONICAL",
+        "return_required": true
+      },
+      "daily_ownership": {
+        "daily_owner": null,
+        "point_credit_trigger": null,
+        "selected_daily_prerequisite": false,
+        "notes": "Zombie Zero attempt and its own Daily Reward row are separately reconciled; neither substitutes for aggregate Daily Claim or a Daily objective-row check."
+      },
+      "authority_references": [
+        {
+          "reference_id": "user-direction:issue-96-hall-of-war-zombie-zero-sequence",
+          "reference_kind": "user_direction",
+          "immutable": true
+        },
+        {
+          "reference_id": "native-authority:bluestacks-zombie-zero-dispatch-result-and-daily-reward",
+          "reference_kind": "native_authority",
+          "immutable": true
+        }
+      ],
+      "record_revision": "hall_of_war_zombie_zero-v1",
+      "record_digest": "09d9a89d729a75866ab432f353218b5cc2edcbfdcf6642fb72053ec90ea67fd1"
     },
     {
       "record_id": "hero_upgrade",
@@ -1835,7 +2052,7 @@
         ],
         "preferred_currency": "Alliance Coins",
         "fallback_shop": "Other",
-        "fallback_item": "1ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Gear Enhance Material",
+        "fallback_item": "1★ Gear Enhance Material",
         "fallback_rarity": 1,
         "fallback_currency": "Alliance Coins",
         "maximum_quantity_total": 1,
@@ -2046,7 +2263,7 @@
           {
             "shop": "RUINS_SHOP",
             "tab": "Ruins Shop",
-            "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Chip Enhance Material",
+            "item": "3★ Chip Enhance Material",
             "rarity": 3,
             "currency": "Ruins Coins",
             "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))"
@@ -2054,7 +2271,7 @@
           {
             "shop": "RARE_EARTH_SHOP",
             "tab": "Rare Earth Shop",
-            "item": "3ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¦ Module Enhance Material",
+            "item": "3★ Module Enhance Material",
             "rarity": 3,
             "currency": "Rare Earth",
             "quantity_formula": "min(current_stock, floor(current_balance / current_unit_price))"
@@ -3331,5 +3548,5 @@
       "record_digest": "3ed8f746336bfa3a0544591b42e8cea832ee3a0b10d10dda54cedcf390c57d78"
     }
   ],
-  "authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528"
+  "authority_digest": "a343f9f592ad18fa367b2d3e82be179866677fd3278cdc0cb4e31f54fae79057"
 }

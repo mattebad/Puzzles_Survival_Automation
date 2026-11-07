@@ -366,8 +366,8 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r18",
-    "product_authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r19",
+    "product_authority_digest": "a343f9f592ad18fa367b2d3e82be179866677fd3278cdc0cb4e31f54fae79057",
     "product_record_id": "ruins_challenge",
     "product_record_revision": "ruins_challenge-v1",
     "product_record_digest": "ab0d46c7e4bbb60e9a176ab53cca1afbe28c2888f0e5f48a7e0ba0d181afa55e",

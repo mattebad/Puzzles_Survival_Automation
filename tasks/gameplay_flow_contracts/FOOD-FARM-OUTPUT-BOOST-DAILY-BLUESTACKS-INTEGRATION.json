@@ -181,7 +181,7 @@
     "maximum_cost": 48,
     "quantity": 1,
     "resource_or_currency": "MATCHING_FOOD_FARM_ITEM_OR_DIAMONDS",
-    "notes": "Owned matching item is first choice; action cost 1 is not inventory count. The 48-Diamond authorization cap is not the current price; Diamond fallback requires exact observed current price Ã¢â€°Â¤48 when matching owned count is zero, current balance covering that exact price, and confirmation recheck."
+    "notes": "Owned matching item is first choice; action cost 1 is not inventory count. The 48-Diamond authorization cap is not the current price; Diamond fallback requires exact observed current price ≤48 when matching owned count is zero, current balance covering that exact price, and confirmation recheck."
   },
   "completion_identity": "food-farm-output-boost:confirmed-active-timer:daily-reset-identity",
   "terminal_outcomes": [
@@ -195,7 +195,7 @@
   "cooldown_deferred_behavior": "Defer when one boost was already attempted or confirmed this reset, matching inventory/offer is unavailable, or the exact current Diamond balance is insufficient; retain separately reconciled collection and boost effects.",
   "bounded_recovery_behavior": "Stop before boosting on unknown mapped Farm, partial multi-building collection accounting, inventory count, item identity/duration, exact current offer/price/balance, changed confirmation, timer successor, reset identity, or Home. Never use Buy Box, Resource Building Boost, global Food Output Boost, real-money confirmation, second boost, or identical retry.",
   "evidence_requirements": [
-    "Current source-bound native evidence for mapped Farm identity; initial Farm tap and exact per-resource pre/post balances/deltas across all collected buildings; matching item inventory identity/count/duration; item-first branch; exact current one-day Diamond offer, fresh numeric price Ã¢â€°Â¤48 authorization cap, current balance and confirmation recheck only when item count is zero; same-Farm Boosting positive timer; attempt-versus-confirmed persistence; reset identity; and canonical Home.",
+    "Current source-bound native evidence for mapped Farm identity; initial Farm tap and exact per-resource pre/post balances/deltas across all collected buildings; matching item inventory identity/count/duration; item-first branch; exact current one-day Diamond offer, fresh numeric price ≤48 authorization cap, current balance and confirmation recheck only when item count is zero; same-Farm Boosting positive timer; attempt-versus-confirmed persistence; reset identity; and canonical Home.",
     "No native acceptance, capture identifier, or live readiness is asserted."
   ],
   "replay_fixture_requirements": [
@@ -304,8 +304,8 @@
       "HOME_CANONICAL"
     ],
     "selected_daily_prerequisite": false,
-    "product_authority_revision": "flow-delivery-product-authority-v2-r18",
-    "product_authority_digest": "9211fa09d6ca5a8ea624e728929cd4d549252578b3342bc7843f7cb4a86d1528",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r19",
+    "product_authority_digest": "a343f9f592ad18fa367b2d3e82be179866677fd3278cdc0cb4e31f54fae79057",
     "product_record_id": "food_farm_output_boost",
     "product_record_revision": "food_farm_output_boost-v1",
     "product_record_digest": "7ef1742cf67b28a27dde83d7c39244228e43ea8085e379a796589a0002afe2e4"
