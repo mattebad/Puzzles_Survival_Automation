@@ -23,9 +23,15 @@ Current owner direction and route planning live in [tracker #53](https://github.
 - **Home repair:** a source-derived compact-footer template recognizes an independent current
   Home capture at 0.9993 correlation while retaining the 0.90 threshold and existing mapped
   Quest point. World and Daily screens remain rejected. This is recognition proof, not a claim
-  or completed-route acceptance. The corrected native navigation attempt is pending.
+  or completed-route acceptance.
   Focused Home/Daily/Resource/Ultimate consumer checks passed 150 tests (three optional
   capture-dependent skips); the device-free repository gate passed 394 tests.
+- **Observed native navigation:** the corrected-footer probe issued one Home Quest tap and
+  reached selected Daily with 30 points and only the first chest glowing. It sent no Claim
+  input or resource effect and released ownership. The helper wrongly required Main Quest
+  instead of accepting this resumed Daily successor; that concrete transition is now repaired,
+  with 97 focused native/service/metadata/route-contract checks passing. No redundant Daily
+  tab tap is required. Corrected end-to-end native navigation and chest acceptance remain pending.
 - **Runtime posture:** no gameplay effect, native route acceptance, deployment, PR merge or
   runtime enablement has occurred. Current status still reports service OFF, generation 282,
   and all nine original flows OFF. Original raw evidence and unrelated user files are preserved.

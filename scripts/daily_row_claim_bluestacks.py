@@ -2679,7 +2679,7 @@ def _settle_successor(
     capture: Callable[[str], CapturedNativeFrame],
     immediate_post: CapturedNativeFrame,
     recognize: Callable[[np.ndarray], FrameRecognition],
-    expected_state: str,
+    expected_states: tuple[str, ...],
     action_identity: str,
     frame_key: str,
     recognition_key: str,
@@ -2718,7 +2718,7 @@ def _settle_successor(
         attempt=0,
         label=f"{action_identity}-immediate-post",
     )
-    if current_recognition.recognized and current_recognition.state == expected_state:
+    if current_recognition.recognized and current_recognition.state in expected_states:
         recognitions[recognition_key] = current_recognition
         return current_recognition
 
@@ -2738,7 +2738,7 @@ def _settle_successor(
         current = session.observe(capture, label=label)
         current_recognition = recognize(current.frame)
         record(current, current_recognition, attempt=attempts, label=label)
-        if current_recognition.recognized and current_recognition.state == expected_state:
+        if current_recognition.recognized and current_recognition.state in expected_states:
             recognitions[recognition_key] = current_recognition
             frames[frame_key] = current
             return current_recognition
@@ -2753,7 +2753,7 @@ def run_daily_row_reconnaissance(
     *,
     recognizer: DailyRowClaimRecognizer | Any | None = None,
 ) -> dict[str, Any]:
-    """Run exactly Home -> Quest -> selected Daily, without recovery."""
+    """Reach selected Daily from Home, accepting a directly resumed Daily tab."""
 
     if not bool(getattr(runtime, "execute", False)):
         return _failure(
@@ -2815,14 +2815,20 @@ def run_daily_row_reconnaissance(
                 action_key=HOME_QUEST_IDENTITY,
             )
 
+        def recognize_quest_or_daily(frame: np.ndarray) -> FrameRecognition:
+            quest = recognizer.recognize_quest(frame)
+            if quest.recognized and quest.state == QUEST_STATE:
+                return quest
+            return recognizer.recognize_daily_selected(frame)
+
         def recognize_quest_successor(after: CapturedNativeFrame) -> str:
             nonlocal first_post_recognition
             first_post_recognition = _settle_successor(
                 session=session,
                 capture=capture,
                 immediate_post=after,
-                recognize=recognizer.recognize_quest,
-                expected_state=QUEST_STATE,
+                recognize=recognize_quest_or_daily,
+                expected_states=(QUEST_STATE, DAILY_SELECTED_STATE),
                 action_identity=HOME_QUEST_IDENTITY,
                 frame_key="quest_successor",
                 recognition_key="quest_successor",
@@ -2854,63 +2860,67 @@ def run_daily_row_reconnaissance(
                 polls=polls,
             )
 
-        second_post_recognition: FrameRecognition | None = None
+        if first_post_recognition.state == DAILY_SELECTED_STATE:
+            frames["daily_terminal"] = frames["quest_successor"]
+            recognitions["daily_terminal"] = first_post_recognition
+        else:
+            second_post_recognition: FrameRecognition | None = None
 
-        def dispatch_daily(before: CapturedNativeFrame) -> None:
-            rebound = recognizer.recognize_quest(before.frame)
-            recognitions["daily_immediate_before"] = rebound
-            _require_recognition(
-                rebound,
-                state=QUEST_STATE,
-                target_identity=QUEST_DAILY_IDENTITY,
-            )
-            _ensure_fresh(before, runtime)
-            _ensure_runtime_ready(runtime)
-            runtime.tap(
-                before,
-                target_identity=QUEST_DAILY_IDENTITY,
-                target_roi=rebound.target_roi,  # type: ignore[arg-type]
-                action_key=QUEST_DAILY_IDENTITY,
-            )
+            def dispatch_daily(before: CapturedNativeFrame) -> None:
+                rebound = recognizer.recognize_quest(before.frame)
+                recognitions["daily_immediate_before"] = rebound
+                _require_recognition(
+                    rebound,
+                    state=QUEST_STATE,
+                    target_identity=QUEST_DAILY_IDENTITY,
+                )
+                _ensure_fresh(before, runtime)
+                _ensure_runtime_ready(runtime)
+                runtime.tap(
+                    before,
+                    target_identity=QUEST_DAILY_IDENTITY,
+                    target_roi=rebound.target_roi,  # type: ignore[arg-type]
+                    action_key=QUEST_DAILY_IDENTITY,
+                )
 
-        def recognize_daily_successor(after: CapturedNativeFrame) -> str:
-            nonlocal second_post_recognition
-            second_post_recognition = _settle_successor(
-                session=session,
+            def recognize_daily_successor(after: CapturedNativeFrame) -> str:
+                nonlocal second_post_recognition
+                second_post_recognition = _settle_successor(
+                    session=session,
+                    capture=capture,
+                    immediate_post=after,
+                    recognize=recognizer.recognize_daily_selected,
+                    expected_states=(DAILY_SELECTED_STATE,),
+                    action_identity=QUEST_DAILY_IDENTITY,
+                    frame_key="daily_terminal",
+                    recognition_key="daily_terminal",
+                    frames=frames,
+                    recognitions=recognitions,
+                    polls=polls,
+                )
+                return second_post_recognition.state if second_post_recognition.recognized else UNKNOWN_STATE
+
+            daily_dispatch = _NativeTapDispatch(dispatch_daily)
+            second_action = session.run_action(
+                action_class=NAVIGATION_ACTION_CLASS,
+                label=QUEST_DAILY_IDENTITY,
                 capture=capture,
-                immediate_post=after,
-                recognize=recognizer.recognize_daily_selected,
-                expected_state=DAILY_SELECTED_STATE,
-                action_identity=QUEST_DAILY_IDENTITY,
-                frame_key="daily_terminal",
-                recognition_key="daily_terminal",
-                frames=frames,
-                recognitions=recognitions,
-                polls=polls,
+                dispatch=daily_dispatch.dispatch,
+                recognize=recognize_daily_successor,
+                consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
             )
-            return second_post_recognition.state if second_post_recognition.recognized else UNKNOWN_STATE
-
-        daily_dispatch = _NativeTapDispatch(dispatch_daily)
-        second_action = session.run_action(
-            action_class=NAVIGATION_ACTION_CLASS,
-            label=QUEST_DAILY_IDENTITY,
-            capture=capture,
-            dispatch=daily_dispatch.dispatch,
-            recognize=recognize_daily_successor,
-            consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
-        )
-        if (
-            second_action.status != "completed"
-            or second_post_recognition is None
-            or not second_post_recognition.recognized
-        ):
-            return _failure(
-                session,
-                reason="selected Daily terminal was not positively recognized",
-                frames=frames,
-                recognitions=recognitions,
-                polls=polls,
-            )
+            if (
+                second_action.status != "completed"
+                or second_post_recognition is None
+                or not second_post_recognition.recognized
+            ):
+                return _failure(
+                    session,
+                    reason="selected Daily terminal was not positively recognized",
+                    frames=frames,
+                    recognitions=recognitions,
+                    polls=polls,
+                )
 
         return {
             "status": "observed",

@@ -258,6 +258,8 @@ class LabelSettlingRecognizer(ScriptedRecognizer):
 
 
     def recognize_daily_selected(self, frame: np.ndarray) -> daily.FrameRecognition:
+        if getattr(self, "quest_calls", 0) < self.quest_ready_after:
+            return self._recognition(daily.UNKNOWN_STATE, None, None)
         self.daily_calls = getattr(self, "daily_calls", 0) + 1
         if self.daily_calls <= self.daily_ready_after:
             if self.daily_calls < self.daily_ready_after:
@@ -278,52 +280,52 @@ class DailyRowReconnaissanceTests(unittest.TestCase):
             max_inputs=2,
         )
 
+    def test_home_entry_resumes_selected_daily_without_redundant_tab_tap(self) -> None:
+        fixtures = Path(__file__).resolve().parent / "fixtures" / "daily_rewards_native"
+        home = cv2.imread(str(fixtures / "native-home-compact-footer.png"))
+        selected = cv2.imread(str(fixtures / "native-daily-selected-ready-first-chest.png"))
+
+        class DirectDailyRuntime(FakeRuntime):
+            def capture(self, label: str) -> CapturedNativeFrame:
+                self.labels.append(label)
+                image = home if label in {
+                    "home-source", "home-quest-entry-immediate-before"
+                } else selected
+                return _frame(self.session, label, image=image)
+
+        def replay_tab_ocr(image: np.ndarray) -> dict[str, list[object]]:
+            # Retained native header OCR missed the stylized Daily title. The
+            # real selected-tab geometry must prove it between Main and Alliance.
+            if image.shape[0] != 390:
+                return ModalOCR._data([])
+            return ModalOCR._data([
+                ("main", 178, 114, 120, 42),
+                ("quest", 320, 116, 148, 46),
+                ("alliance", 1192, 96, 172, 36),
+                ("activity", 1202, 140, 158, 44),
+            ])
+
         with tempfile.TemporaryDirectory() as directory, patch.object(
             boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
         ):
             root = Path(directory)
-            runtime = FakeRuntime(root)
-            recognizer = ScriptedRecognizer()
+            runtime = DirectDailyRuntime(root)
             with self._session(root) as session:
                 result = daily.run_daily_row_reconnaissance(
                     runtime,
                     session,
-                    recognizer=recognizer,
+                    recognizer=daily.DailyRowClaimRecognizer(ocr=replay_tab_ocr),
                 )
 
         self.assertEqual(result["status"], "observed")
-        self.assertEqual(result["input_count"], 2)
-        self.assertEqual(result["resource_affecting_inputs"], 0)
-        self.assertEqual(result["combat_confirmations"], 0)
-        self.assertEqual(
-            runtime.labels,
-            [
-                "home-source",
-                "home-quest-entry-immediate-before",
-                "home-quest-entry-immediate-post",
-                "quest-daily-tab-immediate-before",
-                "quest-daily-tab-immediate-post",
-            ],
-        )
+        self.assertEqual(result["input_count"], 1)
         self.assertEqual(
             [tap["target_identity"] for tap in runtime.taps],
-            [daily.HOME_QUEST_IDENTITY, daily.QUEST_DAILY_IDENTITY],
-        )
-        self.assertEqual(runtime.taps[0]["target_roi"], (127, 1118, 241, 1204))
-        self.assertEqual(runtime.taps[1]["target_roi"], (304, 74, 492, 146))
-        self.assertEqual(
-            set(result["frames"]),
-            {
-                "source",
-                "home_immediate_before",
-                "quest_successor",
-                "daily_immediate_before",
-                "daily_terminal",
-            },
+            [daily.HOME_QUEST_IDENTITY],
         )
         self.assertEqual(
-            [row["label"] for row in result["actions"]],
-            [daily.HOME_QUEST_IDENTITY, daily.QUEST_DAILY_IDENTITY],
+            result["recognitions"]["daily_terminal"]["state"],
+            daily.DAILY_SELECTED_STATE,
         )
 
     def test_dispatched_home_quest_center_is_inside_rendered_component(self) -> None:
