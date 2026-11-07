@@ -431,7 +431,7 @@ def _union_roi(rois: Sequence[NativeBox]) -> NativeBox | None:
 
 
 def _selected_resource_tab(tokens: Sequence[OCRToken]) -> NativeBox | None:
-    """Locate the Resource & Speedup category label ROI (selected or not)."""
+    """Locate one exact Resource & Speedup phrase despite OCR separator joining."""
 
     matches: list[NativeBox] = []
     for line in _line_tokens(
@@ -439,36 +439,18 @@ def _selected_resource_tab(tokens: Sequence[OCRToken]) -> NativeBox | None:
         for token in tokens
         if BAG_CATEGORY_TAB_BAND[0] <= _token_center(token)[1] <= BAG_CATEGORY_TAB_BAND[1]
     ):
-        words = _line_words(line)
-        if _selected_resource_words(words):
-            direct_start = next(
-                (
-                    index
-                    for index, token in enumerate(line)
-                    if token.text == "resource"
-                    and any(
-                        candidate.text == "speedup"
-                        for candidate in line[index + 1 : index + 4]
-                    )
-                ),
-                None,
-            )
-            if direct_start is None:
-                selected_tokens = [
-                    token
-                    for token in line
-                    if "resource" in token.text and "speedup" in token.text
-                ]
-            else:
-                end = next(
-                    index
-                    for index in range(direct_start + 1, min(len(line), direct_start + 4))
-                    if line[index].text == "speedup"
-                )
-                selected_tokens = list(line[direct_start : end + 1])
-            union = _union_roi(tuple(token.roi for token in selected_tokens))
-            if union is not None:
-                matches.append(union)
+        words = tuple(
+            (word, token)
+            for token in line
+            for word in re.findall(r"[a-z]+", token.text)
+            if word != "and"
+        )
+        for index in range(len(words) - 1):
+            pair = words[index : index + 2]
+            if _selected_resource_words(tuple(word for word, _token in pair)):
+                union = _union_roi(tuple(token.roi for _word, token in pair))
+                if union is not None:
+                    matches.append(union)
     return matches[0] if len(matches) == 1 else None
 
 
@@ -485,7 +467,7 @@ def _bag_category_tab_rois(tokens: Sequence[OCRToken]) -> dict[str, NativeBox]:
         if BAG_CATEGORY_TAB_BAND[0] <= _token_center(token)[1] <= BAG_CATEGORY_TAB_BAND[1]
     )
     for label in sorted(BAG_CATEGORY_CONTEXT_LABELS):
-        matches = [token for token in band_tokens if token.text == label]
+        matches = [token for token in band_tokens if re.fullmatch(rf"{label}\W*", token.text)]
         if len(matches) == 1 and _valid_roi(matches[0].roi):
             rois[label] = matches[0].roi
     return rois
@@ -670,7 +652,16 @@ def _resource_panel_separator_rows(frame: np.ndarray) -> tuple[int, ...]:
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 50, 140)
     counts = np.count_nonzero(edges, axis=1)
-    rows = np.flatnonzero(counts >= max(160, int(round(frame.shape[1] * 0.42))))
+    edge_rows = np.flatnonzero(counts >= max(160, int(round(frame.shape[1] * 0.42))))
+    # Current native cards have low-contrast gutters that are not strong Canny
+    # edges. Require a same-direction change across most of the viewport instead.
+    changes = np.diff(gray.astype(np.int16), axis=0)
+    coherent = np.maximum(
+        np.count_nonzero(changes >= 6, axis=1),
+        np.count_nonzero(changes <= -6, axis=1),
+    )
+    gutter_rows = np.flatnonzero(coherent >= int(round(frame.shape[1] * 0.60))) + 1
+    rows = np.union1d(edge_rows, gutter_rows)
     if rows.size == 0:
         return ()
     groups: list[list[int]] = [[int(rows[0])]]
@@ -730,10 +721,18 @@ def _measure_resource_item_panel(
     panel_x0, panel_x1 = 0, NATIVE_WIDTH
     if source == "visual-horizontal-separators":
         panel_edges = cv2.Canny(frame[top:bottom], 50, 140)
-        columns = np.flatnonzero(
-            np.count_nonzero(panel_edges, axis=0)
-            >= max(24, int(round((bottom - top) * 0.35)))
+        height_threshold = max(24, int(round((bottom - top) * 0.85)))
+        edge_columns = np.flatnonzero(
+            np.count_nonzero(panel_edges, axis=0) >= height_threshold
         )
+        panel_gray = cv2.cvtColor(frame[top:bottom], cv2.COLOR_BGR2GRAY)
+        changes = np.diff(panel_gray.astype(np.int16), axis=1)
+        coherent = np.maximum(
+            np.count_nonzero(changes >= 6, axis=0),
+            np.count_nonzero(changes <= -6, axis=0),
+        )
+        border_columns = np.flatnonzero(coherent >= height_threshold) + 1
+        columns = np.union1d(edge_columns, border_columns)
         if columns.size:
             groups: list[list[int]] = [[int(columns[0])]]
             for column in columns[1:]:
@@ -1477,36 +1476,42 @@ def _home_bag_target(
 def _bag_back_arrow_visual(
     frame: np.ndarray, *, maximum_left: int = 35, search_right: int = 140
 ) -> NativeBox | None:
-    """Bind the top-left Bag back arrow from current-frame pixels only."""
+    """Bind one measured Bag arrow, including native menus with an outer gutter."""
 
     if not isinstance(frame, np.ndarray) or frame.shape[:2] != (NATIVE_HEIGHT, NATIVE_WIDTH):
         return None
 
-    # Native evidence shows one bright neutral arrow component inside the
-    # top-left Bag chrome. Require its measured pixels rather than authorizing
-    # the enclosing profile region or an OCR label.
-    crop = frame[0:90, 0:search_right]
-    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-    neutral = cv2.inRange(
-        hsv,
-        np.array((0, 0, 150), dtype=np.uint8),
-        np.array((179, 90, 255), dtype=np.uint8),
-    )
-    count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(neutral)
-    candidates: list[NativeBox] = []
-    for index in range(1, count):
-        x, y, width, height, area = (int(value) for value in stats[index])
-        if (
-            700 <= area <= 2000
-            and 10 <= x <= maximum_left
-            and 5 <= y <= 25
-            and 50 <= width <= 90
-            and 30 <= height <= 55
-        ):
-            target = _roi((max(0, x - 10), max(0, y - 10), x + width + 10, y + height + 10))
-            if target is not None:
-                candidates.append(target)
-    return candidates[0] if len(candidates) == 1 else None
+    offsets = [0]
+    background = frame[0, 0].astype(np.int16)
+    if int(background.max() - background.min()) <= 3 and int(background.max()) <= 40:
+        difference = np.abs(frame[:90, :90].astype(np.int16) - background)
+        content = np.flatnonzero(np.max(difference, axis=(0, 2)) > 3)
+        if content.size and 24 <= int(content[0]) <= 64:
+            offsets.append(int(content[0]))
+    candidates: set[NativeBox] = set()
+    for offset in offsets:
+        crop = frame[0:90, offset : min(NATIVE_WIDTH, search_right + offset)]
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        neutral = cv2.inRange(
+            hsv,
+            np.array((0, 0, 150), dtype=np.uint8),
+            np.array((179, 90, 255), dtype=np.uint8),
+        )
+        count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(neutral)
+        for index in range(1, count):
+            x, y, width, height, area = (int(value) for value in stats[index])
+            if (
+                700 <= area <= 2000
+                and 10 <= x <= maximum_left
+                and 5 <= y <= 25
+                and 50 <= width <= 90
+                and 30 <= height <= 55
+            ):
+                x += offset
+                target = _roi((max(0, x - 10), max(0, y - 10), x + width + 10, y + height + 10))
+                if target is not None:
+                    candidates.add(target)
+    return next(iter(candidates)) if len(candidates) == 1 else None
 
 
 def _return_home_target(
