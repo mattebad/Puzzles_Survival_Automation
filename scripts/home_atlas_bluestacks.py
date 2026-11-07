@@ -185,6 +185,7 @@ SUPPLY_DEPOT_EXIT_TARGET_IDENTITY = "supply-depot-back-arrow"
 SUPPLY_DEPOT_EXIT_POSTCONDITION = "HOME_BASE"
 SUPPLY_DEPOT_EXIT_TARGET_ROI = (0, 0, 150, 105)
 SUPPLY_DEPOT_ROUTE_TASK_ID = "SUPPLY-DEPOT-VERIFIED-ROUTE-INTEGRATION"
+HOME_ATLAS_NAVIGATION_TASK_ID = "RUNTIME-RESUMABLE-NAVIGATION-SESSIONS"
 _VERIFIED_SUPPLY_DEPOT_RADIAL_TRANSPORT_SEAL = object()
 _VERIFIED_SUPPLY_DEPOT_NAVIGATION_TRANSPORT_SEAL = object()
 
@@ -1400,6 +1401,148 @@ def dispatch_verified_navigate_pan(
     telemetry["transport_observed"] = bool(result.transport_calls > 0)
     return issued, result, pre_observation, telemetry
 
+
+def bind_or_pan_mapped_home_building(
+    context,
+    *,
+    current: CapturedNativeFrame,
+    atlas,
+    localizer: BlueStacksHomeLocalizer,
+    building_id: str,
+    product_id: str,
+    binding_for_frame: Callable[[np.ndarray], BuildingBinding | None],
+    maximum_pans: int = 8,
+) -> tuple[CapturedNativeFrame | None, BuildingBinding | None, str | None]:
+    """Rebind a mapped building, using only verified, bounded native Home pans."""
+    binding = binding_for_frame(current.frame)
+    if binding is not None:
+        return current, binding, None
+    runtime, session = context.runtime, context.session
+    safe_region, calibration = bluestacks_direct_pan_contract()
+    navigator = DirectPanNavigator(
+        atlas,
+        building_id,
+        safe_region,
+        calibration,
+        maximum_pans=maximum_pans,
+    )
+    frame = current
+    for _ in range(maximum_pans):
+        if not context.is_clean_home(frame.frame):
+            return None, None, "mapped_home_pan_requires_clean_home"
+        localization = localizer.localize(frame.frame)
+        if not localization.recognized or localization.stale or localization.overlay:
+            return None, None, "mapped_home_atlas_localization_unknown"
+        plan = navigator.plan(localization)
+        if plan.disposition is not PlanDisposition.PAN or plan.drag_start is None or plan.drag_end is None:
+            return None, None, f"mapped_home_atlas_pan_blocked:{plan.reason}"
+        if type(getattr(runtime, "ordinal", None)) is not int:
+            return None, None, "mapped_home_pan_capture_ordinal_unknown"
+        identity = identity_from_captured(
+            frame,
+            session_id=str(runtime.session),
+            ordinal=int(runtime.ordinal),
+            label=f"{product_id}-atlas-pan-plan",
+        )
+        action_key = (
+            f"{product_id}|{context.occurrence_key}|atlas-pan:"
+            f"{session.invocation_id}:{navigator.pan_count}"
+        )
+        action_id = f"mapped-home-atlas-pan:{hashlib.sha256(action_key.encode()).hexdigest()}"
+        pan_result: dict[str, Any] = {}
+
+        def post_pan_observer():
+            settled = runtime.capture(f"{product_id}-atlas-pan-settled")
+            ordinal = getattr(runtime, "ordinal", None)
+            if type(ordinal) is not int:
+                return settled, identity, None
+            settled_identity = identity_from_captured(
+                settled,
+                session_id=str(runtime.session),
+                ordinal=int(ordinal),
+                label=f"{product_id}-atlas-pan-settled",
+            )
+            settled_localization = localizer.localize(settled.frame)
+            progress = navigator.record_progress(localization, settled_localization)
+            return settled, settled_identity, progress
+
+        def authorize(before):
+            if (
+                frame_digest(before.frame) != frame_digest(frame.frame)
+                or not context.is_clean_home(before.frame)
+            ):
+                raise RuntimeError("Home Atlas pan source changed before route dispatch")
+            rebound = localizer.localize(before.frame)
+            if not rebound.recognized or rebound.stale or rebound.overlay:
+                raise RuntimeError("Home Atlas pan source is not positively localized")
+
+        def dispatch(before):
+            context.checkpoint()
+            issued, execution, _observation, telemetry = dispatch_verified_navigate_pan(
+                runtime=runtime,
+                immediate_before=frame,
+                identity=identity,
+                drag_start=plan.drag_start,
+                drag_end=plan.drag_end,
+                action_id=action_id,
+                action_key=action_key,
+                task_id=HOME_ATLAS_NAVIGATION_TASK_ID,
+                navigation_session_id=str(runtime.session),
+                lease_owner=session.owner,
+                policy=CentralPolicy(frozenset({HOME_ATLAS_NAVIGATION_TASK_ID})),
+                store=context.action_store,
+                monotonic_clock=context.monotonic_clock,
+                wall_clock=context.utc_clock,
+                post_pan_observer=post_pan_observer,
+            )
+            pan_result.update(
+                authorized=bool(issued.authorized),
+                confirmed=getattr(execution, "status", None) is ActionStatus.CONFIRMED,
+                transport_calls=int(getattr(execution, "transport_calls", 0)),
+                verified=telemetry.get("verified") is True,
+            )
+
+        def recognize_pan(captured):
+            if not pan_result.get("verified"):
+                return "unknown"
+            if not context.is_clean_home(captured.frame):
+                return "unknown"
+            observed = localizer.localize(captured.frame)
+            return "HOME_BASE" if observed.recognized and not observed.stale and not observed.overlay else "unknown"
+
+        def settled_successor():
+            time.sleep(float(context.settle_seconds))
+            context.checkpoint()
+            return runtime.capture(f"{product_id}-atlas-pan-session-settled")
+
+        try:
+            result = session.run_action(
+                action_class="navigation",
+                label=f"{product_id}-atlas-pan-{session.invocation_id}-{navigator.pan_count}",
+                capture=runtime.capture,
+                authorize=authorize,
+                dispatch=dispatch,
+                recognize=recognize_pan,
+                consequence_class="navigation_only",
+                settled_successor=settled_successor,
+            )
+        except Exception:
+            return None, None, "mapped_home_atlas_pan_not_verified"
+        if (
+            result.status != "completed"
+            or result.state != "HOME_BASE"
+            or pan_result.get("verified") is not True
+            or pan_result.get("confirmed") is not True
+            or pan_result.get("transport_calls") != 1
+        ):
+            return None, None, "mapped_home_atlas_pan_not_verified"
+        frame = session.observe(
+            runtime.capture, label=f"{product_id}-atlas-pan-{navigator.pan_count}-successor",
+        )
+        binding = binding_for_frame(frame.frame)
+        if binding is not None:
+            return frame, binding, None
+    return None, None, "mapped_home_building_not_found_within_pan_limit"
 
 def navigate_pan_execution_payload(
     issued,
@@ -4336,7 +4479,7 @@ def command_open_building(args) -> int:
 
 def _navigate_authorization(building_id: str) -> AuthorizationScope:
     return AuthorizationScope(
-        task_id="RUNTIME-RESUMABLE-NAVIGATION-SESSIONS",
+        task_id=HOME_ATLAS_NAVIGATION_TASK_ID,
         owner_operator="home-atlas-navigate-building",
         action_class="navigation_only",
         platform=BLUESTACKS_PLATFORM,

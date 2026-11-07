@@ -31,11 +31,8 @@ from safe_action_core import (
 )
 from scripts.bounded_tesseract import call_ocr, tesseract_data
 from scripts.home_atlas_bluestacks import (
-    DirectPanNavigator,
-    PlanDisposition,
-    bluestacks_direct_pan_contract,
-    dispatch_verified_navigate_pan,
-    identity_from_captured,
+    HOME_ATLAS_NAVIGATION_TASK_ID,
+    bind_or_pan_mapped_home_building,
     load_home_atlas as _load_atlas,
 )
 from scripts.startup_normalization import is_clean_home_frame
@@ -65,7 +62,6 @@ PRODUCT_ID = NANO_MATERIAL_PRODUCTION_PRODUCT_ID
 PRODUCT_REVISION = NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION
 PROFILE_ID = NANO_MATERIAL_PRODUCTION_PROFILE_ID
 MAX_INPUTS = NANO_MATERIAL_PRODUCTION_MAX_INPUTS
-HOME_ATLAS_NAVIGATION_TASK_ID = "RUNTIME-RESUMABLE-NAVIGATION-SESSIONS"
 MAX_ACTIONS = 2
 DEFAULT_ATLAS = Path(__file__).resolve().parents[1] / "tasks" / "assets" / "home_atlas" / "bluestacks" / "800x1280" / "atlas.json"
 GEAR_FACTORY_ID = "home.building.gear_factory"
@@ -654,131 +650,6 @@ def _home_binding(frame: np.ndarray, atlas, localizer):
     if binding.overlay_intersects or binding.ambiguous_overlap or not binding.semantic_evidence or not _safe_nav_roi(binding.target_roi):
         return None
     return binding
-def _home_binding_or_pan(context, *, current, atlas, localizer):
-    runtime, session = context.runtime, context.session
-    safe_region, calibration = bluestacks_direct_pan_contract()
-    navigator = DirectPanNavigator(
-        atlas,
-        GEAR_FACTORY_ID,
-        safe_region,
-        calibration,
-        maximum_pans=8,
-    )
-    frame = current
-    for _ in range(8):
-        binding = _home_binding(frame.frame, atlas, localizer)
-        if binding is not None:
-            return frame, binding, None
-        if not context.is_clean_home(frame.frame):
-            return None, None, "gear_factory_pan_requires_clean_home"
-        localization = localizer.localize(frame.frame)
-        if not localization.recognized or localization.stale or localization.overlay:
-            return None, None, "gear_factory_atlas_localization_unknown"
-        plan = navigator.plan(localization)
-        if plan.disposition is not PlanDisposition.PAN or plan.drag_start is None or plan.drag_end is None:
-            return None, None, f"gear_factory_atlas_pan_blocked:{plan.reason}"
-        if type(getattr(runtime, "ordinal", None)) is not int:
-            return None, None, "gear_factory_pan_capture_ordinal_unknown"
-        identity = identity_from_captured(
-            frame,
-            session_id=str(runtime.session),
-            ordinal=int(runtime.ordinal),
-            label="nano-material-production-atlas-pan-plan",
-        )
-        action_key = (
-            f"{PRODUCT_ID}|{context.occurrence_key}|atlas-pan:"
-            f"{session.invocation_id}:{navigator.pan_count}"
-        )
-        action_id = f"nano-material-atlas-pan:{hashlib.sha256(action_key.encode()).hexdigest()}"
-        pan_result: dict[str, Any] = {}
-
-        def post_pan_observer():
-            settled = runtime.capture("nano-material-production-atlas-pan-settled")
-            ordinal = getattr(runtime, "ordinal", None)
-            if type(ordinal) is not int:
-                return settled, identity, None
-            settled_identity = identity_from_captured(
-                settled,
-                session_id=str(runtime.session),
-                ordinal=int(ordinal),
-                label="nano-material-production-atlas-pan-settled",
-            )
-            settled_localization = localizer.localize(settled.frame)
-            progress = navigator.record_progress(localization, settled_localization)
-            return settled, settled_identity, progress
-
-        def authorize(before):
-            if (
-                frame_digest(before.frame) != frame_digest(frame.frame)
-                or not context.is_clean_home(before.frame)
-            ):
-                raise RuntimeError("Home Atlas pan source changed before route dispatch")
-            rebound = localizer.localize(before.frame)
-            if not rebound.recognized or rebound.stale or rebound.overlay:
-                raise RuntimeError("Home Atlas pan source is not positively localized")
-
-        def dispatch(before):
-            context.checkpoint()
-            issued, execution, _observation, telemetry = dispatch_verified_navigate_pan(
-                immediate_before=frame,
-                identity=identity,
-                drag_start=plan.drag_start,
-                drag_end=plan.drag_end,
-                action_id=action_id,
-                action_key=action_key,
-                task_id=HOME_ATLAS_NAVIGATION_TASK_ID,
-                navigation_session_id=str(runtime.session),
-                lease_owner=session.owner,
-                policy=CentralPolicy(frozenset({HOME_ATLAS_NAVIGATION_TASK_ID})),
-                store=context.action_store,
-                monotonic_clock=context.monotonic_clock,
-                wall_clock=context.utc_clock,
-                post_pan_observer=post_pan_observer,
-            )
-            pan_result.update(
-                authorized=bool(issued.authorized),
-                confirmed=getattr(execution, "status", None) is ActionStatus.CONFIRMED,
-                transport_calls=int(getattr(execution, "transport_calls", 0)),
-                verified=telemetry.get("verified") is True,
-            )
-
-        def recognize_pan(captured):
-            if not pan_result.get("verified"):
-                return "unknown"
-            if not context.is_clean_home(captured.frame):
-                return "unknown"
-            observed = localizer.localize(captured.frame)
-            return "HOME_BASE" if observed.recognized and not observed.stale and not observed.overlay else "unknown"
-
-        def settled_successor():
-            time.sleep(float(context.settle_seconds))
-            context.checkpoint()
-            return runtime.capture("nano-material-production-atlas-pan-session-settled")
-
-        try:
-            result = session.run_action(
-                action_class="navigation",
-                label=f"nano-material-atlas-pan-{session.invocation_id}-{navigator.pan_count}",
-                capture=runtime.capture,
-                authorize=authorize,
-                dispatch=dispatch,
-                recognize=recognize_pan,
-                consequence_class="navigation_only",
-                settled_successor=settled_successor,
-            )
-        except Exception:
-            return None, None, "gear_factory_atlas_pan_not_verified"
-        if (
-            result.status != "completed"
-            or result.state != "HOME_BASE"
-            or pan_result.get("verified") is not True
-            or pan_result.get("confirmed") is not True
-            or pan_result.get("transport_calls") != 1
-        ):
-            return None, None, "gear_factory_atlas_pan_not_verified"
-        frame = _capture(context, f"nano-material-atlas-pan-{navigator.pan_count}-successor")
-    binding = _home_binding(frame.frame, atlas, localizer)
-    return (frame, binding, None) if binding is not None else (None, None, "gear_factory_not_found_within_pan_limit")
 
 
 
@@ -1025,8 +896,10 @@ def _navigate_to_panel(context, *, occurrence_key: str, current) -> tuple[Any | 
             localizer = BlueStacksHomeLocalizer(atlas, DEFAULT_ATLAS)
         except Exception:
             return current, None, "home_atlas_unavailable"
-        current, binding, binding_error = _home_binding_or_pan(
+        current, binding, binding_error = bind_or_pan_mapped_home_building(
             context, current=current, atlas=atlas, localizer=localizer,
+            building_id=GEAR_FACTORY_ID, product_id=PRODUCT_ID,
+            binding_for_frame=lambda frame: _home_binding(frame, atlas, localizer),
         )
         if binding is None:
             return current, None, binding_error or "gear_factory_atlas_navigation_blocked"

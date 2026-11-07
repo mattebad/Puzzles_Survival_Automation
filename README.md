@@ -14,6 +14,11 @@ recognition basis, not finished-route acceptance. The [November 2 report](docs/b
 is historical evidence, not authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
 [`BACKLOG.md`](BACKLOG.md) retains durable history.
 
+Nano building entry reuses the shared Home Atlas pan dispatcher with its native runtime,
+fresh capture identities, lease checks and bounded pans. Each confirmed pan is followed
+by a fresh mapped binding; an unknown result stops without an identical retry.
+
+
 ## Routes
 
 The service code registers each route in `automation_service/registry.py`. Each row below is one
