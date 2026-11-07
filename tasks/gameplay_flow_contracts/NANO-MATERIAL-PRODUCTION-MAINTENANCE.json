@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
   "flow_id": "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
-  "product_purpose": "Maintain one zero-resource Nano Material Production batch independently of the once-per-reset Nanoweapon Daily craft.",
-  "trigger_cadence_type": "cooldown_pulse",
+  "product_purpose": "Maintain one zero-resource Nano Material Production batch under its own product authority. When combined with Normal Craft, this separately authorized record-70 maintenance is a required same-visit predecessor, never a substitute for Normal Craft and never a consumer of its reset allowance.",
+  "trigger_cadence_type": "timer",
   "reset_scope": "independent_six_hour_maintenance",
   "required_starting_context": [
     "home_canonical"
@@ -309,7 +309,7 @@
       "fixture_id": "legacy_material_production_negative",
       "status": "synthetic_policy_ok",
       "path": null,
-      "notes": "The existing Nanoweapon fixture only proves that legacy Daily Craft rejected Material Production; it is not positive maintenance evidence."
+      "notes": "This legacy negative fixture is not evidence for the current record-70 maintenance result or the same-visit Normal Craft composition."
     },
     {
       "fixture_id": "material_production_complete",
@@ -379,8 +379,8 @@
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r16",
-    "product_authority_digest": "87382f4dc6829c577f8dd13b16517b8aa69cdc51f0ab9d7760749fceaa970a28",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r17",
+    "product_authority_digest": "874c5fa56867cf47dbff7673adbe4cf6715a2fc55c022a35e3bdc7e9f2b08fd4",
     "product_record_id": "nano_material_production",
     "product_record_revision": "nano_material_production-v1",
     "product_record_digest": "49fe5e4486ea94482a076df2e0332640d74f6be8ef240bb509c29c8ee40198a2",

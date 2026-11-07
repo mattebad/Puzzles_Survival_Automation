@@ -392,8 +392,8 @@
       "policy_id": "nanoweapon-material-policy",
       "scope": "nanoweapon.crafting",
       "status": "explicitly_approved",
-      "decision": "Nanoweapon Daily Craft uses Normal Craft only. Claim a completed weapon on entry, then initiate at most one craft per game-day/reset only when nano parts are at least 100 and Craft is enabled. Exactly 100 nano parts are required, duration is exactly 43200 seconds, only one craft may be active, Exclusive Craft and rotating-display selection semantics are prohibited, and insufficient/disabled states defer without spending. Return to canonical Home.",
-      "daily_owner": "one_normal_craft_start_per_reset",
+      "decision": "Normal Craft is a direct own-action flow, not a Daily/provider claim. Reconcile one separately authorized, successful Nano Material Production maintenance result under nano_material_production-v1 earlier in the same visit; it neither substitutes for Normal Craft nor consumes its reset allowance. Claim any completed weapon on entry, then start at most one Normal Craft per game-day/reset only when current nano parts are at least 100 and Craft is enabled. Exactly 100 nano parts are required, duration is exactly 43200 seconds, only one craft may be active, Exclusive Craft and rotating-display selection are prohibited, and insufficient/disabled states defer without spending. Readiness requires this action's own positive Normal Craft successor; no Daily/provider/points evidence is required.",
+      "reset_allowance_owner": "one_normal_craft_start_per_reset",
       "parts_required": 100,
       "craft_duration_seconds": 43200,
       "maximum_active_crafts": 1,
@@ -401,6 +401,11 @@
       "claim_completed_on_entry": true,
       "exclusive_craft_allowed": false,
       "terminal_state": "home_canonical",
+      "prior_maintenance_product_record_id": "nano_material_production",
+      "prior_maintenance_product_record_revision": "nano_material_production-v1",
+      "same_visit_prior_maintenance_required": true,
+      "maintenance_substitutes_for_normal_craft": false,
+      "maintenance_consumes_normal_craft_reset_allowance": false,
       "source": "explicit_user_direction_2026-07-23"
     },
     {
@@ -508,7 +513,7 @@
     {"policy_id": "daily-control-cost-boundary", "scope": "global.daily_control_costs", "status": "explicitly_approved", "decision": "Universal Daily control safety boundary: premium/cash purchases, paid or ambiguous controls, refills, 10x controls, and item-backed substitutes are prohibited. Route-approved resource, AP, and stamina effects remain governed by their own R/P ticket and are not globally forbidden.", "prohibited_controls": ["premium_purchase", "cash_purchase", "paid_control", "ambiguous_control", "refill", "10x", "item_backed_substitute"], "premium_allowed": false, "cash_allowed": false, "paid_allowed": false, "ambiguous_allowed": false, "refill_allowed": false, "ten_x_allowed": false, "item_backed_substitute_allowed": false, "unknown_cost_allowed": false, "route_owned_effects_globally_forbidden": false, "route_owner_ticket_required": true, "governing_owner_ticket_families": ["REC-R*", "REC-P*"], "dispatch_authority": null, "source": "REC-D01_explicit_cost_boundary"},
     {"policy_id": "current-positive-completion-postcondition", "scope": "global.completion_semantics", "status": "explicitly_approved", "decision": "Training and march completion require a current positive postcondition. Queue, timer, outbound, return, or other projected state alone never proves completion.", "applies_to": ["training", "march"], "current_positive_postcondition_required": true, "queue_projection_is_completion": false, "timer_projection_is_completion": false, "outbound_projection_is_completion": false, "return_projection_is_completion": false, "dispatch_is_completion": false, "source": "REC-D01_explicit_completion_boundary"}
   ],
-  "authority_revision": "flow-delivery-product-authority-v2-r16",
+  "authority_revision": "flow-delivery-product-authority-v2-r17",
   "product_records": [
     {
       "record_id": "use_resource_item",
@@ -2043,7 +2048,7 @@
     {
       "record_id": "nanoweapon_normal_craft",
       "record_type": "nanoweapon_normal_craft",
-      "purpose": "Authorize one once-per-reset Normal Craft Nanoweapon action with exact nano-part and timer boundaries.",
+      "purpose": "Authorize one once-per-reset Normal Craft Nanoweapon action with exact nano-part and timer boundaries and same-visit prior Nano Material Production maintenance.",
       "recurrence": "daily_reset_scoped",
       "semantic_entry_route": {
         "source_home_authorities": [
@@ -2056,7 +2061,7 @@
           "NORMAL_CRAFT"
         ]
       },
-      "objective": "nanoweapon_daily_craft",
+      "objective": "nanoweapon_normal_craft",
       "action": "start_one_normal_nanoweapon_craft",
       "target": {
         "kind": "nanoweapon_normal_craft",
@@ -2071,6 +2076,15 @@
         "rotating_display_selection_allowed": false,
         "insufficient_parts_defer": true,
         "disabled_craft_defer": true,
+        "prior_material_production": {
+          "product_record_id": "nano_material_production",
+          "product_record_revision": "nano_material_production-v1",
+          "required_same_visit": true,
+          "separate_authorization_required": true,
+          "positive_effect_must_be_reconciled_before_craft": true,
+          "normal_craft_substitution_allowed": false,
+          "normal_craft_reset_allowance_consumed": false
+        },
         "terminal_home": "HOME_CANONICAL"
       },
       "quantity_cost": {
@@ -2089,15 +2103,17 @@
         "single_active_craft_required": true,
         "single_start_per_reset_required": true,
         "exact_duration_required": true,
-        "craft_successor_required": true,
-        "daily_objective_successor_required": true,
+        "own_normal_craft_start_successor_required": true,
+        "prior_material_production_reconciled_before_craft": true,
+        "maintenance_does_not_satisfy_normal_craft": true,
+        "maintenance_does_not_consume_normal_craft_reset_allowance": true,
         "no_currency_box_or_item_input": true,
         "dispatch_is_not_success_proof": true,
         "daily_ownership": "none",
         "identical_retry": false
       },
       "forbidden_actions": [
-        "Material Production",
+        "Material Production as a substitute for Normal Craft",
         "Inherit",
         "Exclusive Craft",
         "rotating weapon display selection",
@@ -2123,7 +2139,7 @@
         "daily_owner": null,
         "point_credit_trigger": null,
         "selected_daily_prerequisite": false,
-        "notes": "The bound contract carries selected Daily row identity; this direct product record owns no aggregate Daily Claim."
+        "notes": "Normal Craft requires its own current positive successor. It does not require a Daily provider, objective, or points attribution."
       },
       "authority_references": [
         {
@@ -2137,8 +2153,8 @@
           "immutable": true
         }
       ],
-      "record_revision": "nanoweapon_normal_craft-v1",
-      "record_digest": "8f925c4e7156c65c8ef026f23074b6f691bb823233d1b12ba613661411ec8254"
+      "record_revision": "nanoweapon_normal_craft-v2",
+      "record_digest": "bbf610de5bcddc6c5e31675c856defd6554c236205d2fd7a97dfca064cd54f07"
     },
     {
       "record_id": "nano_material_production",
@@ -3035,5 +3051,5 @@
       "record_digest": "3ed8f746336bfa3a0544591b42e8cea832ee3a0b10d10dda54cedcf390c57d78"
     }
   ],
-  "authority_digest": "87382f4dc6829c577f8dd13b16517b8aa69cdc51f0ab9d7760749fceaa970a28"
+  "authority_digest": "874c5fa56867cf47dbff7673adbe4cf6715a2fc55c022a35e3bdc7e9f2b08fd4"
 }

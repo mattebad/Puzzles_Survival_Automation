@@ -157,6 +157,17 @@ Existing layout exceptions:
   by current stock and affordability. Preserve one tab's confirmed purchase across a later pulse.
   No current donation quota or purchase-effect live acceptance is claimed; the single donation information probe is not route
   acceptance.
+
+* **Batch D Nano Material Production and Nanoweapon**: canonical-service-only routes with fixed
+  native bindings and no operator rows. Nano Material Production uses a non-reset-scoped timer
+  for exactly one zero-resource 21600-second slot: start when idle, claim then restart when
+  complete, and refresh its observed timer without dispatch while active. Nanoweapon's v2 product
+  policy requires that separately authorized maintenance result earlier in the same visit, then
+  permits at most one reset-scoped Normal Craft start costing exactly 100 Nano Parts for 43200
+  seconds; Exclusive Craft, Daily/D02 ownership, and points attribution are prohibited. Code
+  registration remains separate from production posture and SQLite controls: both routes stay
+  runtime-disabled with live acceptance `evidence_required`; no live acceptance is claimed.
+
 * **Campaign budgets**: the service route budget (`CAMPAIGN_MAX_INPUTS`, a whole AP drain) is a different
   fact from the single-battle development-session ceiling in `pnsctl`; the test lists the difference.
 

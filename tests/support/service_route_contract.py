@@ -11,10 +11,10 @@ from unittest.mock import patch
 from automation_service.registry import (
     ALLIANCE_DONATION_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
     BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, DAILY_REWARDS_FLOW_ID,
-    DAILY_SHOPS_FLOW_ID, ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID,
-    PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
-    RUINS_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, WORLD_FLOW_ID,
-    canonical_entry,
+    DAILY_SHOPS_FLOW_ID, ENHANCEMENT_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
+    NANOWEAPON_FLOW_ID, NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID,
+    RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
+    WORLD_FLOW_ID, canonical_entry,
 )
 from automation_service.service import AutomationService
 from automation_service.state import BotStateManager
@@ -24,7 +24,8 @@ from tests.support.service_route_fakes import (
     GuardedAllianceDonationRunner, GuardedAllianceHelpRunner,
     GuardedAllianceShopRunner, GuardedBioenhancerRunner,
     GuardedCampaignRunner, GuardedDailyRewardsRunner, GuardedDailyShopsRunner,
-    GuardedEnhancementRunner, GuardedNovaRunner, GuardedPersonalMightRunner,
+    GuardedEnhancementRunner, GuardedNanoMaterialProductionRunner,
+    GuardedNanoweaponRunner, GuardedNovaRunner, GuardedPersonalMightRunner,
     GuardedRecruitmentRunner, GuardedResourceItemRunner, GuardedRuinsRunner,
     GuardedSupplyRunner, GuardedUltimateRunner,
 )
@@ -147,6 +148,18 @@ ROUTES = {
         lambda runner: setattr(runner, "partial", True),
         (25, 2), (1, 0), 48,
     ),
+    NANO_MATERIAL_PRODUCTION_FLOW_ID: RouteSpec(
+        NANO_MATERIAL_PRODUCTION_FLOW_ID,
+        lambda stop, root: GuardedNanoMaterialProductionRunner(stop, root),
+        _work_by_default, lambda runner: setattr(runner, "partial", True),
+        (11, 1), (1, 0), 18,
+    ),
+    NANOWEAPON_FLOW_ID: RouteSpec(
+        NANOWEAPON_FLOW_ID,
+        lambda stop, root: GuardedNanoweaponRunner(stop, root),
+        _work_by_default, lambda runner: setattr(runner, "partial", True),
+        (13, 2), (1, 0), 22,
+    ),
 }
 
 NOT_SERVABLE = {
@@ -177,6 +190,18 @@ EXCEPTIONS = {
         "the 300-second cooldown is an observation interval; a distinct ready batch may run within the same reset",
         "tests.test_service_daily_rewards.DailyRewardsServiceTests.test_cooldown_restart_and_later_distinct_batch_same_reset",
     ),
+    (NANO_MATERIAL_PRODUCTION_FLOW_ID, "reset_guard"): (
+        "production maintenance follows its persistent six-hour timer across game-day boundaries",
+        "tests.test_service_route_contract.BatchDSemanticContractTests.test_production_timer_survives_service_restart_across_reset_and_restarts_once",
+    ),
+    (NANO_MATERIAL_PRODUCTION_FLOW_ID, "restart_before_due"): (
+        "the persistent production timer remains authoritative across service restarts and resets",
+        "tests.test_service_route_contract.BatchDSemanticContractTests.test_production_timer_survives_service_restart_across_reset_and_restarts_once",
+    ),
+    (NANOWEAPON_FLOW_ID, "restart_before_due"): (
+        "production and Normal Craft timers drive cooldown pulses, not daily-once eligibility",
+        "tests.test_service_route_contract.BatchDSemanticContractTests.test_nanoweapon_same_visit_claims_then_starts_exact_craft_and_resumes_pulse",
+    ),
 }
 
 
@@ -206,7 +231,7 @@ class RouteRig:
         if spec.flow_id in {
             ALLIANCE_DONATION_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
             DAILY_REWARDS_FLOW_ID, DAILY_SHOPS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
-            RUINS_FLOW_ID,
+            RUINS_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
         }:
             from datetime import datetime, timezone
             backend = derive_resource_runtime_identity(

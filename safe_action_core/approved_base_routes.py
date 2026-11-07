@@ -9,13 +9,9 @@ match the route-specific contract.
 from __future__ import annotations
 
 import hashlib
-
 import json
-
 import re
-
 from typing import Optional, Tuple
-
 from .models import ActionClass, PolicyDecision, PolicyRequest
 
 DONATION_TASK = "ALLIANCE-TECH-DONATION-BLUESTACKS-INTEGRATION"
@@ -38,6 +34,18 @@ DAILY_SHOPS_TASK = "DAILY-SHOPS-PURCHASE-EVIDENCE-GATE"
 
 DAILY_SHOPS_REVISION = "daily_shops_purchase-v1"
 
+NANO_PRODUCTION_TASK = "NANO-MATERIAL-PRODUCTION-MAINTENANCE"
+
+NANO_PRODUCTION_PRODUCT = "nano_material_production"
+
+NANO_PRODUCTION_REVISION = "nano_material_production-v1"
+
+NANOWEAPON_TASK = "NANOWEAPON-BLUESTACKS-INTEGRATION"
+
+NANOWEAPON_PRODUCT = "nanoweapon_normal_craft"
+
+NANOWEAPON_REVISION = "nanoweapon_normal_craft-v2"
+
 RUINS_FLOW = "RUINS-CHALLENGE-HOME-ATLAS-MIGRATION"
 
 RUINS_PRODUCT = "ruins_challenge"
@@ -53,9 +61,6 @@ MAX_ROUTE_QUANTITY = 1_000_000
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{0,127}$")
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-
-def is_approved_base_route_request(request: PolicyRequest) -> bool:
-    return request.task_id in _APPROVED_ROUTE_TASKS or request.semantic_action in _APPROVED_ROUTE_ACTION_TASKS
 
 def _deny(code: str, reason: str) -> Tuple[PolicyDecision, str, str]:
     return PolicyDecision.DENY, code, reason
@@ -397,6 +402,130 @@ def _daily_shops(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         return guard
     return PolicyDecision.AUTHORIZE, "AUTHORIZED_DAILY_SHOP_PURCHASE", "exact item/currency pair and displayed affordable stock-bounded maximum passed"
 
+def _nanoweapon(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
+    action = request.semantic_action
+    deny = _deny("NANOWEAPON_ACTION_NOT_EXACT", "only the exact bounded material-production or Normal Craft action is allowed")
+    nano_claim = action == "claim_nano_material_production"
+    nano_start = action == "start_nano_material_production"
+    craft_claim = action == "claim_completed_nanoweapon"
+    craft_start = action == "start_one_normal_nanoweapon_craft"
+    if not (nano_claim or nano_start or craft_claim or craft_start):
+        return deny
+    task = NANO_PRODUCTION_TASK if nano_claim or nano_start else NANOWEAPON_TASK
+    if request.task_id != task:
+        return _deny("NANOWEAPON_TASK_MISMATCH", "Nano Material and Normal Craft actions are bound to their exact task")
+    if nano_claim or nano_start:
+        tokens = _tokens(request, 11)
+        if tokens is None or tokens[:3] != (
+            f"product_id={NANO_PRODUCTION_PRODUCT}",
+            f"product_revision={NANO_PRODUCTION_REVISION}",
+            "effect_ordinal=1",
+        ):
+            return deny
+        occurrence = _field(tokens[3], "native_occurrence_key=")
+        phase = "claim" if nano_claim else "start"
+        if (
+            type(occurrence) is not str or not occurrence
+            or tokens[4] != "native_action_key_binds_occurrence=true"
+            or request.action_key != f"{NANO_PRODUCTION_PRODUCT}|{occurrence}|{phase}"
+        ):
+            return deny
+        suffix = (
+            ("material_production_tab", "production_state=complete", "active_production_count=0",
+             "completed_batch_count=1", "cost=none:0", "zero_resource_claim")
+            if nano_claim
+            else ("material_production_tab", "production_state=idle", "active_production_count=0",
+                  "duration_seconds=21600", "cost=none:0", "production_start_ordinal=1")
+        )
+        if tokens[5:] != suffix:
+            return deny
+        action_class = ActionClass.ZERO_COST_CONSEQUENTIAL
+        action_kind = "CLAIM_NANO_MATERIAL_PRODUCTION" if nano_claim else "START_NANO_MATERIAL_PRODUCTION"
+        subject = "nano-material-production-claim" if nano_claim else "nano-material-production-start"
+        control = "CLAIM" if nano_claim else "PRODUCE"
+        consequence = "nano_material_production_claim" if nano_claim else "nano_material_production_start"
+        postcondition = "NANO_MATERIAL_PRODUCTION_CLAIMED" if nano_claim else "NANO_MATERIAL_PRODUCTION_ACTIVE_21600"
+        cost_type, cost, currency, maximum, free = "none", 0, None, 0, True
+    elif craft_claim:
+        tokens = _tokens(request, 10)
+        if tokens is None:
+            return deny
+        expected = (
+            f"product_id={NANOWEAPON_PRODUCT}",
+            f"product_revision={NANOWEAPON_REVISION}",
+            "effect_ordinal=1",
+            f"game_day_id={request.game_day_id}",
+            "prior_material_production_reconciled=1",
+            "normal_craft_tab",
+            "completed_normal_craft=1",
+            "active_craft_count=0",
+            "claim_visible=1",
+            "cost=none:0",
+        )
+        if not request.game_day_id or tokens != expected:
+            return deny
+        action_class = ActionClass.ZERO_COST_CONSEQUENTIAL
+        action_kind = "CLAIM_NANOWEAPON_COMPLETED"
+        subject = "nanoweapon-completed-claim"
+        control = "CLAIM"
+        consequence = "nanoweapon_completed_claim"
+        postcondition = "NANOWEAPON_CRAFT_CLAIMED"
+        cost_type, cost, currency, maximum, free = "none", 0, None, 0, True
+    else:
+        tokens = _tokens(request, 14)
+        if tokens is None:
+            return deny
+        balance = _integer_token(_field(tokens[7], "nano_parts_balance="))
+        expected = (
+            f"product_id={NANOWEAPON_PRODUCT}",
+            f"product_revision={NANOWEAPON_REVISION}",
+            "effect_ordinal=1",
+            "prior_material_production_reconciled=1",
+            "normal_craft_tab",
+            "recipe_selection=normal",
+            f"game_day_id={request.game_day_id}",
+            f"nano_parts_balance={balance}" if balance is not None else "",
+            "cost=NANO_PARTS:100",
+            "duration_seconds=43200",
+            "active_craft_count=0",
+            "current_reset_start_ordinal=1",
+            "exclusive_craft=0",
+            "rotating_display=0",
+        )
+        if not request.game_day_id or balance is None or balance < 100 or tokens != expected:
+            return deny
+        action_class = ActionClass.SPEND_OR_STRATEGIC
+        action_kind = "START_NORMAL_NANOWEAPON_CRAFT"
+        subject = "nanoweapon-craft-normal"
+        control = "CRAFT"
+        consequence = "nanoweapon_normal_craft"
+        postcondition = "NANOWEAPON_NORMAL_CRAFT_ACTIVE"
+        cost_type, cost, currency, maximum, free = "NANO_PARTS", 100, "NANO_PARTS", 100, False
+    if not _contract_matches(
+        request,
+        action_class=action_class,
+        semantic_action=action,
+        action_kind=action_kind,
+        subject=subject,
+        source_state="NANOWEAPON",
+        target_identity=subject,
+        control_class=control,
+        consequence=consequence,
+        postcondition=postcondition,
+        cost_type=cost_type,
+        cost_amount=cost,
+        quantity=1,
+        resource_or_currency=currency,
+        maximum_cost=maximum,
+        free_only=free,
+    ):
+        return deny
+    guard = _route_runtime_guard(request)
+    if guard is not None:
+        return guard
+    code = "AUTHORIZED_NANO_MATERIAL_PRODUCTION" if nano_claim or nano_start else "AUTHORIZED_NANOWEAPON_NORMAL_CRAFT"
+    return PolicyDecision.AUTHORIZE, code, "exact current Nanoweapon tab, recipe, resource, and bounded action facts passed"
+
 _RUINS_CHALLENGE_IDS = frozenset({
     "hero-challenge", "weapon-trial", "tech-challenge", "gear-challenge",
     "core-challenge", "nova-challenge", "module-challenge", "glory-challenge",
@@ -610,9 +739,12 @@ def _alliance_help(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         return guard
     return PolicyDecision.AUTHORIZE, "AUTHORIZED_ALLIANCE_HELP", "exact current free request, reset-bound ordinal, and bounded quota passed"
 
-_APPROVED_ROUTE_TASKS = frozenset({DONATION_TASK, ALLIANCE_SHOP_TASK, DAILY_SHOPS_TASK, ALLIANCE_HELP_TASK, RUINS_TASK})
+_APPROVED_ROUTE_TASKS = frozenset({DONATION_TASK, ALLIANCE_SHOP_TASK, DAILY_SHOPS_TASK, NANO_PRODUCTION_TASK, NANOWEAPON_TASK, ALLIANCE_HELP_TASK, RUINS_TASK})
 
-_APPROVED_ROUTE_ACTION_TASKS = {'DONATE_ALLIANCE_TECH': DONATION_TASK, 'PURCHASE_ALLIANCE_SHOP_OFFER': ALLIANCE_SHOP_TASK, 'PURCHASE_DAILY_SHOP_MATERIAL': DAILY_SHOPS_TASK, 'HELP_ALLIANCE_REQUEST': ALLIANCE_HELP_TASK, 'ruins_zero_cost_npc_challenge_dispatch': RUINS_TASK, 'ruins_green_ready_stage_chest_claim': RUINS_TASK}
+_APPROVED_ROUTE_ACTION_TASKS = {'DONATE_ALLIANCE_TECH': DONATION_TASK, 'PURCHASE_ALLIANCE_SHOP_OFFER': ALLIANCE_SHOP_TASK, 'PURCHASE_DAILY_SHOP_MATERIAL': DAILY_SHOPS_TASK, 'claim_nano_material_production': NANO_PRODUCTION_TASK, 'start_nano_material_production': NANO_PRODUCTION_TASK, 'claim_completed_nanoweapon': NANOWEAPON_TASK, 'start_one_normal_nanoweapon_craft': NANOWEAPON_TASK, 'HELP_ALLIANCE_REQUEST': ALLIANCE_HELP_TASK, 'ruins_zero_cost_npc_challenge_dispatch': RUINS_TASK, 'ruins_green_ready_stage_chest_claim': RUINS_TASK}
+
+def is_approved_base_route_request(request: PolicyRequest) -> bool:
+    return request.task_id in _APPROVED_ROUTE_TASKS or request.semantic_action in _APPROVED_ROUTE_ACTION_TASKS
 
 def decide_approved_base_route(request: PolicyRequest) -> Optional[Tuple[PolicyDecision, str, str]]:
     """Return a route-specific decision, or ``None`` for unrelated legacy policy."""
@@ -630,6 +762,8 @@ def decide_approved_base_route(request: PolicyRequest) -> Optional[Tuple[PolicyD
         return _alliance_shop(request)
     if request.task_id == DAILY_SHOPS_TASK:
         return _daily_shops(request)
+    if request.task_id in {NANO_PRODUCTION_TASK, NANOWEAPON_TASK}:
+        return _nanoweapon(request)
     if request.task_id == ALLIANCE_HELP_TASK:
         return _alliance_help(request)
     if request.task_id == RUINS_TASK:

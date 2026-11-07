@@ -67,6 +67,8 @@ from .registry import (
     ALLIANCE_DONATION_FLOW_ID,
     ALLIANCE_SHOP_FLOW_ID,
     DAILY_SHOPS_FLOW_ID,
+    NANO_MATERIAL_PRODUCTION_FLOW_ID,
+    NANOWEAPON_FLOW_ID,
     RegisteredDispatchSnapshot,
     SUPPLY_FLOW_ID,
     ULTIMATE_FLOW_ID,
@@ -410,6 +412,8 @@ class AutomationService:
         ruins_runner=None,
         alliance_donation_runner=None,
         alliance_shop_runner=None,
+        nano_material_production_runner=None,
+        nanoweapon_runner=None,
         daily_shops_runner=None,
         alliance_help_runner=None,
         application_startup=None,
@@ -437,6 +441,8 @@ class AutomationService:
         self.resource_item_runner = resource_item_runner
         self.ruins_runner = ruins_runner
         self.alliance_donation_runner = alliance_donation_runner
+        self.nano_material_production_runner = nano_material_production_runner
+        self.nanoweapon_runner = nanoweapon_runner
         self.alliance_shop_runner = alliance_shop_runner
         self.daily_shops_runner = daily_shops_runner
         self.alliance_help_runner = alliance_help_runner
@@ -470,6 +476,8 @@ class AutomationService:
                 self.alliance_help_runner,
                 self.alliance_donation_runner,
                 self.alliance_shop_runner,
+                self.nano_material_production_runner,
+                self.nanoweapon_runner,
                 self.daily_shops_runner,
             )
         ) and not isinstance(
@@ -722,6 +730,16 @@ class AutomationService:
             PRODUCT_ID as DAILY_SHOPS_TASK_ID,
             daily_shops_next_due,
         )
+        from .nano_material_production import (
+            NanoMaterialProductionExecutionHandler,
+            PRODUCT_ID as NANO_MATERIAL_PRODUCTION_TASK_ID,
+            nano_material_production_next_due,
+        )
+        from .nanoweapon import (
+            NanoweaponExecutionHandler,
+            PRODUCT_ID as NANOWEAPON_TASK_ID,
+            nanoweapon_next_due,
+        )
 
         if self.mode is not ServiceMode.SUPERVISED or self.state is None:
             raise ServiceError("serve requires an explicitly configured native runner")
@@ -774,6 +792,8 @@ class AutomationService:
                     ALLIANCE_DONATION_FLOW_ID: ALLIANCE_DONATION_TASK_ID,
                     ALLIANCE_SHOP_FLOW_ID: ALLIANCE_SHOP_TASK_ID,
                     DAILY_SHOPS_FLOW_ID: DAILY_SHOPS_TASK_ID,
+                    NANO_MATERIAL_PRODUCTION_FLOW_ID: NANO_MATERIAL_PRODUCTION_TASK_ID,
+                    NANOWEAPON_FLOW_ID: NANOWEAPON_TASK_ID,
                 }[flow_id]
                 identity = SchedulerIdentity(account_id, server_id, facts.reset_id, task_id)
                 previous_reset = previous_resets.get(flow_id)
@@ -842,6 +862,8 @@ class AutomationService:
                     ALLIANCE_DONATION_FLOW_ID: "donation_transport_calls",
                     ALLIANCE_SHOP_FLOW_ID: "purchase_transport_calls",
                     DAILY_SHOPS_FLOW_ID: "purchase_transport_calls",
+                    NANO_MATERIAL_PRODUCTION_FLOW_ID: "production_transport_calls",
+                    NANOWEAPON_FLOW_ID: "nanoweapon_dispatch_count",
                 }[flow_id]
 
                 def record_consumption():
@@ -910,8 +932,9 @@ class AutomationService:
                             ALLIANCE_DONATION_FLOW_ID,
                             ALLIANCE_SHOP_FLOW_ID,
                             DAILY_SHOPS_FLOW_ID,
+                            NANO_MATERIAL_PRODUCTION_FLOW_ID,
+                            NANOWEAPON_FLOW_ID,
                         }
-                        else {}
                     )
                     if flow_id in {
                         DAILY_REWARDS_FLOW_ID,
@@ -921,6 +944,8 @@ class AutomationService:
                         ALLIANCE_DONATION_FLOW_ID,
                         ALLIANCE_SHOP_FLOW_ID,
                         DAILY_SHOPS_FLOW_ID,
+                        NANO_MATERIAL_PRODUCTION_FLOW_ID,
+                        NANOWEAPON_FLOW_ID,
                     }:
                         options["occurrence_key"] = run.occurrence_key
                     if operator_request_id is not None:
@@ -1055,6 +1080,26 @@ class AutomationService:
                             due = None
                             normalized_route_outcome = NormalizedOutcome.BLOCKED
                             normalized_route_reason = f"{prefix}_ROUTE_BLOCKED"
+                    elif flow_id in {
+                        NANO_MATERIAL_PRODUCTION_FLOW_ID,
+                        NANOWEAPON_FLOW_ID,
+                    }:
+                        due = {
+                            NANO_MATERIAL_PRODUCTION_FLOW_ID: nano_material_production_next_due,
+                            NANOWEAPON_FLOW_ID: nanoweapon_next_due,
+                        }[flow_id](result, identity, facts.now_utc_epoch)
+                        normalized_route_outcome = (
+                            NormalizedOutcome.DEFERRED
+                            if result.get("status") == "deferred"
+                            else NormalizedOutcome.ACTION_PERFORMED
+                            if consumed_actions > 0
+                            else NormalizedOutcome.ALREADY_COMPLETE
+                        )
+                        normalized_route_reason = (
+                            f"{prefix}_DEFERRED"
+                            if normalized_route_outcome is NormalizedOutcome.DEFERRED
+                            else f"{prefix}_PASS_VERIFIED"
+                        )
                     else:
                         due = {
                             RECRUITMENT_FLOW_ID: recruitment_next_due,
@@ -1077,6 +1122,7 @@ class AutomationService:
                                 NormalizedOutcome.COMPLETE_FOR_RESET,
                                 NormalizedOutcome.ALREADY_COMPLETE,
                                 NormalizedOutcome.DEFERRED,
+                                NormalizedOutcome.ACTION_PERFORMED,
                             },
                             next_eligible_at=due,
                             observed_progress=result,
@@ -1275,6 +1321,8 @@ class AutomationService:
                     ULTIMATE_FLOW_ID: UltimateExecutionHandler,
                     ENHANCEMENT_FLOW_ID: EnhancementExecutionHandler,
                     PERSONAL_MIGHT_FLOW_ID: PersonalMightExecutionHandler,
+                    NANO_MATERIAL_PRODUCTION_FLOW_ID: NanoMaterialProductionExecutionHandler,
+                    NANOWEAPON_FLOW_ID: NanoweaponExecutionHandler,
                     DAILY_REWARDS_FLOW_ID: DailyRewardsExecutionHandler,
                     RESOURCE_ITEM_FLOW_ID: ResourceItemExecutionHandler,
                     RUINS_FLOW_ID: RuinsExecutionHandler,
@@ -1294,6 +1342,8 @@ class AutomationService:
                         ALLIANCE_DONATION_FLOW_ID,
                         ALLIANCE_SHOP_FLOW_ID,
                         DAILY_SHOPS_FLOW_ID,
+                        NANO_MATERIAL_PRODUCTION_FLOW_ID,
+                        NANOWEAPON_FLOW_ID,
                     }
                     else {}
                 )
@@ -1341,8 +1391,8 @@ class AutomationService:
                                 if flow is None:
                                     continue
                     projection = RecurrenceProjection(
-                        (RecurrenceClass.DAILY_ONCE_PER_RESET if entry.flow_id in {SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RESOURCE_ITEM_FLOW_ID}
-                         else RecurrenceClass.COOLDOWN), observed_at_utc=now,
+                        entry.descriptor.recurrence_class or RecurrenceClass.COOLDOWN,
+                        observed_at_utc=now,
                         next_eligible_at=None if operator_request_id is not None else flow.next_due_at_utc,
                     )
                     if entry.flow_id == CAMPAIGN_FLOW_ID:

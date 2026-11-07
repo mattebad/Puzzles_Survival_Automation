@@ -158,6 +158,21 @@ DAILY_SHOPS_PROFILE_ID = WORLD_PROFILE_ID
 DAILY_SHOPS_PHASE_MODE = "phase_canary"
 DAILY_SHOPS_MAX_INPUTS = 48
 
+NANO_MATERIAL_PRODUCTION_FLOW_ID = "NANO-MATERIAL-PRODUCTION-MAINTENANCE"
+NANO_MATERIAL_PRODUCTION_PRODUCT_ID = "nano_material_production"
+NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION = "nano_material_production-v1"
+NANO_MATERIAL_PRODUCTION_HANDLER_ID = "nano_material_production_execution_handler"
+NANO_MATERIAL_PRODUCTION_PROFILE_ID = WORLD_PROFILE_ID
+NANO_MATERIAL_PRODUCTION_PHASE_MODE = "phase_canary"
+NANO_MATERIAL_PRODUCTION_MAX_INPUTS = 18
+NANOWEAPON_FLOW_ID = "NANOWEAPON-BLUESTACKS-INTEGRATION"
+NANOWEAPON_PRODUCT_ID = "nanoweapon_normal_craft"
+NANOWEAPON_PRODUCT_REVISION = "nanoweapon_normal_craft-v2"
+NANOWEAPON_HANDLER_ID = "nanoweapon_execution_handler"
+NANOWEAPON_PROFILE_ID = WORLD_PROFILE_ID
+NANOWEAPON_PHASE_MODE = "phase_canary"
+NANOWEAPON_MAX_INPUTS = 22
+
 
 _FIXED_BINDINGS = {
     WORLD_FLOW_ID: {
@@ -317,6 +332,26 @@ _FIXED_BINDINGS = {
         "production_handler": DAILY_SHOPS_HANDLER_ID,
         "profile": DAILY_SHOPS_PROFILE_ID,
         "mode": DAILY_SHOPS_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    NANO_MATERIAL_PRODUCTION_FLOW_ID: {
+        "flow_id": NANO_MATERIAL_PRODUCTION_FLOW_ID,
+        "product_id": NANO_MATERIAL_PRODUCTION_PRODUCT_ID,
+        "product_revision": NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION,
+        "production_handler": NANO_MATERIAL_PRODUCTION_HANDLER_ID,
+        "profile": NANO_MATERIAL_PRODUCTION_PROFILE_ID,
+        "mode": NANO_MATERIAL_PRODUCTION_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    NANOWEAPON_FLOW_ID: {
+        "flow_id": NANOWEAPON_FLOW_ID,
+        "product_id": NANOWEAPON_PRODUCT_ID,
+        "product_revision": NANOWEAPON_PRODUCT_REVISION,
+        "production_handler": NANOWEAPON_HANDLER_ID,
+        "profile": NANOWEAPON_PROFILE_ID,
+        "mode": NANOWEAPON_PHASE_MODE,
         "registration_status": "REGISTERED",
         "scheduler_eligible": True,
     },
@@ -746,6 +781,23 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         variant="ruins_and_rare_earth_max",
         cadence="cooldown_pulse",
         observation_only_completion=True,
+    ),
+    _canonical_registration(
+        NANO_MATERIAL_PRODUCTION_FLOW_ID,
+        max_inputs=NANO_MATERIAL_PRODUCTION_MAX_INPUTS,
+        cli_name="nano-material-production",
+        family="nano_material_production",
+        variant="six_hour_single_slot",
+        cadence="timer",
+        reset_scoped=False,
+    ),
+    _canonical_registration(
+        NANOWEAPON_FLOW_ID,
+        max_inputs=NANOWEAPON_MAX_INPUTS,
+        cli_name="nanoweapon",
+        family="nanoweapon",
+        variant="normal_craft_100_nano_parts",
+        cadence="cooldown_pulse",
     ),
 )
 
@@ -1267,6 +1319,20 @@ __all__ = [
     "DAILY_SHOPS_PROFILE_ID",
     "DAILY_SHOPS_PHASE_MODE",
     "DAILY_SHOPS_MAX_INPUTS",
+    "NANO_MATERIAL_PRODUCTION_FLOW_ID",
+    "NANO_MATERIAL_PRODUCTION_PRODUCT_ID",
+    "NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION",
+    "NANO_MATERIAL_PRODUCTION_HANDLER_ID",
+    "NANO_MATERIAL_PRODUCTION_PROFILE_ID",
+    "NANO_MATERIAL_PRODUCTION_PHASE_MODE",
+    "NANO_MATERIAL_PRODUCTION_MAX_INPUTS",
+    "NANOWEAPON_FLOW_ID",
+    "NANOWEAPON_PRODUCT_ID",
+    "NANOWEAPON_PRODUCT_REVISION",
+    "NANOWEAPON_HANDLER_ID",
+    "NANOWEAPON_PROFILE_ID",
+    "NANOWEAPON_PHASE_MODE",
+    "NANOWEAPON_MAX_INPUTS",
     "consume_registered_entry",
     "consume_world_registration",
     "consume_nova_registration",

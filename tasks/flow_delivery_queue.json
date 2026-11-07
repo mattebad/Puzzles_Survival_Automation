@@ -134,14 +134,14 @@
         "execution_flow_id": "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
         "queue_record_state": "existing_blocked",
         "depends_on": [],
-        "blocker": "recognizer/controller/persistence implementation and current claim/idle/active/start/timer evidence are missing"
+        "blocker": "Historical staging marker only; offline native/service implementation exists. Current live idle, active, completed, exact zero-resource-cost, 21600-second timer, and canonical Home evidence remain unaccepted; production stays disabled and evidence_required."
       },
       {
         "task_id": "nanoweapon-daily",
         "execution_flow_id": "NANOWEAPON-BLUESTACKS-INTEGRATION",
         "queue_record_state": "existing_blocked",
         "depends_on": ["nano-material-maintenance"],
-        "blocker": "stale generic offline semantics require reconciliation after Nano Material; current claim/100-part/43200-second evidence is missing"
+        "blocker": "Historical staging marker only; offline policy and native/service implementation exist. No live same-visit maintenance reconciliation, exact 100-part craft effect, 43200-second timer, or canonical Home acceptance exists; production stays disabled and evidence_required."
       },
       {
         "task_id": "hero-upgrade",
@@ -3461,30 +3461,78 @@
       "title": "Integrate Nanoweapon crafting with BlueStacks",
       "kind": "consequential_integration",
       "priority": 100,
-      "status": "blocked",
+      "status": "evidence_required",
+      "production_registration": "NOT_REGISTERED",
+      "scheduler_enabled": false,
       "backlog_task_id": "DQ-FLOW-NANOWEAPON",
       "dependencies": ["NANO-MATERIAL-PRODUCTION-MAINTENANCE"],
       "implementation_entrypoints": [
         "tasks/nanoweapon.py",
-        "tasks/daily_nanoweapon.py",
-        "scripts/bluestacks_native_runtime.py"
+        "tasks/nano_material_production.py",
+        "automation_service/nanoweapon.py",
+        "automation_service/native_execution.py",
+        "automation_service/registry.py",
+        "automation_service/service.py",
+        "automation_service/cli.py",
+        "scripts/nanoweapon_bluestacks.py",
+        "scripts/bluestacks_native_runtime.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/NANOWEAPON-BLUESTACKS-INTEGRATION.json",
+        "tasks/flow_delivery_queue.json",
+        "tests/test_nanoweapon_bluestacks.py",
+        "tests/test_service_nanoweapon.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
       ],
       "navigation_model": "gear_factory_craft_weapon_route",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "No live attempt is authorized; native Gear Factory/radial/Nanoweapon, claim, parts, Craft, timer, and Home evidence are required first.",
-      "consequence_policy": "Daily owns Normal Craft only: claim completed on entry, require exactly 100 parts, one active craft, 43200-second duration, and at most one start per reset; Exclusive Craft and rotating-display selection are prohibited.",
+      "live_validation_scope": "No live attempt is authorized; native Gear Factory, Nanoweapon, exact Normal Craft, claim, balance, 43200-second timer, and Home effects remain unaccepted. Runtime stays disabled and acceptance is evidence_required.",
+      "consequence_policy": "Perform same-visit zero-resource Nano Material maintenance first, then at most one reset-scoped Normal Craft start using exactly 100 Nano Parts for 43200 seconds; claim a completed craft when recognized. Exclusive Craft, display rotation, Daily/D02 ownership, and points attribution are prohibited.",
       "product_policy_status": "explicitly_approved",
       "maximum_live_attempts": 0,
+      "maximum_inputs": 22,
+      "maximum_live_inputs": 22,
+      "maximum_actions": 4,
       "live_attempt_count": 0,
       "live_attempts": [],
       "focused_tests": [
-        "tests/test_nanoweapon.py",
-        "tests/test_daily_nanoweapon.py"
+        "tests/test_nanoweapon_bluestacks.py",
+        "tests/test_service_nanoweapon.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
-      "blocked_reason": "Offline Normal Craft policy and adapter/session semantics are reconciled to exact 100 NANO_PARTS, one start per reset, one active craft, 43200 seconds, claim-first, and canonical Home; native selectors, route replay, production replay, and supervised canary remain missing.",
-      "next_concrete_action": "Keep Nanoweapon route/session migration blocked until the prerequisite NANO-MATERIAL-PRODUCTION-MAINTENANCE is completed and native Gear Factory/Nanoweapon/Normal Craft/claim/timer/Home evidence is accepted; do not dispatch a craft, add an adapter, register, schedule, or use runtime input.",
+      "blocked_reason": "No live Normal Craft execution/effect evidence or supervised canary has been accepted; native validation remains evidence_required.",
+      "next_concrete_action": "Keep production registration, scheduling, and runtime input disabled pending separately authorized live acceptance; do not treat historical backlog task identifiers as current authorization.",
+      "acceptance_criteria": [
+        "same-visit Nano Material maintenance is reconciled before Normal Craft",
+        "Normal Craft is the only craft type and spends exactly 100 Nano Parts",
+        "at most one Normal Craft starts per reset and its duration is exactly 43200 seconds",
+        "unknown effects block identical retry and no live acceptance is claimed"
+      ],
+      "scope_prohibitions": [
+        "no Exclusive Craft or rotating-display selection",
+        "no Daily/D02 ownership or points attribution",
+        "no production registration, scheduler enablement, or unauthorized runtime input"
+      ],
+      "completion_tests": [
+        "tests/test_nanoweapon_bluestacks.py",
+        "tests/test_service_nanoweapon.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "reference_docs": [
+        "README.md",
+        "docs/automation-service.md",
+        "docs/adding-a-route.md"
+      ],
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/NANOWEAPON-BLUESTACKS-INTEGRATION"
@@ -3494,28 +3542,78 @@
       "title": "Implement Nano Material Production maintenance",
       "kind": "maintenance_integration",
       "priority": 105,
-      "status": "blocked",
+      "status": "evidence_required",
+      "production_registration": "NOT_REGISTERED",
+      "scheduler_enabled": false,
       "backlog_task_id": "NANO-MATERIAL-PRODUCTION-MAINTENANCE",
       "dependencies": [],
       "implementation_entrypoints": [
+        "tasks/nano_material_production.py",
         "tasks/nanoweapon.py",
-        "scripts/bluestacks_native_runtime.py"
+        "automation_service/nano_material_production.py",
+        "automation_service/native_execution.py",
+        "automation_service/registry.py",
+        "automation_service/service.py",
+        "automation_service/cli.py",
+        "scripts/nano_material_production_bluestacks.py",
+        "scripts/bluestacks_native_runtime.py",
+        "tasks/flow_delivery_product_policy.json",
+        "tasks/gameplay_flow_contracts/NANO-MATERIAL-PRODUCTION-MAINTENANCE.json",
+        "tasks/flow_delivery_queue.json",
+        "tests/test_nano_material_production_bluestacks.py",
+        "tests/test_service_nano_material_production.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
       ],
       "navigation_model": "canonical_home_to_gear_factory_nanoweapon_material_production",
       "requires_bluestacks_live": true,
-      "live_validation_scope": "No live attempt is authorized; native Material Production idle, active, complete, due-time, and Home evidence is required.",
-      "consequence_policy": "Zero-resource maintenance only: exactly one 21600-second production may be active; claim completed production and start the next, start idle production, or defer active production with a due time.",
+      "live_validation_scope": "No live attempt is authorized; current idle, active, completed, zero-resource-cost, exact 21600-second timer, claim/start effects, and canonical Home evidence remain unaccepted. Runtime stays disabled and acceptance is evidence_required.",
+      "consequence_policy": "Zero-resource maintenance only: keep exactly one active production slot with a 21600-second duration; start when idle, claim then restart when complete, and refresh the observed timer without dispatch while active. The timer persists across game-day boundaries; no Daily reset ownership, D02, or points attribution.",
       "product_policy_status": "explicitly_approved",
       "maximum_live_attempts": 0,
+      "maximum_inputs": 18,
+      "maximum_live_inputs": 18,
+      "maximum_actions": 2,
       "live_attempt_count": 0,
       "live_attempts": [],
       "focused_tests": [
-        "tests/test_gameplay_flow_contracts.py"
+        "tests/test_nano_material_production_bluestacks.py",
+        "tests/test_service_nano_material_production.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
       ],
       "evidence_validator": "python scripts/pnsctl.py bluestacks verify-flow <session-directory>",
       "performance_metrics_required": [],
-      "blocked_reason": "No Material Production recognizer, controller, persistence, native selector corpus, production replay, or supervised canary exists; typed product authority is accepted offline but route/session migration cannot begin.",
-      "next_concrete_action": "Keep Nano Material route/session migration dispositioned blocked offline; do not add an adapter, synthetic selector, no-op runner, registration, scheduler, or runtime input. Advance to Nanoweapon product authority only.",
+      "blocked_reason": "No live production action, exact zero-cost effect, timer, or canonical Home acceptance exists; runtime remains disabled pending evidence_required validation.",
+      "next_concrete_action": "Keep production registration, scheduling, and runtime input disabled pending separately authorized live evidence; do not treat historical backlog task identifiers as current authorization.",
+      "acceptance_criteria": [
+        "idle production starts one zero-resource batch with exactly one active slot and a 21600-second timer",
+        "completed production is claimed before the next single-slot batch starts",
+        "an active production refreshes its timer without dispatching another action",
+        "the production due timer survives service restart and game-day boundaries",
+        "unknown action effects block identical retry and no live acceptance is claimed"
+      ],
+      "scope_prohibitions": [
+        "no Daily/D02 ownership or points attribution",
+        "no production registration, scheduler enablement, or unauthorized runtime input"
+      ],
+      "completion_tests": [
+        "tests/test_nano_material_production_bluestacks.py",
+        "tests/test_service_nano_material_production.py",
+        "tests/test_service_route_contract.py",
+        "tests/test_route_metadata_consistency.py",
+        "tests/test_gameplay_flow_contracts.py",
+        "tests/test_product_authority.py"
+      ],
+      "reference_docs": [
+        "README.md",
+        "docs/automation-service.md",
+        "docs/adding-a-route.md"
+      ],
       "last_completed_stage": null,
       "last_commit": null,
       "artifact_root": ".local-captures/flow-delivery/NANO-MATERIAL-PRODUCTION-MAINTENANCE"

@@ -9,6 +9,14 @@ import unittest
 from dataclasses import replace
 
 from automation_service.registry import ALLIANCE_DONATION_FLOW_ID as DONATION, ALLIANCE_DONATION_PRODUCT_ID as DONATION_PRODUCT, ALLIANCE_DONATION_PRODUCT_REVISION as DONATION_REVISION, ALLIANCE_HELP_FLOW_ID as HELP, ALLIANCE_HELP_PRODUCT_ID as HELP_PRODUCT, ALLIANCE_HELP_PRODUCT_REVISION as HELP_REVISION, ALLIANCE_SHOP_FLOW_ID as ALLIANCE_SHOP, ALLIANCE_SHOP_PRODUCT_REVISION as ALLIANCE_SHOP_REVISION, DAILY_SHOPS_FLOW_ID as DAILY_SHOPS, DAILY_SHOPS_PRODUCT_REVISION as DAILY_SHOPS_REVISION, RUINS_FLOW_ID as RUINS, RUINS_PRODUCT_ID as RUINS_PRODUCT, RUINS_PRODUCT_REVISION as RUINS_REVISION
+from automation_service.registry import (
+    NANOWEAPON_FLOW_ID as NANOWEAPON,
+    NANOWEAPON_PRODUCT_ID as NANOWEAPON_PRODUCT,
+    NANOWEAPON_PRODUCT_REVISION as NANOWEAPON_REVISION,
+    NANO_MATERIAL_PRODUCTION_FLOW_ID as NANO_PRODUCTION,
+    NANO_MATERIAL_PRODUCTION_PRODUCT_ID as NANO_PRODUCTION_PRODUCT,
+    NANO_MATERIAL_PRODUCTION_PRODUCT_REVISION as NANO_PRODUCTION_REVISION
+)
 
 from safe_action_core.models import ActionClass, PolicyDecision
 
@@ -161,6 +169,74 @@ def daily_shop_request(item="3_star_chip_enhance_material", shop="ruins_shop", c
         quantity=quantity, resource=currency, maximum=total, free=False, preconditions=tokens,
     )
 
+def nano_request(action, occurrence=f"{NANO_PRODUCTION}:{DAY}:1"):
+    if action == "claim_nano_material_production":
+        tokens = (
+            f"product_id={NANO_PRODUCTION_PRODUCT}", f"product_revision={NANO_PRODUCTION_REVISION}",
+            "effect_ordinal=1", f"native_occurrence_key={occurrence}", "native_action_key_binds_occurrence=true",
+            "material_production_tab", "production_state=complete", "active_production_count=0",
+            "completed_batch_count=1", "cost=none:0", "zero_resource_claim",
+        )
+        source, target, control, consequence, post, subject = (
+            "NANOWEAPON", "nano-material-production-claim", "CLAIM", "nano_material_production_claim",
+            "NANO_MATERIAL_PRODUCTION_CLAIMED", "nano-material-production-claim",
+        )
+        action_class, kind, cost_type, cost, quantity, resource, maximum, free = (
+            ActionClass.ZERO_COST_CONSEQUENTIAL, "CLAIM_NANO_MATERIAL_PRODUCTION", "none", 0, 1, None, 0, True,
+        )
+        key = f"{NANO_PRODUCTION_PRODUCT}|{occurrence}|claim"
+    else:
+        tokens = (
+            f"product_id={NANO_PRODUCTION_PRODUCT}", f"product_revision={NANO_PRODUCTION_REVISION}",
+            "effect_ordinal=1", f"native_occurrence_key={occurrence}", "native_action_key_binds_occurrence=true",
+            "material_production_tab", "production_state=idle", "active_production_count=0",
+            "duration_seconds=21600", "cost=none:0", "production_start_ordinal=1",
+        )
+        source, target, control, consequence, post, subject = (
+            "NANOWEAPON", "nano-material-production-start", "PRODUCE", "nano_material_production_start",
+            "NANO_MATERIAL_PRODUCTION_ACTIVE_21600", "nano-material-production-start",
+        )
+        action_class, kind, cost_type, cost, quantity, resource, maximum, free = (
+            ActionClass.ZERO_COST_CONSEQUENTIAL, "START_NANO_MATERIAL_PRODUCTION", "none", 0, 1, None, 0, True,
+        )
+        key = f"{NANO_PRODUCTION_PRODUCT}|{occurrence}|start"
+    return route_request(
+        task=NANO_PRODUCTION, action=action, action_class=action_class, kind=kind, subject=subject,
+        source=source, target=target, control=control, consequence=consequence, post=post,
+        cost_type=cost_type, cost=cost, quantity=quantity, resource=resource, maximum=maximum,
+        free=free, preconditions=tokens, action_key=key,
+    )
+
+def craft_claim_request():
+    tokens = (
+        f"product_id={NANOWEAPON_PRODUCT}", f"product_revision={NANOWEAPON_REVISION}",
+        "effect_ordinal=1", f"game_day_id={DAY}", "prior_material_production_reconciled=1",
+        "normal_craft_tab", "completed_normal_craft=1", "active_craft_count=0", "claim_visible=1", "cost=none:0",
+    )
+    return route_request(
+        task=NANOWEAPON, action="claim_completed_nanoweapon", action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
+        kind="CLAIM_NANOWEAPON_COMPLETED", subject="nanoweapon-completed-claim", source="NANOWEAPON",
+        target="nanoweapon-completed-claim", control="CLAIM", consequence="nanoweapon_completed_claim",
+        post="NANOWEAPON_CRAFT_CLAIMED", cost_type="none", cost=0, quantity=1, resource=None,
+        maximum=0, free=True, preconditions=tokens,
+    )
+
+def craft_start_request():
+    tokens = (
+        f"product_id={NANOWEAPON_PRODUCT}", f"product_revision={NANOWEAPON_REVISION}",
+        "effect_ordinal=1", "prior_material_production_reconciled=1", "normal_craft_tab",
+        "recipe_selection=normal", f"game_day_id={DAY}", "nano_parts_balance=130",
+        "cost=NANO_PARTS:100", "duration_seconds=43200", "active_craft_count=0",
+        "current_reset_start_ordinal=1", "exclusive_craft=0", "rotating_display=0",
+    )
+    return route_request(
+        task=NANOWEAPON, action="start_one_normal_nanoweapon_craft", action_class=ActionClass.SPEND_OR_STRATEGIC,
+        kind="START_NORMAL_NANOWEAPON_CRAFT", subject="nanoweapon-craft-normal", source="NANOWEAPON",
+        target="nanoweapon-craft-normal", control="CRAFT", consequence="nanoweapon_normal_craft",
+        post="NANOWEAPON_NORMAL_CRAFT_ACTIVE", cost_type="NANO_PARTS", cost=100, quantity=1,
+        resource="NANO_PARTS", maximum=100, free=False, preconditions=tokens,
+    )
+
 def ruins_challenge_request():
     tokens = (
         f"ruins_product={RUINS_PRODUCT}", f"ruins_product_revision={RUINS_REVISION}",
@@ -228,7 +304,7 @@ def help_request(all=False):
         quantity=quantity, resource=None, maximum=0, free=True, preconditions=tokens,
     )
 
-POLICY = CentralPolicy({DONATION, ALLIANCE_SHOP, DAILY_SHOPS, HELP, RUINS_PRODUCT, TEST_TASK_ID, OTHER_TASK})
+POLICY = CentralPolicy({DONATION, ALLIANCE_SHOP, DAILY_SHOPS, HELP, RUINS_PRODUCT, TEST_TASK_ID, OTHER_TASK, NANO_PRODUCTION, NANOWEAPON})
 
 class ApprovedBaseRoutePolicyTests(unittest.TestCase):
     def assert_authorized(self, req):
@@ -291,6 +367,27 @@ class ApprovedBaseRoutePolicyTests(unittest.TestCase):
         tokens[3] = "currency=DIAMONDS"
         self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
         self.assert_denied(replace(req, subject="premium_pack"))
+
+def test_nanoweapon_claims_and_exact_production_and_craft_effects(self):
+        self.assert_authorized(nano_request('claim_nano_material_production'))
+        self.assert_authorized(nano_request('start_nano_material_production'))
+        self.assert_authorized(craft_claim_request())
+        self.assert_authorized(craft_start_request())
+        req = nano_request('start_nano_material_production')
+        tokens = list(req.semantic_preconditions)
+        tokens[8] = 'duration_seconds=21601'
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
+        self.assert_denied(replace(req, action_key=f'{NANO_PRODUCTION_PRODUCT}|{NANO_PRODUCTION}:{DAY}:2|start'))
+        opaque_occurrence = f'{NANO_PRODUCTION}:{DAY}:1|opaque_basis'
+        opaque_req = nano_request('start_nano_material_production', occurrence=opaque_occurrence)
+        self.assert_authorized(opaque_req)
+        self.assert_denied(replace(opaque_req, action_key=f'{NANO_PRODUCTION_PRODUCT}|{NANO_PRODUCTION}:{DAY}:1|other_basis|start'))
+        req = craft_start_request()
+        self.assert_denied(replace(req, resource_or_currency='DIAMONDS'))
+        self.assert_denied(replace(req, observation=replace(req.observation, cost_amount=101), maximum_cost=101))
+        tokens = list(req.semantic_preconditions)
+        tokens[8] = 'cost=NANO_PARTS:101'
+        self.assert_denied(replace(req, semantic_preconditions=tuple(tokens)))
 
     def test_ruins_zero_cost_challenge_and_same_category_chest(self):
         self.assert_authorized(ruins_challenge_request())

@@ -11,14 +11,17 @@ from unittest.mock import Mock, patch
 
 from automation_service import cli
 from automation_service.registry import (
-    DAILY_REWARDS_FLOW_ID,
-    ALLIANCE_HELP_FLOW_ID,
     ALLIANCE_DONATION_FLOW_ID,
+    ALLIANCE_HELP_FLOW_ID,
     ALLIANCE_SHOP_FLOW_ID,
+    DAILY_REWARDS_FLOW_ID,
     DAILY_SHOPS_FLOW_ID,
+    NANO_MATERIAL_PRODUCTION_FLOW_ID,
+    NANOWEAPON_FLOW_ID,
     RESOURCE_ITEM_FLOW_ID,
-    canonical_flow_specs,
     RUINS_FLOW_ID,
+    canonical_flow_specs,
+    servable_flow_names,
 )
 from automation_service.state import BotStateManager
 from scripts import navigation_development_boundary as boundary
@@ -51,6 +54,8 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                     "alliance-donation",
                     "alliance-shop",
                     "daily-shops",
+                    "nano-material-production",
+                    "nanoweapon",
                 ):
                     argv.extend(["--flow", flow])
                 argv.extend(["--campaign-stage", "1-15-9", "--campaign-cadence-seconds", "300",
@@ -58,7 +63,8 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                              "--account-id", "account", "--server-id", "server", "--output-directory", "captures with spaces"])
                 parsed = cli.build_parser().parse_args(argv[1:])
                 self.assertEqual(parsed.mode, "supervised")
-                self.assertEqual(len(parsed.flow), 15)
+                self.assertEqual(len(parsed.flow), 17)
+                self.assertEqual(len(servable_flow_names()), 17)
                 with patch.object(cli, "main", return_value=17) as canonical:
                     self.assertEqual(pnsctl.main(argv), 17)
                 canonical.assert_called_once()
@@ -78,6 +84,8 @@ class CanonicalServeFacadeTests(unittest.TestCase):
                         ALLIANCE_HELP_FLOW_ID,
                         ALLIANCE_DONATION_FLOW_ID,
                         ALLIANCE_SHOP_FLOW_ID,
+                        NANO_MATERIAL_PRODUCTION_FLOW_ID,
+                        NANOWEAPON_FLOW_ID,
                         DAILY_SHOPS_FLOW_ID,
                     },
                 )
@@ -111,6 +119,8 @@ class CanonicalServeFacadeTests(unittest.TestCase):
             "--campaign-cadence-seconds",
             "ruins",
             "alliance-help",
+            "nano-material-production",
+            "nanoweapon",
         ):
             self.assertIn(option, output.getvalue())
         with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as error:
@@ -144,6 +154,40 @@ class CanonicalServeFacadeTests(unittest.TestCase):
         state.assert_not_called()
         adb.assert_not_called()
         connect.assert_not_called()
+
+    def test_batch_d_flows_keep_disabled_sqlite_controls_and_do_not_start_runtime(self):
+        for flow in ("nano-material-production", "nanoweapon"):
+            with self.subTest(flow=flow), tempfile.TemporaryDirectory() as directory:
+                database = Path(directory) / "isolated-state.sqlite3"
+                with BotStateManager(database) as state:
+                    state.initialize_flows(canonical_flow_specs())
+                    self.assertFalse(state.get_service_enabled())
+                    self.assertFalse(state.get_flow(
+                        NANO_MATERIAL_PRODUCTION_FLOW_ID
+                        if flow == "nano-material-production"
+                        else NANOWEAPON_FLOW_ID
+                    ).enabled)
+                output = io.StringIO()
+                with patch.object(boundary, "RuntimeInputLock", return_value=nullcontext()), patch.object(
+                    LocalBlueStacksRuntime, "connect"
+                ) as connect, redirect_stdout(output):
+                    code = pnsctl.main([
+                        "automation-service", "--mode", "supervised", "--adapter", "bluestacks",
+                        "--state-path", str(database), "serve", "--live", "--flow", flow,
+                        "--adb", str(BLUESTACKS_ADB),
+                        "--serial", "emulator-5554", "--account-id", "account", "--server-id", "server",
+                    ])
+                self.assertEqual(code, 0)
+                self.assertEqual(json.loads(output.getvalue())["reason"], "SERVICE_DISABLED")
+                connect.assert_not_called()
+                with BotStateManager(database, read_only=True) as state:
+                    self.assertFalse(state.get_service_enabled())
+                    self.assertFalse(state.get_flow(
+                        NANO_MATERIAL_PRODUCTION_FLOW_ID
+                        if flow == "nano-material-production"
+                        else NANOWEAPON_FLOW_ID
+                    ).enabled)
+                    self.assertEqual(state._db.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 0)
 
     def test_a_valid_native_command_respects_disabled_controls(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -29,6 +29,8 @@ from .registry import (
     DAILY_SHOPS_FLOW_ID,
     DAILY_REWARDS_FLOW_ID,
     RESOURCE_ITEM_FLOW_ID,
+    NANO_MATERIAL_PRODUCTION_FLOW_ID,
+    NANOWEAPON_FLOW_ID,
     RUINS_FLOW_ID,
     canonical_flow_specs,
     servable_flow_names,
@@ -482,6 +484,8 @@ def main(
                 alliance_help_runner = None
                 alliance_donation_runner = None
                 alliance_shop_runner = None
+                nano_material_production_runner = None
+                nanoweapon_runner = None
                 daily_shops_runner = None
                 selected = args.flow
                 if native_serve:
@@ -500,6 +504,8 @@ def main(
                     from .alliance_donation import AllianceDonationRunner
                     from .alliance_shop import AllianceShopRunner
                     from .daily_shops import DailyShopsRunner
+                    from .nano_material_production import NanoMaterialProductionRunner
+                    from .nanoweapon import NanoweaponRunner
 
                     if "recruitment" in selected:
                         runner = RecruitmentRunner(
@@ -602,6 +608,24 @@ def main(
                             output_directory=args.output_directory or state_path.parent / "daily-shops-sessions",
                             native=native_route_bindings[DAILY_SHOPS_FLOW_ID],
                         )
+                    if "nano-material-production" in selected:
+                        if native_route_bindings is None or NANO_MATERIAL_PRODUCTION_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("nano-material-production native binding is supplied by scripts/pnsctl.py automation-service")
+                        nano_material_production_runner = NanoMaterialProductionRunner(
+                            adb=args.adb,
+                            serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "nano-material-production-sessions",
+                            native=native_route_bindings[NANO_MATERIAL_PRODUCTION_FLOW_ID],
+                        )
+                    if "nanoweapon" in selected:
+                        if native_route_bindings is None or NANOWEAPON_FLOW_ID not in native_route_bindings:
+                            raise ServiceError("nanoweapon native binding is supplied by scripts/pnsctl.py automation-service")
+                        nanoweapon_runner = NanoweaponRunner(
+                            adb=args.adb,
+                            serial=args.serial,
+                            output_directory=args.output_directory or state_path.parent / "nanoweapon-sessions",
+                            native=native_route_bindings[NANOWEAPON_FLOW_ID],
+                        )
                 service_startup = None
                 if native_serve:
                     if application_startup is None:
@@ -631,6 +655,8 @@ def main(
                     alliance_donation_runner=alliance_donation_runner,
                     alliance_shop_runner=alliance_shop_runner,
                     daily_shops_runner=daily_shops_runner,
+                    nano_material_production_runner=nano_material_production_runner,
+                    nanoweapon_runner=nanoweapon_runner,
                 )
                 if native_serve:
                     flow_names = servable_flow_names()
