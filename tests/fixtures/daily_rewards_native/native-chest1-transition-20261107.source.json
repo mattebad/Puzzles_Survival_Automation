@@ -1,0 +1,21 @@
+{
+  "kind": "current-owner-authorized-investigation",
+  "native_route_acceptance": false,
+  "authorization": "Just claim the chest and use that as your basis",
+  "source_session": ".local-captures/development-sessions/daily54-single-chest-basis-20261107T082130893645Z",
+  "input_count": 1,
+  "claimed_chests": 1,
+  "resource_spend": 0,
+  "before": {
+    "fixture": "native-chest1-ready-before-20261107.png",
+    "source": "runtime/daily54-single-chest-basis-20261107T082131043609Z/frames/0002-daily54-authorized-single-glowing-chest-immediate-before.png",
+    "sha256": "6d48c2f3ca996a9bae8c3e57521eaf25afadb9e33a0d8201122bdeabc844aafc"
+  },
+  "after": {
+    "fixture": "native-chest1-claimed-after-20261107.png",
+    "source": ".local-captures/development-sessions/observe-20261107T082220485760Z/observe.png",
+    "sha256": "839d84e0feb4efc2a1a9649e4f31ac3b55638ed75f727f043fe35b7557c729d3"
+  },
+  "observed_successor": "First chest open with explicit Claimed label; remaining four not glowing; Daily Quest Pts remains 30.",
+  "reconciliation": "Manual/investigative same-reset slot-1 claim. Do not repeat it to produce native acceptance. Original controller record remains effect_reconciliation_required; raw evidence is not rewritten."
+}

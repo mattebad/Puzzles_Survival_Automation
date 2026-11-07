@@ -115,20 +115,17 @@ the scheduler/facade consumer checks are recorded separately; their counts are n
 
 The fixed native composition binds twelve canonical routes: Nova, Recruitment, Campaign,
 Bioenhancer, Supply, Ultimate, Enhancement, Personal Might, Daily Rewards, Resource Item,
-Ruins, and Alliance Help. The thirteenth fixed flow spec is `world_map_navigation`, which is
-selection-only and has no `serve --flow`. The ordinary registered selectors remain non-consuming;
-passing `--flow` alone does not enable a route.
+Ruins and Alliance Help. The thirteenth fixed spec is navigation-only `world_map_navigation`,
+with no `serve --flow`. Passing `--flow` alone never enables a route.
 
-Batch B adds canonical-only `ruins` and `alliance-help` service routes. Their fixed code specs are
-registered, while the legacy production posture and runtime controls remain disabled; both are
-`evidence_required`, with no current native live acceptance claimed. The supplied Nov 6 DailyQuest
-image shows one positively glowing 30-point chest, four other chests closed, 30 total points, and
-no aggregate Claim. Daily policy handles five categories individually when visibly glowing,
-with no 150-point minimum. Its native guard observes readiness but blocks ready-chest input until
-same-chest claimed/opened successor evidence is admitted; no full native acceptance is asserted.
-Complete zero-ready scans can close at freshly verified Home, either without an aggregate Claim
-or after its confirmed effect. Resource Item's offline adapter/service checks pass; current live
-acceptance remains `evidence_required`.
+Batch B adds canonical-only Ruins and Alliance Help, implemented/offline-proven but not newly
+live-accepted. Production and runtime controls remain disabled. Daily performs at most one
+current aggregate Claim, then separately claims each glowing chest with its same-slot `Claimed`
+label and canonical journal confirmation. Restart-stable slot/reset keys protect effects;
+UNKNOWN stops without identical retry. Already-claimed manual work is skipped. Complete
+zero-ready scans return to verified Home. The owner-authorized November 7 single-chest
+investigation supplied actual ready/Claimed pixels, not completed-route acceptance.
+Current native acceptance for Resource Item, Daily, Ruins and Help remains `evidence_required`.
 Existing individual effect/Home acceptance, uninterrupted Enhancement proof, independent recruit
 timers, and cadence scope are maintained in [`BACKLOG.md`](../BACKLOG.md), with volatile state in
 the handoff.

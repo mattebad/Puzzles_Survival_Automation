@@ -5,12 +5,11 @@ BlueStacks instance. A supervised service checks which daily or cooldown routes 
 at a time, verifies each result from the screen, and returns to the game's Home screen before
 the next one.
 
-**Status:** Batches A/B add canonical-only Daily Rewards, Resource Item, Ruins, and Alliance Help
-integration. Code registration is separate from runtime enablement: all remain runtime-disabled,
-with current live acceptance `evidence_required`. Complete zero-ready Daily scans can return to
-verified Home, including after a confirmed aggregate Claim. The supplied image proves five-chest
-readiness; ready-chest execution still requires a same-chest claimed/opened successor. The
-[November 2 report](docs/bluestacks-route-status-20261102.md) is historical live evidence, not current
+**Status:** Batches A/B add canonical-only Daily Rewards, Resource Item, Ruins and Alliance Help.
+All remain runtime-disabled and `evidence_required` for current native acceptance.
+Daily claims individually glowing chests with explicit same-slot `Claimed` proof, not a 150-point gate.
+One authorized manual chest claim supplied actual before/after recognition basis, not completed-route acceptance.
+The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical live evidence, not current
 execution authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
 [`BACKLOG.md`](BACKLOG.md) retains durable history.
 
@@ -30,7 +29,7 @@ registration: twelve executable `serve --flow` routes plus one navigation-only f
 | `ultimate` | `ultimate_challenge_daily` | One Ultimate Challenge entry, then Flee, once per daily reset. |
 | `enhancement` | `enhancement_family` | Gear, Chip and Module enhancement once each in a single Profile visit, once per daily reset. |
 | `personal-might` | `personal_might_praise` | One Personal Might Praise, once per daily reset. |
-| `daily-rewards` | `daily_rewards` | Aggregate Claim plus up to five individually glowing chests; no 150-point minimum. The supplied Nov 6 image shows one 30-point glow, four closed chests, 30 points, and no aggregate Claim. Same-chest claimed/opened-successor native proof remains `evidence_required`; runtime disabled. |
+| `daily-rewards` | `daily_rewards` | At most one current aggregate Claim, then individually ready chests with same-slot Claimed proof; 300-second observation cooldown. Disabled; native acceptance evidence_required. |
 | `resource-item` | `resource_item` | One owned 1K Food item use per reset with exact decrement; runtime disabled and current native acceptance remains evidence_required. |
 | `ruins` | `ruins_challenge` | Current zero-cost NPC challenge first, then independently claim each green-ready overview chest; unavailable challenge does not suppress ready chests and participation need not win. Runtime disabled; evidence_required; no current live acceptance. |
 | `alliance-help` | `alliance_help` | Ten actual successful free Help requests per reset, not ten taps; preserve partial quota and use Help All only when its exact request count is known. Runtime disabled; evidence_required; no current live acceptance. |
