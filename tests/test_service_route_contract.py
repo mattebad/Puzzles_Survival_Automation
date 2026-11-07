@@ -1385,7 +1385,19 @@ class BatchFSemanticContractTests(unittest.TestCase):
                 self, ROUTES[HALL_OF_WAR_FLOW_ID],
             ) as rig:
                 rig.runner.hall_mode = mode
-                rig.once()
+                report, = rig.once()
+                run, = rig.runs()
+                self.assertEqual(report["status"], expected_status, report)
+                self.assertEqual(run.consumed_actions, expected_counts[2])
+                if expected_status == "deferred":
+                    self.assertEqual(run.state, RunState.DEFERRED)
+                    self.assertFalse(rig.state.get_flow(HALL_OF_WAR_FLOW_ID).blocked)
+                    due = rig.state.get_flow(HALL_OF_WAR_FLOW_ID).next_due_at_utc
+                    self.assertGreater(due, rig.stop.now)
+                    inputs = list(rig.runner.inputs)
+                    with BotStateManager(rig.path) as restarted:
+                        self.assertEqual(rig.once(state=restarted), [])
+                    self.assertEqual(rig.runner.inputs, inputs)
                 result = rig.runner.last_result
                 self.assertEqual(result["status"], expected_status)
                 self.assertEqual(
