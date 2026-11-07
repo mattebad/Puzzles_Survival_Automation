@@ -1512,56 +1512,6 @@ def run_hall_of_war_native(context, arguments: Mapping[str, object]) -> Mapping[
     return result
 
 
-def validate_hall_of_war_native_result(result: Mapping[str, Any]) -> bool:
-    dispatch = result.get("dispatch_transport_calls")
-    reward = result.get("reward_claim_transport_calls")
-    talent_switch = result.get("talent_switch_transport_calls", 0)
-    aggregate = result.get("hall_of_war_dispatch_count")
-    committed = result.get("committed_action_count")
-    effect_unknown = result.get("effect_reconciliation_required")
-    retry_denied = result.get("identical_retry_denied")
-    if any(type(value) is not int or value not in (0, 1) for value in (dispatch, reward, talent_switch)):
-        return False
-    expected = aggregate_action_count(
-        dispatch_transport_calls=dispatch,
-        reward_claim_transport_calls=reward,
-        talent_switch_transport_calls=talent_switch,
-    )
-    if (
-        aggregate != expected
-        or type(committed) is not int
-        or not 0 <= committed <= expected
-        or expected > MAX_ACTIONS
-        or type(effect_unknown) is not bool
-        or type(retry_denied) is not bool
-    ):
-        return False
-    if (committed < expected or result.get("status") == "unresolved") and not effect_unknown:
-        return False
-    if effect_unknown and (result.get("status") != "unresolved" or not retry_denied):
-        return False
-    if result.get("accounting_verified") is not True:
-        return False
-    input_count = result.get("total_input_count")
-    if type(input_count) is not int or not 0 <= input_count <= MAX_INPUTS:
-        return False
-    if expected and not effect_unknown:
-        if (
-            dispatch and result.get("challenge_status") not in {"confirmed", "confirmed_prior_canonical_action"}
-            or reward and result.get("reward_status") != "claimed"
-        ):
-            return False
-    if result.get("status") == "complete_for_reset":
-        return (
-            result.get("terminal_home_verified") is True
-            and result.get("challenge_status") in {"confirmed", "confirmed_prior_canonical_action"}
-            and result.get("reward_status") in {"claimed", "already_claimed"}
-            and committed == expected
-            and not effect_unknown
-        )
-    return True
-
-
 def create_service_binding(make_native_route_binding):
     """Create the fixed native lifecycle binding without opening a device at import."""
     return make_native_route_binding(
@@ -1574,5 +1524,4 @@ def create_service_binding(make_native_route_binding):
         max_inputs=MAX_INPUTS,
         max_actions=MAX_ACTIONS,
         driver=run_hall_of_war_native,
-        validator=validate_hall_of_war_native_result,
     )

@@ -159,6 +159,9 @@ separate Daily Reward row claim; this is not canonical route acceptance, and une
 manual dispatch blocks an identical retry. Known unavailable-challenge/reward outcomes preserve
 confirmed progress and use a bounded 300-second policy re-observation, clipped to the UTC reset;
 this is not an observed game cooldown or an unknown-effect retry.
+The fixed native factory validates canonical requests through the shared native boundary; Hall
+result validation remains in its canonical adapter. A device-free actual held-lock/request probe
+passes before device open. This startup proof does not establish live gameplay acceptance.
 Training remains `evidence_required`: Fighter T8/current
 numeric maximum/continuous and Vehicle T1/current numeric maximum/continuous; Shooter T8/250 and
 Rider T1/250 once per reset. Verify exact current costs, before/after balances, current queue and
