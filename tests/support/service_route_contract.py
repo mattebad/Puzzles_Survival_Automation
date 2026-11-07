@@ -16,6 +16,7 @@ from automation_service.registry import (
     NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID,
     RECRUITMENT_FLOW_ID, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, SUPPLY_FLOW_ID,
     HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID,
+    WALI_UPGRADE_FLOW_ID,
     ULTIMATE_FLOW_ID, WORLD_FLOW_ID,
     canonical_entry,
 )
@@ -33,6 +34,7 @@ from tests.support.service_route_fakes import (
     GuardedPersonalMightRunner, GuardedRecruitmentRunner,
     GuardedRecommendedResearchRunner, GuardedResourceItemRunner, GuardedRuinsRunner,
     GuardedHallOfWarRunner, GuardedTroopTrainingRunner,
+    GuardedWaliUpgradeRunner,
     GuardedSupplyRunner, GuardedUltimateRunner,
 )
 from tests.support.service_stop import VirtualStop
@@ -197,6 +199,11 @@ ROUTES = {
         _work_by_default, _e_route_partial, (18, 2), (1, 0), 28,
         partial_outcome=SchedulerTaskOutcome.RECONCILIATION_REQUIRED,
     ),
+    WALI_UPGRADE_FLOW_ID: RouteSpec(
+        WALI_UPGRADE_FLOW_ID, lambda stop, root: GuardedWaliUpgradeRunner(stop, root),
+        _work_by_default, _e_route_partial, (8, 2), (1, 0), 12,
+        partial_outcome=SchedulerTaskOutcome.RECONCILIATION_REQUIRED,
+    ),
 }
 
 NOT_SERVABLE = {
@@ -279,6 +286,7 @@ class RouteRig:
             RUINS_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
             HERO_DUEL_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
             HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID,
+            WALI_UPGRADE_FLOW_ID,
         }:
             from datetime import datetime, timezone
             backend = derive_resource_runtime_identity(

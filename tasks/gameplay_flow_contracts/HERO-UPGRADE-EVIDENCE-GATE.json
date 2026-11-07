@@ -1,9 +1,9 @@
 {
   "schema_version": 2,
   "flow_id": "HERO-UPGRADE-EVIDENCE-GATE",
-  "product_purpose": "Observe approved three-per-reset Wali Hero Upgrade semantics without runtime dispatch until native evidence and route admission.",
+  "product_purpose": "Authorize only guarded Wali single-level upgrades and standard evolution; keep actual service registration, scheduler, and live route acceptance disabled until separately admitted.",
   "trigger_cadence_type": "evidence_gated",
-  "reset_scope": "up to three candidates per reset after explicit product decision",
+  "reset_scope": "exactly three confirmed single normal Wali level upgrades per reset; standard evolution may support remaining upgrades but never increments their count",
   "required_starting_context": [
     "home_canonical"
   ],
@@ -17,98 +17,201 @@
   "recognized_states": [
     "home_canonical",
     "hero",
+    "hero_evolution_preview",
+    "wali_bulk_upgrade_row",
     "upgrade_observation",
-    "blocked"
+    "evolution_settled",
+    "blocked",
+    "unknown"
   ],
   "transition_contracts": [
     {
-      "transition_id": "observe_hero_upgrade_route",
+      "transition_id": "navigate_home_to_hero",
       "from": "home_canonical",
       "to": "hero",
-      "planner": "HeroUpgradeEvidenceGate",
-      "permitted_input": null,
+      "planner": "navigate_home_to_hero",
+      "permitted_input": "navigate_to_hero",
       "postconditions": [
-        "Hero route remains an offline observation contract",
-        "no navigation input is authorized"
+        "canonical Home navigation uses the current shared navigation primitives",
+        "Hero screen and exact selected Wali state are positively recognized before a consequential action",
+        "current explicit authorization, active route lease/input lock, and fresh source/generation fence are required"
       ],
       "terminal_outcomes": [
-        "blocked"
+        "blocked",
+        "manual_required"
       ],
       "evidence_gate_id": "hero_upgrade_replay"
     },
     {
-      "transition_id": "observe_hero_upgrade_candidate",
+      "transition_id": "upgrade_wali_single_level",
       "from": "hero",
       "to": "upgrade_observation",
-      "planner": "HeroUpgradeEvidenceGate",
-      "permitted_input": null,
+      "planner": "hero_upgrade_spec",
+      "permitted_input": "upgrade_wali_single_level",
       "postconditions": [
-        "current Wali identity and selected-hero state are recognized",
-        "current level, next level, standard material, exact amount, balance, and Upgrade state are recognized",
-        "one-level successor, standard-material delta, completion progress, bounded 150-diamond exception state, and canonical Home evidence are captured"
+        "product hero_upgrade-v3, current reset identity, canonical confirmed count, and next normal-upgrade ordinal are current",
+        "exact selected Wali is stable below the displayed cap with a visible normal single-level Upgrade control, never bulk",
+        "the complete current ANTISERUM cost and sufficient balance are recognized before dispatch",
+        "current explicit authorization for the exact action, active route lease/input lock, and a fresh source/generation fence are required",
+        "one consequential input commits only after a settled Wali level-plus-one successor and exact ANTISERUM debit; the normal count increments exactly once",
+        "a dispatch attempt or unknown successor is not success and cannot be identically retried"
       ],
       "terminal_outcomes": [
+        "action_performed",
+        "deferred",
         "blocked"
       ],
       "evidence_gate_id": "hero_upgrade_replay"
     },
     {
-      "transition_id": "return_canonical_home",
-      "from": "upgrade_observation",
-      "to": "home_canonical",
-      "planner": "HeroUpgradeEvidenceGate",
-      "permitted_input": null,
+      "transition_id": "reveal_single_upgrade_successor",
+      "from": "wali_bulk_upgrade_row",
+      "to": "upgrade_observation",
+      "planner": "_reveal_single_upgrade_successor",
+      "permitted_input": "dismiss_wali_bulk_row",
       "postconditions": [
-        "canonical Home remains the required terminal state"
+        "after a sent single Upgrade, positively recognize the separate bulk row on the stable selected Wali detail surface",
+        "one non-spending Back may reveal current Wali details or the positively recognized Hero roster; only the latter permits current named Wali reselection",
+        "never press the bulk row, repeat an unknown dismissal, or credit navigation as a normal upgrade",
+        "the parent single Upgrade remains pending until its settled level-plus-one and exact ANTISERUM debit are independently verified",
+        "the current route lease, input lock, finite physical-input budget and fresh-source fences remain held"
       ],
       "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hero_upgrade_replay"
+    },
+    {
+      "transition_id": "evolve_wali_standard",
+      "from": "hero_evolution_preview",
+      "to": "evolution_settled",
+      "planner": "hero_evolution_spec",
+      "permitted_input": "evolve_wali_standard",
+      "postconditions": [
+        "exact selected Wali is stable at the displayed cap with the exact advertised next cap",
+        "the complete current affordable standard material vector is quoted and revalidated; no incompatible-unit sum is used",
+        "current explicit authorization for the exact standard evolution, active route lease/input lock, and a fresh source/generation fence are required",
+        "only a settled automatic level-plus-one and unique advertised cap transition plus exact ANTISERUM debit confirms evolution",
+        "each quoted standard manual is proven by an observed decrement, exact numeric spend receipt, or named usage toast bound to its after-frame references and settled successor",
+        "the route-owned normal-upgrade count is unchanged by evolution and persists through restart",
+        "missing or contradictory settlement is unknown and denies identical retry"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
         "blocked"
+      ],
+      "evidence_gate_id": "hero_upgrade_replay"
+    },
+    {
+      "transition_id": "return_normal_upgrade_to_canonical_home",
+      "from": "upgrade_observation",
+      "to": "home_canonical",
+      "planner": "safe_return_home",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "a current safe-return target, valid current route authorization, active route lease/input lock, and fresh source/generation fence are recognized",
+        "canonical Home is positively revalidated as the terminal state"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "hero_upgrade_replay"
+    },
+    {
+      "transition_id": "return_evolution_to_canonical_home",
+      "from": "evolution_settled",
+      "to": "home_canonical",
+      "planner": "safe_return_home",
+      "permitted_input": "safe_return_home",
+      "postconditions": [
+        "a current safe-return target, valid current route authorization, active route lease/input lock, and fresh source/generation fence are recognized",
+        "canonical Home is positively revalidated as the terminal state"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
       ],
       "evidence_gate_id": "hero_upgrade_replay"
     }
   ],
-  "permitted_inputs": [],
-  "consequential_action_class": "hero_upgrade_candidate_observation",
+  "permitted_inputs": [
+    "navigate_to_hero",
+    "upgrade_wali_single_level",
+    "evolve_wali_standard",
+    "dismiss_wali_bulk_row",
+    "safe_return_home"
+  ],
+  "consequential_action_class": "guarded_wali_single_normal_upgrade_and_standard_evolution",
   "cost_quantity_requirements": {
     "free_only": false,
     "maximum_cost": null,
     "quantity": 1,
-    "resource_or_currency": "STANDARD_HERO_MATERIAL_FIRST",
-    "standard_material_first": true,
-    "diamond_reset_exception": {
-      "allowed": true,
-      "amount": 150,
-      "unit": "DIAMONDS",
-      "only_when_needed": true,
-      "maximum_per_reset": 1
+    "resource_or_currency": null,
+    "normal_upgrade": {
+      "quantity": 1,
+      "material": "ANTISERUM",
+      "cost": "exact_current_observation",
+      "single_level_only": true,
+      "free_only": false
     },
-    "notes": "Approved product semantics use standard hero material first; one needed 150-diamond reset exception is bounded to once per reset. Current native evidence and route admission remain missing, so no dispatch is authorized."
+    "standard_evolution": {
+      "quantity": 1,
+      "materials": [
+        "ANTISERUM",
+        "COMBAT_MANUAL_I",
+        "COMBAT_MANUAL_II",
+        "COMBAT_MANUAL_III",
+        "COMBAT_MANUAL_IV",
+        "COMBAT_MANUAL_V"
+      ],
+      "exact_current_vector_and_balances_required": true,
+      "free_only": false
+    },
+    "normal_upgrade_count_per_reset": 3,
+    "evolution_counts_toward_normal_upgrade_count": false,
+    "reset_campaign_diamond_path": {
+      "status": "evidence_required",
+      "operationally_blocked": true,
+      "campaign_block_proven": false,
+      "final_150_diamond_confirmation_proven": false,
+      "dispatch_allowed": false
+    },
+    "notes": "Read actual costs, balances, level, and next cap from the current Wali surface; no prices or cap ladder are policy constants. No Daily, D02, points, premium materials, or reset input is authorized."
   },
-  "completion_identity": "hero-upgrade:candidate:observed",
+  "completion_identity": "hero-upgrade:normal-single-level:<reset-identity>:<ordinal>",
   "terminal_outcomes": [
+    "action_performed",
+    "complete_for_reset",
+    "already_complete",
     "deferred",
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "Keep the Wali candidate dormant until native evidence and route admission are current; never schedule or register this flow.",
-  "bounded_recovery_behavior": "Stop on unknown or ambiguous Wali identity, level, material, cost, balance, exception state, successor, progress, or terminal Home state; deny identical retry and any unbounded diamond spend.",
+  "cooldown_deferred_behavior": "Keep service registration, enablement, and scheduling disabled. Each semantically approved input still requires current explicit authorization, an active route lease/input lock, and a fresh source/generation fence; shortage may defer without changing the confirmed prefix, and unresolved evidence returns unknown without identical retry.",
+  "bounded_recovery_behavior": "A normal single Upgrade opens a separate bulk row that may occlude the material balance. Positively identify that row, use at most one non-spending Back per pending single action, and recognize either current Wali details or the Hero roster followed by current named Wali reselection. Never press the bulk row or repeat an unknown dismissal. Commit only a settled level-plus-one with the exact ANTISERUM debit. Persist confirmed normal actions across evolution and restart. Missing or contradictory settlement, receipt, cost, balance, or reset identity is unknown; deny identical retry. The Campaign/reset/150-diamond path remains evidence_required and blocked.",
   "evidence_requirements": [
-    "Current native Hero surface, Wali identity, selected state, and Upgrade control are missing.",
-    "Current level transition, exact standard hero material and amount, balance, one-level successor, material delta, bounded 150-diamond exception, completion progress, and quantity-one evidence are missing.",
-    "Canonical Home return and production-controller route/session proof are missing."
+    "Immutable native source captures show one standard Wali evolution with a named '[Combat Manual I] used' toast and a settled Wali Lv11/new-cap-30 successor with an Antiserum debit; this is an evidence shape, not full-route live acceptance or a cost constant.",
+    "A complete three-confirmed-normal-upgrade route, persisted partial prefix across restart, normal-action exact debit, and durable unknown/no-identical-retry result remain unproven.",
+    "Production-controller route/session acceptance and a verified canonical Home terminal frame remain required."
   ],
   "evidence_gates": [
     {
       "gate_id": "hero_upgrade_replay",
       "status": "evidence_required",
       "blocks": [
-        "observe_hero_upgrade_route",
-        "observe_hero_upgrade_candidate",
-        "return_canonical_home"
+        "navigate_home_to_hero",
+        "upgrade_wali_single_level",
+        "reveal_single_upgrade_successor",
+        "evolve_wali_standard",
+        "return_normal_upgrade_to_canonical_home",
+        "return_evolution_to_canonical_home"
       ],
       "required_evidence": [
-        "hash-bound native Hero Upgrade surface corpus",
-        "production-controller positive route/session replay"
+        "offline scenarios cover single-level quota, evolution without count credit, restart/partial persistence, shortages, and unknown/no identical retry",
+        "production-controller positive route/session replay uses current Wali selection and settled resource evidence"
       ],
       "permitted_inputs": []
     }
@@ -120,11 +223,20 @@
       "start_state": "home_canonical",
       "terminal_state": "blocked",
       "permitted_inputs": [],
-      "forbidden_inputs": [],
+      "forbidden_inputs": [
+        "navigate_to_hero",
+        "upgrade_wali_single_level",
+        "evolve_wali_standard",
+        "dismiss_wali_bulk_row",
+        "safe_return_home"
+      ],
       "required_transitions": [
-        "observe_hero_upgrade_route",
-        "observe_hero_upgrade_candidate",
-        "return_canonical_home"
+        "navigate_home_to_hero",
+        "upgrade_wali_single_level",
+        "reveal_single_upgrade_successor",
+        "evolve_wali_standard",
+        "return_normal_upgrade_to_canonical_home",
+        "return_evolution_to_canonical_home"
       ],
       "evidence_gate_ids": [
         "hero_upgrade_replay"
@@ -136,35 +248,36 @@
       "fixture_id": "hero_upgrade_native_surface",
       "status": "required_evidence",
       "path": null,
-      "notes": "Synthetic disabled-upgrade arithmetic does not establish current Wali identity, level, material, exact amount, balance, or product authorization."
+      "notes": "The immutable source pair establishes the named manual receipt plus stable cap transition. Synthetic task scenarios are not live evidence; no complete three-normal-upgrade route fixture or acceptance is claimed."
     }
   ],
   "unsupported_or_manual_only_states": [
-    "Upgrade dispatch before native evidence and route admission",
+    "current explicit authorization absent or not bound to exact action/reset",
+    "active route lease, input lock, or fresh source/generation fence missing",
+    "bulk upgrade",
     "premium material",
-    "premium currency outside the 150-diamond reset exception",
-    "unknown hero",
-    "ambiguous hero",
-    "unknown level",
-    "ambiguous level",
-    "unknown material",
-    "ambiguous material",
-    "unknown cost",
-    "ambiguous cost",
+    "premium currency",
+    "unknown or ambiguous selected hero",
+    "unknown or ambiguous level",
+    "unknown or ambiguous displayed cap or next cap",
+    "unknown or ambiguous material or exact cost",
     "insufficient material balance",
-    "unbounded diamond spend",
-    "diamond reset without need",
-    "diamond reset above 150",
-    "repeated 150-diamond reset exception",
-    "completion progress greater than three",
-    "identical retry",
+    "missing or contradictory Antiserum debit",
+    "missing or contradictory manual decrement, numeric spend receipt, or named usage toast",
+    "normal upgrade count greater than three per reset",
+    "counting automatic evolution level change as a normal upgrade",
+    "Campaign/reset/150-diamond path before exact block and final confirmation evidence",
+    "Daily prerequisite",
+    "D02 prerequisite",
+    "points prerequisite",
+    "identical retry after an unknown action",
     "real-money confirmation",
     "registration",
     "scheduler"
   ],
-  "implementation_status": "contract_only",
+  "implementation_status": "reference_implemented",
   "proof_state": "evidence_required",
-  "offline_proof_state": "current",
+  "offline_proof_state": "evidence_required",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "evidence_required",
   "product_policy_refs": [
@@ -177,11 +290,11 @@
   "production_eligible": false,
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r19",
-    "product_authority_digest": "a343f9f592ad18fa367b2d3e82be179866677fd3278cdc0cb4e31f54fae79057",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r20",
+    "product_authority_digest": "a451cb1b252e982eb412e8b9e0583bfe111c38c26f728952e81b56aeb1f60972",
     "product_record_id": "hero_upgrade",
-    "product_record_revision": "hero_upgrade-v2",
-    "product_record_digest": "3eaddcecb4a075404bfc1ccfbcc8a55ba09bd167a89604646878a12f9822306f",
+    "product_record_revision": "hero_upgrade-v3",
+    "product_record_digest": "0cadd4f28e0d4a035e70f91e2ac910b4639d4eed6bc0347dd98f77d8a9d9527d",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

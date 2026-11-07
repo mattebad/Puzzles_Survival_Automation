@@ -1,0 +1,349 @@
+{
+  "schema_version": 1,
+  "profile": {
+    "logical_size": [
+      800,
+      1280
+    ],
+    "dpi": 160,
+    "runtime_profile": "native-800x1280"
+  },
+  "templates": [
+    {
+      "id": "combat-manual-i",
+      "path": "combat-manual-i.png",
+      "file_sha256": "7d5d1e7ff3aa571b1d139f9d1c8f5b794443976597961c476e1f6a1a49194be2",
+      "intended_visual_variant": "Observed standard Combat Manual I evolution-cost card icon, excluding variable owned/cost numbers",
+      "source": {
+        "path": ".local-captures/development-sessions/investigation2-cua-owner-20261106T232501213650Z/0038-wali-confirm-first-evolution-before.png",
+        "file_sha256": "de705996420a35cd4bef8ca5f8f966c805074e1a659dbf40603dbfe41d4bf74b",
+        "viewport_xyxy": [
+          0,
+          34,
+          738,
+          1212
+        ],
+        "normalized_size": [
+          800,
+          1280
+        ],
+        "crop_coordinate_space": "normalized_native_viewport",
+        "crop_xyxy": [
+          357,
+          702,
+          446,
+          773
+        ]
+      },
+      "identity_evidence": {
+        "path": ".local-captures/development-sessions/investigation2-cua-owner-20261106T232501213650Z/0040-wali-confirm-first-evolution-settled.png",
+        "file_sha256": "54587d8dc2ff4d64f09bf51f731418af00cc88fffef991e358f3d749dbaf8fe8",
+        "observation": "[Combat Manual I] used; this named receipt establishes the historical icon identity, not current ownership or route acceptance"
+      },
+      "template_pixel_size": [
+        89,
+        71
+      ],
+      "runtime_profile": "native-800x1280",
+      "minimum_score": 0.97,
+      "tier_roi_xyxy": [
+        10,
+        43,
+        79,
+        69
+      ],
+      "minimum_tier_score": 0.97,
+      "recognition_only": true,
+      "notes": "Match the whole proven icon AND its full one-star tier region; star count alone, row position and historical quantities are not identity. Re-read all numeric quantities and reject any unmatched material card. This derived recognition asset is not a live acceptance receipt or execution authority."
+    },
+    {
+      "id": "combat-manual-ii",
+      "path": "combat-manual-ii.png",
+      "file_sha256": "24f59b8cc94cc5f94f117b7ce047d4dacdd133cfb58eba16b0a7060144064b03",
+      "intended_visual_variant": "Owner-identified standard Combat Manual II evolution-cost card icon, excluding variable owned/cost numbers",
+      "source": {
+        "path": ".local-captures/development-sessions/investigation2-cua-owner-20261106T232501213650Z/0014-ulrik-evolve-requirements-settled.png",
+        "file_sha256": "d537755de1464111b1a983ebd9e924584bbc30d21e8e52d896cf316d4ecf2be8",
+        "viewport_xyxy": [
+          0,
+          34,
+          738,
+          1212
+        ],
+        "normalized_size": [
+          800,
+          1280
+        ],
+        "crop_coordinate_space": "normalized_native_viewport",
+        "crop_xyxy": [
+          230,
+          534,
+          320,
+          605
+        ]
+      },
+      "identity_evidence": {
+        "reference": "https://github.com/mattebad/Puzzles_Survival_Automation/issues/74",
+        "observation": "Owner investigation explicitly identifies the five current preview requirements as Combat Manual I/II/III/IV/V; this source card maps the named tier and observed color/star graphic. No Ulrik evolution was performed; none is authorized by this recognition asset."
+      },
+      "template_pixel_size": [
+        90,
+        71
+      ],
+      "runtime_profile": "native-800x1280",
+      "minimum_score": 0.97,
+      "tier_roi_xyxy": [
+        10,
+        43,
+        80,
+        69
+      ],
+      "minimum_tier_score": 0.97,
+      "recognition_only": true,
+      "notes": "Require the source-proven whole icon AND complete tier region, never infer tier from star count alone, row order or historical prices. Re-read every numeric amount; all current material cards must be accounted for. Not a gameplay effect receipt or live authority."
+    },
+    {
+      "id": "combat-manual-iii",
+      "path": "combat-manual-iii.png",
+      "file_sha256": "1a23c149c501a92d8d8cf995b2ba19d0889a6920c6281cf9c7e1fea367d397eb",
+      "intended_visual_variant": "Owner-identified standard Combat Manual III evolution-cost card icon, excluding variable owned/cost numbers",
+      "source": {
+        "path": ".local-captures/development-sessions/investigation2-cua-owner-20261106T232501213650Z/0014-ulrik-evolve-requirements-settled.png",
+        "file_sha256": "d537755de1464111b1a983ebd9e924584bbc30d21e8e52d896cf316d4ecf2be8",
+        "viewport_xyxy": [
+          0,
+          34,
+          738,
+          1212
+        ],
+        "normalized_size": [
+          800,
+          1280
+        ],
+        "crop_coordinate_space": "normalized_native_viewport",
+        "crop_xyxy": [
+          353,
+          534,
+          444,
+          605
+        ]
+      },
+      "identity_evidence": {
+        "reference": "https://github.com/mattebad/Puzzles_Survival_Automation/issues/74",
+        "observation": "Owner investigation explicitly identifies the five current preview requirements as Combat Manual I/II/III/IV/V; this source card maps the named tier and observed color/star graphic. No Ulrik evolution was performed; none is authorized by this recognition asset."
+      },
+      "template_pixel_size": [
+        91,
+        71
+      ],
+      "runtime_profile": "native-800x1280",
+      "minimum_score": 0.97,
+      "tier_roi_xyxy": [
+        10,
+        43,
+        81,
+        69
+      ],
+      "minimum_tier_score": 0.97,
+      "recognition_only": true,
+      "notes": "Require the source-proven whole icon AND complete tier region, never infer tier from star count alone, row order or historical prices. Re-read every numeric amount; all current material cards must be accounted for. Not a gameplay effect receipt or live authority."
+    },
+    {
+      "id": "combat-manual-iv",
+      "path": "combat-manual-iv.png",
+      "file_sha256": "dc3ba018df2761679f5c00503da83c3f6edac83f5d0f483b8faf8196cb8c1652",
+      "intended_visual_variant": "Owner-identified standard Combat Manual IV evolution-cost card icon, excluding variable owned/cost numbers",
+      "source": {
+        "path": ".local-captures/development-sessions/investigation2-cua-owner-20261106T232501213650Z/0014-ulrik-evolve-requirements-settled.png",
+        "file_sha256": "d537755de1464111b1a983ebd9e924584bbc30d21e8e52d896cf316d4ecf2be8",
+        "viewport_xyxy": [
+          0,
+          34,
+          738,
+          1212
+        ],
+        "normalized_size": [
+          800,
+          1280
+        ],
+        "crop_coordinate_space": "normalized_native_viewport",
+        "crop_xyxy": [
+          477,
+          534,
+          568,
+          605
+        ]
+      },
+      "identity_evidence": {
+        "reference": "https://github.com/mattebad/Puzzles_Survival_Automation/issues/74",
+        "observation": "Owner investigation explicitly identifies the five current preview requirements as Combat Manual I/II/III/IV/V; this source card maps the named tier and observed color/star graphic. No Ulrik evolution was performed; none is authorized by this recognition asset."
+      },
+      "template_pixel_size": [
+        91,
+        71
+      ],
+      "runtime_profile": "native-800x1280",
+      "minimum_score": 0.97,
+      "tier_roi_xyxy": [
+        10,
+        43,
+        81,
+        69
+      ],
+      "minimum_tier_score": 0.97,
+      "recognition_only": true,
+      "notes": "Require the source-proven whole icon AND complete tier region, never infer tier from star count alone, row order or historical prices. Re-read every numeric amount; all current material cards must be accounted for. Not a gameplay effect receipt or live authority."
+    },
+    {
+      "id": "combat-manual-v",
+      "path": "combat-manual-v.png",
+      "file_sha256": "b1f9ad84b653c517b483fd33d05e66018a7390aac320811fa904797bed13600b",
+      "intended_visual_variant": "Owner-identified standard Combat Manual V evolution-cost card icon, excluding variable owned/cost numbers",
+      "source": {
+        "path": ".local-captures/development-sessions/investigation2-cua-owner-20261106T232501213650Z/0014-ulrik-evolve-requirements-settled.png",
+        "file_sha256": "d537755de1464111b1a983ebd9e924584bbc30d21e8e52d896cf316d4ecf2be8",
+        "viewport_xyxy": [
+          0,
+          34,
+          738,
+          1212
+        ],
+        "normalized_size": [
+          800,
+          1280
+        ],
+        "crop_coordinate_space": "normalized_native_viewport",
+        "crop_xyxy": [
+          602,
+          534,
+          692,
+          605
+        ]
+      },
+      "identity_evidence": {
+        "reference": "https://github.com/mattebad/Puzzles_Survival_Automation/issues/74",
+        "observation": "Owner investigation explicitly identifies the five current preview requirements as Combat Manual I/II/III/IV/V; this source card maps the named tier and observed color/star graphic. No Ulrik evolution was performed; none is authorized by this recognition asset."
+      },
+      "template_pixel_size": [
+        90,
+        71
+      ],
+      "runtime_profile": "native-800x1280",
+      "minimum_score": 0.97,
+      "tier_roi_xyxy": [
+        10,
+        43,
+        80,
+        69
+      ],
+      "minimum_tier_score": 0.97,
+      "recognition_only": true,
+      "notes": "Require the source-proven whole icon AND complete tier region, never infer tier from star count alone, row order or historical prices. Re-read every numeric amount; all current material cards must be accounted for. Not a gameplay effect receipt or live authority."
+    },
+    {
+      "id": "antiserum-detail",
+      "path": "antiserum-detail.png",
+      "file_sha256": "2f7b2947a44de91de0c634f7fcb51801d4e110b0b07ac6104dbf4b722dc7a72a",
+      "material": "ANTISERUM",
+      "source": {
+        "path": ".local-captures/development-sessions/investigation2-cua-owner-20261106T232501213650Z/0041-wali-evolution-final-settled.png",
+        "file_sha256": "32300e931f3fdc5d33446407e79795ad9ea4079ffe33586da6356de52f476abd",
+        "viewport_xyxy": [
+          0,
+          34,
+          738,
+          1212
+        ],
+        "normalized_size": [
+          800,
+          1280
+        ],
+        "crop_coordinate_space": "normalized_native_viewport",
+        "crop_xyxy": [
+          242,
+          1106,
+          292,
+          1152
+        ]
+      },
+      "template_pixel_size": [
+        50,
+        46
+      ],
+      "runtime_profile": "native-800x1280",
+      "minimum_score": 0.97,
+      "recognition_only": true,
+      "notes": "Historical selected-Wali Antiserum tube identity only. Re-read the exact current numeric quote; no historical balance, current ownership, effect acceptance or live authorization is inferred."
+    },
+    {
+      "id": "antiserum-preview",
+      "path": "antiserum-preview.png",
+      "file_sha256": "51d4afa27a53f4bfd6a8241ea6bd3bd6cd8abf4a7b909a66a34f3647415bb996",
+      "material": "ANTISERUM",
+      "source": {
+        "path": ".local-captures/development-sessions/investigation2-cua-owner-20261106T232501213650Z/0038-wali-confirm-first-evolution-before.png",
+        "file_sha256": "de705996420a35cd4bef8ca5f8f966c805074e1a659dbf40603dbfe41d4bf74b",
+        "viewport_xyxy": [
+          0,
+          34,
+          738,
+          1212
+        ],
+        "normalized_size": [
+          800,
+          1280
+        ],
+        "crop_coordinate_space": "normalized_native_viewport",
+        "crop_xyxy": [
+          281,
+          793,
+          326,
+          836
+        ]
+      },
+      "template_pixel_size": [
+        45,
+        43
+      ],
+      "runtime_profile": "native-800x1280",
+      "minimum_score": 0.97,
+      "recognition_only": true,
+      "notes": "Historical selected-Wali Antiserum tube identity only. Re-read the exact current numeric quote; no historical balance, current ownership, effect acceptance or live authorization is inferred."
+    },
+    {
+      "id": "antiserum-preview-compact",
+      "path": "antiserum-preview-compact.png",
+      "file_sha256": "17513eb4f8341f4135ec4c1b8e5839b23c2bfe1ea9b9a3f7708b15eea8fbac36",
+      "material": "ANTISERUM",
+      "source": {
+        "path": ".local-captures/development-sessions/investigation2-cua-owner-20261106T232501213650Z/0014-ulrik-evolve-requirements-settled.png",
+        "file_sha256": "d537755de1464111b1a983ebd9e924584bbc30d21e8e52d896cf316d4ecf2be8",
+        "viewport_xyxy": [
+          0,
+          34,
+          738,
+          1212
+        ],
+        "normalized_size": [
+          800,
+          1280
+        ],
+        "crop_coordinate_space": "normalized_native_viewport",
+        "crop_xyxy": [
+          252,
+          620,
+          306,
+          669
+        ]
+      },
+      "template_pixel_size": [
+        54,
+        49
+      ],
+      "runtime_profile": "native-800x1280",
+      "minimum_score": 0.97,
+      "recognition_only": true,
+      "notes": "Antiserum identity in the observed compact preview layout only; Ulrik is not an allowed action subject. No historical price, current balance, hero selection, evolution acceptance or live authority is inferred."
+    }
+  ]
+}

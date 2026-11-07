@@ -257,42 +257,6 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])
 
-    def test_hero_upgrade_contract_is_observation_only_and_wali_semantics_fail_closed(self):
-        contract = load_flow_contract("HERO-UPGRADE-EVIDENCE-GATE")
-        self.assertEqual(contract["schema_version"], 2)
-        self.assertEqual(
-            contract["product_policy_refs"][0]["policy_id"],
-            "hero-upgrade-policy",
-        )
-        self.assertEqual(contract["permitted_inputs"], [])
-        requirements = contract["cost_quantity_requirements"]
-        self.assertIsNone(requirements["maximum_cost"])
-        self.assertEqual(
-            requirements["resource_or_currency"],
-            "STANDARD_HERO_MATERIAL_FIRST",
-        )
-        self.assertTrue(requirements["standard_material_first"])
-        exception = requirements["diamond_reset_exception"]
-        self.assertTrue(exception["allowed"])
-        self.assertEqual(exception["amount"], 150)
-        self.assertTrue(exception["only_when_needed"])
-        self.assertEqual(exception["maximum_per_reset"], 1)
-        self.assertEqual(contract["implementation_status"], "contract_only")
-        self.assertEqual(contract["proof_state"], "evidence_required")
-        self.assertEqual(contract["registration_state"], "disabled")
-        self.assertFalse(contract["production_eligible"])
-        unsupported = " ".join(contract["unsupported_or_manual_only_states"]).casefold()
-        self.assertIn("upgrade dispatch before native evidence", unsupported)
-        self.assertIn("unbounded diamond spend", unsupported)
-        self.assertNotIn("material spend", unsupported)
-        scenario = contract["scenarios"][0]
-        self.assertEqual(scenario["mode"], "blocked_until_evidence")
-        self.assertEqual(scenario["permitted_inputs"], [])
-        self.assertEqual(
-            contract["product_authority_binding"]["product_record_id"],
-            "hero_upgrade",
-        )
-
     def test_hero_duel_contract_binds_approved_cycle_semantics_but_stays_disabled(self):
         contract = load_flow_contract("HERO-DUEL-EVIDENCE-GATE")
         self.assertEqual(contract["schema_version"], 2)

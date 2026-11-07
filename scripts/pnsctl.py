@@ -50,6 +50,7 @@ from automation_service.registry import (  # noqa: E402
     HALL_OF_WAR_FLOW_ID,
     TROOP_TRAINING_FLOW_ID,
     TROOP_TRAINING_MAX_INPUTS,
+    WALI_UPGRADE_FLOW_ID,
     ULTIMATE_FLOW_ID,
     WORLD_FLOW_ID,
 )
@@ -290,6 +291,9 @@ def _native_service_route_bindings() -> Mapping[str, NativeRouteBoundary]:
     from scripts.troop_training_bluestacks import (
         create_service_binding as create_troop_training_binding,
     )
+    from scripts.wali_upgrade_bluestacks import (
+        create_service_binding as create_wali_upgrade_binding,
+    )
 
     return {
         DAILY_REWARDS_FLOW_ID: create_daily_rewards_binding(
@@ -316,6 +320,7 @@ def _native_service_route_bindings() -> Mapping[str, NativeRouteBoundary]:
         FOOD_FARM_BOOST_FLOW_ID: create_food_farm_boost_binding(make_native_route_binding),
         HALL_OF_WAR_FLOW_ID: create_hall_of_war_binding(make_native_route_binding),
         TROOP_TRAINING_FLOW_ID: create_troop_training_binding(make_native_route_binding),
+        WALI_UPGRADE_FLOW_ID: create_wali_upgrade_binding(make_native_route_binding),
     }
 
 

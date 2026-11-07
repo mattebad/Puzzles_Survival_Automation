@@ -19,7 +19,7 @@ from automation_service.registry import (
     NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID, NOVA_FLOW_ID,
     PERSONAL_MIGHT_FLOW_ID, RECOMMENDED_RESEARCH_FLOW_ID, RECRUITMENT_FLOW_ID,
     REGISTRY_PATH, RESOURCE_ITEM_FLOW_ID, RUINS_FLOW_ID, SUPPLY_FLOW_ID,
-    TROOP_TRAINING_FLOW_ID, ULTIMATE_FLOW_ID, canonical_entry,
+    TROOP_TRAINING_FLOW_ID, ULTIMATE_FLOW_ID, WALI_UPGRADE_FLOW_ID, canonical_entry,
     canonical_flow_specs,
 )
 from automation_service.alliance_donation import alliance_donation_next_due
@@ -104,7 +104,7 @@ class DisabledByDefaultTests(unittest.TestCase):
                         DAILY_SHOPS_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
                         NANOWEAPON_FLOW_ID, HERO_DUEL_FLOW_ID,
                         RECOMMENDED_RESEARCH_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
-                        TROOP_TRAINING_FLOW_ID, HALL_OF_WAR_FLOW_ID,
+                        TROOP_TRAINING_FLOW_ID, HALL_OF_WAR_FLOW_ID, WALI_UPGRADE_FLOW_ID,
                     }:
                         adapter = importlib.import_module(
                             "automation_service." + entry.cli_name.replace("-", "_"),
@@ -139,6 +139,7 @@ class DisabledByDefaultTests(unittest.TestCase):
                             ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
                             DAILY_SHOPS_FLOW_ID, HERO_DUEL_FLOW_ID,
                             RECOMMENDED_RESEARCH_FLOW_ID, FOOD_FARM_BOOST_FLOW_ID,
+                            WALI_UPGRADE_FLOW_ID,
                         }:
                             self.assertTrue(entry.descriptor.reset_scoped)
                             self.assertEqual(entry.descriptor.cadence, "cooldown_pulse")
@@ -172,7 +173,7 @@ class RestartBeforeDueTests(unittest.TestCase):
             ALLIANCE_DONATION_FLOW_ID: (40, 10),
             ALLIANCE_SHOP_FLOW_ID: (24, 1), DAILY_SHOPS_FLOW_ID: (48, 2),
             HERO_DUEL_FLOW_ID: (20, 3), FOOD_FARM_BOOST_FLOW_ID: (4, 2),
-            HALL_OF_WAR_FLOW_ID: (18, 2),
+            HALL_OF_WAR_FLOW_ID: (18, 2), WALI_UPGRADE_FLOW_ID: (12, 3),
         }
         for flow_id, spec in ROUTES.items():
             if (flow_id, "restart_before_due") in EXCEPTIONS:
@@ -230,7 +231,7 @@ class BorrowedOwnerTests(unittest.TestCase):
             RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_DONATION_FLOW_ID,
             ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
             NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
-            HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID,
+            HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID, WALI_UPGRADE_FLOW_ID,
         }
         for flow_id, spec in ROUTES.items():
             with self.subTest(route=flow_id):
@@ -273,7 +274,7 @@ class BorrowedOwnerTests(unittest.TestCase):
                             RUINS_FLOW_ID, ALLIANCE_HELP_FLOW_ID, ALLIANCE_DONATION_FLOW_ID,
                             ALLIANCE_SHOP_FLOW_ID, DAILY_SHOPS_FLOW_ID,
                             NANO_MATERIAL_PRODUCTION_FLOW_ID, NANOWEAPON_FLOW_ID,
-                            HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID,
+                            HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID, WALI_UPGRADE_FLOW_ID,
                         }:
                             run, = rig.runs()
                             action_budgets = {
@@ -282,6 +283,7 @@ class BorrowedOwnerTests(unittest.TestCase):
                                 DAILY_SHOPS_FLOW_ID: 2, NANO_MATERIAL_PRODUCTION_FLOW_ID: 2,
                                 NANOWEAPON_FLOW_ID: 4,
                                 HALL_OF_WAR_FLOW_ID: 2, TROOP_TRAINING_FLOW_ID: 12,
+                                WALI_UPGRADE_FLOW_ID: 6,
                             }
                             self.assertEqual(run.max_actions, action_budgets[flow_id])
                             self.assertLessEqual(run.consumed_actions, action_budgets[flow_id])
@@ -291,7 +293,7 @@ class BorrowedOwnerTests(unittest.TestCase):
                             ALLIANCE_DONATION_FLOW_ID, ALLIANCE_SHOP_FLOW_ID,
                             DAILY_SHOPS_FLOW_ID, NANO_MATERIAL_PRODUCTION_FLOW_ID,
                             NANOWEAPON_FLOW_ID,
-                            HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID,
+                            HALL_OF_WAR_FLOW_ID, TROOP_TRAINING_FLOW_ID, WALI_UPGRADE_FLOW_ID,
                         }:
                             run, = rig.runs()
                             transport_fields = {
@@ -306,6 +308,7 @@ class BorrowedOwnerTests(unittest.TestCase):
                                 NANOWEAPON_FLOW_ID: "nanoweapon_dispatch_count",
                                 HALL_OF_WAR_FLOW_ID: "hall_of_war_dispatch_count",
                                 TROOP_TRAINING_FLOW_ID: "training_dispatch_count",
+                                WALI_UPGRADE_FLOW_ID: "total_action_count",
                             }
                             expected_calls = {
                                 DAILY_REWARDS_FLOW_ID: 1,
@@ -318,6 +321,7 @@ class BorrowedOwnerTests(unittest.TestCase):
                                 NANO_MATERIAL_PRODUCTION_FLOW_ID: 1,
                                 NANOWEAPON_FLOW_ID: 2,
                                 HALL_OF_WAR_FLOW_ID: 2, TROOP_TRAINING_FLOW_ID: 4,
+                                WALI_UPGRADE_FLOW_ID: 3,
                             }
                             result = reports[0]["result"]
                             expected = expected_calls[flow_id]
@@ -479,6 +483,16 @@ class PartialResultTests(unittest.TestCase):
                             (2, 2, 1),
                         )
                         self.assertEqual(result["resource_box_dispatch_count"], 0)
+                        self.assertTrue(result["effect_reconciliation_required"])
+                        self.assertTrue(result["identical_retry_denied"])
+                        self.assertFalse(result["terminal_home_verified"])
+                    elif flow_id == WALI_UPGRADE_FLOW_ID:
+                        result = rig.runner.last_result
+                        self.assertEqual(
+                            (result["total_action_count"], result["committed_action_count"],
+                             result["confirmed_upgrades"], result["evolution_committed_count"]),
+                            (2, 1, 1, 0),
+                        )
                         self.assertTrue(result["effect_reconciliation_required"])
                         self.assertTrue(result["identical_retry_denied"])
                         self.assertFalse(result["terminal_home_verified"])

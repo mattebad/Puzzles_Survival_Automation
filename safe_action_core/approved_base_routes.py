@@ -49,6 +49,9 @@ RUINS_REVISION = "ruins_challenge-v1"
 TROOP_TRAINING_TASK = "TROOP-TRAINING-END-TO-END-CONSOLIDATION"
 TROOP_TRAINING_PRODUCT = "troop_training"
 TROOP_TRAINING_REVISION = "troop_training-v3"
+WALI_UPGRADE_TASK = "HERO-UPGRADE-EVIDENCE-GATE"
+WALI_UPGRADE_PRODUCT = "hero_upgrade"
+WALI_UPGRADE_REVISION = "hero_upgrade-v3"
 
 from .models import ActionClass, PolicyDecision, PolicyRequest
 
@@ -61,6 +64,7 @@ _APPROVED_ROUTE_TASKS = frozenset({
     DONATION_TASK, ALLIANCE_SHOP_TASK, DAILY_SHOPS_TASK, NANO_PRODUCTION_TASK,
     NANOWEAPON_TASK, RECOMMENDED_RESEARCH_TASK, TROOP_TRAINING_TASK, ALLIANCE_HELP_TASK,
     RUINS_TASK, HERO_DUEL_TASK, FOOD_FARM_TASK, HALL_OF_WAR_TASK,
+    WALI_UPGRADE_TASK,
 })
 _APPROVED_ROUTE_ACTION_TASKS = {
     "DONATE_ALLIANCE_TECH": DONATION_TASK,
@@ -85,6 +89,8 @@ _APPROVED_ROUTE_ACTION_TASKS = {
     "buy_food_farm_output_boost_diamonds": FOOD_FARM_TASK,
     "HALL_OF_WAR_ZOMBIE_ZERO_DISPATCH": HALL_OF_WAR_TASK,
     "HALL_OF_WAR_ZOMBIE_ZERO_DAILY_REWARD_CLAIM": HALL_OF_WAR_TASK,
+    "HERO_UPGRADE_SINGLE": WALI_UPGRADE_TASK,
+    "HERO_EVOLUTION_STANDARD": WALI_UPGRADE_TASK,
 }
 
 
@@ -161,6 +167,7 @@ def _contract_matches(
     maximum_cost: Optional[int],
     free_only: bool,
     require_isolated: bool = True,
+    semantic_postconditions: Optional[Tuple[str, ...]] = None,
 ) -> bool:
     observation = request.observation
     if (
@@ -189,7 +196,9 @@ def _contract_matches(
             and (type(request.maximum_cost) is not int or request.maximum_cost != maximum_cost)
         )
         or request.free_only is not free_only
-        or request.semantic_postconditions != (postcondition,)
+        or request.semantic_postconditions != (
+            (postcondition,) if semantic_postconditions is None else semantic_postconditions
+        )
         or (require_isolated and observation.target_isolated is not True)
     ):
         return False
@@ -1351,6 +1360,115 @@ def _farm_resource_vector(value: str) -> bool:
     return True
 
 
+def _wali_upgrade(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
+    deny = _deny("WALI_UPGRADE_ACTION_NOT_EXACT", "only a selected Wali single level or bounded standard evolution is approved")
+    evolution = request.semantic_action == "HERO_EVOLUTION_STANDARD"
+    if request.semantic_action not in {"HERO_UPGRADE_SINGLE", "HERO_EVOLUTION_STANDARD"}:
+        return deny
+    tokens = request.semantic_preconditions
+    if (
+        type(tokens) is not tuple or any(type(token) is not str for token in tokens)
+        or len(tokens) not in ({22, 24, 26, 28, 30} if evolution else {19})
+        or not isinstance(request.game_day_id, str) or not request.game_day_id.strip()
+        or type(request.observation.quantity) is not int
+        or request.allowed_confirmation_dialogs != ()
+    ):
+        return deny
+    # The existing capability binds action_id. Bind every current quote field
+    # there while retaining the reset/ordinal action_key for durable deduplication.
+    quote = json.dumps([request.action_key, list(tokens)], ensure_ascii=True, separators=(",", ":"))
+    if request.action_id != "wali-upgrade:" + hashlib.sha256(quote.encode("utf-8")).hexdigest():
+        return deny
+    confirmed = _integer_token(_field(tokens[3], "confirmed_upgrades="), maximum=2)
+    if confirmed is None or tokens[:7] != (
+        f"product_id={WALI_UPGRADE_PRODUCT}",
+        f"product_revision={WALI_UPGRADE_REVISION}",
+        f"reset_identity={request.game_day_id}",
+        f"confirmed_upgrades={confirmed}",
+        f"next_upgrade_ordinal={confirmed + 1}",
+        "hero_identity=Wali",
+        "hero_selected=true",
+    ):
+        return deny
+    level = _integer_token(_field(tokens[7], "current_level="))
+    cap = _integer_token(_field(tokens[8], "evolution_cap="))
+    if level is None or cap is None or tokens[-3:] != (
+        "stable_selected_state=true", "native_target_evidence=true", "reset_action=false",
+    ):
+        return deny
+    if evolution:
+        next_cap = _integer_token(_field(tokens[9], "next_evolution_cap="))
+        if level != cap or next_cap is None or next_cap <= cap or tokens[10:15] != (
+            "target_identity=hero-evolve", "control_class=EVOLVE",
+            "single_standard_evolution=true", "bulk_upgrade=false", "standard_materials_only=true",
+        ):
+            return deny
+        vector = tokens[15:-3]
+    else:
+        if level >= cap or tokens[9:14] != (
+            "target_identity=hero-upgrade", "control_class=UPGRADE",
+            "normal_single_upgrade=true", "bulk_upgrade=false", "standard_materials_only=true",
+        ):
+            return deny
+        vector = tokens[14:-3]
+    materials = ("ANTISERUM", "COMBAT_MANUAL_I", "COMBAT_MANUAL_II",
+                 "COMBAT_MANUAL_III", "COMBAT_MANUAL_IV", "COMBAT_MANUAL_V")
+    costs = {}
+    previous_index = -1
+    for cost_token, balance_token in zip(vector[::2], vector[1::2]):
+        match = re.fullmatch(r"material_cost\.([A-Z_]+)=([0-9]+)", cost_token, flags=re.ASCII)
+        if match is None or match[1] not in materials:
+            return deny
+        material = match[1]
+        material_index = materials.index(material)
+        cost = _integer_token(match[2], minimum=1)
+        balance = _integer_token(_field(balance_token, f"material_balance.{material}="))
+        if (
+            material_index <= previous_index or cost is None or balance is None or balance < cost
+        ):
+            return deny
+        costs[material] = cost
+        previous_index = material_index
+    if "ANTISERUM" not in costs or (len(costs) < 2 if evolution else len(costs) != 1):
+        return deny
+    if evolution:
+        action = "HERO_EVOLUTION_STANDARD"
+        source, target, control = "HERO_EVOLUTION_PREVIEW", "hero-evolve", "EVOLVE"
+        consequence = "evolve_wali_with_standard_materials"
+        postcondition = "WALI_STANDARD_EVOLUTION_WITH_EXACT_MATERIAL_USE"
+        cost_type, cost_amount, currency, maximum = "standard_hero_evolution_material_bundle", 1, None, None
+        posts = (
+            "hero_identity=Wali", "same_reset_identity=true", "current_level=before+1",
+            "evolution_cap=before.next_evolution_cap", "confirmed_upgrades=before",
+            "exact_ANTISERUM_debit=true", "each_standard_manual_used_or_debited=true",
+            "usage_receipt_and_settled_frame_refs_preserved=true", "reset_action=false",
+        )
+    else:
+        action = "HERO_UPGRADE_SINGLE"
+        source, target, control = "HERO", "hero-upgrade", "UPGRADE"
+        consequence = "upgrade_wali_single_level"
+        postcondition = "WALI_SINGLE_LEVEL_WITH_EXACT_ANTISERUM_DEBIT"
+        cost_type, cost_amount, currency, maximum = "ANTISERUM", costs["ANTISERUM"], "ANTISERUM", costs["ANTISERUM"]
+        posts = (
+            "hero_identity=Wali", "same_reset_identity=true", "current_level=before+1",
+            "confirmed_upgrades=before+1", "exact_ANTISERUM_debit=true",
+            "normal_level_delta_only=true", "reset_action=false",
+        )
+    if not _contract_matches(
+        request, action_class=ActionClass.SPEND_OR_STRATEGIC, semantic_action=action,
+        action_kind=action, subject="Wali", source_state=source, target_identity=target,
+        control_class=control, consequence=consequence, postcondition=postcondition,
+        cost_type=cost_type, cost_amount=cost_amount, quantity=1,
+        resource_or_currency=currency, maximum_cost=maximum, free_only=False,
+        semantic_postconditions=posts,
+    ):
+        return deny
+    guard = _route_runtime_guard(request)
+    if guard is not None:
+        return guard
+    return PolicyDecision.AUTHORIZE, "AUTHORIZED_WALI_STANDARD_ACTION", "exact selected Wali, remaining normal quota, single action and affordable standard material vector passed"
+
+
 def decide_approved_base_route(request: PolicyRequest) -> Optional[Tuple[PolicyDecision, str, str]]:
     """Return a route-specific decision, or ``None`` for unrelated legacy policy."""
     # Route-owned recipes must not consume navigation-only requests. Let the
@@ -1385,4 +1503,6 @@ def decide_approved_base_route(request: PolicyRequest) -> Optional[Tuple[PolicyD
         return _food_farm(request)
     if request.task_id == HALL_OF_WAR_TASK:
         return _hall_of_war(request)
+    if request.task_id == WALI_UPGRADE_TASK:
+        return _wali_upgrade(request)
     return _deny("APPROVED_BASE_ROUTE_ACTION_NOT_EXACT", "action is not in the route-specific policy set")

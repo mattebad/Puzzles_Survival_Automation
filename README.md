@@ -30,8 +30,8 @@ by a fresh mapped binding; an unknown result stops without an identical retry.
 ## Routes
 
 The service code registers each route in `automation_service/registry.py`. Each row below is one
-registration: 22 executable `serve --flow` routes plus one navigation-only flow spec
-(23 fixed flow specs total). The `serve --flow` argument takes the name in the first column where present.
+registration: 23 executable `serve --flow` routes plus one navigation-only flow spec
+(24 fixed flow specs total). The `serve --flow` argument takes the name in the first column where present.
 
 | `serve --flow` | Registry family | What it does |
 | --- | --- | --- |
@@ -57,6 +57,7 @@ registration: 22 executable `serve --flow` routes plus one navigation-only flow 
 | `food-farm-boost` | `food_farm_boost` | Reconcile incidental Farm collection, then prefer one exact matching owned-item boost. Consider an exact current diamond option only after exact observed zero inventory, within approved price ceiling and with confirmation/effect proof; unknown inventory is not zero. Verify same-Farm timer. Runtime disabled; no route-level live acceptance. |
 | `hall-of-war` | `hall_of_war` | One Zombie Zero dispatch, result reconciliation, then one separate glowing Daily Reward row claim; no win threshold. Manual #96 evidence is not route acceptance; runtime disabled. |
 | `troop-training` | `troop_training` | Fighter T8/current numeric maximum and Vehicle T1/current numeric maximum continuously; Shooter T8/250 and Rider T1/250 once per reset. Verify exact costs/effects, queues, timers and saved preset. Fighter/Vehicle boxes remain `evidence_required` absent exact current inventory/effect authority; no blind warehouse Train. Shooter/Rider never use boxes. Runtime disabled. |
+| `wali-upgrade` | `wali_upgrade` | Three confirmed single normal Wali level upgrades per reset, with exact current Antiserum costs/debits. Standard evolution may support remaining upgrades at the displayed cap but never earns normal-upgrade credit. Preserve canonical counts through restart; no bulk leveling or Reset. Runtime disabled; native acceptance and the Campaign/150-diamond Reset branch remain `evidence_required`. |
 | none (navigation-only) | `world_map_navigation` | Registered but never executed by `serve`. |
 
 The `world_map_navigation` registration is navigation-only (registry variant `navigation_only`).
@@ -127,7 +128,7 @@ $runtimeBinding = .\.venv\Scripts\python.exe -c "import json; from tasks.runtime
   --flow alliance-donation --flow alliance-shop --flow daily-shops `
   --flow nano-material-production --flow nanoweapon `
   --flow hero-duel --flow recommended-research --flow food-farm-boost `
-  --flow hall-of-war --flow troop-training `
+  --flow hall-of-war --flow troop-training --flow wali-upgrade `
   --campaign-stage 1-15-9 --campaign-cadence-seconds 300 `
   --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 `
   --account-id $runtimeBinding.account_id --server-id $runtimeBinding.server_id `
