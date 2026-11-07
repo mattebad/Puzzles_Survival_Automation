@@ -935,6 +935,7 @@ class AutomationService:
                             NANO_MATERIAL_PRODUCTION_FLOW_ID,
                             NANOWEAPON_FLOW_ID,
                         }
+                        else {}
                     )
                     if flow_id in {
                         DAILY_REWARDS_FLOW_ID,
