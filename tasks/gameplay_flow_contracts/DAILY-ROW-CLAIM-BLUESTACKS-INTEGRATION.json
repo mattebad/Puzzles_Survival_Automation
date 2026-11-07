@@ -1,120 +1,301 @@
 {
   "schema_version": 2,
   "flow_id": "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION",
-  "product_purpose": "One ordinary free non-milestone Claim on the selected Daily surface, bound to the current row and returned to canonical Home.",
-  "trigger_cadence_type": "daily_once",
+  "product_purpose": "From canonical Home, claim the current aggregate ready Daily reward batch at most once, then claim every individually glowing ready free Activity Milestone chest one at a time, requiring each same-chest successor and returning to canonical Home.",
+  "trigger_cadence_type": "cooldown_pulse",
   "reset_scope": "daily_reset",
   "required_starting_context": [
-    "home_ready",
-    "quest_screen"
+    "home_ready"
   ],
   "shared_primitive_dependencies": [],
   "recognized_states": [
     "home_ready",
-    "daily_surface_ready",
-    "ordinary_claimable_row_bound",
-    "ordinary_claim_dispatched",
-    "points_control_successor_verified",
+    "quest_screen",
+    "selected_daily",
+    "aggregate_claim_ready",
+    "aggregate_claim_not_actionable",
+    "aggregate_claim_dispatched",
+    "aggregate_claim_successor_verified",
+    "activity_milestones",
+    "milestone_chest_ready",
+    "milestone_chest_dispatched",
+    "same_chest_successor_verified",
+    "all_current_ready_chests_resolved",
     "effect_reconciliation_required",
+    "unknown_fail_closed",
     "home_canonical",
     "blocked",
-    "evidence_required"
+    "deferred",
+    "manual_required"
   ],
   "transition_contracts": [
     {
-      "transition_id": "open-selected-daily",
+      "transition_id": "open-quest",
       "from": "home_ready",
-      "to": "daily_surface_ready",
-      "planner": "scripts/flow_delivery_daily_row_claim_bluestacks.py",
-      "permitted_input": "current-frame-bound Daily navigation",
+      "to": "quest_screen",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": "current-frame-bound Quest navigation from verified Home",
       "postconditions": [
         "fresh verified Home source",
-        "positively recognized selected Daily surface"
+        "positively recognized Quest"
       ],
       "terminal_outcomes": [
         "blocked",
         "manual_required"
       ],
-      "evidence_gate_id": "daily-claim-route-verification"
+      "evidence_gate_id": "daily-rewards-native-semantics"
     },
     {
-      "transition_id": "bind-ordinary-claim-row",
-      "from": "daily_surface_ready",
-      "to": "ordinary_claimable_row_bound",
-      "planner": "scripts/flow_delivery_daily_row_claim_bluestacks.py",
+      "transition_id": "open-selected-daily",
+      "from": "quest_screen",
+      "to": "selected_daily",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": "current-frame-bound Daily navigation",
+      "postconditions": [
+        "fresh Quest source",
+        "selected Daily surface is positively recognized"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-rewards-native-semantics"
+    },
+    {
+      "transition_id": "bind-current-aggregate-claim",
+      "from": "selected_daily",
+      "to": "aggregate_claim_ready",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "current native 800x1280 selected-Daily frame inspected before motion",
-        "exact row-local ordinary non-milestone Claim control bound",
-        "row is free and claimable with no clipping, contradiction, non-claimable state, or stale binding"
+        "inspect only the current aggregate ordinary Claim control",
+        "bind exact current ready-batch identity to reset and route pass",
+        "do not inventory objective rows or attribute objective progress",
+        "if no aggregate Claim is actionable, dispatch none and continue to Activity Milestones"
       ],
       "terminal_outcomes": [
+        "deferred",
         "blocked",
         "manual_required"
       ],
-      "evidence_gate_id": "daily-claim-route-verification"
+      "evidence_gate_id": "daily-rewards-native-semantics"
     },
     {
-      "transition_id": "dispatch-one-ordinary-claim",
-      "from": "ordinary_claimable_row_bound",
-      "to": "ordinary_claim_dispatched",
-      "planner": "scripts/flow_delivery_daily_row_claim_bluestacks.py",
-      "permitted_input": "current-frame-bound ordinary free non-milestone Claim tap",
+      "transition_id": "record-no-aggregate-claim",
+      "from": "selected_daily",
+      "to": "aggregate_claim_not_actionable",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": null,
       "postconditions": [
-        "exactly one Claim transport is dispatched",
-        "transport success is retained as transport evidence only",
-        "no identical retry is authorized"
+        "current aggregate Claim is absent or not actionable",
+        "no Claim input is dispatched",
+        "continue to inspect current ready milestone chests"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked"
+      ],
+      "evidence_gate_id": "daily-rewards-native-semantics"
+    },
+    {
+      "transition_id": "dispatch-aggregate-claim",
+      "from": "aggregate_claim_ready",
+      "to": "aggregate_claim_dispatched",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": "one current-frame-bound aggregate Claim for the current ready-batch identity",
+      "postconditions": [
+        "at most one dispatch for this current ready-batch identity in this pass",
+        "a later distinct ready batch remains eligible in the same reset on a later pass",
+        "dispatch alone is not semantic success",
+        "no identical retry for this ready-batch identity"
       ],
       "terminal_outcomes": [
         "action_performed",
         "blocked",
         "manual_required"
       ],
-      "evidence_gate_id": "daily-claim-route-verification"
+      "evidence_gate_id": "daily-rewards-native-semantics"
     },
     {
-      "transition_id": "verify-points-and-controls",
-      "from": "ordinary_claim_dispatched",
-      "to": "points_control_successor_verified",
-      "planner": "scripts/flow_delivery_daily_row_claim_bluestacks.py",
+      "transition_id": "verify-aggregate-claim",
+      "from": "aggregate_claim_dispatched",
+      "to": "aggregate_claim_successor_verified",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
       "permitted_input": null,
       "postconditions": [
-        "positive Daily points delta is verified",
-        "all ordinary Claim controls are cleared",
-        "Claim dispatch is not treated as reward or points proof"
+        "all ordinary Claim controls are positively cleared for the bound ready batch under current source bounds",
+        "exact free aggregate Claim plus cleared ordinary Claim controls establishes action success",
+        "if observed, points are optional diagnostics/corroboration only; they never gate success or grant attribution and have no 150-point threshold"
       ],
       "terminal_outcomes": [
         "action_performed",
         "blocked",
         "manual_required"
       ],
-      "evidence_gate_id": "daily-claim-semantic-successor"
+      "evidence_gate_id": "daily-rewards-native-semantics"
     },
     {
-      "transition_id": "reconcile-unknown-claim-effect",
-      "from": "ordinary_claim_dispatched",
+      "transition_id": "reconcile-unknown-aggregate-effect",
+      "from": "aggregate_claim_dispatched",
       "to": "effect_reconciliation_required",
-      "planner": "scripts/flow_delivery_daily_row_claim_bluestacks.py",
+      "planner": "fail_closed_without_input",
       "permitted_input": null,
       "postconditions": [
-        "dispatch-bearing unknown successor is retained as reconciliation-required",
-        "no reward, points, or Claim-control success is inferred from transport",
-        "identical Claim retry remains denied"
+        "retain dispatch-bearing unknown successor for reconciliation",
+        "infer no aggregate action success without source-bound cleared ordinary Claim controls",
+        "optional points do not satisfy or replace the aggregate success trigger; deny identical Claim retry"
       ],
       "terminal_outcomes": [
         "blocked",
         "manual_required"
       ],
-      "evidence_gate_id": "daily-claim-effect-reconciliation"
+      "evidence_gate_id": "daily-rewards-effect-reconciliation"
+    },
+    {
+      "transition_id": "open-milestones-after-aggregate",
+      "from": "aggregate_claim_successor_verified",
+      "to": "activity_milestones",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "the chest strip on selected Daily is positively recognized after aggregate Claim verification; no separate unverified navigation control is used"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-rewards-native-semantics"
+    },
+    {
+      "transition_id": "open-milestones-without-aggregate",
+      "from": "aggregate_claim_not_actionable",
+      "to": "activity_milestones",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "no aggregate Claim input was sent",
+        "the chest strip on selected Daily is positively recognized without a separate navigation input"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-rewards-native-semantics"
+    },
+    {
+      "transition_id": "bind-next-ready-chest",
+      "from": "activity_milestones",
+      "to": "milestone_chest_ready",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "bind one individually current ready, fully visible, positively glowing free chest",
+        "bind exact milestone identity and reset identity",
+        "reject locked, static, projected, clipped, cost-bearing, unknown, contradictory, and stale chests"
+      ],
+      "terminal_outcomes": [
+        "deferred",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-rewards-same-chest-successor"
+    },
+    {
+      "transition_id": "resolve-no-ready-chests",
+      "from": "activity_milestones",
+      "to": "all_current_ready_chests_resolved",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "no individually glowing current ready free chest remains actionable",
+        "no locked or static chest is treated as a successor or action target"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "blocked"
+      ],
+      "evidence_gate_id": "daily-rewards-same-chest-successor"
+    },
+    {
+      "transition_id": "dispatch-chest",
+      "from": "milestone_chest_ready",
+      "to": "milestone_chest_dispatched",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": "exactly one current-frame-bound ready free milestone chest Claim per distinct chest",
+      "postconditions": [
+        "one chest dispatch is bound to exact chest identity and reset",
+        "distinct ready chests remain independently eligible",
+        "dispatch alone is not semantic success",
+        "no identical retry for this chest identity"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-rewards-same-chest-successor"
+    },
+    {
+      "transition_id": "verify-chest-successor",
+      "from": "milestone_chest_dispatched",
+      "to": "same_chest_successor_verified",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "same chest is positively recognized as claimed, opened, or removed",
+        "same chest identity and reset remain bound",
+        "points-only change is not a chest successor"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-rewards-same-chest-successor"
+    },
+    {
+      "transition_id": "reconcile-unknown-chest-effect",
+      "from": "milestone_chest_dispatched",
+      "to": "effect_reconciliation_required",
+      "planner": "fail_closed_without_input",
+      "permitted_input": null,
+      "postconditions": [
+        "retain dispatch-bearing unknown same-chest successor for reconciliation",
+        "deny identical retry for the dispatched chest",
+        "do not treat points-only change as chest success"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-rewards-effect-reconciliation"
+    },
+    {
+      "transition_id": "inspect-next-chest",
+      "from": "same_chest_successor_verified",
+      "to": "activity_milestones",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": null,
+      "postconditions": [
+        "previous exact chest successor remains positively bound",
+        "inspect for another distinct currently glowing ready chest"
+      ],
+      "terminal_outcomes": [
+        "action_performed",
+        "deferred",
+        "blocked"
+      ],
+      "evidence_gate_id": "daily-rewards-same-chest-successor"
     },
     {
       "transition_id": "return-canonical-home",
-      "from": "points_control_successor_verified",
+      "from": "all_current_ready_chests_resolved",
       "to": "home_canonical",
-      "planner": "scripts/flow_delivery_daily_row_claim_bluestacks.py",
-      "permitted_input": "current-frame-bound bounded Back navigation",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": "current-frame-bound bounded return to canonical Home",
       "postconditions": [
-        "same selected Daily and reset identity remain bound before exit",
+        "all observed eligible aggregate and chest transitions remain positively verified",
         "canonical Home is positively recognized as terminal"
       ],
       "terminal_outcomes": [
@@ -122,21 +303,25 @@
         "blocked",
         "manual_required"
       ],
-      "evidence_gate_id": "daily-claim-semantic-successor"
+      "evidence_gate_id": "daily-rewards-native-semantics"
     }
   ],
   "permitted_inputs": [
+    "current-frame-bound Quest navigation from verified Home",
     "current-frame-bound Daily navigation",
-    "current-frame-bound ordinary free non-milestone Claim tap",
-    "current-frame-bound bounded Back navigation",
-    "observe-only Claim effect reconciliation"
+    "one current-frame-bound aggregate Claim for the current ready-batch identity",
+    "exactly one current-frame-bound ready free milestone chest Claim per distinct chest",
+    "current-frame-bound bounded return to canonical Home",
+    "observe-only reward effect reconciliation"
   ],
   "local_postconditions": [
-    "one typed current observation is bound to the flow-owned execution",
-    "selected Daily surface and exact row-local Claim target are current-frame bound",
-    "exactly one ordinary Claim transport is accounted",
-    "positive points/control successor is verified before semantic success",
-    "canonical Home is verified before terminal completion"
+    "one route pass is bound to the current reset identity",
+    "aggregate ordinary Claim is dispatched at most once for the exact current ready batch in this pass",
+    "a distinct later ready batch may be claimed on a later pass in the same reset",
+    "no objective-row inventory, per-objective attribution, or 150-point minimum is required",
+    "each individually ready chest is dispatched once per chest identity and reset only after exact current-frame binding",
+    "each chest requires its same-chest ready-to-claimed/opened/removed successor",
+    "canonical Home is positively recognized before terminal completion"
   ],
   "consequential_action_class": "ordinary_development",
   "cost_quantity_requirements": {
@@ -144,60 +329,73 @@
     "maximum_cost": 0,
     "quantity": 1,
     "resource_or_currency": null,
-    "notes": "Exactly one ordinary free non-milestone Claim dispatch; milestone, non-claimable, cost-bearing, unknown, or contradictory rows are rejected."
+    "notes": "One free aggregate Claim per current ready batch per pass, followed by one free dispatch per distinct current ready chest. No paid or unknown-cost control is admissible."
   },
-  "completion_identity": "daily-row-claim-bluestacks-integration:home-complete",
+  "completion_identity": "daily-rewards:current-ready-batch-and-distinct-chests:home-complete",
   "terminal_outcomes": [
-    "complete_for_reset",
+    "action_performed",
     "deferred",
     "blocked",
     "manual_required"
   ],
-  "cooldown_deferred_behavior": "If selected Daily, row claimability, cost, target, or reset identity is unknown, non-claimable, clipped, contradictory, or stale, dispatch zero input and report evidence_required.",
-  "bounded_recovery_behavior": "A dispatch-bearing unknown successor becomes effect_reconciliation_required; it vetoes DONE, denies identical retry, and follows bounded CONTINUE to STEP_BACK to ESCALATE convergence.",
+  "cooldown_deferred_behavior": "If the aggregate Claim is absent or not actionable, dispatch none and still inspect ready chests; if no ready chest remains, defer without input. Unknown, stale, clipped, non-free, contradictory, or ambiguous batch/chest state blocks without dispatch.",
+  "bounded_recovery_behavior": "A dispatch-bearing unknown aggregate or chest successor becomes effect_reconciliation_required, vetoes completion, and denies identical retry. Observe only for reconciliation. Return to canonical Home only after all dispatched aggregate/chest effects are semantically verified and every current ready chest has been resolved.",
   "evidence_requirements": [
-    "current native Home to selected-Daily navigation recognition",
-    "current native 800x1280 selected-Daily source and immediate-before frame",
-    "ordinary free non-milestone Claim-control proof with row-local target binding",
-    "one Claim transport count and one read-only non-authoritative causal trace",
-    "positive points increase and ordinary Claim-control exhaustion",
-    "post-Claim bounded Back transport and positive canonical Home successor",
-    "retained BlueStacks Claim proof remains composite across the historical sessions and is not relabeled continuous"
+    "current native Home-to-Quest-to-selected-Daily route recognition",
+    "current ready-batch identity and one aggregate Claim transport count when actionable",
+    "source-bound exact free aggregate Claim and all ordinary Claim controls cleared; points are optional diagnostic/corroboration only and never grant attribution",
+    "current individually glowing free chest and exact reset-bound chest identity before dispatch",
+    "same-chest explicit ready-to-claimed, opened, or removed successor after each chest dispatch",
+    "canonical Home terminal proof and exact total consequential-action accounting",
+    "current native uninterrupted evidence is required; retained row-local Claim receipts do not establish combined-route acceptance"
   ],
   "evidence_gates": [
     {
-      "gate_id": "daily-claim-route-verification",
-      "status": "satisfied",
+      "gate_id": "daily-rewards-native-semantics",
+      "status": "evidence_required",
       "blocks": [
+        "open-quest",
         "open-selected-daily",
-        "bind-ordinary-claim-row",
-        "dispatch-one-ordinary-claim"
-      ],
-      "required_evidence": [
-        "retained current-frame selected-Daily source and ordinary Claim target proof"
-      ],
-      "permitted_inputs": []
-    },
-    {
-      "gate_id": "daily-claim-semantic-successor",
-      "status": "satisfied",
-      "blocks": [
-        "verify-points-and-controls",
+        "bind-current-aggregate-claim",
+        "dispatch-aggregate-claim",
+        "verify-aggregate-claim",
+        "open-milestones-after-aggregate",
+        "open-milestones-without-aggregate",
         "return-canonical-home"
       ],
       "required_evidence": [
-        "positive points delta, ordinary Claim-control exhaustion, and canonical Home terminal"
+        "current native combined route from verified Home to selected Daily and Activity Milestones",
+        "one aggregate current-ready-batch Claim successor with exact accounting",
+        "canonical Home terminal and production-controller replay"
       ],
       "permitted_inputs": []
     },
     {
-      "gate_id": "daily-claim-effect-reconciliation",
+      "gate_id": "daily-rewards-same-chest-successor",
       "status": "evidence_required",
       "blocks": [
-        "reconcile-unknown-claim-effect"
+        "bind-next-ready-chest",
+        "dispatch-chest",
+        "verify-chest-successor",
+        "resolve-no-ready-chests",
+        "inspect-next-chest"
       ],
       "required_evidence": [
-        "observe-only reconciliation of a dispatch-bearing unknown Claim successor"
+        "current native individually glowing ready free chest bound to exact chest and reset identity",
+        "same chest positively transitioned from ready to claimed, opened, or removed",
+        "multiple distinct chest identity cases including locked, static, and points-only negatives"
+      ],
+      "permitted_inputs": []
+    },
+    {
+      "gate_id": "daily-rewards-effect-reconciliation",
+      "status": "evidence_required",
+      "blocks": [
+        "reconcile-unknown-aggregate-effect",
+        "reconcile-unknown-chest-effect"
+      ],
+      "required_evidence": [
+        "observe-only reconciliation of dispatch-bearing aggregate or same-chest unknown effect"
       ],
       "permitted_inputs": []
     }
@@ -205,95 +403,154 @@
   "product_policy_refs": [
     {
       "policy_id": "aggregate-daily-claim",
-      "source": "tasks/product_authority.py"
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "daily-milestone-claim",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "unknown-consequence",
+      "source": "tasks/flow_delivery_product_policy.json"
+    },
+    {
+      "policy_id": "premium-spending",
+      "source": "tasks/flow_delivery_product_policy.json"
     }
   ],
   "replay_fixture_requirements": [
     {
-      "fixture_id": "aggregate_claim_contract",
-      "status": "synthetic_policy_ok",
+      "fixture_id": "daily_rewards_combined_route",
+      "status": "required_evidence",
       "path": "tests/test_daily_row_claim_bluestacks.py",
-      "notes": "Objective identity and fixed point deltas are not authorization inputs; retained semantic proof is composite."
+      "notes": "Deterministic offline route cases do not substitute for current native combined-route acceptance."
+    },
+    {
+      "fixture_id": "daily_rewards_current_native_acceptance",
+      "status": "required_evidence",
+      "path": null,
+      "notes": "Current aggregate batch, each same-chest successor, exact accounting, and canonical Home proof remain required."
     }
   ],
   "scenarios": [
     {
-      "scenario_id": "selected-daily-aggregate-claim",
-      "mode": "consequential_supervised",
+      "scenario_id": "daily-rewards-current-batch-and-all-ready-chests",
+      "mode": "blocked_until_evidence",
       "start_state": "home_ready",
-      "terminal_state": "home_canonical",
-      "permitted_inputs": [
-        "current-frame-bound Daily navigation",
-        "current-frame-bound ordinary free non-milestone Claim tap",
-        "current-frame-bound bounded Back navigation"
-      ],
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
       "forbidden_inputs": [
-        "observe-only Claim effect reconciliation"
+        "current-frame-bound Quest navigation from verified Home",
+        "current-frame-bound Daily navigation",
+        "one current-frame-bound aggregate Claim for the current ready-batch identity",
+        "exactly one current-frame-bound ready free milestone chest Claim per distinct chest",
+        "current-frame-bound bounded return to canonical Home"
       ],
       "required_transitions": [
+        "open-quest",
         "open-selected-daily",
-        "bind-ordinary-claim-row",
-        "dispatch-one-ordinary-claim",
-        "verify-points-and-controls",
+        "bind-current-aggregate-claim",
+        "dispatch-aggregate-claim",
+        "verify-aggregate-claim",
+        "open-milestones-after-aggregate",
+        "bind-next-ready-chest",
+        "dispatch-chest",
+        "verify-chest-successor",
+        "inspect-next-chest",
+        "resolve-no-ready-chests",
         "return-canonical-home"
       ],
       "evidence_gate_ids": [
-        "daily-claim-route-verification",
-        "daily-claim-semantic-successor"
+        "daily-rewards-native-semantics",
+        "daily-rewards-same-chest-successor"
       ],
-      "notes": "Retained receipts c2ddc2ea-60b4-404a-a7b3-784ffaff9d08 and d4a6822b-a486-44a9-a2b7-4b71a0f5265c prove semantic Claim and canonical Home across composite sessions; this contract does not authorize a live canary."
+      "notes": "Contract semantics do not authorize a live run. No aggregate Claim is required when no current ready batch is actionable; ready chests are still inspected."
     },
     {
-      "scenario_id": "selected-daily-aggregate-claim-unknown-successor",
-      "mode": "observe_only",
-      "start_state": "ordinary_claim_dispatched",
-      "terminal_state": "effect_reconciliation_required",
-      "permitted_inputs": [
-        "observe-only Claim effect reconciliation"
-      ],
+      "scenario_id": "daily-rewards-no-aggregate-claim-but-ready-chests",
+      "mode": "blocked_until_evidence",
+      "start_state": "home_ready",
+      "terminal_state": "blocked",
+      "permitted_inputs": [],
       "forbidden_inputs": [
-        "current-frame-bound ordinary free non-milestone Claim tap"
+        "current-frame-bound Quest navigation from verified Home",
+        "current-frame-bound Daily navigation",
+        "one current-frame-bound aggregate Claim for the current ready-batch identity",
+        "exactly one current-frame-bound ready free milestone chest Claim per distinct chest",
+        "current-frame-bound bounded return to canonical Home"
       ],
       "required_transitions": [
-        "reconcile-unknown-claim-effect"
+        "open-quest",
+        "open-selected-daily",
+        "record-no-aggregate-claim",
+        "open-milestones-without-aggregate",
+        "bind-next-ready-chest",
+        "dispatch-chest",
+        "verify-chest-successor",
+        "resolve-no-ready-chests",
+        "return-canonical-home"
       ],
       "evidence_gate_ids": [
-        "daily-claim-effect-reconciliation"
+        "daily-rewards-native-semantics",
+        "daily-rewards-same-chest-successor"
+      ]
+    },
+    {
+      "scenario_id": "daily-rewards-unknown-chest-successor",
+      "mode": "observe_only",
+      "start_state": "milestone_chest_dispatched",
+      "terminal_state": "effect_reconciliation_required",
+      "permitted_inputs": [
+        "observe-only reward effect reconciliation"
       ],
-      "notes": "Unknown effect remains unresolved and cannot authorize an identical Claim retry."
+      "forbidden_inputs": [
+        "exactly one current-frame-bound ready free milestone chest Claim per distinct chest"
+      ],
+      "required_transitions": [
+        "reconcile-unknown-chest-effect"
+      ],
+      "evidence_gate_ids": [
+        "daily-rewards-effect-reconciliation"
+      ],
+      "notes": "Unknown same-chest outcome remains unresolved and cannot authorize an identical chest Claim retry."
     }
   ],
   "unsupported_or_manual_only_states": [
+    "locked milestone chest",
+    "static milestone chest",
+    "projected milestone readiness",
+    "not-ready milestone",
+    "already-claimed milestone",
+    "clipped milestone chest",
+    "cost-bearing milestone chest",
+    "unknown or contradictory milestone state",
+    "stale milestone or aggregate batch target",
+    "unknown_chest_successor",
+    "per-objective attribution or objective-row Claim loop",
+    "150-point threshold prerequisite",
+    "per-objective Daily attribution",
+    "effect_reconciliation_required",
+    "blocking_unknown_modal",
     "login",
     "captcha",
     "tutorial",
     "account_selection_or_switching",
-    "credential_entry",
-    "ambiguous_account_or_server_identity",
-    "blocking_unknown_modal",
-    "milestone Claim",
-    "non-claimable Claim row",
-    "cost-bearing Claim",
-    "clipped Claim row",
-    "unknown or contradictory row",
-    "stale row binding",
-    "real-money confirmation",
-    "identical Claim retry"
+    "credential_entry"
   ],
-  "implementation_status": "live_validated",
-  "proof_state": "current",
-  "offline_proof_state": "current",
+  "implementation_status": "reference_implemented",
+  "proof_state": "evidence_required",
+  "offline_proof_state": "evidence_required",
   "replay_fixture_proof_state": "evidence_required",
-  "supervised_live_proof_state": "current",
+  "supervised_live_proof_state": "evidence_required",
   "production_eligible": false,
   "registration_state": "disabled",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r13",
-    "product_authority_digest": "13a3b12051a89f25e926875fc9d085aa5c220c6eb3904375d147e34f302a67d6",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r14",
+    "product_authority_digest": "c71684f26e3ba7366a39aafb0ca293776348a3179ae7b4284c8649e2bcd2a8af",
     "product_record_id": "aggregate_daily_claim",
-    "product_record_revision": "aggregate_daily_claim-v1",
-    "product_record_digest": "560ae8fbf83cebbfdfc06efe3860e5b0c089045fb511fe17d33d5586a409fb41",
+    "product_record_revision": "aggregate_daily_claim-v2",
+    "product_record_digest": "8bb66915374705f2ce436906e14db9d1986ae0133729e525fc6d8cfbd7e7ba33",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
   "flow_id": "DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION",
-  "product_purpose": "From canonical Home, open Quest Activity Milestones and claim exactly one current, ready, fully visible, zero-cost milestone chest, prove its same-milestone successor, and return to canonical Home.",
-  "trigger_cadence_type": "daily_once",
+  "product_purpose": "From canonical Home, claim one exact current ready free Activity Milestone chest per chest identity, prove that same chest's ready-to-claimed/opened/removed transition, and return to canonical Home.",
+  "trigger_cadence_type": "cooldown_pulse",
   "reset_scope": "daily_reset",
   "required_starting_context": [
     "home_canonical"
@@ -67,8 +67,8 @@
       "planner": "DailyMilestoneClaimTargetBinding",
       "permitted_input": null,
       "postconditions": [
-        "one exact current milestone is bound from the native frame",
-        "milestone is ready, fully visible, recognized, and zero-cost",
+        "bind exact chest identity and daily-reset identity from the current native frame",
+        "chest is individually ready, fully visible, recognized, and zero-cost",
         "not-ready, already-claimed, clipped, cost-bearing, unknown, contradictory, and stale targets are rejected"
       ],
       "terminal_outcomes": [
@@ -86,7 +86,7 @@
       "postconditions": [
         "exactly one current-frame-bound chest dispatch",
         "dispatch alone is not semantic success",
-        "same milestone opened/claimed successor or positive bound points successor is required",
+        "the same exact chest identity and reset remain bound to the explicit ready-to-claimed/opened/removed transition; points-only change is not success",
         "an unknown successor requires reconciliation and denies an identical retry"
       ],
       "terminal_outcomes": [
@@ -117,7 +117,7 @@
       "planner": "DailyMilestoneClaimRecovery",
       "permitted_input": "return_canonical_home",
       "postconditions": [
-        "same milestone successor remains bound before return",
+        "same exact chest identity, reset, and state transition remain bound before return",
         "canonical Home is positively recognized"
       ],
       "terminal_outcomes": [
@@ -153,7 +153,7 @@
     "maximum_cost": 0,
     "quantity": 1,
     "resource_or_currency": null,
-    "notes": "Only one exact current ready zero-cost milestone chest is permitted."
+    "notes": "One exact zero-cost chest dispatch per unique chest identity and reset; multiple distinct ready chests may each be claimed."
   },
   "completion_identity": "daily-milestone-claim:one-ready-chest-home-complete",
   "terminal_outcomes": [
@@ -163,7 +163,7 @@
     "manual_required"
   ],
   "cooldown_deferred_behavior": "A not-ready, already-claimed, absent, or ambiguous milestone permits no dispatch and remains deferred or blocked until a later positively bound observation.",
-  "bounded_recovery_behavior": "Unknown or contradictory results fail closed. A dispatch-bearing unknown becomes effect_reconciliation_required, denies identical retry, and vetoes DONE. Return to canonical Home only after the same milestone successor is verified.",
+  "bounded_recovery_behavior": "Unknown or contradictory results fail closed. A dispatch-bearing unknown becomes effect_reconciliation_required, denies identical retry, and vetoes DONE. Return to canonical Home only after the same exact chest identity and reset's claimed/opened/removed successor is verified.",
   "product_policy_refs": [
     {
       "policy_id": "daily-milestone-claim",
@@ -180,7 +180,7 @@
   ],
   "evidence_requirements": [
     "Existing Phase E Bliss and synthetic milestone observations are platform-scoped diagnostic evidence and cannot satisfy current BlueStacks acceptance.",
-    "Current native BlueStacks ready-chest, immediate-before, same-milestone opened/claimed or positive bound points successor, and canonical Home evidence remain required.",
+    "Current native BlueStacks ready-chest, immediate-before, same-chest ready-to-claimed/opened/removed successor, and canonical Home evidence remain required.",
     "This product-record migration performs no Milestone Claim input; registration and scheduling remain disabled.",
     "The milestone chest is separate from ordinary row Claim ownership and does not own Daily objective point credit."
   ],
@@ -194,7 +194,7 @@
       ],
       "required_evidence": [
         "current native BlueStacks 800x1280 source and immediate-before exact ready milestone binding",
-        "same-milestone opened/claimed or positive bound points successor",
+        "same chest's explicit ready-to-claimed/opened/removed state successor; points-only change is insufficient",
         "canonical Home terminal proof and production-controller replay with exact one-action accounting"
       ],
       "permitted_inputs": []
@@ -242,6 +242,7 @@
     "ordinary_row_claim_control",
     "unknown_or_contradictory_milestone",
     "stale_milestone_target",
+    "points-only milestone successor",
     "effect_reconciliation_required",
     "blocking_unknown_modal",
     "login",
@@ -252,16 +253,16 @@
   ],
   "implementation_status": "contract_only",
   "proof_state": "evidence_required",
-  "offline_proof_state": "current",
+  "offline_proof_state": "evidence_required",
   "replay_fixture_proof_state": "evidence_required",
   "supervised_live_proof_state": "evidence_required",
   "product_authority_binding": {
     "binding_type": "typed_product_record",
-    "product_authority_revision": "flow-delivery-product-authority-v2-r13",
-    "product_authority_digest": "13a3b12051a89f25e926875fc9d085aa5c220c6eb3904375d147e34f302a67d6",
+    "product_authority_revision": "flow-delivery-product-authority-v2-r14",
+    "product_authority_digest": "c71684f26e3ba7366a39aafb0ca293776348a3179ae7b4284c8649e2bcd2a8af",
     "product_record_id": "activity_milestone_claim",
-    "product_record_revision": "activity_milestone_claim-v1",
-    "product_record_digest": "fc39004cd8e4727fc5fed56cc656d2b1790908a1e57e0b82bc65493b1bf5a638",
+    "product_record_revision": "activity_milestone_claim-v2",
+    "product_record_digest": "bdb7a90ddc79810f4080a913dc98fd40d3af63645e94c5dcfb38677a90d8c62a",
     "platform": "bluestacks",
     "platform_binding_ids": [
       "BLUESTACKS_NATIVE_RUNTIME_PROFILE_DIGEST",

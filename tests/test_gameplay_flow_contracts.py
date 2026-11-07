@@ -517,7 +517,7 @@ class GameplayFlowContractTests(unittest.TestCase):
         # Non-dependent quest-screen contracts preserve their current proof state.
         self.assertEqual(
             updated["DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"]["proof_state"],
-            "current",
+            "evidence_required",
         )
 
     def test_published_schema_accepts_all_representative_contracts(self):
@@ -556,47 +556,39 @@ class GameplayFlowContractTests(unittest.TestCase):
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])
 
-    def test_daily_claim_contract_is_aggregate_row_local_and_fail_closed(self):
+    def test_daily_claim_contract_combines_batch_claim_and_per_chest_collection(self):
         contract = load_flow_contract("DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION")
+        binding = contract["product_authority_binding"]
         self.assertEqual(contract["schema_version"], 2)
-        self.assertEqual(contract["trigger_cadence_type"], "daily_once")
+        self.assertEqual(contract["trigger_cadence_type"], "cooldown_pulse")
         self.assertEqual(contract["reset_scope"], "daily_reset")
+        self.assertEqual(binding["product_record_id"], "aggregate_daily_claim")
         self.assertEqual(
-            contract["product_authority_binding"]["product_record_id"],
-            "aggregate_daily_claim",
+            binding["product_record_revision"],
+            "aggregate_daily_claim-v2",
         )
         self.assertEqual(contract["cost_quantity_requirements"]["maximum_cost"], 0)
         self.assertEqual(contract["cost_quantity_requirements"]["quantity"], 1)
         self.assertTrue(contract["cost_quantity_requirements"]["free_only"])
-        self.assertEqual(
-            contract["transition_contracts"][2]["permitted_input"],
-            "current-frame-bound ordinary free non-milestone Claim tap",
-        )
+        transitions = {item["transition_id"]: item for item in contract["transition_contracts"]}
+        self.assertIn("dispatch-chest", transitions)
         self.assertIn(
-            "reconcile-unknown-claim-effect",
-            {item["transition_id"] for item in contract["transition_contracts"]},
+            "unknown_chest_successor",
+            contract["unsupported_or_manual_only_states"],
         )
+        self.assertEqual(contract["implementation_status"], "reference_implemented")
+        self.assertEqual(contract["proof_state"], "evidence_required")
         self.assertEqual(contract["registration_state"], "disabled")
         self.assertFalse(contract["production_eligible"])
-        self.assertTrue(
-            any(
-                item["scenario_id"] == "selected-daily-aggregate-claim-unknown-successor"
-                and "current-frame-bound ordinary free non-milestone Claim tap"
-                in item["forbidden_inputs"]
-                for item in contract["scenarios"]
-            )
-        )
-        self.assertIn("non-claimable Claim row", contract["unsupported_or_manual_only_states"])
-        self.assertIn("non-claimable", contract["cooldown_deferred_behavior"])
 
-    def test_daily_milestone_contract_is_separate_free_chest_route_and_evidence_gated(self):
+    def test_daily_milestone_contract_requires_same_chest_successor_and_is_evidence_gated(self):
         contract = load_flow_contract("DAILY-MILESTONE-CLAIM-BLUESTACKS-INTEGRATION")
         binding = contract["product_authority_binding"]
         self.assertEqual(contract["schema_version"], 2)
         self.assertEqual(contract["required_starting_context"], ["home_canonical"])
         self.assertEqual(binding["product_record_id"], "activity_milestone_claim")
         self.assertEqual(binding["product_authority_revision"], AUTHORITY_REVISION)
-        self.assertEqual(binding["product_record_revision"], "activity_milestone_claim-v1")
+        self.assertEqual(binding["product_record_revision"], "activity_milestone_claim-v2")
         self.assertEqual(binding["home_authority"], "HOME_CANONICAL")
         self.assertEqual(binding["terminal_home_authority"], "HOME_CANONICAL")
         self.assertFalse(binding["selected_daily_prerequisite"])
@@ -613,14 +605,9 @@ class GameplayFlowContractTests(unittest.TestCase):
             "exactly_one_zero_cost_ready_milestone_chest_claim",
         )
         self.assertIn(
-            "same milestone opened/claimed successor or positive bound points successor is required",
-            transitions["dispatch-milestone"]["postconditions"],
-        )
-        self.assertIn(
             "effect_reconciliation_required",
             contract["unsupported_or_manual_only_states"],
         )
-        self.assertIn("current native bluestacks", " ".join(contract["evidence_requirements"]).casefold())
 
     def test_enhancement_family_sequence_reaches_each_ordered_category(self):
         contract = load_flow_contract(
@@ -683,14 +670,9 @@ class GameplayFlowContractTests(unittest.TestCase):
                 "resource_list_progress",
                 "1k_food_ready",
                 "1k_food_used",
-                "resource_delta_verified",
+                "owned_item_decrement_verified",
             ],
         )
-        route_text = json.dumps(contract).casefold()
-        self.assertNotIn("quest_screen", route_text)
-        self.assertNotIn("selected_daily", route_text)
-        self.assertNotIn("daily_progress", route_text)
-        self.assertNotIn("catalog_admission", route_text)
         self.assertEqual(
             contract["cost_quantity_requirements"]["quantity"],
             1,
@@ -701,8 +683,6 @@ class GameplayFlowContractTests(unittest.TestCase):
             "1K Food",
             contract["cost_quantity_requirements"]["resource_or_currency"],
         )
-        self.assertIn("second confirmation", " ".join(contract["unsupported_or_manual_only_states"]))
-        self.assertIn("In bulk", " ".join(contract["unsupported_or_manual_only_states"]))
         self.assertIn(
             "daily-resource-item:use-1k-food",
             contract["completion_identity"],

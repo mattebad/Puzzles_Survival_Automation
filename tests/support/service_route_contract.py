@@ -9,19 +9,22 @@ from typing import Any, Callable
 from unittest.mock import patch
 
 from automation_service.registry import (
-    BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID,
-    PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
+    BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, DAILY_REWARDS_FLOW_ID,
+    ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID,
+    RECRUITMENT_FLOW_ID, RESOURCE_ITEM_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
     WORLD_FLOW_ID, canonical_entry,
 )
 from automation_service.service import AutomationService
 from automation_service.state import BotStateManager
 from scripts import navigation_development_boundary as boundary
 from tests.support.service_route_fakes import (
-    GuardedBioenhancerRunner, GuardedCampaignRunner, GuardedEnhancementRunner,
-    GuardedNovaRunner, GuardedPersonalMightRunner, GuardedRecruitmentRunner,
-    GuardedSupplyRunner, GuardedUltimateRunner,
+    GuardedBioenhancerRunner, GuardedCampaignRunner, GuardedDailyRewardsRunner,
+    GuardedEnhancementRunner, GuardedNovaRunner, GuardedPersonalMightRunner,
+    GuardedRecruitmentRunner, GuardedResourceItemRunner, GuardedSupplyRunner,
+    GuardedUltimateRunner,
 )
 from tests.support.service_stop import VirtualStop
+from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
 
 
 @dataclass(frozen=True)
@@ -93,6 +96,16 @@ ROUTES = {
         _work_by_default, lambda runner: setattr(runner, "uncertain", True),
         (4, 1), (1, 0), 4,
     ),
+    DAILY_REWARDS_FLOW_ID: RouteSpec(
+        DAILY_REWARDS_FLOW_ID, lambda stop, root: GuardedDailyRewardsRunner(stop, root),
+        _work_by_default, lambda runner: setattr(runner, "partial", True),
+        (3, 1), (1, 0), 4,
+    ),
+    RESOURCE_ITEM_FLOW_ID: RouteSpec(
+        RESOURCE_ITEM_FLOW_ID, lambda stop, root: GuardedResourceItemRunner(stop),
+        _work_by_default, lambda runner: setattr(runner, "partial", True),
+        (3, 1), (1, 0), 4,
+    ),
 }
 
 NOT_SERVABLE = {
@@ -119,6 +132,10 @@ EXCEPTIONS = {
         "Recruitment eligibility follows a cooldown, not the next reset",
         "tests.test_service_recruitment.ServiceRecruitmentTests.test_native_pass_cooldown_restart_and_later_eligibility",
     ),
+    (DAILY_REWARDS_FLOW_ID, "restart_before_due"): (
+        "the 300-second cooldown is an observation interval; a distinct ready batch may run within the same reset",
+        "tests.test_service_daily_rewards.DailyRewardsServiceTests.test_cooldown_restart_and_later_distinct_batch_same_reset",
+    ),
 }
 
 
@@ -144,6 +161,14 @@ class RouteRig:
                 side_effect=AssertionError("device access forbidden"),
             ))
         self.stop = VirtualStop(1_800_000_000.0)
+        self.account_id, self.server_id = "account", "server"
+        if spec.flow_id in {DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
+            from datetime import datetime, timezone
+            backend = derive_resource_runtime_identity(
+                resource_fixed_runtime_binding(),
+                datetime.fromtimestamp(self.stop.now, timezone.utc),
+            )
+            self.account_id, self.server_id = backend.account_id, backend.server_id
         self.path = self.root / "service.sqlite3"
         self.state = self.stack.enter_context(BotStateManager(self.path))
         self.runner = spec.make_runner(self.stop, self.root)
@@ -163,7 +188,7 @@ class RouteRig:
         reports = []
         service = self.service if state is None else self.make_service(state)
         service.serve(
-            account_id="account", server_id="server", stop=self.stop,
+            account_id=self.account_id, server_id=self.server_id, stop=self.stop,
             emit=lambda report: (reports.append(report), self.stop.set()),
             clock=lambda: self.stop.now, flow_ids=(self.spec.flow_id,),
         )

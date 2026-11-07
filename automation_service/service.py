@@ -53,6 +53,7 @@ from .operations import HealthSnapshot, OperationsService
 from .registry import (
     BIOENHANCER_FLOW_ID,
     CAMPAIGN_FLOW_ID,
+    DAILY_REWARDS_FLOW_ID,
     CANONICAL_FLOW_REGISTRY,
     CanonicalFlowRegistration,
     DisabledProductionEntry,
@@ -60,6 +61,7 @@ from .registry import (
     NOVA_FLOW_ID,
     PERSONAL_MIGHT_FLOW_ID,
     RECRUITMENT_FLOW_ID,
+    RESOURCE_ITEM_FLOW_ID,
     RegisteredDispatchSnapshot,
     SUPPLY_FLOW_ID,
     ULTIMATE_FLOW_ID,
@@ -398,6 +400,8 @@ class AutomationService:
         ultimate_runner=None,
         enhancement_runner=None,
         personal_might_runner=None,
+        daily_rewards_runner=None,
+        resource_item_runner=None,
         application_startup=None,
     ) -> None:
         if state_manager is not None and state is not None and state_manager is not state:
@@ -419,6 +423,8 @@ class AutomationService:
         self.ultimate_runner = ultimate_runner
         self.enhancement_runner = enhancement_runner
         self.personal_might_runner = personal_might_runner
+        self.daily_rewards_runner = daily_rewards_runner
+        self.resource_item_runner = resource_item_runner
         if application_startup is not None and not callable(application_startup):
             raise ServiceError("application startup must be callable")
         self.application_startup = application_startup
@@ -438,6 +444,8 @@ class AutomationService:
             self.ultimate_runner,
             self.enhancement_runner,
             self.personal_might_runner,
+            self.daily_rewards_runner,
+            self.resource_item_runner,
         )) and not isinstance(
             self.adapter, SupervisedBlueStacksAdapter
         ):
@@ -660,6 +668,8 @@ class AutomationService:
         from .ultimate import UltimateExecutionHandler, PRODUCT_ID as ULTIMATE_TASK_ID, ultimate_next_due
         from .enhancement import EnhancementExecutionHandler, PRODUCT_ID as ENHANCEMENT_TASK_ID, enhancement_next_due
         from .personal_might import PersonalMightExecutionHandler, PRODUCT_ID as PERSONAL_MIGHT_TASK_ID, personal_might_next_due
+        from .daily_rewards import DailyRewardsExecutionHandler, PRODUCT_ID as DAILY_REWARDS_TASK_ID, daily_rewards_next_due
+        from .resource_item import ResourceItemExecutionHandler, PRODUCT_ID as RESOURCE_ITEM_TASK_ID, resource_item_next_due
 
         if self.mode is not ServiceMode.SUPERVISED or self.state is None:
             raise ServiceError("serve requires an explicitly configured native runner")
@@ -699,7 +709,8 @@ class AutomationService:
                 task_id = {RECRUITMENT_FLOW_ID: MAINTENANCE_TASK_ID, NOVA_FLOW_ID: NOVA_TASK_ID,
                            CAMPAIGN_FLOW_ID: CAMPAIGN_FLOW_ID, BIOENHANCER_FLOW_ID: BIOENHANCER_TASK_ID,
                            SUPPLY_FLOW_ID: SUPPLY_TASK_ID, ULTIMATE_FLOW_ID: ULTIMATE_TASK_ID,
-                           ENHANCEMENT_FLOW_ID: ENHANCEMENT_TASK_ID, PERSONAL_MIGHT_FLOW_ID: PERSONAL_MIGHT_TASK_ID}[flow_id]
+                           ENHANCEMENT_FLOW_ID: ENHANCEMENT_TASK_ID, PERSONAL_MIGHT_FLOW_ID: PERSONAL_MIGHT_TASK_ID,
+                           DAILY_REWARDS_FLOW_ID: DAILY_REWARDS_TASK_ID, RESOURCE_ITEM_FLOW_ID: RESOURCE_ITEM_TASK_ID}[flow_id]
                 identity = SchedulerIdentity(account_id, server_id, facts.reset_id, task_id)
                 previous_reset = previous_resets.get(flow_id)
                 reset_change = None
@@ -760,6 +771,8 @@ class AutomationService:
                     ULTIMATE_FLOW_ID: "ultimate_dispatch_count",
                     ENHANCEMENT_FLOW_ID: "enhancement_dispatch_count",
                     PERSONAL_MIGHT_FLOW_ID: "praise_transport_calls",
+                    DAILY_REWARDS_FLOW_ID: "reward_claim_transport_calls",
+                    RESOURCE_ITEM_FLOW_ID: "item_use_transport_calls",
                 }[flow_id]
 
                 def record_consumption():
@@ -814,7 +827,9 @@ class AutomationService:
                             raise ServiceError("APPLICATION_STARTUP_ACCOUNTING_INVALID")
                         startup_verified = True
                         checkpoint()
-                    options = {"runtime_input_lock": owner} if flow_id in {BIOENHANCER_FLOW_ID, SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID} else {}
+                    options = {"runtime_input_lock": owner} if flow_id in {BIOENHANCER_FLOW_ID, SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID} else {}
+                    if flow_id in {DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
+                        options["occurrence_key"] = run.occurrence_key
                     if operator_request_id is not None:
                         if run.mode != "manual" or run.occurrence_basis != operator_request_id:
                             raise ServiceError("MANUAL_REPEAT_CLAIM_MISMATCH")
@@ -826,15 +841,21 @@ class AutomationService:
                                       system_launch_count=startup_result.get("system_launch_count"))
                     executor_results[flow_id] = result
                     consumed_actions = record_consumption()
-                    due = {RECRUITMENT_FLOW_ID: recruitment_next_due, NOVA_FLOW_ID: nova_next_due,
-                           CAMPAIGN_FLOW_ID: campaign_next_due, BIOENHANCER_FLOW_ID: bioenhancer_next_due,
-                           SUPPLY_FLOW_ID: supply_next_due, ULTIMATE_FLOW_ID: ultimate_next_due,
-                           ENHANCEMENT_FLOW_ID: enhancement_next_due, PERSONAL_MIGHT_FLOW_ID: personal_might_next_due}[flow_id](
-                        result, identity, facts.now_utc_epoch
-                    )
+                    if flow_id == RESOURCE_ITEM_FLOW_ID:
+                        due = resource_item_next_due(
+                            result, identity, facts.now_utc_epoch, run.occurrence_key,
+                        )
+                    else:
+                        due = {RECRUITMENT_FLOW_ID: recruitment_next_due, NOVA_FLOW_ID: nova_next_due,
+                               CAMPAIGN_FLOW_ID: campaign_next_due, BIOENHANCER_FLOW_ID: bioenhancer_next_due,
+                               SUPPLY_FLOW_ID: supply_next_due, ULTIMATE_FLOW_ID: ultimate_next_due,
+                               ENHANCEMENT_FLOW_ID: enhancement_next_due, PERSONAL_MIGHT_FLOW_ID: personal_might_next_due,
+                               DAILY_REWARDS_FLOW_ID: daily_rewards_next_due}[flow_id](
+                            result, identity, facts.now_utc_epoch,
+                        )
                     checkpoint()
                     outcome = NormalizedOutcome.DEFERRED
-                    if flow_id in {SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID}:
+                    if flow_id in {SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
                         # Verified no-work observes prior completion; current
                         # dispatches complete this reset's route effect.
                         outcome = (NormalizedOutcome.ALREADY_COMPLETE if result.get("no_work") is True
@@ -846,7 +867,7 @@ class AutomationService:
                         outcome, f"{prefix}_PASS_VERIFIED",
                         verified=True, next_eligible_at=due,
                         action_count=(result["committed_ap_effect_count"] if flow_id == CAMPAIGN_FLOW_ID
-                                      else result["committed_action_count"] if flow_id in {ULTIMATE_FLOW_ID, PERSONAL_MIGHT_FLOW_ID}
+                                      else result["committed_action_count"] if flow_id in {ULTIMATE_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID}
                                       else result["actions_completed"] if recruitment else consumed_actions),
                         observed_progress=result,
                     )
@@ -924,11 +945,13 @@ class AutomationService:
                                 SUPPLY_FLOW_ID: SupplyExecutionHandler,
                                 ULTIMATE_FLOW_ID: UltimateExecutionHandler,
                                 ENHANCEMENT_FLOW_ID: EnhancementExecutionHandler,
-                                PERSONAL_MIGHT_FLOW_ID: PersonalMightExecutionHandler}[entry.flow_id]
+                                PERSONAL_MIGHT_FLOW_ID: PersonalMightExecutionHandler,
+                                DAILY_REWARDS_FLOW_ID: DailyRewardsExecutionHandler,
+                                RESOURCE_ITEM_FLOW_ID: ResourceItemExecutionHandler}[entry.flow_id]
                 options = ({"stage": self.campaign_runner.stage} if entry.flow_id == CAMPAIGN_FLOW_ID
-                           else {"flow_spec": entry.spec} if entry.flow_id in {ULTIMATE_FLOW_ID, PERSONAL_MIGHT_FLOW_ID} else {})
+                           else {"flow_spec": entry.spec} if entry.flow_id in {ULTIMATE_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, DAILY_REWARDS_FLOW_ID} else {})
                 handlers[entry.flow_id] = handler_type(entry.registration, execute, **options)
-                if entry.flow_id in {SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID}:
+                if entry.flow_id in {SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
                     handlers[entry.flow_id].flow_spec = entry.spec
             coordinator = UtcPulseCoordinator(
                 state, tuple(effective_descriptors[entry.flow_id] for entry in entries), handlers, clock=clock,
@@ -965,7 +988,7 @@ class AutomationService:
                                 if flow is None:
                                     continue
                     projection = RecurrenceProjection(
-                        (RecurrenceClass.DAILY_ONCE_PER_RESET if entry.flow_id in {SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID}
+                        (RecurrenceClass.DAILY_ONCE_PER_RESET if entry.flow_id in {SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RESOURCE_ITEM_FLOW_ID}
                          else RecurrenceClass.COOLDOWN), observed_at_utc=now,
                         next_eligible_at=None if operator_request_id is not None else flow.next_due_at_utc,
                     )

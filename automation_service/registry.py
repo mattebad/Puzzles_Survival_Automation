@@ -108,6 +108,20 @@ PERSONAL_MIGHT_HANDLER_ID = "personal_might_praise_execution_handler"
 PERSONAL_MIGHT_PROFILE_ID = WORLD_PROFILE_ID
 PERSONAL_MIGHT_PHASE_MODE = "phase_canary"
 PERSONAL_MIGHT_MAX_INPUTS = 8
+DAILY_REWARDS_FLOW_ID = "DAILY-ROW-CLAIM-BLUESTACKS-INTEGRATION"
+DAILY_REWARDS_PRODUCT_ID = "aggregate_daily_claim"
+DAILY_REWARDS_PRODUCT_REVISION = "aggregate_daily_claim-v2"
+DAILY_REWARDS_HANDLER_ID = "daily_rewards_execution_handler"
+DAILY_REWARDS_PROFILE_ID = WORLD_PROFILE_ID
+DAILY_REWARDS_PHASE_MODE = "phase_canary"
+DAILY_REWARDS_MAX_INPUTS = 16
+RESOURCE_ITEM_FLOW_ID = "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
+RESOURCE_ITEM_PRODUCT_ID = "use_resource_item"
+RESOURCE_ITEM_PRODUCT_REVISION = "use_resource_item-v2"
+RESOURCE_ITEM_HANDLER_ID = "resource_item_execution_handler"
+RESOURCE_ITEM_PROFILE_ID = WORLD_PROFILE_ID
+RESOURCE_ITEM_PHASE_MODE = "phase_canary"
+RESOURCE_ITEM_MAX_INPUTS = 10
 
 
 _FIXED_BINDINGS = {
@@ -198,6 +212,26 @@ _FIXED_BINDINGS = {
         "production_handler": PERSONAL_MIGHT_HANDLER_ID,
         "profile": PERSONAL_MIGHT_PROFILE_ID,
         "mode": PERSONAL_MIGHT_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    DAILY_REWARDS_FLOW_ID: {
+        "flow_id": DAILY_REWARDS_FLOW_ID,
+        "product_id": DAILY_REWARDS_PRODUCT_ID,
+        "product_revision": DAILY_REWARDS_PRODUCT_REVISION,
+        "production_handler": DAILY_REWARDS_HANDLER_ID,
+        "profile": DAILY_REWARDS_PROFILE_ID,
+        "mode": DAILY_REWARDS_PHASE_MODE,
+        "registration_status": "REGISTERED",
+        "scheduler_eligible": True,
+    },
+    RESOURCE_ITEM_FLOW_ID: {
+        "flow_id": RESOURCE_ITEM_FLOW_ID,
+        "product_id": RESOURCE_ITEM_PRODUCT_ID,
+        "product_revision": RESOURCE_ITEM_PRODUCT_REVISION,
+        "production_handler": RESOURCE_ITEM_HANDLER_ID,
+        "profile": RESOURCE_ITEM_PROFILE_ID,
+        "mode": RESOURCE_ITEM_PHASE_MODE,
         "registration_status": "REGISTERED",
         "scheduler_eligible": True,
     },
@@ -388,7 +422,7 @@ class CanonicalFlowRegistration:
     def build_handler(self) -> Any:
         """Instantiate the fixed handler without importing handlers at module load."""
 
-        if self.flow_id in {BIOENHANCER_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID}:
+        if self.flow_id in {BIOENHANCER_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
             # Only explicit supervised serve installs its executor and held-owner
             # checkpoint. Generic composition must never create native authority.
             from .handlers import DisabledHandler
@@ -549,6 +583,24 @@ CANONICAL_FLOW_REGISTRY: tuple[CanonicalFlowRegistration, ...] = (
         cli_name="personal-might",
         family="personal_might_praise",
         variant="one_daily_praise",
+        cadence="daily_once_per_reset",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        DAILY_REWARDS_FLOW_ID,
+        max_inputs=DAILY_REWARDS_MAX_INPUTS,
+        cli_name="daily-rewards",
+        family="daily_rewards",
+        variant="aggregate_then_ready_chests",
+        cadence="cooldown_pulse",
+        observation_only_completion=True,
+    ),
+    _canonical_registration(
+        RESOURCE_ITEM_FLOW_ID,
+        max_inputs=RESOURCE_ITEM_MAX_INPUTS,
+        cli_name="resource-item",
+        family="resource_item",
+        variant="one_owned_1k_food",
         cadence="daily_once_per_reset",
         observation_only_completion=True,
     ),
@@ -1023,6 +1075,20 @@ __all__ = [
     "PERSONAL_MIGHT_PROFILE_ID",
     "PERSONAL_MIGHT_PHASE_MODE",
     "PERSONAL_MIGHT_MAX_INPUTS",
+    "DAILY_REWARDS_FLOW_ID",
+    "DAILY_REWARDS_PRODUCT_ID",
+    "DAILY_REWARDS_PRODUCT_REVISION",
+    "DAILY_REWARDS_HANDLER_ID",
+    "DAILY_REWARDS_PROFILE_ID",
+    "DAILY_REWARDS_PHASE_MODE",
+    "DAILY_REWARDS_MAX_INPUTS",
+    "RESOURCE_ITEM_FLOW_ID",
+    "RESOURCE_ITEM_PRODUCT_ID",
+    "RESOURCE_ITEM_PRODUCT_REVISION",
+    "RESOURCE_ITEM_HANDLER_ID",
+    "RESOURCE_ITEM_PROFILE_ID",
+    "RESOURCE_ITEM_PHASE_MODE",
+    "RESOURCE_ITEM_MAX_INPUTS",
     "consume_registered_entry",
     "consume_world_registration",
     "consume_nova_registration",

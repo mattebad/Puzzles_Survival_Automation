@@ -10,7 +10,11 @@ import unittest
 from unittest.mock import Mock, patch
 
 from automation_service import cli
-from automation_service.registry import canonical_flow_specs
+from automation_service.registry import (
+    DAILY_REWARDS_FLOW_ID,
+    RESOURCE_ITEM_FLOW_ID,
+    canonical_flow_specs,
+)
 from automation_service.state import BotStateManager
 from scripts import navigation_development_boundary as boundary
 from scripts import pnsctl
@@ -26,18 +30,42 @@ class CanonicalServeFacadeTests(unittest.TestCase):
         ):
             with self.subTest(common=common):
                 argv = ["automation-service", *common, "serve", "--live"]
-                for flow in ("nova", "campaign", "ultimate", "supply", "recruitment", "enhancement", "bioenhancer", "personal-might"):
+                for flow in (
+                    "nova",
+                    "campaign",
+                    "ultimate",
+                    "supply",
+                    "recruitment",
+                    "enhancement",
+                    "bioenhancer",
+                    "personal-might",
+                    "daily-rewards",
+                    "resource-item",
+                ):
                     argv.extend(["--flow", flow])
                 argv.extend(["--campaign-stage", "1-15-9", "--campaign-cadence-seconds", "300",
                              "--adb", "adb-under-test", "--serial", "emulator-5554",
                              "--account-id", "account", "--server-id", "server", "--output-directory", "captures with spaces"])
                 parsed = cli.build_parser().parse_args(argv[1:])
                 self.assertEqual(parsed.mode, "supervised")
-                self.assertEqual(len(parsed.flow), 8)
+                self.assertEqual(len(parsed.flow), 10)
                 with patch.object(cli, "main", return_value=17) as canonical:
                     self.assertEqual(pnsctl.main(argv), 17)
-                canonical.assert_called_once_with(
-                    argv[1:], application_startup=pnsctl.owner_bound_application_startup)
+                canonical.assert_called_once()
+                self.assertEqual(canonical.call_args.args, (argv[1:],))
+                kwargs = canonical.call_args.kwargs
+                self.assertIs(
+                    kwargs["application_startup"],
+                    pnsctl.owner_bound_application_startup,
+                )
+                native_bindings = kwargs["native_route_bindings"]
+                self.assertEqual(
+                    set(native_bindings),
+                    {DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID},
+                )
+                self.assertTrue(
+                    all(callable(binding.run) for binding in native_bindings.values())
+                )
 
     def test_a_global_option_value_named_serve_is_not_the_command(self):
         for common in (["--state-path", "serve"], ["--state-path=serve"], ["--mode", "serve"]):
@@ -49,8 +77,15 @@ class CanonicalServeFacadeTests(unittest.TestCase):
 
     def test_help_exposes_the_canonical_serve_options(self):
         output = io.StringIO()
-        with redirect_stdout(output):
+        with patch.object(LocalBlueStacksRuntime, "connect") as connect, patch(
+            "scripts.resource_item_authorization.open_admitted_resource_store"
+        ) as resource_store, patch(
+            "scripts.base_route_native_runtime.open_canonical_action_store"
+        ) as action_store, redirect_stdout(output):
             self.assertEqual(pnsctl.main(["automation-service", "serve", "--help"]), 0)
+        connect.assert_not_called()
+        resource_store.assert_not_called()
+        action_store.assert_not_called()
         for option in ("--live", "--flow", "--campaign-stage", "--campaign-cadence-seconds"):
             self.assertIn(option, output.getvalue())
         with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as error:

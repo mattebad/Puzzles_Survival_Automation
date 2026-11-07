@@ -6,7 +6,7 @@ real runner produces.  No fake touches a device; all hooks are optional.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from dataclasses import asdict
 import hashlib
 import json
@@ -23,8 +23,12 @@ from automation_service.enhancement import (
 )
 from automation_service.recruitment import recruitment_reset
 from automation_service.registry import (
-    BIOENHANCER_FLOW_ID, CAMPAIGN_PROFILE_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID,
-    RECRUITMENT_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
+    BIOENHANCER_FLOW_ID, CAMPAIGN_PROFILE_ID, DAILY_REWARDS_FLOW_ID,
+    DAILY_REWARDS_PRODUCT_ID, DAILY_REWARDS_PRODUCT_REVISION, ENHANCEMENT_FLOW_ID,
+    DAILY_REWARDS_PROFILE_ID, RESOURCE_ITEM_MAX_INPUTS,
+    PERSONAL_MIGHT_FLOW_ID, RESOURCE_ITEM_FLOW_ID, RESOURCE_ITEM_PRODUCT_ID,
+    RESOURCE_ITEM_PRODUCT_REVISION, RECRUITMENT_FLOW_ID, SUPPLY_FLOW_ID,
+    ULTIMATE_FLOW_ID,
 )
 from automation_service.service import ServiceError
 from automation_service.supply import (
@@ -35,10 +39,15 @@ from automation_service.ultimate import (
     PRODUCT_ID as ULTIMATE_PRODUCT_ID, PROFILE_ID as ULTIMATE_PROFILE_ID, UltimateRunnerError,
 )
 from scripts import navigation_development_boundary as boundary
+from safe_action_core.resource_effect_authority import (
+    ResourceEffectAuthority, ResourceOccurrenceIdentity,
+)
 from scripts.bioenhancer_free_research_route import parse_free_research_cooldown
 from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from tasks.noahs_tavern_recruit_maintenance import NoahMaintenanceState
-from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
+from tasks.runtime_identity import (
+    derive_resource_runtime_identity, derive_static_utc_reset, resource_fixed_runtime_binding,
+)
 
 
 class GuardedSupplyRunner:
@@ -300,6 +309,328 @@ class GuardedPersonalMightRunner:
         }
         if error:
             raise personal_might_adapter.PersonalMightRunnerError(str(error), partial_result=result) from error
+        return result
+
+
+class GuardedRoutePartialResultError(RuntimeError):
+    def __init__(self, message, partial_result):
+        super().__init__(message)
+        self.partial_result = partial_result
+
+
+class GuardedDailyRewardsRunner:
+    MAX_ACTIONS = 6
+    OBSERVATION_INTERVAL_SECONDS = 300
+
+    def __init__(self, stop, root):
+        self.stop = stop
+        self.calls, self.inputs = [], []
+        self.no_work = False
+        self.aggregate_ready = True
+        self.ready_chests = 0
+        self.partial = False
+        self.actions = 0
+        self.on_entry = self.on_input = None
+        self.directory = root / "daily-native-fake"
+        self.directory.mkdir()
+        home_bytes = b"offline-fake-home-frame"
+        (self.directory / "current-home.png").write_bytes(home_bytes)
+        self.home_sha = hashlib.sha256(home_bytes).hexdigest()
+        self.chest_keys = [f"daily-chest-{value}" for value in (30, 60, 90, 120, 150)]
+
+    @property
+    def effects(self):
+        return self.actions
+
+    def __call__(self, identity, previous_reset, checkpoint, *, runtime_input_lock, occurrence_key):
+        checkpoint()
+        runtime_input_lock.assert_held(runtime_input_lock.owner, runtime_input_lock.invocation_id)
+        self.calls.append((identity, previous_reset))
+        if self.on_entry:
+            self.on_entry()
+
+        claims = []
+        if not self.no_work and self.aggregate_ready:
+            claims.append("aggregate_claim")
+        if not self.no_work:
+            claims.extend(["milestone_chest"] * max(
+                0, min(self.ready_chests, 5),
+            ))
+        plan = ["open_quest", "select_daily", *claims, "return_home"]
+        count = dispatched = committed = chest_count = 0
+        aggregate_claimed = False
+        error = None
+        try:
+            for index, label in enumerate(plan):
+                checkpoint()
+                self.inputs.append((identity.reset_id, index, label))
+                count += 1
+                consequential = label in {"aggregate_claim", "milestone_chest"}
+                if consequential:
+                    dispatched += 1
+                    self.actions += 1
+                    if self.partial:
+                        raise RuntimeError("Daily claim successor lost after dispatch")
+                    committed += 1
+                    if label == "aggregate_claim":
+                        aggregate_claimed = True
+                    else:
+                        chest_count += 1
+                if self.on_input:
+                    self.on_input(index)
+        except Exception as exc:
+            error = exc
+
+        now = self.stop.now
+        backend = derive_resource_runtime_identity(
+            resource_fixed_runtime_binding(), datetime.fromtimestamp(now, timezone.utc),
+        )
+        backend_mapping = asdict(backend)
+        backend_mapping["assurance"] = backend.assurance.value
+        backend_mapping["evidence_refs"] = list(backend.evidence_refs)
+        result = {
+            "status": "unresolved" if error else "completed",
+            "flow_id": DAILY_REWARDS_FLOW_ID,
+            "product_id": DAILY_REWARDS_PRODUCT_ID,
+            "product_revision": DAILY_REWARDS_PRODUCT_REVISION,
+            "task_id": DAILY_REWARDS_PRODUCT_ID,
+            "account_id": identity.account_id,
+            "server_id": identity.server_id,
+            "reset_id": identity.reset_id,
+            "occurrence_key": occurrence_key,
+            "time_basis": "utc",
+            "runtime_profile_id": DAILY_REWARDS_PROFILE_ID,
+            "native_session_directory": str(self.directory),
+            "backend_identity": backend_mapping,
+            "completed_at_utc": now,
+            "observation_interval_seconds": self.OBSERVATION_INTERVAL_SECONDS,
+            "next_due_at_utc": now + self.OBSERVATION_INTERVAL_SECONDS,
+            "input_count": count,
+            "total_input_count": count,
+            "total_action_count": dispatched,
+            "reward_claim_transport_calls": dispatched,
+            "committed_action_count": committed,
+            "accounting_verified": True,
+            "no_work": self.no_work or not claims,
+            "no_work_evidence": (
+                {
+                    "selected_daily": True,
+                    "reset_id": identity.reset_id,
+                    "source_frame_sha256": "a" * 64,
+                    "ordinary_claim_controls": 0,
+                    "ready_chest_count": 0,
+                    "static_or_locked_chest_keys": self.chest_keys,
+                }
+                if self.no_work or not claims else None
+            ),
+            "aggregate_claim": {
+                "status": (
+                    "unresolved" if error and "aggregate_claim" in claims and dispatched
+                    else "confirmed" if aggregate_claimed else "none"
+                ),
+                "dispatch_count": int("aggregate_claim" in claims and dispatched > 0),
+                "confirmed": aggregate_claimed,
+                "reset_id": identity.reset_id,
+                "ready_batch_proven": aggregate_claimed,
+                "free_only": True,
+                "control_identity": "daily-quest-claim",
+                "ordinary_claim_controls_cleared": aggregate_claimed,
+                **(
+                    {
+                        "batch_identity": occurrence_key,
+                        "successor_frame_sha256": "c" * 64 if aggregate_claimed else None,
+                    }
+                    if "aggregate_claim" in claims and dispatched > 0 else {}
+                ),
+                "source_frame_sha256": "b" * 64,
+            },
+            "chests_collected": [
+                {
+                    "milestone_key": self.chest_keys[index],
+                    "status": "confirmed",
+                    "successor_state": "claimed",
+                    "reset_id": identity.reset_id,
+                    "target_identity": "activity-milestone-chest",
+                    "control_class": "MILESTONE_CHEST",
+                    "ready_state_proven": True,
+                    "free_only": True,
+                    "cost_type": "none",
+                    "successor_milestone_key": self.chest_keys[index],
+                    "source_frame_sha256": "d" * 64,
+                    "successor_frame_sha256": "e" * 64,
+                }
+                for index in range(chest_count)
+            ],
+            "milestone_scan": {
+                "status": "verified",
+                "selected_daily": True,
+                "reset_id": identity.reset_id,
+                "source_frame_sha256": "a" * 64,
+                "ready_chest_count": chest_count,
+                "ready_chest_keys": self.chest_keys[:chest_count],
+                "static_or_locked_chest_keys": self.chest_keys[chest_count:],
+            },
+            "unclaimed_ready_chest_count": 0,
+            "observed_points": None,
+            "terminal_home_verified": error is None,
+            "terminal_home_frame": (
+                {"frame_path": "current-home.png", "frame_sha256": self.home_sha}
+                if error is None else None
+            ),
+            "effect_reconciliation_required": error is not None and dispatched > 0,
+            "identical_retry_denied": error is not None or committed > 0,
+        }
+        if error:
+            raise GuardedRoutePartialResultError(str(error), result) from error
+        return result
+
+
+class GuardedResourceItemRunner:
+    def __init__(self, stop):
+        self.stop = stop
+        self.calls, self.inputs = [], []
+        self.partial = False
+        self.actions = 0
+        self.on_entry = self.on_input = None
+
+    @property
+    def effects(self):
+        return self.actions
+
+    def __call__(self, identity, previous_reset, checkpoint, *, runtime_input_lock, occurrence_key):
+        checkpoint()
+        runtime_input_lock.assert_held(runtime_input_lock.owner, runtime_input_lock.invocation_id)
+        self.calls.append((identity, previous_reset))
+        if self.on_entry:
+            self.on_entry()
+
+        plan = ("open_inventory", "identify_1k_food", "use_one_item", "return_home")
+        count = dispatched = 0
+        error = None
+        try:
+            for index, label in enumerate(plan):
+                checkpoint()
+                self.inputs.append((identity.reset_id, index, label))
+                count += 1
+                if label == "use_one_item":
+                    dispatched += 1
+                    self.actions += 1
+                    if self.partial:
+                        raise RuntimeError("resource item successor lost after dispatch")
+                if self.on_input:
+                    self.on_input(index)
+        except Exception as exc:
+            error = exc
+
+        resource_day_start = datetime.fromtimestamp(
+            self.stop.now, timezone.utc,
+        ).replace(hour=0, minute=0, second=0, microsecond=0)
+        resource_deadline = resource_day_start + timedelta(days=1)
+        resource_reset_identity_id = (
+            f"reset-deadline:{resource_deadline.isoformat().replace('+00:00', 'Z')}"
+        )
+        resource_identity = ResourceOccurrenceIdentity(
+            account_id=identity.account_id,
+            server_id=identity.server_id,
+            flow_id=RESOURCE_ITEM_FLOW_ID,
+            reset_identity_id=resource_reset_identity_id,
+        )
+        resource_context = resource_identity.authorization_context()
+        resource_occurrence_key = resource_identity.occurrence_key()
+        resource_occurrence_id = resource_identity.occurrence_id()
+        action_key = ResourceEffectAuthority.resource_action_key(resource_context, 1)
+        reservation_id = ResourceEffectAuthority.resource_reservation_id(resource_context, 1)
+        fixture_digest = hashlib.sha256(
+            resource_occurrence_key.encode("utf-8"),
+        ).hexdigest()
+        action_id = f"resource-action:v1:{fixture_digest}"
+        backend = derive_resource_runtime_identity(
+            resource_fixed_runtime_binding(), datetime.fromtimestamp(self.stop.now, timezone.utc),
+        )
+        window = derive_static_utc_reset(datetime.fromtimestamp(self.stop.now, timezone.utc))
+        before_frame = {"path": "frames/item-before.png", "sha256": "1" * 64}
+        after_frame = {"path": "frames/item-after.png", "sha256": "2" * 64}
+        home_frame = {"path": "frames/current-home.png", "sha256": "3" * 64}
+        result = {
+            "status": "unresolved" if error else "complete_for_reset",
+            "flow_id": RESOURCE_ITEM_FLOW_ID,
+            "product_id": RESOURCE_ITEM_PRODUCT_ID,
+            "product_revision": RESOURCE_ITEM_PRODUCT_REVISION,
+            "task_id": RESOURCE_ITEM_PRODUCT_ID,
+            "account_id": identity.account_id,
+            "server_id": identity.server_id,
+            "reset_id": identity.reset_id,
+            "occurrence_key": occurrence_key,
+            "time_basis": "utc",
+            "completed_at_utc": self.stop.now,
+            "input_count": count,
+            "total_input_count": count,
+            "max_inputs": RESOURCE_ITEM_MAX_INPUTS,
+            "max_actions": 1,
+            "session_input_count": count,
+            "runtime_input_count": count,
+            "action_count": dispatched,
+            "resource_account_id": backend.account_id,
+            "resource_server_id": backend.server_id,
+            "resource_runtime_scope": backend.runtime_scope,
+            "resource_identity_assurance": backend.assurance.value,
+            "resource_backend_identity_reset_id": backend.reset_id,
+            "resource_reset_start_utc": window.reset_start_text,
+            "resource_reset_deadline_utc": window.reset_deadline_text,
+            "action_game_day_id": backend.reset_id,
+            "action_task_id": RESOURCE_ITEM_FLOW_ID,
+            "action_semantic_action": "USE_RESOURCE_ITEM",
+            "action_source_state": "RESOURCES_1K_FOOD_READY",
+            "action_target_identity": "daily-resource-item:use-1k-food",
+            "action_expected_postcondition": "RESOURCES_1K_FOOD_USED",
+            "action_consequence": "ordinary_non_idempotent_resource_item_use",
+            "action_cost_type": "owned_inventory_item",
+            "action_cost_amount": 1,
+            "action_quantity": 1,
+            "item_use_transport_calls": dispatched,
+            "committed_action_count": int(dispatched > 0 and error is None),
+            "accounting_verified": True,
+            "journal_status": (
+                "unresolved" if error and dispatched else "confirmed" if dispatched else None
+            ),
+            "resource_delta_verified": error is None and dispatched > 0,
+            "terminal_home_verified": error is None,
+            "effect_reconciliation_required": error is not None and dispatched > 0,
+            "identical_retry_denied": error is not None,
+            "action_id": action_id,
+            "action_key": action_key,
+            "resource_action_id": action_id,
+            "resource_action_key": action_key,
+            "resource_attempt_id": f"attempt:v1:{fixture_digest}",
+            "resource_reset_identity_id": resource_reset_identity_id,
+            "resource_occurrence_key": resource_occurrence_key,
+            "resource_occurrence_id": resource_occurrence_id,
+            "reservation_id": reservation_id,
+            "resource_effect_state": (
+                "UNRESOLVED" if error and dispatched else "CONFIRMED" if dispatched else None
+            ),
+            "reservation_state": (
+                "UNRESOLVED" if error and dispatched else "EFFECT_CONFIRMED" if dispatched else None
+            ),
+            "terminal_observation_state": (
+                "HOME_CANONICAL" if error is None else "UNRESOLVED" if dispatched else None
+            ),
+            "before_owned_quantity": 2 if dispatched else None,
+            "after_owned_quantity": 1 if dispatched and error is None else None,
+            "owned_item_decrement": 1 if dispatched and error is None else None,
+            "terminal_home_frame": (
+                home_frame
+                if error is None else None
+            ),
+            "semantic_evidence": {
+                "item_before_frame": before_frame,
+                "item_after_frame": after_frame,
+                "terminal_home_frame": home_frame,
+            },
+            "next_eligible_at_utc": resource_deadline.timestamp(),
+        }
+        if error:
+            raise GuardedRoutePartialResultError(str(error), result) from error
         return result
 
 

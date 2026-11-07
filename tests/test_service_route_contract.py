@@ -11,9 +11,10 @@ from unittest.mock import patch
 from automation_service.cli import build_parser
 from automation_service.contracts import RecurrenceClass
 from automation_service.registry import (
-    BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, CANONICAL_FLOW_REGISTRY, ENHANCEMENT_FLOW_ID,
-    NOVA_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, REGISTRY_PATH,
-    SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
+    BIOENHANCER_FLOW_ID, CAMPAIGN_FLOW_ID, CANONICAL_FLOW_REGISTRY,
+    DAILY_REWARDS_FLOW_ID, ENHANCEMENT_FLOW_ID, NOVA_FLOW_ID,
+    PERSONAL_MIGHT_FLOW_ID, RECRUITMENT_FLOW_ID, REGISTRY_PATH,
+    RESOURCE_ITEM_FLOW_ID, SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID,
     RegisteredDispatchSnapshot, canonical_entry, canonical_flow_specs,
 )
 from automation_service.service import ServiceError
@@ -86,6 +87,7 @@ class DisabledByDefaultTests(unittest.TestCase):
                     if flow_id in {
                         SUPPLY_FLOW_ID, ULTIMATE_FLOW_ID, ENHANCEMENT_FLOW_ID,
                         PERSONAL_MIGHT_FLOW_ID, BIOENHANCER_FLOW_ID,
+                        DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
                     }:
                         adapter = importlib.import_module(
                             "automation_service." + entry.cli_name.replace("-", "_"),
@@ -98,6 +100,11 @@ class DisabledByDefaultTests(unittest.TestCase):
                             self.assertEqual(entry.product_revision, "bioenhancer_research-v1")
                             self.assertFalse(entry.descriptor.reset_scoped)
                             self.assertEqual(entry.descriptor.cadence, "cooldown_pulse")
+                        elif flow_id == DAILY_REWARDS_FLOW_ID:
+                            self.assertTrue(entry.descriptor.reset_scoped)
+                            self.assertEqual(entry.descriptor.cadence, "cooldown_pulse")
+                            self.assertEqual(entry.descriptor.recurrence_class, RecurrenceClass.COOLDOWN)
+                            self.assertTrue(entry.spec.observation_only_completion)
                         else:
                             self.assertTrue(entry.descriptor.reset_scoped)
                             self.assertEqual(
@@ -118,6 +125,7 @@ class RestartBeforeDueTests(unittest.TestCase):
         work_counts = {
             SUPPLY_FLOW_ID: (4, 1), ULTIMATE_FLOW_ID: (4, 1),
             ENHANCEMENT_FLOW_ID: (6, 3), PERSONAL_MIGHT_FLOW_ID: (6, 1),
+            RESOURCE_ITEM_FLOW_ID: (4, 1),
         }
         for flow_id, spec in ROUTES.items():
             if (flow_id, "restart_before_due") in EXCEPTIONS:
@@ -170,7 +178,8 @@ class RestartBeforeDueTests(unittest.TestCase):
 class BorrowedOwnerTests(unittest.TestCase):
     def test_runtime_owner_is_held_during_the_run_and_released_after(self):
         borrowed = {
-            SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID, BIOENHANCER_FLOW_ID,
+            SUPPLY_FLOW_ID, ENHANCEMENT_FLOW_ID, PERSONAL_MIGHT_FLOW_ID,
+            BIOENHANCER_FLOW_ID, DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID,
         }
         for flow_id, spec in ROUTES.items():
             with self.subTest(route=flow_id):
@@ -202,9 +211,20 @@ class BorrowedOwnerTests(unittest.TestCase):
                     with patch.object(
                         boundary.RuntimeInputLock, "acquire", autospec=True, side_effect=acquire,
                     ) as acquired:
-                        self.assertEqual(rig.once()[0]["status"], "completed")
+                        reports = rig.once()
+                        self.assertEqual(reports[0]["status"], "completed")
                         self.assertEqual(len(rig.runner.inputs), spec.first_inputs)
                         self.assertEqual(checked, [True])
+                        if flow_id in {DAILY_REWARDS_FLOW_ID, RESOURCE_ITEM_FLOW_ID}:
+                            run, = rig.runs()
+                            self.assertEqual(run.consumed_actions, 1)
+                            transport_field = (
+                                "reward_claim_transport_calls"
+                                if flow_id == DAILY_REWARDS_FLOW_ID
+                                else "item_use_transport_calls"
+                            )
+                            self.assertEqual(reports[0]["result"][transport_field], 1)
+                            self.assertEqual(reports[0]["result"]["committed_action_count"], 1)
                         if flow_id in borrowed:
                             self.assertEqual(acquired.call_count, 1)
                     with boundary.RuntimeInputLock(owner="next-owner", invocation_id="after-serve"):
@@ -235,6 +255,16 @@ class PartialResultTests(unittest.TestCase):
                     self.assertEqual(len(rig.runner.calls), 1)
                     self.assertEqual(rig.runner.inputs, inputs)
                     if flow_id in {ULTIMATE_FLOW_ID, PERSONAL_MIGHT_FLOW_ID}:
+                        self.assertEqual(reports[0]["result"]["committed_action_count"], 0)
+                    if flow_id == DAILY_REWARDS_FLOW_ID:
+                        self.assertEqual(
+                            reports[0]["result"]["reward_claim_transport_calls"], 1,
+                        )
+                        self.assertEqual(reports[0]["result"]["committed_action_count"], 0)
+                    elif flow_id == RESOURCE_ITEM_FLOW_ID:
+                        self.assertEqual(
+                            reports[0]["result"]["item_use_transport_calls"], 1,
+                        )
                         self.assertEqual(reports[0]["result"]["committed_action_count"], 0)
                     if flow_id == ULTIMATE_FLOW_ID:
                         self.assertEqual(rig.runner.flee_calls, 1)
