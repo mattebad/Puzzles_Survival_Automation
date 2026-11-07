@@ -831,6 +831,70 @@ def _detail_observation(
     )
 
 
+def _fresh_start_detail(
+    context: Any, *, captured: Any, screen: ResearchScreenObservation,
+    home: Any, home_binding: BuildingBinding, listing_capture: Any,
+    listing: RecommendedResearchListObservation, quote_capture: Any,
+    quote_screen: ResearchScreenObservation, expected: TechUpgradeObservation,
+) -> TechUpgradeObservation | None:
+    """Rebuild the quote under a short, lease-exclusive navigation-only invariant.
+
+    Home owns queue/Center level, the list owns recommendation order, and the
+    overlapping requirements views own the four-resource quote. None is a
+    timeless fact: every source must still be fresh at the final input fence.
+    """
+    now = context.monotonic_clock()
+    sources = (home, listing_capture, quote_capture, captured)
+    if any(not 0 <= now - source.captured_monotonic <= 10.0 for source in sources):
+        return None
+    store = context.action_store
+    if not store.lease_valid_for(context.owner, context.utc_clock()) or store.has_action_block():
+        return None
+    if not (home.captured_monotonic <= listing_capture.captured_monotonic <= quote_capture.captured_monotonic <= captured.captured_monotonic):
+        return None
+    home_screen = _source_screen(context, home)
+    fresh_listing = _list_observation(_source_screen(context, listing_capture), context)
+    queue_state, queue_remaining = _queue1_from_lines(_line_groups(screen.words))
+    if (
+        home_screen.queue1_state != "idle"
+        or queue_state not in {"unknown", "idle"}
+        or fresh_listing is None
+        or fresh_listing.first_recommendation_identity != listing.first_recommendation_identity
+        or not research_list_navigation_authorizeable(fresh_listing)
+        or screen.selected_technology_identity != fresh_listing.first_recommendation_identity
+    ):
+        return None
+    context._recommended_research_center_level = _building_level_from_words(home_screen, home_binding)
+    context._recommended_research_queue1_state = home_screen.queue1_state
+    context._recommended_research_queue1_remaining = queue_remaining
+    fresh_quote = _source_screen(
+        context, quote_capture, expected_detail_identity=fresh_listing.first_recommendation_identity,
+    )
+    if fresh_quote != quote_screen:
+        return None
+    costs = (
+        screen.resource_rows if len(screen.resource_rows) == len(RESEARCH_RESOURCES)
+        else _merge_top_and_scrolled_resource_rows(screen.resource_pairs, fresh_quote.resource_pairs)
+    )
+    detail = _detail_observation(
+        screen, fresh_listing, context, costs=costs, scrolled_refs=fresh_quote.evidence_refs,
+    )
+    if detail is None or not tech_upgrade_authorizeable(detail, fresh_listing):
+        return None
+    # A different affordable quote is still a changed authorization, not consent.
+    fields = (
+        "first_recommendation_identity", "selected_technology_identity",
+        "current_level", "target_level", "prerequisites_known", "prerequisites_met",
+        "prerequisite_evidence", "queue1_state", "resource_rows", "duration_seconds",
+        "research_now_diamonds", "target_identity", "target_roi", "panel_bounds",
+    )
+    if any(getattr(detail, field) != getattr(expected, field) for field in fields):
+        return None
+    if any(not 0 <= context.monotonic_clock() - source.captured_monotonic <= 10.0 for source in sources):
+        return None
+    return detail
+
+
 def _policy_observation(
     captured: Any,
     plan: _ActionPlan,
@@ -926,7 +990,7 @@ def _guarded_action(
     action_key: str,
     plan_builder: Callable[[Any], _ActionPlan | None],
     recognizes_successor: Callable[[Any], bool],
-    semantic_preconditions: tuple[str, ...] = (),
+    semantic_preconditions: tuple[str, ...] | Callable[[Any], tuple[str, ...]] = (),
     action_class: ActionClass = ActionClass.NAVIGATION_ONLY,
     action_kind: str | None = None,
     subject: str | None = None,
@@ -981,14 +1045,14 @@ def _guarded_action(
             unresolved_action=store.has_action_block(),
             duplicate_action_key=store.action_key_exists(action_key),
             game_day_id=game_day_id,
-            policy_phase="proposal",
+            policy_phase="pre_dispatch",
             action_class=action_class,
             action_kind=action_kind,
             subject=subject,
             resource_or_currency=resource_or_currency,
             maximum_cost=maximum_cost,
             free_only=free_only,
-            semantic_preconditions=semantic_preconditions,
+            semantic_preconditions=semantic_preconditions(before) if callable(semantic_preconditions) else semantic_preconditions,
             semantic_postconditions=(postcondition,),
             runtime_session_id=str(context.runtime.session),
         )
@@ -1022,13 +1086,11 @@ def _guarded_action(
             start_y, end_y = (bottom, top) if plan.scroll_direction == "down" else (top, bottom)
             runtime.swipe(
                 before,
-                start_point=(center_x, start_y),
-                end_point=(center_x, end_y),
+                start=(center_x, start_y),
+                end=(center_x, end_y),
                 target_identity=plan.target_identity,
-                target_roi=plan.target_roi,
                 action_key=action_key,
-                action_class="navigation",
-                consequential=False,
+                duration_ms=500,
             )
         else:
             runtime.tap(
@@ -1556,6 +1618,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             current, home_verified, step = _home_from_current(context, policy, current=current, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
             return _normal_result(context, status="blocked", reason="research_center_page_successor_unverified", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
         list_screen = list_state["value"]
+        listing_capture = after
         listing = _list_observation(list_screen, context)
         if listing is None or not research_list_navigation_authorizeable(listing):
             current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
@@ -1652,6 +1715,8 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
 
         detail_screen = detail_screen_state["value"]
         scrolled_refs: list[str] = []
+        quote_capture = after
+        quote_screen = detail_screen
         if len(detail_screen.resource_rows) != len(RESEARCH_RESOURCES):
             if detail_screen.scroll_roi is None:
                 current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
@@ -1714,6 +1779,8 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 current, home_verified, step = _home_from_current(context, policy, current=current, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
                 return _normal_result(context, status="blocked", reason="all_four_scrolled_resource_rows_unverified", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
             scrolled_screen = scrolled_screen_state["value"]
+            quote_capture = after_scroll
+            quote_screen = scrolled_screen
             costs = scrolled_costs["value"]
             scrolled_refs.append(_reference(context, after_scroll))
 
@@ -1814,7 +1881,6 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         if not tech_upgrade_authorizeable(detail, listing):
             current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
             return _normal_result(context, status="blocked", reason="recommended_research_exact_start_guard_failed", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
-        tokens = _research_start_preconditions(detail, game_day_id)
         start_plan = _page_plan(
             detail_screen,
             state=DETAIL_SCREEN,
@@ -1830,16 +1896,24 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         active_state: dict[str, ResearchActiveObservation | None] = {"value": None}
 
         def start_plan_builder(captured: Any) -> _ActionPlan | None:
+            nonlocal detail
+            context.checkpoint()
+            context.validate_identity()
             screen = _source_screen(
-                context,
-                captured,
+                context, captured,
                 expected_detail_identity=listing.first_recommendation_identity,
             )
-            if screen.screen_state != DETAIL_SCREEN or screen.detail_research_target_roi is None:
+            fresh_detail = _fresh_start_detail(
+                context, captured=captured, screen=screen, home=home,
+                home_binding=binding, listing_capture=listing_capture,
+                listing=listing, quote_capture=quote_capture,
+                quote_screen=quote_screen,
+                expected=detail,
+            )
+            if fresh_detail is None:
                 return None
-            current_identity = research_identity(listing.first_recommendation_title)
-            if current_identity != listing.first_recommendation_identity:
-                return None
+            detail = fresh_detail
+            current_identity = detail.first_recommendation_identity
             now_bounds = screen.research_now_target_roi
             target_roi = screen.detail_research_target_roi
             if now_bounds is None or not (target_roi[2] <= now_bounds[0] or now_bounds[2] <= target_roi[0] or target_roi[3] <= now_bounds[1] or now_bounds[3] <= target_roi[1]):
@@ -1887,7 +1961,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             action_key=start_action_key,
             plan_builder=start_plan_builder,
             recognizes_successor=active_successor,
-            semantic_preconditions=tokens,
+            semantic_preconditions=lambda captured: _research_start_preconditions(detail, game_day_id),
             action_class=ActionClass.SPEND_OR_STRATEGIC,
             action_kind="research_start",
             subject=detail.first_recommendation_identity,
@@ -1920,7 +1994,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 status="unresolved",
                 reason="research_start_successor_or_paired_debit_unknown",
                 game_day_id=game_day_id,
-                research_transport_calls=start_calls,
+                start_calls=start_calls,
                 committed_action_count=int(semantic_progress.get("start_semantically_verified") is True),
                 effect_reconciliation_required=True,
                 identical_retry_denied=True,
@@ -1937,7 +2011,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 status="unresolved",
                 reason="research_confirmed_but_home_successor_unverified",
                 game_day_id=game_day_id,
-                research_transport_calls=start_calls,
+                start_calls=start_calls,
                 committed_action_count=1,
                 effect_reconciliation_required=True,
                 identical_retry_denied=True,
@@ -1950,7 +2024,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             status="completed",
             reason="recommended_research_started_and_paired_debit_verified",
             game_day_id=game_day_id,
-            research_transport_calls=start_calls,
+            start_calls=start_calls,
             committed_action_count=1,
             terminal_home_verified=True,
             route_steps=step,

@@ -4,6 +4,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
 import unittest
+from types import SimpleNamespace
+
+from scripts import recommended_research_bluestacks as native_route
 
 from automation_service.native_execution import NativeRouteOutcome
 from automation_service.recommended_research import (
@@ -151,16 +154,25 @@ class RecommendedResearchServiceRunnerTests(unittest.TestCase):
         self.assertFalse(result.unresolved_action)
 
     def test_canonical_request_forwards_identity_limits_and_held_owner(self):
-        native = _result(
-            "completed",
+        home = SimpleNamespace(path=Path("run/native/frames/home.png"), sha256="a" * 64, frame=object())
+        context = SimpleNamespace(
+            runtime=SimpleNamespace(session=Path("run/native"), capture=lambda label: home),
+            session=SimpleNamespace(observe=lambda capture, label: capture(label)),
+            is_clean_home=lambda frame: frame is home.frame,
+            utc_clock=lambda: NOW,
+            accounting=lambda: SimpleNamespace(
+                input_count=5, session_input_count=5, runtime_input_count=5, verified=True,
+            ),
+        )
+        native = native_route._normal_result(
+            context, status="completed", reason="paired_debit_verified",
+            terminal_home_verified=True, start_calls=1,
             completed=True,
             start_semantically_verified=True,
             **_selection_evidence(),
             queue1_state="idle",
             queue1_remaining_seconds=None,
-            research_transport_calls=1,
             committed_action_count=1,
-            total_action_count=1,
             effect_reconciliation_required=False,
             identical_retry_denied=True,
             first_recommendation_identity="troop-load-ii",

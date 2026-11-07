@@ -44,6 +44,7 @@ class HeroDuelObservation:
     displayed_hero_ids: tuple[str, ...] = ()
     defense_hero_ids: tuple[str, ...] = ()
     defense_save_acknowledged: bool = False
+    saved_defense_expected_hero_ids: tuple[str, ...] = ()
     attack_hero_ids: tuple[str, ...] = ()
     attack_slots_populated: Optional[int] = None
     listed_opponent_free: bool = False
@@ -206,7 +207,9 @@ def hero_duel_entry_authorizeable(
 ) -> bool:
     """Prove the free, listed-opponent entry transaction's full source facts."""
 
-    eligible = hero_duel_first_five_eligible(observation)
+    # The attack roster/order can legitimately differ from the saved defense
+    # source. Retain the independently verified first-five defense selection.
+    eligible = observation.saved_defense_expected_hero_ids
     return bool(
         hero_duel_source_valid(observation)
         and hero_duel_current_survival(observation)
@@ -225,7 +228,10 @@ def hero_duel_entry_authorizeable(
         and observation.pass_balance >= 0
         and observation.listed_opponent_free
         and observation.free_opponent_selected
+        and len(eligible) == 5
         and hero_duel_defense_lineup_valid(observation, eligible)
+        and observation.excluded_hero_ids is not None
+        and not any(hero in observation.excluded_hero_ids for hero in eligible)
         and hero_duel_attack_lineup_valid(observation)
         and not observation.activate_visible
         and not observation.premium_prompt_visible
@@ -251,10 +257,9 @@ def hero_duel_flee_authorizeable(
         and observation.game_day_id == game_day_id
         and observation.entry_ordinal == ordinal
         and observation.cycle_battle_loaded
-        and observation.battle_exit_visible
+        and observation.cycle_exit_confirmed
         and observation.flee_warning_visible
         and observation.flee_control_visible
-        and not observation.fight_control_visible
         and not observation.premium_prompt_visible
     )
 
