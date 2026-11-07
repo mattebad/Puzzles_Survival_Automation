@@ -6,11 +6,11 @@ at a time, verifies each result from the screen, and returns to the game's Home 
 the next one.
 
 **Status:** Batch A adds canonical-only Daily Rewards and Resource Item integration.
-Complete zero-ready Daily scans can return to verified Home, including after a confirmed aggregate
-Claim. The supplied image proves five-chest readiness recognition; ready-chest execution still
-requires a same-chest claimed/opened successor. Both routes remain runtime-disabled and
-`evidence_required` for live acceptance. The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical
-live evidence, not current execution authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
+The native route claims each glowing chest separately and requires its explicit same-slot
+`Claimed` successor; it does not wait for 150 points. One authorized manual chest claim supplied
+the real before/after recognition basis. This is not completed native-route acceptance.
+Both routes remain runtime-disabled and `evidence_required` for live acceptance.
+The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical live evidence, not current execution authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
 [`BACKLOG.md`](BACKLOG.md) retains durable history.
 
 ## Routes
@@ -28,7 +28,7 @@ registration, named by its registry family. `serve --flow` takes the name in the
 | `ultimate` | `ultimate_challenge_daily` | One Ultimate Challenge entry, then Flee, once per daily reset. |
 | `enhancement` | `enhancement_family` | Gear, Chip and Module enhancement once each in a single Profile visit, once per daily reset. |
 | `personal-might` | `personal_might_praise` | One Personal Might Praise, once per daily reset. |
-| `daily-rewards` | `daily_rewards` | Combined aggregate Claim and ready-chest visit; 300-second observation cooldown. Runtime disabled; current native chest proof remains evidence_required. |
+| `daily-rewards` | `daily_rewards` | At most one current aggregate Claim, then individually ready chests with same-slot Claimed proof; 300-second observation cooldown. Disabled; native acceptance evidence_required. |
 | `resource-item` | `resource_item` | One owned 1K Food item use per reset with exact decrement; runtime disabled and current native acceptance remains evidence_required. |
 | none (navigation-only) | `world_map_navigation` | Registered but never executed by `serve`. |
 
