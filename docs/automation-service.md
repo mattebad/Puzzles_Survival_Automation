@@ -193,6 +193,15 @@ continuations require exact current inventory and effect authority; absent proof
 Shooter/Rider never use boxes. No Train Now, premium, speedup, or Daily/D02/points prerequisite.
 Both routes are registered in the canonical service but remain production-unregistered,
 unscheduled and runtime-disabled; no live route acceptance is claimed.
+Training starts use distinct semantic-action and concrete action-kind fields matching the
+existing Core policy. Capability issuance binds a real immediate recapture, not the original
+capture or its digest alone. Queue, tier, quantity/max and all paired resource costs/balances
+are checked again before dispatch. Active-queue completion is projected from the observation's
+capture time; an undated queue cannot establish a schedule. Confirmed batch claims advance
+continuous Fighter/Vehicle generations durably across restart; UNKNOWN claims do not. The
+function-based native-service replay covers these transitions and zero-input changed-quote
+denials. This is offline proof, not acceptance of live starts, preset costs or box effects.
+
 
 Daily performs at most one current aggregate Claim, then separately claims glowing chests with
 same-slot `Claimed` and canonical journal confirmation. Restart-stable reset/slot keys protect
