@@ -84,8 +84,8 @@ def _load_template(filename: str = "home_nav_strip.png") -> np.ndarray:
     return template
 
 
-def nav_strip_correlation(frame_bgr: np.ndarray) -> float:
-    """Return the best fixed-strip correlation across the retained native layouts."""
+def matching_nav_template(frame_bgr: np.ndarray) -> tuple[np.ndarray, float]:
+    """Return the best retained native template and its current-frame correlation."""
     if not isinstance(frame_bgr, np.ndarray) or frame_bgr.ndim != 3:
         raise HomeNavRecognitionError("frame must be an HxWx3 BGR image")
     if frame_bgr.shape[:2] != (NATIVE_HEIGHT, NATIVE_WIDTH):
@@ -93,11 +93,21 @@ def nav_strip_correlation(frame_bgr: np.ndarray) -> float:
     x0, y0, x1, y1 = NAV_STRIP_BOX
     strip = frame_bgr[y0:y1, x0:x1]
     best = -1.0
+    matched: np.ndarray | None = None
     for filename in _TEMPLATE_FILENAMES:
         template = _load_template(filename)
         result = cv2.matchTemplate(strip, template, cv2.TM_CCOEFF_NORMED)
-        best = max(best, float(result.max()))
-    return best
+        correlation = float(result.max())
+        if correlation > best:
+            matched, best = template, correlation
+    if matched is None:
+        raise HomeNavRecognitionError("no native Home navigation templates are available")
+    return matched, best
+
+
+def nav_strip_correlation(frame_bgr: np.ndarray) -> float:
+    """Return the best fixed-strip correlation across the retained native layouts."""
+    return matching_nav_template(frame_bgr)[1]
 
 
 def recognize_home_nav(
