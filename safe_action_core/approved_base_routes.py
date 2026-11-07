@@ -501,8 +501,13 @@ def _nanoweapon(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
         postcondition = "NANO_MATERIAL_PRODUCTION_CLAIMED" if nano_claim else "NANO_MATERIAL_PRODUCTION_ACTIVE_21600"
         cost_type, cost, currency, maximum, free = "none", 0, None, 0, True
     elif craft_claim:
-        tokens = _tokens(request, 10)
+        tokens = _tokens(request, 11)
         if tokens is None:
+            return deny
+        instance = _field(tokens[7], "craft_instance=")
+        if (type(instance) is not str or re.fullmatch(
+                r"craft-instance:nanoweapon:start_normal_nanoweapon_craft:[0-9a-f]{24}", instance,
+        ) is None):
             return deny
         expected = (
             f"product_id={NANOWEAPON_PRODUCT}",
@@ -512,6 +517,7 @@ def _nanoweapon(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
             "prior_material_production_reconciled=1",
             "normal_craft_tab",
             "completed_normal_craft=1",
+            f"craft_instance={instance}",
             "active_craft_count=0",
             "claim_visible=1",
             "cost=none:0",
