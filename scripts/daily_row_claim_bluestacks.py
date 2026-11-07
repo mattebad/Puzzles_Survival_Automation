@@ -3145,11 +3145,389 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
     ready_chest_count = (
         ready_chest_count if type(ready_chest_count) is int else None
     )
+
     milestone_successor_gap = (
         "Daily chest input remains evidence_required until admitted native evidence "
         "recognizes the same chest as claimed, opened, or removed; no same-chest "
         "native successor corpus is available."
     )
+    def has_complete_zero_control_scan(recognition: FrameRecognition) -> bool:
+        visual = dict(recognition.visual_evidence or {})
+        return bool(
+            recognition.recognized
+            and recognition.state == DAILY_SELECTED_STATE
+            and recognition.target_identity is None
+            and recognition.target_roi is None
+            and visual.get("selected_daily") is True
+            and visual.get("claim_scan_complete") is True
+            and visual.get("claim_scan_raw_gold_pixel_count") == 0
+            and visual.get("zero_claim_scan_proven") is True
+            and visual.get("recognized_claim_controls") == 0
+            and visual.get("available_claim_controls") == 0
+            and isinstance(visual.get("game_day_id"), str)
+            and visual["game_day_id"].strip()
+            and isinstance(visual.get("reset_deadline_identity"), str)
+            and visual["reset_deadline_identity"].strip()
+        )
+
+    def has_five_static_chests(scan: Mapping[str, Any]) -> bool:
+        chests = scan.get("milestones")
+        keys = [
+            chest.get("milestone_key")
+            for chest in chests
+            if isinstance(chest, Mapping)
+        ] if isinstance(chests, (tuple, list)) else []
+        return bool(
+            scan.get("status") == "observed"
+            and scan.get("slot_count") == DAILY_MILESTONE_SLOT_COUNT
+            and scan.get("observed_chest_count") == DAILY_MILESTONE_SLOT_COUNT
+            and scan.get("ready_chest_count") == 0
+            and isinstance(chests, (tuple, list))
+            and len(chests) == DAILY_MILESTONE_SLOT_COUNT
+            and len(keys) == DAILY_MILESTONE_SLOT_COUNT
+            and all(isinstance(key, str) and key.strip() for key in keys)
+            and len(set(keys)) == DAILY_MILESTONE_SLOT_COUNT
+            and all(
+                isinstance(chest, Mapping)
+                and chest.get("milestone_state") == "not_ready"
+                and chest.get("milestone_ready") is False
+                and chest.get("target_roi") is not None
+                for chest in chests
+            )
+        )
+
+    def verified_static_scan(scan: Mapping[str, Any]) -> dict[str, Any]:
+        if not has_five_static_chests(scan):
+            raise DailyRowClaimRecognitionError(
+                "all five current milestone chests were not positively observed static"
+            )
+        static_keys = [
+            str(chest["milestone_key"])
+            for chest in scan["milestones"]
+        ]
+        return {
+            **dict(scan),
+            "status": "verified",
+            "selected_daily": True,
+            "reset_id": context.identity.reset_id,
+            "ready_chest_count": 0,
+            "ready_chest_keys": [],
+            "static_or_locked_chest_keys": static_keys,
+        }
+
+    def same_daily_reset(
+        before: FrameRecognition,
+        current: FrameRecognition,
+    ) -> bool:
+        before_visual = dict(before.visual_evidence or {})
+        current_visual = dict(current.visual_evidence or {})
+        before_deadline = before_visual.get("reset_deadline_identity")
+        current_deadline = current_visual.get("reset_deadline_identity")
+        return bool(
+            before_visual.get("game_day_id")
+            and before_visual.get("game_day_id") == current_visual.get("game_day_id")
+            and isinstance(before_deadline, str)
+            and isinstance(current_deadline, str)
+            and _reset_deadline_identities_match(
+                before_deadline,
+                current_deadline,
+                tolerance_seconds=RESET_DEADLINE_TOLERANCE_SECONDS,
+            )
+        )
+
+    def return_home_from_static_daily(
+        reference_recognition: FrameRecognition,
+    ) -> tuple[
+        CapturedNativeFrame | None,
+        Mapping[str, Any] | None,
+        FrameRecognition | None,
+        str | None,
+    ]:
+        """Back out only from a fresh, unchanged, complete zero-ready Daily scan."""
+        source: dict[str, Any] = {}
+        terminal: dict[str, CapturedNativeFrame] = {}
+        reference_day = str(
+            dict(reference_recognition.visual_evidence or {}).get("game_day_id")
+            or ""
+        )
+
+        for ordinal in range(1, 3):
+            successor_state = {"value": UNKNOWN_STATE}
+            label = f"daily-rewards:return-home-back-{ordinal}"
+
+            def authorize(before: CapturedNativeFrame) -> None:
+                context.validate_identity()
+                _ensure_fresh(before, runtime)
+                _ensure_runtime_ready(runtime)
+                if ordinal == 1:
+                    current = recognize(before, reference_day)
+                    current_scan = recognize_daily_milestone_chests(
+                        before.frame,
+                        current,
+                        source_frame_sha256=before.sha256,
+                    )
+                    source.update(
+                        capture=before,
+                        recognition=current,
+                        scan=current_scan,
+                    )
+                    if not has_complete_zero_control_scan(current):
+                        raise DailyRowClaimRecognitionError(
+                            "fresh selected Daily has no complete positive zero-Claim scan"
+                        )
+                    if not same_daily_reset(reference_recognition, current):
+                        raise DailyRowClaimRecognitionError(
+                            "fresh selected Daily reset identity changed before Home return"
+                        )
+                    if not has_five_static_chests(current_scan):
+                        raise DailyRowClaimRecognitionError(
+                            "fresh Daily chest scan is ready, unknown, or incomplete"
+                        )
+                else:
+                    quest = recognizer.recognize_quest(before.frame)
+                    if not quest.recognized or quest.state != QUEST_STATE:
+                        raise DailyRowClaimRecognitionError(
+                            "fresh intermediate Quest surface was not positively recognized"
+                        )
+
+            def dispatch(before: CapturedNativeFrame) -> None:
+                context.validate_identity()
+                _ensure_fresh(before, runtime)
+                _ensure_runtime_ready(runtime)
+                runtime.back(
+                    before,
+                    action_key=f"{label}:{before.sha256}",
+                    target_identity="android-back",
+                )
+
+            def recognize_return(after: CapturedNativeFrame) -> str:
+                if context.is_clean_home(after.frame):
+                    home_recognition = recognizer.recognize_home(after.frame)
+                    if home_recognition.recognized and home_recognition.state == HOME_STATE:
+                        terminal["capture"] = after
+                        successor_state["value"] = HOME_STATE
+                        return HOME_STATE
+                quest = recognizer.recognize_quest(after.frame)
+                if quest.recognized and quest.state == QUEST_STATE:
+                    successor_state["value"] = QUEST_STATE
+                    return QUEST_STATE
+                successor_state["value"] = UNKNOWN_STATE
+                return UNKNOWN_STATE
+
+            def settled_successor() -> CapturedNativeFrame:
+                delay = float(getattr(context, "settle_seconds", 0.0))
+                if delay > 0:
+                    time.sleep(delay)
+                return session.observe(
+                    runtime.capture,
+                    label=f"{label}-settled-successor",
+                )
+
+            try:
+                outcome = session.run_action(
+                    action_class=NAVIGATION_ACTION_CLASS,
+                    label=label,
+                    capture=runtime.capture,
+                    authorize=authorize,
+                    dispatch=dispatch,
+                    recognize=recognize_return,
+                    settled_successor=settled_successor,
+                    consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
+                )
+            except Exception as exc:
+                return (
+                    None,
+                    source.get("scan"),
+                    source.get("recognition"),
+                    f"{type(exc).__name__}: {exc}",
+                )
+            if outcome.status != "completed":
+                return (
+                    None,
+                    source.get("scan"),
+                    source.get("recognition"),
+                    "system Back did not produce a positively recognized successor",
+                )
+            if successor_state["value"] == HOME_STATE:
+                try:
+                    context.validate_identity()
+                except Exception as exc:
+                    return (
+                        None,
+                        source.get("scan"),
+                        source.get("recognition"),
+                        f"identity validation failed after Home return: {exc}",
+                    )
+                return (
+                    terminal.get("capture"),
+                    source.get("scan"),
+                    source.get("recognition"),
+                    None,
+                )
+            if successor_state["value"] != QUEST_STATE:
+                return (
+                    None,
+                    source.get("scan"),
+                    source.get("recognition"),
+                    "system Back successor was neither verified Home nor verified Quest",
+                )
+
+        return (
+            None,
+            source.get("scan"),
+            source.get("recognition"),
+            "two bounded system Back actions did not reach verified Home",
+        )
+
+    def close_static_daily(
+        result: dict[str, Any],
+        reference_recognition: FrameRecognition,
+        *,
+        no_work: bool,
+    ) -> dict[str, Any]:
+        home_capture, source_scan, source_recognition, return_error = (
+            return_home_from_static_daily(reference_recognition)
+        )
+        if source_scan is not None:
+            result["milestone_scan"] = source_scan
+            source_ready_count = source_scan.get("ready_chest_count")
+            result["unclaimed_ready_chest_count"] = (
+                source_ready_count if type(source_ready_count) is int else None
+            )
+        if source_scan is not None and not has_five_static_chests(source_scan):
+            accounting_now = context.accounting()
+            if (
+                source_recognition is not None
+                and has_complete_zero_control_scan(source_recognition)
+            ):
+                source_ready_count = source_scan.get("ready_chest_count")
+                if type(source_ready_count) is int and source_ready_count > 0:
+                    reason = (
+                        f"{source_ready_count} ready Daily milestone chest(es) were "
+                        f"observed; no chest input was sent. {milestone_successor_gap}"
+                    )
+                else:
+                    reason = (
+                        "Fresh Daily chest scan contains unknown or unsupported slots; "
+                        "no chest input was sent and unsupported appearance is not "
+                        "treated as locked or opened."
+                    )
+                status = "evidence_required"
+            else:
+                reason = (
+                    "Fresh Daily zero-Claim and complete chest-state evidence changed "
+                    "before Home return."
+                )
+                status = "blocked" if no_work else "evidence_required"
+            result.update(
+                status=status,
+                reason=reason,
+                total_input_count=accounting_now.input_count,
+                accounting_verified=accounting_now.verified,
+                terminal_home_verified=False,
+                no_work=False,
+            )
+            return result
+        if home_capture is None or source_scan is None:
+            accounting_now = context.accounting()
+            result.update(
+                status="blocked" if no_work else "evidence_required",
+                reason=(
+                    "Complete zero-ready Daily evidence was not sufficient to prove "
+                    f"a clean Home return: {return_error or 'required evidence is missing'}"
+                ),
+                total_input_count=accounting_now.input_count,
+                accounting_verified=accounting_now.verified,
+                terminal_home_verified=False,
+                no_work=False,
+            )
+            return result
+
+        try:
+            scan_projection = verified_static_scan(source_scan)
+            accounting_now = context.accounting()
+            terminal_ref = _frame_ref(home_capture, session.session_directory)
+            terminal_path = terminal_ref["path"]
+            if not isinstance(terminal_path, str) or not terminal_path:
+                raise DailyRowClaimRecognitionError(
+                    "retained verified Home frame reference is unavailable"
+                )
+        except Exception as exc:
+            accounting_now = context.accounting()
+            result.update(
+                status="blocked" if no_work else "evidence_required",
+                reason=f"verified Home result evidence is incomplete: {exc}",
+                total_input_count=accounting_now.input_count,
+                accounting_verified=accounting_now.verified,
+                terminal_home_verified=False,
+                no_work=False,
+            )
+            return result
+        if (
+            not accounting_now.verified
+            or source_recognition is None
+            or not has_complete_zero_control_scan(source_recognition)
+        ):
+            result.update(
+                status="blocked" if no_work else "evidence_required",
+                reason=(
+                    "Clean Home was recognized but native accounting or the complete "
+                    "zero-Claim source proof is unavailable."
+                ),
+                total_input_count=accounting_now.input_count,
+                accounting_verified=accounting_now.verified,
+                terminal_home_verified=True,
+                terminal_home_frame={
+                    "frame_path": terminal_ref["path"],
+                    "frame_sha256": terminal_ref["sha256"],
+                },
+                native_session_directory=str(session.session_directory),
+                milestone_scan=scan_projection,
+                no_work=False,
+            )
+            return result
+        source_visual = dict(source_recognition.visual_evidence or {})
+        static_keys = scan_projection["static_or_locked_chest_keys"]
+        result.update(
+            status="completed",
+            reason=(
+                "No aggregate Claim was available; all five current Daily milestone "
+                "chests were positively observed static/not ready, and clean Home was "
+                "verified."
+                if no_work
+                else (
+                    "Aggregate Claim was confirmed; all five current Daily milestone "
+                    "chests were positively observed static/not ready, and clean Home "
+                    "was verified."
+                )
+            ),
+            total_input_count=accounting_now.input_count,
+            accounting_verified=True,
+            terminal_home_verified=True,
+            terminal_home_frame={
+                "frame_path": terminal_ref["path"],
+                "frame_sha256": terminal_ref["sha256"],
+            },
+            native_session_directory=str(session.session_directory),
+            milestone_scan=scan_projection,
+            unclaimed_ready_chest_count=0,
+            no_work=no_work,
+        )
+        if no_work:
+            result["no_work_evidence"] = {
+                "selected_daily": True,
+                "reset_id": context.identity.reset_id,
+                "source_frame_sha256": source_scan.get("source_frame_sha256"),
+                "ordinary_claim_controls": source_visual.get(
+                    "available_claim_controls"
+                ),
+                "ready_chest_count": 0,
+                "static_or_locked_chest_keys": list(static_keys),
+            }
+        else:
+            result["no_work_evidence"] = None
+        return result
+
     accounting = context.accounting()
     empty_aggregate = {
         "status": "none",
@@ -3175,6 +3553,19 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
         "no_work": False,
     }
     if proposal is None or not available_daily_claim_authorizeable(proposal):
+        if (
+            has_complete_zero_control_scan(proposal_recognition)
+            and has_five_static_chests(milestone_scan)
+        ):
+            base["reason"] = (
+                "No aggregate Claim or glowing chest is present; all five current "
+                "Daily milestone chests are supported and static."
+            )
+            return close_static_daily(
+                base,
+                proposal_recognition,
+                no_work=True,
+            )
         if ready_chest_count:
             base["status"] = "evidence_required"
             base["reason"] = (
@@ -3594,8 +3985,16 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
                 f"were observed; no chest input was sent. {milestone_successor_gap}"
                 if latest_ready_chest_count
                 else (
-                    "Aggregate Claim was confirmed; no chest input was sent. "
-                    f"{milestone_successor_gap}"
+                    "Aggregate Claim was confirmed, but the current five-chest scan "
+                    "contains unknown or unsupported slots; no chest input was sent."
+                    if latest_milestone_scan.get("status") in (
+                        "partial_unknown",
+                        "unknown",
+                    )
+                    else (
+                        "Aggregate Claim was confirmed, but the current five-chest "
+                        "scan and verified Home boundary are incomplete."
+                    )
                 )
             )
             if committed
@@ -3626,6 +4025,17 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
         "unclaimed_ready_chest_count": latest_ready_chest_count,
         "no_work": False,
     }
+    if (
+        committed
+        and post_recognitions
+        and has_complete_zero_control_scan(post_recognitions[-1])
+        and has_five_static_chests(latest_milestone_scan)
+    ):
+        return close_static_daily(
+            partial,
+            post_recognitions[-1],
+            no_work=False,
+        )
     return partial
 
 

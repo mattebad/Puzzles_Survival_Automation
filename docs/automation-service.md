@@ -115,9 +115,10 @@ the scheduler/facade consumer checks are recorded separately; their counts are n
 The fixed native composition binds ten canonical routes: Nova, Recruitment, Campaign,
 Bioenhancer, Supply, Ultimate, Enhancement, Personal Might, Daily Rewards, and Resource Item.
 The ordinary registered selectors remain non-consuming; passing `--flow` alone does not enable
-them. The owner supplied a genuine 30-point glowing-chest image; a same-chest claimed/opened
-successor is still missing, so chest dispatch and full native completion remain `evidence_required`.
-Offline adapter and canonical service checks pass; neither route has new live acceptance.
+them. Complete zero-ready Daily scans can close at freshly verified Home, either without an
+aggregate Claim or after its confirmed effect. The owner supplied a genuine 30-point glowing-chest
+image; a same-chest claimed/opened successor is still missing, so ready-chest dispatch remains
+`evidence_required`. Offline adapter and canonical service checks pass; neither route has new live acceptance.
 Both routes remain production/runtime disabled.
 Existing individual effect/Home acceptance, uninterrupted Enhancement proof, independent recruit
 timers, and cadence scope are maintained in [`BACKLOG.md`](../BACKLOG.md), with volatile state in

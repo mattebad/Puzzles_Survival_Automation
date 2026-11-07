@@ -6,9 +6,10 @@ at a time, verifies each result from the screen, and returns to the game's Home 
 the next one.
 
 **Status:** Batch A adds canonical-only Daily Rewards and Resource Item integration.
-The supplied image proves five-chest readiness recognition; Daily chest execution still requires
-a same-chest claimed/opened successor. Both routes remain runtime-disabled and `evidence_required`
-for live acceptance. The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical
+Complete zero-ready Daily scans can return to verified Home, including after a confirmed aggregate
+Claim. The supplied image proves five-chest readiness recognition; ready-chest execution still
+requires a same-chest claimed/opened successor. Both routes remain runtime-disabled and
+`evidence_required` for live acceptance. The [November 2 report](docs/bluestacks-route-status-20261102.md) is historical
 live evidence, not current execution authority. Current planning is in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53);
 [`BACKLOG.md`](BACKLOG.md) retains durable history.
 
