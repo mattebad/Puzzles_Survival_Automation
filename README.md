@@ -95,6 +95,8 @@ selection described below instead of repeating that command after another suite.
 Run everything through `scripts/pnsctl.py`. This serves all routes from the table above:
 
 ```powershell
+$runtimeBinding = .\.venv\Scripts\python.exe -c "import json; from tasks.runtime_identity import resource_fixed_runtime_binding; b=resource_fixed_runtime_binding(); print(json.dumps({'account_id': b.account_id, 'server_id': b.server_id}))" | ConvertFrom-Json
+
 .\.venv\Scripts\python.exe scripts/pnsctl.py automation-service `
   --mode supervised --adapter bluestacks `
   --state-path .local-orchestrator/bot-state.sqlite3 serve --live `
@@ -104,13 +106,19 @@ Run everything through `scripts/pnsctl.py`. This serves all routes from the tabl
   --flow alliance-donation --flow alliance-shop --flow daily-shops `
   --campaign-stage 1-15-9 --campaign-cadence-seconds 300 `
   --adb "C:\Program Files\BlueStacks_nxt\HD-Adb.exe" --serial emulator-5554 `
-  --account-id primary-account --server-id primary-server `
+  --account-id $runtimeBinding.account_id --server-id $runtimeBinding.server_id `
   --output-directory .local-captures/automation-service-live
 ```
 
-Account, server, device, state and output paths must match your local instance. The command
-blocks and uses the persisted controls as they are; turn routes on first with `service-enable`
-and `enable <flow-id>`, and check `automation-service status` before and after a session.
+Daily Rewards and Resource Item require these exact fixed-slot scheduler identities, not the
+historical `primary-account` / `primary-server` labels. Deriving them is device-free; they identify
+the private runtime slot, not an observed game login. Reconcile prior same-reset work before
+changing a persisted logical scope; never clear counters or evidence.
+
+This is a launch shape, not current execution authority. The command uses persisted controls
+without enabling them. A live scenario needs current explicit authorization, exclusive controller
+ownership and finite input/resource budgets. Enable only the authorized controls and restore them
+OFF afterward; inspect `automation-service status` before and after.
 
 ## Tests
 
