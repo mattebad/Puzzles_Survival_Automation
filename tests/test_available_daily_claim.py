@@ -78,6 +78,7 @@ class AvailableDailyClaimContractTests(unittest.TestCase):
             reset_deadline_identity="bluestacks-day-2026-08-16",
             reset_deadline_tolerance_seconds=2,
             available_claim_controls=1,
+            aggregate_batch_identity="daily-ready-batch-01",
         )
         values.update(changes)
         return AvailableDailyClaimObservation(**values)
@@ -144,7 +145,7 @@ class AvailableDailyClaimContractTests(unittest.TestCase):
                     available_daily_claim_authorizeable(replace(observation, **changes))
                 )
 
-    def test_postcondition_requires_same_selected_daily_and_positive_points_change(self):
+    def test_postcondition_requires_same_selected_daily_and_exhausted_controls_not_points(self):
         before = self.bluestacks_observation()
         row_changed = replace(
             before,
@@ -152,7 +153,7 @@ class AvailableDailyClaimContractTests(unittest.TestCase):
             control_class="",
             claim_fully_visible=False,
             available_claim_controls=0,
-            points=1,
+            points=before.points,
         )
         self.assertTrue(
             available_daily_claim_postcondition_verified(
@@ -161,18 +162,13 @@ class AvailableDailyClaimContractTests(unittest.TestCase):
         )
         self.assertTrue(
             available_daily_claim_postcondition_verified(
-                before,
-                replace(before, points=1, available_claim_controls=0),
-                points_before=0,
-                points_after=1,
+                before, replace(before, available_claim_controls=0)
             )
         )
+        self.assertFalse(available_daily_claim_postcondition_verified(before, before))
         self.assertFalse(
             available_daily_claim_postcondition_verified(
-                before,
-                before,
-                points_before=0,
-                points_after=0,
+                before, replace(before, points=100)
             )
         )
         self.assertTrue(
@@ -222,36 +218,15 @@ class AvailableDailyClaimContractTests(unittest.TestCase):
         ):
             self.assertFalse(available_daily_claim_authorizeable(replace(observation, **changes)))
 
-    def test_postcondition_requires_exhaustion_and_positive_change(self):
-        before = self.bluestacks_observation()
+    def test_postcondition_requires_claim_exhaustion_not_points_delta(self):
+        before = replace(self.bluestacks_observation(), points=5)
         self.assertFalse(available_daily_claim_postcondition_verified(before, before))
-        before = replace(before, points=5)
-        disappeared = replace(
-            before,
-            target_identity="",
-            control_class="",
-            claim_fully_visible=False,
-            available_claim_controls=0,
-            points=6,
-        )
-        self.assertTrue(
-            available_daily_claim_postcondition_verified(
-                before, disappeared, row_disappeared=True
-            )
-        )
+        cleared = replace(before, available_claim_controls=0, points=5)
+        self.assertTrue(available_daily_claim_postcondition_verified(before, cleared))
         self.assertTrue(
             available_daily_claim_postcondition_verified(
                 before,
-                replace(before, points=6, available_claim_controls=0),
-                points_before=5,
-                points_after=6,
-            )
-        )
-        self.assertTrue(
-            available_daily_claim_postcondition_verified(
-                before,
-                replace(disappeared, objective_key="other"),
-                row_disappeared=True,
+                replace(cleared, objective_key="other"),
             )
         )
 
@@ -267,12 +242,15 @@ class AvailableDailyClaimContractTests(unittest.TestCase):
                 control_class="",
                 claim_fully_visible=False,
                 available_claim_controls=0,
-                points=6,
+                points=5,
             ),
             row_disappeared=True,
         )
         self.assertEqual(result.outcome, TaskOutcome.DONE)
-        self.assertEqual(result.completion_key, "daily-quest:aggregate-claimed")
+        self.assertEqual(
+            result.completion_key,
+            "daily-quest:aggregate-claimed:daily-ready-batch-01",
+        )
 
 
 if __name__ == "__main__":

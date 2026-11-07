@@ -1,7 +1,7 @@
 """Offline activity-milestone chest contract for Phase E.
 
-No runtime detector or transport is registered here.  A ready chest remains non-authorizing until
-fresh BlueStacks-native target, explicit free semantics, and a positive postcondition are promoted.
+No runtime detector or transport is registered here. A ready chest remains non-authorizing until
+fresh BlueStacks-native target, explicit free semantics, and a same-chest state successor are proven.
 """
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ class ActivityMilestoneObservation:
     target_roi: ROI
     control_class: str
     chest_fully_visible: bool
+    milestone_state: str = "unknown"
     cost_type: str = "unknown"
     cost_amount: Optional[float] = None
     quantity: Optional[int] = None
@@ -44,6 +45,8 @@ class ActivityMilestoneObservation:
     reset_guard_active: bool = False
     runtime_profile_id: str = ACTIVE_RUNTIME_PROFILE_ID
     recognized: bool = True
+    points: Optional[int] = None
+    points_reward: Optional[int] = None
 
 
 def _target_inside_panel(observation: ActivityMilestoneObservation) -> bool:
@@ -52,7 +55,13 @@ def _target_inside_panel(observation: ActivityMilestoneObservation) -> bool:
         tx0, ty0, tx1, ty1 = observation.target_roi
     except (TypeError, ValueError):
         return False
-    return bool(px0 <= tx0 < tx1 <= px1 and py0 <= ty0 < ty1 <= py1)
+    return bool(
+        all(type(value) is int for value in (*observation.panel_bounds, *observation.target_roi))
+        and 0 <= px0 < px1 <= 800
+        and 0 <= py0 < py1 <= 1280
+        and px0 <= tx0 < tx1 <= px1
+        and py0 <= ty0 < ty1 <= py1
+    )
 
 
 def _has_bluestacks_native_source(observation: ActivityMilestoneObservation) -> bool:
@@ -73,9 +82,12 @@ def activity_milestone_authorizeable(observation: ActivityMilestoneObservation) 
     return bool(
         observation.screen_state == ACTIVITY_MILESTONES_SCREEN
         and observation.selected_activity_milestones
+        and isinstance(observation.milestone_key, str)
         and bool(observation.milestone_key.strip())
+        and isinstance(observation.milestone_name, str)
         and bool(observation.milestone_name.strip())
         and observation.milestone_ready
+        and observation.milestone_state == "ready"
         and observation.chest_fully_visible
         and observation.target_identity == ACTIVITY_MILESTONE_TARGET
         and observation.control_class == "MILESTONE_CHEST"
@@ -91,7 +103,9 @@ def activity_milestone_authorizeable(observation: ActivityMilestoneObservation) 
     )
 
 
-def activity_milestone_transaction_spec(observation: ActivityMilestoneObservation) -> ActionTransactionSpec:
+def activity_milestone_transaction_spec(
+    observation: ActivityMilestoneObservation,
+) -> ActionTransactionSpec:
     if not activity_milestone_authorizeable(observation):
         raise ValueError("activity milestone chest preconditions are not positively recognized")
     return ActionTransactionSpec(
@@ -110,51 +124,35 @@ def activity_milestone_transaction_spec(observation: ActivityMilestoneObservatio
             "bluestacks_native_target_evidence",
             "explicit_zero_cost",
         ),
-        semantic_postconditions=("same_milestone_opens_or_points_increase",),
+        semantic_postconditions=("same_milestone_claimed_opened_or_removed",),
     )
 
 
 def activity_milestone_postcondition_verified(
     before: ActivityMilestoneObservation,
     after: ActivityMilestoneObservation | None,
-    *,
-    points_before: Optional[int] = None,
-    points_after: Optional[int] = None,
-    chest_opened: bool = False,
 ) -> bool:
-    """Require the same milestone to open/change or an explicitly positive points delta."""
+    """Require a native, same-chest claimed/opened/removed successor."""
 
     if not activity_milestone_authorizeable(before) or after is None:
         return False
-    if (
-        after.screen_state != ACTIVITY_MILESTONES_SCREEN
-        or not after.selected_activity_milestones
-        or after.milestone_key != before.milestone_key
-        or after.game_day_id != before.game_day_id
-    ):
-        return False
-    chest_changed = bool(
-        chest_opened
-        or not after.milestone_ready
-        or after.target_identity != ACTIVITY_MILESTONE_TARGET
-        or after.control_class != "MILESTONE_CHEST"
-        or not after.chest_fully_visible
+    return bool(
+        after.screen_state == ACTIVITY_MILESTONES_SCREEN
+        and after.selected_activity_milestones
+        and after.milestone_key == before.milestone_key
+        and after.game_day_id == before.game_day_id
+        and after.source_frame_sha256 != before.source_frame_sha256
+        and after.milestone_state in {"claimed", "opened", "removed"}
+        and after.overlay_state in {"none", "none_observed"}
+        and not after.reset_guard_active
+        and after.recognized
+        and _has_bluestacks_native_source(after)
     )
-    points_changed = (
-        points_before is not None
-        and points_after is not None
-        and points_after > points_before
-    )
-    return bool(chest_changed or points_changed)
 
 
 def activity_milestone_perform_one_pulse(
     before: ActivityMilestoneObservation,
     after: ActivityMilestoneObservation | None = None,
-    *,
-    points_before: Optional[int] = None,
-    points_after: Optional[int] = None,
-    chest_opened: bool = False,
 ) -> TaskResult:
     """Return a pure result; transport remains outside this evidence-gated module."""
 
@@ -162,13 +160,7 @@ def activity_milestone_perform_one_pulse(
         return TaskResult(TaskOutcome.BLOCKED, "NO_AUTHORIZED_ACTIVITY_MILESTONE", verified=True, state=ACTIVITY_MILESTONES_SCREEN)
     if after is None:
         return TaskResult.progress("CLAIM_ACTIVITY_MILESTONE is authorized by the offline contract; dispatch remains evidence-gated", ACTIVITY_MILESTONES_SCREEN)
-    if not activity_milestone_postcondition_verified(
-        before,
-        after,
-        points_before=points_before,
-        points_after=points_after,
-        chest_opened=chest_opened,
-    ):
+    if not activity_milestone_postcondition_verified(before, after):
         return TaskResult(TaskOutcome.FAILED_SAFE, "ACTIVITY_MILESTONE_POSTCONDITION_NOT_PROVEN", state=ACTIVITY_MILESTONES_SCREEN)
     return TaskResult.done(
         "activity milestone chest postcondition verified",

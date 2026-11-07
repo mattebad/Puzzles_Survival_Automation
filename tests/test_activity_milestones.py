@@ -35,6 +35,15 @@ class ActivityMilestoneContractTests(unittest.TestCase):
         self.assertTrue(spec.free_only)
         self.assertEqual(spec.maximum_cost, 0)
 
+
+    def test_locked_and_static_chest_states_never_authorize(self):
+        locked = load_fixture("not_ready_negative")
+        static = load_fixture("static_reference_negative")
+        self.assertEqual(locked.milestone_state, "locked")
+        self.assertFalse(activity_milestone_authorizeable(locked))
+        self.assertEqual(static.milestone_state, "ready")
+        self.assertFalse(activity_milestone_authorizeable(static))
+
     def test_not_ready_and_static_reference_cases_fail_closed(self):
         self.assertFalse(activity_milestone_authorizeable(load_fixture("not_ready_negative")))
         self.assertFalse(activity_milestone_authorizeable(load_fixture("static_reference_negative")))
@@ -54,19 +63,65 @@ class ActivityMilestoneContractTests(unittest.TestCase):
         ):
             self.assertFalse(activity_milestone_authorizeable(replace(observation, **changes)))
 
-    def test_postcondition_requires_same_milestone_and_positive_change(self):
+    def test_postcondition_requires_same_chest_claimed_opened_or_removed_not_points(self):
         before = load_fixture("ready_synthetic")
         self.assertFalse(activity_milestone_postcondition_verified(before, before))
-        opened = replace(before, milestone_ready=False, control_class="", chest_fully_visible=False)
+        points_only = replace(before, points=20)
+        self.assertFalse(activity_milestone_postcondition_verified(before, points_only))
+        opened = replace(
+            before,
+            milestone_ready=False,
+            milestone_state="opened",
+            source_frame_sha256="4" * 64,
+            evidence_refs=("synthetic:activity-milestone-opened",),
+            target_identity="",
+            control_class="",
+            chest_fully_visible=False,
+        )
         self.assertTrue(activity_milestone_postcondition_verified(before, opened))
-        self.assertTrue(activity_milestone_postcondition_verified(before, before, points_before=10, points_after=20))
-        self.assertFalse(activity_milestone_postcondition_verified(before, replace(opened, milestone_key="other")))
+        unchanged_frame = replace(
+            opened,
+            source_frame_sha256=before.source_frame_sha256,
+        )
+        self.assertFalse(
+            activity_milestone_postcondition_verified(before, unchanged_frame)
+        )
+
+        for changes in (
+            {"overlay_state": "unknown"},
+            {"reset_guard_active": True},
+        ):
+            self.assertFalse(
+                activity_milestone_postcondition_verified(
+                    before, replace(opened, **changes)
+                )
+            )
+        self.assertFalse(
+            activity_milestone_postcondition_verified(
+                before, replace(opened, milestone_key="other")
+            )
+        )
+        self.assertFalse(
+            activity_milestone_postcondition_verified(
+                before, replace(opened, game_day_id="other-day")
+            )
+        )
 
     def test_perform_one_pulse_is_pure_and_fail_safe(self):
         before = load_fixture("ready_synthetic")
         prepared = activity_milestone_perform_one_pulse(before)
         self.assertEqual(prepared.outcome, TaskOutcome.PROGRESS)
-        result = activity_milestone_perform_one_pulse(before, replace(before, milestone_ready=False), chest_opened=True)
+        opened = replace(
+            before,
+            milestone_ready=False,
+            milestone_state="opened",
+            source_frame_sha256="5" * 64,
+            evidence_refs=("synthetic:activity-milestone-opened",),
+            target_identity="",
+            control_class="",
+            chest_fully_visible=False,
+        )
+        result = activity_milestone_perform_one_pulse(before, opened)
         self.assertEqual(result.outcome, TaskOutcome.DONE)
         self.assertEqual(result.completion_key, "activity-milestone:activity-10:claimed")
 
