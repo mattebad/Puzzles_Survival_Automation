@@ -17,8 +17,10 @@ from tasks.hero_upgrade_disabled import (
     hero_evolution_postcondition_verified,
     hero_evolution_spec,
     hero_upgrade_authorizeable,
-    hero_upgrade_postcondition_verified,
-    hero_upgrade_spec,
+    hero_upgrade_batch_input_authorizeable,
+    hero_upgrade_batch_postcondition_verified,
+    hero_upgrade_batch_spec,
+    normal_upgrade_input_limit,
 )
 from tasks.profile import BLUESTACKS_NATIVE_TARGET_PROVENANCE
 
@@ -129,95 +131,92 @@ class WaliUpgradeContractTests(unittest.TestCase):
             with self.subTest(changes=changes):
                 self.assertFalse(hero_upgrade_authorizeable(replace(before, **changes)))
 
-    def test_normal_spec_is_one_actual_cost_antiserum_action_with_ordered_reset_fence(self):
-        before = observation(confirmed_upgrades=2, current_level=29, evolution_cap=30)
-        spec = hero_upgrade_spec(before)
+    def test_batch_spec_binds_limit_first_quote_and_cumulative_balance_not_multiplied_price(self):
+        before = observation(current_level=5, evolution_cap=10)
+        spec = hero_upgrade_batch_spec(before, 3)
         self.assertEqual(spec.action_kind, "HERO_UPGRADE_SINGLE")
-        self.assertEqual(spec.expected_source_screen, HERO_SCREEN)
-        self.assertEqual(spec.subject, "Wali")
-        self.assertEqual(spec.quantity, 1)
+        self.assertEqual(spec.quantity, 3)
         self.assertEqual(spec.resource_or_currency, ANTISERUM)
-        self.assertEqual(spec.maximum_cost, 200)
-        self.assertFalse(spec.free_only)
-        self.assertEqual(spec.allowed_confirmation_dialogs, ())
-        self.assertEqual(
-            spec.semantic_preconditions,
-            (
-                f"product_id={PRODUCT_ID}",
-                f"product_revision={PRODUCT_REVISION}",
-                "reset_identity=reset-17",
-                "confirmed_upgrades=2",
-                "next_upgrade_ordinal=3",
-                "hero_identity=Wali",
-                "hero_selected=true",
-                "current_level=29",
-                "evolution_cap=30",
-                "target_identity=hero-upgrade",
-                "control_class=UPGRADE",
-                "normal_single_upgrade=true",
-                "bulk_upgrade=false",
-                "standard_materials_only=true",
-                "material_cost.ANTISERUM=200",
-                "material_balance.ANTISERUM=1000",
-                "stable_selected_state=true",
-                "native_target_evidence=true",
-                "reset_action=false",
-            ),
-        )
-        self.assertEqual(
-            spec.semantic_postconditions,
-            (
-                "hero_identity=Wali",
-                "same_reset_identity=true",
-                "current_level=before+1",
-                "confirmed_upgrades=before+1",
-                "exact_ANTISERUM_debit=true",
-                "normal_level_delta_only=true",
-                "reset_action=false",
-            ),
-        )
+        self.assertEqual(spec.maximum_cost, 1000)
+        self.assertIn("normal_input_limit=3", spec.semantic_preconditions)
+        self.assertIn("per_input_current_quote_required=true", spec.semantic_preconditions)
+        self.assertIn("material_cost.ANTISERUM=200", spec.semantic_preconditions)
+        self.assertIn("exact_cumulative_ANTISERUM_debit=sum(journaled_input_quotes)", spec.semantic_postconditions)
+        self.assertEqual(normal_upgrade_input_limit(observation()), 1)
+        self.assertEqual(normal_upgrade_input_limit(replace(before, confirmed_upgrades=2)), 1)
+        for limit in (0, 4, True):
+            with self.assertRaises(ValueError):
+                hero_upgrade_batch_spec(before, limit)
 
-    def test_normal_successor_requires_exact_level_count_reset_and_antiserum_debit(self):
-        before = observation(confirmed_upgrades=2)
-        after = settled(
-            before,
-            material_balances={ANTISERUM: 800},
-            spent_materials={ANTISERUM: 200},
+    def test_batch_accepts_changing_current_quotes_without_requiring_each_level_plus_one(self):
+        before = observation(current_level=5, evolution_cap=10)
+        self.assertTrue(hero_upgrade_batch_input_authorizeable(
+            before, before, input_limit=3, quoted_costs=(), previous_source=None,
+        ))
+        # Current level can still show 5; the current balance/quote changed.
+        current = replace(
+            before, material_costs={ANTISERUM: 250},
+            material_balances={ANTISERUM: 800}, source_frame_sha256="b" * 64,
+            overlay_state="wali_bulk_row", bulk_row_roi=(30, 30, 50, 50),
         )
-        # A next-level cost can be higher than the remaining balance; this action is still verified.
-        after = replace(after, material_costs={ANTISERUM: 900})
-        self.assertTrue(hero_upgrade_postcondition_verified(before, after))
-        self.assertTrue(
-            hero_upgrade_postcondition_verified(
-                before,
-                replace(
-                    after,
-                    current_level=10,
-                    target_identity=EVOLUTION_TARGET,
-                    control_class="EVOLVE",
-                    normal_upgrade_visible=False,
-                    normal_single_upgrade=False,
-                    evolution_control_visible=True,
-                ),
-            )
-        )
+        self.assertTrue(hero_upgrade_batch_input_authorizeable(
+            before, current, input_limit=3, quoted_costs=(200,), previous_source=before,
+        ))
         for changes in (
-            {"current_level": 11},
-            {"evolution_cap": 11},
-            {"confirmed_upgrades": 2},
-            {"game_day_id": "reset-18"},
-            {"material_balances": {ANTISERUM: 801}},
-            {"spent_materials": {ANTISERUM: 199}},
-            {"stable_selected_state": False},
+            {"material_balances": {ANTISERUM: 249}},
+            {"material_rows_complete": False},
+            {"bulk_row_roi": ROI},
+            {"current_level": 7},
+            {"game_day_id": "other-reset"},
+            {"normal_single_upgrade": False},
+            {"source_frame_sha256": ""},
+            {"source_frame_sha256": SOURCE_HASH},
+            {"material_balances": {ANTISERUM: 1001}},
+            {"current_level": 4},
+            {"confirmed_upgrades": 1},
+            {"overlay_state": "unknown"},
+            {"reset_guard_active": True},
         ):
             with self.subTest(changes=changes):
-                self.assertFalse(hero_upgrade_postcondition_verified(before, replace(after, **changes)))
-        self.assertFalse(
-            hero_upgrade_postcondition_verified(
-                before,
-                replace(after, material_balances={}, spent_materials={}),
-            )
+                self.assertFalse(hero_upgrade_batch_input_authorizeable(
+                    before, replace(current, **changes), input_limit=3,
+                    quoted_costs=(200,), previous_source=before,
+                ))
+        self.assertFalse(hero_upgrade_batch_input_authorizeable(
+            before, before, input_limit=3, quoted_costs=(200,), previous_source=before,
+        ))
+        # An affordable current quote still cannot overspend the bound baseline.
+        expensive = replace(
+            current, material_costs={ANTISERUM: 800}, material_balances={ANTISERUM: 800},
+            source_frame_sha256="c" * 64,
         )
+        self.assertFalse(hero_upgrade_batch_input_authorizeable(
+            before, expensive, input_limit=3, quoted_costs=(200, 250), previous_source=current,
+        ))
+
+    def test_final_batch_proof_requires_exact_cumulative_levels_quota_and_actual_quotes(self):
+        before = observation(current_level=5, evolution_cap=10)
+        after = settled(
+            before, current_level=8, confirmed_upgrades=3,
+            material_balances={ANTISERUM: 250}, spent_materials={ANTISERUM: 750},
+        )
+        def verified(candidate, inputs=3, quotes=(200, 250, 300)):
+            return hero_upgrade_batch_postcondition_verified(
+                before, candidate, inputs=inputs, quoted_costs=quotes,
+            )
+        self.assertTrue(verified(after))
+        for changes in (
+            {"current_level": 7}, {"confirmed_upgrades": 2},
+            {"evolution_cap": 11}, {"game_day_id": "other"},
+            {"material_balances": {ANTISERUM: 251}},
+            {"spent_materials": {ANTISERUM: 600}}, {"stable_selected_state": False},
+        ):
+            with self.subTest(changes=changes):
+                self.assertFalse(verified(replace(after, **changes)))
+        self.assertFalse(verified(after, quotes=(200, 200, 200)))
+        self.assertFalse(verified(after, inputs=2))
+        prefix = settled(before, current_level=7, confirmed_upgrades=2, material_balances={ANTISERUM: 550})
+        self.assertTrue(verified(prefix, inputs=2, quotes=(200, 250)))
 
     def test_evolution_requires_displayed_cap_next_cap_and_complete_affordable_standard_vector(self):
         before = evolution_observation(confirmed_upgrades=2)
@@ -253,7 +252,7 @@ class WaliUpgradeContractTests(unittest.TestCase):
             spec.semantic_preconditions,
             (
                 "product_id=hero_upgrade",
-                "product_revision=hero_upgrade-v3",
+                "product_revision=hero_upgrade-v4",
                 "reset_identity=reset-17",
                 "confirmed_upgrades=1",
                 "next_upgrade_ordinal=2",

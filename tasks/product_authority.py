@@ -21,7 +21,7 @@ DEFAULT_AUTHORITY_PATH = REPO_ROOT / "tasks" / "flow_delivery_product_policy.jso
 DEFAULT_POLICY_PATH = DEFAULT_AUTHORITY_PATH
 AUTHORITY_SCHEMA_VERSION = 2
 AUTHORITY_REGISTRY_KIND = "flow_delivery_product_policy"
-AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r20"
+AUTHORITY_REVISION = "flow-delivery-product-authority-v2-r21"
 PRODUCT_AUTHORITY_SCHEMA_VERSION = AUTHORITY_SCHEMA_VERSION
 PRODUCT_AUTHORITY_REVISION = AUTHORITY_REVISION
 PRODUCT_RECORDS_FIELD = "product_records"
@@ -1877,11 +1877,11 @@ def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
 
     if (
         record["objective"] != "upgrade_hero"
-        or record["action"] != "upgrade_one_wali_normal_level_with_standard_evolution_support"
+        or record["action"] != "upgrade_wali_individual_normal_batch_with_standard_evolution_support"
         or record["recurrence"] != "daily_reset_scoped"
-        or record["record_revision"] != "hero_upgrade-v3"
+        or record["record_revision"] != "hero_upgrade-v4"
     ):
-        raise ProductAuthorityError("Hero Upgrade must use the approved v3 reset-scoped action")
+        raise ProductAuthorityError("Hero Upgrade must use the approved v4 reset-scoped batch action")
     route = record["semantic_entry_route"]
     if route.get("source_home_authorities") != ["HOME_CANONICAL"] or route.get(
         "route"
@@ -1925,10 +1925,12 @@ def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
     expected_cost = {
         "quantity": 1,
         "normal_upgrade": {
-            "action": "single_level",
+            "action": "individual_single_level_inputs",
             "material": "ANTISERUM",
             "amount": None,
             "current_observation_required": True,
+            "maximum_inputs_per_batch": 3,
+            "current_quote_before_each_input": True,
             "free_only": False,
         },
         "standard_evolution": {
@@ -1946,7 +1948,9 @@ def _validate_hero_upgrade_record(record: Mapping[str, Any]) -> None:
         "exact_selected_wali_evidence_required": True,
         "stable_level_and_displayed_cap_required": True,
         "exact_current_material_vector_and_balance_required": True,
-        "normal_single_level_successor_required": True,
+        "normal_batch_cumulative_level_and_debit_required": True,
+        "per_input_settled_successor_required": False,
+        "partial_batch_requires_exact_known_prefix": True,
         "exact_antiserum_debit_required": True,
         "evolution_only_at_displayed_cap": True,
         "evolution_automatic_level_not_counted": True,
@@ -2021,6 +2025,7 @@ def _validate_hero_upgrade_decision_policy(payload: Mapping[str, Any]) -> None:
         "candidate_hero": "Wali",
         "normal_upgrade_count_per_reset": 3,
         "normal_upgrade_kind": "single_level",
+        "normal_upgrade_verification": "baseline_and_final_cumulative_level_and_debit",
         "normal_upgrade_material": "ANTISERUM",
         "standard_evolution_materials": [
             "ANTISERUM",

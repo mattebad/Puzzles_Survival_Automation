@@ -51,7 +51,7 @@ TROOP_TRAINING_PRODUCT = "troop_training"
 TROOP_TRAINING_REVISION = "troop_training-v3"
 WALI_UPGRADE_TASK = "HERO-UPGRADE-EVIDENCE-GATE"
 WALI_UPGRADE_PRODUCT = "hero_upgrade"
-WALI_UPGRADE_REVISION = "hero_upgrade-v3"
+WALI_UPGRADE_REVISION = "hero_upgrade-v4"
 
 from .models import ActionClass, PolicyDecision, PolicyRequest
 
@@ -1368,7 +1368,7 @@ def _wali_upgrade(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     tokens = request.semantic_preconditions
     if (
         type(tokens) is not tuple or any(type(token) is not str for token in tokens)
-        or len(tokens) not in ({22, 24, 26, 28, 30} if evolution else {19})
+        or len(tokens) not in ({22, 24, 26, 28, 30} if evolution else {21})
         or not isinstance(request.game_day_id, str) or not request.game_day_id.strip()
         or type(request.observation.quantity) is not int
         or request.allowed_confirmation_dialogs != ()
@@ -1410,7 +1410,11 @@ def _wali_upgrade(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
             "normal_single_upgrade=true", "bulk_upgrade=false", "standard_materials_only=true",
         ):
             return deny
-        vector = tokens[14:-3]
+        input_limit = _integer_token(_field(tokens[14], "normal_input_limit="), minimum=1, maximum=3 - confirmed)
+        if (input_limit is None or input_limit > cap - level
+                or tokens[15] != "per_input_current_quote_required=true"):
+            return deny
+        vector = tokens[16:-3]
     materials = ("ANTISERUM", "COMBAT_MANUAL_I", "COMBAT_MANUAL_II",
                  "COMBAT_MANUAL_III", "COMBAT_MANUAL_IV", "COMBAT_MANUAL_V")
     costs = {}
@@ -1446,19 +1450,21 @@ def _wali_upgrade(request: PolicyRequest) -> Tuple[PolicyDecision, str, str]:
     else:
         action = "HERO_UPGRADE_SINGLE"
         source, target, control = "HERO", "hero-upgrade", "UPGRADE"
-        consequence = "upgrade_wali_single_level"
-        postcondition = "WALI_SINGLE_LEVEL_WITH_EXACT_ANTISERUM_DEBIT"
-        cost_type, cost_amount, currency, maximum = "ANTISERUM", costs["ANTISERUM"], "ANTISERUM", costs["ANTISERUM"]
+        consequence = "upgrade_wali_individual_single_levels"
+        postcondition = "WALI_NORMAL_BATCH_CUMULATIVE_LEVEL_WITH_EXACT_ANTISERUM_DEBIT"
+        cost_type, cost_amount, currency, maximum = "ANTISERUM", costs["ANTISERUM"], "ANTISERUM", balance
         posts = (
-            "hero_identity=Wali", "same_reset_identity=true", "current_level=before+1",
-            "confirmed_upgrades=before+1", "exact_ANTISERUM_debit=true",
-            "normal_level_delta_only=true", "reset_action=false",
+            "hero_identity=Wali", "same_reset_identity=true", "current_level=before+journaled_inputs",
+            "evolution_cap=before", "confirmed_upgrades=before+journaled_inputs",
+            "1<=journaled_inputs<=normal_input_limit",
+            "exact_cumulative_ANTISERUM_debit=sum(journaled_input_quotes)",
+            "normal_level_delta_only=true", "bulk_upgrade=false", "reset_action=false",
         )
     if not _contract_matches(
         request, action_class=ActionClass.SPEND_OR_STRATEGIC, semantic_action=action,
         action_kind=action, subject="Wali", source_state=source, target_identity=target,
         control_class=control, consequence=consequence, postcondition=postcondition,
-        cost_type=cost_type, cost_amount=cost_amount, quantity=1,
+        cost_type=cost_type, cost_amount=cost_amount, quantity=1 if evolution else input_limit,
         resource_or_currency=currency, maximum_cost=maximum, free_only=False,
         semantic_postconditions=posts,
     ):

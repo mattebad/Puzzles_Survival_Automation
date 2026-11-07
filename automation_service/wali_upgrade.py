@@ -1,4 +1,4 @@
-"""Canonical Wali single-level upgrades over the fixed native execution boundary."""
+"""Canonical Wali batches of individual single-level inputs over the fixed native boundary."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -11,7 +11,8 @@ from typing import Mapping
 from tasks.hero_upgrade_disabled import (
     HeroUpgradeObservation,
     hero_evolution_postcondition_verified,
-    hero_upgrade_postcondition_verified,
+    hero_upgrade_batch_postcondition_verified,
+    normal_upgrade_input_limit,
 )
 from tasks.runtime_identity import (
     BLUESTACKS_ADB,
@@ -122,6 +123,8 @@ def _observation(value: object) -> HeroUpgradeObservation:
     for name in ("target_roi", "panel_bounds", "evidence_refs", "material_usage_receipts"):
         if name in fields:
             fields[name] = tuple(fields[name])
+    if fields.get("bulk_row_roi") is not None:
+        fields["bulk_row_roi"] = tuple(fields["bulk_row_roi"])
     return HeroUpgradeObservation(**fields)
 
 
@@ -146,6 +149,21 @@ def _home(result: Mapping[str, object]) -> None:
         or result.get("terminal_home_frame_sha256") != digest
     ):
         raise ValueError("Wali terminal Home evidence is inconsistent")
+
+
+def _normal_batch_verified(row: Mapping, before: HeroUpgradeObservation, after: HeroUpgradeObservation) -> bool:
+    inputs, limit = row.get("normal_inputs"), row.get("input_limit")
+    quotes = row.get("quoted_antiserum_costs")
+    return bool(
+        type(inputs) is int and type(limit) is int
+        and 1 <= inputs <= limit <= normal_upgrade_input_limit(before)
+        and type(row.get("first_ordinal")) is int
+        and row["first_ordinal"] == before.confirmed_upgrades + 1
+        and isinstance(quotes, (tuple, list))
+        and hero_upgrade_batch_postcondition_verified(
+            before, after, inputs=inputs, quoted_costs=tuple(quotes),
+        )
+    )
 
 
 def _validate_result(result: Mapping[str, object], *, game_day_id: str, occurrence_key: str) -> None:
@@ -175,14 +193,14 @@ def _validate_result(result: Mapping[str, object], *, game_day_id: str, occurren
         raise ValueError("Wali result violates its selected hero/reset/occurrence or blocked reset boundary")
     seen: set[str] = set()
     progression = []
-    for name, count, predicate in (
-        ("level_upgrades", upgrades, hero_upgrade_postcondition_verified),
-        ("evolutions", evolutions, hero_evolution_postcondition_verified),
-    ):
+    normal_count = 0
+    for name, count in (("normal_batches", upgrades), ("evolutions", evolutions)):
         rows = result.get(name)
-        if not isinstance(rows, (list, tuple)) or len(rows) != count:
-            raise ValueError(f"Wali {name} count lacks its action evidence")
-        for index, row in enumerate(rows):
+        if not isinstance(rows, (list, tuple)) or len(rows) > 3:
+            raise ValueError(f"Wali {name} lacks bounded action evidence")
+        if name == "evolutions" and len(rows) != count:
+            raise ValueError("Wali evolution count lacks its action evidence")
+        for row in rows:
             if not isinstance(row, Mapping) or row.get("semantic_verified") is not True:
                 raise ValueError("Wali action row has no verified semantic successor")
             key = row.get("action_key")
@@ -190,14 +208,22 @@ def _validate_result(result: Mapping[str, object], *, game_day_id: str, occurren
                 raise ValueError("Wali action keys are missing or duplicated")
             seen.add(key)
             before, after = _observation(row.get("before")), _observation(row.get("after"))
+            valid = (
+                _normal_batch_verified(row, before, after)
+                if name == "normal_batches" else hero_evolution_postcondition_verified(before, after)
+            )
             if (
                 before.game_day_id != game_day_id or after.game_day_id != game_day_id
-                or not predicate(before, after)
-                or name == "level_upgrades" and before.confirmed_upgrades != prior + index
+                or not valid
+                or name == "normal_batches" and before.confirmed_upgrades != prior + normal_count
                 or name == "evolutions" and not prior <= before.confirmed_upgrades <= confirmed
             ):
-                raise ValueError("Wali action row does not establish its claimed normal upgrade or standard evolution")
+                raise ValueError("Wali action row does not establish its claimed normal batch or standard evolution")
+            if name == "normal_batches":
+                normal_count += row["normal_inputs"]
             progression.append((before, after))
+    if normal_count != upgrades:
+        raise ValueError("Wali normal quota does not equal verified individual batch inputs")
     progression.sort(key=lambda row: row[0].current_level)
     for index in range(1, len(progression)):
         previous, current = progression[index - 1][1], progression[index][0]
@@ -235,10 +261,8 @@ def _verified_partial_actions(result, identity, started):
     except (OSError, OverflowError, TypeError, ValueError):
         return None, [], []
     normal, evolutions, seen = [], [], set()
-    for name, accepted, predicate in (
-        ("level_upgrades", normal, hero_upgrade_postcondition_verified),
-        ("evolutions", evolutions, hero_evolution_postcondition_verified),
-    ):
+    normal_count = 0
+    for name, accepted in (("normal_batches", normal), ("evolutions", evolutions)):
         rows = result.get(name, ())
         if not isinstance(rows, (list, tuple)):
             continue
@@ -250,18 +274,24 @@ def _verified_partial_actions(result, identity, started):
                     break
                 key = row.get("action_key")
                 before, after = _observation(row.get("before")), _observation(row.get("after"))
+                valid = (
+                    _normal_batch_verified(row, before, after)
+                    if name == "normal_batches" else hero_evolution_postcondition_verified(before, after)
+                )
                 if (
                     not isinstance(key, str) or not key or key in seen
                     or before.game_day_id != game_day_id or after.game_day_id != game_day_id
-                    or name == "level_upgrades" and before.confirmed_upgrades != prior + len(normal)
-                    or name == "level_upgrades" and normal
+                    or name == "normal_batches" and before.confirmed_upgrades != prior + normal_count
+                    or name == "normal_batches" and normal
                     and before.current_level < normal[-1]["after"]["current_level"]
-                    or name == "evolutions" and not prior <= before.confirmed_upgrades <= prior + len(normal)
-                    or not predicate(before, after)
+                    or name == "evolutions" and not prior <= before.confirmed_upgrades <= prior + normal_count
+                    or not valid
                 ):
                     break
                 seen.add(key)
                 accepted.append(row)
+                if name == "normal_batches":
+                    normal_count += row["normal_inputs"]
             except (AttributeError, KeyError, TypeError, ValueError):
                 break
     return prior, normal, evolutions
@@ -277,15 +307,16 @@ def _failed(*, identity, occurrence_key, reason, partial, outcome, started, comp
         )
     }
     prior, normal, evolutions = _verified_partial_actions(result, identity, started)
-    result["reported_level_upgrades"] = result.get("level_upgrades")
+    result["reported_normal_batches"] = result.get("normal_batches")
     result["reported_evolutions"] = result.get("evolutions")
+    normal_count = sum(row["normal_inputs"] for row in normal)
     result.update(
         prior_confirmed_upgrades=prior,
-        confirmed_upgrades=None if prior is None else prior + len(normal),
-        level_upgrades=normal, evolutions=evolutions,
-        level_upgrade_committed_count=len(normal), evolution_committed_count=len(evolutions),
+        confirmed_upgrades=None if prior is None else prior + normal_count,
+        normal_batches=normal, evolutions=evolutions,
+        level_upgrade_committed_count=normal_count, evolution_committed_count=len(evolutions),
     )
-    committed = len(normal) + len(evolutions)
+    committed = normal_count + len(evolutions)
     counts_known = type(attempted) is int and committed <= attempted <= MAX_ACTIONS
     if not native_started:
         result.update(

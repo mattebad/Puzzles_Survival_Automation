@@ -1,4 +1,13 @@
-"""Canonical native BlueStacks route for bounded single-level Wali upgrades."""
+"""Canonical native BlueStacks route for bounded batches of individual single-level Wali upgrades.
+
+Each normal Core intent covers up to the remaining daily quota (capped at the
+displayed evolution cap) of individual ordinary Upgrade inputs. Every input is
+its own native action with its own fresh source frame, positively identified
+single control and current icon-bound Antiserum quote. The cumulative level and
+exact Antiserum debit are verified once after the batch; the separate
+"Upgrade to Lv.N" row is never a target and is dismissed only at that final
+verification boundary.
+"""
 
 from __future__ import annotations
 
@@ -37,8 +46,10 @@ from tasks.hero_upgrade_disabled import (
     hero_evolution_postcondition_verified,
     hero_evolution_spec,
     hero_upgrade_authorizeable,
-    hero_upgrade_postcondition_verified,
-    hero_upgrade_spec,
+    hero_upgrade_batch_input_authorizeable,
+    hero_upgrade_batch_postcondition_verified,
+    hero_upgrade_batch_spec,
+    normal_upgrade_input_limit,
 )
 from tasks.profile import BLUESTACKS_NATIVE_TARGET_PROVENANCE
 from automation_service.registry import (
@@ -53,9 +64,10 @@ from tasks.runtime_identity import FIXED_RUNTIME_SCOPE
 
 MAX_ACTIONS = 6
 
-_NORMAL_POSTCONDITION = "WALI_SINGLE_LEVEL_WITH_EXACT_ANTISERUM_DEBIT"
+_NORMAL_POSTCONDITION = "WALI_NORMAL_BATCH_CUMULATIVE_LEVEL_WITH_EXACT_ANTISERUM_DEBIT"
 _EVOLUTION_POSTCONDITION = "WALI_STANDARD_EVOLUTION_WITH_EXACT_MATERIAL_USE"
-_NORMAL_CONSEQUENCE = "upgrade_wali_single_level"
+_NORMAL_CONSEQUENCE = "upgrade_wali_individual_single_levels"
+_BATCH_INPUT_CONTEXT = "WALI_BATCH_INPUT_CONTEXT_RETAINED_PENDING_FINAL_PROOF"
 _EVOLUTION_CONSEQUENCE = "evolve_wali_with_standard_materials"
 _EVOLUTION_COST_TYPE = "standard_hero_evolution_material_bundle"
 _MAX_STABLE_CAPTURES = 4
@@ -115,15 +127,15 @@ class _RouteState:
     evolution_committed: int = 0
     unknown_action_sent: bool = False
     identical_retry_denied: bool = False
-    level_upgrades: list[dict[str, object]] | None = None
+    normal_batches: list[dict[str, object]] | None = None
     evolutions: list[dict[str, object]] | None = None
     terminal_home_verified: bool = False
     terminal_home_frame: dict[str, object] | None = None
     bulk_dismissals_attempted: set[str] = field(default_factory=set)
 
     def __post_init__(self) -> None:
-        if self.level_upgrades is None:
-            self.level_upgrades = []
+        if self.normal_batches is None:
+            self.normal_batches = []
         if self.evolutions is None:
             self.evolutions = []
 
@@ -747,6 +759,8 @@ def _view(
         if "upgrade to lv" in _normal(text) or "upgrade to level" in _normal(text)
     ]
     bulk_target = _box(bulk_lines[0][1], pad=8) if len(bulk_lines) == 1 else None
+    if len(bulk_lines) > 1:
+        overlay_state = "unknown"
     normal_target = _box(normal_buttons[0][1], pad=8) if len(normal_buttons) == 1 else None
     detail_evolve = _box(evolve_buttons[0][1], pad=8) if len(evolve_buttons) == 1 else None
     is_detail = bool(
@@ -768,10 +782,12 @@ def _view(
         if target is None:
             return _View("unknown", None, words, lines, reason="detail_control_missing")
         normal_visible = normal_target is not None
+        # The separate bulk row never makes the single control ambiguous unless
+        # it overlaps it; its quote obstruction is judged by the material row.
         normal_single = bool(
             normal_visible
             and current_level < evolution_cap
-            and bulk_target is None
+            and not _overlaps(bulk_target, normal_target)
         )
         obs = HeroUpgradeObservation(
             screen_state=HERO_SCREEN,
@@ -800,6 +816,7 @@ def _view(
                 if bulk_target is not None and overlay_state == "none_observed"
                 else overlay_state
             ),
+            bulk_row_roi=bulk_target,
             reset_guard_active=reset_text,
             runtime_profile_id=PROFILE_ID,
             recognized=not reset_text and overlay_state == "none_observed",
@@ -936,6 +953,33 @@ def _scope_prefix(context: Any, game_day_id: str) -> str:
     return f"{PRODUCT_ID}|{FLOW_ID}|{scope}|"
 
 
+def _journaled_batch_inputs(row: Mapping[str, Any]) -> int | None:
+    """Actual individual inputs persisted by the batch transport; never the planned limit."""
+    try:
+        transport = json.loads(str(row.get("transport_result_json") or ""))
+        detail = json.loads(str(transport.get("detail") or ""))
+        inputs = detail["inputs"]
+        quotes = detail["quoted_antiserum"]
+        sources = detail["source_frame_sha256"]
+        limit = int(row.get("quantity"))
+    except (TypeError, ValueError, KeyError, AttributeError):
+        return None
+    if (
+        transport.get("dispatched") is not True
+        or type(inputs) is not int
+        or not 1 <= inputs <= min(limit, MAX_CONFIRMED_UPGRADES)
+        or not isinstance(quotes, list)
+        or len(quotes) != inputs
+        or not all(type(cost) is int and cost > 0 for cost in quotes)
+        or not isinstance(sources, list)
+        or len(sources) != inputs
+        or not all(isinstance(source, str) and re.fullmatch(r"[0-9a-f]{64}", source) for source in sources)
+        or len(set(sources)) != inputs
+    ):
+        return None
+    return inputs
+
+
 def _history(context: Any, game_day_id: str) -> tuple[int, int, bool, bool, list[dict[str, Any]]]:
     prefix = _scope_prefix(context, game_day_id)
     rows = [
@@ -943,7 +987,9 @@ def _history(context: Any, game_day_id: str) -> tuple[int, int, bool, bool, list
         for row in context.action_store.list_actions_for_task(FLOW_ID)
         if str(row.get("action_key", "")).startswith(prefix)
     ]
-    normal: dict[int, dict[str, Any]] = {}
+    # First ordinal -> (row, legacy single). Historical confirmed single rows
+    # (``normal|k``) remain durable count-one progress.
+    normal: dict[int, tuple[dict[str, Any], bool]] = {}
     evolutions: list[dict[str, Any]] = []
     evolution_ordinals: set[int] = set()
     malformed = False
@@ -951,12 +997,12 @@ def _history(context: Any, game_day_id: str) -> tuple[int, int, bool, bool, list
         suffix = str(row.get("action_key", ""))[len(prefix):]
         parts = suffix.split("|")
         try:
-            if len(parts) == 2 and parts[0] == "normal":
+            if len(parts) == 2 and parts[0] in {"normal", "normal-batch"}:
                 ordinal = int(parts[1])
                 if ordinal not in {1, 2, 3} or ordinal in normal:
                     malformed = True
                     continue
-                normal[ordinal] = row
+                normal[ordinal] = (row, parts[0] == "normal")
             elif len(parts) == 4 and parts[0] == "evolution":
                 before_cap, next_cap, ordinal = map(int, parts[1:])
                 if (
@@ -973,17 +1019,23 @@ def _history(context: Any, game_day_id: str) -> tuple[int, int, bool, bool, list
                 malformed = True
         except (TypeError, ValueError, OverflowError):
             malformed = True
-    confirmed_ordinals = sorted(
-        ordinal
-        for ordinal, row in normal.items()
-        if row.get("final_status") == ActionStatus.CONFIRMED.value
-    )
-    contiguous = confirmed_ordinals == list(range(1, len(confirmed_ordinals) + 1))
+    confirmed = 0
+    contiguous = True
+    for ordinal in sorted(normal):
+        row, legacy = normal[ordinal]
+        if row.get("final_status") != ActionStatus.CONFIRMED.value:
+            continue
+        inputs = 1 if legacy else _journaled_batch_inputs(row)
+        if inputs is None:
+            malformed = True
+            continue
+        contiguous = contiguous and ordinal == confirmed + 1
+        confirmed += inputs
+    contiguous = contiguous and confirmed <= MAX_CONFIRMED_UPGRADES
     evolution_contiguous = sorted(evolution_ordinals) == list(range(1, len(evolution_ordinals) + 1))
     normal_nonterminal = any(
-        row.get("final_status") != ActionStatus.CONFIRMED.value
-        for row in normal.values()
-        if row.get("final_status") != ActionStatus.CANCELLED.value
+        row.get("final_status") not in {ActionStatus.CONFIRMED.value, ActionStatus.CANCELLED.value}
+        for row, _legacy in normal.values()
     )
     evolution_nonterminal = any(
         row.get("final_status") not in {ActionStatus.CONFIRMED.value, ActionStatus.CANCELLED.value}
@@ -992,18 +1044,19 @@ def _history(context: Any, game_day_id: str) -> tuple[int, int, bool, bool, list
     confirmed_evolutions = sum(row.get("final_status") == ActionStatus.CONFIRMED.value for row in evolutions)
     key_conflict = any(
         row.get("final_status") == ActionStatus.CANCELLED.value
-        for row in normal.values()
+        for row, _legacy in normal.values()
     ) or any(
         row.get("final_status") == ActionStatus.CANCELLED.value
         for row in evolutions
     )
-    return len(confirmed_ordinals), confirmed_evolutions, bool(malformed or not contiguous or not evolution_contiguous), bool(normal_nonterminal or evolution_nonterminal or key_conflict), rows
+    return confirmed, confirmed_evolutions, bool(malformed or not contiguous or not evolution_contiguous), bool(normal_nonterminal or evolution_nonterminal or key_conflict), rows
 
 
 def _action_key(context: Any, game_day_id: str, *, phase: str, ordinal: int, cap: int | None = None, next_cap: int | None = None) -> str:
     prefix = _scope_prefix(context, game_day_id)
     if phase == "normal":
-        return f"{prefix}normal|{ordinal}"
+        # ``ordinal`` is the batch's first quota ordinal.
+        return f"{prefix}normal-batch|{ordinal}"
     if phase == "evolution" and cap is not None and next_cap is not None:
         return f"{prefix}evolution|{cap}|{next_cap}|{ordinal}"
     raise ValueError("Wali Upgrade action identity is incomplete")
@@ -1023,6 +1076,7 @@ def _route_observation(
     postcondition: str,
     cost_type: str,
     cost_amount: int,
+    quantity: int,
 ) -> Observation:
     return Observation(
         frame_sha256=str(captured.sha256),
@@ -1042,7 +1096,7 @@ def _route_observation(
         consequence=consequence,
         cost_type=cost_type,
         cost_amount=cost_amount,
-        quantity=1,
+        quantity=quantity,
         expected_postcondition=postcondition,
         evidence_refs=tuple(observation.evidence_refs),
         ocr_result_frame_sha256=str(captured.sha256),
@@ -1058,17 +1112,17 @@ def _semantic_after(
     before: HeroUpgradeObservation,
     view: _View,
     *,
-    phase: str,
+    inputs: int,
     refs: tuple[str, ...],
     receipts: tuple[str, ...],
 ) -> HeroUpgradeObservation | None:
+    """Bind one settled frame to the journaled normal inputs (zero for evolution)."""
     observed = view.observation
     if observed is None:
         return None
-    confirmed = before.confirmed_upgrades + (1 if phase == "normal" else 0)
     return replace(
         observed,
-        confirmed_upgrades=confirmed,
+        confirmed_upgrades=before.confirmed_upgrades + inputs,
         stable_selected_state=observed.stable_selected_state,
         spent_materials={},
         material_usage_receipts=receipts,
@@ -1076,10 +1130,20 @@ def _semantic_after(
     )
 
 
-def _post_verified(before: HeroUpgradeObservation, after: HeroUpgradeObservation | None, phase: str) -> bool:
+def _post_verified(
+    before: HeroUpgradeObservation,
+    after: HeroUpgradeObservation | None,
+    phase: str,
+    *,
+    quotes: tuple[int, ...] = (),
+) -> bool:
+    if after is None:
+        return False
     if phase == "normal":
-        return bool(after is not None and hero_upgrade_postcondition_verified(before, after))
-    return bool(after is not None and hero_evolution_postcondition_verified(before, after))
+        return hero_upgrade_batch_postcondition_verified(
+            before, after, inputs=len(quotes), quoted_costs=quotes,
+        )
+    return hero_evolution_postcondition_verified(before, after)
 
 
 def _policy_post_observation(
@@ -1090,6 +1154,7 @@ def _policy_post_observation(
     *,
     phase: str,
     cost_amount: int,
+    quantity: int,
     verified: bool,
 ) -> Observation:
     obs = after or view.observation
@@ -1114,7 +1179,7 @@ def _policy_post_observation(
         consequence=consequence if verified else None,
         cost_type=cost_type if verified else None,
         cost_amount=cost_amount if verified else None,
-        quantity=1 if verified else None,
+        quantity=quantity if verified else None,
         expected_postcondition=expected if verified else None,
         evidence_refs=tuple(obs.evidence_refs) if obs is not None else (),
         ocr_result_frame_sha256=str(captured.sha256),
@@ -1404,6 +1469,7 @@ def _settle_post_action(
     seed: HeroUpgradeObservation | None,
     post_captures: list[_PostCapture],
     action_key: str,
+    quotes: tuple[int, ...],
     allow_confirmation: bool,
 ) -> Any:
     previous_view = post_captures[-1].view if post_captures else None
@@ -1437,8 +1503,10 @@ def _settle_post_action(
             and not view.observation.reset_guard_active
             and action_key not in state.bulk_dismissals_attempted
         ):
-            # Reserve before input; an unknown dismissal is never repeated by the
-            # executor's later read-only reconciliation pass or a restarted route.
+            # The one non-spending Back of this batch happens only here, at its
+            # final verification boundary. Reserve it before input; an unknown
+            # dismissal is never repeated by the executor's later read-only
+            # reconciliation pass or a restarted route.
             state.bulk_dismissals_attempted.add(action_key)
             ok, revealed, revealed_capture, _reason = _reveal_single_upgrade_successor(
                 context, state, view=view, captured=captured,
@@ -1454,18 +1522,19 @@ def _settle_post_action(
         after = _semantic_after(
             before,
             view,
-            phase=phase,
+            inputs=len(quotes) if phase == "normal" else 0,
             refs=tuple(dict.fromkeys(refs)),
             receipts=tuple(item for item in STANDARD_MANUALS if item in receipts),
         )
-        verified = bool(allow_confirmation and _post_verified(before, after, phase))
+        verified = bool(allow_confirmation and _post_verified(before, after, phase, quotes=quotes))
         policy_observation = _policy_post_observation(
             context,
             captured,
             view,
             after,
             phase=phase,
-            cost_amount=before.material_costs[ANTISERUM] if phase == "normal" else 1,
+            cost_amount=sum(quotes) if phase == "normal" else 1,
+            quantity=len(quotes) if phase == "normal" else 1,
             verified=verified,
         )
         post_captures.append(_PostCapture(captured, view, after, verified, policy_observation))
@@ -1495,7 +1564,11 @@ def _dispatch_consequential(
     if phase == "normal":
         if not hero_upgrade_authorizeable(before):
             return {"status": "blocked", "reason": "normal_upgrade_preconditions_rejected", "transport_calls": 0}
-        spec = hero_upgrade_spec(before)
+        # Remaining quota, split only at the displayed cap and the route's action budget.
+        input_limit = min(normal_upgrade_input_limit(before), MAX_ACTIONS - state.total_action_count)
+        if input_limit < 1:
+            return {"status": "blocked", "reason": "consequential_action_budget_exhausted", "transport_calls": 0}
+        spec = hero_upgrade_batch_spec(before, input_limit)
         semantic_action = spec.action_kind
         target_identity = HERO_TARGET
         postcondition = _NORMAL_POSTCONDITION
@@ -1506,6 +1579,7 @@ def _dispatch_consequential(
     else:
         if not hero_evolution_authorizeable(before):
             return {"status": "blocked", "reason": "evolution_preconditions_rejected", "transport_calls": 0}
+        input_limit = 1
         spec = hero_evolution_spec(before)
         semantic_action = spec.action_kind
         target_identity = EVOLUTION_TARGET
@@ -1546,6 +1620,7 @@ def _dispatch_consequential(
             postcondition=postcondition,
             cost_type=cost_type,
             cost_amount=cost_amount,
+            quantity=input_limit,
         ),
         monotonic_now=float(context.monotonic_clock()),
         observation_max_age_seconds=5.0,
@@ -1570,6 +1645,11 @@ def _dispatch_consequential(
     post_captures: list[_PostCapture] = []
     transport_attempts = 0
     sent_holder = {"count": 0}
+    # Journal of individual inputs actually counted by the native runtime:
+    # each input's own current quote and source frame. Never the planned limit.
+    quotes: list[int] = []
+    sources: list[str] = []
+    stop_holder = {"reason": ""}
     runtime = context.runtime
     before_box = tuple(before.target_roi)
     action_class_value = ActionClass.SPEND_OR_STRATEGIC.value
@@ -1577,7 +1657,6 @@ def _dispatch_consequential(
     current_before_capture = before_capture
     immediate_observation: Observation | None = None
     immediate_observation_supplied = False
-    sdk_source_supplied = False
 
     def recapture() -> Observation:
         nonlocal current_before_view, current_before_capture, immediate_observation
@@ -1617,6 +1696,7 @@ def _dispatch_consequential(
             postcondition=postcondition,
             cost_type=cost_type,
             cost_amount=cost_amount,
+            quantity=input_limit,
         )
         return immediate_observation
 
@@ -1643,6 +1723,18 @@ def _dispatch_consequential(
     if not issued.authorized or issued.capability is None:
         return {"status": "blocked", "reason": issued.reason_code, "action_key": action_key, "transport_calls": 0}
 
+    def journaled_quotes() -> tuple[int, ...]:
+        return tuple(quotes) if phase == "normal" else ()
+
+    def proof_allowed() -> bool:
+        # Final proof only for the inputs the runtime actually counted.
+        if phase == "normal":
+            return bool(
+                quotes and sent_holder["count"] == len(quotes) == len(sources)
+                and not stop_holder["reason"].startswith(("transport_exception:", "input_context_unknown"))
+            )
+        return sent_holder["count"] == 1
+
     def record_post(captured: Any) -> bool:
         if any(item.captured.sha256 == captured.sha256 for item in post_captures):
             return post_captures[-1].verified
@@ -1655,102 +1747,230 @@ def _dispatch_consequential(
         )
         ref = _evidence_ref(captured, context.session)
         receipts = _usage_receipts(view.lines)
-        after = _semantic_after(before, view, phase=phase, refs=(ref,) if ref else (), receipts=receipts)
-        verified = bool(sent_holder["count"] == 1 and _post_verified(before, after, phase))
+        after = _semantic_after(
+            before, view, inputs=len(quotes) if phase == "normal" else 0,
+            refs=(ref,) if ref else (), receipts=receipts,
+        )
+        verified = bool(proof_allowed() and _post_verified(before, after, phase, quotes=journaled_quotes()))
         policy_obs = _policy_post_observation(
             context,
             captured,
             view,
             after,
             phase=phase,
-            cost_amount=before.material_costs[ANTISERUM] if phase == "normal" else 1,
+            cost_amount=sum(quotes) if phase == "normal" else 1,
+            quantity=len(quotes) if phase == "normal" else 1,
             verified=verified,
         )
         post_captures.append(_PostCapture(captured, view, after, verified, policy_obs))
         return verified
 
+    def batch_input_context(captured: Any) -> str:
+        # Context only; the level/debit effect is proven once after the batch.
+        view = _view(captured, game_day_id=game_day_id, confirmed_upgrades=prior_confirmed, context=context)
+        obs = view.observation
+        retained = bool(
+            view.page == "hero_detail" and obs is not None
+            and obs.hero_identity == HERO_IDENTITY and obs.hero_selected
+            and obs.recognized and not obs.reset_guard_active
+            and obs.overlay_state in {"none_observed", "wali_bulk_row"}
+        )
+        if not retained:
+            stop_holder["reason"] = "input_context_unknown"
+        return _BATCH_INPUT_CONTEXT if retained else "unknown"
+
+    def input_admissible(observed: HeroUpgradeObservation, index: int, previous: HeroUpgradeObservation | None) -> bool:
+        if phase == "evolution":
+            return hero_evolution_authorizeable(observed)
+        if index == 0:
+            return hero_upgrade_authorizeable(observed)
+        return hero_upgrade_batch_input_authorizeable(
+            before, observed, input_limit=input_limit,
+            quoted_costs=tuple(quotes), previous_source=previous,
+        )
+
+    def stop_reason(view: _View, previous: HeroUpgradeObservation | None) -> str:
+        observed = view.observation
+        if view.page != "hero_detail" or observed is None:
+            return "batch_source_not_recognized"
+        if not observed.stable_selected_state:
+            return "batch_source_not_settled"
+        if not observed.material_rows_complete or ANTISERUM not in observed.material_costs:
+            return "current_quote_not_readable"
+        if _is_shortage(observed, evolution=False):
+            return "current_quote_unaffordable"
+        if sum(quotes) + observed.material_costs[ANTISERUM] > before.material_balances[ANTISERUM]:
+            return "cumulative_quote_exceeds_baseline_balance"
+        if previous is not None and (
+            observed.current_level, observed.material_balances.get(ANTISERUM),
+            observed.material_costs.get(ANTISERUM),
+        ) == (
+            previous.current_level, previous.material_balances.get(ANTISERUM),
+            previous.material_costs.get(ANTISERUM),
+        ):
+            return "current_source_not_fresh"
+        return "batch_input_guard_rejected"
+
     def transport(_intent: Any) -> TransportResult:
         nonlocal transport_attempts
-        def action_capture(label: str) -> Any:
-            nonlocal sdk_source_supplied
-            context.checkpoint()
-            if not sdk_source_supplied:
-                sdk_source_supplied = True
-                return current_before_capture
-            return runtime.capture(label)
-
         transport_attempts += 1
         starting_runtime_inputs = int(getattr(runtime, "input_count", 0))
         starting_navigation_inputs = state.navigation_input_count
 
-        def authorize(current: Any) -> None:
-            context.validate_identity()
-            # The SDK receives the genuine immediate-before capture already
-            # parsed for this capability, not a new or retimestamped frame.
-            rebound = current_before_view.observation
-            if (
-                current is not current_before_capture
-                or current.sha256 != current_before_capture.sha256
-                or current.captured_monotonic != current_before_capture.captured_monotonic
-                or rebound is None
-                or not rebound.stable_selected_state
-                or tuple(rebound.target_roi) != before_box
-                or rebound.target_identity != target_identity
-                or not (hero_upgrade_authorizeable(rebound) if phase == "normal" else hero_evolution_authorizeable(rebound))
-            ):
-                raise RuntimeError("Wali capability frame or exact target changed before native dispatch")
-            context.checkpoint()
-            context.validate_identity()
-
-        def dispatch(current: Any) -> None:
-            context.checkpoint()
-            age = float(context.monotonic_clock()) - float(current.captured_monotonic)
-            if not 0 <= age <= request.dispatch_max_age_seconds:
-                raise RuntimeError("Wali immediate-before capture expired before transport")
-            runtime.tap(
-                current,
-                target_identity=target_identity,
-                target_roi=before_box,
-                action_key=action_key,
-                action_class=action_class_value,
-                consequential=True,
-            )
-            sent_holder["count"] = max(0, int(getattr(runtime, "input_count", 0)) - starting_runtime_inputs)
-
-        def settled_successor() -> Any:
-            return _settle_post_action(
-                context,
-                state,
-                label=f"wali-{phase}-successor",
-                action_key=action_key,
-                game_day_id=game_day_id,
-                confirmed_upgrades=prior_confirmed,
-                before=before,
-                phase=phase,
-                seed=before_view.observation if phase == "evolution" else None,
-                post_captures=post_captures,
-                allow_confirmation=sent_holder["count"] == 1,
+        def counted() -> int:
+            return (
+                int(getattr(runtime, "input_count", 0)) - starting_runtime_inputs
+                - (state.navigation_input_count - starting_navigation_inputs)
             )
 
+        def send_one(index: int, source_view: _View, source_capture: Any, previous: HeroUpgradeObservation | None) -> None:
+            observed = source_view.observation
+            assert observed is not None
+            box = tuple(observed.target_roi)
+            input_key = action_key if phase == "evolution" else f"{action_key}#input-{index + 1}"
+            supplied = False
+
+            def action_capture(label: str) -> Any:
+                nonlocal supplied
+                context.checkpoint()
+                if not supplied:
+                    supplied = True
+                    return source_capture
+                return runtime.capture(label)
+
+            def authorize(current: Any) -> None:
+                context.validate_identity()
+                pending = store.get_action_by_key(action_key)
+                if (
+                    pending is None
+                    or pending.get("action_id") != action_id
+                    or pending.get("final_status") != ActionStatus.PREPARED.value
+                    or not store.lease_valid_for(context.session.owner, float(context.utc_clock()))
+                ):
+                    raise RuntimeError("Wali batch intent or current owner lease is not active")
+                # The SDK receives this input's genuine parsed source capture,
+                # not a new, retimestamped or earlier input's frame.
+                if (
+                    current is not source_capture
+                    or current.sha256 != source_capture.sha256
+                    or current.captured_monotonic != source_capture.captured_monotonic
+                    or not observed.stable_selected_state
+                    or observed.source_frame_sha256 != str(source_capture.sha256)
+                    or observed.target_identity != target_identity
+                    or (index == 0 and box != before_box)
+                    or not input_admissible(observed, index, previous)
+                ):
+                    raise RuntimeError("Wali input source frame or exact single control changed before native dispatch")
+                context.checkpoint()
+                context.validate_identity()
+
+            def dispatch(current: Any) -> None:
+                context.checkpoint()
+                age = float(context.monotonic_clock()) - float(current.captured_monotonic)
+                if not 0 <= age <= request.dispatch_max_age_seconds:
+                    raise RuntimeError("Wali immediate-before capture expired before transport")
+                runtime.tap(
+                    current,
+                    target_identity=target_identity,
+                    target_roi=box,
+                    action_key=input_key,
+                    action_class=action_class_value,
+                    consequential=True,
+                )
+                sent_holder["count"] = max(0, counted())
+
+            def settled_successor() -> Any:
+                return _settle_post_action(
+                    context,
+                    state,
+                    label=f"wali-{phase}-successor",
+                    action_key=action_key,
+                    quotes=(),
+                    game_day_id=game_day_id,
+                    confirmed_upgrades=prior_confirmed,
+                    before=before,
+                    phase=phase,
+                    seed=before_view.observation,
+                    post_captures=post_captures,
+                    allow_confirmation=sent_holder["count"] == 1,
+                )
+
+            already = counted()
+            try:
+                if phase == "normal":
+                    context.session.run_action(
+                        action_class=action_class_value,
+                        label=f"wali-normal-batch-{ordinal}-input-{index + 1}",
+                        capture=action_capture,
+                        authorize=authorize,
+                        dispatch=dispatch,
+                        recognize=batch_input_context,
+                        target_roi=box,
+                        consequence_class=consequence,
+                    )
+                else:
+                    context.session.run_action(
+                        action_class=action_class_value,
+                        label=f"wali-evolution-{ordinal}",
+                        capture=action_capture,
+                        authorize=authorize,
+                        dispatch=dispatch,
+                        recognize=lambda captured: postcondition if record_post(captured) else "unknown",
+                        target_roi=box,
+                        consequence_class=consequence,
+                        settled_successor=settled_successor,
+                    )
+            finally:
+                if phase == "normal" and counted() == already + 1:
+                    quotes.append(int(observed.material_costs[ANTISERUM]))
+                    sources.append(str(source_capture.sha256))
+
+        code = "INPUTS_SENT"
+        source_view, source_capture = current_before_view, current_before_capture
+        previous: HeroUpgradeObservation | None = None
         try:
-            context.session.run_action(
-                action_class=action_class_value,
-                label=f"wali-{phase}-{ordinal}",
-                capture=action_capture,
-                authorize=authorize,
-                dispatch=dispatch,
-                recognize=lambda captured: postcondition if record_post(captured) else "unknown",
-                target_roi=before_box,
-                consequence_class=consequence,
-                settled_successor=settled_successor,
-            )
+            for index in range(input_limit):
+                if index:
+                    if context.session.input_count >= int(context.max_inputs) - 3:
+                        stop_holder["reason"] = "native_input_budget_reserve"
+                        break
+                    # A fresh current source for the next individual input: no
+                    # Back, no intermediate level settlement, own current quote.
+                    source_view, source_capture = _stable_view(
+                        context, state,
+                        label=f"wali-normal-batch-{ordinal}-input-{index + 1}-source",
+                        game_day_id=game_day_id, confirmed_upgrades=prior_confirmed,
+                        expected_page="hero_detail",
+                    )
+                    if source_view.observation is None or not input_admissible(source_view.observation, index, previous):
+                        stop_holder["reason"] = stop_reason(source_view, previous)
+                        break
+                send_one(index, source_view, source_capture, previous)
+                if stop_holder["reason"] == "input_context_unknown":
+                    break
+                previous = source_view.observation
+            else:
+                stop_holder["reason"] = "input_limit_reached"
         except Exception as exc:
-            sent = int(getattr(runtime, "input_count", 0)) - starting_runtime_inputs - (state.navigation_input_count - starting_navigation_inputs)
-            sent_holder["count"] = sent
-            return TransportResult(sent > 0, f"WALI_{phase.upper()}_TRANSPORT_{type(exc).__name__}")
-        sent = int(getattr(runtime, "input_count", 0)) - starting_runtime_inputs - (state.navigation_input_count - starting_navigation_inputs)
+            code = f"TRANSPORT_{type(exc).__name__}"
+            stop_holder["reason"] = f"transport_exception:{type(exc).__name__}"
+        sent = counted()
         sent_holder["count"] = sent
-        return TransportResult(sent > 0, f"WALI_{phase.upper()}_INPUT_SENT" if sent else f"WALI_{phase.upper()}_INPUT_NOT_SENT")
+        if sent == 0 and code == "INPUTS_SENT":
+            code = "INPUT_NOT_SENT"
+        if phase == "evolution":
+            return TransportResult(sent > 0, f"WALI_EVOLUTION_{code.replace('INPUTS_SENT', 'INPUT_SENT')}")
+        detail = json.dumps(
+            {
+                "inputs": len(quotes),
+                "quoted_antiserum": list(quotes),
+                "source_frame_sha256": list(sources),
+                "stop_reason": stop_holder["reason"],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return TransportResult(sent > 0, f"WALI_NORMAL_BATCH_{code}", detail)
 
     def post_observe():
         if not post_captures:
@@ -1761,25 +1981,36 @@ def _dispatch_consequential(
                 state,
                 label=f"wali-{phase}-reconcile",
                 action_key=action_key,
+                quotes=journaled_quotes(),
                 game_day_id=game_day_id,
                 confirmed_upgrades=prior_confirmed,
                 before=before,
                 phase=phase,
                 seed=before_view.observation if phase == "evolution" else None,
                 post_captures=post_captures,
-                allow_confirmation=sent_holder["count"] == 1,
+                allow_confirmation=proof_allowed(),
             )
         for item in post_captures:
             yield item.policy_observation
 
     def reconcile(_intent: Any, observed: Observation) -> bool:
         return bool(
-            sent_holder["count"] == 1
+            proof_allowed()
             and any(
                 item.verified and item.captured.sha256 == observed.frame_sha256
                 for item in post_captures
             )
         )
+
+    def account(sent: int) -> int:
+        # Physical consequential inputs: individual normal inputs, or evolution attempts.
+        physical = max(0, sent) if phase == "normal" else transport_attempts
+        if phase == "normal":
+            state.normal_transport_calls += physical
+        else:
+            state.evolution_transport_calls += physical
+        state.total_action_count += physical
+        return physical
 
     starting_runtime_inputs = int(getattr(runtime, "input_count", 0))
     starting_navigation_inputs = state.navigation_input_count
@@ -1800,12 +2031,7 @@ def _dispatch_consequential(
     except Exception as exc:
         ending_runtime_inputs = int(getattr(runtime, "input_count", starting_runtime_inputs))
         sent = ending_runtime_inputs - starting_runtime_inputs - (state.navigation_input_count - starting_navigation_inputs)
-        attempts = transport_attempts
-        if phase == "normal":
-            state.normal_transport_calls += attempts
-        else:
-            state.evolution_transport_calls += attempts
-        state.total_action_count += attempts
+        physical = account(sent)
         try:
             blocked = bool(store.has_action_block())
             duplicate = bool(store.action_key_exists(action_key))
@@ -1818,29 +2044,27 @@ def _dispatch_consequential(
             "status": "unknown" if unresolved else "blocked",
             "reason": f"executor:{type(exc).__name__}:{exc}",
             "action_key": action_key,
-            "transport_calls": attempts,
+            "transport_calls": physical,
             "sent": sent,
         }
 
-    transport_calls = transport_attempts
-    if phase == "normal":
-        state.normal_transport_calls += transport_calls
-    else:
-        state.evolution_transport_calls += transport_calls
-    state.total_action_count += transport_calls
     sent = int(getattr(runtime, "input_count", starting_runtime_inputs)) - starting_runtime_inputs - (state.navigation_input_count - starting_navigation_inputs)
+    physical = account(sent)
     candidate = next((item for item in reversed(post_captures) if item.verified), None)
     accounting_consistent = (
-        int(execution.transport_calls) == transport_calls
-        and sent == sent_holder["count"] and 0 <= sent <= 1
+        int(execution.transport_calls) == transport_attempts
+        and sent == sent_holder["count"]
+        and 0 <= sent <= input_limit
+        and (phase == "evolution" or sent == len(quotes) == len(sources))
     )
     confirmed = bool(
         accounting_consistent
-        and sent == 1
+        and sent >= 1
         and execution.status is ActionStatus.CONFIRMED
         and row is not None
         and row.get("final_status") == ActionStatus.CONFIRMED.value
         and candidate is not None
+        and (phase == "evolution" or _journaled_batch_inputs(row) == sent)
     )
     if not confirmed:
         try:
@@ -1860,32 +2084,43 @@ def _dispatch_consequential(
             "status": "unknown" if unresolved else "blocked",
             "reason": execution.reason,
             "action_key": action_key,
-            "transport_calls": transport_calls,
+            "transport_calls": physical,
             "sent": sent,
         }
 
     before_mapping = asdict(before)
     after_mapping = asdict(candidate.after)
-    result_row = {
-        "action_key": action_key,
-        "before": before_mapping,
-        "after": after_mapping,
-        "semantic_verified": True,
-    }
     if phase == "normal":
-        state.normal_committed += 1
-        assert state.level_upgrades is not None
-        state.level_upgrades.append(result_row)
+        state.normal_committed += sent
+        assert state.normal_batches is not None
+        state.normal_batches.append({
+            "action_key": action_key,
+            "first_ordinal": ordinal,
+            "input_limit": input_limit,
+            "normal_inputs": sent,
+            "quoted_antiserum_costs": list(quotes),
+            "stop_reason": stop_holder["reason"],
+            "before": before_mapping,
+            "after": after_mapping,
+            "semantic_verified": True,
+        })
     else:
         state.evolution_committed += 1
         assert state.evolutions is not None
-        state.evolutions.append(result_row)
+        state.evolutions.append({
+            "action_key": action_key,
+            "before": before_mapping,
+            "after": after_mapping,
+            "semantic_verified": True,
+        })
     return {
         "status": "confirmed",
         "reason": execution.reason,
         "action_key": action_key,
-        "transport_calls": transport_calls,
+        "transport_calls": physical,
         "sent": sent,
+        "inputs": sent if phase == "normal" else 0,
+        "stop_reason": stop_holder["reason"],
         "before": before,
         "after": candidate.after,
         "successor_capture": candidate.captured,
@@ -1932,7 +2167,7 @@ def _result(
         "evolution_transport_calls": state.evolution_transport_calls,
         "total_action_count": state.total_action_count,
         "input_actions": input_actions,
-        "level_upgrades": list(state.level_upgrades or ()),
+        "normal_batches": list(state.normal_batches or ()),
         "evolutions": list(state.evolutions or ()),
         "unknown_action_sent": state.unknown_action_sent,
         "identical_retry_denied": state.identical_retry_denied,
@@ -1951,7 +2186,7 @@ def _result(
 def run_wali_upgrade_service_route(
     context: Any, arguments: Mapping[str, object] | None = None,
 ) -> Mapping[str, object]:
-    """Run up to three canonical single-level Wali upgrades in the bound runtime."""
+    """Run the remaining normal quota using batches of individual single Upgrade inputs."""
 
     starting_session_inputs = int(context.session.input_count)
     state = _RouteState(evidence_refs=[])
@@ -2201,12 +2436,18 @@ def run_wali_upgrade_service_route(
                 if result["status"] != "confirmed":
                     status, reason = str(result["status"]), str(result["reason"])
                     break
-                confirmed_upgrades += 1
+                confirmed_upgrades += int(result["inputs"])
                 current_view, current_capture = _stable_view(
-                    context, state, label="wali-after-single-upgrade",
+                    context, state, label="wali-after-normal-batch",
                     game_day_id=game_day_id, confirmed_upgrades=confirmed_upgrades,
                     expected_page="hero_detail",
                 )
+                if int(result["inputs"]) < normal_upgrade_input_limit(observation):
+                    # The next input was not admissible. Settle this prefix and
+                    # leave its remaining quota for a later occurrence rather
+                    # than re-opening the UI merely to evade the batch guard.
+                    status, reason = "deferred", f"normal_batch_prefix:{result['stop_reason']}"
+                    break
                 continue
 
             if prior_evolutions + state.evolution_committed >= MAX_CONFIRMED_UPGRADES:
@@ -2336,7 +2577,7 @@ def create_service_binding(make_native_route_binding):
         product_revision=PRODUCT_REVISION,
         runtime_profile_id=PROFILE_ID,
         owner="automation-service:wali-upgrade",
-        workflow="wali-single-level-upgrades",
+        workflow="wali-individual-single-upgrade-batches",
         max_inputs=MAX_INPUTS,
         max_actions=MAX_ACTIONS,
         driver=run_wali_upgrade_service_route,
