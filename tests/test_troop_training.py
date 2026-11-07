@@ -333,10 +333,17 @@ class TroopTrainingContractTests(unittest.TestCase):
             queue_troop_type="rider",
             queue_tier=1,
             queue_quantity=250,
+            captured_at=datetime(2026, 7, 16, 12, tzinfo=timezone.utc),
         )
+        prior = controller.states["rider"]
+        self.assertEqual(controller.reconcile_active_queue(replace(active, captured_at=None), "rider"),
+                         "reject_active_queue_timestamp")
+        self.assertEqual(controller.states["rider"], prior)
 
         self.assertEqual(controller.reconcile_active_queue(active, "rider"), "active_queue_reconciled")
         self.assertEqual(controller.states["rider"].resolved_quantity, 250)
+        self.assertEqual(controller.states["rider"].expected_completion_timestamp,
+                         datetime(2026, 7, 16, 13, tzinfo=timezone.utc))
 
         wrong_tier = replace(active, queue_tier=2, queue_label="Train T2 Nomad x250")
         self.assertEqual(controller.reconcile_active_queue(wrong_tier, "rider"), "reject_active_queue_label_mismatch")
