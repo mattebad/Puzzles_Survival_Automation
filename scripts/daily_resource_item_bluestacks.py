@@ -2,14 +2,15 @@
 
 The route starts at a verified canonical Home, opens Bag, selects the
 Resource & Speedup category when another Bag tab is current, binds the exact
-measured 1K Food card and quantity-one Use control, proves a positive
-item/resource delta, and returns Home through a recognized visible control.
+measured 1K Food card and quantity-one Use control, proves an exact owned
+inventory decrement of one, and returns Home through a recognized visible control.
 It never visits Quest or Daily and never uses Android Back.
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 import re
 import time
 from typing import Any, Callable, Mapping, Protocol, Sequence
@@ -34,13 +35,19 @@ from tasks.home_nav_recognition import (
     recognize_home_nav,
 )
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from automation_service.registry import (
+    RESOURCE_ITEM_FLOW_ID,
+    RESOURCE_ITEM_MAX_INPUTS,
+    RESOURCE_ITEM_PRODUCT_ID,
+    RESOURCE_ITEM_PRODUCT_REVISION,
+)
 
 
-FLOW_ID = "DAILY-RESOURCE-ITEM-BLUESTACKS-INTEGRATION"
+FLOW_ID = RESOURCE_ITEM_FLOW_ID
 EXPECTED_PACKAGE = "com.global.ztmslg"
 RUNTIME_PROFILE_ID = ACTIVE_RUNTIME_PROFILE_ID
 MAX_RESOURCE_LIST_SWIPES = 6
-MAX_ROUTE_INPUTS = 10
+MAX_ROUTE_INPUTS = RESOURCE_ITEM_MAX_INPUTS
 RESOURCE_LIST_SCROLL_PX = 180
 RESOURCE_LIST_LOWER_MARKERS = frozenset(
     {
@@ -189,7 +196,6 @@ class ResourceItemRecognition:
     unidentified: bool = False
     fresh_frame: bool = True
     inventory_quantity: int | None = None
-    food_resource: int | None = None
     home_verified: bool = False
     visual_evidence: Mapping[str, Any] | None = None
     reason: str | None = None
@@ -657,22 +663,6 @@ def _box_inside(inner: object, outer: object) -> bool:
     )
 
 
-def _resource_from_lines(lines: Sequence[Sequence[OCRToken]]) -> int | None:
-    candidates: list[int] = []
-    for line in lines:
-        text = _line_text(line)
-        if "food" not in text or _food_name_line(line):
-            continue
-        numbers = [
-            int(value.replace(",", ""))
-            for value in re.findall(r"\b\d[\d,]*\b", text)
-            if value.replace(",", "").isdigit()
-        ]
-        if numbers:
-            candidates.append(numbers[-1])
-    return candidates[0] if len(candidates) == 1 else None
-
-
 def _resource_panel_separator_rows(frame: np.ndarray) -> tuple[int, ...]:
     if frame.size == 0:
         return ()
@@ -1072,7 +1062,6 @@ def recognize_food_item(
     tokens = _ocr_tokens(frame, ocr or _default_ocr)
     lines = _line_tokens(tokens)
     food_lines = [line for line in lines if _food_line(line)]
-    food_resource = _resource_from_lines(lines)
     full_text = " ".join(token.text for token in tokens)
     overlay = any(marker in full_text.split() for marker in _OVERLAY_MARKERS)
     if len(food_lines) != 1 or overlay:
@@ -1081,7 +1070,6 @@ def recognize_food_item(
             False,
             item_name="1K Food",
             premium_or_forbidden_visible=overlay,
-            food_resource=food_resource,
             reason="unsafe-overlay-at-resource-item" if overlay else "exact-1k-food-row-not-proven",
         )
     line = food_lines[0]
@@ -1097,7 +1085,6 @@ def recognize_food_item(
             RESOURCE_ITEM_STATE,
             False,
             item_name="1K Food",
-            food_resource=food_resource,
             reason="current-resource-item-card-not-visually-proven",
         )
     panel_bounds = tuple(panel["bounds"])
@@ -1117,7 +1104,6 @@ def recognize_food_item(
             False,
             target_identity=ITEM_TARGET_IDENTITY,
             item_name="1K Food",
-            food_resource=food_resource,
             reason="1k-food-anchor-escapes-measured-card",
             visual_evidence={"item_card": panel},
         )
@@ -1127,18 +1113,20 @@ def recognize_food_item(
         marker in card_words for marker in _FORBIDDEN_ITEM_MARKERS
     )
     name_bottom = max(token.roi[3] for token in line)
-    owned = None
+    owned_values: list[int] = []
     for owned_line in _line_tokens(card_tokens):
         if min(token.roi[1] for token in owned_line) < name_bottom - 4:
             continue
         owned_text = _line_text(owned_line)
-        owned_match = re.search(
+        owned_matches = re.findall(
             r"\b(?:owned|have|count)[:\s]*(\d[\d,]*)\b",
             owned_text,
         )
-        if owned_match is not None:
-            owned = int(owned_match.group(1).replace(",", ""))
-            break
+        if owned_matches:
+            owned_values.extend(
+                int(value.replace(",", "")) for value in owned_matches
+            )
+            continue
         owned_words = _line_words(owned_line)
         if (
             owned_words
@@ -1146,9 +1134,9 @@ def recognize_food_item(
             and len(owned_words) >= 2
             and owned_words[1].replace(",", "").isdigit()
         ):
-            owned = int(owned_words[1].replace(",", ""))
-            break
-    owned_matches = [] if owned is None else [str(owned)]
+            owned_values.append(int(owned_words[1].replace(",", "")))
+    owned = owned_values[0] if len(owned_values) == 1 else None
+    owned_matches = [str(value) for value in owned_values]
     explicit_quantity_matches = re.findall(
         r"\b(?:quantity|qty)[:\s]*(?:is\s*)?(\d+)\b",
         card_text,
@@ -1174,15 +1162,10 @@ def recognize_food_item(
         use = OCRToken("use", visual_controls[0])
         use_tokens = (use,)
         use_boxes = (use.roi,)
-    if owned is None and use is not None:
-        # An enabled, card-owned single-use control proves at least one item is
-        # available even when OCR misses the small Owned count.
-        owned = 1
-        owned_matches = ["enabled-use-implies-positive-owned"]
     visual_bulk_boxes = tuple(
         candidate
         for candidate in visual_controls
-        if not _boxes_overlap(use.roi, candidate)
+        if use is not None and not _boxes_overlap(use.roi, candidate)
     )
     bulk_boxes = tuple(dict.fromkeys((*ocr_bulk_boxes, *visual_bulk_boxes)))
     bulk_overlaps_use = bool(
@@ -1220,7 +1203,6 @@ def recognize_food_item(
             owned_quantity=owned,
             quantity=quantity,
             inventory_quantity=owned,
-            food_resource=food_resource,
             bulk_visible=bool(bulk_boxes),
             bulk_disjoint_from_use=not bulk_overlaps_use,
             premium_or_forbidden_visible=card_forbidden,
@@ -1265,7 +1247,6 @@ def recognize_food_item(
         quantity=quantity,
         use_roi=use.roi if use is not None else None,
         inventory_quantity=owned,
-        food_resource=food_resource,
         bulk_visible=bool(bulk_boxes),
         bulk_disjoint_from_use=not bulk_overlaps_use,
         visual_evidence={
@@ -1316,7 +1297,6 @@ def recognize_food_item_in_resources(
             owned_quantity=item.owned_quantity,
             quantity=item.quantity,
             inventory_quantity=item.inventory_quantity,
-            food_resource=item.food_resource,
             reason="current-resources-context-not-proven",
             visual_evidence={"resources": resources.as_dict(), "item": item.as_dict()},
         )
@@ -1390,27 +1370,12 @@ def _resource_delta_verified(
     before: ResourceItemRecognition | Mapping[str, Any],
     after: ResourceItemRecognition | Mapping[str, Any],
 ) -> bool:
-    """Prove exactly one owned 1K Food consumption from retained successors.
-
-    Live BlueStacks evidence established an exact owned decrement of one
-    (``129680 → 129679``). Food-resource totals were not reliably recognized,
-    so an arbitrary Food increase is not accepted as proof.
-    """
-
+    """Prove exactly one owned 1K Food consumption from retained successors."""
     left = _record(before)
     right = _record(after)
     owned_before = _owned_count(left)
     owned_after = _owned_count(right)
-    food_before = _number(left.get("food_resource"))
-    food_after = _number(right.get("food_resource"))
-
-    if owned_before is None or owned_after is None:
-        return False
-    if owned_after != owned_before - 1:
-        return False
-    if food_before is not None and food_after is not None and food_after < food_before:
-        return False
-    return True
+    return owned_before is not None and owned_after == owned_before - 1
 
 
 def resource_item_postcondition_verified(
@@ -1669,8 +1634,6 @@ def _semantic_evidence(
     return {
         "before_owned_quantity": _owned_count(before),
         "after_owned_quantity": _owned_count(after),
-        "before_food_resource": _number(before.get("food_resource")),
-        "after_food_resource": _number(after.get("food_resource")),
         "resource_delta_verified": resource_delta_verified,
         "terminal_home_verified": terminal_home_verified,
         "home_verified": home.get("home_verified") is True,
@@ -2287,7 +2250,6 @@ def _run_route(
             owned_quantity=item_after.owned_quantity,
             quantity=item_after.quantity,
             inventory_quantity=item_after.inventory_quantity,
-            food_resource=item_after.food_resource,
             reason="resource_delta_not_proven",
         )
 
@@ -2387,7 +2349,7 @@ def _run_route(
     return _result(
         session,
         status="completed",
-        reason="1K Food use, resource delta, and settled Home verified",
+        reason="exact owned 1K Food decrement and settled Home verified",
         frames=frames,
         recognitions=recognitions,
         item_use_calls=item_use_calls,
@@ -2448,6 +2410,7 @@ __all__ = [
     "ResourceListSwipeBinding",
     "ResourceItemRecognition",
     "bind_resource_list_swipe",
+    "create_service_binding",
     "recognize_resources_screen",
     "recognize_food_item",
     "recognize_food_item_in_resources",
@@ -2457,3 +2420,291 @@ __all__ = [
     "resource_item_postcondition_verified",
     "run_daily_resource_item",
 ]
+def _run_service_native_route(
+    context: Any,
+    arguments: Mapping[str, object],
+) -> Mapping[str, object]:
+    """Run this fixed route inside the base bridge's borrowed native session."""
+    from automation_service.recruitment import recruitment_reset
+    from scripts.resource_item_authorization import (
+        build_resource_runtime_components,
+        item_use_transport_calls,
+        produce_resource_runtime_identity,
+        reconcile_resource_route,
+        release_resource_runtime_components,
+    )
+
+    del arguments
+    context.validate_identity()
+    service_identity = context.identity
+    session = context.session
+    sampled_utc = datetime.fromtimestamp(context.utc_clock(), timezone.utc)
+    wall_clock = lambda: sampled_utc
+    if recruitment_reset(sampled_utc.timestamp()) != service_identity.reset_id:
+        raise ValueError("Resource item native sample differs from the service reset")
+    verified_identity, deadline_payload = produce_resource_runtime_identity(
+        session=context.session,
+        wall_clock=wall_clock,
+        return_deadline_evidence=True,
+    )
+    if (
+        verified_identity.account_id != service_identity.account_id
+        or verified_identity.server_id != service_identity.server_id
+        or verified_identity.reset_id != deadline_payload["reset_identity_id"]
+        or verified_identity.reset_start_utc != deadline_payload["reset_start_utc"]
+        or verified_identity.reset_deadline_utc != deadline_payload["reset_deadline_utc"]
+    ):
+        raise ValueError("Resource item fixed-backend identity differs from the service reset")
+    components = build_resource_runtime_components(
+        session=session,
+        verified_identity=verified_identity,
+        deadline_payload=deadline_payload,
+        action_store=context.action_store,
+        wall_clock=wall_clock,
+    )
+    route_runtime = components["runtime_factory"](context.runtime)
+    route_result: dict[str, Any] = {}
+    reconciliation: Mapping[str, Any] | None = None
+    reconciliation_error: str | None = None
+    route_error: str | None = None
+    item_use_calls = 0
+    try:
+        try:
+            native_result = run_daily_resource_item(route_runtime, session)
+            route_result = dict(native_result) if isinstance(native_result, Mapping) else {}
+        except Exception as exc:
+            route_error = f"{type(exc).__name__}: {exc}"
+            partial_result = getattr(exc, "partial_result", {})
+            if isinstance(partial_result, Mapping):
+                route_result.update(partial_result)
+            partial_outcome = getattr(exc, "partial_outcome", None)
+            partial_native_result = getattr(partial_outcome, "native_result", {})
+            if isinstance(partial_native_result, Mapping):
+                route_result.update(partial_native_result)
+        item_use_calls = item_use_transport_calls(route_runtime.events.parent)
+        try:
+            context.validate_identity()
+        except Exception as exc:
+            route_error = route_error or f"{type(exc).__name__}: {exc}"
+        if item_use_calls:
+            try:
+                reconciliation = reconcile_resource_route(
+                    runtime=route_runtime,
+                    session=route_runtime.session,
+                    route_result=route_result,
+                    item_use_calls=item_use_calls,
+                )
+            except Exception as exc:
+                reconciliation_error = f"{type(exc).__name__}: {exc}"
+        prepared = route_runtime.prepared_effect
+        store = components["store"]
+        reservation: Mapping[str, Any] | None = None
+        effect: Mapping[str, Any] | None = None
+        terminal: Mapping[str, Any] | None = None
+        action: Mapping[str, Any] | None = None
+        if prepared is not None:
+            reservation_row = store.connection.execute(
+                "SELECT * FROM resource_reservations WHERE reservation_id=?",
+                (prepared.reservation_id,),
+            ).fetchone()
+            reservation = dict(reservation_row) if reservation_row is not None else None
+            effect_row = store.connection.execute(
+                "SELECT * FROM resource_live_effects WHERE reservation_id=?",
+                (prepared.reservation_id,),
+            ).fetchone()
+            effect = dict(effect_row) if effect_row is not None else None
+            terminal_row = store.connection.execute(
+                "SELECT * FROM resource_terminal_projection WHERE occurrence_id=?",
+                (prepared.occurrence_id,),
+            ).fetchone()
+            terminal = dict(terminal_row) if terminal_row is not None else None
+            action_value = store.get_action_by_key(prepared.action_key)
+            action = dict(action_value) if action_value is not None else None
+
+        semantic = route_result.get("semantic_evidence")
+        semantic = semantic if isinstance(semantic, Mapping) else {}
+        before = semantic.get("before_owned_quantity")
+        after = semantic.get("after_owned_quantity")
+        exact_decrement = (
+            type(before) is int
+            and type(after) is int
+            and before >= 1
+            and after == before - 1
+        )
+        item_effect_confirmed = bool(
+            item_use_calls == 1
+            and reconciliation is not None
+            and reservation is not None
+            and reservation.get("state") == "EFFECT_CONFIRMED"
+            and effect is not None
+            and effect.get("effect_state") == "CONFIRMED"
+            and action is not None
+            and action.get("final_status") == "confirmed"
+            and exact_decrement
+            and route_result.get("resource_delta_verified") is True
+        )
+        terminal_home_verified = bool(
+            route_result.get("terminal_home_verified") is True
+            and terminal is not None
+            and terminal.get("terminal_state") == "HOME_CANONICAL"
+        )
+        runtime_count = getattr(context.runtime, "input_count", None)
+        session_count = getattr(session, "input_count", None)
+        action_keys = getattr(context.runtime, "action_keys", None)
+        route_reported_calls = route_result.get("item_use_transport_calls")
+        native_accounting = context.accounting()
+        accounting_verified = bool(
+            type(runtime_count) is int
+            and type(session_count) is int
+            and 0 <= runtime_count <= MAX_ROUTE_INPUTS
+            and runtime_count == session_count
+            and isinstance(action_keys, set)
+            and len(action_keys) == runtime_count
+            and type(route_reported_calls) is int
+            and route_reported_calls == item_use_calls
+            and item_use_calls <= 1
+            and native_accounting.verified is True
+            and native_accounting.input_count == runtime_count
+            and native_accounting.session_input_count == session_count
+            and native_accounting.runtime_input_count == runtime_count
+        )
+        resource_context = prepared.context if prepared is not None else None
+        home_frame = semantic.get("terminal_home_frame")
+        complete = bool(
+            item_effect_confirmed
+            and terminal_home_verified
+            and accounting_verified
+            and route_error is None
+        )
+        result: dict[str, object] = dict(route_result)
+        result.update(
+            status="complete_for_reset" if complete else "unresolved" if item_use_calls or prepared is not None else "blocked",
+            reason=(
+                "exact 1K Food effect, owned decrement, and canonical Home confirmed"
+                if complete
+                else reconciliation_error
+                or route_result.get("reason")
+                or route_error
+            ),
+            occurrence_key=context.occurrence_key,
+            item_use_transport_calls=item_use_calls,
+            before_owned_quantity=before,
+            after_owned_quantity=after,
+            owned_item_decrement=before - after if exact_decrement else None,
+            resource_delta_verified=item_effect_confirmed,
+            terminal_home_verified=terminal_home_verified,
+            terminal_home_frame=home_frame,
+            accounting_verified=accounting_verified,
+            total_input_count=runtime_count if type(runtime_count) is int else 0,
+            session_input_count=session_count if type(session_count) is int else 0,
+            runtime_input_count=runtime_count if type(runtime_count) is int else 0,
+            committed_action_count=1 if item_effect_confirmed else 0,
+            action_count=1 if item_effect_confirmed else 0,
+            effect_reconciliation_required=bool(
+                (item_use_calls or prepared is not None) and not complete
+            ),
+            identical_retry_denied=bool(
+                (item_use_calls or prepared is not None) and not complete
+            ),
+            journal_status=action.get("final_status") if action is not None else None,
+            reservation_state=reservation.get("state") if reservation is not None else None,
+            resource_effect_state=effect.get("effect_state") if effect is not None else None,
+            terminal_observation_state=terminal.get("terminal_state") if terminal is not None else None,
+            resource_action_id=prepared.action_id if prepared is not None else None,
+            action_id=prepared.action_id if prepared is not None else None,
+            action_key=prepared.action_key if prepared is not None else None,
+            resource_action_key=prepared.action_key if prepared is not None else None,
+            reservation_id=prepared.reservation_id if prepared is not None else None,
+            resource_occurrence_id=prepared.occurrence_id if prepared is not None else None,
+            resource_occurrence_key=(
+                resource_context.occurrence_key if resource_context is not None else None
+            ),
+            resource_attempt_id=prepared.attempt_id if prepared is not None else None,
+            resource_reset_identity_id=(
+                resource_context.reset_identity_id
+                if resource_context is not None
+                else components["reset_identity"].reset_identity_id
+            ),
+            resource_account_id=verified_identity.account_id,
+            resource_server_id=verified_identity.server_id,
+            resource_runtime_scope=verified_identity.runtime_scope,
+            resource_identity_assurance=verified_identity.assurance.value,
+            resource_backend_identity_reset_id=verified_identity.reset_id,
+            resource_reset_start_utc=verified_identity.reset_start_utc,
+            resource_reset_deadline_utc=verified_identity.reset_deadline_utc,
+            action_game_day_id=action.get("game_day_id") if action is not None else None,
+            action_task_id=action.get("task_id") if action is not None else None,
+            action_semantic_action=action.get("semantic_action") if action is not None else None,
+            action_source_state=action.get("source_state") if action is not None else None,
+            action_target_identity=action.get("target_identity") if action is not None else None,
+            action_expected_postcondition=(
+                action.get("expected_postcondition") if action is not None else None
+            ),
+            action_consequence=action.get("consequence") if action is not None else None,
+            action_cost_type=action.get("cost_type") if action is not None else None,
+            action_cost_amount=action.get("cost_amount") if action is not None else None,
+            action_quantity=action.get("quantity") if action is not None else None,
+        )
+        return result
+    except Exception as exc:
+        try:
+            dispatched_calls = item_use_transport_calls(route_runtime.events.parent)
+        except Exception:
+            dispatched_calls = None
+        prepared = route_runtime.prepared_effect
+        attempted = bool(dispatched_calls is None or dispatched_calls or prepared is not None)
+        partial: dict[str, object] = dict(route_result)
+        partial.update(
+            status="unresolved" if attempted else "blocked",
+            reason=f"{type(exc).__name__}: {exc}",
+            occurrence_key=context.occurrence_key,
+            item_use_transport_calls=dispatched_calls,
+            committed_action_count=0,
+            action_count=0,
+            accounting_verified=False,
+            effect_reconciliation_required=attempted,
+            identical_retry_denied=attempted,
+            total_input_count=getattr(context.runtime, "input_count", 0),
+            session_input_count=getattr(session, "input_count", 0),
+            runtime_input_count=getattr(context.runtime, "input_count", 0),
+        )
+        if prepared is not None:
+            partial.update(
+                reservation_id=prepared.reservation_id,
+                resource_occurrence_id=prepared.occurrence_id,
+                resource_occurrence_key=prepared.context.occurrence_key,
+                action_id=prepared.action_id,
+                action_key=prepared.action_key,
+                resource_action_id=prepared.action_id,
+                resource_action_key=prepared.action_key,
+                resource_attempt_id=prepared.attempt_id,
+                resource_reset_identity_id=prepared.context.reset_identity_id,
+            )
+        return partial
+    finally:
+        release_resource_runtime_components(components)
+
+
+def create_service_binding(make_native_route_binding: Callable[..., Any]) -> Any:
+    """Build this route's static, device-free service/native boundary binding."""
+    from scripts.resource_item_authorization import open_admitted_resource_store
+
+    if not callable(make_native_route_binding):
+        raise TypeError("Resource native binding requires the shared boundary builder")
+
+    def open_resource_action_store(path: Any) -> Any:
+        return open_admitted_resource_store(store_path=path)
+
+    return make_native_route_binding(
+        flow_id=FLOW_ID,
+        product_id=RESOURCE_ITEM_PRODUCT_ID,
+        product_revision=RESOURCE_ITEM_PRODUCT_REVISION,
+        runtime_profile_id=RUNTIME_PROFILE_ID,
+        owner="automation-service:daily-resource-item",
+        workflow="daily-resource-item-native",
+        max_inputs=MAX_ROUTE_INPUTS,
+        max_actions=1,
+        driver=_run_service_native_route,
+        lease_seconds=3600.0,
+        action_store_factory=open_resource_action_store,
+    )

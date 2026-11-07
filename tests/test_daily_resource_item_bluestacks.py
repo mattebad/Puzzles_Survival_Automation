@@ -172,6 +172,29 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         self.assertEqual(recognition.quantity_source, "ordinary-use-implied-one")
         self.assertTrue(recognition.single_use_semantics_proven)
         self.assertTrue(route.resource_item_authorizeable(recognition))
+        missing_count_rows = tuple(
+            row for row in _item_rows("1K Food Use") if row[0] not in {"owned", "2"}
+        )
+        with patch.object(route, "_measure_resource_item_card", return_value=measured):
+            missing_count = route.recognize_food_item(
+                _frame(),
+                ocr=_ocr(*missing_count_rows),
+            )
+        self.assertFalse(missing_count.recognized)
+        self.assertIsNone(missing_count.owned_quantity)
+
+        ambiguous_count_rows = (
+            *_item_rows("1K Food Use"),
+            ("owned", 100, 580, 60, 28),
+            ("3", 165, 580, 15, 28),
+        )
+        with patch.object(route, "_measure_resource_item_card", return_value=measured):
+            ambiguous_count = route.recognize_food_item(
+                _frame(),
+                ocr=_ocr(*ambiguous_count_rows),
+            )
+        self.assertFalse(ambiguous_count.recognized)
+        self.assertIsNone(ambiguous_count.owned_quantity)
 
         with patch.object(route, "_measure_resource_item_card", return_value=measured):
             with_bulk = route.recognize_food_item(
@@ -360,41 +383,43 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         self.assertFalse(overlay.recognized)
 
     def test_postcondition_requires_exact_owned_decrement_and_home(self):
-        before = {"inventory_quantity": 2, "food_resource": 100}
-        after = {
-            "inventory_quantity": 1,
-            "food_resource": 100,
-            "home_verified": True,
-        }
+        before = {"inventory_quantity": 2}
+        after = {"inventory_quantity": 1, "home_verified": True}
         self.assertTrue(route.resource_item_postcondition_verified(before, after))
         self.assertFalse(
             route.resource_item_postcondition_verified(
                 before,
-                {"inventory_quantity": 2, "food_resource": 100, "home_verified": True},
+                {"inventory_quantity": 2, "home_verified": True},
             )
         )
         self.assertFalse(
             route.resource_item_postcondition_verified(
                 before,
-                {"inventory_quantity": 0, "food_resource": 100, "home_verified": True},
+                {"inventory_quantity": 0, "home_verified": True},
             )
         )
         self.assertFalse(
             route.resource_item_postcondition_verified(
                 before,
-                {"inventory_quantity": 1, "food_resource": 100},
+                {"inventory_quantity": 1},
             )
         )
         self.assertFalse(
             route._resource_delta_verified(
-                {"inventory_quantity": 10, "food_resource": 100},
-                {"inventory_quantity": 9, "food_resource": 50},
+                {"inventory_quantity": 10},
+                {"inventory_quantity": 8},
             )
         )
         self.assertFalse(
             route._resource_delta_verified(
-                {"food_resource": 100},
-                {"food_resource": 1100},
+                {"inventory_quantity": 10},
+                {"inventory_quantity": 10},
+            )
+        )
+        self.assertFalse(
+            route._resource_delta_verified(
+                {},
+                {"inventory_quantity": 1},
             )
         )
         self.assertTrue(
@@ -559,7 +584,6 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             quantity=1,
             use_roi=(430, 500, 485, 528),
             inventory_quantity=2,
-            food_resource=100,
             visual_evidence={
                 "item_card": {
                     "proven": True,
@@ -580,7 +604,6 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             owned_quantity=1,
             quantity=1,
             inventory_quantity=1,
-            food_resource=100,
         )
         home = {
             "state": "HOME",
@@ -863,7 +886,6 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             quantity=1,
             use_roi=(577, 833, 768, 897),
             inventory_quantity=10,
-            food_resource=100,
             visual_evidence={
                 "item_card": {
                     "proven": True,
@@ -978,7 +1000,6 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             quantity=1,
             use_roi=(430, 500, 485, 528),
             inventory_quantity=2,
-            food_resource=100,
             visual_evidence={
                 "item_card": {
                     "proven": True,
@@ -999,7 +1020,6 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             owned_quantity=1,
             quantity=1,
             inventory_quantity=1,
-            food_resource=100,
         )
         home = {
             "state": "HOME",
