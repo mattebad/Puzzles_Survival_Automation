@@ -96,12 +96,15 @@ the active route sequence.
     The broader developer smoke command `python scripts/check.py` remains available;
     it need not be repeated after every checklist step.
 
-Choose scheduler cadence independently from the gameplay quota. A
-`daily_once_per_reset` service occurrence is consumed even when it finishes
-`DEFERRED`; it cannot resume a partial quota later in that reset. Routes that
-must resume partial work use a cooldown/timer recurrence and enforce their
-per-reset effects through stable canonical action keys. Unknown effects block;
-a later occurrence is not permission to repeat them.
+Choose scheduler cadence independently from the gameplay quota. A normal
+`daily_once_per_reset` route result consumes its occurrence even when `DEFERRED`;
+partial gameplay quotas therefore use cooldown/timer recurrence and stable
+per-reset action keys. The canonical network-recovery-only prelude is a narrow
+exception: after verified recovery and zero route actions, its typed
+`preserve_for_fresh_context` disposition retains the original run/occurrence/reset
+history and actual recovery input charges while permitting a fresh run/token for
+the same gameplay occurrence. Route results cannot use it to refund gameplay.
+Unknown effects still block; a later occurrence never authorizes repeating them.
 
 Renaming a flow id is a migration, not a find-and-replace: keep the old id in a migration constant
 (`RENAMED_FLOW_IDS`, `RENAMED_TASK_IDS`), retained evidence and historical queue records, and list each

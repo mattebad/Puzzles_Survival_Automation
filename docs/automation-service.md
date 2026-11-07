@@ -232,9 +232,14 @@ login handling or generic Confirm is authorized.
 
 A successful reconnect still needs fresh clean Home or an exact owned startup overlay. The service
 records its actual game input separately from system launch and zero route actions, defers that claim,
-then requires a fresh normal route claim/binding; recovery earns no daily progress. Active native
-capture/dispatch boundaries retain and stop on the interruption rather than using stale context or
-recovering through an unresolved gameplay effect. Interrupted Core history is never silently cleared.
+then requires a fresh normal route claim/binding; recovery earns no daily progress. The typed
+recovery-only occurrence disposition preserves all historical run/occurrence/reset identities and
+recovery charges without consuming daily/cooldown gameplay eligibility. Ordinary DEFERRED route
+results still consume their occurrence. A restart at the launcher cannot bypass an unfinished
+episode through ordinary startup or renew its original deadline/launch budget.
+Active native capture/dispatch boundaries retain and stop on the interruption rather than using
+stale context or recovering through an unresolved gameplay effect. Interrupted Core history is
+never silently cleared.
 For standalone operator qualification with all controls disabled and no service owner/run, use
 `python scripts/pnsctl.py development-session recover-network --live --yes` under current explicit
 authorization. It requires the existing canonical database and records its bounded result/captures.

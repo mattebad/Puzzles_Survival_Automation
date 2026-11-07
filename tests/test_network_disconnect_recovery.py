@@ -312,6 +312,96 @@ class NetworkDisconnectRecoveryTests(unittest.TestCase):
         self.assertEqual(dispatch["source_sha256"], result["immediate_before_sha256"])
         self.assertNotEqual(result["immediate_before_sha256"], result["source_sha256"])
 
+    def test_original_deadline_exhausted_before_immediate_or_during_dispatch_ocr_sends_no_input(self):
+        for stage in ("immediate", "dispatch_ocr"):
+            with self.subTest(stage=stage):
+                env = self.environment(EXACT, after_tap=HOME)
+                crossed = []
+                dispatch_started = []
+                native_tap = env.runtime.tap
+
+                def dispatch(*args, **kwargs):
+                    dispatch_started.append(True)
+                    return native_tap(*args, **kwargs)
+
+                env.runtime.tap = dispatch
+
+                def expire_before_immediate():
+                    if stage == "immediate" and env.prepared_intent() and not crossed:
+                        crossed.append(stage)
+                        env.clock.advance(4)
+
+                def expire_during_dispatch(frame):
+                    if stage == "dispatch_ocr" and dispatch_started and not crossed:
+                        crossed.append(stage)
+                        env.clock.advance(4)
+                    return disconnect_message(frame)
+
+                env.device.hooks.append(expire_before_immediate)
+                with patch.object(recognition, "_read_disconnect_message", side_effect=expire_during_dispatch):
+                    result = env.recover(timeout_seconds=3, poll_seconds=1)
+                self.assertEqual(crossed, [stage])
+                self.assertEqual(env.device.taps, [])
+                self.assertEqual(env.runtime.input_count, 0)
+                self.assertEqual(result["game_input_count"], 0)
+                self.assertNotEqual(result["status"], "recovered")
+                self.assertFalse(result["route_ready"])
+                original = env.episode()
+                env.restart_process()
+                resumed = env.recover(timeout_seconds=90, poll_seconds=1)
+                self.assertFalse(resumed["route_ready"])
+                self.assertEqual(resumed["game_input_count"], 0)
+                self.assertEqual(env.device.taps, [])
+                self.assertEqual(env.episode().episode_id, original.episode_id)
+                self.assertEqual(env.episode().deadline_at_utc, original.deadline_at_utc)
+                self.assertEqual(env.episode().confirm_attempts, 1)
+                self.assert_gameplay_untouched(env)
+
+    def test_acknowledgement_after_original_deadline_does_not_establish_readiness(self):
+        env = self.environment(EXACT, after_tap=HOME)
+        env.clock.sleep = lambda _seconds: env.clock.advance(4)
+        result = env.recover(timeout_seconds=3, poll_seconds=1)
+        self.assertEqual(len(env.device.taps), 1)
+        self.assertEqual(result["game_input_count"], 1)
+        self.assertFalse(result["route_ready"])
+        self.assertNotEqual(result["status"], "recovered")
+        self.assertEqual(env.episode().status, "MANUAL_REQUIRED")
+        self.assertEqual(env.relaunch.calls, [])
+        self.assert_gameplay_untouched(env)
+
+    def test_restart_at_launcher_uses_only_original_unspent_relaunch_and_deadline(self):
+        for expired in (False, True):
+            with self.subTest(expired=expired):
+                env = self.environment(EXACT, after_tap=LAUNCHER)
+                reserve = env.state.reserve_network_recovery_step
+
+                def stop_before_launch(episode_id, step, **kwargs):
+                    if step == "relaunch":
+                        raise CheckpointStop("crash before reserving the one launcher start")
+                    return reserve(episode_id, step, **kwargs)
+
+                with patch.object(env.state, "reserve_network_recovery_step", side_effect=stop_before_launch):
+                    with self.assertRaises(CheckpointStop):
+                        env.recover(timeout_seconds=30, poll_seconds=1)
+                original = env.episode()
+                self.assertEqual(env.network_rows()[0]["final_status"], "confirmed")
+                self.assertEqual(original.confirm_transport_status, "returned")
+                self.assertEqual(original.relaunch_attempts, 0)
+                if expired:
+                    env.clock.advance(31)
+                env.restart_process()
+                result = env.recover(timeout_seconds=90, poll_seconds=1)
+                self.assertEqual(result["game_input_count"], 0)
+                self.assertEqual(len(env.device.taps), 1)
+                self.assertEqual(env.episode().episode_id, original.episode_id)
+                self.assertEqual(env.episode().deadline_at_utc, original.deadline_at_utc)
+                self.assertEqual(result["episode_source_sha256"], original.source_frame_hash)
+                self.assertNotEqual(result["source_sha256"], original.source_frame_hash)
+                self.assertEqual(len(env.relaunch.calls), 0 if expired else 1)
+                self.assertEqual(result["system_launch_count"], 0 if expired else 1)
+                self.assertEqual(result["route_ready"], not expired)
+                self.assert_gameplay_untouched(env)
+
     def test_confirm_then_fresh_connected_context_recovers_with_one_tap_and_no_launch(self):
         for name, successor in (("home", HOME), ("owned startup overlay", OVERLAY)):
             with self.subTest(successor=name):

@@ -14,13 +14,14 @@ from enum import Enum
 import hashlib
 import os
 from pathlib import Path
+import re
 import sqlite3
 import threading
 import time
 from typing import Any, Iterable, Iterator
 from uuid import uuid4
 
-from .contracts import FlowSpec
+from .contracts import FlowSpec, OccurrenceDisposition
 
 
 class RunState(str, Enum):
@@ -199,6 +200,7 @@ class RunRecord:
     ready_batch_id: str | None = None
     revision_within_reset: int | None = None
     occurrence_limit: int | None = None
+    occurrence_disposition: OccurrenceDisposition = OccurrenceDisposition.CONSUME
 
 
 @dataclass(frozen=True)
@@ -810,8 +812,7 @@ class BotStateManager:
                     consumed_actions INTEGER NOT NULL CHECK (consumed_actions >= 0),
                     terminal_outcome TEXT,
                     terminal_reason TEXT,
-                    row_version INTEGER NOT NULL CHECK (row_version >= 0),
-                    UNIQUE (flow_id, occurrence_key)
+                    row_version INTEGER NOT NULL CHECK (row_version >= 0)
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS runs_one_active_idx
                     ON runs ((1))
@@ -944,12 +945,69 @@ class BotStateManager:
                    ON actions(run_id, binding_fingerprint, COALESCE(hypothesis_digest, ''))
                    WHERE binding_fingerprint IS NOT NULL"""
             )
+        self._migrate_run_occurrence_uniqueness()
         # executescript() above commits the schema transaction, so the
         # rename runs in its own transaction: all of it or none of it.  Once
         # applied, the read-only check keeps later opens write-free.
         if _renamed_flow_ids_pending(self._db):
             with self._transaction() as db:
                 _migrate_renamed_flow_ids(db)
+
+    def _migrate_run_occurrence_uniqueness(self) -> None:
+        """Atomically preserve run/action identities while changing uniqueness."""
+        # SQLite's table-rebuild procedure requires FK enforcement disabled
+        # outside the transaction. The referenced table is never renamed.
+        foreign_keys = int(self._db.execute("PRAGMA foreign_keys").fetchone()[0])
+        self._db.execute("PRAGMA foreign_keys = OFF")
+        try:
+            with self._transaction() as db:
+                # Inspect under the write lock: a competing opener may already
+                # have completed the cutover while BEGIN IMMEDIATE waited.
+                legacy = any(
+                    index["origin"] == "u"
+                    and [column["name"] for column in db.execute(
+                        'PRAGMA index_info("' + index["name"].replace('"', '""') + '")'
+                    )] == ["flow_id", "occurrence_key"]
+                    for index in db.execute("PRAGMA index_list(runs)").fetchall()
+                )
+                if not any(row["name"] == "occurrence_disposition"
+                           for row in db.execute("PRAGMA table_info(runs)")):
+                    db.execute(
+                        "ALTER TABLE runs ADD COLUMN occurrence_disposition TEXT NOT NULL DEFAULT 'consume' "
+                        "CHECK (occurrence_disposition IN ('consume', 'preserve_for_fresh_context')) "
+                        "CHECK (occurrence_disposition = 'consume' OR (state = 'DEFERRED' AND consumed_actions = 0))"
+                    )
+                if legacy:
+                    definition = db.execute(
+                        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'runs'"
+                    ).fetchone()[0]
+                    body, count = re.subn(
+                        r",\s*UNIQUE\s*\(\s*flow_id\s*,\s*occurrence_key\s*\)",
+                        "", definition[definition.index("("):], flags=re.IGNORECASE,
+                    )
+                    if count != 1:
+                        raise StateError("unsupported runs occurrence constraint migration")
+                    dependent_sql = [row["sql"] for row in db.execute(
+                        "SELECT sql FROM sqlite_master WHERE tbl_name = 'runs' "
+                        "AND type IN ('index', 'trigger') AND sql IS NOT NULL"
+                    )]
+                    db.execute("CREATE TABLE runs_occurrence_migration " + body)
+                    columns = ", ".join('"' + row["name"].replace('"', '""') + '"'
+                                        for row in db.execute("PRAGMA table_info(runs)"))
+                    db.execute(f"INSERT INTO runs_occurrence_migration ({columns}) SELECT {columns} FROM runs")
+                    db.execute("DROP TABLE runs")
+                    db.execute("ALTER TABLE runs_occurrence_migration RENAME TO runs")
+                    for statement in dependent_sql:
+                        db.execute(statement)
+                    if db.execute("PRAGMA foreign_key_check").fetchone() is not None:
+                        raise StateError("runs occurrence migration foreign key violation")
+                db.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS runs_gameplay_occurrence_idx "
+                    "ON runs(flow_id, occurrence_key) WHERE occurrence_disposition = 'consume'"
+                )
+        finally:
+            self._db.execute(f"PRAGMA foreign_keys = {foreign_keys}")
+
 
     @staticmethod
     def occurrence_key(
@@ -1135,6 +1193,7 @@ class BotStateManager:
                 if _row_value(row, "occurrence_limit") is None
                 else int(_row_value(row, "occurrence_limit"))
             ),
+            OccurrenceDisposition(_row_value(row, "occurrence_disposition") or "consume"),
         )
 
 
@@ -1987,6 +2046,7 @@ class BotStateManager:
                     """SELECT 1 FROM runs
                        WHERE flow_id = ? AND reset_id = ? AND occurrence_kind = 'reset_bounded'
                          AND ready_batch_id = ?
+                         AND occurrence_disposition = 'consume'
                          AND state IN ('SUCCEEDED', 'DEFERRED') LIMIT 1""",
                     (flow_id, reset_id, ready_batch_id),
                 ).fetchone() is not None:
@@ -2000,6 +2060,7 @@ class BotStateManager:
                            WHERE flow_id = ? AND reset_id = ?
                              AND occurrence_kind = 'reset_bounded'
                              AND ready_batch_id = ? AND revision_within_reset = ?
+                             AND occurrence_disposition = 'consume'
                              AND state IN ('SUCCEEDED', 'DEFERRED') LIMIT 1""",
                         (flow_id, reset_id, ready_batch_id, revision_within_reset),
                     ).fetchone() is not None
@@ -2012,6 +2073,7 @@ class BotStateManager:
                            WHERE flow_id = ? AND reset_id = ?
                              AND occurrence_kind = 'reset_bounded'
                              AND ready_batch_id = ? AND revision_within_reset = ?
+                             AND occurrence_disposition = 'consume'
                            ORDER BY occurrence_ordinal DESC, row_version DESC
                            LIMIT 1""",
                         (flow_id, reset_id, active_batch, active_revision),
@@ -2153,7 +2215,7 @@ class BotStateManager:
                     (ready_batch_id, revision_within_reset, occurrence_limit_value, flow_id),
                 )
             existing = db.execute(
-                "SELECT * FROM runs WHERE flow_id = ? AND occurrence_key = ?",
+                "SELECT * FROM runs WHERE flow_id = ? AND occurrence_key = ? AND occurrence_disposition = 'consume'",
                 (flow_id, key),
             ).fetchone()
             run_token = _text(uuid4().hex if run_token is None else run_token, "run_token")
@@ -2246,6 +2308,7 @@ class BotStateManager:
         next_due_at_utc: float | None | object,
         retry_not_before_utc: float | None | object,
         accepted_projection_key: str | None | object,
+        occurrence_disposition: OccurrenceDisposition = OccurrenceDisposition.CONSUME,
         now: float,
     ) -> RunRecord:
         current = RunState(row["state"])
@@ -2294,6 +2357,13 @@ class BotStateManager:
         )
         if not generations_match and not safe_fenced_terminal:
             raise TerminalProjectionError("GENERATION_MISMATCH")
+        preserve = occurrence_disposition is OccurrenceDisposition.PRESERVE_FOR_FRESH_CONTEXT
+        if preserve and (
+            target is not RunState.DEFERRED or int(row["consumed_actions"]) != 0
+            or next_due_at_utc is _UNSET or next_due_at_utc is None
+            or db.execute("SELECT 1 FROM actions WHERE run_id = ? LIMIT 1", (row["run_id"],)).fetchone()
+        ):
+            raise TerminalProjectionError("FRESH_CONTEXT_DEFERRAL_REJECTED")
         if next_due_at_utc is not _UNSET:
             _epoch(next_due_at_utc, "next_due_at_utc")
         if retry_not_before_utc is not _UNSET:
@@ -2302,7 +2372,7 @@ class BotStateManager:
             _text(accepted_projection_key, "accepted_projection_key")
         flow_outcome = outcome or target.value
         failure = target in {RunState.BLOCKED, RunState.FAILED}
-        advance = target in {RunState.SUCCEEDED, RunState.DEFERRED}
+        advance = target in {RunState.SUCCEEDED, RunState.DEFERRED} and not preserve
         failure_count = int(flow["consecutive_failures"]) + (1 if failure else 0)
         exhausted = failure and failure_count >= int(flow["max_attempts"])
         if retry_not_before_utc is _UNSET:
@@ -2318,6 +2388,10 @@ class BotStateManager:
             )
         else:
             retry_value = retry_not_before_utc  # type: ignore[assignment]
+        if preserve:
+            # The scheduler's recurrence binding retains its persisted basis
+            # while retry_not_before is present, including cooldown occurrences.
+            retry_value = next_due_at_utc
         ordinal = int(row["occurrence_ordinal"])
         run_basis = row["occurrence_basis"] or row["reset_id"]
         basis_matches = (
@@ -2355,6 +2429,13 @@ class BotStateManager:
         )
         if run_result.rowcount != 1:
             raise TerminalProjectionError("TERMINAL_CAS_FAILED")
+        if preserve:
+            # Release only the gameplay claim slot, not the original run's
+            # occurrence identity, evidence, or actual recovery input charge.
+            db.execute(
+                "UPDATE runs SET occurrence_disposition = ? WHERE run_id = ?",
+                (occurrence_disposition.value, row["run_id"]),
+            )
         flow_result = db.execute(
             """UPDATE flow_state SET next_occurrence_key = ?,
                next_occurrence_basis = CASE WHEN ? THEN NULL ELSE next_occurrence_basis END,
@@ -2365,7 +2446,7 @@ class BotStateManager:
                last_revision_within_reset = CASE WHEN ? THEN ? ELSE last_revision_within_reset END,
                occurrence_limit = CASE WHEN ? THEN COALESCE(?, occurrence_limit) ELSE occurrence_limit END,
                next_due_at_utc = CASE WHEN ? THEN ? ELSE next_due_at_utc END,
-               retry_not_before_utc = ?, last_completed_at_utc = ?, last_outcome = ?,
+               retry_not_before_utc = ?, last_completed_at_utc = CASE WHEN ? THEN last_completed_at_utc ELSE ? END, last_outcome = ?,
                last_accepted_projection_key = CASE WHEN ? THEN ? ELSE last_accepted_projection_key END,
                consecutive_failures = CASE WHEN ? THEN 0 ELSE consecutive_failures + ? END,
                blocked = CASE WHEN ? THEN 1 ELSE blocked END,
@@ -2386,6 +2467,7 @@ class BotStateManager:
                 int(next_due_at_utc is not _UNSET),
                 None if next_due_at_utc is _UNSET else next_due_at_utc,
                 retry_value,
+                int(preserve),
                 now,
                 flow_outcome,
                 int(accepted_projection_key is not _UNSET and advance_occurrence),
@@ -2418,6 +2500,7 @@ class BotStateManager:
         next_due_at_utc: float | None | object = _UNSET,
         retry_not_before_utc: float | None | object = _UNSET,
         accepted_projection_key: str | None | object = _UNSET,
+        occurrence_disposition: OccurrenceDisposition = OccurrenceDisposition.CONSUME,
         now_utc_epoch: float | None = None,
     ) -> RunRecord:
         """Atomically terminalize a run and project schedule/retry facts.
@@ -2428,6 +2511,8 @@ class BotStateManager:
         """
 
         run_id = _text(run_id, "run_id")
+        if not isinstance(occurrence_disposition, OccurrenceDisposition):
+            raise ValueError("occurrence_disposition requires OccurrenceDisposition")
         owner = _text(owner_instance_id, "owner_instance_id")
         process_token = _text(process_start_token, "process_start_token")
         token = _text(run_token, "run_token")
@@ -2453,6 +2538,7 @@ class BotStateManager:
                 run_token=token, lease_generation=lease_generation, expected=expected,
                 expected_row_version=expected_row_version, outcome=outcome, reason=reason,
                 next_due_at_utc=next_due_at_utc, retry_not_before_utc=retry_not_before_utc,
+                occurrence_disposition=occurrence_disposition,
                 accepted_projection_key=accepted_projection_key, now=now,
             )
 

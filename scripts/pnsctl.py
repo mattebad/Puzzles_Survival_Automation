@@ -923,10 +923,14 @@ def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_dir
             fenced()
             if not allow_relaunch:
                 raise OperatorError("the current startup already consumed its single launch budget")
+            episode = state_manager.get_network_recovery(FIXED_RUNTIME_SCOPE)
+            if episode is None or episode.relaunch_attempts != 1:
+                raise OperatorError("network relaunch requires its persisted reserved episode")
             try:
                 started = owner_bound_application_startup(
                     runtime_input_lock=runtime_input_lock, checkpoint=fenced,
                     session_directory=runtime.session / "application-relaunch", require_ready=True,
+                    state_manager=state_manager, recovery_launch_episode_id=episode.episode_id,
                 )
             except Exception as exc:
                 failed = getattr(exc, "startup_result", {})
@@ -1004,9 +1008,30 @@ def development_session_recover_network(*, live: bool, yes: bool) -> str:
 
 def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_directory: Path,
                                     flow_id: str | None = None, require_ready: bool = False,
-                                    network_recovery: bool = False, state_manager=None) -> dict[str, Any]:
+                                    network_recovery: bool = False, state_manager=None,
+                                    recovery_launch_episode_id: str | None = None) -> dict[str, Any]:
     """Observe or launch under the caller; reconnect only with explicit authority."""
     from scripts.navigation_development_boundary import NavigationBoundaryError, require_canonical_unresolved_clear
+    from automation_service.state import BotStateManager
+    from scripts.navigation_development_boundary import RuntimeInputLock
+    from tasks.runtime_identity import FIXED_RUNTIME_SCOPE
+
+    def recovery_episode():
+        if state_manager is not None:
+            return state_manager.get_network_recovery(FIXED_RUNTIME_SCOPE)
+        # Ordinary startup must not bypass an unfinished recovery just because
+        # its caller did not opt into issuing recovery inputs.
+        if BotStateManager.DEFAULT_DB_PATH.is_file():
+            with BotStateManager(read_only=True) as observed_state:
+                return observed_state.get_network_recovery(FIXED_RUNTIME_SCOPE)
+        return None
+
+    if recovery_launch_episode_id is not None and (
+        network_recovery or not isinstance(runtime_input_lock, RuntimeInputLock)
+        or not isinstance(state_manager, BotStateManager) or state_manager.read_only
+        or Path(state_manager.db_path).resolve() != BotStateManager.DEFAULT_DB_PATH.resolve()
+    ):
+        raise OperatorError("network launch requires the canonical reserved recovery owner/state")
 
     def gate():
         try:
@@ -1017,6 +1042,14 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
     def fence():
         runtime_input_lock.assert_held(runtime_input_lock.owner, runtime_input_lock.invocation_id)
         checkpoint()
+        if recovery_launch_episode_id is not None:
+            episode = recovery_episode()
+            if (episode is None or episode.episode_id != recovery_launch_episode_id
+                    or episode.status not in {"OPEN", "DEFERRED"}
+                    or episode.confirm_attempts != 1 or episode.confirm_transport_status != "returned"
+                    or episode.relaunch_attempts != 1 or episode.relaunch_transport_status != "attempted"
+                    or not episode.updated_at_utc <= time.time() < episode.deadline_at_utc):
+                raise OperatorError("network recovery original launch budget or deadline exhausted")
 
     fence()
     gate()
@@ -1038,11 +1071,13 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
 
     def guard_network(frame):
         detail = _network_dialog(frame)
-        active = None
-        if network_recovery and state_manager is not None:
-            from tasks.runtime_identity import FIXED_RUNTIME_SCOPE
-            active = state_manager.get_network_recovery(FIXED_RUNTIME_SCOPE)
+        active = recovery_episode()
         encountered = detail.get("recognized") or detail.get("blocking_unknown_modal")
+        if (not encountered and recovery_launch_episode_id is not None and active is not None
+                and active.episode_id == recovery_launch_episode_id):
+            # The one reserved launcher-only lifecycle call cannot recurse into
+            # recovery. Its fence still checks the original budget/deadline.
+            return False
         if not encountered and not (active is not None and active.status != "RECOVERED"):
             return False
         if detail.get("blocking_unknown_modal") or not network_recovery:
@@ -1071,7 +1106,7 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
         result.update(before_observation=before, before_frame="before.png")
         persist()
         focused = str(before["foreground_package"])
-        if focused == BLUESTACKS_PACKAGE and guard_network(before_png):
+        if focused in {BLUESTACKS_PACKAGE, *BLUESTACKS_LAUNCHER_PACKAGES} and guard_network(before_png):
             return result
         if focused == BLUESTACKS_PACKAGE:
             # Existing route owns validation of its current Profile/Chapter context.
@@ -1116,7 +1151,9 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
         persist()
         # Allow cold loading to settle before requiring Home or an owned popup.
         # The same owner/checkpoints remain active and no launch is retried.
-        deadline = time.monotonic() + 90.0
+        episode = recovery_episode() if recovery_launch_episode_id is not None else None
+        remaining = max(0.0, episode.deadline_at_utc - time.time()) if episode else 90.0
+        deadline = time.monotonic() + min(90.0, remaining)
         ordinal = 0
         while True:
             fence()

@@ -1564,6 +1564,10 @@ def recover_network_disconnect(
     before_count = runtime.input_count
     launches = 0
     episode = state_manager.get_network_recovery(scope_key)
+    mono_deadline = (
+        monotonic_clock() + max(0.0, episode.deadline_at_utc - utc_clock())
+        if episode is not None else None
+    )
     source = runtime.capture("network-recovery-source")
     last = source
     immediate = None
@@ -1603,11 +1607,16 @@ def recover_network_disconnect(
         count = runtime.input_count - before_count
         # Navigation UNKNOWN is deliberately not a global consequential-action
         # block. It still owns this episode and must never regain Confirm.
-        unresolved = action_store.has_action_block() or network_action_pending()
+        unresolved = (
+            action_store.has_action_block() or network_action_pending()
+            or episode is not None and episode.relaunch_attempts == 1
+            and episode.relaunch_transport_status in {"attempted", "unknown"}
+        )
         value = {
             "status": status, "reason": reason, "scope_key": scope_key,
             "authorization": authorization, "episode_id": episode.episode_id if episode else None,
             "episode": asdict(episode) if episode else None,
+            "episode_source_sha256": episode.source_frame_hash if episode else None,
             "input_count": count, "game_input_count": count,
             "system_launch_count": launches,
             "accounting_verified": count in (0, 1) and launches in (0, 1),
@@ -1627,6 +1636,66 @@ def recover_network_disconnect(
             stream.write("\n")
         return value
 
+    def budget_open() -> bool:
+        now = utc_clock()
+        return (
+            episode is not None and episode.updated_at_utc <= now < episode.deadline_at_utc
+            and mono_deadline is not None and monotonic_clock() < mono_deadline
+        )
+
+    def launch_known_launcher() -> dict[str, object]:
+        nonlocal episode, launches
+        checkpoint()
+        if episode is None or action_store.has_action_block() or network_action_pending():
+            return finish("unresolved", "prior_action_requires_inspection")
+        if episode.status not in {"OPEN", "DEFERRED"} or episode.relaunch_attempts:
+            return finish("manual_required", "network_relaunch_budget_or_state_denied")
+        action = action_store.get_action_by_key(f"network-recovery:{episode.episode_id}:confirm")
+        if (episode.confirm_attempts != 1 or action is None
+                or action["final_status"] != "confirmed"
+                or observe_context(last) != "BLUESTACKS_LAUNCHER" or not budget_open()):
+            record("MANUAL_REQUIRED", "network_relaunch_context_not_permitted")
+            return finish("manual_required", "network_relaunch_context_not_permitted")
+        if episode.confirm_transport_status == "attempted":
+            # A crash may occur after Core's positive acknowledgement but before
+            # this episode records the already-proven transport fact.
+            record("OPEN", "network_confirm_core_confirmation_observed",
+                   step="confirm", transport_status="returned")
+        reserved = state_manager.reserve_network_recovery_step(
+            episode.episode_id, "relaunch", expected_row_version=episode.row_version,
+            now_utc_epoch=utc_clock(),
+        )
+        if reserved is None:
+            record("MANUAL_REQUIRED", "network_relaunch_budget_or_state_denied")
+            return finish("manual_required", "network_relaunch_budget_or_state_denied")
+        episode = reserved
+        try:
+            startup = relaunch()
+        except Exception as exc:
+            attempted = getattr(exc, "startup_result", {})
+            launches = attempted.get("system_launch_count", 0) if isinstance(attempted, dict) else 0
+            record("MANUAL_REQUIRED", "network_relaunch_unresolved",
+                   step="relaunch", transport_status="unknown")
+            return finish("unresolved", "network_relaunch_unresolved")
+        launches = startup.get("system_launch_count")
+        if (type(launches) is not int or launches != 1 or startup.get("game_input_count") != 0
+                or startup.get("transport_status") != "returned"):
+            record("MANUAL_REQUIRED", "network_relaunch_accounting_invalid",
+                   step="relaunch", transport_status="unknown")
+            return finish("unresolved", "network_relaunch_accounting_invalid")
+        record("OPEN" if budget_open() else "MANUAL_REQUIRED", "network_relaunch_transport_returned",
+               step="relaunch", transport_status="returned")
+        if not budget_open():
+            return finish("manual_required", "network_recovery_deadline_exhausted")
+        post = take("network-recovery-relaunch-after")
+        after = recognize_network_disconnect(post.frame)
+        if (observe_context(post) not in connected_contexts
+                or after.get("recognized") or after.get("blocking_unknown_modal") or not budget_open()):
+            record("MANUAL_REQUIRED", "network_connected_context_not_verified")
+            return finish("manual_required", "network_connected_context_not_verified")
+        record("RECOVERED", "network_relaunch_connected_context_verified")
+        return finish("recovered", "network_relaunch_connected_context_verified")
+
     if not _contextual_startup_frame_valid(source):
         return finish("blocked", "network_source_not_intact")
     context = observe_context(source)
@@ -1636,9 +1705,14 @@ def recover_network_disconnect(
     ):
         if action_store.has_action_block() or network_action_pending():
             return finish("unresolved", "prior_action_requires_inspection")
+        if episode is not None and episode.relaunch_transport_status in {"attempted", "unknown"}:
+            return finish("unresolved", "network_relaunch_requires_inspection")
         if episode is not None and episode.status != "RECOVERED":
             record("RECOVERED", "fresh_connected_context_observed")
         return finish("recovered", "fresh_connected_context_observed")
+    if (context == "BLUESTACKS_LAUNCHER" and episode is not None
+            and not detail.get("recognized") and not detail.get("blocking_unknown_modal")):
+        return launch_known_launcher()
     if not detail.get("recognized") or context != "UNKNOWN":
         if episode is not None and episode.status != "RECOVERED":
             record("MANUAL_REQUIRED", "unknown_or_manual_network_source")
@@ -1735,6 +1809,8 @@ def recover_network_disconnect(
 
     def transport(_intent) -> TransportResult:
         checkpoint()
+        if not budget_open():
+            raise StartupRecoveryError("network recovery original deadline exhausted")
         if immediate is None or runtime.input_count != before_count:
             raise StartupRecoveryError("network Confirm input budget denied")
         holder["transport"] = "attempted"
@@ -1755,7 +1831,7 @@ def recover_network_disconnect(
             after = recognize_network_disconnect(post.frame)
             observed = observe_context(post)
             clear = not (after.get("recognized") or after.get("blocking_unknown_modal"))
-            acknowledged = clear and observed in connected_contexts | {"BLUESTACKS_LAUNCHER"}
+            acknowledged = clear and observed in connected_contexts | {"BLUESTACKS_LAUNCHER"} and budget_open()
             holder["context"] = observed
             if acknowledged or not after.get("recognized") or (
                 utc_clock() >= episode.deadline_at_utc or monotonic_clock() >= mono_deadline
@@ -1773,17 +1849,26 @@ def recover_network_disconnect(
                 ),)
         return ()
 
-    executed = SafeActionExecutor(
-        action_store, policy, owner, monotonic_clock, transport, recapture,
-        post_observe,
-        lambda _intent, observed: observed.recognized
-        and observed.source_state == "NETWORK_RECONNECT_ACKNOWLEDGED",
-        wall_clock=utc_clock, max_pre_dispatch_attempts=1,
-    ).execute(request)
+    previous_checkpoint = runtime.checkpoint
+    def deadline_checkpoint():
+        checkpoint()
+        if not budget_open():
+            raise StartupRecoveryError("network recovery original deadline exhausted")
+    runtime.checkpoint = deadline_checkpoint
+    try:
+        executed = SafeActionExecutor(
+            action_store, policy, owner, monotonic_clock, transport, recapture,
+            post_observe,
+            lambda _intent, observed: observed.recognized
+            and observed.source_state == "NETWORK_RECONNECT_ACKNOWLEDGED",
+            wall_clock=utc_clock, max_pre_dispatch_attempts=1,
+        ).execute(request)
+    finally:
+        runtime.checkpoint = previous_checkpoint
     transport_state = holder["transport"]
     if transport_state != "not_attempted":
         record(
-            "OPEN", "network_confirm_transport_observed", step="confirm",
+            "OPEN" if budget_open() else "MANUAL_REQUIRED", "network_confirm_transport_observed", step="confirm",
             transport_status="returned" if transport_state == "returned" else "unknown",
         )
     if runtime.input_count > before_count:
@@ -1797,36 +1882,4 @@ def recover_network_disconnect(
     if holder["context"] in connected_contexts:
         record("RECOVERED", "network_connected_context_verified")
         return finish("recovered", "network_connected_context_verified")
-    checkpoint()
-    if action_store.has_action_block() or holder["context"] != "BLUESTACKS_LAUNCHER":
-        record("MANUAL_REQUIRED", "network_relaunch_context_not_permitted")
-        return finish("blocked", "network_relaunch_context_not_permitted")
-    reserved = state_manager.reserve_network_recovery_step(
-        episode.episode_id, "relaunch", expected_row_version=episode.row_version,
-        now_utc_epoch=utc_clock(),
-    )
-    if reserved is None:
-        record("MANUAL_REQUIRED", "network_relaunch_budget_or_state_denied")
-        return finish("manual_required", "network_relaunch_budget_or_state_denied")
-    episode = reserved
-    try:
-        startup = relaunch()
-    except Exception as exc:
-        attempted = getattr(exc, "startup_result", {})
-        launches = attempted.get("system_launch_count", 0) if isinstance(attempted, dict) else 0
-        record("MANUAL_REQUIRED", "network_relaunch_unresolved", step="relaunch", transport_status="unknown")
-        return finish("unresolved", "network_relaunch_unresolved")
-    launches = startup.get("system_launch_count")
-    if (type(launches) is not int or launches != 1 or startup.get("game_input_count") != 0
-            or startup.get("transport_status") != "returned"):
-        record("MANUAL_REQUIRED", "network_relaunch_accounting_invalid", step="relaunch", transport_status="unknown")
-        return finish("unresolved", "network_relaunch_accounting_invalid")
-    record("OPEN", "network_relaunch_transport_returned", step="relaunch", transport_status="returned")
-    post = take("network-recovery-relaunch-after")
-    after = recognize_network_disconnect(post.frame)
-    if (observe_context(post) not in connected_contexts
-            or after.get("recognized") or after.get("blocking_unknown_modal")):
-        record("MANUAL_REQUIRED", "network_connected_context_not_verified")
-        return finish("manual_required", "network_connected_context_not_verified")
-    record("RECOVERED", "network_relaunch_connected_context_verified")
-    return finish("recovered", "network_relaunch_connected_context_verified")
+    return launch_known_launcher()

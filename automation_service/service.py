@@ -41,7 +41,7 @@ from .adapters import (
     FakeDeviceAdapter,
     SupervisedBlueStacksAdapter,
 )
-from .contracts import FlowSpec, PerceptionEnvelope, SchedulerFacts, ServiceMode
+from .contracts import FlowSpec, OccurrenceDisposition, PerceptionEnvelope, SchedulerFacts, ServiceMode
 from .handlers import (
     CampaignApSelectionHandler,
     DisabledHandler,
@@ -984,15 +984,22 @@ class AutomationService:
                                     or recovery.get("input_count") != count
                                     or type(launches) is not int or launches not in (0, 1)
                                     or type(recovery.get("system_launch_count")) is not int
+                                    or not isinstance(recovery.get("source_sha256"), str)
+                                    or len(recovery["source_sha256"]) != 64
+                                    or any(c not in "0123456789abcdef" for c in recovery["source_sha256"])
                                     or not 0 <= recovery["system_launch_count"] <= launches):
                                 raise ServiceError("APPLICATION_NETWORK_RECOVERY_ACCOUNTING_INVALID")
                             episode = state.get_network_recovery(FIXED_RUNTIME_SCOPE)
-                            if count and (
+                            if (count or recovery["system_launch_count"]) and (
                                 episode is None or episode.episode_id != recovery.get("episode_id")
-                                or episode.status != "RECOVERED" or episode.confirm_attempts != 1
-                                or episode.confirm_transport_status != "returned"
-                                or episode.source_frame_hash != recovery.get("source_sha256")
+                                or episode.status != "RECOVERED"
+                                or episode.source_frame_hash != recovery.get("episode_source_sha256")
                                 or episode.last_frame_hash != recovery.get("terminal_sha256")
+                                or count and (episode.confirm_attempts != 1
+                                              or episode.confirm_transport_status != "returned")
+                                or recovery["system_launch_count"] and (
+                                    episode.relaunch_attempts != 1
+                                    or episode.relaunch_transport_status != "returned")
                             ):
                                 raise ServiceError("APPLICATION_NETWORK_RECOVERY_EPISODE_INVALID")
                             checkpoint_fences()
@@ -1014,6 +1021,7 @@ class AutomationService:
                                 NormalizedOutcome.DEFERRED, "NETWORK_RECOVERY_CONTEXT_REFRESH_REQUIRED",
                                 verified=False, next_eligible_at=now + 1.0, action_count=0,
                                 observed_progress=result,
+                                occurrence_disposition=OccurrenceDisposition.PRESERVE_FOR_FRESH_CONTEXT,
                             )
                         if (not isinstance(startup_result, dict)
                                 or type(startup_result.get("system_launch_count")) is not int

@@ -434,6 +434,9 @@ class LocalBlueStacksRuntime:
         fingerprint = (source.sha256, target_identity, target_roi)
         if fingerprint in self.frame_actions and campaign_parent is None:
             raise RuntimeError("identical source/target input is forbidden")
+        # Recognition/OCR may outlive the caller's original authority window.
+        if self.checkpoint is not None:
+            self.checkpoint()
         delegated = current_delegated_runtime_context()
         if delegated is not None:
             delegated.reserve_input(

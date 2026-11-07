@@ -28,6 +28,13 @@ class NormalizedOutcome(str, Enum):
     RECONCILIATION_REQUIRED = "reconciliation_required"
 
 
+class OccurrenceDisposition(str, Enum):
+    """Whether terminal projection consumes the claimed gameplay occurrence."""
+
+    CONSUME = "consume"
+    PRESERVE_FOR_FRESH_CONTEXT = "preserve_for_fresh_context"
+
+
 class RecurrenceClass(str, Enum):
     """Closed recurrence vocabulary understood by the offline scheduler."""
 
@@ -508,8 +515,17 @@ class NormalizedResult:
     consequence: Mapping[str, Any] = field(default_factory=dict)
     evidence_refs: tuple[str, ...] = ()
     unresolved_action: bool = False
+    occurrence_disposition: OccurrenceDisposition = OccurrenceDisposition.CONSUME
 
     def __post_init__(self) -> None:
+        if not isinstance(self.occurrence_disposition, OccurrenceDisposition):
+            raise ValueError("occurrence_disposition requires OccurrenceDisposition")
+        if self.occurrence_disposition is OccurrenceDisposition.PRESERVE_FOR_FRESH_CONTEXT and (
+            self.outcome is not NormalizedOutcome.DEFERRED
+            or self.action_count != 0 or self.unresolved_action or self.verified
+            or self.consequence
+        ):
+            raise ValueError("fresh-context deferral requires unverified, non-gameplay deferred result")
         if not self.reason_code.strip():
             raise ValueError("normalized results require a reason code")
         if type(self.action_count) is not int or self.action_count < 0:
