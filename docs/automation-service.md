@@ -195,7 +195,8 @@ Both routes are registered in the canonical service but remain production-unregi
 unscheduled and runtime-disabled; no live route acceptance is claimed.
 Training starts use distinct semantic-action and concrete action-kind fields matching the
 existing Core policy. Capability issuance binds a real immediate recapture, not the original
-capture or its digest alone. Queue, tier, quantity/max and all paired resource costs/balances
+capture or its digest alone. Session dispatch uses that same bound immediate source.
+Queue, tier, quantity/max and all paired resource costs/balances
 are checked again before dispatch. Active-queue completion is projected from the observation's
 capture time; an undated queue cannot establish a schedule. Confirmed batch claims advance
 continuous Fighter/Vehicle generations durably across restart; UNKNOWN claims do not. The

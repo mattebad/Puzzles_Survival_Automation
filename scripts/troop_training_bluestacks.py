@@ -1296,6 +1296,14 @@ class TroopTrainingIntegratedRoute:
             session_before = getattr(session, "input_count", None)
             if type(runtime_before) is not int or type(session_before) is not int:
                 raise RuntimeError("native input accounting is unavailable before consequential dispatch")
+            source_returned = False
+
+            def capture_for_action(label):
+                nonlocal source_returned
+                if not source_returned:
+                    source_returned = True
+                    return captured
+                return runtime.capture(label)
 
             def authorize(before):
                 context.checkpoint()
@@ -1347,7 +1355,7 @@ class TroopTrainingIntegratedRoute:
                 session.run_action(
                     action_class=action_kind,
                     label=f"troop-training-{counter_kind}-{subject}",
-                    capture=runtime.capture,
+                    capture=capture_for_action,
                     dispatch=dispatch,
                     recognize=recognize,
                     authorize=authorize,
