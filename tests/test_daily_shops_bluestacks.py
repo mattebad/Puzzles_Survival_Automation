@@ -212,6 +212,106 @@ class ActualSafetyStoreShopPort(ReplayDailyShopsPort):
         )
 
 
+
+class ActualSafetyStorePairedShopPort(ActualSafetyStoreShopPort):
+    """Synthetic per-tab readings crossing the real native policy and journal."""
+
+    def __init__(self, context, *, unaffordable_second=False, missing_ruins_item=False, unproved_first=False):
+        super().__init__(context)
+        self.offers = {
+            RUINS_TAB: offer(RUINS_TAB, price=15, balance=16649, stock=100, owned=4),
+            RARE_EARTH_TAB: offer(RARE_EARTH_TAB, price=13800,
+                                  balance=0 if unaffordable_second else 211995, stock=20, owned=4),
+        }
+        self.observed_after = {
+            RUINS_TAB: offer(RUINS_TAB, price=15, balance=15149, stock=0,
+                            owned=4 if missing_ruins_item else 104),
+            RARE_EARTH_TAB: offer(RARE_EARTH_TAB, price=13800, balance=4995, stock=5, owned=19),
+        }
+        self.current_tab = ""
+        self.dispatched_tabs = set()
+        self.runtime.reconcile = lambda *args: None
+        self.unproved_first = unproved_first
+
+    def enter_ruins_shop(self):
+        self.entered += 1
+        self.current_tab = RUINS_TAB
+        return True
+
+    def switch_to_rare_earth(self):
+        if self.current_tab != RUINS_TAB:
+            raise AssertionError("native purchase left the shared shop before adjacent-tab switch")
+        self.switched += 1
+        self.current_tab = RARE_EARTH_TAB
+        return True
+
+    def return_home(self):
+        self.home_calls += 1
+        self.current_tab = "home"
+        return True
+
+    def inspect_tab(self, tab):
+        self.last_offer_capture = self._capture(f"{tab}-offer-source")
+        if tab == RUINS_TAB and self.unproved_first:
+            return TabOffer(None, True, "TAB_ITEM_EFFECT_EVIDENCE_REQUIRED",
+                            str(self.last_offer_capture.path), self.last_offer_capture.sha256)
+        return TabOffer(self.offers[tab], True, evidence_ref=str(self.last_offer_capture.path),
+                        evidence_frame_sha256=self.last_offer_capture.sha256)
+
+    def _dialog(self, captured, current_offer):
+        quantity = daily_shop_quantity(current_offer, shop_identity=current_offer.shop_identity)
+        return QuantityDialog(
+            current_offer.shop_identity, current_offer.item_identity, current_offer.currency_identity,
+            current_offer.unit_price, quantity, quantity * current_offer.unit_price,
+            (430, 700, 560, 770), True,
+        )
+
+    def _record_tap(self, source, **kwargs):
+        super()._record_tap(source, **kwargs)
+        self.dispatched_tabs.add(self.current_tab)
+
+    def _read_offer(self, captured, tab):
+        return self.observed_after[tab] if tab in self.dispatched_tabs else self.offers[tab]
+
+    def _page(self, captured):
+        return self.current_tab, ""
+
+
+class RetainedPairedShopPort(ActualSafetyStorePairedShopPort):
+    """Retain synthetic PNGs so restart consumes the native proof reader too."""
+
+    def __init__(self, context):
+        super().__init__(context)
+        self.readings = {}
+        self.action_keys = dict(KEYS)
+
+    def _capture(self, label):
+        import cv2
+        self.capture_count += 1
+        frame = np.full((1280, 800, 3), 64, dtype=np.uint8)
+        frame[0, 0, 0] = self.capture_count
+        path = self.context.session.session_directory / f"{self.capture_count:04d}.png"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not cv2.imwrite(str(path), frame):
+            raise AssertionError("cannot retain synthetic frame")
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        row = (self.observed_after[self.current_tab] if self.current_tab in self.dispatched_tabs
+               else self.offers.get(self.current_tab))
+        self.readings[self.capture_count] = self.current_tab, row
+        return SimpleNamespace(label=label, sha256=digest, captured_monotonic=float(self.capture_count),
+                               frame=frame, path=path)
+
+    def _read_offer(self, captured, tab):
+        page, row = self.readings[int(captured.frame[0, 0, 0])]
+        return row if page == tab else None
+
+    def _page(self, captured):
+        return self.readings[int(captured.frame[0, 0, 0])][0], ""
+
+    def action_status(self, key):
+        return DailyShopsLivePort.action_status(self, key)
+
+
 def safety_store_purchase_context(directory, store):
     now = 1_700_000_000.0
     owner = "automation-service:daily-shops-replay"
@@ -219,8 +319,10 @@ def safety_store_purchase_context(directory, store):
         "resource-account", "resource-server", "game-day-2023-11-14", "daily_shops_purchase",
     )
     store.acquire_lease(owner, now, 3600.0)
+    from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
     return SimpleNamespace(
         identity=identity, owner=owner, action_store=store,
+        runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID,
         utc_clock=lambda: now, monotonic_clock=lambda: 10.0,
         session=SimpleNamespace(session_directory=Path(directory) / "native-session"),
         checkpoint=lambda: None, validate_identity=lambda: None,
@@ -229,6 +331,115 @@ def safety_store_purchase_context(directory, store):
 
 
 class DailyShopsNativeReplayTests(unittest.TestCase):
+    def test_native_retained_shop_receipts_survive_restart_without_reentry_or_spend(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                context = safety_store_purchase_context(directory, store)
+                port = RetainedPairedShopPort(context)
+                context.monotonic_clock = lambda: float(port.capture_count) + 0.1
+                first = DailyShopsPurchaseRoute(port, action_keys=KEYS).run()
+                self.assertEqual(first.status, "completed", first.to_mapping())
+                self.assertEqual(port.action_status(KEYS[RUINS_TAB]), "confirmed")
+                self.assertEqual(port.action_status(KEYS[RARE_EARTH_TAB]), "confirmed")
+                taps = list(port.runtime.taps)
+                second = DailyShopsPurchaseRoute(port, action_keys=KEYS).run()
+                self.assertEqual(second.status, "already_complete")
+                self.assertEqual(port.runtime.taps, taps)
+                self.assertTrue(all(row["status"] == "already_confirmed"
+                                    for row in second.tab_results.values()))
+            finally:
+                store.close()
+
+    def test_unproved_ruins_defers_before_buy_but_independent_rare_earth_confirms_in_same_visit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                context = safety_store_purchase_context(directory, store)
+                port = ActualSafetyStorePairedShopPort(context, unproved_first=True)
+                context.monotonic_clock = lambda: float(port.capture_count) + 0.1
+                result = DailyShopsPurchaseRoute(port, action_keys=KEYS).run()
+                self.assertEqual(result.status, "deferred", result.to_mapping())
+                self.assertEqual(result.tab_results[RUINS_TAB]["reason"], "TAB_ITEM_EFFECT_EVIDENCE_REQUIRED")
+                self.assertEqual(result.tab_results[RUINS_TAB]["status"], "deferred")
+                self.assertEqual(result.tab_results[RARE_EARTH_TAB]["status"], "confirmed")
+                self.assertIsNone(store.get_action_by_key(KEYS[RUINS_TAB]))
+                self.assertEqual(port.runtime.taps, [KEYS[RARE_EARTH_TAB]])
+                self.assertFalse(result.identical_retry_denied)
+                self.assertEqual((port.entered, port.switched, port.home_calls), (1, 1, 1))
+            finally:
+                store.close()
+
+    def test_real_native_paired_effects_finish_both_tabs_without_leaving_shared_shop(self):
+        for partial in (False, True):
+            with self.subTest(unaffordable_second=partial), tempfile.TemporaryDirectory() as directory:
+                store = SafetyStore(Path(directory) / "actions.sqlite3")
+                try:
+                    context = safety_store_purchase_context(directory, store)
+                    port = ActualSafetyStorePairedShopPort(context, unaffordable_second=partial)
+                    context.monotonic_clock = lambda: float(port.capture_count) + 0.1
+                    result = DailyShopsPurchaseRoute(port, action_keys=KEYS).run()
+                    self.assertEqual(result.status, "deferred" if partial else "completed", result.to_mapping())
+                    self.assertFalse(result.effect_reconciliation_required)
+                    self.assertFalse(result.identical_retry_denied)
+                    self.assertEqual(port.entered, 1)
+                    self.assertEqual(port.switched, 1)
+                    self.assertEqual(port.home_calls, 1)
+                    self.assertEqual(result.committed_action_count, 1 if partial else 2)
+                    self.assertTrue(result.tab_results[RUINS_TAB]["effect_verified"])
+                    self.assertEqual(store.get_action_by_key(KEYS[RUINS_TAB])["final_status"], "confirmed")
+                    replay = DailyShopsPurchaseRoute(port, action_keys=KEYS).run()
+                    self.assertEqual(replay.purchase_transport_calls, 0)
+                    self.assertEqual(len(port.runtime.taps), 1 if partial else 2)
+                finally:
+                    store.close()
+
+    def test_real_native_currency_and_stock_without_owned_delta_blocks_second_tab_and_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                context = safety_store_purchase_context(directory, store)
+                port = ActualSafetyStorePairedShopPort(context, missing_ruins_item=True)
+                context.monotonic_clock = lambda: float(port.capture_count) + 0.1
+                result = DailyShopsPurchaseRoute(port, action_keys=KEYS).run()
+                self.assertEqual(result.status, "unresolved")
+                self.assertTrue(result.identical_retry_denied)
+                self.assertEqual(port.switched, 0)
+                self.assertEqual(port.runtime.taps, [KEYS[RUINS_TAB]])
+                replay = DailyShopsPurchaseRoute(port, action_keys=KEYS).run()
+                self.assertEqual(replay.status, "unresolved")
+                self.assertEqual(port.runtime.taps, [KEYS[RUINS_TAB]])
+            finally:
+                store.close()
+    def test_native_ruins_missing_owned_is_evidence_required_not_inferred_from_bag_or_spend(self):
+        frame = np.full((1280, 800, 3), 32, dtype=np.uint8)
+        frame[50:80, 250:280] = (0, 180, 220)
+        frame[400:430, 250:280] = (0, 180, 220)
+        captured = SimpleNamespace(frame=frame, path=Path("/synthetic/ruins.png"), sha256="a" * 64)
+        lines = [
+            [("16,649", (300, 50, 405, 80))],
+            [("3★", (100, 330, 150, 360)), ("Chip", (160, 330, 230, 360)),
+             ("Enhance", (240, 330, 330, 360)), ("Material", (340, 330, 430, 360))],
+            [("Buy", (450, 400, 520, 430)), ("15", (300, 400, 350, 430))],
+            [("Stock", (100, 450, 180, 480)), ("100", (200, 450, 260, 480))],
+        ]
+        port = object.__new__(DailyShopsLivePort)
+        port._ocr = lambda _captured: lines
+        port.currency_icons = {}
+        self.assertIsNone(port._read_offer(captured, RUINS_TAB))
+        port._capture = lambda _label: captured
+        readiness = port.inspect_tab(RUINS_TAB)
+        self.assertTrue(readiness.complete)
+        self.assertIsNone(readiness.offer)
+        self.assertEqual(readiness.reason, "TAB_ITEM_EFFECT_EVIDENCE_REQUIRED")
+        self.assertEqual(readiness.evidence_frame_sha256, captured.sha256)
+        lines.append([("Owned", (100, 380, 180, 410)), ("4", (200, 380, 230, 410))])
+        observed = port._read_offer(captured, RUINS_TAB)
+        self.assertIsNotNone(observed)
+        self.assertEqual(observed.item_quantity, 4)
+        self.assertEqual(observed.balance, 16649)
+
+
     def test_uses_live_stock_and_affordability_maximum_for_each_tab(self):
         ruins = offer(RUINS_TAB, price=15, balance=16649, stock=100)
         rare = offer(RARE_EARTH_TAB, price=13800, balance=211995, stock=20)

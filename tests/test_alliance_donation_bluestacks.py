@@ -234,6 +234,9 @@ def _surface_for(context: FakeContext, captured: CapturedNativeFrame, *, reset_i
             available_attempts=20 - count,
             attempt_capacity=20,
             active_recharge_timer=True,
+            # A live recharge countdown advances with every capture while attempts remain available.
+            next_attempt_available_in_seconds=(3_600 - context.runtime.captures
+                                               if getattr(context.runtime, "recharge_countdown", False) else None),
             tech_points=2_000 + count * 550,
             reward_signature=(250, 250, 250, 250),
             game_day_id=reset_id,
@@ -296,6 +299,46 @@ class AllianceDonationNativeSmokeTests(unittest.TestCase):
                 self.assertEqual(len({row["action_key"] for row in actions}), 10)
             finally:
                 store.close()
+
+    def test_recharge_countdown_tick_between_captures_keeps_consecutive_donations_available(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                owner = "automation-service:alliance-donation"
+                store.acquire_lease(owner, 1_700_000_000.0, 3600.0)
+                context = self._context(Path(directory), store)
+                context.runtime.recharge_countdown = True
+                with patch.object(route, "_home_alliance_target", return_value=("home-nav:alliance", (600, 1213, 680, 1280))), \
+                     patch.object(route, "recognize_surface", side_effect=lambda captured, **kwargs: _surface_for(context, captured, **kwargs)), \
+                     patch.object(route.time, "sleep", return_value=None):
+                    result = route.run_alliance_donation(context, {})
+                self.assertEqual(result["status"], "complete_for_reset", msg=f"route result: {result}")
+                self.assertEqual(result["donation_transport_calls"], 10)
+                self.assertEqual(context.runtime.donation_count, 10)
+                actions = store.list_actions_for_task(ALLIANCE_DONATION_FLOW_ID)
+                self.assertEqual(sum(row["final_status"] == "confirmed" for row in actions), 10)
+            finally:
+                store.close()
+
+    def test_quote_equality_ignores_countdown_only_while_attempts_are_available(self):
+        base = route.DonationObservation(
+            screen_state=ALLIANCE_TECH_SCREEN, auto_hot_marker=True, tech_identity="Alliance HOT Tech 1",
+            target_identity=DONATION_TARGET, target_roi=(430, 620, 690, 710), panel_bounds=(40, 300, 760, 850),
+            control_class="DONATE", donate_control_visible=True, control_enabled=True, quantity=1,
+            resource_identity="STEEL", resource_known=True, donation_amount=1000, resource_balance=50_000,
+            available_attempts=3, attempt_capacity=20, active_recharge_timer=True,
+            next_attempt_available_in_seconds=900, game_day_id="game-day-2023-11-14",
+            target_provenance=BLUESTACKS_NATIVE_TARGET_PROVENANCE, source_frame_sha256="a" * 64,
+            evidence_refs=("native-frame://frames/0001.png",), overlay_state="none",
+            runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID, recognized=True,
+        )
+        from dataclasses import replace
+        self.assertTrue(route._same_donation_facts(base, replace(base, next_attempt_available_in_seconds=899)))
+        self.assertFalse(route._same_donation_facts(base, replace(base, next_attempt_available_in_seconds=899,
+                                                                  resource_balance=49_000)))
+        self.assertFalse(route._same_donation_facts(base, replace(base, available_attempts=4)))
+        exhausted = replace(base, available_attempts=0)
+        self.assertFalse(route._same_donation_facts(exhausted, replace(exhausted, next_attempt_available_in_seconds=899)))
     def test_unseen_auto_hot_marker_blocks_and_returns_home_without_donating(self):
         with tempfile.TemporaryDirectory() as directory:
             store = SafetyStore(Path(directory) / "actions.sqlite3")
