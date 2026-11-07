@@ -462,11 +462,6 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
         self.assertIsNotNone(retained)
         assert retained is not None
 
-        recognized_home = type(
-            "HomeRecognition",
-            (),
-            {"is_home": True, "native_ok": True},
-        )()
         altered = retained.copy()
         cv2.rectangle(
             altered,
@@ -475,29 +470,24 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
             (0, 0, 0),
             -1,
         )
-        with patch.object(route, "recognize_home_nav", return_value=recognized_home):
-            target = route._home_bag_target(retained, ocr=_ocr())
-            altered_target = route._home_bag_target(altered, ocr=_ocr())
-            blank_target = route._home_bag_target(_blank_frame(), ocr=_ocr())
+        target = route._home_bag_target(retained, ocr=_ocr())
+        altered_target = route._home_bag_target(altered, ocr=_ocr())
+        blank_target = route._home_bag_target(_blank_frame(), ocr=_ocr())
 
         self.assertEqual(target, route.HOME_BAG_ICON_ROI)
         self.assertIsNone(altered_target)
         self.assertIsNone(blank_target)
 
-    def test_retained_home_frame_binds_measured_bag_icon(self):
-        frame_path = PORTABLE_FIXTURES / "session-2-terminal-home.png"
-        frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
-        self.assertIsNotNone(frame)
-        assert frame is not None
-        recognized_home = type(
-            "HomeRecognition",
-            (),
-            {"is_home": True, "native_ok": True},
-        )()
-        with patch.object(route, "recognize_home_nav", return_value=recognized_home):
-            target = route._home_bag_target(frame, ocr=_ocr())
-        self.assertEqual(target, route.HOME_BAG_ICON_ROI)
-        self.assertNotEqual(target, (407, 1227, 455, 1267))
+    def test_current_compact_home_binds_bag_but_daily_screen_cannot(self):
+        fixtures = Path(__file__).parent / "fixtures" / "daily_rewards_native"
+        home = cv2.imread(str(fixtures / "native-home-compact-footer.png"))
+        daily = cv2.imread(str(fixtures / "native-chest1-claimed-after-20261107.png"))
+        self.assertEqual(route._home_bag_target(home, ocr=_ocr()), route.HOME_BAG_ICON_ROI)
+        duplicate = home.copy()
+        x0, y0, x1, y1 = route.HOME_BAG_ICON_ROI
+        duplicate[y0:y1, 150:150 + x1 - x0] = home[y0:y1, x0:x1]
+        self.assertIsNone(route._home_bag_target(duplicate, ocr=_ocr()))
+        self.assertIsNone(route._home_bag_target(daily, ocr=_ocr()))
 
     def test_return_home_binding_fails_closed_without_proven_control(self):
         for label in ("home", "base", "close", "return"):

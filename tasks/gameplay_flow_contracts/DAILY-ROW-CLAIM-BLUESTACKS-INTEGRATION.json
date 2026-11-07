@@ -46,6 +46,23 @@
       "evidence_gate_id": "daily-rewards-native-semantics"
     },
     {
+      "transition_id": "open-selected-daily-from-home",
+      "from": "home_ready",
+      "to": "selected_daily",
+      "planner": "scripts/daily_row_claim_bluestacks.py",
+      "permitted_input": "current-frame-bound Quest navigation from verified Home",
+      "postconditions": [
+        "fresh verified Home source",
+        "the Quest menu directly resumes a positively recognized selected Daily tab",
+        "no redundant Daily tab input is dispatched"
+      ],
+      "terminal_outcomes": [
+        "blocked",
+        "manual_required"
+      ],
+      "evidence_gate_id": "daily-rewards-native-semantics"
+    },
+    {
       "transition_id": "open-selected-daily",
       "from": "quest_screen",
       "to": "selected_daily",
