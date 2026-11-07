@@ -26,6 +26,12 @@ Nano building entry reuses the shared Home Atlas pan dispatcher with its native 
 fresh capture identities, lease checks and bounded pans. Each confirmed pan is followed
 by a fresh mapped binding; an unknown result stops without an identical retry.
 
+Shared exact `[10054]` disconnect recovery (#104) is implemented and offline-proven through the
+canonical owner/Core/SQLite boundaries. Explicit opt-in permits at most one Confirm and one
+launcher-only start per persistent episode; unknown results stop, and gameplay needs a fresh claim
+and route context. Default startup cannot bypass the dialog as “already foreground.”
+The actual Confirm successor and recovery remain `evidence_required`; controls remain disabled.
+
 
 ## Routes
 

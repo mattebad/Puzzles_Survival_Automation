@@ -15,6 +15,7 @@ import cv2
 import numpy as np
 
 from automation_service.registry import ULTIMATE_FLOW_ID
+from automation_service.state import BotStateManager
 from safe_action_core import (
     ActionClass, ActionStatus, CentralPolicy, Observation, PolicyRequest,
     SafeActionExecutor, SafetyStore, TransportResult,
@@ -27,6 +28,8 @@ from scripts.navigation_development_boundary import ORCHESTRATOR_DIR
 from scripts.bluestacks_popup_recognition import (
     MAX_VIP_POPUP_INPUTS, classify_popup_recovery, recognize_reset_popup,
     vip_popup_handled,
+    NETWORK_DISCONNECT_IDENTITY, NETWORK_DISCONNECT_TARGET,
+    recognize_network_disconnect,
 )
 from scripts.startup_surface_recognition import (
     SCARLETT_EXPECTED_SUCCESSOR,
@@ -46,6 +49,22 @@ STARTUP_RECOVERY_STORE_PATH = ORCHESTRATOR_DIR / "startup-recovery-actions.sqlit
 
 class StartupRecoveryError(RuntimeError):
     """An allowlisted startup recovery could not reach its exact successor."""
+
+
+class NetworkDisconnectError(StartupRecoveryError):
+    """A retained current interruption invalidates the route's input context."""
+
+    def __init__(self, captured: CapturedNativeFrame, detail: dict[str, object]) -> None:
+        self.captured = captured
+        self.recognition = detail
+        super().__init__("network_disconnect_requires_fresh_context:" + str(detail.get("reason")))
+
+
+def require_network_clear(captured: CapturedNativeFrame) -> None:
+    """Stop a route; never dismiss or recover from inside its pending input."""
+    detail = recognize_network_disconnect(captured.frame)
+    if detail.get("recognized") or detail.get("blocking_unknown_modal"):
+        raise NetworkDisconnectError(captured, detail)
 
 
 @dataclass(frozen=True)
@@ -150,6 +169,15 @@ def classify_startup_frame(
         return StartupRecoveryPlan(
             "unclassified", flow_id, None, None, False,
             "initial_frame_not_decodable", frame_sha256=frame_sha256,
+        )
+    network = recognize_network_disconnect(frame)
+    if network.get("recognized") or network.get("blocking_unknown_modal"):
+        return StartupRecoveryPlan(
+            "recovery_required" if network.get("recognized") else "blocked",
+            flow_id, NETWORK_DISCONNECT_IDENTITY if network.get("recognized") else None,
+            "shared_network_recovery" if network.get("recognized") else None,
+            False, str(network["reason"]), frame_sha256=frame_sha256,
+            recognition=network,
         )
     startup_detail = recognize_startup_surface(frame, frame_bytes)
     if startup_detail.get("recognized"):
@@ -751,6 +779,9 @@ def _contextual_startup_details(captured):
     popup = recognize_reset_popup(captured.frame)
     if not isinstance(surface, dict) or not isinstance(popup, dict):
         raise StartupRecoveryError("startup recognizer returned no current classification")
+    network = recognize_network_disconnect(captured.frame)
+    if network.get("recognized") or network.get("blocking_unknown_modal"):
+        popup = dict(popup, blocking_unknown_modal=True, network_interruption=network)
     identity = None
     if not popup.get("blocking_unknown_modal"):
         if surface.get("recognized"):
@@ -1497,3 +1528,305 @@ def recover_known_startup_overlay(
         )
     finally:
         _release_store(store, owner)
+
+
+def recover_network_disconnect(
+    runtime: LocalBlueStacksRuntime,
+    *,
+    state_manager: BotStateManager,
+    action_store: SafetyStore,
+    owner: str,
+    checkpoint: Callable[[], None],
+    observe_context: Callable[[CapturedNativeFrame], str],
+    relaunch: Callable[[], dict[str, object]],
+    scope_key: str,
+    authorization: str,
+    timeout_seconds: float = 90.0,
+    poll_seconds: float = 1.0,
+    utc_clock: Callable[[], float] = time.time,
+    monotonic_clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict[str, object]:
+    """Recover one exact interruption on the caller's owner, Core and SQLite.
+
+    A known launcher acknowledges only the popup's exit, not connectivity.
+    Relaunch remains the existing launcher-only lifecycle operation. An unknown
+    post-input state retains Core's unresolved action and cannot authorize it.
+    """
+    if not isinstance(authorization, str) or not authorization.strip():
+        raise ValueError("current network recovery authorization is required")
+    if (type(timeout_seconds) not in (int, float) or not math.isfinite(timeout_seconds)
+            or not 0 < timeout_seconds <= 90
+            or type(poll_seconds) not in (int, float) or not math.isfinite(poll_seconds)
+            or not 0 < poll_seconds <= timeout_seconds):
+        raise ValueError("network recovery needs a finite positive observation budget")
+    checkpoint()
+    before_count = runtime.input_count
+    launches = 0
+    episode = state_manager.get_network_recovery(scope_key)
+    source = runtime.capture("network-recovery-source")
+    last = source
+    immediate = None
+    connected_contexts = {"HOME_BASE", "KNOWN_STARTUP_OVERLAY"}
+
+    def take(label: str) -> CapturedNativeFrame:
+        nonlocal last
+        checkpoint()
+        captured = runtime.capture(label)
+        if not _contextual_startup_frame_valid(captured, after=last):
+            raise StartupRecoveryError("network recovery capture is stale or not intact")
+        last = captured
+        checkpoint()
+        return captured
+
+    def record(status: str, reason: str, **transport) -> None:
+        nonlocal episode
+        if episode is None:
+            return
+        checkpoint()
+        updated = state_manager.update_network_recovery(
+            episode.episode_id, expected_row_version=episode.row_version,
+            status=status, last_frame_hash=last.sha256, reason=reason,
+            now_utc_epoch=utc_clock(), **transport,
+        )
+        if updated is None:
+            raise StartupRecoveryError("network recovery state fence rejected")
+        episode = updated
+
+    def network_action_pending() -> bool:
+        if episode is None:
+            return False
+        action = action_store.get_action_by_key(f"network-recovery:{episode.episode_id}:confirm")
+        return action is not None and action["final_status"] in {"prepared", "input_sent", "unresolved"}
+
+    def finish(status: str, reason: str) -> dict[str, object]:
+        count = runtime.input_count - before_count
+        # Navigation UNKNOWN is deliberately not a global consequential-action
+        # block. It still owns this episode and must never regain Confirm.
+        unresolved = action_store.has_action_block() or network_action_pending()
+        value = {
+            "status": status, "reason": reason, "scope_key": scope_key,
+            "authorization": authorization, "episode_id": episode.episode_id if episode else None,
+            "episode": asdict(episode) if episode else None,
+            "input_count": count, "game_input_count": count,
+            "system_launch_count": launches,
+            "accounting_verified": count in (0, 1) and launches in (0, 1),
+            "unresolved_action": unresolved,
+            "route_ready": status == "recovered" and not unresolved,
+            "next_observe_at_utc": episode.next_observe_at_utc if episode else None,
+            "source_frame": str(source.path), "source_sha256": source.sha256,
+            "immediate_before_frame": str(immediate.path) if immediate else None,
+            "immediate_before_sha256": immediate.sha256 if immediate else None,
+            "after_frame": str(last.path), "after_sha256": last.sha256,
+            "terminal_frame": str(last.path), "terminal_sha256": last.sha256,
+        }
+        path = runtime.session / f"network-recovery-{runtime.ordinal:04d}.json"
+        value["result_path"] = str(path)
+        with path.open("x", encoding="utf-8") as stream:
+            json.dump(value, stream, indent=2, sort_keys=True)
+            stream.write("\n")
+        return value
+
+    if not _contextual_startup_frame_valid(source):
+        return finish("blocked", "network_source_not_intact")
+    context = observe_context(source)
+    detail = recognize_network_disconnect(source.frame)
+    if context in connected_contexts and not (
+        detail.get("recognized") or detail.get("blocking_unknown_modal")
+    ):
+        if action_store.has_action_block() or network_action_pending():
+            return finish("unresolved", "prior_action_requires_inspection")
+        if episode is not None and episode.status != "RECOVERED":
+            record("RECOVERED", "fresh_connected_context_observed")
+        return finish("recovered", "fresh_connected_context_observed")
+    if not detail.get("recognized") or context != "UNKNOWN":
+        if episode is not None and episode.status != "RECOVERED":
+            record("MANUAL_REQUIRED", "unknown_or_manual_network_source")
+        return finish("manual_required", "unknown_or_manual_network_source")
+    if network_action_pending():
+        if episode.status != "RECOVERED":
+            record("MANUAL_REQUIRED", "prior_network_action_requires_inspection")
+        return finish("unresolved", "prior_network_action_requires_inspection")
+    episode = state_manager.begin_network_recovery(
+        scope_key=scope_key, source_frame_hash=source.sha256,
+        now_utc_epoch=utc_clock(), timeout_seconds=timeout_seconds,
+    )
+    if action_store.has_action_block():
+        record("MANUAL_REQUIRED", "prior_action_requires_inspection")
+        return finish("blocked", "prior_action_requires_inspection")
+    if episode.status == "MANUAL_REQUIRED":
+        return finish("manual_required", "network_episode_requires_inspection")
+    now = utc_clock()
+    if now >= episode.deadline_at_utc:
+        record("MANUAL_REQUIRED", "network_recovery_deadline_exhausted")
+        return finish("manual_required", "network_recovery_deadline_exhausted")
+    if episode.next_observe_at_utc is not None and now < episode.next_observe_at_utc:
+        return finish("deferred", "network_recovery_observation_not_due")
+    if episode.confirm_attempts:
+        record("MANUAL_REQUIRED", "network_confirm_already_attempted")
+        return finish("manual_required", "network_confirm_already_attempted")
+
+    task_id = "RUNTIME-NETWORK-DISCONNECT-RECOVERY"
+    action_key = f"network-recovery:{episode.episode_id}:confirm"
+    policy = CentralPolicy(supervised_tasks=frozenset({task_id}))
+    holder: dict[str, object] = {"transport": "not_attempted", "context": "UNKNOWN"}
+
+    def observation(captured: CapturedNativeFrame, current: dict[str, object]) -> Observation:
+        roi = current.get("target") if current.get("recognized") else None
+        return Observation(
+            frame_sha256=captured.sha256,
+            capture_completed_monotonic=captured.captured_monotonic,
+            runtime_profile_id=NATIVE_RUNTIME_PROFILE_ID,
+            width=800, height=1280, valid_png=True, corrupt=False, black=False,
+            source_state=NETWORK_DISCONNECT_IDENTITY, overlay_state="network_disconnect_10054",
+            recognized=bool(current.get("recognized")),
+            target_identity=NETWORK_DISCONNECT_TARGET if roi else None, target_roi=roi,
+            control_class="POPUP_DISMISS_CONFIRM", consequence="navigate_zero_cost",
+            cost_type="none", cost_amount=0, quantity=1,
+            expected_postcondition="NETWORK_RECONNECT_ACKNOWLEDGED",
+            critical_roi_hashes=(
+                ("network_disconnect_dialog", _roi_hash(captured.frame, tuple(current["panel_bounds"]))),
+                ("network_disconnect_confirm", _roi_hash(captured.frame, tuple(roi))),
+            ) if roi else (),
+            evidence_refs=(str(captured.path),), target_isolated=roi is not None,
+            package_foreground=True, os_surface=False, hard_stop_detected=False,
+        )
+
+    authorization_frame = take("network-recovery-authorization-before")
+    current = recognize_network_disconnect(authorization_frame.frame)
+    if not current.get("recognized") or current.get("target") != detail.get("target"):
+        record("MANUAL_REQUIRED", "network_source_changed_before_authorization")
+        return finish("blocked", "network_source_changed_before_authorization")
+    request = PolicyRequest(
+        action_id=action_key, action_key=action_key, task_id=task_id,
+        task_mode="supervised_validation", semantic_action="RECOVER_NETWORK_DISCONNECT",
+        expected_runtime_profile_id=NATIVE_RUNTIME_PROFILE_ID,
+        observation=observation(authorization_frame, current),
+        monotonic_now=monotonic_clock(), observation_max_age_seconds=30.0,
+        dispatch_max_age_seconds=30.0, lease_owner=owner, lease_valid=True,
+        unresolved_action=False, duplicate_action_key=False,
+        action_class=ActionClass.NAVIGATION_ONLY, action_kind="RECOVER_NETWORK_DISCONNECT",
+        subject=NETWORK_DISCONNECT_TARGET, resource_or_currency="none", maximum_cost=0,
+        free_only=True, semantic_preconditions=(NETWORK_DISCONNECT_IDENTITY,),
+        semantic_postconditions=("NETWORK_RECONNECT_ACKNOWLEDGED",),
+        runtime_session_id=str(runtime.session),
+    )
+    decision = policy.evaluate(request)
+    if not decision.authorized:
+        record("MANUAL_REQUIRED", decision.reason_code)
+        return finish("blocked", decision.reason_code)
+    checkpoint()
+    reserved = state_manager.reserve_network_recovery_step(
+        episode.episode_id, "confirm", expected_row_version=episode.row_version,
+        now_utc_epoch=utc_clock(),
+    )
+    if reserved is None:
+        return finish("blocked", "network_confirm_budget_or_state_denied")
+    episode = reserved
+    mono_deadline = monotonic_clock() + max(0.0, episode.deadline_at_utc - utc_clock())
+
+    def recapture() -> Observation:
+        nonlocal immediate
+        immediate = take("network-recovery-immediate-before")
+        latest = recognize_network_disconnect(immediate.frame)
+        if not latest.get("recognized") or latest.get("target") != current.get("target"):
+            raise ValueError("network source changed before Confirm")
+        return observation(immediate, latest)
+
+    def transport(_intent) -> TransportResult:
+        checkpoint()
+        if immediate is None or runtime.input_count != before_count:
+            raise StartupRecoveryError("network Confirm input budget denied")
+        holder["transport"] = "attempted"
+        runtime.tap(
+            immediate, target_identity=NETWORK_DISCONNECT_TARGET,
+            target_roi=tuple(current["target"]), action_key=action_key,
+            action_class="network_reconnect", consequential=False,
+        )
+        holder["transport"] = "returned"
+        return TransportResult(True, "NETWORK_CONFIRM_DISPATCHED")
+
+    def post_observe() -> tuple[Observation, ...]:
+        polls = max(1, math.ceil(timeout_seconds / poll_seconds))
+        for index in range(polls):
+            checkpoint()
+            sleep(min(poll_seconds, max(0.0, mono_deadline - monotonic_clock())))
+            post = take(f"network-recovery-after-{index:03d}")
+            after = recognize_network_disconnect(post.frame)
+            observed = observe_context(post)
+            clear = not (after.get("recognized") or after.get("blocking_unknown_modal"))
+            acknowledged = clear and observed in connected_contexts | {"BLUESTACKS_LAUNCHER"}
+            holder["context"] = observed
+            if acknowledged or not after.get("recognized") or (
+                utc_clock() >= episode.deadline_at_utc or monotonic_clock() >= mono_deadline
+            ):
+                return (Observation(
+                    frame_sha256=post.sha256,
+                    capture_completed_monotonic=post.captured_monotonic,
+                    runtime_profile_id=NATIVE_RUNTIME_PROFILE_ID, width=800, height=1280,
+                    valid_png=True, corrupt=False, black=False, recognized=acknowledged,
+                    target_identity=None, target_roi=None,
+                    source_state="NETWORK_RECONNECT_ACKNOWLEDGED" if acknowledged else "UNKNOWN",
+                    overlay_state="none_observed" if clear else "network_disconnect_10054",
+                    expected_postcondition="NETWORK_RECONNECT_ACKNOWLEDGED",
+                    evidence_refs=(str(post.path),),
+                ),)
+        return ()
+
+    executed = SafeActionExecutor(
+        action_store, policy, owner, monotonic_clock, transport, recapture,
+        post_observe,
+        lambda _intent, observed: observed.recognized
+        and observed.source_state == "NETWORK_RECONNECT_ACKNOWLEDGED",
+        wall_clock=utc_clock, max_pre_dispatch_attempts=1,
+    ).execute(request)
+    transport_state = holder["transport"]
+    if transport_state != "not_attempted":
+        record(
+            "OPEN", "network_confirm_transport_observed", step="confirm",
+            transport_status="returned" if transport_state == "returned" else "unknown",
+        )
+    if runtime.input_count > before_count:
+        runtime.reconcile(
+            action_key, "confirmed" if executed.status is ActionStatus.CONFIRMED else "unresolved",
+            last, executed.reason,
+        )
+    if executed.status is not ActionStatus.CONFIRMED:
+        record("MANUAL_REQUIRED", "network_confirm_outcome_requires_inspection")
+        return finish("unresolved" if action_store.has_action_block() or network_action_pending() else "blocked", executed.reason)
+    if holder["context"] in connected_contexts:
+        record("RECOVERED", "network_connected_context_verified")
+        return finish("recovered", "network_connected_context_verified")
+    checkpoint()
+    if action_store.has_action_block() or holder["context"] != "BLUESTACKS_LAUNCHER":
+        record("MANUAL_REQUIRED", "network_relaunch_context_not_permitted")
+        return finish("blocked", "network_relaunch_context_not_permitted")
+    reserved = state_manager.reserve_network_recovery_step(
+        episode.episode_id, "relaunch", expected_row_version=episode.row_version,
+        now_utc_epoch=utc_clock(),
+    )
+    if reserved is None:
+        record("MANUAL_REQUIRED", "network_relaunch_budget_or_state_denied")
+        return finish("manual_required", "network_relaunch_budget_or_state_denied")
+    episode = reserved
+    try:
+        startup = relaunch()
+    except Exception as exc:
+        attempted = getattr(exc, "startup_result", {})
+        launches = attempted.get("system_launch_count", 0) if isinstance(attempted, dict) else 0
+        record("MANUAL_REQUIRED", "network_relaunch_unresolved", step="relaunch", transport_status="unknown")
+        return finish("unresolved", "network_relaunch_unresolved")
+    launches = startup.get("system_launch_count")
+    if (type(launches) is not int or launches != 1 or startup.get("game_input_count") != 0
+            or startup.get("transport_status") != "returned"):
+        record("MANUAL_REQUIRED", "network_relaunch_accounting_invalid", step="relaunch", transport_status="unknown")
+        return finish("unresolved", "network_relaunch_accounting_invalid")
+    record("OPEN", "network_relaunch_transport_returned", step="relaunch", transport_status="returned")
+    post = take("network-recovery-relaunch-after")
+    after = recognize_network_disconnect(post.frame)
+    if (observe_context(post) not in connected_contexts
+            or after.get("recognized") or after.get("blocking_unknown_modal")):
+        record("MANUAL_REQUIRED", "network_connected_context_not_verified")
+        return finish("manual_required", "network_connected_context_not_verified")
+    record("RECOVERED", "network_relaunch_connected_context_verified")
+    return finish("recovered", "network_relaunch_connected_context_verified")

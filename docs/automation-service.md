@@ -216,6 +216,31 @@ from the BlueStacks launcher. The original Play Games prompt's cause remains unp
 latest cold test required no manual Cancel. Account setup, login, CAPTCHA and unknown
 foregrounds stop for a human.
 
+Network interruption recovery (#104) is implemented and offline-proven, not live-accepted.
+Foreground alone no longer bypasses an exact `Disconnected. Reconnect now?[10054]` dialog.
+The shared recognizer requires its current native message/code, measured panel and one isolated
+literal Confirm. Other codes, ambiguous targets and manual/unknown contexts grant no recovery input;
+the existing independently recognized VIP/Scarlett owners remain separate.
+
+Recovery is opt-in: add `--recover-network-disconnect` to an explicitly authorized supervised native
+`serve --live` invocation. It borrows the current runtime owner, service claim/generation fences and
+Core lease; it does not acquire a parallel operator. One physical-runtime-scoped SQLite episode
+persists its original deadline (at most 90 seconds), one Confirm intent and at most one launcher-only
+game launch across processes, routes and UTC resets. Intent is committed before transport. Persistent
+or unknown outcomes stop without an identical retry or budget renewal. No force-stop, resource spend,
+login handling or generic Confirm is authorized.
+
+A successful reconnect still needs fresh clean Home or an exact owned startup overlay. The service
+records its actual game input separately from system launch and zero route actions, defers that claim,
+then requires a fresh normal route claim/binding; recovery earns no daily progress. Active native
+capture/dispatch boundaries retain and stop on the interruption rather than using stale context or
+recovering through an unresolved gameplay effect. Interrupted Core history is never silently cleared.
+For standalone operator qualification with all controls disabled and no service owner/run, use
+`python scripts/pnsctl.py development-session recover-network --live --yes` under current explicit
+authorization. It requires the existing canonical database and records its bounded result/captures.
+The retained November 7 dialog is recognition evidence only: Confirm's real successor/relaunch and
+finished-route recovery remain `evidence_required`; no live input or scheduling enablement is claimed.
+
 If UTC reset changes during startup before the native runner enters, a genuine checkpoint reset
 signal can defer the old claim with zero gameplay consumption. Owner, control, clock, lease,
 dispatch and unresolved-action checks still apply; only successful canonical terminal projection

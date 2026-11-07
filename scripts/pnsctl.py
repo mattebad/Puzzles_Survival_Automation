@@ -851,9 +851,161 @@ class ApplicationStartupError(OperatorError):
         self.startup_result = dict(result)
 
 
+def _network_dialog(frame_bytes: bytes) -> dict[str, Any]:
+    import cv2
+    import numpy as np
+    from scripts.bluestacks_popup_recognition import recognize_network_disconnect
+    return recognize_network_disconnect(cv2.imdecode(np.frombuffer(frame_bytes, dtype=np.uint8), cv2.IMREAD_COLOR))
+
+
+def _owner_bound_network_recovery(*, runtime_input_lock, checkpoint, session_directory,
+                                  state_manager, allow_relaunch: bool) -> dict[str, Any]:
+    from automation_service.state import BotStateManager
+    from scripts.navigation_development_boundary import RuntimeInputLock, open_canonical_action_store
+    from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+    from scripts.startup_normalization import is_clean_home_frame
+    from scripts.startup_recovery import classify_startup_frame, recover_network_disconnect
+    from tasks.runtime_identity import FIXED_RUNTIME_SCOPE
+
+    if (not isinstance(runtime_input_lock, RuntimeInputLock) or not runtime_input_lock.held
+            or not isinstance(state_manager, BotStateManager) or state_manager.read_only
+            or Path(state_manager.db_path).resolve() != BotStateManager.DEFAULT_DB_PATH.resolve()
+            or not Path(state_manager.db_path).is_file()):
+        raise OperatorError("network recovery requires the actual owner and existing canonical writable state")
+    store = open_canonical_action_store()
+    owner = f"{runtime_input_lock.owner}:network-recovery:{runtime_input_lock.invocation_id}"
+    leased = False
+    runtime = None
+    launches = 0
+    try:
+        if store.has_action_block():
+            raise OperatorError("network recovery cannot bypass an unresolved action")
+        store.acquire_lease(owner, time.time(), 300.0)
+        leased = True
+
+        def fenced():
+            runtime_input_lock.assert_held(runtime_input_lock.owner, runtime_input_lock.invocation_id)
+            checkpoint()
+            if not store.lease_valid_for(owner, time.time()):
+                raise OperatorError("network recovery Core lease lost")
+
+        fenced()
+        runtime = LocalBlueStacksRuntime.connect(
+            adb=str(BLUESTACKS_ADB), serial=BLUESTACKS_SERIAL,
+            output_directory=Path(session_directory), workflow="network-recovery", execute=True,
+        )
+        runtime.max_inputs = min(runtime.max_inputs, 1)
+        runtime.checkpoint = fenced
+
+        def context(captured):
+            fenced()
+            if runtime.measure_device_state() != "device":
+                return "MANUAL_REQUIRED"
+            package = runtime.measure_foreground_package()
+            if package in BLUESTACKS_LAUNCHER_PACKAGES:
+                return "BLUESTACKS_LAUNCHER"
+            if package != BLUESTACKS_PACKAGE:
+                return "MANUAL_REQUIRED"
+            detail = _network_dialog(captured.png)
+            if detail.get("recognized") or detail.get("blocking_unknown_modal"):
+                return "UNKNOWN"
+            if is_clean_home_frame(captured.frame):
+                return "HOME_BASE"
+            plan = classify_startup_frame("", captured.png)
+            if plan.status == "recovery_required" and plan.recovery_owner in {
+                "shared_home_startup_recovery", "shared_startup_surface_recovery",
+            }:
+                return "KNOWN_STARTUP_OVERLAY"
+            return "MANUAL_REQUIRED" if plan.status == "blocked" else "UNKNOWN"
+
+        def relaunch():
+            nonlocal launches
+            fenced()
+            if not allow_relaunch:
+                raise OperatorError("the current startup already consumed its single launch budget")
+            try:
+                started = owner_bound_application_startup(
+                    runtime_input_lock=runtime_input_lock, checkpoint=fenced,
+                    session_directory=runtime.session / "application-relaunch", require_ready=True,
+                )
+            except Exception as exc:
+                failed = getattr(exc, "startup_result", {})
+                launches = failed.get("system_launch_count", 0) if isinstance(failed, dict) else 0
+                raise
+            launches = started.get("system_launch_count")
+            return started
+
+        return recover_network_disconnect(
+            runtime, state_manager=state_manager, action_store=store, owner=owner,
+            checkpoint=fenced, observe_context=context, relaunch=relaunch,
+            scope_key=FIXED_RUNTIME_SCOPE,
+            authorization="Current operator explicitly selected bounded network recovery: one Confirm, at most one permitted launcher-only game launch, zero resource spend.",
+        )
+    except Exception as exc:
+        if runtime is None:
+            raise
+        # Even a lost owner/post-capture failure must retain the actual attempted
+        # inputs. Never turn the exception into readiness or renew its budget.
+        failed = {
+            "status": "unresolved" if runtime.input_count else "blocked",
+            "reason": f"network_recovery_stopped:{type(exc).__name__}:{exc}",
+            "scope_key": FIXED_RUNTIME_SCOPE, "game_input_count": runtime.input_count,
+            "input_count": runtime.input_count, "system_launch_count": launches,
+            "accounting_verified": (type(launches) is int and launches in (0, 1)
+                                    and runtime.input_count in (0, 1)),
+            "unresolved_action": store.has_action_block() or bool(runtime.input_count), "route_ready": False,
+            "frame_directory": str(runtime.frames), "transport_events": str(runtime.events),
+        }
+        failed_path = runtime.session / "network-recovery-stopped.json"
+        failed["result_path"] = str(failed_path)
+        with failed_path.open("x", encoding="utf-8") as stream:
+            json.dump(failed, stream, indent=2, sort_keys=True)
+            stream.write("\n")
+        return failed
+    finally:
+        try:
+            if leased:
+                store.release_lease(owner, time.time())
+        finally:
+            store.close()
+
+
+def development_session_recover_network(*, live: bool, yes: bool) -> str:
+    """Run only the explicitly authorized finite recovery, with gameplay off."""
+    if not live or not yes:
+        raise OperatorError("recover-network requires explicit --live --yes")
+    from automation_service.state import BotStateManager
+    from scripts.navigation_development_boundary import RuntimeInputLock
+    from automation_service.state import resolve_state_path
+    existing_state = Path(resolve_state_path())
+    if existing_state.resolve() != BotStateManager.DEFAULT_DB_PATH.resolve() or not existing_state.is_file():
+        raise OperatorError("network recovery requires the existing canonical state database")
+
+    invocation_id = f"recover-network-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    with RuntimeInputLock(owner="pnsctl-development-session:recover-network", invocation_id=invocation_id) as lock:
+        with BotStateManager() as state:
+            def checkpoint():
+                lock.assert_held(lock.owner, lock.invocation_id)
+                if (state.get_service_enabled()
+                        or state._db.execute("SELECT 1 FROM flow_state WHERE enabled=1").fetchone()
+                        or state.get_service_lease().owner_instance_id is not None
+                        or state._db.execute(
+                            "SELECT 1 FROM runs WHERE state IN ('CLAIMED','RUNNING','STOP_REQUESTED','RECOVERING')"
+                        ).fetchone()):
+                    raise OperatorError("standalone network recovery requires disabled controls and no service operator")
+            checkpoint()
+            result = owner_bound_application_startup(
+                runtime_input_lock=lock, checkpoint=checkpoint,
+                session_directory=_development_session_directory(invocation_id),
+                require_ready=True, network_recovery=True, state_manager=state,
+            )
+    return json.dumps(result, sort_keys=True)
+
+
 def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_directory: Path,
-                                    flow_id: str | None = None, require_ready: bool = False) -> dict[str, Any]:
-    """Observe or launch once using the caller's already-held runtime owner."""
+                                    flow_id: str | None = None, require_ready: bool = False,
+                                    network_recovery: bool = False, state_manager=None) -> dict[str, Any]:
+    """Observe or launch under the caller; reconnect only with explicit authority."""
     from scripts.navigation_development_boundary import NavigationBoundaryError, require_canonical_unresolved_clear
 
     def gate():
@@ -884,20 +1036,53 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
         (session_directory / f"{label}.png").write_bytes(frame)
         return observation, frame
 
+    def guard_network(frame):
+        detail = _network_dialog(frame)
+        active = None
+        if network_recovery and state_manager is not None:
+            from tasks.runtime_identity import FIXED_RUNTIME_SCOPE
+            active = state_manager.get_network_recovery(FIXED_RUNTIME_SCOPE)
+        encountered = detail.get("recognized") or detail.get("blocking_unknown_modal")
+        if not encountered and not (active is not None and active.status != "RECOVERED"):
+            return False
+        if detail.get("blocking_unknown_modal") or not network_recovery:
+            raise OperatorError("network interruption requires exact authorized recovery:" + str(detail.get("reason")))
+        recovery = _owner_bound_network_recovery(
+            runtime_input_lock=runtime_input_lock, checkpoint=fence,
+            session_directory=session_directory, state_manager=state_manager,
+            allow_relaunch=result["system_launch_count"] == 0,
+        )
+        result.update(
+            network_recovery=recovery, game_input_count=recovery["game_input_count"],
+            input_count=recovery["input_count"],
+            system_launch_count=result["system_launch_count"] + recovery["system_launch_count"],
+            dispatch=recovery["game_input_count"] > 0, route_ready=recovery["route_ready"],
+            action="bounded_network_recovery",
+        )
+        if not recovery["route_ready"] or recovery["status"] != "recovered":
+            raise OperatorError("network recovery paused:" + str(recovery["reason"]))
+        result.update(status="network_recovered", readiness="fresh_network_recovery_context")
+        persist()
+        return True
+
     transport_started = False
     try:
-        before, _ = capture("before")
+        before, before_png = capture("before")
         result.update(before_observation=before, before_frame="before.png")
         persist()
         focused = str(before["foreground_package"])
+        if focused == BLUESTACKS_PACKAGE and guard_network(before_png):
+            return result
         if focused == BLUESTACKS_PACKAGE:
             # Existing route owns validation of its current Profile/Chapter context.
             result.update(status="already_foreground", foreground_package=focused,
                           action="observe_existing_game")
-            after, _ = capture("after")
+            after, after_png = capture("after")
             if after["foreground_package"] != BLUESTACKS_PACKAGE:
                 raise OperatorError("Puzzles & Survival foreground changed during startup observation")
             result.update(after_observation=after, after_frame="after.png")
+            if guard_network(after_png):
+                return result
             persist()
             return result
         if focused not in BLUESTACKS_LAUNCHER_PACKAGES:
@@ -949,6 +1134,8 @@ def owner_bound_application_startup(*, runtime_input_lock, checkpoint, session_d
                 if after["foreground_package"] != BLUESTACKS_PACKAGE:
                     raise OperatorError("Puzzles & Survival foreground was not stable after launch")
                 result.update(after_observation=after, after_frame=f"{label}.png", foreground_package=BLUESTACKS_PACKAGE)
+                if guard_network(frame):
+                    return result
                 if not require_ready:
                     result.update(status="launched")
                     persist()
@@ -3208,6 +3395,11 @@ def parser() -> argparse.ArgumentParser:
     development_launch.add_argument("--yes", action="store_true")
     development_launch.add_argument("--cold-restart", action="store_true",
         help="explicitly cold-stop a clean idle game, verify process exit, then reuse guarded startup")
+    development_reconnect = development_sub.add_parser(
+        "recover-network", help="bounded exact10054 recovery; requires --live --yes",
+    )
+    development_reconnect.add_argument("--live", action="store_true")
+    development_reconnect.add_argument("--yes", action="store_true")
     delegated_dry_run = development_sub.add_parser("delegated-dry-run")
     delegated_dry_run.add_argument("--delegated-receipt", type=Path, required=True)
     delegated_dry_run.add_argument("--agent-identity", required=True)
@@ -3374,6 +3566,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     yes=bool(args.yes),
                     cold_restart=bool(args.cold_restart),
                 )
+            elif args.development_command == "recover-network":
+                output = development_session_recover_network(live=bool(args.live), yes=bool(args.yes))
             elif args.development_command == "delegated-dry-run":
                 output = development_session_delegated_dry_run(
                     receipt_state=args.delegated_receipt,

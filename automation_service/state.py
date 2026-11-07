@@ -49,6 +49,31 @@ class ActionState(str, Enum):
     BLOCKED = "BLOCKED"
 
 
+class NetworkRecoveryStatus(str, Enum):
+    """Persisted lifecycle for one network-disconnect recovery episode."""
+
+    OPEN = "OPEN"
+    DEFERRED = "DEFERRED"
+    MANUAL_REQUIRED = "MANUAL_REQUIRED"
+    RECOVERED = "RECOVERED"
+
+
+class NetworkRecoveryStep(str, Enum):
+    """The only two recovery inputs an episode may budget, once each."""
+
+    CONFIRM = "confirm"
+    RELAUNCH = "relaunch"
+
+
+class NetworkRecoveryTransportStatus(str, Enum):
+    """Transport fact for one recovery step; ``unknown`` never becomes ``returned``."""
+
+    NOT_ATTEMPTED = "not_attempted"
+    ATTEMPTED = "attempted"
+    RETURNED = "returned"
+    UNKNOWN = "unknown"
+
+
 @dataclass(frozen=True)
 class ServiceLease:
     """Exclusive service-loop lease and process identity."""
@@ -218,6 +243,32 @@ class DispatchValidation:
     service_generation: int | None = None
     flow_generation: int | None = None
     run_state: RunState | None = None
+
+
+@dataclass(frozen=True)
+class NetworkRecoveryEpisode:
+    """One persistent disconnect-recovery episode and its step budgets.
+
+    The record is state, not input authority: a caller still needs the
+    existing input lock, current fences, and Core permission before any
+    physical input.  Each step budget is 0 or 1 and is never reset.
+    """
+
+    episode_id: str
+    scope_key: str
+    status: NetworkRecoveryStatus
+    source_frame_hash: str
+    confirm_attempts: int
+    relaunch_attempts: int
+    confirm_transport_status: NetworkRecoveryTransportStatus
+    relaunch_transport_status: NetworkRecoveryTransportStatus
+    started_at_utc: float
+    deadline_at_utc: float
+    next_observe_at_utc: float | None
+    updated_at_utc: float
+    last_frame_hash: str
+    reason: str
+    row_version: int
 
 
 class StateError(RuntimeError):
@@ -400,6 +451,34 @@ def _row_value(row: sqlite3.Row, name: str, default: Any = None) -> Any:
     """Read additive columns without fabricating authority for old schemas."""
 
     return row[name] if name in row.keys() else default
+
+
+def _frame_hash(value: str, name: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValueError(f"{name} must be a 64-character lowercase hex SHA-256 digest")
+    return value
+
+
+NETWORK_RECOVERY_MAX_TIMEOUT_SECONDS = 3_600.0
+# Upper bound on one episode's fixed deadline; the deadline is never renewed.
+
+
+def _recovery_timeout(value: float, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be a finite positive number of seconds")
+    result = float(value)
+    if not 0.0 < result <= NETWORK_RECOVERY_MAX_TIMEOUT_SECONDS:
+        raise ValueError(
+            f"{name} must be finite, positive, and at most "
+            f"{NETWORK_RECOVERY_MAX_TIMEOUT_SECONDS} seconds"
+        )
+    return result
+
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 # Absolute repository root used for all implicit state paths.
 
@@ -771,6 +850,41 @@ class BotStateManager:
                     row_version INTEGER NOT NULL CHECK (row_version >= 0),
                     UNIQUE (run_id, sequence_no)
                 );
+
+                CREATE TABLE IF NOT EXISTS runtime_recovery_episodes (
+                    episode_id TEXT PRIMARY KEY,
+                    scope_key TEXT NOT NULL CHECK (length(scope_key) > 0),
+                    status TEXT NOT NULL CHECK (status IN (
+                        'OPEN', 'DEFERRED', 'MANUAL_REQUIRED', 'RECOVERED'
+                    )),
+                    source_frame_hash TEXT NOT NULL CHECK (length(source_frame_hash) = 64),
+                    confirm_attempts INTEGER NOT NULL CHECK (confirm_attempts IN (0, 1)),
+                    relaunch_attempts INTEGER NOT NULL CHECK (relaunch_attempts IN (0, 1)),
+                    confirm_transport_status TEXT NOT NULL CHECK (confirm_transport_status IN (
+                        'not_attempted', 'attempted', 'returned', 'unknown'
+                    )),
+                    relaunch_transport_status TEXT NOT NULL CHECK (relaunch_transport_status IN (
+                        'not_attempted', 'attempted', 'returned', 'unknown'
+                    )),
+                    started_at_utc REAL NOT NULL CHECK (started_at_utc >= 0),
+                    deadline_at_utc REAL NOT NULL CHECK (deadline_at_utc > started_at_utc),
+                    next_observe_at_utc REAL CHECK (
+                        next_observe_at_utc IS NULL OR next_observe_at_utc <= deadline_at_utc
+                    ),
+                    updated_at_utc REAL NOT NULL CHECK (updated_at_utc >= started_at_utc),
+                    last_frame_hash TEXT NOT NULL CHECK (length(last_frame_hash) = 64),
+                    reason TEXT NOT NULL CHECK (length(reason) > 0),
+                    row_version INTEGER NOT NULL CHECK (row_version >= 0),
+                    CHECK ((confirm_attempts = 0) = (confirm_transport_status = 'not_attempted')),
+                    CHECK ((relaunch_attempts = 0) = (relaunch_transport_status = 'not_attempted')),
+                    CHECK (relaunch_attempts = 0 OR (
+                        confirm_attempts = 1 AND confirm_transport_status = 'returned'
+                    )),
+                    CHECK (status <> 'DEFERRED' OR next_observe_at_utc IS NOT NULL)
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS runtime_recovery_episodes_one_active_idx
+                    ON runtime_recovery_episodes(scope_key)
+                    WHERE status <> 'RECOVERED';
                 """
             )
             existing = {
@@ -3524,6 +3638,253 @@ class BotStateManager:
                 recovered.append(result)
         return tuple(recovered)
 
+    @staticmethod
+    def _network_recovery(row: sqlite3.Row) -> NetworkRecoveryEpisode:
+        next_observe = row["next_observe_at_utc"]
+        return NetworkRecoveryEpisode(
+            row["episode_id"], row["scope_key"], NetworkRecoveryStatus(row["status"]),
+            row["source_frame_hash"], int(row["confirm_attempts"]),
+            int(row["relaunch_attempts"]),
+            NetworkRecoveryTransportStatus(row["confirm_transport_status"]),
+            NetworkRecoveryTransportStatus(row["relaunch_transport_status"]),
+            float(row["started_at_utc"]), float(row["deadline_at_utc"]),
+            None if next_observe is None else float(next_observe),
+            float(row["updated_at_utc"]), row["last_frame_hash"], row["reason"],
+            int(row["row_version"]),
+        )
+
+    def _network_recovery_by_id(
+        self, db: sqlite3.Connection, episode_id: str,
+    ) -> NetworkRecoveryEpisode:
+        return self._network_recovery(db.execute(
+            "SELECT * FROM runtime_recovery_episodes WHERE episode_id = ?",
+            (episode_id,),
+        ).fetchone())
+
+    def get_network_recovery(self, scope_key: str) -> NetworkRecoveryEpisode | None:
+        """Read the scope's active episode, else its latest RECOVERED episode.
+
+        A read-only manager over a prior schema without the additive
+        ``runtime_recovery_episodes`` table returns ``None`` without mutation.
+        """
+
+        scope = _text(scope_key, "scope_key")
+        if self._db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'runtime_recovery_episodes'"
+        ).fetchone() is None:
+            return None
+        row = self._db.execute(
+            """SELECT * FROM runtime_recovery_episodes
+               WHERE scope_key = ? AND status <> 'RECOVERED'""",
+            (scope,),
+        ).fetchone()
+        if row is None:
+            row = self._db.execute(
+                """SELECT * FROM runtime_recovery_episodes
+                   WHERE scope_key = ? AND status = 'RECOVERED'
+                   ORDER BY rowid DESC LIMIT 1""",
+                (scope,),
+            ).fetchone()
+        return None if row is None else self._network_recovery(row)
+
+    def begin_network_recovery(
+        self,
+        *,
+        scope_key: str,
+        source_frame_hash: str,
+        now_utc_epoch: float,
+        timeout_seconds: float = 90.0,
+    ) -> NetworkRecoveryEpisode:
+        """Return the scope's active episode unchanged, or open a new one.
+
+        Episodes are keyed by scope only, never by frame hash, date, or
+        process, so a re-observed disconnect never receives a fresh budget.
+        A new episode opens only after every earlier one is RECOVERED; history
+        rows are retained.  This records state; it grants no input authority.
+        """
+
+        scope = _text(scope_key, "scope_key")
+        source = _frame_hash(source_frame_hash, "source_frame_hash")
+        now = _epoch(now_utc_epoch, "now_utc_epoch", allow_none=False)
+        assert now is not None
+        timeout = _recovery_timeout(timeout_seconds, "timeout_seconds")
+        with self._transaction() as db:
+            row = db.execute(
+                """SELECT * FROM runtime_recovery_episodes
+                   WHERE scope_key = ? AND status <> 'RECOVERED'""",
+                (scope,),
+            ).fetchone()
+            if row is not None:
+                return self._network_recovery(row)
+            episode_id = f"netrec-{uuid4().hex}"
+            db.execute(
+                """INSERT INTO runtime_recovery_episodes
+                   (episode_id, scope_key, status, source_frame_hash, confirm_attempts,
+                    relaunch_attempts, confirm_transport_status, relaunch_transport_status,
+                    started_at_utc, deadline_at_utc, next_observe_at_utc, updated_at_utc,
+                    last_frame_hash, reason, row_version)
+                   VALUES (?, ?, 'OPEN', ?, 0, 0, 'not_attempted', 'not_attempted',
+                           ?, ?, NULL, ?, ?, 'disconnect_observed', 0)""",
+                (episode_id, scope, source, now, now + timeout, now, source),
+            )
+            return self._network_recovery_by_id(db, episode_id)
+
+    def reserve_network_recovery_step(
+        self,
+        episode_id: str,
+        step: NetworkRecoveryStep | str,
+        *,
+        expected_row_version: int,
+        now_utc_epoch: float,
+    ) -> NetworkRecoveryEpisode | None:
+        """Commit one step's sole budget (0 -> 1, transport ``attempted``).
+
+        Requires an OPEN/DEFERRED row at ``expected_row_version``, a time at
+        or after the observation not-before and before the original deadline.
+        Relaunch additionally requires a reserved Confirm whose transport
+        ``returned``.  Every rejection returns ``None`` and renews nothing.
+        The commit happens before return; it grants no input authority.
+        """
+
+        episode_id = _text(episode_id, "episode_id")
+        try:
+            target = NetworkRecoveryStep(step)
+        except (TypeError, ValueError) as exc:
+            raise StateTransitionError("unknown network recovery step") from exc
+        expected = _nonnegative_int(expected_row_version, "expected_row_version")
+        now = _epoch(now_utc_epoch, "now_utc_epoch", allow_none=False)
+        assert now is not None
+        attempts_column = f"{target.value}_attempts"
+        transport_column = f"{target.value}_transport_status"
+        with self._transaction() as db:
+            row = db.execute(
+                "SELECT * FROM runtime_recovery_episodes WHERE episode_id = ?",
+                (episode_id,),
+            ).fetchone()
+            if row is None or int(row["row_version"]) != expected:
+                return None
+            if row["status"] not in {
+                NetworkRecoveryStatus.OPEN.value, NetworkRecoveryStatus.DEFERRED.value,
+            }:
+                return None
+            if now < float(row["updated_at_utc"]) or now >= float(row["deadline_at_utc"]):
+                return None
+            if row["next_observe_at_utc"] is not None and now < float(row["next_observe_at_utc"]):
+                return None
+            if (int(row[attempts_column]) != 0
+                    or row[transport_column] != NetworkRecoveryTransportStatus.NOT_ATTEMPTED.value):
+                return None
+            if target is NetworkRecoveryStep.RELAUNCH and (
+                int(row["confirm_attempts"]) != 1
+                or row["confirm_transport_status"] != NetworkRecoveryTransportStatus.RETURNED.value
+            ):
+                return None
+            result = db.execute(
+                f"""UPDATE runtime_recovery_episodes
+                    SET {attempts_column} = 1, {transport_column} = 'attempted',
+                        status = 'OPEN', next_observe_at_utc = NULL,
+                        updated_at_utc = ?, row_version = row_version + 1
+                    WHERE episode_id = ? AND row_version = ?
+                      AND status IN ('OPEN', 'DEFERRED') AND {attempts_column} = 0""",
+                (now, episode_id, expected),
+            )
+            if result.rowcount != 1:
+                return None
+            return self._network_recovery_by_id(db, episode_id)
+
+    def update_network_recovery(
+        self,
+        episode_id: str,
+        *,
+        expected_row_version: int,
+        status: NetworkRecoveryStatus | str,
+        last_frame_hash: str,
+        reason: str,
+        now_utc_epoch: float,
+        next_observe_at_utc: float | None = None,
+        step: NetworkRecoveryStep | str | None = None,
+        transport_status: NetworkRecoveryTransportStatus | str | None = None,
+    ) -> NetworkRecoveryEpisode | None:
+        """CAS one observation/status, optionally resolving one step's transport.
+
+        Step budgets are immutable here.  A supplied step's transport moves
+        only ``attempted`` -> ``returned``/``unknown``.  DEFERRED requires a
+        finite future ``next_observe_at_utc`` within the original deadline,
+        which is never renewed.  MANUAL_REQUIRED may only stay manual or
+        become RECOVERED; RECOVERED is terminal.  Recording RECOVERED never
+        fabricates a transport status.  Rejections return ``None``.
+        """
+
+        episode_id = _text(episode_id, "episode_id")
+        expected = _nonnegative_int(expected_row_version, "expected_row_version")
+        try:
+            target = NetworkRecoveryStatus(status)
+            step_value = None if step is None else NetworkRecoveryStep(step)
+            transport = (
+                None if transport_status is None
+                else NetworkRecoveryTransportStatus(transport_status)
+            )
+        except (TypeError, ValueError) as exc:
+            raise StateTransitionError(
+                "unknown network recovery status, step, or transport status"
+            ) from exc
+        if (step_value is None) != (transport is None):
+            raise ValueError("step and transport_status must be supplied together")
+        frame = _frame_hash(last_frame_hash, "last_frame_hash")
+        reason = _text(reason, "reason")
+        now = _epoch(now_utc_epoch, "now_utc_epoch", allow_none=False)
+        assert now is not None
+        next_observe = _epoch(next_observe_at_utc, "next_observe_at_utc")
+        if target is NetworkRecoveryStatus.DEFERRED and next_observe is None:
+            raise ValueError("DEFERRED requires next_observe_at_utc")
+        if next_observe is not None:
+            if target not in {NetworkRecoveryStatus.OPEN, NetworkRecoveryStatus.DEFERRED}:
+                raise ValueError("next_observe_at_utc is only valid for OPEN or DEFERRED")
+            if next_observe <= now:
+                raise ValueError("next_observe_at_utc must be after now_utc_epoch")
+        if transport is not None and transport not in {
+            NetworkRecoveryTransportStatus.RETURNED, NetworkRecoveryTransportStatus.UNKNOWN,
+        }:
+            return None
+        with self._transaction() as db:
+            row = db.execute(
+                "SELECT * FROM runtime_recovery_episodes WHERE episode_id = ?",
+                (episode_id,),
+            ).fetchone()
+            if row is None or int(row["row_version"]) != expected:
+                return None
+            current = NetworkRecoveryStatus(row["status"])
+            if current is NetworkRecoveryStatus.RECOVERED:
+                return None
+            if current is NetworkRecoveryStatus.MANUAL_REQUIRED and target not in {
+                NetworkRecoveryStatus.MANUAL_REQUIRED, NetworkRecoveryStatus.RECOVERED,
+            }:
+                return None
+            if now < float(row["updated_at_utc"]):
+                return None
+            if next_observe is not None and next_observe > float(row["deadline_at_utc"]):
+                return None
+            transport_assignment = ""
+            parameters: tuple[Any, ...] = (target.value, frame, reason, next_observe, now)
+            if step_value is not None and transport is not None:
+                transport_column = f"{step_value.value}_transport_status"
+                if row[transport_column] != NetworkRecoveryTransportStatus.ATTEMPTED.value:
+                    return None
+                transport_assignment = f", {transport_column} = ?"
+                parameters += (transport.value,)
+            result = db.execute(
+                f"""UPDATE runtime_recovery_episodes
+                    SET status = ?, last_frame_hash = ?, reason = ?,
+                        next_observe_at_utc = ?, updated_at_utc = ?,
+                        row_version = row_version + 1{transport_assignment}
+                    WHERE episode_id = ? AND row_version = ? AND status <> 'RECOVERED'""",
+                parameters + (episode_id, expected),
+            )
+            if result.rowcount != 1:
+                return None
+            return self._network_recovery_by_id(db, episode_id)
+
+
 
 __all__ = [
     "REPOSITORY_ROOT",
@@ -3533,6 +3894,11 @@ __all__ = [
     "BotStateManager",
     "ClockObservation",
     "DispatchValidation",
+    "NETWORK_RECOVERY_MAX_TIMEOUT_SECONDS",
+    "NetworkRecoveryEpisode",
+    "NetworkRecoveryStatus",
+    "NetworkRecoveryStep",
+    "NetworkRecoveryTransportStatus",
     "FlowIdMigrationConflict",
     "FlowState",
     "RENAMED_FLOW_IDS",

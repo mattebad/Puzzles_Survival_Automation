@@ -304,6 +304,7 @@ class LocalBlueStacksRuntime:
             raise RuntimeError("PNS_DEVELOPMENT_MAX_INPUTS must be between 1 and 100")
         self.input_count = 0
         self.checkpoint = None
+        self.observation_guard = None
 
     @classmethod
     def connect(
@@ -382,6 +383,8 @@ class LocalBlueStacksRuntime:
                 "captured_monotonic": result.captured_monotonic,
             },
         )
+        if self.observation_guard is not None:
+            self.observation_guard(result)
         return result
 
     def _authorize_dispatch(
@@ -400,6 +403,19 @@ class LocalBlueStacksRuntime:
         reject_real_money_confirmation(target_identity, action_key)
         if not isinstance(action_class, str) or not action_class.strip():
             raise RuntimeError("action class is required")
+        from scripts.bluestacks_popup_recognition import (
+            NETWORK_DISCONNECT_TARGET, recognize_network_disconnect,
+        )
+        detail = recognize_network_disconnect(source.frame)
+        if action_class == "network_reconnect":
+            if (not detail.get("recognized") or consequential
+                    or target_identity != NETWORK_DISCONNECT_TARGET
+                    or target_roi != detail.get("target")
+                    or not action_key.startswith("network-recovery:")):
+                raise RuntimeError("network reconnect source and target are not exact")
+        elif detail.get("recognized") or detail.get("blocking_unknown_modal"):
+            from scripts.startup_recovery import NetworkDisconnectError
+            raise NetworkDisconnectError(source, detail)
         age = time.monotonic() - source.captured_monotonic
         if age < 0 or age > self.frame_max_age_seconds:
             raise RuntimeError("dispatch source frame is stale")
