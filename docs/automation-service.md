@@ -204,6 +204,16 @@ observed zero inventory, an exact current offer within the approved price ceilin
 effect proof; unknown inventory is not zero. One owned-item boost and positive timer were observed;
 total inventory and the exact premium branch remain unproven. None of this raw investigation is
 route-level live acceptance.
+Duel scene classification recognizes retained defense/attack headings, the formation-details
+dialog, Exit/Flee result and opponent return even when OCR misses an action label. Scene identity
+alone never establishes an eligible hero, free entry or actionable control: missing exclusion/
+eligibility evidence still blocks dispatch. Actual historical desktop images prove classification
+only, not native input binding or three-cycle acceptance. Research refreshes queue, prerequisites,
+paired resource costs/balances and the exact detail control immediately before start; changed,
+expired or ambiguous evidence denies input. Farm uses fixed runtime identity, source-bound
+collection/boost controls and current lease/freshness guards. A displayed item cost of one is
+not owned inventory; unproved inventory or premium confirmation/effects remains blocked.
+
 
 Batch F adds canonical-only Hall of War and Troop Training native service routes. It removes the
 legacy Troop Training operator runner/validator/aliases, leaving eleven operator routes, and keeps

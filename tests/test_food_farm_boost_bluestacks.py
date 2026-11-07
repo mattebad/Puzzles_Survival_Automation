@@ -1,16 +1,26 @@
 from __future__ import annotations
 
+import hashlib
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+import cv2
 import numpy as np
 
 from scripts import food_farm_boost_bluestacks as route
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 from tasks.resource_boost_disabled import FoodFarmBoostChoice, food_farm_boost_decision
+from automation_service.native_execution import NativeRouteRequest
+from safe_action_core import SafetyStore
+from scripts import base_route_native_runtime as native_boundary
+from scripts import navigation_development_boundary as ownership
+from scripts.bluestacks_native_runtime import CapturedNativeFrame
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL, FIXED_RUNTIME_SCOPE
+from tasks.scheduler_task_result import SchedulerIdentity
 
 
 @dataclass(frozen=True)
@@ -27,9 +37,159 @@ def _recognized_localizer():
         recognized=True, stale=False, overlay=False,
     ))
 
+class _FarmReplayRuntime:
+    """Synthetic transport only; policy, session, lock and journal remain real."""
+
+    def __init__(self, directory, *, apply_collection, change_before_dispatch=False):
+        self.session = directory / "replay"
+        self.session.mkdir(parents=True)
+        self.input_count = 0
+        self.max_inputs = route.MAX_INPUTS
+        self.apply_collection = apply_collection
+        self.state = 0
+        self.change_before_dispatch = change_before_dispatch
+        self.ordinal = 0
+        self.checkpoint = lambda: None
+
+    def capture(self, label):
+        self.checkpoint()
+        self.ordinal += 1
+        if self.change_before_dispatch and label == "food-farm-action-pre-dispatch":
+            self.state = 2
+        frame = np.full((1280, 800, 3), 40 + self.state, dtype=np.uint8)
+        ok, encoded = cv2.imencode(".png", frame)
+        if not ok:
+            raise AssertionError("replay PNG encoding failed")
+        png = encoded.tobytes()
+        path = self.session / f"{self.ordinal}-{label}.png"
+        path.write_bytes(png)
+        return CapturedNativeFrame(frame, png, hashlib.sha256(png).hexdigest(),
+                                   10.0 + self.ordinal / 100, path)
+
+    def measure_device_state(self):
+        return "device"
+
+    def measure_foreground_package(self):
+        return "com.global.ztmslg"
+
+    def tap(self, before, *, consequential, action_class, **_kwargs):
+        if consequential is not True or action_class != "collect_food_farm_resources":
+            raise AssertionError("only one replay collection input is supported")
+        self.input_count += 1
+        if self.apply_collection:
+            self.state = 1
+
+
 class NativeFoodFarmBoostTests(unittest.TestCase):
+    def test_fixed_factory_runs_scheduler_request_through_real_collection_journal(self):
+        identity = SchedulerIdentity("account", "server", "scheduler-reset", route.PRODUCT_ID)
+        farm_id = "home.building.farm.02"
+        for scenario in ("confirmed", "unknown", "changed"):
+            apply_collection = scenario == "confirmed"
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                database = root / "actions.sqlite3"
+                runtimes = []
+
+                def connect(**kwargs):
+                    runtime = _FarmReplayRuntime(
+                        kwargs["output_directory"], apply_collection=apply_collection,
+                        change_before_dispatch=scenario == "changed",
+                    )
+                    runtimes.append(runtime)
+                    return runtime
+
+                def bind(frame, *_args, **_kwargs):
+                    ok, encoded = cv2.imencode(".png", frame)
+                    if not ok:
+                        raise AssertionError("replay binding PNG encoding failed")
+                    return route.FarmBinding(
+                        farm_id, (500, 500, 550, 550),
+                        hashlib.sha256(encoded.tobytes()).hexdigest(), ("synthetic:atlas",),
+                    )
+
+                def balances(frame):
+                    changed = int(frame[0, 0, 0]) == 41
+                    return {"FOOD": 100 + 10 * changed, "WOOD": 200 + 20 * changed,
+                            "STEEL": 300, "GAS": 400}
+
+                with patch.object(ownership, "RUNTIME_INPUT_LOCK_PATH", root / "lock.sqlite3"), \
+                     patch.object(native_boundary, "open_canonical_action_store",
+                                  side_effect=lambda: SafetyStore(database)), \
+                     patch.object(native_boundary.LocalBlueStacksRuntime, "connect", side_effect=connect), \
+                     patch.object(route, "is_clean_home_frame", return_value=True), \
+                     patch.object(route, "load_home_atlas", return_value=object()), \
+                     patch.object(route, "BlueStacksHomeLocalizer",
+                                  side_effect=lambda *_args: _recognized_localizer()), \
+                     patch.object(route, "bind_reachable_farm", side_effect=bind), \
+                     patch.object(route, "observe_home_resource_balances", side_effect=balances), \
+                     patch.object(route, "_open_food_farm_radial",
+                                  return_value={"status": "blocked", "reason": "replay ends at radial"}), \
+                     ownership.RuntimeInputLock(owner="automation-service", invocation_id="farm-replay") as lock:
+                    binding = route.create_service_binding(native_boundary.make_native_route_binding)
+
+                    def request(occurrence):
+                        return NativeRouteRequest(
+                            flow_id=route.FLOW_ID, product_id=route.PRODUCT_ID,
+                            product_revision=route.PRODUCT_REVISION,
+                            runtime_profile_id=ACTIVE_RUNTIME_PROFILE_ID, identity=identity,
+                            previous_reset_id=None, occurrence_key=occurrence,
+                            checkpoint=lambda: None, validate_identity=lambda: None,
+                            runtime_input_lock=lock, adb=str(BLUESTACKS_ADB), serial=BLUESTACKS_SERIAL,
+                            output_directory=root / "sessions", max_inputs=route.MAX_INPUTS,
+                            max_actions=route.MAX_ACTIONS, settle_seconds=0.0,
+                            utc_clock=lambda: 100.0, monotonic_clock=lambda: 20.0,
+                        )
+
+                    first = binding.run(request("first-opaque-occurrence"))
+                    self.assertTrue(first.execution_verified, first.failure)
+                    if scenario == "changed":
+                        self.assertEqual(first.input_count, 0)
+                        self.assertEqual(first.native_result["collection_count"], 0)
+                        self.assertEqual(first.native_result["boost_transport_calls"], 0)
+                        self.assertFalse(first.native_result["effect_reconciliation_required"])
+                        self.assertEqual(sum(runtime.input_count for runtime in runtimes), 0)
+                        store = SafetyStore(database)
+                        try:
+                            self.assertFalse(store.has_action_block())
+                        finally:
+                            store.close()
+                        continue
+                    self.assertEqual(first.input_count, 1)
+                    result = first.native_result
+                    self.assertEqual(result["collection_transport_calls"], 1)
+                    self.assertEqual(result["collection_count"], int(apply_collection))
+                    self.assertEqual(result["boost_transport_calls"], 0)
+                    self.assertEqual(result["effect_reconciliation_required"], not apply_collection)
+                    key = route.food_farm_boost_daily_action_key(
+                        runtime_scope=FIXED_RUNTIME_SCOPE, account_id=identity.account_id,
+                        server_id=identity.server_id, reset_id=identity.reset_id,
+                        phase="collection", collection_occurrence_id="1",
+                    )
+                    self.assertEqual(result["collection_action_key"], key)
+                    second = binding.run(request("second-opaque-occurrence"))
+                    self.assertEqual(second.input_count, 0)
+                    if apply_collection:
+                        self.assertTrue(second.execution_verified, second.failure)
+                        self.assertEqual(second.native_result["collection_count"], 1)
+                        self.assertEqual(second.native_result["collection_transport_calls"], 0)
+                        self.assertEqual(result["collection_deltas"],
+                                         {"FOOD": 10, "WOOD": 20, "STEEL": 0, "GAS": 0})
+                    else:
+                        self.assertFalse(second.execution_verified)
+                    self.assertEqual(sum(runtime.input_count for runtime in runtimes), 1)
+                store = SafetyStore(database)
+                try:
+                    row = store.get_action_by_key(key)
+                    self.assertEqual(row["final_status"], "confirmed" if apply_collection else "unresolved")
+                    self.assertEqual(store.has_action_block(), not apply_collection)
+                finally:
+                    store.close()
+
     def _panel_tokens(self):
         return (
+            route.NativeTextToken("Farm", 99, (350, 500, 400, 525)),
+            route.NativeTextToken("Boost", 99, (350, 600, 400, 625)),
             route.NativeTextToken("Food", 99, (50, 200, 90, 225)),
             route.NativeTextToken("Output", 99, (92, 200, 150, 225)),
             route.NativeTextToken("Food", 99, (50, 240, 90, 265)),
@@ -43,6 +203,36 @@ class NativeFoodFarmBoostTests(unittest.TestCase):
             route.NativeTextToken("x1", 99, (670, 1120, 690, 1140)),
             route.NativeTextToken("500", 99, (600, 40, 635, 65)),
         )
+
+    def test_current_farm_timer_requires_unambiguous_timer_and_removed_application_controls(self):
+        captured = FakeCapture(np.zeros((1280, 800, 3), dtype=np.uint8),
+                               "a" * 64, Path("active-farm.png"))
+        heading = tuple(token for token in self._panel_tokens() if token.roi[1] < 900)
+        timer = route.NativeTextToken("Boosting 23:59:23", 99, (200, 1100, 500, 1130))
+        valid_tokens = heading + (timer,)
+        with patch.object(route, "_generic_overlay", return_value=False), \
+             patch.object(route, "observe_home_resource_balances", return_value={}):
+            with patch.object(route, "_ocr_tokens", return_value=valid_tokens):
+                panel = route.observe_food_farm_boost_panel(
+                    captured, farm_identity="home.building.farm.02",
+                    evidence_ref="evidence/active-farm.png",
+                )
+                self.assertIsNotNone(panel)
+                self.assertEqual(food_farm_boost_decision(panel.observation).choice,
+                                 FoodFarmBoostChoice.ALREADY_ACTIVE)
+                self.assertEqual(panel.observation.active_remaining_seconds, 86_363)
+            negatives = (
+                tuple(token for token in valid_tokens if token.text != "Farm"),
+                valid_tokens + (timer,),
+                self._panel_tokens() + (timer,),
+                heading + (route.NativeTextToken("Boosting 23:99:23", 99, timer.roi),),
+            )
+            for tokens in negatives:
+                with self.subTest(tokens=tokens), patch.object(route, "_ocr_tokens", return_value=tokens):
+                    self.assertIsNone(route.observe_food_farm_boost_panel(
+                        captured, farm_identity="home.building.farm.02",
+                        evidence_ref="evidence/active-farm.png",
+                    ))
 
     def test_visible_button_label_does_not_become_inventory_identity_or_count(self):
         frame = np.zeros((1280, 800, 3), dtype=np.uint8)

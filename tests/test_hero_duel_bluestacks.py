@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+import json
+from pathlib import Path
+import shutil
+import tempfile
+from unittest.mock import patch
+
+import cv2
 import unittest
 
 import numpy as np
 
 import scripts.hero_duel_bluestacks as route
+from safe_action_core.store import SafetyStore
+from safe_action_core.models import ActionIntent, PolicyDecision, PolicyResult
 
 
 class HeroDuelVisionReplayTests(unittest.TestCase):
@@ -211,6 +220,213 @@ class HeroDuelVisionReplayTests(unittest.TestCase):
         )
         lines = (heading, formation, duplicate)
         self.assertIsNone(self.vision.hero_selection_roi(lines, "Avery", "defense_formation", add=True))
+
+
+class HeroDuelNativeObserverRegressionTests(unittest.TestCase):
+    """Exercise OCR grouping and native semantics, not producer result echoes."""
+
+    def setUp(self):
+        self.identity = SimpleNamespace(reset_id="game-day-2027-01-02", account_id="account", server_id="server")
+        self.records = {}
+        context = SimpleNamespace(
+            session=SimpleNamespace(owner="test-owner"), runtime=SimpleNamespace(),
+            action_store=SimpleNamespace(get_action_by_key=self.records.get, has_action_block=lambda: False),
+            identity=self.identity, flow_id=route.FLOW_ID, product_id=route.PRODUCT_ID,
+            product_revision=route.PRODUCT_REVISION, runtime_profile_id=route.PROFILE_ID,
+            settle_seconds=0, checkpoint=lambda: None, utc_clock=lambda: 1_800_000_000,
+            is_clean_home=lambda _frame: False,
+            accounting=lambda: SimpleNamespace(input_count=0, verified=True),
+        )
+        self.flow = route.HeroDuelNativeFlow(context, {})
+        self.flow.event_identity = "survival-current-event"
+        self.flow.vision.event_identity = self.flow.event_identity
+        self.flow.vision.current_event_valid = True
+        self.capture = SimpleNamespace(
+            frame=np.zeros((1280, 800, 3), dtype=np.uint8),
+            sha256="a" * 64, path="replay/current.png",
+        )
+
+    def page(self, texts, hint=None):
+        # Only OCR transport is fake; grouping, state recognition, target binding
+        # and conversion to task observations all run their production code.
+        data = {key: [] for key in ("text", "conf", "left", "top", "width", "height")}
+        for index, text in enumerate(texts):
+            for key, value in zip(data, (text, "95", 100, 60 + index * 60, min(len(text) * 8, 600), 20)):
+                data[key].append(value)
+        with patch.object(route, "tesseract_data", return_value=data):
+            return self.flow.observe(self.capture, hint)
+
+    def entry_record(self, ordinal=1, status="CONFIRMED"):
+        facts = route.hero_duel_policy_preconditions(
+            "hero_duel_free_entry", event_identity=self.flow.event_identity,
+            ordinal=ordinal, game_day_id=self.identity.reset_id,
+            free_allowance_before=4 - ordinal, pass_balance_before=123,
+        )
+        self.records[self.flow.action_key(ordinal, "hero_duel_free_entry")] = {
+            "final_status": status, "policy_request_json": json.dumps({"semantic_preconditions": facts}),
+        }
+
+    def test_warning_retains_confirmed_entry_allowance_without_counter_ocr_or_fight_target(self):
+        self.entry_record(status=route.ActionStatus.CONFIRMED.value)
+        self.flow.vision.battle_loaded = True
+        self.flow.vision.exit_confirmed = True
+        page = self.page(("Warning", "Flee will lose points", "Fight", "Flee"),
+                         ("hero-duel-warning-flee", "flee"))
+        self.assertIsNone(page["free_entries_remaining"])
+        self.assertIsNone(page["pass_balance"])
+        observation = self.flow._observation(self.capture, page, 1)
+        self.assertEqual((observation.free_entries_remaining, observation.pass_balance), (2, 123))
+        self.assertTrue(observation.fight_control_visible)
+        self.assertTrue(route.hero_duel_flee_authorizeable(
+            observation, ordinal=1, game_day_id=self.identity.reset_id))
+        fight = self.page(("Warning", "Fight", "Flee"), ("hero-duel-warning-fight", "fight"))
+        self.assertIsNone(fight["target_roi"])
+        self.assertEqual(page["target_roi"], (97, 237, 135, 263))
+        self.assertFalse(observation.battle_exit_visible)
+
+    def test_unknown_or_absent_entry_never_supplies_missing_warning_counters(self):
+        for status in (None, route.ActionStatus.UNRESOLVED.value):
+            self.records.clear()
+            if status is not None:
+                self.entry_record(status=status)
+            page = self.page(("Warning", "Fight", "Flee"), ("hero-duel-warning-flee", "flee"))
+            observed = self.flow._observation(self.capture, page, 1)
+            self.assertIsNone(observed.free_entries_remaining)
+            self.assertIsNone(observed.pass_balance)
+
+    def test_visible_counter_contradiction_is_not_overwritten(self):
+        self.entry_record(status=route.ActionStatus.CONFIRMED.value)
+        page = self.page(("Warning", "Fight", "Flee", "Free 1/3", "Pass 122"),
+                         ("hero-duel-warning-flee", "flee"))
+        observed = self.flow._observation(self.capture, page, 1)
+        self.assertEqual((observed.free_entries_remaining, observed.pass_balance), (1, 122))
+
+    def test_actual_result_vocabulary_binds_continue_but_not_embedded_buy_now(self):
+        texts = ("Rank: 10000 Unchanged", "984(-16)", "Reward List", "Buy Now", "Tap to Continue")
+        page = self.page(texts, ("hero-duel-loss-continue", "tap to continue"))
+        self.assertEqual(page["screen_state"], "loss_result")
+        self.assertEqual(page["overlay_state"], "none")
+        self.assertIsNotNone(page["target_roi"])
+        ad = self.page(texts, ("ad", "buy now"))
+        self.assertIsNone(ad["target_roi"])
+
+    def test_actual_formation_headings_and_unreadable_portraits(self):
+        defense = self.page(("Hero Lineup", "McCarty", "Save Form."))
+        self.assertEqual(defense["screen_state"], "defense_formation")
+        attack = self.page(("Hero Lineup", "Opponent Formation", "Your Formation", "Ulrik", "Challenge"))
+        self.assertEqual(attack["screen_state"], "attack_formation")
+        self.assertEqual(attack["attack_hero_ids"], ("Ulrik",))
+        self.assertEqual(attack["displayed_hero_ids"], ())
+        details = self.page(("Emergency Details", "Heroes cannot use"))
+        self.assertIsNone(details["excluded_hero_ids"])
+        self.assertIsNone(self.flow._inspect_exclusions(details))
+        self.assertEqual(self.flow.result["reason"], "evidence_required:emergency_details_portrait_exclusions_unresolved")
+
+    def test_native_finalize_supplies_adapter_identity_without_claiming_completion(self):
+        result = self.flow._finalize()
+        self.assertEqual(result["preset_id"], route.PRODUCT_ID)
+        self.assertEqual(result["runtime_profile_id"], route.PROFILE_ID)
+        self.assertEqual(result["reset_id"], self.identity.reset_id)
+        self.assertEqual(result["status"], "blocked")
+
+    def test_continue_closes_route_owned_opponent_successor_before_overview(self):
+        calls = []
+        pages = iter(({"page": {"screen_state": "opponent_list"}}, {"page": {"screen_state": "hero_duel_overview"}}))
+        def navigation(label, phrase, expected, target):
+            calls.append((phrase, target))
+            return next(pages)
+        self.flow._navigation_tap = navigation
+        self.assertEqual(self.flow._continue_to_overview("continue")["page"]["screen_state"], "hero_duel_overview")
+        self.assertEqual(calls, [("tap to continue", "hero-duel-loss-continue"), ("close", "hero-duel-opponents-close")])
+
+    def test_reopened_unknown_is_denied_without_a_new_capture_or_transport(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "actions.sqlite3"
+            store = SafetyStore(path)
+            key = self.flow.action_key(1, "hero_duel_free_entry")
+            intent = ActionIntent(
+                action_id="replay-entry-1", action_key=key, task_id=route.FLOW_ID,
+                semantic_action="hero_duel_free_entry", source_state="hero_duel_attack_formation",
+                target_identity="hero-duel-attack-challenge", target_roi=(100, 100, 200, 140),
+                source_frame_sha256="a" * 64, source_frame_captured_at=1,
+                runtime_profile_id=route.PROFILE_ID, game_day_id=self.identity.reset_id,
+                expected_postcondition="hero_duel_battle_loaded", consequence="bounded_hero_duel_participation",
+                cost_type="none", cost_amount=0, quantity=1, evidence_refs=("synthetic:replay",),
+            )
+            policy = PolicyResult(PolicyDecision.AUTHORIZE, "synthetic", "replay only", 1, {})
+            store.prepare_action(intent, policy, 1)
+            store.mark_unresolved(intent.action_id, 2, "synthetic_missing_successor")
+            store.close()
+            reopened = SafetyStore(path)
+            try:
+                self.flow.store = reopened
+                self.flow.capture = lambda _label: self.fail("UNKNOWN must deny before any new capture")
+                outcome = self.flow._effect(
+                    kind="hero_duel_free_entry", ordinal=1, source_state="attack_formation",
+                    target_id="hero-duel-attack-challenge", phrase="challenge",
+                    consequence="bounded_hero_duel_participation", postcondition="hero_duel_battle_loaded",
+                    expected_state="active_battle")
+                self.assertEqual(outcome["status"], "blocked")
+                self.assertEqual(outcome["transport_calls"], 0)
+                self.assertTrue(outcome["effect_reconciliation_required"])
+                self.assertTrue(reopened.has_action_block())
+            finally:
+                reopened.close()
+
+    def test_known_prefix_reconstruction_requires_exact_entry_and_flee_facts(self):
+        for ordinal in range(1, 4):
+            self.entry_record(ordinal, status=route.ActionStatus.CONFIRMED.value)
+            facts = route.hero_duel_policy_preconditions(
+                "hero_duel_flee", event_identity=self.flow.event_identity,
+                ordinal=ordinal, game_day_id=self.identity.reset_id,
+                free_allowance_at_flee=3 - ordinal, pass_balance_before=123)
+            self.records[self.flow.action_key(ordinal, "hero_duel_flee")] = {
+                "final_status": route.ActionStatus.CONFIRMED.value,
+                "policy_request_json": json.dumps({"semantic_preconditions": facts}),
+            }
+        self.flow._retain_canonical_cycle_proofs([1, 2, 3], 122)
+        self.assertEqual(self.flow.result["cycle_proofs"], [])
+        self.flow._retain_canonical_cycle_proofs([1, 2, 3], 123)
+        self.assertEqual([proof["ordinal"] for proof in self.flow.result["cycle_proofs"]], [1, 2, 3])
+        self.flow._retain_canonical_cycle_proofs([1, 2, 3], 123)
+        self.assertEqual(len(self.flow.result["cycle_proofs"]), 3)
+
+    def test_pass_balance_must_be_refreshed_after_entry_not_inferred_from_overview(self):
+        page = self.page(("Hero Duel Survival", "Free 2/3", "Challenge"))
+        self.assertIsNone(self.flow._observation(self.capture, page, 1).pass_balance)
+        self.page(("Challenge Opponent", "Free", "Hero Duel Pass 123"))
+        self.assertEqual(self.flow._observation(self.capture, page, 1).pass_balance, 123)
+        self.flow.vision.route_pass_balance = None
+        self.assertIsNone(self.flow._observation(self.capture, page, 1).pass_balance)
+
+    def test_retained_actual_images_use_real_observer_when_evidence_and_ocr_exist(self):
+        source = Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC" / ".local-captures" / "development-sessions" / "investigation2-cua-owner-20261106T232501213650Z"
+        if not source.is_dir() or shutil.which("tesseract") is None:
+            self.skipTest("evidence_required: retained source images and local Tesseract required")
+        for filename, expected in (
+            ("0197-duel-defense-save-form-before.png", "defense_formation"),
+            ("0208-duel-first-listed-free-opponent-settled.png", "attack_formation"),
+            ("0170-hero-duel-emergency-close-before.png", "emergency_details"),
+            ("0217-duel-confirm-flee-settled.png", "loss_result"),
+            ("0220-duel-result-tap-continue-settled.png", "opponent_list"),
+        ):
+            with self.subTest(source=filename):
+                image = cv2.imread(str(source / filename))
+                self.assertIsNotNone(image)
+                page = self.flow.vision.recognize(SimpleNamespace(frame=image))
+                self.assertEqual(page["screen_state"], expected)
+                if expected == "emergency_details":
+                    self.assertIsNone(page["excluded_hero_ids"])
+
+    def test_retained_exit_arrow_uses_current_image_geometry(self):
+        source = Path(__file__).resolve().parents[2] / "Puzzle_Survival_Runtime_POC" / ".local-captures" / "development-sessions" / "investigation2-cua-owner-20261106T232501213650Z" / "0212-duel-loaded-battle-exit-before.png"
+        if not source.is_file():
+            self.skipTest("evidence_required: retained battle toolbar source required")
+        image = cv2.imread(str(source))
+        self.assertIsNotNone(image)
+        self.assertIsNotNone(route.HeroDuelVision.battle_exit_arrow_roi(image))
+        self.assertIsNone(route.HeroDuelVision.battle_exit_arrow_roi(np.zeros_like(image)))
+
 class HeroDuelNativeBindingTests(unittest.TestCase):
     def test_native_request_requires_exact_occurrence_identity_lock_and_budget(self):
         request = SimpleNamespace(

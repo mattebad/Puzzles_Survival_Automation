@@ -48,6 +48,7 @@ def observation(**changes) -> HeroDuelObservation:
         ),
         "defense_hero_ids": ("hero-a", "hero-b", "hero-c", "hero-d", "hero-e"),
         "defense_save_acknowledged": True,
+        "saved_defense_expected_hero_ids": ("hero-a", "hero-b", "hero-c", "hero-d", "hero-e"),
         "attack_hero_ids": ("hero-a", "hero-b", "hero-c", "hero-d", "hero-e"),
         "attack_slots_populated": 5,
         "listed_opponent_free": True,
@@ -207,7 +208,9 @@ class HeroDuelSemanticsTests(unittest.TestCase):
             target_roi=(400, 600, 600, 700),
             entry_ordinal=2,
             cycle_battle_loaded=True,
-            battle_exit_visible=True,
+            cycle_exit_confirmed=True,
+            battle_exit_visible=False,
+            fight_control_visible=True,
             flee_warning_visible=True,
             flee_control_visible=True,
         )
@@ -216,10 +219,10 @@ class HeroDuelSemanticsTests(unittest.TestCase):
         )
         for changes in (
             {"cycle_battle_loaded": False},
-            {"battle_exit_visible": False},
+            {"cycle_exit_confirmed": False},
             {"flee_warning_visible": False},
             {"flee_control_visible": False},
-            {"fight_control_visible": True},
+            {"target_identity": "hero-duel-warning-fight"},
             {"premium_prompt_visible": True},
         ):
             self.assertFalse(
@@ -391,6 +394,25 @@ class HeroDuelSemanticsTests(unittest.TestCase):
         self.assertFalse(hero_duel_source_valid(replace(current, target_roi=(100, 100, 900, 1200))))
         self.assertFalse(hero_duel_source_valid(replace(current, source_frame_sha256="not-a-hash")))
         self.assertFalse(hero_duel_source_valid(replace(current, evidence_refs=())))
+
+    def test_fourth_cycle_and_unproven_saved_defense_are_denied(self):
+        attack = observation(
+            screen_state="attack_formation", target_identity="hero-duel-attack-challenge",
+            entry_ordinal=4, free_entries_remaining=1)
+        self.assertFalse(hero_duel_entry_authorizeable(
+            attack, ordinal=4, game_day_id=attack.game_day_id))
+        self.assertFalse(hero_duel_entry_authorizeable(
+            replace(attack, entry_ordinal=1, saved_defense_expected_hero_ids=()),
+            ordinal=1, game_day_id=attack.game_day_id))
+
+    def test_complete_attack_preserves_order_independent_of_saved_defense_roster(self):
+        attack = observation(
+            screen_state="attack_formation", target_identity="hero-duel-attack-challenge",
+            displayed_hero_ids=("hero-f", "hero-e", "hero-d", "hero-c", "hero-b"),
+            attack_hero_ids=("hero-f", "hero-e", "hero-d", "hero-c", "hero-b"))
+        self.assertEqual(hero_duel_attack_fill(attack), ())
+        self.assertTrue(hero_duel_entry_authorizeable(
+            attack, ordinal=1, game_day_id=attack.game_day_id))
 
 
 if __name__ == "__main__":
