@@ -166,6 +166,36 @@ def _fixture(now: float, directory: Path, *, aggregate: bool, chests=(), no_work
     return identity, result
 
 
+def _known_partial(now: float, directory: Path):
+    identity, result = _fixture(now, directory, aggregate=True, chests=("claimed",))
+    result.update(
+        status="evidence_required",
+        reason="One newly ready chest remains at the fresh Home-return boundary.",
+        terminal_home_verified=False,
+        unclaimed_ready_chest_count=1,
+    )
+    result.pop("terminal_home_frame")
+    result["milestone_scan"] = {
+        "status": "observed",
+        "game_day_id": result["backend_identity"]["reset_id"],
+        "source_frame_sha256": "e" * 64,
+        "slot_count": 5,
+        "observed_chest_count": 5,
+        "ready_chest_count": 1,
+        "milestones": [
+            {
+                "milestone_key": f"daily-chest-{index * 30}",
+                "milestone_state": "claimed" if index == 1 else "ready" if index == 2 else "not_ready",
+                "milestone_ready": index == 2,
+                "target_identity": "activity-milestone-chest",
+                "target_roi": (index * 100, 400, index * 100 + 50, 450),
+            }
+            for index in range(1, 6)
+        ],
+    }
+    return identity, result
+
+
 class _FakeNative:
     flow_id = FLOW_ID
     product_id = PRODUCT_ID
@@ -305,6 +335,112 @@ class DailyRewardsServiceTests(unittest.TestCase):
                 rig.runner.calls[1][0].reset_id,
             )
             self.assertEqual(rig.runner.actions, 2)
+
+    def test_known_partial_prefix_is_durable_and_resumes_only_after_observation_due(self):
+        from automation_service.state import BotStateManager
+        from tests.support.service_route_contract import ROUTES, RouteRig
+
+        with RouteRig(self, ROUTES[FLOW_ID]) as rig:
+            identity, partial = _known_partial(rig.stop.now, rig.root / "first")
+            native = _FakeNative(partial)
+            rig.runner = DailyRewardsRunner(
+                native=native, output_directory=rig.root, utc_clock=lambda: rig.stop.now,
+            )
+            rig.service = rig.make_service(rig.state)
+            first = rig.once()
+            self.assertEqual(first[0]["result"]["status"], "deferred", first)
+            self.assertFalse(first[0]["result"]["terminal_home_verified"])
+            self.assertEqual(first[0]["result"]["committed_action_count"], 2)
+            first_run, = rig.runs()
+            self.assertEqual(first_run.terminal_outcome, "deferred")
+            self.assertEqual(first_run.consumed_actions, 2)
+            due = rig.state.get_flow(FLOW_ID).next_due_at_utc
+            self.assertEqual(due, partial["completed_at_utc"] + 300)
+            self.assertFalse(rig.state.get_flow(FLOW_ID).blocked)
+            with BotStateManager(rig.path) as restarted:
+                retained = restarted.get_run(first_run.run_id)
+                self.assertEqual(retained.consumed_actions, 2)
+                rig.stop.now = due - 1
+                self.assertEqual(rig.once(restarted), [])
+                self.assertEqual(native.calls, 1)
+                rig.stop.now = due
+                _, later = _fixture(
+                    rig.stop.now, rig.root / "later", aggregate=False, chests=("claimed",),
+                )
+                # The next observation collects the remaining slot only; the
+                # confirmed aggregate and first chest stay in the prior prefix.
+                later["chests_collected"][0].update(
+                    milestone_key="daily-chest-60", successor_milestone_key="daily-chest-60",
+                )
+                later["milestone_scan"].update(
+                    ready_chest_keys=["daily-chest-60"],
+                    static_or_locked_chest_keys=[
+                        "daily-chest-30", "daily-chest-90", "daily-chest-120", "daily-chest-150",
+                    ],
+                )
+                native.result = later
+                second = rig.once(restarted)
+                self.assertEqual(second[0]["result"]["status"], "completed", second)
+                self.assertEqual(second[0]["result"]["committed_action_count"], 1)
+                self.assertEqual(native.calls, 2)
+                self.assertFalse(restarted.get_flow(FLOW_ID).blocked)
+            runs = rig.runs()
+            self.assertEqual([run.consumed_actions for run in runs], [2, 1])
+            self.assertNotEqual(runs[0].occurrence_key, runs[1].occurrence_key)
+            self.assertEqual(identity.reset_id, runs[1].reset_id)
+
+    def test_unknown_after_confirmed_prefix_stays_blocked_across_due_and_restart(self):
+        from automation_service.state import BotStateManager
+        from tests.support.service_route_contract import ROUTES, RouteRig
+
+        with RouteRig(self, ROUTES[FLOW_ID]) as rig:
+            _, partial = _known_partial(rig.stop.now, rig.root / "unknown")
+            partial.update(
+                status="unresolved", effect_reconciliation_required=True,
+                total_action_count=3, reward_claim_transport_calls=3,
+            )
+            native = _FakeNative(partial)
+            rig.runner = DailyRewardsRunner(
+                native=native, output_directory=rig.root, utc_clock=lambda: rig.stop.now,
+            )
+            rig.service = rig.make_service(rig.state)
+            first = rig.once()
+            self.assertEqual(first[0]["status"], "blocked", first)
+            self.assertEqual(first[0]["result"]["committed_action_count"], 2)
+            self.assertTrue(first[0]["result"]["identical_retry_denied"])
+            self.assertTrue(rig.state.get_flow(FLOW_ID).blocked)
+            self.assertIsNone(rig.state.get_flow(FLOW_ID).next_due_at_utc)
+            with BotStateManager(rig.path) as restarted:
+                rig.stop.now += 600
+                rig.once(restarted)
+                self.assertTrue(restarted.get_flow(FLOW_ID).blocked)
+                self.assertEqual(native.calls, 1)
+                self.assertEqual(restarted.get_run(rig.runs()[0].run_id).consumed_actions, 3)
+                self.assertEqual(len(rig.runs()), 1)
+
+    def test_partial_deferral_rejects_ambiguous_scan_and_unconfirmed_prefix(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            identity, partial = _known_partial(self.now, Path(tmp) / "partial")
+            mutations = (
+                lambda value: value.update(effect_reconciliation_required=True),
+                lambda value: value.update(committed_action_count=1),
+                lambda value: value["milestone_scan"].update(status="partial_unknown"),
+                lambda value: value["milestone_scan"]["milestones"][1].update(
+                    milestone_state="unknown", milestone_ready=None,
+                ),
+                lambda value: value["milestone_scan"]["milestones"][0].update(
+                    milestone_state="ready", milestone_ready=True,
+                ),
+                lambda value: value["milestone_scan"].update(game_day_id="game-day-2026-08-15"),
+            )
+            for mutation in mutations:
+                invalid = deepcopy(partial)
+                mutation(invalid)
+                with self.subTest(mutation=mutation), self.assertRaises(DailyRewardsRunnerError):
+                    self._runner(Path(tmp), _FakeNative(invalid))(
+                        identity, self.previous_reset_id, lambda: None,
+                        runtime_input_lock=_HeldLock(), occurrence_key=self.occurrence_key,
+                    )
 
     def test_complete_scan_requires_five_disjoint_chest_identities(self):
         with tempfile.TemporaryDirectory() as tmp:

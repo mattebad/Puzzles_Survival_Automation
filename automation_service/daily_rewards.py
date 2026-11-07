@@ -18,7 +18,7 @@ from tasks.runtime_identity import (
     resource_fixed_runtime_binding,
 )
 from tasks.activity_milestones import ACTIVITY_MILESTONE_TARGET
-from tasks.available_daily_claim import DAILY_QUEST_CLAIM_TARGET
+from tasks.available_daily_claim import DAILY_QUEST_CLAIM_TARGET, _reset_deadline_identities_match
 from tasks.scheduler_task_result import SchedulerIdentity
 
 from .contracts import FlowSpec, NormalizedOutcome, NormalizedResult
@@ -180,25 +180,26 @@ def _evidence_pair(value: Mapping[str, Any], label: str) -> None:
 def daily_rewards_next_due(
     result: Mapping[str, Any], identity: SchedulerIdentity, started_at: float
 ) -> float:
-    """Admit only exact verified completion and schedule a bounded observation pulse."""
+    """Validate confirmed effects and schedule completion or known-partial observation."""
     if not isinstance(result, Mapping):
         raise ValueError("Daily rewards result must be a mapping")
     if not isinstance(identity, SchedulerIdentity) or identity.task_id != PRODUCT_ID:
         raise ValueError("Daily rewards outcome requires its exact task identity")
     started = _epoch(started_at, "start")
     completed = _epoch(result.get("completed_at_utc"), "completion")
+    deferred = result.get("status") == "deferred"
     _scheduler_identity(identity, completed)
     if (
         completed < started
         or recruitment_reset(started) != identity.reset_id
-        or result.get("status") != "completed"
+        or result.get("status") not in {"completed", "deferred"}
         or result.get("time_basis") != "utc"
         or result.get("runtime_profile_id") != PROFILE_ID
         or (result.get("flow_id"), result.get("product_id"), result.get("product_revision"), result.get("task_id"))
         != (FLOW_ID, PRODUCT_ID, PRODUCT_REVISION, PRODUCT_ID)
         or (result.get("account_id"), result.get("server_id"), result.get("reset_id"))
         != (identity.account_id, identity.server_id, identity.reset_id)
-        or result.get("terminal_home_verified") is not True
+        or (not deferred and result.get("terminal_home_verified") is not True)
         or result.get("accounting_verified") is not True
         or type(result.get("effect_reconciliation_required")) is not bool
         or result.get("effect_reconciliation_required") is not False
@@ -279,6 +280,73 @@ def daily_rewards_next_due(
             raise ValueError("Daily rewards chest lacks exact ready/free same-chest successor evidence")
         _evidence_pair(chest, "milestone chest")
         chest_keys.add(key)
+    if actions != aggregate_dispatches + len(chests):
+        raise ValueError("Daily rewards committed actions do not reconcile with aggregate/chests")
+    if actions > 0 and result.get("identical_retry_denied") is not True:
+        raise ValueError("Daily rewards confirmed batch must deny its identical retry")
+
+    backend = result.get("backend_identity")
+    if not isinstance(backend, Mapping):
+        raise ValueError("Daily rewards fixed runtime identity proof is missing")
+    binding = resource_fixed_runtime_binding()
+    expected = _backend_identity(identity, binding, completed)
+    expected_mapping = _backend_mapping(expected)
+    if dict(backend) != expected_mapping:
+        raise ValueError("Daily rewards fixed runtime identity evidence is not exact")
+
+    if deferred:
+        # Native partials retain their raw five-slot observation, not the
+        # completion projection. A later occurrence may collect only new work.
+        scan = result.get("milestone_scan")
+        rows = scan.get("milestones") if isinstance(scan, Mapping) else None
+        if (
+            result.get("native_status") != "evidence_required"
+            or result.get("no_work") is not False
+            or not isinstance(scan, Mapping)
+            or scan.get("status") != "observed"
+            or not _reset_deadline_identities_match(
+                expected.reset_id, scan.get("game_day_id"), tolerance_seconds=2,
+            )
+            or not _valid_sha256(scan.get("source_frame_sha256"))
+            or type(scan.get("slot_count")) is not int
+            or scan.get("slot_count") != 5
+            or type(scan.get("observed_chest_count")) is not int
+            or scan.get("observed_chest_count") != 5
+            or not isinstance(rows, (list, tuple))
+            or len(rows) != 5
+        ):
+            raise ValueError("Daily rewards partial lacks a complete known current chest scan")
+        observed_keys: set[str] = set()
+        claimed_keys: set[str] = set()
+        ready_count = 0
+        for row in rows:
+            key = row.get("milestone_key") if isinstance(row, Mapping) else None
+            state = row.get("milestone_state") if isinstance(row, Mapping) else None
+            if (
+                not isinstance(key, str)
+                or not key.strip()
+                or key in observed_keys
+                or state not in {"ready", "not_ready", "claimed"}
+                or row.get("milestone_ready") is not (state == "ready")
+                or row.get("target_identity") != ACTIVITY_MILESTONE_TARGET
+                or row.get("target_roi") is None
+            ):
+                raise ValueError("Daily rewards partial contains an unknown or duplicate chest")
+            observed_keys.add(key)
+            ready_count += int(state == "ready")
+            if state == "claimed":
+                claimed_keys.add(key)
+        if (
+            not chest_keys <= claimed_keys
+            or ready_count == 0
+            or type(scan.get("ready_chest_count")) is not int
+            or scan.get("ready_chest_count") != ready_count
+            or type(result.get("unclaimed_ready_chest_count")) is not int
+            or result.get("unclaimed_ready_chest_count") != ready_count
+        ):
+            raise ValueError("Daily rewards partial does not preserve claimed and remaining ready chests")
+        return due
+
     scan = result.get("milestone_scan")
     ready_keys = scan.get("ready_chest_keys") if isinstance(scan, Mapping) else None
     static_keys = scan.get("static_or_locked_chest_keys") if isinstance(scan, Mapping) else None
@@ -302,8 +370,6 @@ def daily_rewards_next_due(
     ):
         raise ValueError("Daily rewards lacks a complete current Daily chest-state scan")
 
-    if actions != aggregate_dispatches + len(chests):
-        raise ValueError("Daily rewards committed actions do not reconcile with aggregate/chests")
     if (
         type(result.get("unclaimed_ready_chest_count")) is not int
         or result.get("unclaimed_ready_chest_count") != 0
@@ -338,8 +404,6 @@ def daily_rewards_next_due(
             or evidence.get("source_frame_sha256") != scan.get("source_frame_sha256")
         ):
             raise ValueError("Daily rewards no-work chest scan does not match its locked/static evidence")
-    if actions > 0 and result.get("identical_retry_denied") is not True:
-        raise ValueError("Daily rewards confirmed batch must deny its identical retry")
 
     home = result.get("terminal_home_frame")
     if (
@@ -363,14 +427,6 @@ def daily_rewards_next_due(
     ):
         raise ValueError("Daily rewards terminal Home frame does not match retained native evidence")
 
-    backend = result.get("backend_identity")
-    if not isinstance(backend, Mapping):
-        raise ValueError("Daily rewards fixed runtime identity proof is missing")
-    binding = resource_fixed_runtime_binding()
-    expected = _backend_identity(identity, binding, completed)
-    expected_mapping = _backend_mapping(expected)
-    if dict(backend) != expected_mapping:
-        raise ValueError("Daily rewards fixed runtime identity evidence is not exact")
     return due
 
 
@@ -553,6 +609,10 @@ class DailyRewardsRunner:
                 occurrence_key=occurrence_key,
                 backend_identity=_backend_mapping(completed_backend),
             )
+            if partial.get("status") == "evidence_required":
+                partial.update(native_status="evidence_required", status="deferred")
+                daily_rewards_next_due(partial, identity, started)
+                return partial
             if partial.get("status") != "completed":
                 raise RuntimeError(str(partial.get("reason") or "Daily rewards native route is not complete"))
             if (
