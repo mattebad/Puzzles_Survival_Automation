@@ -7,9 +7,10 @@ Current owner direction and planning live in [tracker #53](https://github.com/ma
   `c6f0e2fba509dacde136226a7519568550f6b066` at task startup; do not reuse merged branches.
 - **Review branch:** `impl/base-route-batch-c-20261107`, stacked on batch B in a separate worktree.
   Batch C integrates #77/#73/#72 through the canonical service; runtime registration is not enablement.
-- **Offline checks before forwarding current A:** 286 focused route, authority, metadata,
+- **Offline checks after forwarding current A:** 286 focused route, authority, metadata,
   service-contract and startup tests passed; device-free `scripts/check.py` passed 404 tests.
-  Four executable help surfaces passed with repository `PYTHONPATH` unset. Post-merge checks follow.
+  Four executable help surfaces passed with repository `PYTHONPATH` unset. The finished Daily
+  native-driver/journal/adapter replay also passed under C: one aggregate plus five chests.
 - **Donations:** count ten confirmed individual HOT-tech donations per reset; preserve partial
   completion and regenerated-attempt deferral. Ranking points and bonuses are not counts.
 - **Alliance Shop:** one affordable exact Weekly allowlisted item, otherwise one Other 1-star
