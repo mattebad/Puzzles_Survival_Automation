@@ -202,6 +202,31 @@ def _read_words(frame: Any, ocr_data: Mapping[str, object] | None = None) -> tup
     return _ocr_words(ocr_data)
 
 
+def _home_research_hud_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[ResearchWord, ...]:
+    """Reread the fraction beside the fresh, measured left-HUD Research label."""
+    anchors = [word for word in words if word.normalized == "research"
+               and 0 <= word.roi[0] < word.roi[2] <= 138 and 150 <= word.roi[1] < word.roi[3] <= 760]
+    if len(anchors) != 1:
+        return words
+    anchor = anchors[0]
+    left, top = max(0, anchor.roi[0] - 14), max(150, anchor.roi[1] - 10)
+    right, bottom = min(138, anchor.roi[2] + 18), min(760, anchor.roi[3] + 24)
+    crop = cv2.resize(cv2.cvtColor(frame[top:bottom, left:right], cv2.COLOR_BGR2GRAY),
+                      None, fx=3, fy=3)
+    refined = _read_words(crop)
+    block = max((word.line_id[0] for word in words), default=0) + 1
+    retained = tuple(word for word in words
+                     if not (left <= word.center[0] <= right and top <= word.center[1] <= bottom))
+    translated = tuple(ResearchWord(
+        word.text, word.normalized,
+        (left + word.roi[0] // 3, top + word.roi[1] // 3,
+         left + (word.roi[2] + 2) // 3, top + (word.roi[3] + 2) // 3),
+        word.confidence, (block, word.line_id[1], word.line_id[2]),
+    ) for word in refined if _LEVEL_RE.fullmatch(word.text) or _CLOCK_RE.fullmatch(word.text))
+    label = ResearchWord(anchor.text, anchor.normalized, anchor.roi, anchor.confidence, (block, 0, 0))
+    return (*retained, label, *translated)
+
+
 def _phrase_lines(lines: Sequence[tuple[ResearchWord, ...]], phrase: str) -> tuple[tuple[ResearchWord, ...], ...]:
     sought = _normalize(phrase)
     return tuple(line for line in lines if sought and sought in _normalize(_line_text(line)))
@@ -270,40 +295,45 @@ def _panel_bounds(lines: Sequence[tuple[ResearchWord, ...]], *, top: int, bottom
 
 
 def _queue1_from_lines(lines: Sequence[tuple[ResearchWord, ...]]) -> tuple[str, int | None]:
-    for index, line in enumerate(lines):
-        value = _line_text(line)
-        normalized = _normalize(value)
-        if "research" not in normalized or "researchcenter" in normalized:
-            continue
-        count_index = index
-        match = _LEVEL_RE.search(value)
-        if match is None and normalized == "research" and index + 1 < len(lines):
-            candidate = lines[index + 1]
+    research_lines = [line for line in lines if _normalize(
+        _CLOCK_RE.sub("", _LEVEL_RE.sub("", _line_text(line)))) == "research"]
+    if len(research_lines) != 1:
+        return "unknown", None
+    line = research_lines[0]
+    value = _line_text(line)
+    matches = list(_LEVEL_RE.finditer(value))
+    count_bounds = _line_bounds(line)
+    if not matches:
+        # Global OCR order can interleave unrelated right-side HUD lines.
+        # Associate one numeric fraction geometrically with this Research label.
+        candidates = []
+        for candidate in lines:
+            candidate_value = _line_text(candidate)
             candidate_bounds = _line_bounds(candidate)
-            source_bounds = _line_bounds(line)
-            if (
-                0 <= candidate_bounds[1] - source_bounds[3] <= 60
-                and candidate_bounds[0] <= source_bounds[2] + 35
-                and source_bounds[0] <= candidate_bounds[2] + 35
-            ):
-                match = _LEVEL_RE.search(_line_text(candidate))
-                if match is not None:
-                    count_index = index + 1
-        if match is None:
-            continue
-        current, maximum = (int(part) for part in match.groups())
-        if (current, maximum) == (0, 1):
-            return "idle", None
-        if (current, maximum) == (1, 1):
-            queue_bottom = _line_bounds(lines[count_index])[3]
-            time_candidates = [_clock_seconds(value)]
-            for candidate in lines[count_index + 1:count_index + 3]:
-                x0, y0, _x1, _y1 = _line_bounds(candidate)
-                if y0 - queue_bottom > 90 or x0 > 180:
-                    break
-                time_candidates.append(_clock_seconds(_line_text(candidate)))
-            remaining = next((item for item in time_candidates if item is not None and item > 0), None)
-            return ("busy", remaining) if remaining is not None else ("busy_unknown_timer", None)
+            fractions = list(_LEVEL_RE.finditer(candidate_value))
+            if (len(fractions) == 1 and not _normalize(_LEVEL_RE.sub("", candidate_value))
+                    and 0 <= candidate_bounds[1] - count_bounds[3] <= 60
+                    and candidate_bounds[0] <= count_bounds[2] + 35
+                    and count_bounds[0] <= candidate_bounds[2] + 35):
+                candidates.append((fractions[0], candidate_bounds))
+        if len(candidates) != 1:
+            return "unknown", None
+        match, count_bounds = candidates[0]
+    elif len(matches) == 1:
+        match = matches[0]
+    else:
+        return "unknown", None
+    current, maximum = (int(part) for part in match.groups())
+    if (current, maximum) == (0, 1):
+        return "idle", None
+    if (current, maximum) == (1, 1):
+        times = [_clock_seconds(value)]
+        for candidate in lines:
+            x0, y0, x1, _y1 = _line_bounds(candidate)
+            if 0 <= y0 - count_bounds[3] <= 90 and x0 <= 180 and x1 <= 180:
+                times.append(_clock_seconds(_line_text(candidate)))
+        remaining = [item for item in times if item is not None and item > 0]
+        return ("busy", remaining[0]) if len(remaining) == 1 else ("busy_unknown_timer", None)
     return "unknown", None
 
 
@@ -359,6 +389,8 @@ def recognize_research_screen(
     if not native_frame_guard(frame) or not _DIGEST_RE.fullmatch(source_frame_sha256 or ""):
         return ResearchScreenObservation("UNKNOWN", source_frame_sha256 or "", refs, "", (), recognized=False)
     words = _read_words(frame, ocr_data)
+    if home_recognized and ocr_data is None:
+        words = _home_research_hud_words(frame, words)
     lines = _line_groups(words)
     text = "\n".join(_line_text(line) for line in lines)
     normalized_text = _normalize(text)
@@ -1487,7 +1519,11 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 terminal_home_verified=True,
             )
         if queue_state != "idle":
-            return _normal_result(context, status="blocked", reason="research_queue1_state_unknown_or_timer_unproven", game_day_id=game_day_id, queue1_state=queue_state)
+            return _normal_result(
+                context, status="blocked", reason="research_queue1_state_unknown_or_timer_unproven",
+                game_day_id=game_day_id, queue1_state=queue_state,
+                queue1_remaining_seconds=queue_remaining, terminal_home_verified=True,
+            )
         atlas: HomeAtlas = load_home_atlas(ATLAS_PATH)
         localizer = BlueStacksHomeLocalizer(atlas, ATLAS_PATH)
         building = atlas.lookup_building(RESEARCH_CENTER_ID)
@@ -1516,6 +1552,8 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 return _normal_result(
                     context, status="blocked", reason="research_queue1_state_unknown_or_timer_unproven",
                     game_day_id=game_day_id, queue1_state=queue_state,
+                    queue1_remaining_seconds=queue_remaining,
+                    terminal_home_verified=home_screen.screen_state == "HOME_BASE" and home_screen.recognized,
                 )
         home = entry_home
         center_level = _building_level_from_words(home_screen, binding)
