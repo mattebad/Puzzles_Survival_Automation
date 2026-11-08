@@ -133,9 +133,11 @@ class ZombieZeroMenu:
 class HallOfWarVision:
     """OCR/geometry recognizers for the exact observed Hall of War UI surfaces."""
 
+    # Measured outer borders of the five Dispatch hero cards (native saved
+    # Troop Set 1 capture; empty "+" slots share the same frames).
     _HERO_RECTS = (
-        (48, 174, 162, 286), (185, 140, 294, 251), (316, 140, 426, 251),
-        (447, 140, 557, 251), (581, 174, 690, 286),
+        (56, 157, 170, 271), (201, 118, 315, 233), (343, 118, 457, 233),
+        (483, 118, 598, 233), (629, 157, 743, 271),
     )
 
     @staticmethod
@@ -510,6 +512,12 @@ class HallOfWarVision:
         footer = self._dispatch_footer(frame)
         return footer[1] if footer is not None and footer[0] == "quick select" else None
 
+    def bind_dispatch(self, frame: np.ndarray) -> BoundTarget | None:
+        # The measured gold footer button with the exact "Dispatch" label,
+        # never the identical page title.
+        footer = self._dispatch_footer(frame)
+        return BoundTarget(DISPATCH_TARGET, footer[1]) if footer is not None and footer[0] == "dispatch" else None
+
     def dispatch_page(self, frame: np.ndarray) -> bool:
         return self._dispatch_footer(frame) is not None
 
@@ -636,15 +644,17 @@ class HallOfWarVision:
                 count += 1
         return count
 
+    # Green footer fraction "current/capacity", below the troop rows.
+    _TROOP_FOOTER_BAND = (40, 1080, 760, 1145)
+    _GREEN_TEXT = ((40, 120, 150), (85, 255, 255))
+    _TROOP_FRACTION = re.compile(r"([0-9]{1,3}(?:,[0-9]{3})*)/([0-9]{1,3}(?:,[0-9]{3})*)")
+
     def troop_counts(self, frame: np.ndarray) -> tuple[int | None, int | None]:
-        text = self.text(frame, (50, 1005, 760, 1165))
-        match = re.search(r"([0-9][0-9,]*)\s*/\s*([0-9][0-9,]*)", text)
-        if not match:
+        lines = self._text_lines(frame, self._TROOP_FOOTER_BAND, self._GREEN_TEXT)
+        matches = [match for line in lines or () if (match := self._TROOP_FRACTION.fullmatch(line.text))]
+        if len(matches) != 1:
             return None, None
-        try:
-            return int(match.group(1).replace(",", "")), int(match.group(2).replace(",", ""))
-        except ValueError:
-            return None, None
+        return int(matches[0].group(1).replace(",", "")), int(matches[0].group(2).replace(",", ""))
 
     def _ocr_lines(self, frame: np.ndarray) -> tuple[tuple[str, tuple[int, int, int, int]], ...]:
         tokens = sorted(self.tokens(frame), key=lambda token: ((token.roi[1] + token.roi[3]) // 2, token.roi[0]))
@@ -710,15 +720,27 @@ class HallOfWarVision:
     def loss_effect_approved(self, frame: np.ndarray) -> bool:
         return self.loss_effect_proof(frame)[0]
 
-    # Historically observed white toast just below Clear Hero on the owned
-    # Dispatch page (desktop capture 0046); native band still to be measured.
+    # White toast just below Clear Hero on the owned Dispatch page (native
+    # saved Troop Set 1 capture: label at y367-394).
     _APPLIED_TOAST_BAND = (40, 330, 760, 470)
 
     def troop_set_one_applied(self, frame: np.ndarray) -> bool:
         if not self.dispatch_page(frame):
             return False
         toast = self._text_lines(frame, self._APPLIED_TOAST_BAND, self._WHITE_TEXT)
-        return len([line for line in toast or () if line.text == "troop set 1 formation applied"]) == 1
+        anchors = [line.roi for line in toast or () if line.text.startswith("troop set")]
+        if len(anchors) != 1:
+            return False
+        # The narrow set digit drops out as its own component; join the
+        # anchor's same-row line components and read their envelope once.
+        x0, y0, x1, y1 = anchors[0]
+        centre = (y0 + y1) // 2
+        for roi in sorted((line.roi for line in toast or ()), key=lambda roi: roi[0]):
+            if roi[0] > x1 and roi[0] - x1 <= 60 and abs((roi[1] + roi[3]) // 2 - centre) <= 8:
+                x1, y0, y1 = roi[2], min(y0, roi[1]), max(y1, roi[3])
+        text = self._read_isolated(frame, (max(0, x0 - 4), max(0, y0 - 4), min(NATIVE_WIDTH, x1 + 4), min(NATIVE_HEIGHT, y1 + 4)),
+                                   self._WHITE_TEXT)
+        return text == "troop set 1 formation applied"
 
     def formation_signature(self, frame: np.ndarray) -> tuple[str, ...]:
         if not self._native(frame):
@@ -1711,7 +1733,7 @@ class HallOfWarBoundary:
                 or self.vision.roi_sha256(frame, cost_roi) != composite.cost_roi_sha256
                 or self.vision.roi_sha256(frame, loss_roi) != composite.loss_roi_sha256):
             return None
-        return self.vision.bind_text_target(frame, "Dispatch", DISPATCH_TARGET)
+        return self.vision.bind_dispatch(frame)
 
 
 def run_hall_of_war(
