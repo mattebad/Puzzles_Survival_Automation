@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,7 +18,6 @@ from tasks.ruins_challenge import (
     RuinsChestState,
     RuinsControlState,
     RuinsDetailObservation,
-    RuinsDispatchState,
     RuinsResult,
     RuinsResultObservation,
     RuinsScreenObservation,
@@ -581,11 +579,11 @@ class RuinsContractTests(unittest.TestCase):
         def list_ocr(_frame, box=None, psm=11):
             if box is None:
                 return "nova challenge"
-            if box == (0, 0, 800, 120):
+            if box == (175, 0, 650, 75):
                 return "ruins challenge"
             if box == (40, 120, 175, 180):
                 return "16350"
-            if box == (150, 100, 800, 210):
+            if box == (190, 100, 760, 175):
                 return "Exchange Progress Total Rank"
             if box[0] == 18:
                 return "Nova Challenge 18/100 Wed"

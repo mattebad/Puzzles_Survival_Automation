@@ -7,6 +7,8 @@ import unittest
 from unittest.mock import patch
 import numpy as np
 
+from tests.support.environment import requires_tesseract
+
 from safe_action_core import SafetyStore
 from scripts.daily_shops_bluestacks import (
     DailyShopsPurchaseRoute,
@@ -595,18 +597,88 @@ class DailyShopsNativeReplayTests(unittest.TestCase):
         self.assertIsNone(port._dialog(captured, current_offer))
 
 
+class RuinsOverviewActualPixelTests(unittest.TestCase):
+    @requires_tesseract
+    def test_actual_overview_binds_exchange_without_claiming_ready_chests(self):
+        source = Path(__file__).resolve().parent / "fixtures/daily_shop_entry/ruins-overview-successor.png"
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(directory, store, source)
+                synthetic_successor = port._ocr
+
+                def current_source_ocr(captured):
+                    if runtime.state == "home":
+                        return DailyShopsLivePort._ocr(port, captured)
+                    return synthetic_successor(captured)
+
+                port._ocr = current_source_ocr
+                self.assertTrue(port._tap_text(
+                    "Exchange", "daily-shops:ruins-exchange",
+                    lambda after: port._page(after)[0] == RUINS_TAB,
+                ))
+                self.assertEqual(runtime.taps, ["daily-shops:ruins-exchange"])
+                self.assertEqual(runtime.input_count, 1)
+            finally:
+                store.close()
+
+    @requires_tesseract
+    def test_missing_exchange_does_not_authorize_overview_navigation(self):
+        import cv2
+        source = Path(__file__).resolve().parent / "fixtures/daily_shop_entry/ruins-overview-successor.png"
+        with tempfile.TemporaryDirectory() as directory:
+            frame = cv2.imread(str(source))
+            frame[100:175, 190:375] = 0
+            masked = Path(directory) / "exchange-not-visible.png"
+            self.assertTrue(cv2.imwrite(str(masked), frame))
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(directory, store, masked)
+                port._ocr = lambda captured: DailyShopsLivePort._ocr(port, captured)
+                self.assertFalse(port._tap_text(
+                    "Exchange", "daily-shops:ruins-exchange", lambda _after: True,
+                ))
+                self.assertEqual(runtime.taps, [])
+                self.assertEqual(runtime.input_count, 0)
+            finally:
+                store.close()
+
+    @requires_tesseract
+    def test_owned_overview_returns_home_but_unknown_context_sends_no_back(self):
+        root = Path(__file__).resolve().parents[1]
+        source = root / "tests/fixtures/daily_shop_entry/ruins-overview-successor.png"
+        home = root / "tasks/assets/home_atlas/bluestacks/800x1280/tiles/viewport-001.png"
+        for recognized in (True, False):
+            with self.subTest(recognized=recognized), tempfile.TemporaryDirectory() as directory:
+                store = SafetyStore(Path(directory) / "actions.sqlite3")
+                try:
+                    port, runtime = native_daily_shop_entry_port(
+                        directory, store, source, home_source=home,
+                    )
+                    if not recognized:
+                        runtime.state = "unknown"
+                    self.assertEqual(port.return_home(), recognized)
+                    self.assertEqual(len(runtime.backs), int(recognized))
+                    self.assertEqual(runtime.input_count, int(recognized))
+                    self.assertEqual(runtime.taps, [])
+                finally:
+                    store.close()
+
+
 class NativeDailyShopEntryRuntime:
     """Retained Home pixels, fake transport; successor text is synthetic, not acceptance."""
 
     execute = True
     in_flight_action = None
 
-    def __init__(self, directory, source, *, pan_successor="unchanged", zoom_successor=None):
+    def __init__(self, directory, source, *, pan_successor="unchanged", zoom_successor=None, home_source=None):
         self.session = Path(directory)
         self.runner = SimpleNamespace(executable="offline-replay", serial="offline")
         self.source = source
         self.pan_successor = pan_successor
         self.zoom_successor = zoom_successor
+        self.home_source = home_source
+        self.backs = []
         self.zooms = []
         self.input_count = 0
         self.ordinal = 0
@@ -655,6 +727,15 @@ class NativeDailyShopEntryRuntime:
             self.state = "unknown"
         elif self.zoom_successor is not None:
             self.source = self.zoom_successor
+
+    def back(self, captured, *, action_key):
+        self.input_count += 1
+        self.backs.append(action_key)
+        if self.home_source is None:
+            self.state = "unknown"
+        else:
+            self.state = "home"
+            self.source = self.home_source
 
     def clock(self):
         return self.now + 0.01

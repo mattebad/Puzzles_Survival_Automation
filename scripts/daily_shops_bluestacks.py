@@ -376,8 +376,13 @@ class DailyShopsLivePort:
         return self.session.observe(self.runtime.capture, label=label)
 
     def _ocr(self, captured):
+        return self._ocr_region(captured.frame)
+
+    @staticmethod
+    def _ocr_region(frame, roi=None, *, psm=6):
         from scripts.bounded_tesseract import call_ocr, tesseract_data
-        data = call_ocr(tesseract_data, captured.frame, config="--psm 6")
+        left, top, right, bottom = roi or (0, 0, 800, 1280)
+        data = call_ocr(tesseract_data, frame[top:bottom, left:right], config=f"--psm {psm}")
         groups = {}
         for i, text in enumerate(data.get("text", ())):
             value = str(text).strip()
@@ -385,9 +390,9 @@ class DailyShopsLivePort:
                 if float(data["conf"][i]) < 35:
                     continue
                 roi = (
-                    int(data["left"][i]), int(data["top"][i]),
-                    int(data["left"][i]) + int(data["width"][i]),
-                    int(data["top"][i]) + int(data["height"][i]),
+                    left + int(data["left"][i]), top + int(data["top"][i]),
+                    left + int(data["left"][i]) + int(data["width"][i]),
+                    top + int(data["top"][i]) + int(data["height"][i]),
                 )
                 line = (int(data["block_num"][i]), int(data["par_num"][i]), int(data["line_num"][i]))
             except (KeyError, ValueError, TypeError, IndexError):
@@ -476,6 +481,16 @@ class DailyShopsLivePort:
             return "rare_earth", lines
         if self._hits(lines, "Ruins Challenge") and self._hits(lines, "Exchange"):
             return "ruins_challenge", lines
+        from tasks.ruins_challenge_vision import (
+            RUINS_OVERVIEW_CONTROLS_ROI, RUINS_OVERVIEW_HEADER_ROI,
+        )
+        navigation = (
+            self._ocr_region(captured.frame, RUINS_OVERVIEW_HEADER_ROI, psm=7)
+            + self._ocr_region(captured.frame, RUINS_OVERVIEW_CONTROLS_ROI)
+        )
+        if self._hits(navigation, "Ruins Challenge") and self._hits(navigation, "Exchange"):
+            body = tuple(line for line in lines if all(word[1][1] >= 210 for word in line))
+            return "ruins_challenge", navigation + body
         if self.context.is_clean_home(captured.frame):
             return "home", lines
         return "unknown", lines
@@ -495,7 +510,7 @@ class DailyShopsLivePort:
 
     def _tap_text(self, label, target_identity, recognize):
         before = self._capture(f"daily-shops-{label.replace(' ', '-')}-source")
-        lines = self._ocr(before)
+        _page, lines = self._page(before)
         matches = self._hits(lines, label)
         if len(matches) != 1:
             return False
@@ -1232,29 +1247,29 @@ def _purchase_daily_offer(context, port, tab, offer, dialog, action_key, *, sett
 
 def _service_driver(context, arguments):
     from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
-    if not context.is_clean_home(context.initial_frame.frame):
-        return {
-            "status": "blocked", "reason": "DAILY_SHOPS_CANONICAL_HOME_NOT_RECOGNIZED",
-            "purchase_transport_calls": 0, "committed_action_count": 0,
-            "accounting_verified": False, "terminal_home_verified": False,
-            "effect_reconciliation_required": False, "identical_retry_denied": False,
-            "input_count": 0, "total_input_count": 0,
-        }
-    context.validate_identity()
-    source = context.session.observe(context.runtime.capture, label="daily-shops-canonical-home-source")
-    if not context.is_clean_home(source.frame):
-        return {
-            "status": "blocked", "reason": "DAILY_SHOPS_HOME_SOURCE_CHANGED",
-            "purchase_transport_calls": 0, "committed_action_count": 0,
-            "accounting_verified": False, "terminal_home_verified": False,
-            "effect_reconciliation_required": False, "identical_retry_denied": False,
-            "input_count": 0, "total_input_count": 0,
-        }
-    context.bind_initial_observation(source, extra={"source_state": "HOME_BASE", "home_verified": True})
     action_keys = arguments.get("action_keys")
     if not isinstance(action_keys, Mapping) or set(action_keys) != set(TABS):
         raise ValueError("Daily Shops canonical tab action keys are missing")
     port = DailyShopsLivePort(context, action_keys=action_keys, settle_seconds=context.settle_seconds)
+    context.validate_identity()
+    source = context.session.observe(context.runtime.capture, label="daily-shops-canonical-home-source")
+    if not context.is_clean_home(source.frame):
+        try:
+            port.return_home()
+        finally:
+            context.session.adopt_retained_transport_count(
+                context.runtime.input_count, source=str(context.runtime.events),
+            )
+        source = context.session.observe(context.runtime.capture, label="daily-shops-recovered-home-source")
+    if not context.is_clean_home(source.frame):
+        return {
+            "status": "blocked", "reason": "DAILY_SHOPS_HOME_SOURCE_CHANGED",
+            "purchase_transport_calls": 0, "committed_action_count": 0,
+            "accounting_verified": context.accounting().verified, "terminal_home_verified": False,
+            "effect_reconciliation_required": False, "identical_retry_denied": False,
+            "input_count": context.runtime.input_count, "total_input_count": context.runtime.input_count,
+        }
+    context.bind_initial_observation(source, extra={"source_state": "HOME_BASE", "home_verified": True})
     try:
         result = run_daily_shops_route(port, action_keys=action_keys)
     finally:
