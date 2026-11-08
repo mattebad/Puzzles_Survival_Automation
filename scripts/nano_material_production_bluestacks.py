@@ -69,10 +69,11 @@ GEAR_FACTORY_ID = "home.building.gear_factory"
 _TIMER_RE = re.compile(r"(?<![0-9])([0-9]{1,2}):([0-5][0-9]):([0-5][0-9])(?![0-9])", re.ASCII)
 _DURATION_RE = re.compile(r"\b(?:duration|production time)\s*[:=-]?\s*(21600\s*(?:seconds?|s)|6\s*(?:hours?|hrs?)|06:00:00)\b", re.IGNORECASE | re.ASCII)
 
-# Owner-ROI-relative "Gear Factory" radial control measured on the actual
-# 2026-11-08 radial (owner (170, 662, 291, 815); circle centre (352, 796), r 36;
-# label "Gear"/"Factory" (315, 820, 387, 866)).
-_GEAR_FACTORY_RADIAL_CONTROL_OFFSET = (137, 95, 225, 209)
+# Mapped-owner-anchor-relative "Gear Factory" radial control measured on the
+# actual 2026-11-08 radial (owner anchor (230.5, 738.5); circle centre
+# (352, 796), r 36; label "Gear"/"Factory" (315, 820, 387, 866)).
+# The tap-safe owner ROI can be clipped; its left/top are not a radial origin.
+_GEAR_FACTORY_RADIAL_ANCHOR_CONTROL_OFFSET = (76.5, 18.5, 164.5, 132.5)
 
 # Full-page title band shared by the Gear Factory hub and the Nanoweapon page;
 # native-scale OCR misses both white titles.  Measured on the actual
@@ -781,10 +782,9 @@ def _gear_factory_radial_target(frame: np.ndarray, atlas=None, localizer=None):
         atlas = _load_atlas(DEFAULT_ATLAS)
         localizer = BlueStacksHomeLocalizer(atlas, DEFAULT_ATLAS)
     owner = _home_binding(frame, atlas, localizer)
-    if owner is None:
+    if owner is None or owner.screen_anchor is None:
         return None
-    x0, y0, x1, y1 = owner.target_roi
-    anchor = ((x0 + x1) / 2, (y0 + y1) / 2)
+    anchor = owner.screen_anchor
     # Reuse the established Farm radial's owner-relative menu envelope.
     envelope = (max(0, int(anchor[0] - 280)), max(0, int(anchor[1] - 220)),
                 min(800, int(anchor[0] + 280)), min(1280, int(anchor[1] + 220)))
@@ -797,10 +797,13 @@ def _gear_factory_radial_target(frame: np.ndarray, atlas=None, localizer=None):
     }
     if len(labels["details"]) != 1 or len(labels["upgrade"]) != 1:
         return None
-    # Measured "Gear Factory" action circle plus stacked label, relative to the
-    # atlas-bound owner ROI; stable across captures, unlike OCR word boxes.
-    dx0, dy0, dx1, dy1 = _GEAR_FACTORY_RADIAL_CONTROL_OFFSET
-    control = (x0 + dx0, y0 + dy0, x0 + dx1, y0 + dy1)
+    # Bind the measured circle and stacked label to the current Atlas anchor,
+    # not the owner tap ROI, whose safe-area clipping changes its origin.
+    dx0, dy0, dx1, dy1 = _GEAR_FACTORY_RADIAL_ANCHOR_CONTROL_OFFSET
+    control = (
+        round(anchor[0] + dx0), round(anchor[1] + dy0),
+        round(anchor[0] + dx1), round(anchor[1] + dy1),
+    )
     if not _safe_nav_roi(control):
         return None
     candidates = []
