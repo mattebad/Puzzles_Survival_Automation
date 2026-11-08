@@ -690,30 +690,36 @@ def _same_bound_target(planned, fresh, safe_target: Callable[[Any], bool] = _saf
 
 def _crop_label(words: tuple[_Word, ...]) -> str:
     ordered = sorted(words, key=lambda word: (word.line, word.roi[0]))
-    return " ".join(token for word in ordered if (token := _normal(word.text)))
+    # OCR may split gray "Weapon" into "Wea"/"pon" beside the notification
+    # badge (actual Material-selected frame 0008).  Preserve every glyph and
+    # its reading order; only token/line boundaries are immaterial.
+    return "".join(_normal(word.text).replace(" ", "") for word in ordered)
+
+
+def _is_nanoweapon_page(frame: np.ndarray) -> bool:
+    """Prove page identity independently of tab selection or production fields."""
+    title = _lines(_ocr_words(frame, _PAGE_TITLE_ROI, scale=2, white_text=True))
+    if len(title) != 1 or len(_phrase_lines(title, "Nanoweapon")) != 1:
+        return False
+    for label, cell in _NANOWEAPON_TAB_CELLS:
+        visible = _ocr_words(frame, cell, scale=2, white_text=True, glyph_threshold=_NANOWEAPON_TAB_LABEL_THRESHOLD)
+        if _crop_label(visible) != _normal(label).replace(" ", ""):
+            return False
+    return True
 
 
 def _nanoweapon_selected_tab(frame: np.ndarray) -> str | None:
-    """Return the one selected top tab of a positively titled Nanoweapon page."""
-    title = _lines(_ocr_words(frame, _PAGE_TITLE_ROI, scale=2, white_text=True))
-    if len(title) != 1 or len(_phrase_lines(title, "Nanoweapon")) != 1:
+    """Require exactly one white selected label on the independently known page."""
+    if not _is_nanoweapon_page(frame):
         return None
     selected = []
     for label, cell in _NANOWEAPON_TAB_CELLS:
-        expected = _normal(label)
-        visible = _ocr_words(frame, cell, scale=2, white_text=True, glyph_threshold=_NANOWEAPON_TAB_LABEL_THRESHOLD)
-        if _crop_label(visible) != expected:
-            return None
         white = _crop_label(_ocr_words(frame, cell, scale=2, white_text=True))
-        if white == expected:
+        if white == _normal(label).replace(" ", ""):
             selected.append(label)
         elif white:
             return None
     return selected[0] if len(selected) == 1 else None
-
-
-def _is_nanoweapon_page(frame: np.ndarray) -> bool:
-    return _nanoweapon_selected_tab(frame) is not None
 
 
 def _is_nanoweapon_material_tab_control(roi) -> bool:
