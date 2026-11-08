@@ -308,7 +308,7 @@ class AllianceShopEntryPixelTests(unittest.TestCase):
         captured = self.captured("alliance-menu.png")
         with patch.object(port, "_capture", return_value=captured), \
              patch.object(port, "_page", return_value=("unknown", ())):
-            self.assertFalse(port._back())
+            self.assertFalse(port._back("terminal"))
 
 
 class AllianceShopInventoryPixelTests(unittest.TestCase):
@@ -602,6 +602,116 @@ class AllianceShopQuantityModalPixelTests(unittest.TestCase):
                 else:
                     self.assertEqual(result["reason"], "ALLIANCE_CANONICAL_HOME_NOT_RECOGNIZED")
                     self.assertEqual((bound, transport.inputs, result["input_count"]), ([], [], 0))
+
+
+PURCHASE_RUN = DIALOG_FIXTURES / "purchase-run"
+RUN_START_WEEKLY = PURCHASE_RUN / "0006-alliance-shop-close-quantity-dialog-settled.png"
+RUN_MENU = PURCHASE_RUN / "0010-alliance-shop-home-return-source.png"
+RUN_HOME = PURCHASE_RUN / "0013-alliance-shop-home-return-source.png"
+RUN_WEEKLY = PURCHASE_RUN / "0023-alliance-shop-weekly-scan-1.png"
+RUN_MODAL = PURCHASE_RUN / "0027-alliance-shop-open-quantity-dialog-settled.png"
+RUN_POST_1 = PURCHASE_RUN / "0031-alliance-shop-purchase-post-1.png"
+RUN_POST_2 = PURCHASE_RUN / "0032-alliance-shop-purchase-post-2.png"
+
+
+def inside(point, box):
+    return box[0] <= point[0] <= box[2] and box[1] <= point[1] <= box[3]
+
+
+class PurchaseRunTransport:
+    """Actual #73 purchase-run pixels; each Back successor appears one capture late, as observed."""
+
+    def __init__(self, start=DIALOG_MODAL, *, stall_terminal_menu=False):
+        self.state, self.stall_terminal_menu, self.bought = start, stall_terminal_menu, False
+        self.lagging, self.posts, self.inputs = None, [], []
+
+    def capture_png(self):
+        if self.lagging is not None:
+            frame, self.lagging = self.lagging, None
+            return frame.read_bytes()
+        if self.posts:
+            return self.posts.pop(0).read_bytes()
+        return self.state.read_bytes()
+
+    def dispatch_tap(self, point):
+        self.inputs.append(("tap", self.state.name[:4]))
+        close = (671, 389, 706, 425)
+        if self.state == DIALOG_MODAL and inside(point, close):
+            self.state = RUN_START_WEEKLY
+        elif self.state == RUN_HOME:
+            self.state = RUN_MENU
+        elif self.state == RUN_MENU:
+            self.state = RUN_WEEKLY
+        elif self.state == RUN_WEEKLY:
+            self.state = RUN_MODAL
+        elif self.state == RUN_MODAL and inside(point, (376, 816, 426, 842)):
+            self.bought, self.posts, self.state = True, [RUN_POST_1], RUN_POST_2
+
+    def dispatch_back(self):
+        self.inputs.append(("back", self.state.name[:4]))
+        self.lagging = self.state
+        if self.state in {RUN_START_WEEKLY, RUN_WEEKLY, RUN_POST_2}:
+            self.state = RUN_MENU
+        elif self.state == RUN_MENU and not (self.stall_terminal_menu and self.bought):
+            self.state = RUN_HOME
+
+
+class AllianceShopPurchaseRunReplayTests(unittest.TestCase):
+    def test_startup_purchase_and_terminal_return_revisit_identical_alliance_menu(self):
+        import json
+        import time
+        from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+        from scripts.startup_normalization import is_clean_home_frame
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                transport = PurchaseRunTransport()
+                runtime = LocalBlueStacksRuntime(transport, Path(directory) / "native", execute=True)
+                runtime.measure_foreground_package = lambda: "com.global.ztmslg"
+                bound = []
+                context = safety_store_purchase_context(directory, store)
+                context.runtime, context.monotonic_clock = runtime, time.monotonic
+                context.is_clean_home, context.occurrence_key = is_clean_home_frame, "occurrence"
+                context.session = SimpleNamespace(
+                    observe=lambda capture, *, label: capture(label),
+                    adopt_retained_transport_count=lambda _count, source: None,
+                    session_directory=Path(directory) / "native",
+                )
+                context.accounting = lambda: SimpleNamespace(verified=True, input_count=runtime.input_count)
+                context.bind_initial_observation = lambda source, extra: bound.append(source.sha256)
+                result = native._service_driver(context, {"action_key": "purchase-run", "settle_seconds": 0})
+                self.assertEqual(result["status"], "completed", result)
+                self.assertTrue(result["offer_effect_verified"] and result["terminal_home_verified"])
+                self.assertEqual((result["purchase_transport_calls"], result["input_count"]), (1, 9))
+                self.assertEqual(store.get_action_by_key("purchase-run")["final_status"], "confirmed")
+                self.assertEqual(bound, [hashlib.sha256(RUN_HOME.read_bytes()).hexdigest()])
+                dispatches = [json.loads(line) for line in runtime.events.read_text(encoding="utf-8").splitlines()]
+                menu = hashlib.sha256(RUN_MENU.read_bytes()).hexdigest()
+                self.assertEqual(sorted(row["target_identity"] for row in dispatches
+                                        if row["type"] == "dispatch" and row["source_sha256"] == menu), [
+                    "alliance:shop-entry", "android-back:alliance-shop-startup",
+                    "android-back:alliance-shop-terminal",
+                ])
+                self.assertEqual([kind for kind, _frame in transport.inputs].count("back"), 4)
+            finally:
+                store.close()
+
+    def test_unchanged_alliance_menu_back_stops_after_one_without_identical_retry(self):
+        from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+        with tempfile.TemporaryDirectory() as directory:
+            transport = PurchaseRunTransport(RUN_MENU, stall_terminal_menu=True)
+            transport.bought = True
+            runtime = LocalBlueStacksRuntime(transport, Path(directory) / "native", execute=True)
+            context = SimpleNamespace(
+                runtime=runtime, checkpoint=lambda: None,
+                session=SimpleNamespace(observe=lambda capture, *, label: capture(label)),
+                identity=SimpleNamespace(reset_id="pixel-replay-reset"),
+            )
+            port = native.AllianceShopLivePort(context, settle_seconds=0)
+            self.assertFalse(port.return_home())
+            self.assertFalse(port.return_home())
+            self.assertEqual(transport.inputs, [("back", "0010")])
+            self.assertEqual(runtime.input_count, 1)
 
 
 class AllianceShopNativeReplayTests(unittest.TestCase):
