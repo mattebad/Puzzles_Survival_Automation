@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tempfile
 import time
 from types import SimpleNamespace
 import unittest
@@ -1158,6 +1159,96 @@ class DailyResourceItemRecognitionTests(unittest.TestCase):
                 "daily-resource-item:return-home",
             ],
         )
+
+
+class ResourceHomeRecoveryTests(unittest.TestCase):
+    def _recover(self, *, source="bag", immediate="bag", successor="home"):
+        from scripts import navigation_development_boundary as boundary
+        from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+
+        payloads = {
+            "bag": (PORTABLE_FIXTURES / "native-bag-resource66-before-use-20261107.png").read_bytes(),
+            "home": (PORTABLE_FIXTURES / "session-2-terminal-home.png").read_bytes(),
+            "unknown": cv2.imencode(".png", _blank_frame())[1].tobytes(),
+        }
+
+        class Transport:
+            def __init__(self):
+                self.captures = 0
+                self.taps = []
+
+            def capture_png(self):
+                self.captures += 1
+                state = successor if self.taps else (source if self.captures == 1 else immediate)
+                return payloads[state]
+
+            def dispatch_tap(self, point):
+                self.taps.append(point)
+
+        transport = Transport()
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            boundary, "RUNTIME_INPUT_LOCK_PATH", Path(directory) / "lock.sqlite3"
+        ), patch.object(route.time, "sleep", return_value=None):
+            with boundary.DevelopmentSession(
+                owner="resource-recovery-test", invocation_id="one-back",
+                session_directory=Path(directory) / "session", max_inputs=1,
+            ) as session:
+                runtime = LocalBlueStacksRuntime(transport, Path(directory) / "native", execute=True)
+                runtime.max_inputs = 1
+                result = route.recover_resource_item_home(runtime, session)
+                return result, transport.taps
+
+    @requires_tesseract
+    def test_actual_bag_one_back_proves_home_without_any_food_effect(self):
+        result, taps = self._recover()
+        self.assertEqual(result["status"], "completed")
+        self.assertTrue(result["terminal_home_verified"])
+        self.assertEqual(result["completion_scope"], "navigation_only")
+        self.assertEqual(result["input_count"], 1)
+        self.assertEqual(result["item_use_transport_calls"], 0)
+        self.assertFalse(result["resource_delta_verified"])
+        self.assertEqual(len(taps), 1)
+        self.assertLess(taps[0][0], 140)
+        self.assertLess(taps[0][1], 90)
+
+    @requires_tesseract
+    def test_already_home_requires_no_back_or_route_entry(self):
+        result, taps = self._recover(source="home", immediate="home")
+        self.assertTrue(result["terminal_home_verified"])
+        self.assertEqual(result["input_count"], 0)
+        self.assertEqual(taps, [])
+
+    @requires_tesseract
+    def test_unknown_source_cannot_dismiss_or_use_anything(self):
+        result, taps = self._recover(source="unknown", immediate="unknown")
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertFalse(result["terminal_home_verified"])
+        self.assertEqual(taps, [])
+
+    @requires_tesseract
+    def test_changed_immediate_source_prevents_transport(self):
+        with self.assertRaises(route.DailyResourceItemRecognitionError):
+            self._recover(immediate="unknown")
+
+    @requires_tesseract
+    def test_unrecognized_successor_stops_after_one_back_without_retry(self):
+        result, taps = self._recover(successor="unknown")
+        self.assertEqual(result["status"], "evidence_required")
+        self.assertFalse(result["terminal_home_verified"])
+        self.assertEqual(len(taps), 1)
+        self.assertEqual(result["item_use_transport_calls"], 0)
+
+    def test_missing_live_authorization_rejects_before_opening_runtime(self):
+        from scripts import pnsctl
+        from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+
+        for live, yes in ((False, False), (True, False), (False, True)):
+            with self.subTest(live=live, yes=yes), patch.object(
+                LocalBlueStacksRuntime, "connect"
+            ) as connect:
+                with self.assertRaises(pnsctl.OperatorError):
+                    pnsctl.development_session_recover_resource_home(live=live, yes=yes)
+                connect.assert_not_called()
 
 
 if __name__ == "__main__":
