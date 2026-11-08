@@ -1927,6 +1927,16 @@ class GuardedNanoMaterialProductionRunner:
                         break
                     committed += 1
                     self.effects += 1
+                    last_action_evidence = {
+                        "before": _guarded_d_frame(
+                            "nano-material-production-before.png", _D_BEFORE_SHA256,
+                            self.stop.now,
+                        ),
+                        "after": _guarded_d_frame(
+                            "nano-material-production-state.png", _D_PRODUCTION_SHA256,
+                            self.stop.now, 2,
+                        ),
+                    }
                     if action == "claim":
                         self.production_state = "idle"
                     else:
@@ -1943,7 +1953,7 @@ class GuardedNanoMaterialProductionRunner:
             else "completed" if transport_calls else "deferred"
         )
         frame = _guarded_d_frame(
-            "nano-material-production-state.png", _D_PRODUCTION_SHA256, completed,
+            "nano-material-production-state.png", _D_PRODUCTION_SHA256, completed, 2,
         )
         timer = (
             max(1, min(NANO_MATERIAL_PRODUCTION_DURATION_SECONDS,
@@ -1973,7 +1983,7 @@ class GuardedNanoMaterialProductionRunner:
             attempted_action_count_known=True,
             action_evidence_required=False,
             committed_action_count=committed,
-            zero_resource_cost_confirmed=not error,
+            zero_resource_cost_confirmed=bool(transport_calls and not error),
             production_state="active" if not error else None,
             active_production_count=1 if not error else None,
             completed_batch_count=0 if not error else None,
