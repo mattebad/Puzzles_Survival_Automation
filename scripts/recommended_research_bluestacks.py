@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 import math
 from pathlib import Path
 import re
@@ -1362,9 +1364,10 @@ def _game_day_id(identity: Any) -> str:
 def _action_key(identity: Any, game_day_id: str) -> str:
     account = getattr(identity, "account_id", None)
     server = getattr(identity, "server_id", None)
-    if not all(type(value) is str and re.fullmatch(r"[A-Za-z0-9._-]+", value, flags=re.ASCII) for value in (account, server)):
+    if not all(type(value) is str and re.fullmatch(r"[A-Za-z0-9:._-]+", value, flags=re.ASCII) for value in (account, server)):
         raise ValueError("account and server identities must be canonical tokens")
-    return f"recommended-research:{account}:{server}:{game_day_id}"
+    scope = json.dumps((account, server, game_day_id), separators=(",", ":"), ensure_ascii=True).encode("ascii")
+    return f"recommended-research:v1:{hashlib.sha256(scope).hexdigest()}"
 
 
 def _home_from_current(
