@@ -286,6 +286,16 @@ normal loop. This lifecycle is offline-proven, including continuous execution wi
 Incomplete launch transport, invalid startup accounting and all after-runner reset failures retain
 inspection stops; the deferral does not claim a gameplay completion or verified Home.
 
+For explicit navigation-only recovery from the positively recognized Bag Resources list, use
+`python scripts/pnsctl.py development-session recover-resource-home --live --yes`.
+It reacquires the existing exclusive development input lock, requires canonical unresolved
+actions to be clear, rebinds the Resources-list Back from the immediate frame, and sends
+at most one navigation input. Unknown/modal sources and unverified successors stop without
+an identical retry. Already verified Home needs no input. It does not require a legacy
+flow-delivery lease, execute Resource Use, clear gameplay history, change controls, or earn
+route acceptance. The November 8 supervised smoke verified one Back and settled Home with
+zero item uses or spend; the full #66 owned-item decrement scenario remains `evidence_required`.
+
 ## Local checks
 
 Run focused checks from the repository root:
