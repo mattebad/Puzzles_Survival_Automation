@@ -470,7 +470,6 @@ class RuinsRunner:
                 or current_window.reset_identity_id != backend.reset_id
                 or current_window.reset_start_text != backend.reset_start_utc
                 or current_window.reset_deadline_text != backend.reset_deadline_utc
-                or current_backend.expires_utc != backend.expires_utc
                 or now > _parse_utc_epoch(backend.expires_utc)
             ):
                 raise ValueError("Ruins verified backend reset window changed during the invocation")

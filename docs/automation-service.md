@@ -83,6 +83,11 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
   records the critical-path comparison at its historical revision. Later shared OCR
   time limits and Enhancement changes are separately scoped; this is not a new
   whole-head midnight or two-hour rerun.
+- Ruins keeps the initially verified Resource authority expiry for its finite
+  invocation. Re-deriving the same fixed account/server/reset at a later clock
+  tick must not require a newly derived expiry to equal that original expiry,
+  and must not extend it. Offline clock-progress and expired-authority checks
+  cover this boundary; current challenge/chest live acceptance remains separate.
 
 ## Canonical `pnsctl` serve facade
 
