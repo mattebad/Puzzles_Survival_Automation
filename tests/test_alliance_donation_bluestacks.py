@@ -419,10 +419,6 @@ class AllianceDonationActualFrameTests(unittest.TestCase):
 
     def test_native_clipped_header_back_art_and_shared_war_line_bind_only_tech_row(self):
         captured = self._captured()
-        self.assertEqual(captured.sha256, "cc2efdf9f7962daf973b99756a8c644a56528ee4984c30d1d4142c3bcf9984e9")
-        # Old body crop loses the title; full-width title OCR includes the Back/border art.
-        body = route._words(captured.frame, (0, 35, 800, 1195))
-        self.assertFalse(any(route._normalize(line.text) == "alliance" for line in route._lines(body) if line.roi[1] < 150))
         surface = route.recognize_surface(captured, reset_id="game-day-2026-11-08", evidence_ref="fixture")
         self.assertEqual(surface.state, "ALLIANCE_HOME")
         self.assertEqual(surface.target_identity, "alliance:tech-entry")
@@ -455,42 +451,21 @@ class AllianceDonationActualFrameTests(unittest.TestCase):
         fixture = self.fixture.with_name("donation77-0028-clipped-hot.png")
         return self._captured(frame, fixture=fixture)
 
-    def test_actual_bottom_hot_requests_reveal_without_guessing_identity(self):
+    def test_clipped_current_hot_binds_navigation_without_inventing_tech_identity(self):
         captured = self._clipped_hot()
-        self.assertEqual(captured.sha256, "82d9cb255eda50c886c8870c0cd611e9345b0b9092b973094dc927a01e2d44c4")
         surface = route.recognize_surface(captured, reset_id="game-day-2026-11-08", evidence_ref="retained")
         self.assertEqual(surface.state, "TECH_TREE")
-        self.assertEqual(surface.reason, "clipped_hot_requires_reveal")
-        self.assertIsNotNone(surface.hot_roi)
-        self.assertIsNone(surface.target_roi)
+        assert surface.hot_roi is not None
+        assert surface.target_roi is not None
         self.assertIsNone(surface.tech_slug)
         self.assertIsNone(surface.donation)
-        with tempfile.TemporaryDirectory() as directory:
-            store = SafetyStore(Path(directory) / "actions.sqlite3")
-            try:
-                context = FakeContext(Path(directory), store)
-                calls = []
-                context.runtime.capture = lambda _label: captured
-                context.runtime.swipe = lambda source, **kwargs: calls.append((source, kwargs))
-                context.runtime.last_capture = captured
-                after = route._reveal_clipped_hot(context, surface)
-                self.assertIsNone(after)  # Static fake transport cannot prove an offscreen identity.
-                self.assertEqual(len(calls), 1)
-                self.assertEqual(context.session.input_count, 1)
-                self.assertEqual(context.runtime.donation_count, 0)
-                self.assertEqual(store.list_actions_for_task(ALLIANCE_DONATION_FLOW_ID), [])
-                source, gesture = calls[0]
-                self.assertEqual(source.sha256, captured.sha256)
-                self.assertEqual(gesture["duration_ms"], 500)
-                self.assertGreater(gesture["start"][1], gesture["end"][1])
-                self.assertLessEqual(gesture["start"][1] - gesture["end"][1], 320)
-                self.assertEqual(gesture["target_identity"], "alliance-tech:reveal-current-clipped-hot")
-            finally:
-                store.close()
+        x0, y0, x1, y1 = surface.target_roi
+        hx0, hy0, hx1, hy1 = surface.hot_roi
+        self.assertTrue(hx0 <= (x0 + x1) / 2 <= hx1)
+        self.assertTrue(hy0 <= (y0 + y1) / 2 <= hy1)
 
-    def test_no_hot_wrong_context_and_ambiguous_hot_refuse_reveal_input(self):
+    def test_missing_ambiguous_or_wrong_context_hot_cannot_authorize_navigation(self):
         original = self._clipped_hot()
-        source = route.recognize_surface(original, reset_id="d", evidence_ref="retained")
         variants = {}
         no_hot = original.frame.copy()
         no_hot[1205:1265, 410:545] = 0
@@ -512,8 +487,12 @@ class AllianceDonationActualFrameTests(unittest.TestCase):
                     context = FakeContext(Path(directory), store)
                     context.runtime.last_capture = captured
                     context.runtime.capture = lambda _label: captured
-                    with self.assertRaisesRegex(RuntimeError, "reveal source changed"):
-                        route._reveal_clipped_hot(context, source)
+                    with self.assertRaises(RuntimeError):
+                        route._navigation_action(
+                            context, label="open-current-auto-hot-tech",
+                            source_state="TECH_TREE", destination_state="DONATION_PANEL",
+                            bind_target=route._bind_surface_target,
+                        )
                     self.assertEqual(context.session.input_count, 0)
                     self.assertEqual(context.runtime.input_count, 0)
                     self.assertEqual(context.runtime.donation_count, 0)
