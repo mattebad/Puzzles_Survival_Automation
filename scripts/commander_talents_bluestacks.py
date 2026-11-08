@@ -119,8 +119,8 @@ def _all_hits(frame: CapturedNativeFrame, ocr_engine: Callable | None) -> tuple[
     retained = tuple(
         hit for hit in hits
         if not any(
-            x0 <= hit.bounds[0] < hit.bounds[2] <= x1
-            and y0 <= hit.bounds[1] < hit.bounds[3] <= y1
+            hit.bounds[0] < x1 and x0 < hit.bounds[2]
+            and hit.bounds[1] < y1 and y0 < hit.bounds[3]
             for x0, y0, x1, y1 in regions
         )
     )
