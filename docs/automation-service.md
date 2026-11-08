@@ -159,9 +159,9 @@ Normal Craft completion claims bind to the unique outstanding confirmed craft-st
 not a reusable reset-only claim key. A completed older craft can therefore be claimed before
 the current reset's one permitted start without suppressing a distinct future completion.
 Navigation recognition remains read-only; craft-instance state is bound after verified arrival.
-Gear Factory radial recognition derives its control from a fresh Atlas building binding and
-measured caption evidence; an open radial is not terminal Home. Return uses the native runtime's
-supported `BACK` input, not an unsupported desktop `Escape` key.
+Gear Factory radial recognition derives its control from the fresh Atlas mapped screen anchor and
+measured caption evidence, never the left/top of a clipped owner tap ROI. An open radial is not
+terminal Home. Return uses the native runtime's supported `BACK`, not desktop `Escape`.
 The full-page Gear Factory hub is recognized only from its measured 2x bright-glyph title crop
 ("Gear Factory") plus the measured Nanoweapon label crop; the Nanoweapon tap is that tile's measured
 label plate within the shared safe box. A run that starts on this recognized hub continues from it.
