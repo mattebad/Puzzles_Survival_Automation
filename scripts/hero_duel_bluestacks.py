@@ -82,7 +82,7 @@ class HeroDuelVision:
         self.exit_confirmed = False
         self.route_pass_balance = None
 
-    def _lines(self, frame, *, psm=11):
+    def _lines(self, frame, *, psm=11, scale=1):
         data = call_ocr(tesseract_data, frame, call_timeout=4.0, config=f"--psm {psm}")
         words = []
         for i, text in enumerate(data.get("text", ())):
@@ -99,7 +99,7 @@ class HeroDuelVision:
         groups = []
         for word in words:
             group = next((candidate for candidate in reversed(groups)
-                          if abs(word["center"][1] - sum(item["center"][1] for item in candidate) / len(candidate)) <= 16), None)
+                          if abs(word["center"][1] - sum(item["center"][1] for item in candidate) / len(candidate)) <= 16 * scale), None)
             if group is None:
                 groups.append([word])
             else:
@@ -144,7 +144,7 @@ class HeroDuelVision:
             return lines
 
         def read_region(image, *, offset=(0, 0), psm=11):
-            rows = self._lines(cv2.resize(image, None, fx=3, fy=3), psm=psm)
+            rows = self._lines(cv2.resize(image, None, fx=3, fy=3), psm=psm, scale=3)
             result = []
             for row in rows:
                 x0, y0, x1, y1 = row["box"]
@@ -154,7 +154,8 @@ class HeroDuelVision:
                                "center": ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2)})
             return tuple(result)
 
-        header = read_region(cv2.cvtColor(frame[:150], cv2.COLOR_BGR2GRAY))
+        header_image = 255 - cv2.inRange(frame[5:65, 330:470], (170, 170, 170), (255, 255, 255))
+        header = read_region(header_image, offset=(330, 5), psm=7)
         if not any(re.search(r"\barena\b", row["norm"]) for row in header):
             return lines
         gold = 255 - cv2.inRange(cv2.cvtColor(frame, cv2.COLOR_BGR2HSV),
@@ -162,7 +163,18 @@ class HeroDuelVision:
         labels = read_region(gold)
         survival = [row for row in labels if row["norm"] == "hero duel survival"]
         if len(survival) != 1:
-            return lines
+            # Isolate the measured first Hero word's band from animated art.
+            anchors = [box for row in lines for word, box in row["word_boxes"]
+                       if _norm(word) == "hero" and box[1] > 150]
+            if not anchors:
+                return lines
+            anchor = min(anchors, key=lambda box: box[1])
+            left, top = max(0, anchor[0] - 20), max(0, anchor[1] - 12)
+            right, bottom = min(frame.shape[1], anchor[0] + 390), min(frame.shape[0], anchor[3] + 12)
+            labels = read_region(gold[top:bottom, left:right], offset=(left, top), psm=7)
+            survival = [row for row in labels if row["norm"] == "hero duel survival"]
+            if len(survival) != 1:
+                return lines
         x0, _, _, y1 = survival[0]["box"]
         left, right = max(0, x0 - 8), min(frame.shape[1], x0 + 285)
         bottom = min(frame.shape[0], y1 + 45)
@@ -387,6 +399,14 @@ class HeroDuelVision:
         self.checkpoint()
         lines = self._lines(captured.frame)
         lines = self._arena_lines(captured.frame, lines)
+        if ("hero duel" in _norm(" ".join(row["text"] for row in lines))
+                and not any("survival" in row["norm"] for row in lines)):
+            # Reread the textured header exactly, not a fuzzy event-name alias.
+            title_image = cv2.cvtColor(captured.frame[5:65, 200:650], cv2.COLOR_BGR2GRAY)
+            titles = self._lines(cv2.resize(title_image, None, fx=3, fy=3), psm=7, scale=3)
+            if any(row["norm"] == "hero duel survival" for row in titles):
+                lines = (*lines, {"text": "Hero Duel Survival", "norm": "hero duel survival",
+                                 "box": (200, 5, 650, 65), "center": (425, 35), "word_boxes": ()})
         text = "\n".join(line["text"] for line in lines)
         norm = _norm(text)
         state = "unknown"
@@ -491,6 +511,21 @@ class HeroDuelVision:
         if target_hint and state != "unknown" and overlay == "none":
             if target_hint == ("hero-duel-emergency-close-x", "emergency close x"):
                 target_roi = self.emergency_close_x_roi(lines)
+            elif target_hint == ("hero-duel-event-details", "emergency") and state == "hero_duel_overview":
+                boxes = [box for row in lines for word, box in row["word_boxes"]
+                         if _norm(word) == "emergency"]
+                if len(boxes) == 1:
+                    target_roi = boxes[0]
+                else:
+                    label_image = 255 - cv2.inRange(captured.frame[150:192, 400:550],
+                                                   (170, 170, 170), (255, 255, 255))
+                    label_rows = self._lines(cv2.resize(label_image, None, fx=3, fy=3), psm=7, scale=3)
+                    boxes = [box for row in label_rows for word, box in row["word_boxes"]
+                             if _norm(word) == "emergency"]
+                    if len(boxes) == 1:
+                        x0, y0, x1, y1 = boxes[0]
+                        target_roi = (400 + x0 // 3, 150 + y0 // 3,
+                                      400 + (x1 + 2) // 3, 150 + (y1 + 2) // 3)
             elif target_hint == ("hero-duel-opponents-close", "close"):
                 target_roi = self.panel_close_x_roi(lines, "challenge opponent")
             elif target_hint == ("hero-duel-battle-exit", "exit") and state == "active_battle":
@@ -995,7 +1030,7 @@ class HeroDuelNativeFlow:
                 {"defense_formation", "hero_duel_overview"}, target_id)
             return step["page"] if step else None
         if page["screen_state"] == "hero_duel_overview" and self.vision.excluded is None:
-            step = self._navigation_tap("open-emergency-details", "emergency details",
+            step = self._navigation_tap("open-emergency-details", "emergency",
                 {"emergency_details"}, "hero-duel-event-details")
             if step is None:
                 return None
