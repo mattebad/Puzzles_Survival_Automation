@@ -209,6 +209,11 @@ Existing layout exceptions:
   no purchase and remains unaccepted. On restart, Daily Shops may return from its positively
   recognized overview/shop context to freshly verified Home before a new mapped entry.
   Unknown contexts receive no speculative Back; recovery inputs remain in canonical totals.
+  Shop identity uses the isolated title and uniquely gold-selected current Shop label,
+  not incidental item-description OCR. A clipped Rare Earth label permits one bounded
+  selector reveal, then a fresh exact-label binding; unknown selection or no progress
+  authorizes no guessed tab tap. Current native Shop pixels prove these recognition
+  guards offline, not purchase effects; missing Owned evidence still blocks buying.
 
 * **Batch D Nano Material Production and Nanoweapon**: canonical-service-only routes with fixed
   native bindings and no operator rows. Nano Material Production uses a non-reset-scoped timer

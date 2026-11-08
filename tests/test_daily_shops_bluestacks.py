@@ -665,6 +665,55 @@ class RuinsOverviewActualPixelTests(unittest.TestCase):
                     store.close()
 
 
+class DailyShopActualSelectorTests(unittest.TestCase):
+    SOURCE = Path(__file__).resolve().parent / "fixtures/daily_shop_entry/ruins-shop-successor.png"
+
+    @requires_tesseract
+    def test_actual_selected_shop_is_independent_of_item_description_ocr(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(directory, store, self.SOURCE)
+                captured = runtime.capture("actual-shop")
+                self.assertEqual(port._page(captured)[0], RUINS_TAB)
+                self.assertEqual(runtime.input_count, 0)
+            finally:
+                store.close()
+
+    @requires_tesseract
+    def test_missing_current_selection_never_authorizes_back(self):
+        import cv2
+        with tempfile.TemporaryDirectory() as directory:
+            frame = cv2.imread(str(self.SOURCE))
+            frame[210:230, 190:250] = 0
+            source = Path(directory) / "missing-selected-marker.png"
+            self.assertTrue(cv2.imwrite(str(source), frame))
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(directory, store, source)
+                self.assertEqual(port._page(runtime.capture("ambiguous-shop"))[0], "unknown")
+                self.assertFalse(port.return_home())
+                self.assertEqual(runtime.backs, [])
+                self.assertEqual(runtime.input_count, 0)
+            finally:
+                store.close()
+
+    @requires_tesseract
+    def test_clipped_neighbor_has_one_bounded_reveal_and_no_guessed_tap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(directory, store, self.SOURCE)
+                port.current_tab = RUINS_TAB
+                self.assertFalse(port.switch_to_rare_earth())
+                self.assertFalse(port.switch_to_rare_earth())
+                self.assertEqual(len(runtime.swipes), 1)
+                self.assertEqual(runtime.taps, [])
+                self.assertEqual(runtime.input_count, 1)
+            finally:
+                store.close()
+
+
 class NativeDailyShopEntryRuntime:
     """Retained Home pixels, fake transport; successor text is synthetic, not acceptance."""
 

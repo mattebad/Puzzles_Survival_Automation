@@ -370,6 +370,7 @@ class DailyShopsLivePort:
         self._home_atlas = None
         self._home_localizer = None
         self.entry_reason = ""
+        self._rare_earth_reveal_attempted = False
 
     def _capture(self, label):
         self.context.checkpoint()
@@ -473,8 +474,30 @@ class DailyShopsLivePort:
         length = float(np.linalg.norm(a) * np.linalg.norm(b))
         return length > 1e-6 and float(np.sum(a * b) / length) >= 0.86
 
+    @staticmethod
+    def _shop_selected(frame, label_roi):
+        import cv2
+        import numpy as np
+        center = (label_roi[0] + label_roi[2]) // 2
+        marker = frame[210:230, max(0, center - 24):min(800, center + 25)]
+        if marker.size == 0:
+            return False
+        hsv = cv2.cvtColor(marker, cv2.COLOR_BGR2HSV)
+        gold = cv2.inRange(hsv, np.array((12, 100, 140), dtype=np.uint8),
+                           np.array((40, 255, 255), dtype=np.uint8))
+        return np.count_nonzero(gold) >= 40 and np.count_nonzero(np.any(gold, axis=1)) >= 5
+
     def _page(self, captured):
         lines = self._ocr(captured)
+        header = self._ocr_region(captured.frame, (285, 0, 515, 65), psm=7)
+        if self._hits(header, "Shop"):
+            selectors = self._ocr_region(captured.frame, (40, 180, 760, 215), psm=7)
+            selected = [
+                tab for tab, label in ((RUINS_TAB, "Ruins Shop"), (RARE_EARTH_TAB, "Rare Earth Shop"))
+                for roi in self._hits(selectors, label) if self._shop_selected(captured.frame, roi)
+            ]
+            body = tuple(line for line in lines if all(word[1][1] >= 230 for word in line))
+            return (selected[0] if len(selected) == 1 else "unknown"), header + selectors + body
         if self._hits(lines, "3★ Chip Enhance Material"):
             return "ruins", lines
         if self._hits(lines, "3★ Module Enhance Material"):
@@ -1029,7 +1052,33 @@ class DailyShopsLivePort:
                 tab, "daily-shops:rare-earth-tab",
                 lambda after: self._page(after)[0] == RARE_EARTH_TAB,
             ):
-                return False
+                if self._rare_earth_reveal_attempted:
+                    return False
+                captured = self._capture("daily-shops-selector-reveal-source")
+                page, lines = self._page(captured)
+                selected = [
+                    roi for roi in self._hits(lines, "Ruins Shop")
+                    if roi[1] >= 180 and roi[3] <= 215
+                    and self._shop_selected(captured.frame, roi)
+                ]
+                if page != RUINS_TAB or len(selected) != 1:
+                    return False
+                self.context.checkpoint()
+                self._rare_earth_reveal_attempted = True
+                self.runtime.swipe(
+                    captured, start=(220, 145), end=(500, 145),
+                    action_key=f"daily-shops:reveal-rare-earth:{captured.sha256}",
+                    target_identity="daily-shops:shop-selector",
+                )
+                if self.settle_seconds:
+                    import time
+                    time.sleep(self.settle_seconds)
+                after = self._capture("daily-shops-selector-reveal-successor")
+                if self._page(after)[0] != RARE_EARTH_TAB and not self._tap_text(
+                    tab, "daily-shops:rare-earth-tab",
+                    lambda result: self._page(result)[0] == RARE_EARTH_TAB,
+                ):
+                    return False
             self.current_tab = RARE_EARTH_TAB
             return True
         return self.current_tab == RARE_EARTH_TAB
