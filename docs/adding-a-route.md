@@ -122,6 +122,11 @@ canonical action-store lease, checkpoints, capture/replay, startup recovery,
 input accounting and teardown. Drivers retain route-specific recognition,
 consequential policy and semantic acceptance. The shared boundary does not
 authorize gameplay or convert transport success into a committed effect.
+Resource Item selects `driver_manages_action_lease=True`: its existing
+`ResourceEffectAuthority` owns and releases the sole Core controller lease, rather than
+competing with a second bridge lease. Its `DevelopmentSession.assert_held` fences the exact
+route scope through the actual canonical input lock and checkpoint; it does not acquire
+another operator or bypass lost ownership.
 
 Existing layout exceptions:
 
@@ -135,13 +140,18 @@ Existing layout exceptions:
   is no longer in this exception after the Batch F canonical service cutover.
 * **Batch A Daily Rewards and Resource Item**: canonical service routes with fixed native bindings;
   their former development wrappers/operator rows are retired and must not be reintroduced as a
-  second dispatch path. Both remain runtime-disabled and `evidence_required`. The supplied Nov 6
-  DailyQuest image shows one 30-point glowing chest, four closed chests, 30 points, and no aggregate
-  Claim. Policy handles each of five chest categories independently when glowing, with no 150-point
-  minimum. A native pass with zero ready chests can complete without an aggregate Claim; after a
-  confirmed aggregate Claim, it requires fresh proof that all five chests are static. A ready chest
-  still requires its same-chest claimed/opened successor; current native readiness is not live
-  completion acceptance.
+  second dispatch path. Both remain runtime-disabled. Daily rewards remain `evidence_required`.
+  The supplied Nov 6 DailyQuest image shows one 30-point glowing chest, four closed chests,
+  30 points and no aggregate Claim. Policy handles each of five chest categories independently
+  when glowing, with no 150-point minimum. A native pass with zero ready chests can complete
+  without an aggregate Claim; after a confirmed aggregate Claim, it requires fresh proof
+  that all five chests are static after claiming. A ready chest still requires its same-chest
+  claimed/opened successor; current native readiness is not live completion acceptance.
+  Resource Item has source-scoped native acceptance at integrated source `a4811874`
+  (2026-11-08): one owned 1K Food, inventory 129810 to 129809, one confirmed authority effect,
+  three inputs and verified Home. This is a dated receipt, not an inventory constant or
+  execution permission; see issue #66. It does not establish Daily Quest ownership or
+  acceptance of other branches/source revisions.
 * **Batch B Ruins and Alliance Help**: canonical-service-only routes with registered fixed specs and
   injected native bindings; no legacy operator runner or operator-registry row. Queue `NOT_REGISTERED`
   refers only to disabled legacy production posture; SQLite service/flow controls remain off. Both

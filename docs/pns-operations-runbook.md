@@ -76,7 +76,7 @@ exact set; `tests/test_catalog_and_pnsctl.py` fails if the parser and this table
 | `bluestacks recover-home` | Verified Cultivation-Center-to-Home recovery | Issues input (Back/Home) only through the existing recovery handler; cannot Back from an unrecognized Home screen; needs a live-stage queue/lease or the retained Troop Training recovery candidate | Operator (live) |
 | `reconcile` | Offline reconciliation of one unresolved action | Edits a **copy** (`--output`) of a retained SafetyStore database (`--source` is never modified), only if the action is `unresolved`; records `--outcome` (`proven_no_effect` or `positive_postcondition`) with `--evidence` and an audit row. It does not touch the live state DB and cannot clear a blocked running service | Operator (offline) |
 | `development-session run-flow <flow-id>` | Run one registered flow in a development session | Development and recovery only; `--live` needs `--yes`; ordinary Campaign execution is refused (use `serve --flow campaign`); several routes need a consumed registration or a delegated receipt | Dev-only |
-| `development-session daily-row-reconnaissance`, `daily-row-claim`, `delegated-dry-run` | Daily row reconnaissance/claim and receipt validation | Require a delegated receipt bound to agent, task, flow, scenario, variant and `--max-inputs`; `delegated-dry-run` has no runtime access | Dev-only |
+| `development-session delegated-dry-run` | Validate a consumed delegated receipt without runtime access | Current capture-only observation uses `development-session observe --max-inputs 0`; Daily Rewards execution uses canonical `serve --flow daily-rewards`, not retired row-specific tools | Dev-only |
 | `bluestacks reconcile-campaign-atlas-survey-action` | Reconcile one unresolved Campaign atlas survey action | Offline, zero input, retained frames only; session must be under the Campaign atlas artifact root | Dev-only |
 
 Normal `launch-game` preserves an already running game. For an explicitly authorized cold-process
@@ -96,13 +96,24 @@ defers for a fresh route claim/context. Standalone `development-session recover-
 Confirm, cold-stop, resource spend, unknown-effect retry or permanent enablement is admitted.
 The real Confirm successor and recovered route still need current authorized native proof.
 
-The implemented Daily Claim contract is one selected-Daily aggregate action. Current eight-route
-acceptance does not establish aggregate Daily or milestone acceptance. The flow reuses the
-existing Home → Quest → Daily route, positively recognizes one ordinary,
-free, non-milestone Claim control, taps exactly once, and succeeds only when
-Daily points increase and no ordinary Claim control remains. Objective flows
-may prove completion but never own a Claim tap. There is no per-row loop,
-objective binding, fixed point delta, or identical retry.
+The implemented combined Daily Rewards route is `serve --flow daily-rewards` through the supported
+`pnsctl automation-service` boundary. In one visit it attempts aggregate Claim at most once for
+the current ready batch/pass, then independently claims each of the five positively glowing ready
+chests. Each chest needs fresh same-slot `Claimed` proof. There is no required 150-point total;
+later distinct ready batches remain possible. Other routes own their verified gameplay actions,
+not Daily inspection, D02, point credit or objective-screen polling.
+
+A fully observed known partial pass preserves confirmed effects and defers for 300 seconds.
+UNKNOWN effects require inspection without identical retry. Finish at verified Home; never clear
+prior manual/canonical work or counters to manufacture acceptance. The historical manual chest
+observation is recognition evidence, not acceptance of this finished combined route.
+
+Resource Item (`serve --flow resource-item`) leaves its sole Core controller lease with
+ResourceEffectAuthority; the shared native bridge must not acquire a competing lease. Its existing
+DevelopmentSession fences the exact route owner/invocation through the real canonical input lock
+and checkpoint, including borrowed ownership. Supply the fixed BlueStacks `--adb` path and serial
+explicitly. Retain pre-Use failure receipts and inspect their no-dispatch evidence through canonical
+state/authority before any fresh invocation; never clear an UNKNOWN effect or daily counter.
 
 ## Canonical governance references
 

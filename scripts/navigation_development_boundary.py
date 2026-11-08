@@ -906,6 +906,15 @@ class DevelopmentSession:
             lock.assert_held(*self._borrowed_fence)
         return lock
 
+    def assert_held(self, owner: str, invocation_id: str) -> None:
+        """Fence this exact route scope through its real, possibly borrowed lock."""
+        if not self._entered or (owner, invocation_id) != (self.owner, self.invocation_id):
+            raise DevelopmentSessionError("development session ownership scope differs")
+        if self._borrowed_lock is not None:
+            self._check_borrowed_owner()
+        else:
+            self._ownership.lock.assert_held(owner, invocation_id)
+
     @property
     def is_active(self) -> bool:
         return bool(self._entered and (self._borrowed_lock or self._ownership.lock).held)

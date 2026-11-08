@@ -1340,6 +1340,41 @@ def development_session_launch_game(*, live: bool, yes: bool, cold_restart: bool
     return json.dumps(result, sort_keys=True)
 
 
+def development_session_recover_resource_home(*, live: bool, yes: bool) -> str:
+    """Reacquire the existing navigation owner without replaying Resource Use."""
+    if not live or not yes:
+        raise OperatorError("recover-resource-home requires explicit --live --yes")
+    from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+    from scripts.daily_resource_item_bluestacks import recover_resource_item_home
+    from scripts.navigation_development_boundary import (
+        DevelopmentSession, require_canonical_unresolved_clear,
+    )
+
+    invocation_id = f"resource-recover-home-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
+    session_directory = _development_session_directory(invocation_id)
+    with DevelopmentSession(
+        owner="pnsctl-resource-recover-home", invocation_id=invocation_id,
+        session_directory=session_directory, max_inputs=1,
+    ) as session:
+        require_canonical_unresolved_clear()
+        lock = session.runtime_input_lock
+        runtime = LocalBlueStacksRuntime.connect(
+            adb=str(BLUESTACKS_ADB), serial=BLUESTACKS_SERIAL,
+            output_directory=session_directory / "native",
+            workflow="resource-recover-home", execute=True,
+        )
+        runtime.max_inputs = 1
+        runtime.checkpoint = lambda: lock.assert_held(session.owner, invocation_id)
+        result = dict(recover_resource_item_home(runtime, session))
+        result.update(
+            session_directory=str(session_directory), runtime_session_directory=str(runtime.session),
+            controls_changed=False, resource_effect_status="unchanged",
+            route_execution_attempted=False,
+        )
+        session.remember_control("navigation_only_recovery", result)
+    return json.dumps(result, sort_keys=True)
+
+
 def _run_shared_startup_recovery(
     *,
     flow_id: str,
@@ -3451,6 +3486,12 @@ def parser() -> argparse.ArgumentParser:
     development_launch.add_argument("--yes", action="store_true")
     development_launch.add_argument("--cold-restart", action="store_true",
         help="explicitly cold-stop a clean idle game, verify process exit, then reuse guarded startup")
+    resource_recovery = development_sub.add_parser(
+        "recover-resource-home",
+        help="one exact Resources-list Back to verified Home; no item use; requires --live --yes",
+    )
+    resource_recovery.add_argument("--live", action="store_true")
+    resource_recovery.add_argument("--yes", action="store_true")
     development_reconnect = development_sub.add_parser(
         "recover-network", help="bounded exact10054 recovery; requires --live --yes",
     )
@@ -3625,6 +3666,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                     live=bool(args.live),
                     yes=bool(args.yes),
                     cold_restart=bool(args.cold_restart),
+                )
+            elif args.development_command == "recover-resource-home":
+                output = development_session_recover_resource_home(
+                    live=bool(args.live), yes=bool(args.yes),
                 )
             elif args.development_command == "recover-network":
                 output = development_session_recover_network(

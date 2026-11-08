@@ -674,15 +674,96 @@ def _contains_overlay_marker(tokens: Sequence[OCRToken]) -> bool:
     return bool(words & _OVERLAY_MARKERS)
 
 
+def _objective_description_marker(
+    token: OCRToken,
+    tokens: Sequence[OCRToken],
+) -> bool:
+    """Bind a marker word to one ordinary Daily objective description line.
+
+    The line must sit in the objective list body left of the action column and
+    be followed directly by that row's own left-aligned ``Reward: Pts`` line.
+    """
+
+    x0, y0, x1, y1 = token.roi
+    if _token_center(token)[1] < CLAIM_SCAN_TOP_Y or x1 > CLAIM_BUTTON_COLUMN[0]:
+        return False
+    line = tuple(
+        other
+        for other in tokens
+        if other.roi[1] < y1
+        and y0 < other.roi[3]
+        and other.roi[2] <= CLAIM_BUTTON_COLUMN[0]
+    )
+    line_x0 = min(other.roi[0] for other in (token, *line))
+    for reward in tokens:
+        if (
+            reward.text != "reward"
+            or not 0 < reward.roi[1] - y1 <= 40
+            or abs(reward.roi[0] - line_x0) > 12
+        ):
+            continue
+        if any(
+            pts.text == "pts"
+            and pts.roi[1] < reward.roi[3]
+            and reward.roi[1] < pts.roi[3]
+            and 0 <= pts.roi[0] - reward.roi[2] <= 24
+            for pts in tokens
+        ):
+            return True
+    return False
+
+
+def _unowned_overlay_markers(
+    frame: np.ndarray,
+    tokens: Sequence[OCRToken],
+) -> tuple[tuple[str, ...], dict[str, Any]]:
+    """Return modal markers not owned by an ordinary selected-Daily objective row.
+
+    A marker word is ordinary objective text only on a proven selected Daily
+    page without any current-frame modal panel, and only inside one objective
+    description line.  Every other occurrence remains a modal marker.
+    """
+
+    marked = tuple(
+        token for token in tokens if set(token.text.split()) & _OVERLAY_MARKERS
+    )
+    details: dict[str, Any] = {"objective_description_markers": ()}
+    if not marked:
+        return (), details
+    owned: tuple[OCRToken, ...] = ()
+    header = tuple(
+        token for token in tokens if _token_center(token)[1] < CLAIM_SCAN_TOP_Y
+    )
+    selected, _selected_visual = _selected_daily_visual_context(frame, header)
+    details["selected_daily_context"] = selected
+    if selected:
+        modal = _generic_modal_overlay_evidence(frame)
+        details["modal_panel_state"] = modal["state"]
+        if modal["state"] == "none_observed":
+            owned = tuple(
+                token for token in marked if _objective_description_marker(token, tokens)
+            )
+    details["objective_description_markers"] = tuple(
+        {"text": token.text, "roi": token.roi} for token in owned
+    )
+    words = {
+        word
+        for token in marked
+        if token not in owned
+        for word in token.text.split()
+    }
+    return tuple(sorted(words & _OVERLAY_MARKERS)), details
+
+
 def _full_frame_overlay_markers(
     frame: np.ndarray,
     ocr: Callable[[np.ndarray], Mapping[str, Sequence[object]]],
 ) -> tuple[str, ...]:
-    """Reject explicit modal markers found anywhere in the current frame."""
+    """Reject modal markers anywhere except ordinary Daily objective text."""
 
     tokens = _ocr_tokens(frame, FULL_FRAME_SEARCH_ROI, ocr)
-    words = {word for token in tokens for word in token.text.split()}
-    return tuple(sorted(words & _OVERLAY_MARKERS))
+    markers, _details = _unowned_overlay_markers(frame, tokens)
+    return markers
 
 
 def _tab_visual_score(frame: np.ndarray, token: OCRToken) -> float:
@@ -1462,8 +1543,7 @@ def _daily_aggregate_claim_semantics(
 ) -> tuple[FrameRecognition, AvailableDailyClaimObservation | None]:
     """Select one safe target from aggregate Claim controls on selected Daily."""
 
-    words = {word for token in tokens for word in token.text.split()}
-    overlay_markers = tuple(sorted(words & _OVERLAY_MARKERS))
+    overlay_markers, overlay_details = _unowned_overlay_markers(frame, tokens)
     header_tokens = tuple(token for token in tokens if _token_center(token)[1] < 440)
     selected, selected_visual = _selected_daily_visual_context(frame, header_tokens)
     full_text = _reading_text(header_tokens)
@@ -1498,6 +1578,7 @@ def _daily_aggregate_claim_semantics(
         "full_frame_overlay": {
             "recognized": bool(overlay_markers),
             "markers": overlay_markers,
+            **overlay_details,
         },
         "selected_daily_semantics": selected_visual,
         "selected_daily": selected,
@@ -2097,7 +2178,10 @@ class DailyRowClaimRecognizer:
     def recognize_daily_selected(self, frame: np.ndarray) -> FrameRecognition:
         if not _frame_shape_ok(frame):
             return FrameRecognition(DAILY_SELECTED_STATE, False, reason="profile_dimensions_mismatch")
-        overlay_markers = _full_frame_overlay_markers(frame, self._ocr)
+        overlay_markers, overlay_details = _unowned_overlay_markers(
+            frame,
+            _ocr_tokens(frame, FULL_FRAME_SEARCH_ROI, self._ocr),
+        )
         tokens = _ocr_tokens(frame, DAILY_TAB_SEARCH_ROI, self._ocr)
         selected, selected_visual = _selected_daily_visual_context(frame, tokens)
         visual: dict[str, Any] = dict(selected_visual)
@@ -2108,6 +2192,7 @@ class DailyRowClaimRecognizer:
                 "full_frame_overlay": {
                     "recognized": bool(overlay_markers),
                     "markers": overlay_markers,
+                    **overlay_details,
                 },
             }
         )
@@ -3131,11 +3216,109 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
     runtime, session, store = context.runtime, context.session, context.action_store
     recognizer = DailyRowClaimRecognizer()
     initial = context.initial_frame
+
+    def back_to_verified_home(
+        label_prefix: str,
+        authorize_source: Callable[[CapturedNativeFrame], None],
+    ) -> tuple[CapturedNativeFrame | None, str | None]:
+        """Take at most two guarded system Backs through Quest to verified Home."""
+        terminal: dict[str, CapturedNativeFrame] = {}
+
+        for ordinal in range(1, 3):
+            successor_state = {"value": UNKNOWN_STATE}
+            label = f"{label_prefix}-{ordinal}"
+
+            def authorize(before: CapturedNativeFrame) -> None:
+                context.validate_identity()
+                _ensure_fresh(before, runtime)
+                _ensure_runtime_ready(runtime)
+                if ordinal == 1:
+                    authorize_source(before)
+                else:
+                    quest = recognizer.recognize_quest(before.frame)
+                    if not quest.recognized or quest.state != QUEST_STATE:
+                        raise DailyRowClaimRecognitionError(
+                            "fresh intermediate Quest surface was not positively recognized"
+                        )
+
+            def dispatch(before: CapturedNativeFrame) -> None:
+                context.validate_identity()
+                _ensure_fresh(before, runtime)
+                _ensure_runtime_ready(runtime)
+                runtime.back(
+                    before,
+                    action_key=f"{label}:{before.sha256}",
+                    target_identity="android-back",
+                )
+
+            def recognize_return(after: CapturedNativeFrame) -> str:
+                if context.is_clean_home(after.frame):
+                    home_recognition = recognizer.recognize_home(after.frame)
+                    if home_recognition.recognized and home_recognition.state == HOME_STATE:
+                        terminal["capture"] = after
+                        successor_state["value"] = HOME_STATE
+                        return HOME_STATE
+                quest = recognizer.recognize_quest(after.frame)
+                if quest.recognized and quest.state == QUEST_STATE:
+                    successor_state["value"] = QUEST_STATE
+                    return QUEST_STATE
+                successor_state["value"] = UNKNOWN_STATE
+                return UNKNOWN_STATE
+
+            def settled_successor() -> CapturedNativeFrame:
+                delay = float(getattr(context, "settle_seconds", 0.0))
+                if delay > 0:
+                    time.sleep(delay)
+                return session.observe(
+                    runtime.capture,
+                    label=f"{label}-settled-successor",
+                )
+
+            try:
+                outcome = session.run_action(
+                    action_class=NAVIGATION_ACTION_CLASS,
+                    label=label,
+                    capture=runtime.capture,
+                    authorize=authorize,
+                    dispatch=dispatch,
+                    recognize=recognize_return,
+                    settled_successor=settled_successor,
+                    consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
+                )
+            except Exception as exc:
+                return None, f"{type(exc).__name__}: {exc}"
+            if outcome.status != "completed":
+                return None, "system Back did not produce a positively recognized successor"
+            if successor_state["value"] == HOME_STATE:
+                try:
+                    context.validate_identity()
+                except Exception as exc:
+                    return None, f"identity validation failed after Home return: {exc}"
+                return terminal.get("capture"), None
+            if successor_state["value"] != QUEST_STATE:
+                return None, "system Back successor was neither verified Home nor verified Quest"
+
+        return None, "two bounded system Back actions did not reach verified Home"
+
     home = recognizer.recognize_home(initial.frame)
-    if not context.is_clean_home(initial.frame) or not home.recognized:
+    start_state: str | None = (
+        HOME_STATE
+        if context.is_clean_home(initial.frame) and home.recognized
+        else None
+    )
+    if start_state is None:
+        # A prior pass may have left the game on its own selected Daily page.
+        # Admit only a positively recognized selected Daily without a modal.
+        initial_daily = recognizer.recognize_daily_selected(initial.frame)
+        if initial_daily.recognized and initial_daily.state == DAILY_SELECTED_STATE:
+            start_state = DAILY_SELECTED_STATE
+    if start_state is None:
         return {
             "status": "blocked",
-            "reason": "fresh clean recognized Home is required before Daily rewards",
+            "reason": (
+                "fresh clean recognized Home or recognized selected Daily is required "
+                "before Daily rewards"
+            ),
             "total_input_count": start_accounting.input_count,
             "total_action_count": 0,
             "reward_claim_transport_calls": 0,
@@ -3160,8 +3343,51 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
         }
     context.bind_initial_observation(
         initial,
-        extra={"daily_rewards_start_state": HOME_STATE},
+        extra={"daily_rewards_start_state": start_state},
     )
+    if start_state == DAILY_SELECTED_STATE:
+
+        def authorize_started_daily(before: CapturedNativeFrame) -> None:
+            current = recognizer.recognize_daily_selected(before.frame)
+            if not current.recognized or current.state != DAILY_SELECTED_STATE:
+                raise DailyRowClaimRecognitionError(
+                    "fresh selected Daily was not positively recognized before startup Home return"
+                )
+
+        _startup_home, startup_error = back_to_verified_home(
+            "daily-rewards:startup-return-home-back",
+            authorize_started_daily,
+        )
+        if startup_error is not None:
+            accounting = context.accounting()
+            return {
+                "status": "blocked",
+                "reason": (
+                    "selected Daily start did not return to verified Home: "
+                    f"{startup_error}"
+                ),
+                "total_input_count": accounting.input_count,
+                "total_action_count": 0,
+                "reward_claim_transport_calls": 0,
+                "committed_action_count": 0,
+                "accounting_verified": accounting.verified,
+                "terminal_home_verified": False,
+                "effect_reconciliation_required": False,
+                "identical_retry_denied": False,
+                "aggregate_claim": {
+                    "status": "none",
+                    "dispatch_count": 0,
+                    "confirmed": False,
+                },
+                "chests_collected": [],
+                "observed_points": {"before": None, "after": None},
+                "milestone_scan": {
+                    "status": "unproven",
+                    "reason": "Daily surface was not reached from Home",
+                },
+                "unclaimed_ready_chest_count": None,
+                "no_work": False,
+            }
     reconnaissance = run_daily_row_reconnaissance(runtime, session, recognizer=recognizer)
     context.validate_identity()
     if reconnaissance.get("status") != "observed":
@@ -3343,138 +3569,45 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
     ]:
         """Back out only from a fresh, unchanged, complete zero-ready Daily scan."""
         source: dict[str, Any] = {}
-        terminal: dict[str, CapturedNativeFrame] = {}
         reference_day = str(
             dict(reference_recognition.visual_evidence or {}).get("game_day_id")
             or ""
         )
 
-        for ordinal in range(1, 3):
-            successor_state = {"value": UNKNOWN_STATE}
-            label = f"daily-rewards:return-home-back-{ordinal}"
-
-            def authorize(before: CapturedNativeFrame) -> None:
-                context.validate_identity()
-                _ensure_fresh(before, runtime)
-                _ensure_runtime_ready(runtime)
-                if ordinal == 1:
-                    current = recognize(before, reference_day)
-                    current_scan = recognize_daily_milestone_chests(
-                        before.frame,
-                        current,
-                        source_frame_sha256=before.sha256,
-                    )
-                    source.update(
-                        capture=before,
-                        recognition=current,
-                        scan=current_scan,
-                    )
-                    if not has_complete_zero_control_scan(current):
-                        raise DailyRowClaimRecognitionError(
-                            "fresh selected Daily has no complete positive zero-Claim scan"
-                        )
-                    if not same_daily_reset(reference_recognition, current):
-                        raise DailyRowClaimRecognitionError(
-                            "fresh selected Daily reset identity changed before Home return"
-                        )
-                    if not has_five_static_chests(current_scan):
-                        raise DailyRowClaimRecognitionError(
-                            "fresh Daily chest scan is ready, unknown, or incomplete"
-                        )
-                else:
-                    quest = recognizer.recognize_quest(before.frame)
-                    if not quest.recognized or quest.state != QUEST_STATE:
-                        raise DailyRowClaimRecognitionError(
-                            "fresh intermediate Quest surface was not positively recognized"
-                        )
-
-            def dispatch(before: CapturedNativeFrame) -> None:
-                context.validate_identity()
-                _ensure_fresh(before, runtime)
-                _ensure_runtime_ready(runtime)
-                runtime.back(
-                    before,
-                    action_key=f"{label}:{before.sha256}",
-                    target_identity="android-back",
+        def authorize_static_daily(before: CapturedNativeFrame) -> None:
+            current = recognize(before, reference_day)
+            current_scan = recognize_daily_milestone_chests(
+                before.frame,
+                current,
+                source_frame_sha256=before.sha256,
+            )
+            source.update(
+                capture=before,
+                recognition=current,
+                scan=current_scan,
+            )
+            if not has_complete_zero_control_scan(current):
+                raise DailyRowClaimRecognitionError(
+                    "fresh selected Daily has no complete positive zero-Claim scan"
+                )
+            if not same_daily_reset(reference_recognition, current):
+                raise DailyRowClaimRecognitionError(
+                    "fresh selected Daily reset identity changed before Home return"
+                )
+            if not has_five_static_chests(current_scan):
+                raise DailyRowClaimRecognitionError(
+                    "fresh Daily chest scan is ready, unknown, or incomplete"
                 )
 
-            def recognize_return(after: CapturedNativeFrame) -> str:
-                if context.is_clean_home(after.frame):
-                    home_recognition = recognizer.recognize_home(after.frame)
-                    if home_recognition.recognized and home_recognition.state == HOME_STATE:
-                        terminal["capture"] = after
-                        successor_state["value"] = HOME_STATE
-                        return HOME_STATE
-                quest = recognizer.recognize_quest(after.frame)
-                if quest.recognized and quest.state == QUEST_STATE:
-                    successor_state["value"] = QUEST_STATE
-                    return QUEST_STATE
-                successor_state["value"] = UNKNOWN_STATE
-                return UNKNOWN_STATE
-
-            def settled_successor() -> CapturedNativeFrame:
-                delay = float(getattr(context, "settle_seconds", 0.0))
-                if delay > 0:
-                    time.sleep(delay)
-                return session.observe(
-                    runtime.capture,
-                    label=f"{label}-settled-successor",
-                )
-
-            try:
-                outcome = session.run_action(
-                    action_class=NAVIGATION_ACTION_CLASS,
-                    label=label,
-                    capture=runtime.capture,
-                    authorize=authorize,
-                    dispatch=dispatch,
-                    recognize=recognize_return,
-                    settled_successor=settled_successor,
-                    consequence_class=NAVIGATION_CONSEQUENCE_CLASS,
-                )
-            except Exception as exc:
-                return (
-                    None,
-                    source.get("scan"),
-                    source.get("recognition"),
-                    f"{type(exc).__name__}: {exc}",
-                )
-            if outcome.status != "completed":
-                return (
-                    None,
-                    source.get("scan"),
-                    source.get("recognition"),
-                    "system Back did not produce a positively recognized successor",
-                )
-            if successor_state["value"] == HOME_STATE:
-                try:
-                    context.validate_identity()
-                except Exception as exc:
-                    return (
-                        None,
-                        source.get("scan"),
-                        source.get("recognition"),
-                        f"identity validation failed after Home return: {exc}",
-                    )
-                return (
-                    terminal.get("capture"),
-                    source.get("scan"),
-                    source.get("recognition"),
-                    None,
-                )
-            if successor_state["value"] != QUEST_STATE:
-                return (
-                    None,
-                    source.get("scan"),
-                    source.get("recognition"),
-                    "system Back successor was neither verified Home nor verified Quest",
-                )
-
+        home_capture, return_error = back_to_verified_home(
+            "daily-rewards:return-home-back",
+            authorize_static_daily,
+        )
         return (
-            None,
+            home_capture,
             source.get("scan"),
             source.get("recognition"),
-            "two bounded system Back actions did not reach verified Home",
+            return_error,
         )
 
     def close_static_daily(
@@ -3544,7 +3677,7 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
         try:
             scan_projection = verified_static_scan(source_scan, result["chests_collected"])
             accounting_now = context.accounting()
-            terminal_ref = _frame_ref(home_capture, session.session_directory)
+            terminal_ref = _frame_ref(home_capture, runtime.session)
             terminal_path = terminal_ref["path"]
             if not isinstance(terminal_path, str) or not terminal_path:
                 raise DailyRowClaimRecognitionError(
@@ -3579,7 +3712,7 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
                     "frame_path": terminal_ref["path"],
                     "frame_sha256": terminal_ref["sha256"],
                 },
-                native_session_directory=str(session.session_directory),
+                native_session_directory=str(runtime.session),
                 milestone_scan=scan_projection,
                 no_work=False,
             )
@@ -3605,7 +3738,7 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
                 "frame_path": terminal_ref["path"],
                 "frame_sha256": terminal_ref["sha256"],
             },
-            native_session_directory=str(session.session_directory),
+            native_session_directory=str(runtime.session),
             milestone_scan=scan_projection,
             unclaimed_ready_chest_count=0,
             no_work=no_work,

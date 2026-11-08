@@ -431,7 +431,7 @@ def _union_roi(rois: Sequence[NativeBox]) -> NativeBox | None:
 
 
 def _selected_resource_tab(tokens: Sequence[OCRToken]) -> NativeBox | None:
-    """Locate the Resource & Speedup category label ROI (selected or not)."""
+    """Locate one exact Resource & Speedup phrase despite OCR separator joining."""
 
     matches: list[NativeBox] = []
     for line in _line_tokens(
@@ -439,36 +439,18 @@ def _selected_resource_tab(tokens: Sequence[OCRToken]) -> NativeBox | None:
         for token in tokens
         if BAG_CATEGORY_TAB_BAND[0] <= _token_center(token)[1] <= BAG_CATEGORY_TAB_BAND[1]
     ):
-        words = _line_words(line)
-        if _selected_resource_words(words):
-            direct_start = next(
-                (
-                    index
-                    for index, token in enumerate(line)
-                    if token.text == "resource"
-                    and any(
-                        candidate.text == "speedup"
-                        for candidate in line[index + 1 : index + 4]
-                    )
-                ),
-                None,
-            )
-            if direct_start is None:
-                selected_tokens = [
-                    token
-                    for token in line
-                    if "resource" in token.text and "speedup" in token.text
-                ]
-            else:
-                end = next(
-                    index
-                    for index in range(direct_start + 1, min(len(line), direct_start + 4))
-                    if line[index].text == "speedup"
-                )
-                selected_tokens = list(line[direct_start : end + 1])
-            union = _union_roi(tuple(token.roi for token in selected_tokens))
-            if union is not None:
-                matches.append(union)
+        words = tuple(
+            (word, token)
+            for token in line
+            for word in re.findall(r"[a-z]+", token.text)
+            if word != "and"
+        )
+        for index in range(len(words) - 1):
+            pair = words[index : index + 2]
+            if _selected_resource_words(tuple(word for word, _token in pair)):
+                union = _union_roi(tuple(token.roi for _word, token in pair))
+                if union is not None:
+                    matches.append(union)
     return matches[0] if len(matches) == 1 else None
 
 
@@ -485,7 +467,7 @@ def _bag_category_tab_rois(tokens: Sequence[OCRToken]) -> dict[str, NativeBox]:
         if BAG_CATEGORY_TAB_BAND[0] <= _token_center(token)[1] <= BAG_CATEGORY_TAB_BAND[1]
     )
     for label in sorted(BAG_CATEGORY_CONTEXT_LABELS):
-        matches = [token for token in band_tokens if token.text == label]
+        matches = [token for token in band_tokens if re.fullmatch(rf"{label}\W*", token.text)]
         if len(matches) == 1 and _valid_roi(matches[0].roi):
             rois[label] = matches[0].roi
     return rois
@@ -670,7 +652,16 @@ def _resource_panel_separator_rows(frame: np.ndarray) -> tuple[int, ...]:
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 50, 140)
     counts = np.count_nonzero(edges, axis=1)
-    rows = np.flatnonzero(counts >= max(160, int(round(frame.shape[1] * 0.42))))
+    edge_rows = np.flatnonzero(counts >= max(160, int(round(frame.shape[1] * 0.42))))
+    # Current native cards have low-contrast gutters that are not strong Canny
+    # edges. Require a same-direction change across most of the viewport instead.
+    changes = np.diff(gray.astype(np.int16), axis=0)
+    coherent = np.maximum(
+        np.count_nonzero(changes >= 6, axis=1),
+        np.count_nonzero(changes <= -6, axis=1),
+    )
+    gutter_rows = np.flatnonzero(coherent >= int(round(frame.shape[1] * 0.60))) + 1
+    rows = np.union1d(edge_rows, gutter_rows)
     if rows.size == 0:
         return ()
     groups: list[list[int]] = [[int(rows[0])]]
@@ -730,10 +721,18 @@ def _measure_resource_item_panel(
     panel_x0, panel_x1 = 0, NATIVE_WIDTH
     if source == "visual-horizontal-separators":
         panel_edges = cv2.Canny(frame[top:bottom], 50, 140)
-        columns = np.flatnonzero(
-            np.count_nonzero(panel_edges, axis=0)
-            >= max(24, int(round((bottom - top) * 0.35)))
+        height_threshold = max(24, int(round((bottom - top) * 0.85)))
+        edge_columns = np.flatnonzero(
+            np.count_nonzero(panel_edges, axis=0) >= height_threshold
         )
+        panel_gray = cv2.cvtColor(frame[top:bottom], cv2.COLOR_BGR2GRAY)
+        changes = np.diff(panel_gray.astype(np.int16), axis=1)
+        coherent = np.maximum(
+            np.count_nonzero(changes >= 6, axis=0),
+            np.count_nonzero(changes <= -6, axis=0),
+        )
+        border_columns = np.flatnonzero(coherent >= height_threshold) + 1
+        columns = np.union1d(edge_columns, border_columns)
         if columns.size:
             groups: list[list[int]] = [[int(columns[0])]]
             for column in columns[1:]:
@@ -1477,36 +1476,42 @@ def _home_bag_target(
 def _bag_back_arrow_visual(
     frame: np.ndarray, *, maximum_left: int = 35, search_right: int = 140
 ) -> NativeBox | None:
-    """Bind the top-left Bag back arrow from current-frame pixels only."""
+    """Bind one measured Bag arrow, including native menus with an outer gutter."""
 
     if not isinstance(frame, np.ndarray) or frame.shape[:2] != (NATIVE_HEIGHT, NATIVE_WIDTH):
         return None
 
-    # Native evidence shows one bright neutral arrow component inside the
-    # top-left Bag chrome. Require its measured pixels rather than authorizing
-    # the enclosing profile region or an OCR label.
-    crop = frame[0:90, 0:search_right]
-    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-    neutral = cv2.inRange(
-        hsv,
-        np.array((0, 0, 150), dtype=np.uint8),
-        np.array((179, 90, 255), dtype=np.uint8),
-    )
-    count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(neutral)
-    candidates: list[NativeBox] = []
-    for index in range(1, count):
-        x, y, width, height, area = (int(value) for value in stats[index])
-        if (
-            700 <= area <= 2000
-            and 10 <= x <= maximum_left
-            and 5 <= y <= 25
-            and 50 <= width <= 90
-            and 30 <= height <= 55
-        ):
-            target = _roi((max(0, x - 10), max(0, y - 10), x + width + 10, y + height + 10))
-            if target is not None:
-                candidates.append(target)
-    return candidates[0] if len(candidates) == 1 else None
+    offsets = [0]
+    background = frame[0, 0].astype(np.int16)
+    if int(background.max() - background.min()) <= 3 and int(background.max()) <= 40:
+        difference = np.abs(frame[:90, :90].astype(np.int16) - background)
+        content = np.flatnonzero(np.max(difference, axis=(0, 2)) > 3)
+        if content.size and 24 <= int(content[0]) <= 64:
+            offsets.append(int(content[0]))
+    candidates: set[NativeBox] = set()
+    for offset in offsets:
+        crop = frame[0:90, offset : min(NATIVE_WIDTH, search_right + offset)]
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        neutral = cv2.inRange(
+            hsv,
+            np.array((0, 0, 150), dtype=np.uint8),
+            np.array((179, 90, 255), dtype=np.uint8),
+        )
+        count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(neutral)
+        for index in range(1, count):
+            x, y, width, height, area = (int(value) for value in stats[index])
+            if (
+                700 <= area <= 2000
+                and 10 <= x <= maximum_left
+                and 5 <= y <= 25
+                and 50 <= width <= 90
+                and 30 <= height <= 55
+            ):
+                x += offset
+                target = _roi((max(0, x - 10), max(0, y - 10), x + width + 10, y + height + 10))
+                if target is not None:
+                    candidates.add(target)
+    return next(iter(candidates)) if len(candidates) == 1 else None
 
 
 def _return_home_target(
@@ -1957,6 +1962,69 @@ def _swipe_list_action(
     return action, before_frame, after_frame, after_recognition, holder
 
 
+def recover_resource_item_home(
+    runtime: RuntimeLike,
+    session: SessionLike,
+    *,
+    ocr: Callable[[np.ndarray], Mapping[str, Sequence[object]]] | None = None,
+) -> dict[str, Any]:
+    """Recover only a positively identified Resources list with at most one Back."""
+    if not bool(getattr(runtime, "execute", False)) or getattr(session, "max_inputs", None) != 1:
+        raise DailyResourceItemRecognitionError("Home recovery requires an executing one-input session")
+    source = session.observe(runtime.capture, label="resource-home-recovery-source")
+    frames = {"source": source}
+    source_home = _recognize_home(source.frame, ocr=ocr)
+    recognitions: dict[str, Any] = {"home-source": source_home}
+    if not source_home.get("home_verified"):
+        bag = _recognize_bag(source.frame, ocr=ocr)
+        recognitions["bag"] = bag
+        if not bag.get("recognized") or _return_home_target(source.frame, ocr=ocr) is None:
+            result = _result(
+                session, status="evidence_required",
+                reason="recovery source is neither verified Home nor the exact Resources list",
+                frames=frames, recognitions=recognitions,
+            )
+            return dict(result, max_inputs=1, completion_scope="navigation_only")
+        _, before, after, home = _tap_action(
+            runtime, session, label="resource-home-recovery-back",
+            target_identity=HOME_TARGET_IDENTITY,
+            action_key="daily-resource-item:recover-home",
+            bind=lambda frame: (
+                _return_home_target(frame, ocr=ocr)
+                if _recognize_bag(frame, ocr=ocr).get("recognized") else None
+            ),
+            recognize=lambda frame: _recognize_home(frame, ocr=ocr),
+            settled_successor=lambda: (
+                time.sleep(1.0) or runtime.capture("resource-home-recovery-settled")
+            ),
+        )
+        if before is not None:
+            frames["return-home-immediate-before"] = before
+        if after is not None:
+            frames["return-home-immediate-post"] = after
+        recognitions["home"] = home
+        if not _record(home).get("home_verified"):
+            result = _result(
+                session, status="evidence_required",
+                reason="one recovery Back did not prove Home; no identical retry",
+                frames=frames, recognitions=recognitions,
+            )
+            return dict(result, max_inputs=1, completion_scope="navigation_only")
+    final, final_home = _settled_observe(
+        runtime, session, label="resource-home-recovery-terminal",
+        recognize=lambda frame: _recognize_home(frame, ocr=ocr),
+    )
+    frames["home"] = final
+    recognitions["home"] = final_home
+    verified = bool(final_home.get("home_verified"))
+    result = _result(
+        session, status="completed" if verified else "evidence_required",
+        reason="navigation-only verified Home" if verified else "settled Home was not proven",
+        frames=frames, recognitions=recognitions, terminal_home_verified=verified,
+    )
+    return dict(result, max_inputs=1, completion_scope="navigation_only")
+
+
 def _run_route(
     runtime: RuntimeLike,
     session: SessionLike,
@@ -1993,41 +2061,7 @@ def _run_route(
             }
             max_inputs = int(getattr(session, "max_inputs", MAX_ROUTE_INPUTS) or MAX_ROUTE_INPUTS)
             if max_inputs <= 1 and _return_home_target(source.frame, ocr=ocr) is not None:
-                _, home_before, home_post, home_successor = _tap_action(
-                    runtime,
-                    session,
-                    label="daily-resource-item-return-home",
-                    target_identity=HOME_TARGET_IDENTITY,
-                    action_key="daily-resource-item:return-home",
-                    bind=lambda frame: _return_home_target(frame, ocr=ocr),
-                    recognize=lambda frame: _recognize_home(frame, ocr=ocr),
-                    settled_successor=lambda: (
-                        time.sleep(1.0)
-                        or runtime.capture("daily-resource-item-return-home-settled")
-                    ),
-                )
-                if home_before is not None:
-                    frames["return-home-immediate-before"] = home_before
-                if home_post is not None:
-                    frames["return-home-immediate-post"] = home_post
-                    frames["home"] = home_post
-                terminal_home = bool(
-                    home_post is not None
-                    and _record(home_successor).get("home_verified") is True
-                )
-                recognitions["home"] = home_successor
-                return _result(
-                    session,
-                    status="completed" if terminal_home else "evidence_required",
-                    reason=(
-                        "Resources source returned to verified Home"
-                        if terminal_home
-                        else "Resources source return did not prove verified Home"
-                    ),
-                    frames=frames,
-                    recognitions=recognitions,
-                    terminal_home_verified=terminal_home,
-                )
+                return recover_resource_item_home(runtime, session, ocr=ocr)
         else:
             return _result(
                 session,
@@ -2444,12 +2478,11 @@ def _run_service_native_route(
     service_identity = context.identity
     session = context.session
     sampled_utc = datetime.fromtimestamp(context.utc_clock(), timezone.utc)
-    wall_clock = lambda: sampled_utc
     if recruitment_reset(sampled_utc.timestamp()) != service_identity.reset_id:
         raise ValueError("Resource item native sample differs from the service reset")
     verified_identity, deadline_payload = produce_resource_runtime_identity(
         session=context.session,
-        wall_clock=wall_clock,
+        wall_clock=lambda: sampled_utc,
         return_deadline_evidence=True,
     )
     if (
@@ -2460,12 +2493,18 @@ def _run_service_native_route(
         or verified_identity.reset_deadline_utc != deadline_payload["reset_deadline_utc"]
     ):
         raise ValueError("Resource item fixed-backend identity differs from the service reset")
+
+    def current_wall_clock() -> datetime:
+        # Resample service UTC on every authorization check so the reset margin
+        # and authorization expiry are enforced at Use time, not at visit start.
+        return datetime.fromtimestamp(context.utc_clock(), timezone.utc)
+
     components = build_resource_runtime_components(
         session=session,
         verified_identity=verified_identity,
         deadline_payload=deadline_payload,
         action_store=context.action_store,
-        wall_clock=wall_clock,
+        wall_clock=current_wall_clock,
     )
     route_runtime = components["runtime_factory"](context.runtime)
     route_result: dict[str, Any] = {}
@@ -2712,4 +2751,5 @@ def create_service_binding(make_native_route_binding: Callable[..., Any]) -> Any
         driver=_run_service_native_route,
         lease_seconds=3600.0,
         action_store_factory=open_resource_action_store,
+        driver_manages_action_lease=True,
     )

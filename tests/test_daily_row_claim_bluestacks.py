@@ -1589,7 +1589,8 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
 
         home_image = np.zeros((1280, 800, 3), dtype=np.uint8)
         unknown_image = np.full((1280, 800, 3), 19, dtype=np.uint8)
-        session_directory = root / "native-session"
+        session_root = root / "native-session"
+        session_directory = session_root / "daily-native"
         session_directory.mkdir(parents=True)
 
         class FakeRuntime:
@@ -1642,7 +1643,7 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
                 self.runtime = runtime
                 self.input_count = 0
                 self.actions: list[dict[str, object]] = []
-                self.session_directory = session_directory
+                self.session_directory = session_root
 
             def observe(self, capture, *, label: str) -> CapturedNativeFrame:
                 return capture(label)
@@ -1739,6 +1740,18 @@ class DailyMilestoneReadinessTests(unittest.TestCase):
                 Path(tmp),
                 return_home=True,
             )
+            native_root = result["native_session_directory"]
+            assert isinstance(native_root, str)
+            evidence_root = Path(native_root)
+            terminal = result["terminal_home_frame"]
+            assert isinstance(terminal, dict)
+            terminal_path = evidence_root / terminal["frame_path"]
+            self.assertTrue(terminal_path.is_file())
+            self.assertEqual(
+                hashlib.sha256(terminal_path.read_bytes()).hexdigest(),
+                terminal["frame_sha256"],
+            )
+            self.assertEqual(evidence_root, Path(tmp) / "native-session" / "daily-native")
 
         self.assertEqual(result["status"], "completed")
         self.assertTrue(result["no_work"])

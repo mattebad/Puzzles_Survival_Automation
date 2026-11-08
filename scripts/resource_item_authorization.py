@@ -650,18 +650,15 @@ def build_resource_runtime_components(
         RESOURCE_RECURRENCE_POLICY_REVISION,
         RESOURCE_TARGET_VARIANT,
     )
-    from scripts.navigation_development_boundary import DevelopmentSessionError
+    from scripts.navigation_development_boundary import DevelopmentSession
 
-    if not hasattr(session, "runtime_input_lock"):
-        raise ResourceItemAuthorizationError("DevelopmentSession cannot expose its held runtime lock")
-    try:
-        runtime_lock = session.runtime_input_lock
-    except DevelopmentSessionError as exc:
-        raise ResourceItemAuthorizationError(
-            "Resource authority requires the entered DevelopmentSession"
-        ) from exc
-    owner = str(getattr(session, "owner", "") or "")
-    invocation_id = str(getattr(session, "invocation_id", "") or "")
+    if not isinstance(session, DevelopmentSession):
+        raise ResourceItemAuthorizationError("Resource authority requires an entered DevelopmentSession")
+    # The existing session fences its exact route scope through the same live
+    # canonical input lock. ResourceEffectAuthority owns the sole Core lease.
+    runtime_lock = session
+    owner = session.owner
+    invocation_id = session.invocation_id
     if not owner or not invocation_id:
         raise ResourceItemAuthorizationError("Resource authority requires exact owner and invocation")
     runtime_lock.assert_held(owner, invocation_id)

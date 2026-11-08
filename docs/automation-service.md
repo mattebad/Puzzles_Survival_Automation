@@ -272,6 +272,32 @@ normal loop. This lifecycle is offline-proven, including continuous execution wi
 Incomplete launch transport, invalid startup accounting and all after-runner reset failures retain
 inspection stops; the deferral does not claim a gameplay completion or verified Home.
 
+For explicit navigation-only recovery from the positively recognized Bag Resources list, use
+`python scripts/pnsctl.py development-session recover-resource-home --live --yes`.
+It reacquires the existing exclusive development input lock, requires canonical unresolved
+actions to be clear, rebinds the Resources-list Back from the immediate frame, and sends
+at most one navigation input. Unknown/modal sources and unverified successors stop without
+an identical retry. Already verified Home needs no input. It does not require a legacy
+flow-delivery lease, execute Resource Use, clear gameplay history, change controls, or earn
+route acceptance. The November 8 supervised smoke verified one Back and settled Home with
+zero item uses or spend; the full #66 owned-item decrement scenario remains `evidence_required`.
+
+Daily rewards terminal Home references are relative to the native runtime's evidence
+directory, not its parent development-session directory; the adapter retains the
+exact file, containment and SHA-256 checks. The November 8 native visit observed
+zero points, no aggregate Claim and five static chests, then returned Home using
+two navigation inputs and no reward attempts. Its original adapter rejection is
+preserved. Retained-frame replay and focused checks prove the corrected path
+contract offline; this does not establish a new live chest-claim acceptance.
+
+On a positively selected Daily page, a modal-marker word is ordinary objective
+text only in the left objective-description column with its own following
+`Reward: Pts` line and no observed modal panel. Other occurrences still deny.
+A fresh recognized selected-Daily start may take at most two guarded Backs
+through recognized Quest to verified Home before normal entry; the original
+source capture, input accounting, reward limits and unknown-result fences remain
+unchanged. Saved-frame proof is not live reward acceptance.
+
 ## Local checks
 
 Run focused checks from the repository root:

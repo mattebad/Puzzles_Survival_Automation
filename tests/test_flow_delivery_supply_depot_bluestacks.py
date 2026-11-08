@@ -188,12 +188,9 @@ def _run_supply_pan_case(
 class SupplyDepotFlowDeliveryTests(unittest.TestCase):
     @requires_tesseract
     def test_native_arena_requires_three_headers_and_measured_arrow(self):
-        from scripts.daily_resource_item_bluestacks import _bag_back_arrow_visual
-
         path = Path(__file__).parent / "fixtures/supply_depot/native-arena-20261029.png"
         frame = cv2.imread(str(path))
         self.assertIsNotNone(frame)
-        self.assertIsNone(_bag_back_arrow_visual(frame))
         self.assertEqual(supply_route._arena_exit_target(frame), (47, 2, 128, 61))
         for box in ((335, 7, 480, 56), (170, 87, 300, 140), (470, 85, 710, 138), (0, 0, 180, 90)):
             with self.subTest(missing=box):
