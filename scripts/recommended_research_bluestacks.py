@@ -194,7 +194,7 @@ def _read_words(frame: Any, ocr_data: Mapping[str, object] | None = None) -> tup
     if ocr_data is None:
         from scripts.bounded_tesseract import call_ocr, tesseract_data
 
-        ocr_data = call_ocr(tesseract_data, frame, config="--psm 6", timeout=5.0)
+        ocr_data = call_ocr(tesseract_data, frame, config="--psm 6", call_timeout=5.0)
     if not isinstance(ocr_data, Mapping):
         return ()
     return _ocr_words(ocr_data)
@@ -405,7 +405,6 @@ def recognize_research_screen(
                 candidates.sort(key=lambda item: (item[0], item[1]))
                 title = " ".join(word.text for word in sorted(candidates[0][2], key=lambda item: item.roi[0])).strip()
                 identity = research_identity(title)
-                page_tokens = [word for line in lines if _line_bounds(line)[3] >= header_bottom for word in line]
                 page_bounds = _panel_bounds(lines, top=header_bottom - 20, bottom=max(_line_bounds(line)[3] for line in buttons) + 24)
                 button_roi = _padded_roi((bx0, by0, bx1, by1))
                 if identity and page_bounds and _inside(page_bounds, button_roi):
