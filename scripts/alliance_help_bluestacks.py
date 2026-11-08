@@ -27,7 +27,7 @@ from automation_service.registry import (
 from tasks.alliance_help import (
     CONSEQUENCE, CONTROL_CLASS, DAILY_REQUEST_LIMIT, HELP_ALL_TARGET_IDENTITY,
     INDIVIDUAL_TARGET_IDENTITY, POSTCONDITION, SEMANTIC_ACTION, SOURCE_STATE,
-    HelpAction, HelpObservation, HelpPlan, HelpRequest, alliance_help_action_key,
+    HelpAction, HelpObservation, HelpRequest, alliance_help_action_key,
     choose_help_action, verified_request_delta,
 )
 from tasks.home_nav_recognition import recognize_home_nav
@@ -385,7 +385,8 @@ def _current_observation(runtime: Any, captured: Any, *, observer=recognize_help
                     now=time.monotonic() if now is None else now)
 
 
-def _navigation(*, session: Any, runtime: Any, name: str, binder: Callable[[Any], tuple[str, tuple[int, int, int, int]] | None],
+def _navigation(*, session: Any, runtime: Any, phase: str, name: str,
+                binder: Callable[[Any], tuple[str, tuple[int, int, int, int]] | None],
                 successor: Callable[[Any], bool], settle_seconds: float) -> tuple[Any | None, str]:
     current: dict[str, Any] = {}
 
@@ -396,8 +397,14 @@ def _navigation(*, session: Any, runtime: Any, name: str, binder: Callable[[Any]
         current["identity"], current["roi"] = bound
 
     def dispatch(before: Any) -> None:
-        runtime.tap(before, target_identity=current["identity"], target_roi=current["roi"],
-                    action_key=f"alliance-help-navigation:{name}:{before.sha256[:16]}")
+        # Native dedup checks BOTH action keys and (pixels, target identity, ROI).
+        # Recovery and terminal return are distinct verified traversals, even when
+        # Alliance renders byte-identically. Keep the target stable within a phase
+        # so a repeated unchanged step still hits the native fingerprint guard.
+        runtime.tap(before,
+                    target_identity=f"{current['identity']}:{phase}:{name}",
+                    target_roi=current["roi"],
+                    action_key=f"alliance-help-navigation:{phase}:{name}:{session.input_count}:{before.sha256[:16]}")
 
     def recognize(after: Any) -> str:
         current["after"] = after
@@ -799,7 +806,7 @@ _BACK_STEPS: dict[str, tuple[str, str | None]] = {
 }
 
 
-def _return_home(*, session: Any, runtime: Any, settle_seconds: float,
+def _return_home(*, session: Any, runtime: Any, phase: str, settle_seconds: float,
                  monotonic_clock: Callable[[], float] = time.monotonic) -> tuple[Any | None, list[str]]:
     """Speedup Help -> hub -> Alliance -> Home with at most three distinct, never-repeated Backs."""
     current = session.observe(runtime.capture, label="alliance-help-return-source")
@@ -826,7 +833,7 @@ def _return_home(*, session: Any, runtime: Any, settle_seconds: float,
                 return None
             target = _back_target(before.frame)
             return ("alliance-help-back", target) if target is not None else None
-        after, status = _navigation(session=session, runtime=runtime, name=name,
+        after, status = _navigation(session=session, runtime=runtime, phase=phase, name=name,
             binder=bind_back, successor=successor, settle_seconds=settle_seconds)
         if status != "completed" or after is None:
             return None, route
@@ -909,7 +916,7 @@ def run_alliance_help(
         recovery: dict[str, Any] = {"source_context": start_context, "verified_navigation": []}
         try:
             home, recovery["verified_navigation"] = _return_home(session=session, runtime=runtime,
-                settle_seconds=settle_seconds, monotonic_clock=monotonic_clock)
+                phase="recovery", settle_seconds=settle_seconds, monotonic_clock=monotonic_clock)
             entry_home = home if home is not None and _home(home.frame) else None
         except Exception as exc:
             recovery["error"] = f"{type(exc).__name__}:{exc}"
@@ -929,21 +936,21 @@ def run_alliance_help(
                           confirmed_request_count=count, no_work=True)
         else:
             current, nav_status = _navigation(session=session, runtime=runtime,
-                name="open-alliance", binder=lambda before: (
+                phase="entry", name="open-alliance", binder=lambda before: (
                     ("home-nav-alliance", roi) if (roi := _home_alliance_target(before.frame)) else None),
                 successor=lambda after: _alliance_menu(after.frame), settle_seconds=settle_seconds)
             if nav_status != "completed" or current is None:
                 result["reason"] = "alliance_menu_successor_unproven"
             else:
                 current, nav_status = _navigation(session=session, runtime=runtime,
-                    name="open-help-hub", binder=lambda before: (
+                    phase="entry", name="open-help-hub", binder=lambda before: (
                         ("alliance-menu-help", roi) if _alliance_menu(before.frame)
                         and (roi := _menu_help_target(before.frame)) is not None else None),
                     successor=lambda after: _help_hub(after.frame), settle_seconds=settle_seconds)
                 hub_reached = nav_status == "completed" and current is not None
                 if hub_reached:
                     current, nav_status = _navigation(session=session, runtime=runtime,
-                        name="open-speedup-help", binder=lambda before: (
+                        phase="entry", name="open-speedup-help", binder=lambda before: (
                             ("help-hub-speedup-help", roi) if _help_hub(before.frame)
                             and (roi := _hub_speedup_target(before.frame)) is not None else None),
                         successor=lambda after: recognize_help_screen(after.frame,
@@ -1043,7 +1050,7 @@ def run_alliance_help(
         result["verified_navigation"] = []
     elif not store.has_action_block():
         home, back_steps = _return_home(session=session, runtime=runtime,
-            settle_seconds=settle_seconds, monotonic_clock=monotonic_clock)
+            phase="terminal", settle_seconds=settle_seconds, monotonic_clock=monotonic_clock)
         result["verified_navigation"] = back_steps
         if home is not None and _home(home.frame):
             result["terminal_home_verified"] = True
@@ -1051,7 +1058,7 @@ def run_alliance_help(
     else:
         try:
             home, back_steps = _return_home(session=session, runtime=runtime,
-                settle_seconds=settle_seconds, monotonic_clock=monotonic_clock)
+                phase="terminal", settle_seconds=settle_seconds, monotonic_clock=monotonic_clock)
             result["verified_navigation"] = back_steps
             if home is not None and _home(home.frame):
                 result["terminal_home_verified"] = True

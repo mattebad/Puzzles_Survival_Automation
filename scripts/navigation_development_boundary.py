@@ -856,7 +856,8 @@ class DevelopmentSession:
         self.control_memory: dict[str, Any] = {}
         self.causal_trace: dict[str, Any] | None = None
         self._initial_observation: DevelopmentInitialObservation | None = None
-        self._transport_count_adopted = False
+        self._adopted_transport_count: int | None = None
+        self._adopted_transport_source: str | None = None
         self.terminal_status: str | None = None
         self.blocker: str | None = None
         self.next_action: str | None = None
@@ -971,24 +972,43 @@ class DevelopmentSession:
     record_causal_trace = set_causal_trace
 
     def adopt_retained_transport_count(self, count: int, *, source: str = "events.jsonl") -> int:
-        """Bind an adapter's retained transport count exactly once.
+        """Bind an adapter's cumulative retained transport count.
 
         Resource actions are counted by ``run_action``; adapters that use an
         existing route controller (World) may adopt its retained dispatch count.
-        A second or conflicting count is rejected rather than silently merged.
+        A later adoption may only extend the same retained source's cumulative
+        total: a different source, a decreasing total, or session-owned inputs
+        interleaved since the previous adoption are rejected rather than merged.
+        Re-adopting the same total is idempotent.
         """
 
-        if self._transport_count_adopted:
-            raise DevelopmentSessionError("development session transport count already adopted")
+        if not isinstance(source, str) or not source.strip():
+            raise DevelopmentSessionError("retained transport count source is required")
         value = int(count)
         if value < 0 or value > self.max_inputs:
             raise DevelopmentSessionError("retained transport count exceeds development-session limit")
-        if self.input_count not in {0, value}:
-            raise DevelopmentSessionError(
-                f"retained transport count {value} conflicts with session count {self.input_count}"
-            )
+        previous = self._adopted_transport_count
+        if previous is None:
+            if self.input_count not in {0, value}:
+                raise DevelopmentSessionError(
+                    f"retained transport count {value} conflicts with session count {self.input_count}"
+                )
+        else:
+            if source != self._adopted_transport_source:
+                raise DevelopmentSessionError(
+                    "retained transport count source differs from the previously adopted source"
+                )
+            if self.input_count != previous:
+                raise DevelopmentSessionError(
+                    f"session count {self.input_count} changed after retained transport count {previous}"
+                )
+            if value < previous:
+                raise DevelopmentSessionError(
+                    f"retained transport count {value} decreased from adopted count {previous}"
+                )
         self.input_count = value
-        self._transport_count_adopted = True
+        self._adopted_transport_count = value
+        self._adopted_transport_source = source
         self.remember_control("transport_count_source", source)
         return value
 

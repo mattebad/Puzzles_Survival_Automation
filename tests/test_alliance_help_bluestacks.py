@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import hashlib
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -13,11 +14,13 @@ import numpy as np
 
 from safe_action_core import SafetyStore
 from scripts import alliance_help_bluestacks as route
+from scripts import navigation_development_boundary as boundary
+from scripts.bluestacks_flow_collector import ADBRunner
 from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime, box_center
 from tasks.alliance_help import (
-    CONSEQUENCE, DAILY_REQUEST_LIMIT, HELP_ALL_TARGET_IDENTITY,
-    INDIVIDUAL_TARGET_IDENTITY, POSTCONDITION, SEMANTIC_ACTION, SOURCE_STATE,
-    HelpAction, HelpObservation, HelpPlan, HelpRequest, alliance_help_action_key,
+    DAILY_REQUEST_LIMIT, HELP_ALL_TARGET_IDENTITY,
+    INDIVIDUAL_TARGET_IDENTITY, SOURCE_STATE,
+    HelpAction, HelpObservation, HelpRequest, alliance_help_action_key,
     choose_help_action, confirmed_request_count, verified_request_delta,
 )
 from tasks.runtime_identity import derive_resource_runtime_identity, resource_fixed_runtime_binding
@@ -463,7 +466,7 @@ class AllianceHelpRouteContextRecoveryTests(unittest.TestCase):
         self.assertEqual(result["status"], "blocked")
         self.assertEqual(result["reason"], "alliance_help_hub_successor_unproven")
         self.assertEqual(runtime.help_taps, 0)
-        self.assertNotIn("help-hub-speedup-help", {item[1] for item in runtime.frame_actions})
+        self.assertFalse(any(item[1].startswith("help-hub-speedup-help:") for item in runtime.frame_actions))
         self.assertFalse(result["terminal_home_verified"])
         self.assertEqual(result["input_count"], 2)
         self.assertEqual(result["input_count"], session.input_count)
@@ -503,7 +506,8 @@ class AllianceHelpRouteContextRecoveryTests(unittest.TestCase):
         self.assertEqual(result["verified_navigation"], [])
         self.assertEqual(runtime.input_count, 1)
         self.assertEqual(session.input_count, 1)
-        self.assertEqual({item[1] for item in runtime.frame_actions}, {"alliance-help-back"})
+        self.assertEqual({item[1] for item in runtime.frame_actions},
+                         {"alliance-help-back:recovery:back-alliance-home"})
         self.assertEqual(runtime.help_taps, 0)
         self.assertTrue(result["accounting_verified"])
 
@@ -528,7 +532,8 @@ class AllianceHelpRouteContextRecoveryTests(unittest.TestCase):
         self.assertEqual(result["route_context_recovery"]["verified_navigation"], [])
         self.assertEqual(runtime.input_count, 1)
         self.assertEqual(session.input_count, 1)
-        self.assertEqual({item[1] for item in runtime.frame_actions}, {"alliance-help-back"})
+        self.assertEqual({item[1] for item in runtime.frame_actions},
+                         {"alliance-help-back:recovery:back-help-hub"})
         self.assertEqual(runtime.help_taps, 0)
 
 
@@ -610,6 +615,7 @@ class _ReplayRuntime:
             raise ValueError("replay refuses unbound target")
         self.input_count += 1
         self.frame_actions.add((before.sha256, target_identity, target_roi))
+        target_identity = target_identity.split(":")[0]
         if target_identity == "home-nav-alliance":
             self.state = "alliance"
         elif target_identity == "alliance-menu-help":
@@ -789,6 +795,117 @@ def _run_replay_route(directory: Path, *, requests: int, suppress_effects: bool 
         store.release_lease(session.owner, now)
         store.close()
     return result, action_blocked, session, runtime
+
+
+class _PixelNavigationTransport(ADBRunner):
+    """Only device transport is fake; revisited pages have identical PNG bytes."""
+
+    def __init__(self, payloads: dict[str, bytes], *, ignore_back: bool = False):
+        super().__init__("offline-adb-not-invoked", "offline-pixel-navigation")
+        self.payloads, self.state, self.ignore_back = payloads, "alliance", ignore_back
+        self.calls: list[tuple[str, tuple[int, int]]] = []
+
+    def capture_png(self) -> bytes:
+        return self.payloads[self.state]
+
+    def dispatch_tap(self, point: tuple[int, int]) -> None:
+        self.calls.append((self.state, point))
+        if point[1] < 80:
+            if not self.ignore_back:
+                self.state = {"help": "hub", "hub": "alliance", "alliance": "home"}[self.state]
+        else:
+            self.state = {"home": "alliance", "alliance": "hub", "hub": "help"}[self.state]
+
+
+def _run_pixel_navigation(
+    directory: Path, *, payloads: dict[str, bytes] | None = None, ignore_back: bool = False,
+):
+    """Device-free smoke entry point: production runtime, session and recognizers."""
+    directory.mkdir(parents=True, exist_ok=True)
+    if payloads is None:
+        leaf = cv2.imread(str(route.HELP_SOURCE_PATH), cv2.IMREAD_COLOR)
+        if leaf is None:
+            raise RuntimeError(f"Cannot read Help fixture: {route.HELP_SOURCE_PATH}")
+        # Derived no-controls leaf retaining native header/Back, without inventing effects.
+        leaf[240:390] = leaf[500:650]
+        leaf[1165:1280] = leaf[1000:1115]
+        encoded, png = cv2.imencode(".png", leaf)
+        if not encoded:
+            raise RuntimeError("Cannot encode no-controls Help fixture")
+        payloads = {
+            "home": (Path(__file__).parent / "fixtures/personal_might/native-home-more-20261029.png").read_bytes(),
+            "alliance": ALLIANCE_MENU_FIXTURE.read_bytes(),
+            "hub": HELP_HUB_FIXTURE.read_bytes(),
+            "help": png.tobytes(),
+        }
+    transport = _PixelNavigationTransport(payloads, ignore_back=ignore_back)
+    now = 1_800_000_000.0
+    identity = derive_resource_runtime_identity(resource_fixed_runtime_binding(),
+        datetime.fromtimestamp(now, timezone.utc))
+    result, error = None, None
+    store = SafetyStore(directory / "actions.sqlite3")
+    try:
+        with patch.object(boundary, "RUNTIME_INPUT_LOCK_PATH", directory / "lock.sqlite3"):
+            session = boundary.DevelopmentSession(owner="help-native-replay",
+                invocation_id="help-native-replay", session_directory=directory / "session",
+                max_inputs=route.MAX_INPUTS)
+            try:
+                with session:
+                    runtime = LocalBlueStacksRuntime(transport, session.session_directory / "native", execute=True)
+                    runtime.max_inputs = route.MAX_INPUTS
+                    result = route.run_alliance_help(session=session, runtime=runtime,
+                        store=store, identity=identity, validate_identity=lambda: None,
+                        occurrence_key="occ:pixel-navigation", settle_seconds=0,
+                        utc_clock=lambda: now)
+            except RuntimeError as exc:
+                error = str(exc)
+    finally:
+        store.close()
+    return result, error, session, runtime, transport
+
+
+class AllianceHelpNativeNavigationIdentityTests(unittest.TestCase):
+    def test_identical_revisited_pixels_need_distinct_verified_step_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result, error, session, runtime, transport = _run_pixel_navigation(root / "fixed")
+            self.assertIsNone(error)
+            assert result is not None
+            self.assertEqual(result["status"], "deferred")
+            self.assertTrue(result["terminal_home_verified"])
+            self.assertTrue(result["accounting_verified"])
+            self.assertEqual(result["help_transport_calls"], 0)
+            self.assertEqual(result["input_count"], 7)
+            self.assertEqual(session.input_count, runtime.input_count)
+            self.assertEqual(runtime.input_count, len(transport.calls))
+            self.assertEqual([state for state, _point in transport.calls],
+                             ["alliance", "home", "alliance", "hub", "help", "hub", "alliance"])
+            evidence = runtime.events.read_bytes()
+            events = [json.loads(line) for line in evidence.splitlines()]
+            dispatches = [item for item in events if item["type"] == "dispatch"]
+            self.assertEqual(len(dispatches), 7)
+            self.assertEqual(len({item["action_key"] for item in dispatches}), 7)
+            self.assertEqual(dispatches[0]["source_sha256"], dispatches[-1]["source_sha256"])
+            self.assertEqual(dispatches[0]["target_roi"], dispatches[-1]["target_roi"])
+            self.assertNotEqual(dispatches[0]["target_identity"], dispatches[-1]["target_identity"])
+            for item in events:
+                if item["type"] == "capture":
+                    self.assertEqual(hashlib.sha256(Path(item["path"]).read_bytes()).hexdigest(), item["sha256"])
+            self.assertEqual(runtime.events.read_bytes(), evidence)
+
+    def test_native_unchanged_back_stops_after_one_attempt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result, error, session, runtime, transport = _run_pixel_navigation(Path(temporary), ignore_back=True)
+            self.assertIsNone(error)
+            assert result is not None
+            self.assertFalse(result["terminal_home_verified"])
+            self.assertTrue(result["accounting_verified"])
+            self.assertEqual(result["input_count"], 1)
+            self.assertEqual(result["help_transport_calls"], 0)
+            self.assertEqual(session.input_count, 1)
+            self.assertEqual(session.input_count, runtime.input_count)
+            self.assertEqual(runtime.input_count, len(transport.calls))
+            self.assertEqual(len(transport.calls), 1)
 
 
 if __name__ == "__main__":
