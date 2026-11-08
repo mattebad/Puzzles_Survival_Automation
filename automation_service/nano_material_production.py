@@ -438,6 +438,8 @@ class NanoMaterialProductionRunner:
         except Exception as exc:
             partial = dict(native_result) if isinstance(native_result, Mapping) else {}
             partial.update(dict(getattr(exc, "partial_result", {}) or {}))
+            if isinstance(partial.get("reason"), str):
+                partial.setdefault("native_reason", partial["reason"])
             raw_calls = partial.get("production_transport_calls")
             count_known = type(raw_calls) is int and raw_calls >= 0
             calls = raw_calls if count_known else 0

@@ -107,6 +107,7 @@ _NANOWEAPON_MATERIAL_TAB_CONTROL = dict(_NANOWEAPON_TAB_CELLS)["Material Product
 # single reward profile, output 24-38, one purple Claim; no visible duration,
 # timer or START quote. Counts below are semantic profile facts, not OCR counters.
 _MATERIAL_COMPLETE_CLAIM_CROP = (276, 1168, 525, 1254)
+_MATERIAL_COMPLETE_OUTPUT_CROP = (60, 965, 740, 1040)
 _MATERIAL_COMPLETE_CLAIM_CONTROL = (278, 1172, 522, 1250)
 _MATERIAL_COMPLETE_PANEL = (41, 147, 759, 1254)
 
@@ -282,15 +283,16 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
     complete_markers = [row for row in lines if _normal(row[0]) in {"production complete", "production completed", "completed production"}]
     one_slot = any(_normal(line) in {"production slot 1 of 1", "slots 1 of 1", "one production slot", "production slots 1 1"} for line, _ in lines)
     claim_crop = _lines(_ocr_words(captured.frame, _MATERIAL_COMPLETE_CLAIM_CROP, scale=2, white_text=True))
+    output_lines = _lines(_ocr_words(captured.frame, _MATERIAL_COMPLETE_OUTPUT_CROP, scale=2))
     output_ranges = []
-    for line, _line_words in lines:
+    for line, _line_words in output_lines:
         output = re.fullmatch(r"produces ([1-9][0-9]*) ([1-9][0-9]*) material s at random upgrade gear", _normal(line))
         if output is not None:
             output_ranges.append((int(output[1]), int(output[2])))
     complete_profile = bool(
         len(claim_crop) == 1 and len(_phrase_lines(claim_crop, "Claim")) == 1
         and len(output_ranges) == 1 and output_ranges[0][0] <= output_ranges[0][1]
-        and len(_phrase_lines(lines, "Factory to increase output.")) == 1
+        and len(_phrase_lines(output_lines, "Factory to increase output.")) == 1
         and not starts and not timers and len(claims) <= 1
     )
     if not one_slot and not complete_profile:
@@ -475,17 +477,15 @@ def _dispatch_action(context, *, before_capture, before: MaterialProductionObser
         }
 
     immediate_observation = None
+    issued = None
+    execution = None
 
-    def recapture() -> Observation:
-        nonlocal before_capture, before, immediate_observation
-        if immediate_observation is not None:
-            return immediate_observation
+    def authorize(current):
+        nonlocal before_capture, before, immediate_observation, issued
+        context.checkpoint()
         context.validate_identity()
-        captured = _capture(context, f"nano-material-production-{phase}-pre-dispatch")
         fresh = _panel_observation(
-            captured,
-            context=context,
-            occurrence_key=occurrence_key,
+            current, context=context, occurrence_key=occurrence_key,
         ).observation
         if (
             fresh is None
@@ -496,103 +496,56 @@ def _dispatch_action(context, *, before_capture, before: MaterialProductionObser
             or fresh.timer_seconds_remaining != before.timer_seconds_remaining
             or fresh.target_roi != before.target_roi
             or fresh.occurrence_key != occurrence_key
+            or _semantic_tokens(fresh, action_kind=action_kind, occurrence_key=occurrence_key)
+            != request.semantic_preconditions
         ):
-            raise ValueError("Material Production immediate pre-dispatch state changed")
-        before_capture = captured
-        before = fresh
+            raise ValueError("Material Production immediate pre-dispatch state or quote changed")
+        # Match semantic state, then bind policy and transport to this exact
+        # SDK immediate-before capture. Hologram animation is not a new quote.
+        before_capture, before = current, fresh
         immediate_observation = _route_observation(
-            context,
-            captured,
-            target_identity=subject,
-            target_roi=tuple(fresh.target_roi),
-            control_class=control_class,
-            consequence=consequence,
-            postcondition=postcondition,
+            context, current, target_identity=subject,
+            target_roi=tuple(fresh.target_roi), control_class=control_class,
+            consequence=consequence, postcondition=postcondition,
         )
-        return immediate_observation
+        policy_now = float(context.utc_clock())
+        capability_request = replace(
+            request,
+            observation=immediate_observation,
+            monotonic_now=float(context.monotonic_clock()),
+            lease_owner=context.session.owner,
+            lease_valid=store.lease_valid_for(context.session.owner, policy_now),
+            unresolved_action=store.has_action_block(),
+            duplicate_action_key=store.action_key_exists(key),
+            policy_phase="pre_dispatch",
+        )
+        issued = policy.issue_capability(capability_request)
+        store.audit(FLOW_ID, "capability_issued", policy_now, issued.audit, action_id)
+        if not issued.authorized or issued.capability is None:
+            raise RuntimeError(f"Material Production capability denied:{issued.reason_code}")
 
-    try:
-        immediate_policy_observation = recapture()
-    except Exception as exc:
-        return {
-            "status": "blocked",
-            "reason": f"{type(exc).__name__}:{exc}",
-            "transport_calls": 0,
-            "action_key": key,
-        }
-    policy_now = float(context.utc_clock())
-    capability_request = replace(
-        request,
-        observation=immediate_policy_observation,
-        monotonic_now=float(context.monotonic_clock()),
-        lease_owner=context.session.owner,
-        lease_valid=store.lease_valid_for(context.session.owner, policy_now),
-        unresolved_action=store.has_action_block(),
-        duplicate_action_key=store.action_key_exists(key),
-        policy_phase="pre_dispatch",
-    )
-    issued = policy.issue_capability(capability_request)
-    store.audit(FLOW_ID, "capability_issued", policy_now, issued.audit, action_id)
-    if not issued.authorized or issued.capability is None:
-        return {
-            "status": "blocked",
-            "reason": issued.reason_code,
-            "transport_calls": 0,
-            "action_key": key,
-        }
     def transport(_intent):
-        starting = int(getattr(runtime, "input_count", 0))
+        context.checkpoint()
+        context.validate_identity()
+        starting = int(runtime.input_count)
+        runtime.tap(
+            before_capture, target_identity=subject, target_roi=target_roi,
+            action_key=key, action_class=action_kind, consequential=True,
+        )
+        sent = int(runtime.input_count) - starting
+        return TransportResult(
+            sent == 1,
+            "NANO_MATERIAL_PRODUCTION_INPUT_SENT" if sent == 1 else "NANO_MATERIAL_PRODUCTION_INPUT_NOT_SENT",
+        )
 
-        def authorize(current):
-            rebound = _panel_observation(current, context=context, occurrence_key=occurrence_key).observation
-            if (
-                current.sha256 != before_capture.sha256
-                or rebound is None
-                or not material_production_authorizeable(rebound)
-                or rebound.production_state != before.production_state
-                or rebound.active_production_count != before.active_production_count
-                or rebound.completed_batch_count != before.completed_batch_count
-                or rebound.timer_seconds_remaining != before.timer_seconds_remaining
-                or rebound.target_roi != before.target_roi
-                or rebound.occurrence_key != occurrence_key
-            ):
-                raise RuntimeError("Material Production source or selector changed before dispatch")
-            context.checkpoint()
-            context.validate_identity()
-
-        def dispatch(current):
-            runtime.tap(
-                current,
-                target_identity=subject,
-                target_roi=target_roi,
-                action_key=key,
-                action_class=action_kind,
-                consequential=True,
-            )
-
-        def settled():
-            time.sleep(float(context.settle_seconds))
-            context.checkpoint()
-            return runtime.capture(f"nano-material-production-{phase}-successor-settled")
-
-        try:
-            context.session.run_action(
-                action_class=action_kind,
-                label=f"nano-material-production-{phase}",
-                capture=runtime.capture,
-                authorize=authorize,
-                dispatch=dispatch,
-                recognize=lambda captured: postcondition if observe_successor(captured) else "unknown",
-                settled_successor=settled,
-                consequence_class=consequence,
-            )
-        except Exception as exc:
-            sent = int(getattr(runtime, "input_count", 0)) - starting
-            return TransportResult(sent == 1, f"NANO_MATERIAL_PRODUCTION_{phase.upper()}_{type(exc).__name__}")
-        sent = int(getattr(runtime, "input_count", 0)) - starting
-        return TransportResult(sent == 1, "NANO_MATERIAL_PRODUCTION_INPUT_SENT" if sent == 1 else "NANO_MATERIAL_PRODUCTION_INPUT_NOT_SENT")
+    def settled():
+        time.sleep(float(context.settle_seconds))
+        context.checkpoint()
+        return runtime.capture(f"nano-material-production-{phase}-successor-settled")
 
     def post_observe():
+        if not observe_successor(runtime.capture(f"nano-material-production-{phase}-immediate-post")):
+            observe_successor(settled())
         for captured, after, verified in successors:
             yield Observation(
                 frame_sha256=str(captured.sha256),
@@ -612,21 +565,29 @@ def _dispatch_action(context, *, before_capture, before: MaterialProductionObser
             )
 
     starting_inputs = getattr(runtime, "input_count", None)
-    try:
+
+    def send(current):
+        nonlocal execution
+        if current is not before_capture or issued is None or issued.capability is None:
+            raise RuntimeError("Material Production capability source mismatch")
         execution = SafeActionExecutor(
-            store,
-            policy,
-            context.session.owner,
-            lambda: float(context.monotonic_clock()),
-            transport,
-            recapture,
-            post_observe,
+            store, policy, context.session.owner,
+            lambda: float(context.monotonic_clock()), transport,
+            lambda: immediate_observation, post_observe,
             lambda _intent, observed: bool(
                 successors and successors[-1][2] and observed.frame_sha256 == successors[-1][0].sha256
             ),
             wall_clock=lambda: float(context.utc_clock()),
             max_pre_dispatch_attempts=1,
         ).execute(request, issued.capability)
+
+    try:
+        native_action = context.session.run_action(
+            action_class=action_kind, label=f"nano-material-production-{phase}",
+            capture=runtime.capture, authorize=authorize, dispatch=send,
+            recognize=lambda captured: postcondition if observe_successor(captured) else "unknown",
+            settled_successor=settled, consequence_class=consequence,
+        )
         row = store.get_action_by_key(key)
     except Exception as exc:
         ending_inputs = getattr(runtime, "input_count", None)
@@ -654,17 +615,25 @@ def _dispatch_action(context, *, before_capture, before: MaterialProductionObser
             "successor_observation": None,
             "last_action_evidence": evidence,
         }
-    sent = int(execution.transport_calls)
+    sent = int(runtime.input_count) - starting_inputs
+    confirmed = bool(
+        execution is not None and execution.status is ActionStatus.CONFIRMED
+        and native_action.status == "completed" and sent == 1
+    )
+    unresolved = bool(
+        (execution is not None and execution.status is ActionStatus.UNRESOLVED)
+        or sent > 0 and not confirmed
+    )
     final_successor = next((item for item in reversed(successors) if item[2]), None)
     evidence = action_evidence()
     return {
-        "status": "confirmed" if execution.status is ActionStatus.CONFIRMED else "unresolved" if execution.status is ActionStatus.UNRESOLVED else "blocked",
-        "reason": execution.reason,
+        "status": "confirmed" if confirmed else "unresolved" if unresolved else "blocked",
+        "reason": execution.reason if execution is not None else native_action.reason,
         "action_key": key,
         "journal_status": row.get("final_status") if row else None,
         "transport_calls": sent,
-        "effect_reconciliation_required": execution.status is ActionStatus.UNRESOLVED,
-        "identical_retry_denied": execution.status is ActionStatus.UNRESOLVED or sent > 0 and execution.status is not ActionStatus.CONFIRMED,
+        "effect_reconciliation_required": unresolved,
+        "identical_retry_denied": unresolved,
         "successor_capture": final_successor[0] if final_successor else None,
         "successor_observation": final_successor[1] if final_successor else None,
         "last_action_evidence": evidence,
