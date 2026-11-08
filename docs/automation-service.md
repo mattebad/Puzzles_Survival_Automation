@@ -398,6 +398,14 @@ two navigation inputs and no reward attempts. Its original adapter rejection is
 preserved. Retained-frame replay and focused checks prove the corrected path
 contract offline; this does not establish a new live chest-claim acceptance.
 
+On a positively selected Daily page, a modal-marker word is ordinary objective
+text only in the left objective-description column with its own following
+`Reward: Pts` line and no observed modal panel. Other occurrences still deny.
+A fresh recognized selected-Daily start may take at most two guarded Backs
+through recognized Quest to verified Home before normal entry; the original
+source capture, input accounting, reward limits and unknown-result fences remain
+unchanged. Saved-frame proof is not live reward acceptance.
+
 ## Local checks
 
 Run focused checks from the repository root:
