@@ -161,6 +161,12 @@ Existing layout exceptions:
   Alliance menu, Help hub or Speedup Help starting context first returns to fresh Home
   through at most three distinct rebound Back controls before normal entry; unknown or
   unchanged sources/successors send no repeated input. Native effect acceptance remains separate.
+  Verified recovery, entry and terminal navigation use distinct phase/step identities, allowing
+  a later return through identical menu pixels without weakening gameplay duplicate protection.
+  Ruins completes bounded zoom normalization and calculated Atlas pans with fresh localization,
+  mapped building binding and route-owned successor recognition. Session accounting adopts only
+  a monotonic cumulative dispatch total from the same retained journal, including startup inputs;
+  missing journal rows, interleaved inputs or unchanged/unknown successors fail closed.
 * **Batch C Alliance Donation, Alliance Shop, and Daily Shops**: canonical-service-only routes with
   fixed native bindings; they add no legacy operator registry entries. `REGISTERED` describes code
   composition only; production posture and SQLite runtime controls remain disabled, and current

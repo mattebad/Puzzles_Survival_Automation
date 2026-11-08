@@ -21,7 +21,8 @@ class NativeExecutionError(RuntimeError):
 class RuntimeInputLockPort(Protocol):
     owner: str
     invocation_id: str
-    held: bool
+    @property
+    def held(self) -> bool: ...
 
     def assert_held(self, owner: str, invocation_id: str) -> None: ...
 
