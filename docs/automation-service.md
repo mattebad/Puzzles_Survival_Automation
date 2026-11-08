@@ -88,6 +88,40 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
   tick must not require a newly derived expiry to equal that original expiry,
   and must not extend it. Offline clock-progress and expired-authority checks
   cover this boundary; current challenge/chest live acceptance remains separate.
+- Exhaustion compares the retry window, `consecutive_failures - inspected_failure_baseline`,
+  with `max_attempts` in state claims and in scheduler selection, backoff and
+  `RETRY_EXHAUSTED` conversion. `unblock` does not reset the failure count, so a claim blocks
+  again. Each terminal projection appends one row to the append-only `flow_attempts` ledger
+  (state, outcome, reason, consumed inputs/actions). Reclaiming a retried occurrence zeroes the
+  reused run row's counters, but the ledger keeps them. Ledger and inspection rows keep the flow
+  id they were written under. After a canonical flow-id rename, the ledger is matched to the
+  flow through the run's id and the migrated `runs` row. Inspection records match through the
+  existing `RENAMED_FLOW_IDS` table. Neither makes the old id a live alias, and neither asks
+  for a new attestation.
+- `automation_service.cli [--state-path P] inspect-rearm FLOW --preview` is read-only. It reports
+  eligibility plus the CAS facts. The command only touches state: it ignores `--mode`/`--adapter`
+  and opens no device. The mutation form requires `--expected-generation`,
+  `--expected-row-version`, `--expected-consecutive-failures`, `--evidence FILE` and `--reason`.
+  The evidence file must be a retained, non-symlink, non-empty regular file inside the
+  repository; its SHA-256 can be used once per flow. A rearm is allowed only when all of these hold:
+  - the service and the flow are disabled;
+  - no service owner is live;
+  - no claimed or recovering run exists, and no network recovery episode is unrecovered;
+  - the clock has not rolled back;
+  - the flow is blocked for exhaustion (`EXECUTOR_INTERRUPTED` is excluded);
+  - none of the flow's actions are RESERVED/DISPATCHING/UNKNOWN;
+  - no current-window run or ledger attempt is FAILED, uncertain, abandoned, accounting-marked
+    or consequential (consumed actions or a dispatched action).
+
+  The rearm writes one immutable `flow_inspections` audit record and clears the block. It sets
+  the baseline to the retained failure count, which gives exactly `max_attempts` new attempts.
+  It does not change the flow's enabled state, generation, `max_attempts`, run/action rows,
+  occurrence or reset identity, or gameplay progress. Re-enabling stays a separate operator
+  step. A consumed success or deferral resets both the count and the baseline to zero; a
+  reset rollover changes neither.
+- Failures that predate the ledger have no retained counters. They are admitted only by
+  `--attest-untracked-failures N` with N equal to the exact unattested count from the preview,
+  and only once per window. Any other count is denied.
 
 ## Canonical `pnsctl` serve facade
 
@@ -96,8 +130,8 @@ the remaining arguments unchanged to `automation_service.cli.main`. It validates
 supervised mode, BlueStacks adapter, and canonical state path
 before serving, and it does not auto-enable, unblock, register, schedule, deploy, or bypass any
 existing control gate. The other `pnsctl automation-service` subcommands (`status`, `health`,
-`enable`, `disable`, `service-enable`, `service-disable`, `emergency-stop`, `run`, `pulse`) and their
-safety notes are listed in the [operations runbook](pns-operations-runbook.md).
+`enable`, `disable`, `service-enable`, `service-disable`, `emergency-stop`, `run`, `pulse`,
+`inspect-rearm`) and their safety notes are listed in the [operations runbook](pns-operations-runbook.md).
 
 Import direction: `scripts/pnsctl.py` imports `automation_service`, never the reverse. The fixed
 BlueStacks runtime constants and the fixed-slot binding derivation live in
