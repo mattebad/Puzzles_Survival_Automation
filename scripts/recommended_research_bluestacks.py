@@ -1231,6 +1231,18 @@ def _research_center_level(frame: Any, binding: BuildingBinding | None) -> int |
     readings = []
     for minimum_value in _RESEARCH_CENTER_PLATE_INK_VALUES:
         ink = ((plate[:, :, 2] >= minimum_value) & (plate[:, :, 1] <= 60)).astype("uint8") * 255
+        # Actual panned Home0007: both glyphs are 8px tall inside this
+        # caption-owned plate; its slanted right edge leaves 1..5px fragments
+        # in the outer four columns (largest 3x4). At cut140 a single border
+        # pixel x23 of25 enlarged the OCR crop and produced a spurious "0".
+        # Remove only those small peripheral fragments, never interior ink or
+        # a glyph-height component. Both cuts/all three modes must still agree.
+        count, labels, stats, _centroids = cv2.connectedComponentsWithStats(ink, connectivity=8)
+        for index in range(1, count):
+            ix, _iy, iw, ih, area = (int(value) for value in stats[index])
+            peripheral = ix + iw <= 4 or ix >= ink.shape[1] - 4
+            if peripheral and iw <= 3 and ih <= 4 and area <= 5:
+                ink[labels == index] = 0
         rows, columns = ink.nonzero()
         if not len(rows):
             return None
@@ -2410,9 +2422,24 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 )
                 if screen.screen_state != DETAIL_SCREEN or screen.scroll_roi is None:
                     return None
+                # Only the requirement rows scroll. On the actual bottom view
+                # the old panel-wide gesture began on the fixed Troop Load
+                # effect above the first resource (193600 frames0018..0021),
+                # leaving the content unchanged. Bind this reverse swipe to
+                # the freshly read four-row requirement region instead.
+                requirement_lines = [
+                    line for line in _line_groups(screen.words)
+                    if _line_bounds(line)[1] >= screen.scroll_roi[1]
+                    and _line_bounds(line)[3] <= screen.scroll_roi[3]
+                    and _paired_amounts(_line_text(line)) is not None
+                ]
+                if len(requirement_lines) != len(RESEARCH_RESOURCES):
+                    return None
+                x0, _y0, x1, y1 = screen.scroll_roi
+                requirement_roi = (x0, min(_line_bounds(line)[1] for line in requirement_lines), x1, y1)
                 return _ActionPlan(
                     f"recommended-research:{listing.first_recommendation_identity}:requirements-scroll",
-                    screen.scroll_roi,
+                    requirement_roi,
                     DETAIL_SCREEN,
                     "GO",
                     "RESEARCH_DETAIL_START_CONTROL_VISIBLE",
@@ -2432,6 +2459,16 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 top_screen_state["value"] = screen
                 return (
                     screen.screen_state == DETAIL_SCREEN
+                    and screen.recognized
+                    # START is fixed at the bottom even while the requirements
+                    # remain scrolled. Actual 193600 run frame0020 still showed
+                    # all four resources immediately after the upward swipe;
+                    # accepting that frame skipped the SDK's settled capture.
+                    # Prove the top content returned, not merely its fixed CTA.
+                    and screen.duration_seconds is not None
+                    and bool(screen.prerequisite_lines)
+                    and screen.prerequisite_level is not None
+                    and len(screen.prerequisite_evidence) == len(screen.prerequisite_lines)
                     and screen.detail_research_target_roi is not None
                     and screen.selected_technology_identity == listing.first_recommendation_identity
                 )

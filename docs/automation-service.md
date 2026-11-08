@@ -183,8 +183,12 @@ Startup must verify Home; these recovery guards do not establish Research-start 
 A complete current four-resource scroll supplies its own quote; partial overlapping views still
 require matching overlap. A fully identified scrolled sheet can return Home without a cached
 recommendation identity, but starting still requires the fresh first-recommendation identity.
-Research Center level is read from its owner-bound caption and unique badge; all six glyph
-readings must agree or the prerequisite remains unknown. The separate excluded Research Now
+The reverse requirements swipe is bound inside the freshly recognized resource rows, not the
+fixed effect header. Its successor must restore the actual duration and prerequisite content;
+the fixed START control alone never proves the sheet returned to the top.
+Research Center level is read from its owner-bound caption and unique badge; only measured tiny
+peripheral plate-border fragments are removed, never interior or glyph-height components. All six
+glyph readings must agree or the prerequisite remains unknown. The separate excluded Research Now
 price is measured from its own diamond/caption band, never defaulted or substituted for START.
 The left-HUD queue count is read only from the isolated neutral glyphs under the unique HUD
 Research label; three OCR modes must agree and a data read must confirm that text at its own
