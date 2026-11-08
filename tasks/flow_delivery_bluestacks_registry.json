@@ -1,72 +1,61 @@
 {
   "schema_version": 1,
   "registry_kind": "flow_delivery_bluestacks",
-  "purpose": "Map only implemented flow-delivery routes to fixed runner, evidence-validator, recovery-handler, and consequence contracts.",
+  "purpose": "Map only implemented flow-delivery routes to fixed runner, evidence-validator, and consequence contracts.",
   "flows": {
     "PERSONAL-MIGHT-PRAISE-BLUESTACKS-INTEGRATION": {
       "runner": "personal_might_bluestacks_runner",
       "evidence_validator": "personal_might_bluestacks_evidence",
-      "recovery_handler": "personal_might_bluestacks_recovery",
       "consequence_class": "consequential"
     },
     "AUTONOMY-SERVICE-CAMPAIGN-NAVIGATION-PROVING-SLICE": {
       "runner": "automation_service_campaign_navigation_proving_runner",
       "evidence_validator": "automation_service_campaign_navigation_proving_evidence",
-      "recovery_handler": "automation_service_campaign_navigation_proving_recovery",
       "consequence_class": "navigation_only"
     },
     "CAMPAIGN-AP-AUTO-BATTLE": {
       "runner": "campaign_auto_battle_live_runner",
       "evidence_validator": "campaign_auto_battle_live_evidence",
-      "recovery_handler": "campaign_auto_battle_live_recovery",
       "consequence_class": "consequential"
     },
     "CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION": {
       "runner": "campaign_navigation_only_runner",
       "evidence_validator": "campaign_navigation_only_evidence",
-      "recovery_handler": "campaign_navigation_only_recovery",
       "consequence_class": "navigation_only"
     },
     "CAMPAIGN-ATLAS-NATIVE-SURVEY-AND-VALIDATION": {
       "runner": "campaign_atlas_native_survey_runner",
       "evidence_validator": "campaign_atlas_native_survey_evidence",
-      "recovery_handler": "campaign_atlas_native_survey_recovery",
       "consequence_class": "navigation_only"
     },
     "ULTIMATE-CHALLENGE-DAILY-BLUESTACKS-INTEGRATION": {
         "runner": "ultimate_challenge_daily_runner",
         "evidence_validator": "ultimate_challenge_daily_evidence",
-        "recovery_handler": "ultimate_challenge_daily_recovery",
       "consequence_class": "consequential"
     },
     "ENHANCEMENT-FAMILY-BLUESTACKS-INTEGRATION": {
       "runner": "enhancement_family_bluestacks_runner",
       "evidence_validator": "enhancement_family_bluestacks_evidence",
-      "recovery_handler": "enhancement_family_bluestacks_recovery",
       "consequence_class": "consequential"
     },
     "WORLD-MAP-NAVIGATION-FOUNDATION": {
       "runner": "world_map_navigation_foundation_runner",
       "evidence_validator": "world_map_navigation_foundation_evidence",
-      "recovery_handler": "world_map_navigation_foundation_recovery",
       "consequence_class": "navigation_only"
     },
     "BIOENHANCER-FREE-RESEARCH-BLUESTACKS-INTEGRATION": {
       "runner": "bioenhancer_free_research_bluestacks_runner",
       "evidence_validator": "bioenhancer_free_research_bluestacks_evidence",
-      "recovery_handler": "bioenhancer_free_research_bluestacks_recovery",
       "consequence_class": "consequential"
     },
     "SUPPLY-DEPOT-BLUESTACKS-INTEGRATION": {
       "runner": "supply_depot_bluestacks_runner",
       "evidence_validator": "supply_depot_bluestacks_evidence",
-      "recovery_handler": "supply_depot_bluestacks_recovery",
       "consequence_class": "consequential"
     },
     "RECRUITMENT-FREE-ATTEMPT-MAINTENANCE": {
       "runner": "recruitment_bluestacks_runner",
       "evidence_validator": "recruitment_bluestacks_evidence",
-      "recovery_handler": "recruitment_bluestacks_recovery",
       "consequence_class": "consequential"
     }
   }

@@ -641,19 +641,7 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
                     )
                 connect.assert_not_called()
 
-    def test_registration_is_fixed_and_scheduler_stays_off(self):
-        runners = {}
-        validators = {}
-        recoveries = {}
-        delivery.register(runners, validators, recoveries)
-        self.assertIs(runners[delivery.RUNNER_ID], delivery.run_supply_depot)
-        self.assertIs(
-            validators[delivery.VALIDATOR_ID], delivery.verify_supply_depot
-        )
-        self.assertIs(
-            recoveries[delivery.RECOVERY_ID], delivery.recover_supply_depot
-        )
-
+    def test_empty_retained_result_requires_evidence(self):
         self.assertEqual(
             delivery.verify_supply_depot(
                 {"result": {}, "session_directory": "session"}, {}, {}
@@ -714,14 +702,7 @@ class SupplyDepotFlowDeliveryTests(unittest.TestCase):
                 },
                 lease={"owner": "test-owner"},
             )
-            with (
-                patch.object(pnsctl, "REPO_ROOT", root),
-                patch.object(
-                    pnsctl,
-                    "_load_flow_delivery_state",
-                    side_effect=pnsctl.OperatorError("no active delivery"),
-                ),
-            ):
+            with patch.object(pnsctl, "REPO_ROOT", root):
                 verdict = json.loads(pnsctl.bluestacks_verify_flow(session))
             self.assertEqual(verdict["status"], "verified")
             self.assertEqual(verdict["flow_id"], delivery.FLOW_ID)

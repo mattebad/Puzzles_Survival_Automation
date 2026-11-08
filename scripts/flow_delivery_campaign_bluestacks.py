@@ -22,7 +22,7 @@ from automation_service.registry import (
     CAMPAIGN_FLOW_ID,
     RegisteredDispatchSnapshot,
 )
-from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_PACKAGE, BLUESTACKS_SERIAL
+from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -34,13 +34,10 @@ MAX_PROVING_ATTEMPTS = 25
 REQUIRED_CONSECUTIVE_PROVING_CYCLES = 3
 CAMPAIGN_RUNNER_ID = "campaign_navigation_only_runner"
 CAMPAIGN_EVIDENCE_VALIDATOR_ID = "campaign_navigation_only_evidence"
-CAMPAIGN_RECOVERY_HANDLER_ID = "campaign_navigation_only_recovery"
 PROVING_RUNNER_ID = "automation_service_campaign_navigation_proving_runner"
 PROVING_EVIDENCE_VALIDATOR_ID = "automation_service_campaign_navigation_proving_evidence"
-PROVING_RECOVERY_HANDLER_ID = "automation_service_campaign_navigation_proving_recovery"
 AUTO_BATTLE_RUNNER_ID = "campaign_auto_battle_live_runner"
 AUTO_BATTLE_EVIDENCE_VALIDATOR_ID = "campaign_auto_battle_live_evidence"
-AUTO_BATTLE_RECOVERY_HANDLER_ID = "campaign_auto_battle_live_recovery"
 
 
 def _utc_stamp() -> str:
@@ -668,37 +665,6 @@ def verify_campaign_navigation_proving_slice(
         "actions": structure["actions"],
         "terminal_runtime_state": result["terminal_runtime_state"],
     }
-
-
-def recover_campaign_navigation_only(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:
-    pnsctl = _pnsctl()
-    del queue, lease
-    state = str(pnsctl._run_fixed_bluestacks_adb("get-state")).strip()
-    if state != "device":
-        raise pnsctl.OperatorError("approved BlueStacks serial is not in device state")
-    focus = str(pnsctl._run_fixed_bluestacks_adb("shell", "dumpsys", "window"))
-    package = pnsctl._focused_package(focus)
-    if package != BLUESTACKS_PACKAGE:
-        raise pnsctl.OperatorError("Puzzles & Survival is not the foreground package during recovery")
-    return json.dumps(
-        {
-            "status": "recovered_or_already_safe",
-            "flow_id": FLOW_ID,
-            "foreground_package": package,
-            "dispatch": False,
-            "recovery": "observe_only_no_android_back",
-        },
-        sort_keys=True,
-    )
-
-
-def recover_campaign_navigation_proving_slice(
-    queue: Mapping[str, Any],
-    lease: Mapping[str, Any],
-) -> str:
-    result = json.loads(recover_campaign_navigation_only(queue, lease))
-    result["flow_id"] = PROVING_FLOW_ID
-    return json.dumps(result, sort_keys=True)
 
 
 MAX_INPUTS = CAMPAIGN_MAX_INPUTS
@@ -1575,40 +1541,13 @@ def verify_campaign_auto_battle_live(
     }
 
 
-def recover_campaign_auto_battle_live(queue: Mapping[str, Any], lease: Mapping[str, Any]) -> str:
-    del queue, lease
-    pnsctl = _pnsctl()
-    session = (
-        pnsctl.BLUESTACKS_ARTIFACT_ROOT
-        / AUTO_BATTLE_FLOW_ID
-        / f"recovery-home-{_utc_stamp()}"
-    )
-    session.mkdir(parents=True, exist_ok=False)
-    _prepare_canonical_home(session)
-    return json.dumps(
-        {
-            "status": "recovered",
-            "flow_id": AUTO_BATTLE_FLOW_ID,
-            "terminal_runtime_state": "recognized_home",
-            "session_directory": str(session),
-            "dispatch": True,
-            "recovery": "campaign_safe_exit_then_canonical_home",
-        },
-        sort_keys=True,
-    )
-
-
 def register(
     runners: dict[str, Any],
     validators: dict[str, Any],
-    handlers: dict[str, Any],
 ) -> None:
     runners[CAMPAIGN_RUNNER_ID] = run_campaign_navigation_only
     validators[CAMPAIGN_EVIDENCE_VALIDATOR_ID] = verify_campaign_navigation_only
-    handlers[CAMPAIGN_RECOVERY_HANDLER_ID] = recover_campaign_navigation_only
     runners[PROVING_RUNNER_ID] = run_campaign_navigation_proving_slice
     validators[PROVING_EVIDENCE_VALIDATOR_ID] = verify_campaign_navigation_proving_slice
-    handlers[PROVING_RECOVERY_HANDLER_ID] = recover_campaign_navigation_proving_slice
     runners[AUTO_BATTLE_RUNNER_ID] = run_campaign_auto_battle_live
     validators[AUTO_BATTLE_EVIDENCE_VALIDATOR_ID] = verify_campaign_auto_battle_live
-    handlers[AUTO_BATTLE_RECOVERY_HANDLER_ID] = recover_campaign_auto_battle_live

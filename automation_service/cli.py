@@ -42,7 +42,7 @@ from .registry import (
     servable_flow_names,
 )
 from .service import AutomationService, ServiceError
-from .state import BotStateManager, StateBusyError, resolve_state_path
+from .state import BotStateManager, FlowInspectionDenied, FlowState, StateBusyError, resolve_state_path
 from tasks.runtime_identity import BLUESTACKS_ADB, BLUESTACKS_SERIAL
 
 
@@ -126,6 +126,25 @@ def build_parser() -> argparse.ArgumentParser:
     shadow.add_argument("--server-id", default="cli-server")
     shadow.add_argument("--reset-id", default="cli-reset")
     shadow.add_argument("--now-utc-epoch", type=float, default=None)
+    inspect = subparsers.add_parser(
+        "inspect-rearm",
+        help=(
+            "audited zero-effect inspection rearm of an exhausted, disabled, blocked flow "
+            "(state-only; --preview is read-only)"
+        ),
+    )
+    inspect.add_argument("flow_id")
+    inspect.add_argument("--preview", action="store_true",
+                         help="report eligibility and the current CAS facts without mutating state")
+    inspect.add_argument("--expected-generation", type=int, default=None)
+    inspect.add_argument("--expected-row-version", type=int, default=None)
+    inspect.add_argument("--expected-consecutive-failures", type=int, default=None)
+    inspect.add_argument("--attest-untracked-failures", type=int, default=0,
+                         help="exact count of failures that predate the attempt ledger, attested by --evidence")
+    inspect.add_argument("--evidence", type=Path, default=None,
+                         help="retained inspection evidence file inside the repository")
+    inspect.add_argument("--reason", default=None)
+    inspect.add_argument("--now-utc-epoch", type=float, default=None)
     return parser
 
 
@@ -257,6 +276,89 @@ def _structured_error(exc: BaseException) -> dict[str, object]:
     return {"status": "error", "error": str(exc)}
 
 
+def _flow_failure_facts(flow: FlowState | None) -> dict[str, object] | None:
+    """Operator-facing CAS and retry-window facts for one flow."""
+
+    if flow is None:
+        return None
+    return {
+        "flow_id": flow.flow_id,
+        "enabled": flow.enabled,
+        "blocked": flow.blocked,
+        "blocked_reason": flow.blocked_reason,
+        "generation": flow.generation,
+        "row_version": flow.row_version,
+        "consecutive_failures": flow.consecutive_failures,
+        "inspected_failure_baseline": flow.inspected_failure_baseline,
+        "retry_window_failures": flow.retry_window_failures,
+        "max_attempts": flow.max_attempts,
+    }
+
+
+def _inspect_rearm(args: argparse.Namespace, state_path: Path) -> int:
+    """Preview or apply one audited zero-effect inspected retry rearm."""
+
+    if not _database_probe(state_path):
+        print(json.dumps({"status": "error", "reason": "STATE_UNAVAILABLE", "retryable": False}, sort_keys=True))
+        return 2
+    now = float(args.now_utc_epoch) if args.now_utc_epoch is not None else time.time()
+    try:
+        if args.preview:
+            with BotStateManager(state_path, read_only=True) as state:
+                review = state.review_flow_inspection(
+                    args.flow_id,
+                    attested_untracked_failures=args.attest_untracked_failures,
+                    now_utc_epoch=now,
+                )
+            print(json.dumps({
+                "command": "inspect-rearm",
+                "preview": True,
+                "status": "eligible" if review.eligible else "denied",
+                "reason": review.reason,
+                "flow": _flow_failure_facts(review.flow),
+                "required_attested_untracked_failures": review.untracked_failures,
+                "last_attempt_seq": review.last_attempt_seq,
+                "window": review.window_summary,
+            }, sort_keys=True))
+            return 0 if review.eligible else 2
+        if (
+            args.expected_generation is None
+            or args.expected_row_version is None
+            or args.expected_consecutive_failures is None
+            or args.evidence is None
+            or args.reason is None
+        ):
+            raise FlowInspectionDenied("INSPECTION_ARGUMENTS_REQUIRED")
+        with BotStateManager(state_path) as state:
+            inspection = state.inspect_rearm_flow(
+                args.flow_id,
+                expected_generation=args.expected_generation,
+                expected_row_version=args.expected_row_version,
+                expected_consecutive_failures=args.expected_consecutive_failures,
+                reason=args.reason,
+                evidence_path=args.evidence,
+                attested_untracked_failures=args.attest_untracked_failures,
+                now_utc_epoch=now,
+            )
+            flow = state.get_flow(args.flow_id)
+        print(json.dumps({
+            "command": "inspect-rearm",
+            "preview": False,
+            "status": "rearmed",
+            "inspection_id": inspection.inspection_id,
+            "attested_untracked_failures": inspection.attested_untracked_failures,
+            "evidence_reference": inspection.evidence_reference,
+            "evidence_sha256": inspection.evidence_sha256,
+            "flow": _flow_failure_facts(flow),
+            "window": inspection.window_summary,
+        }, sort_keys=True))
+        return 0
+    except (FlowInspectionDenied, StateBusyError, sqlite3.OperationalError, ValueError) as exc:
+        print(json.dumps(_structured_error(exc), sort_keys=True))
+        return 2
+
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -273,6 +375,9 @@ def main(
         args = parser.parse_args(argv)
     except SystemExit as exc:
         return int(exc.code)
+    if args.command == "inspect-rearm":
+        # State-only operator decision: no adapter, device, or serve mode is opened.
+        return _inspect_rearm(args, Path(resolve_state_path(args.state_path)))
     native_serve = args.command == "serve" and args.adapter == "bluestacks"
     if args.adapter == "bluestacks" and (
         not native_serve or args.mode != "supervised" or not args.live
@@ -294,7 +399,6 @@ def main(
     observation_only = args.command == "shadow" or (
         args.command == "run" and not args.live
     )
-
     if args.command in {
         "enable",
         "disable",

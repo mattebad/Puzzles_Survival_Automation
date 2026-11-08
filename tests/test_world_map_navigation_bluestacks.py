@@ -15,7 +15,6 @@ from scripts.bluestacks_native_runtime import CapturedNativeFrame
 from scripts.flow_delivery_world_map_bluestacks import (
     FLOW_ID,
     RUNNER_ID,
-    RECOVERY_ID,
     VALIDATOR_ID,
     _run_result,
     _verify_registration_evidence,
@@ -1741,7 +1740,6 @@ class WorldMapNavigationTests(unittest.TestCase):
     def test_registry_and_dry_run_are_fixed_and_unregistered(self):
         self.assertIn(RUNNER_ID, pnsctl._BLUESTACKS_FLOW_RUNNERS)
         self.assertIn(VALIDATOR_ID, pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS)
-        self.assertIn(RECOVERY_ID, pnsctl._BLUESTACKS_RECOVERY_HANDLERS)
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(
                 pnsctl,

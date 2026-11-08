@@ -1,7 +1,65 @@
 # Current handoff
 
-Updated 2026-11-07. This file is volatile session state.
+Updated 2026-11-08. This file is volatile session state.
 Current owner direction and planning live in [tracker #53](https://github.com/mattebad/Puzzles_Survival_Automation/issues/53) and its tickets.
+
+## Current resumed development state
+
+- **Acceptance is not queue completion.** Only #66 has a fully accepted native route
+  receipt in this resumed run: integrated source `a4811874`, one owned 1K Food,
+  129810 to 129809, one confirmed authority effect, three inputs and verified Home.
+  Do not repeat it to manufacture a newer receipt. #54's zero-ready pass and #56's
+  zero-request visit are safe observations, not ready-chest or ten-Help acceptance.
+- **Latest #72 native visit:** source `7cd33b5`, seven accounted navigation inputs,
+  zero purchases/effects and verified terminal Home. Ruins offer handling stopped on
+  missing exact offer/in-shop Owned evidence; the one bounded Rare Earth selector
+  reveal did not prove that tab's successor. Both per-tab results were retained.
+  The route is implemented but purchase acceptance remains `evidence_required`.
+- **Latest #73 native visit:** source `ffbc99f` dispatched exactly one ordinary Weekly
+  Bioenhance Scheme Buy: Owned 29 to 30, stock 5 to 4, Alliance Coins 1464257 to
+  1384257 (80000 debit). These are historical observations, not runtime constants.
+  Terminal return reached Alliance Menu but hit a duplicate navigation identity.
+  Runtime/session totals were both eight; the boundary reported accounting unverified.
+  Core action `b93d1fe8da73cfef9f89badf72993417cd5f40d2213ad44cc568540c9f3e4181`
+  remains unresolved after postcondition observation failure. **Do not buy again.**
+  Current context is Alliance Menu. Next is exact retained-effect inspection, one
+  bounded known-menu Home recovery and audited reconciliation, not clearing counters,
+  cold restarting or relabelling the original failed canary accepted.
+- **Other concrete repairs:** #77's actual HOT modal now recognizes offline, but exact
+  ordinary-resource balance/debit evidence remains absent (abbreviated Home HUD,
+  blurred modal). It must not donate on guessed balances. #70's real-session zoom
+  accounting repair passed 43 focused checks and Ruff; its native qualification remains
+  open. Ruins wallet/header repair `5bd88fc` passed 47 focused/Home checks and a direct
+  actual-pixel observer smoke; no new #69 challenge or chest is inferred.
+- **Remaining scenarios:** #69/#56 and #77/#72 still need qualifying effects;
+  #73 needs reconciliation and later finished-route acceptance without replaying today's Buy.
+  #70/#71, #75/#76/#78 and #95/#96/#67 still need finished-route native qualification.
+  Prior manual Duel/Farm/Hall effects and restart-invalidated preset state remain
+  reconciliation inputs, not permission to repeat effects. #74 uses baseline/final
+  cumulative normal-upgrade verification; its Campaign/150-diamond Reset stays
+  unproved. #104 awaits an exact current disconnect episode; do not force an outage.
+- **Checks:** device-free `scripts/check.py` passed 411 checks before the newest
+  selector/dialog repairs. #73's published inventory repair passed 47 focused checks;
+  #72's published selected-Shop guards passed six actual-pixel checks. The integrated
+  static ratchet against immutable `c6f0e2fba509dacde136226a7519568550f6b066`
+  still has unresolved failures; clean scoped E/F typing checks are not a whole-repo pass.
+- **Posture and ownership:** parent is the sole authorized live operator; subagents
+  edit offline only. Every finite visit restores service/all route switches OFF and
+  retains its authorization, transport, semantic and terminal records. The latest
+  #73 controller result confirms that disabled posture. No merge, deployment or
+  permanent scheduling was performed. Preserve Original captures, unrelated changes
+  and owner-source stash `f5c8b264a18b4ad78aaeb0c07e28b199b12ce705`.
+- **Evidence roots:** Original `.local-captures/development-sessions/`
+  `resumed-queue-20261108T014450968963Z/resource66-repaired/` and
+  `restart-resume-20261108T035832132346Z/`, particularly
+  `daily-shops72-gold-selector-native/` and
+  `alliance-shop73-inventory-repair-native/`. Read their controller results;
+  transport success or old receipts alone never establishes current readiness.
+
+## Historical November 7 handoff
+
+The entries below are preserved history. Present readiness and acceptance above
+supersede contradictory historical statements; current GitHub owner direction wins.
 
 - **Current priority #104:** fresh `impl/network-disconnect-104-20261107` is stacked on unmerged Wali `96ec81d`; refetched `origin/main` remained `c6f0e2f`. Exact native `[10054]` recognition, canonical restart-safe episode budgets, opt-in owner-bound reconnect/launcher-only relaunch, active capture/dispatch guards and service recovery-only deferral are implemented. No new route registration or controls were added.
 - **#104 revised offline proof:** 363 combined recovery/authority/freshness/native/metadata/shared-contract tests pass, including immutable occurrence migration, recovery-only daily/cooldown eligibility, resumed original-source validation, expired pre-input/OCR deadlines, late acknowledgement and launcher restart. Device-free `scripts/check.py`: 413 pass. Actual supported `recover-network --live --yes` with replay-only transport confirms one navigation input/zero launches, a confirmed Core row and RECOVERED SQLite episode, with service/controls unchanged OFF. The reproduced original-deadline bug previously sent one physical fake tap after expiry; its repaired replay sends zero. Previous 69/345 receipts predate these additional fixes. Existing help checks used PYTHONPATH unset; these results are not native acceptance.

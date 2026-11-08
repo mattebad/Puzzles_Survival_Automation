@@ -550,19 +550,39 @@ class CampaignFlowDeliveryTests(unittest.TestCase):
                     recovery_only=True, recovery_session=Path("untrusted"),
                 )
 
-    def test_retained_campaign_verification_does_not_require_an_active_legacy_queue(self):
+    def test_retained_campaign_verification_grants_no_runtime_authority(self):
         retained = {"flow_id": delivery.AUTO_BATTLE_FLOW_ID}
+        validator = Mock(return_value={"status": "verified"})
         with (
             patch.object(pnsctl, "_retained_flow_result", return_value=(Path("retained"), retained)),
             patch.object(pnsctl, "_verify_flow_structure", return_value={"result": retained}),
-            patch.object(pnsctl, "_load_flow_delivery_state", side_effect=pnsctl.OperatorError("no active queue")),
-            patch.object(pnsctl, "_retained_troop_training_state", side_effect=AssertionError("wrong route")),
             patch.dict(pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS, {
-                "campaign_auto_battle_live_evidence": Mock(return_value={"status": "verified"}),
+                "campaign_auto_battle_live_evidence": validator,
             }),
         ):
             result = json.loads(pnsctl.bluestacks_verify_flow(Path("retained")))
         self.assertEqual(result["status"], "verified")
+        _structure, flow_context, evidence_context = validator.call_args.args
+        for context in (flow_context, evidence_context):
+            self.assertEqual(context["flow_id"], delivery.AUTO_BATTLE_FLOW_ID)
+            self.assertIs(context["input_authority"], False)
+            self.assertNotIn("runtime_ownership_state", context)
+            self.assertNotIn("unresolved_action_state", context)
+
+    def test_retained_queue_dependent_validator_fails_closed_without_legacy_queue(self):
+        from scripts.flow_delivery_campaign_atlas_bluestacks import FLOW_ID as ATLAS_FLOW_ID
+
+        retained = {"flow_id": ATLAS_FLOW_ID}
+        with (
+            patch.object(pnsctl, "_retained_flow_result", return_value=(Path("retained"), retained)),
+            patch.object(
+                pnsctl,
+                "_verify_flow_structure",
+                side_effect=AssertionError("unsupported evidence must not be read"),
+            ),
+            self.assertRaisesRegex(pnsctl.OperatorError, "no offline evidence adapter"),
+        ):
+            pnsctl.bluestacks_verify_flow(Path("retained"))
 
 
 if __name__ == "__main__":

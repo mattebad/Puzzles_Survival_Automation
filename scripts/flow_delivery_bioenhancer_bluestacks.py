@@ -21,7 +21,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 FLOW_ID = BIOENHANCER_FLOW_ID
 RUNNER_ID = "bioenhancer_free_research_bluestacks_runner"
 VALIDATOR_ID = "bioenhancer_free_research_bluestacks_evidence"
-RECOVERY_ID = "bioenhancer_free_research_bluestacks_recovery"
 MAX_INPUTS = BIOENHANCER_MAX_INPUTS
 MAX_FREE_RESEARCH_TRANSPORT_CALLS = 1
 
@@ -562,29 +561,9 @@ def verify_bioenhancer_free_research(
     }
 
 
-def recover_bioenhancer_free_research(
-    queue: Mapping[str, Any],
-    lease: Mapping[str, Any],
-) -> str:
-    del queue, lease
-    return json.dumps(
-        {
-            "status": "blocked",
-            "flow_id": FLOW_ID,
-            "dispatch": False,
-            "reason": "Bioenhancer recovery is safe no-op; use a fresh canonical conduct session",
-            "production_registration": "NOT_REGISTERED",
-            "scheduler_enabled": False,
-        },
-        sort_keys=True,
-    )
-
-
 def register(
     runners: dict[str, Any],
     validators: dict[str, Any],
-    handlers: dict[str, Any],
 ) -> None:
     runners[RUNNER_ID] = run_bioenhancer_free_research
     validators[VALIDATOR_ID] = verify_bioenhancer_free_research
-    handlers[RECOVERY_ID] = recover_bioenhancer_free_research

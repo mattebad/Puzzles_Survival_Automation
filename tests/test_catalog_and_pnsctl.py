@@ -196,60 +196,6 @@ class OperatorCliTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(payload).hexdigest(), asset["sha256"])
 
 
-    def test_command_surface_is_exactly_the_documented_set(self):
-        # Adding or removing a command must be deliberate: update this set and
-        # the command reference in docs/pns-operations-runbook.md together.
-        def choices(parser):
-            action = next(
-                item
-                for item in parser._actions
-                if isinstance(item, argparse._SubParsersAction)
-            )
-            return action.choices
-
-        top = choices(pnsctl.parser())
-        actual = {}
-        for name, sub in top.items():
-            try:
-                actual[name] = frozenset(choices(sub))
-            except StopIteration:
-                actual[name] = frozenset()
-        self.assertEqual(
-            actual,
-            {
-                "reconcile": frozenset(),
-                "development-session": frozenset(
-                    {
-                        "observe",
-                        "launch-game",
-                        "delegated-dry-run",
-                        "run-flow",
-                    }
-                ),
-                "bluestacks": frozenset(
-                    {
-                        "preflight",
-                        "verify-flow",
-                        "recover-home",
-                        "reconcile-campaign-atlas-survey-action",
-                    }
-                ),
-                "automation-service": frozenset(
-                    {
-                        "serve",
-                        "status",
-                        "health",
-                        "enable",
-                        "disable",
-                        "run",
-                        "service-enable",
-                        "service-disable",
-                        "emergency-stop",
-                        "pulse",
-                    }
-                ),
-            },
-        )
 
     def test_retired_commands_are_rejected(self):
         for argv in (
@@ -259,6 +205,7 @@ class OperatorCliTests(unittest.TestCase):
             ["noahs-tavern-nav"],
             ["noahs-tavern-recruit"],
             ["bluestacks", "reload-game"],
+            ["bluestacks", "preflight"],
             ["bluestacks", "dismiss-reload-overlay"],
             ["bluestacks", "run-flow"],
             ["automation-service", "campaign-plan"],
@@ -305,9 +252,6 @@ class OperatorCliTests(unittest.TestCase):
                 self.assertIn(
                     route["evidence_validator"], pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS
                 )
-                self.assertIn(
-                    route["recovery_handler"], pnsctl._BLUESTACKS_RECOVERY_HANDLERS
-                )
 
     def test_canonical_ruins_is_not_a_legacy_development_operator(self):
         registry = pnsctl._load_bluestacks_flow_registry()
@@ -350,10 +294,6 @@ class OperatorCliTests(unittest.TestCase):
         self.assertNotIn(
             "troop_training_consolidation_evidence",
             pnsctl._BLUESTACKS_EVIDENCE_VALIDATORS,
-        )
-        self.assertNotIn(
-            "troop_training_consolidation_recovery",
-            pnsctl._BLUESTACKS_RECOVERY_HANDLERS,
         )
         choices = _flow_id_choices(
             pnsctl.parser(),

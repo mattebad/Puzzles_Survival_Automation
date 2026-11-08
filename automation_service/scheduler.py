@@ -682,7 +682,7 @@ class _CanonicalPulseCoordinator:
                     and not (self.allow_completed_daily and mode == "manual"
                              and descriptor.recurrence_class is RecurrenceClass.DAILY_ONCE_PER_RESET)):
                 continue
-            if state.consecutive_failures >= state.max_attempts:
+            if state.retry_window_failures >= state.max_attempts:
                 continue
             if (
                 state.retry_not_before_utc is not None
@@ -940,7 +940,7 @@ class _CanonicalPulseCoordinator:
         if terminal_state is not RunState.FAILED or state is None:
             return None
         base = max(2.0, float(state.retry_backoff_seconds))
-        return now + min(3_600.0, base * 2 ** min(state.consecutive_failures, 10))
+        return now + min(3_600.0, base * 2 ** min(state.retry_window_failures, 10))
     def _project_terminal(
         self,
         run: RunRecord,
@@ -1462,7 +1462,7 @@ class _CanonicalPulseCoordinator:
                 if (
                     terminal_state is RunState.FAILED
                     and current_flow is not None
-                    and current_flow.consecutive_failures + 1 >= current_flow.max_attempts
+                    and current_flow.retry_window_failures + 1 >= current_flow.max_attempts
                 ):
                     normalized = NormalizedResult(
                         NormalizedOutcome.BLOCKED,

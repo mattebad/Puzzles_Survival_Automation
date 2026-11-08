@@ -15,7 +15,7 @@ focused tests as its behavior changes.
 | `serve --flow` name | `cli_name` on the registry entry | `serve --flow` choices, `AutomationService.serve` allowed set, runner lookup (`<cli_name>_runner`), reason-code prefix; README table and example are checked |
 | Product id, product revision, handler id, profile, mode | `_FIXED_BINDINGS` in `registry.py` | descriptor, adapter `PRODUCT_ID`/`PRODUCT_REVISION`, scheduler admission facts |
 | Total input budget of one run | `max_inputs` on the registry entry, spelled once as `<ROUTE>_MAX_INPUTS` | adapter and native budget copies import it; `pnsctl._DEFAULT_MAX_INPUTS` covers only retained operator routes. Canonical Troop Training now owns its budget in the service registry; only the separate Campaign Atlas development flow keeps its budget in a `flow_delivery_*` module. |
-| Operator runner / validator / recovery ids, when present | `tasks/flow_delivery_bluestacks_registry.json` | `pnsctl.BLUESTACKS_FLOW_IDS` equals this registry's flow set. Canonical-service-only routes have an explicit checked `NO_OPERATOR_RUNNER` reason instead. |
+| Operator runner / validator ids, when present | `tasks/flow_delivery_bluestacks_registry.json` | `pnsctl.BLUESTACKS_FLOW_IDS` equals this registry's flow set. Canonical-service-only routes have an explicit checked `NO_OPERATOR_RUNNER` reason instead. |
 | Gameplay semantics (states, transitions, permitted inputs, evidence gates) | `tasks/gameplay_flow_contracts/<FLOW_ID>.json` | schema-validated; the optional `product_authority_binding` is validated against the product policy |
 | Product record (purpose, recurrence, forbidden actions) | `tasks/flow_delivery_product_policy.json` `product_records` | contract bindings check `record_revision` and digest |
 | Development queue record | `tasks/flow_delivery_queue.json` | every `implementation_entrypoints`, `implementation_allowlist_seed`, `focused_tests`, `completion_tests` and `reference_docs` path must exist |
@@ -106,9 +106,10 @@ history and actual recovery input charges while permitting a fresh run/token for
 the same gameplay occurrence. Route results cannot use it to refund gameplay.
 Unknown effects still block; a later occurrence never authorizes repeating them.
 
-Renaming a flow id is a migration, not a find-and-replace: keep the old id in a migration constant
-(`RENAMED_FLOW_IDS`, `RENAMED_TASK_IDS`), retained evidence and historical queue records, and list each
-file in `OLD_CAMPAIGN_ID_FILES`-style allowlists in the consistency test.
+Renaming a flow id is a migration, not a find-and-replace: keep the old id in the
+migration tables (`RENAMED_FLOW_IDS`, `RENAMED_TASK_IDS`), retained evidence and
+historical queue records. Verify persisted limits migrate and retired ids cannot
+select an active canonical handler; do not scan or rewrite historical evidence.
 
 ## Layer layout and intentional exceptions
 

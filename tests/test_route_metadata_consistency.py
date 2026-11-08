@@ -22,7 +22,6 @@ from __future__ import annotations
 import argparse
 from importlib import import_module
 import json
-import os
 from pathlib import Path
 import re
 import unittest
@@ -58,8 +57,6 @@ ROOT = Path(__file__).resolve().parents[1]
 TASKS = ROOT / "tasks"
 README = ROOT / "README.md"
 NAVIGATION_ONLY = "navigation_only"
-
-OLD_CAMPAIGN_ID = "CAMPAIGN-AP-AUTO-BATTLE-LIVE-CANARY"
 
 # --- explicit, reasoned exceptions -------------------------------------------------------------
 
@@ -110,29 +107,6 @@ QUEUE_PATH_KEYS = (
     "completion_tests",
     "reference_docs",
 )
-
-# Where the pre-#36 Campaign flow id may still appear, and why. Anything else is a missed rename.
-OLD_CAMPAIGN_ID_FILES = {
-    "automation_service/state.py": "RENAMED_FLOW_IDS migration constant",
-    "safe_action_core/store.py": "RENAMED_TASK_IDS migration constant",
-    "tasks/campaign_victory_recovery.py": "accepts retained old-prefix victory sessions",
-    "tasks/flow_delivery_queue.json": "historical live_attempts and the retained artifact_root",
-    "tasks/daily_quest_execution_matrix.json": "historical matrix record",
-    "tasks/gameplay_flow_contracts/CAMPAIGN-AP-AUTO-BATTLE.json": "retained evidence references",
-    "tasks/gameplay_flow_contracts/CAMPAIGN-AP-HOME-ATLAS-AND-DESTINATION-NAVIGATION.json": "retained evidence references",
-    "docs/backlog/operations.md": "historical backlog record",
-    "docs/backlog/resources.md": "historical backlog record",
-    "docs/validation/bluestacks-20261031/summary.json": "retained validation summary",
-    "docs/validation/campaign-ap-auto-battle-live-canary-manifest.json": "retained validation manifest",
-    "tests/test_campaign_atlas_chapter_nav.py": "retained evidence path",
-    "tests/test_flow_id_rename_migration.py": "proves the migration of the old id",
-}
-OLD_CAMPAIGN_ID_PREFIXES = {
-    "docs/archive/": "archived history",
-    "tests/fixtures/": "fixture manifests over retained captures",
-}
-_SCAN_SUFFIXES = {".py", ".json", ".md", ".ps1", ".yml", ".yaml", ".txt", ".toml"}
-_SCAN_SKIP_DIRS = {".git", "evidence", ".local-captures", ".local-orchestrator", ".venv", "__pycache__", "node_modules"}
 
 EXECUTION_HANDLERS = {
     "NOVA-PRAISE-SUPERVISED-ONE-FREE-PULSE": ("automation_service.nova", "NovaExecutionHandler"),
@@ -541,7 +515,7 @@ class FlowIdSetRelationTests(RouteTestCase):
         self.assertEqual(
             set(pnsctl.BLUESTACKS_FLOW_IDS),
             _operator_ids(),
-            "a flow in tasks/flow_delivery_bluestacks_registry.json has no runner/validator/recovery bound in code (or the reverse)",
+            "a flow in tasks/flow_delivery_bluestacks_registry.json has no runner/validator bound in code (or the reverse)",
         )
 
     def test_development_session_defaults_cover_exactly_the_operator_flows_with_a_budget(self) -> None:
@@ -561,51 +535,19 @@ class FlowIdSetRelationTests(RouteTestCase):
         ):
             self.assertEqual(len(values), len(set(values)), f"duplicate {label} in CANONICAL_FLOW_REGISTRY: {values}")
 
-    def test_migration_targets_are_the_registered_campaign_id(self) -> None:
-        self.assertEqual(
-            {new for _old, new in state_module.RENAMED_FLOW_IDS} | {new for _old, new in store_module.RENAMED_TASK_IDS},
-            {CAMPAIGN_FLOW_ID},
-        )
+    def test_retired_ids_migrate_to_the_registered_campaign_id_and_are_not_live_aliases(self) -> None:
+        renames = set(state_module.RENAMED_FLOW_IDS) | set(store_module.RENAMED_TASK_IDS)
+        self.assertEqual({new for _old, new in renames}, {CAMPAIGN_FLOW_ID})
         self.assertEqual(safe_policy.CAMPAIGN_AP_FLOW_ID, CAMPAIGN_FLOW_ID)
         self.assertEqual(pnsctl.CAMPAIGN_AP_FLOW_ID, CAMPAIGN_FLOW_ID)
-
-
-def _scan_old_campaign_id() -> set[str]:
-    hits: set[str] = set()
-    for directory, subdirs, names in os.walk(ROOT):
-        subdirs[:] = [name for name in subdirs if name not in _SCAN_SKIP_DIRS]
-        for name in names:
-            path = Path(directory) / name
-            if path.suffix not in _SCAN_SUFFIXES or path == Path(__file__).resolve():
-                continue
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                continue
-            if OLD_CAMPAIGN_ID in text:
-                hits.add(path.relative_to(ROOT).as_posix())
-    return hits
-
-
-class RetainedCampaignIdTests(RouteTestCase):
-    def test_old_campaign_id_survives_only_in_the_allowlisted_places(self) -> None:
-        unexpected = sorted(
-            path
-            for path in _scan_old_campaign_id()
-            if path not in OLD_CAMPAIGN_ID_FILES and not path.startswith(tuple(OLD_CAMPAIGN_ID_PREFIXES))
-        )
-        self.assertFalse(
-            unexpected,
-            f"{OLD_CAMPAIGN_ID} (renamed to {CAMPAIGN_FLOW_ID} in #36) appears outside the allowlist: {unexpected}. "
-            "Rename it, or add the file to OLD_CAMPAIGN_ID_FILES with a reason if it is retained history.",
-        )
-
-    def test_allowlisted_files_still_need_their_entry(self) -> None:
-        for relative in OLD_CAMPAIGN_ID_FILES:
-            with self.subTest(path=relative):
-                path = ROOT / relative
-                self.assertTrue(path.is_file(), f"stale allowlist entry, file is gone: {relative}")
-                self.assertIn(OLD_CAMPAIGN_ID, path.read_text(encoding="utf-8"), f"stale allowlist entry: {relative}")
+        # Persisted rows move onto the new id (tests/test_flow_id_rename_migration.py). The retired id
+        # itself must not resolve to a canonical handler or be selectable from any route authority.
+        selectable = _disabled_ids() | set(pnsctl.BLUESTACKS_FLOW_IDS) | _queue_ids() | _contract_ids()
+        for old, _new in renames:
+            with self.subTest(retired=old):
+                with self.assertRaises(ValueError):
+                    canonical_entry(old)
+                self.assertNotIn(old, selectable)
 
 
 class ProductBindingTests(RouteTestCase):

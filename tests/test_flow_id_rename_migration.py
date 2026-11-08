@@ -128,10 +128,22 @@ class StateDatabaseMigrationTests(unittest.TestCase):
                 self.assertEqual(flow.next_due_at_utc, COOLDOWN_DUE)
                 self.assertEqual(flow.next_occurrence_key, 1)
                 self.assertTrue(manager.get_flow(OTHER).enabled)
-                self.assertFalse(_contains(path, OLD))
+                # All mutable authority and progress moved to the new id; only the
+                # append-only attempt ledger keeps the id its history was written under.
+                self.assertEqual(
+                    [line for line in _dump(path)
+                     if OLD in line and not line.startswith('INSERT INTO "flow_attempts"')],
+                    [],
+                )
                 with closing(sqlite3.connect(path)) as db:
                     rows = db.execute("SELECT flow_id, occurrence_key, state FROM runs").fetchall()
+                    history = db.execute(
+                        """SELECT flow_attempts.flow_id, flow_attempts.occurrence_key,
+                                  flow_attempts.attempt_state, runs.flow_id
+                           FROM flow_attempts JOIN runs ON runs.run_id = flow_attempts.run_id"""
+                    ).fetchall()
                 self.assertEqual(rows, [(NEW, NEW + old_key[len(OLD):], "SUCCEEDED")])
+                self.assertEqual(history, [(OLD, old_key, "SUCCEEDED", NEW)])
 
                 generation = manager.get_service_lease().lease_generation
                 # Cooldown gate: the next scheduled claim is still not due.
