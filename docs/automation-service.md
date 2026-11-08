@@ -267,6 +267,9 @@ recommendation identity, but starting still requires the fresh first-recommendat
 Research Center level is read from its owner-bound caption and unique badge; all six glyph
 readings must agree or the prerequisite remains unknown. The separate excluded Research Now
 price is measured from its own diamond/caption band, never defaulted or substituted for START.
+The left-HUD queue count is read only from the isolated neutral glyphs under the unique HUD
+Research label; three OCR modes must agree and a data read must confirm that text at its own
+confidence of at least 80, otherwise a clipped, missing or disagreeing count stays unknown.
 Farm uses fixed runtime identity, source-bound collection/boost controls and current lease/freshness
 guards. A displayed item cost of one is
 not owned inventory; unproved inventory or premium confirmation/effects remains blocked.
