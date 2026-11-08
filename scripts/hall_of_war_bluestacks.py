@@ -64,6 +64,7 @@ from tasks.hall_of_war import (
     dispatch_policy_preconditions,
     reward_policy_preconditions,
 )
+from tasks.home_atlas import BuildingBinding
 from tasks.home_context import HomeReadyObservation
 from tasks.radial_semantics import (
     ActionabilityState,
@@ -116,12 +117,27 @@ class BoundTarget:
     target_roi: tuple[int, int, int, int]
 
 
+@dataclass(frozen=True)
+class ZombieZeroMenu:
+    """Exact current Zombie Zero menu labels read from one native frame."""
+
+    title_roi: tuple[int, int, int, int]
+    damage_roi: tuple[int, int, int, int]
+    today_highest_damage: int | None
+    reward_header: str
+    reward_header_roi: tuple[int, int, int, int]
+    footer_text: tuple[str, ...]
+    attack: BoundTarget | None
+
+
 class HallOfWarVision:
     """OCR/geometry recognizers for the exact observed Hall of War UI surfaces."""
 
+    # Measured outer borders of the five Dispatch hero cards (native saved
+    # Troop Set 1 capture; empty "+" slots share the same frames).
     _HERO_RECTS = (
-        (48, 174, 162, 286), (185, 140, 294, 251), (316, 140, 426, 251),
-        (447, 140, 557, 251), (581, 174, 690, 286),
+        (56, 157, 170, 271), (201, 118, 315, 233), (343, 118, 457, 233),
+        (483, 118, 598, 233), (629, 157, 743, 271),
     )
 
     @staticmethod
@@ -211,132 +227,416 @@ class HallOfWarVision:
         orange = cv2.inRange(hsv, (5, 70, 90), (38, 255, 255))
         return float(np.count_nonzero(edges)) / edges.size >= 0.003 or float(np.count_nonzero(orange)) / orange.size >= 0.035
 
-    def bind_text_target(self, frame: np.ndarray, phrase: str, identity: str, *, padding: tuple[int, int] = (22, 18)) -> BoundTarget | None:
-        boxes = self._phrase_boxes(frame, phrase)
-        if len(boxes) != 1:
-            return None
-        x0, y0, x1, y1 = boxes[0]
+    def _padded_target(self, frame: np.ndarray, box: tuple[int, int, int, int], identity: str,
+                       padding: tuple[int, int] = (22, 18)) -> BoundTarget | None:
+        x0, y0, x1, y1 = box
         px, py = padding
         roi = (max(0, x0 - px), max(0, y0 - py), min(NATIVE_WIDTH, x1 + px), min(NATIVE_HEIGHT, y1 + py))
         if not self._visual_button(frame, roi):
             return None
         return BoundTarget(identity, roi)
 
+    def bind_text_target(self, frame: np.ndarray, phrase: str, identity: str, *, padding: tuple[int, int] = (22, 18)) -> BoundTarget | None:
+        boxes = self._phrase_boxes(frame, phrase)
+        if len(boxes) != 1:
+            return None
+        return self._padded_target(frame, boxes[0], identity, padding)
+
+    # Hall surfaces draw their labels over busy, animated art (Home radial
+    # captions, the Zombie Zero boss portrait), where sparse full-frame OCR
+    # interleaves or drops them. Labels are therefore read as isolated text
+    # lines of one known colour inside a bounded band.
+    _WHITE_TEXT = ((0, 0, 200), (180, 50, 255))
+    _GOLD_TEXT = ((10, 90, 150), (30, 200, 255))
+    _MAX_TEXT_LINES = 24
+    _RADIAL_ENVELOPE = (300, 60, 230)  # |dx|, pixels above, pixels below the bound anchor
+
+    def _text_lines(self, frame: np.ndarray, band: tuple[int, int, int, int],
+                    colour: tuple[tuple[int, int, int], tuple[int, int, int]]) -> tuple[OCRToken, ...] | None:
+        if not self._native(frame):
+            return None
+        x0, y0, x1, y1 = band
+        if not (0 <= x0 < x1 <= NATIVE_WIDTH and 0 <= y0 < y1 <= NATIVE_HEIGHT):
+            return None
+        low, high = colour
+        mask = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), low, high)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 3)))
+        count, _, stats, _ = cv2.connectedComponentsWithStats(mask)
+        boxes = [
+            (x0 + int(left), y0 + int(top), x0 + int(left + width), y0 + int(top + height))
+            for left, top, width, height, area in stats[1:count]
+            if 12 <= height <= 34 and width >= 20 and area >= 120
+        ]
+        if len(boxes) > self._MAX_TEXT_LINES:
+            return None
+        lines: list[OCRToken] = []
+        for box in boxes:
+            text = self._read_isolated(frame, (max(0, box[0] - 4), max(0, box[1] - 4),
+                                               min(NATIVE_WIDTH, box[2] + 4), min(NATIVE_HEIGHT, box[3] + 4)), colour)
+            if text is None:
+                return None
+            if text:
+                lines.append(OCRToken(text, box, None))
+        return tuple(lines)
+
+    def _read_isolated(self, frame: np.ndarray, box: tuple[int, int, int, int],
+                       colour: tuple[tuple[int, int, int], tuple[int, int, int]]) -> str | None:
+        # Read only the box's own strokes of one colour (plus their
+        # anti-aliased edge): animated art inside the box (bobbing quest
+        # markers) otherwise makes Tesseract drop an unchanged label.
+        x0, y0, x1, y1 = box
+        strokes = cv2.dilate(
+            cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), *colour),
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)),
+        )
+        gray = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
+        isolated = (255 - np.where(strokes > 0, gray, 0)).astype(np.uint8)
+        enlarged = cv2.resize(isolated, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
+        try:
+            return self._normal(call_ocr(tesseract_string, enlarged, config="--psm 7"))
+        except (RuntimeError, OSError, ValueError):
+            return None
+
+    def _radial_caption_lines(self, frame: np.ndarray, anchor: tuple[float, float]) -> tuple[OCRToken, ...] | None:
+        # The opened radial covers the Hall's own title; its captions are read
+        # around the freshly Atlas-bound Hall interaction anchor.
+        ax, ay = int(round(anchor[0])), int(round(anchor[1]))
+        reach, above, below = self._RADIAL_ENVELOPE
+        band = (max(0, ax - reach), max(0, ay - above), min(NATIVE_WIDTH, ax + reach), min(NATIVE_HEIGHT, ay + below))
+        return self._text_lines(frame, band, self._WHITE_TEXT)
+
+    def radial_captions(self, frame: np.ndarray, anchor: tuple[float, float]) -> dict[str, tuple[int, int, int, int]] | None:
+        """Exact, unique Hall radial captions arranged around the bound Hall anchor."""
+        lines = self._radial_caption_lines(frame, anchor)
+        if lines is None:
+            return None
+        found: dict[str, list[tuple[int, int, int, int]]] = {}
+        for line in lines:
+            found.setdefault(line.text, []).append(line.roi)
+
+        def single(word: str) -> tuple[int, int, int, int] | None:
+            boxes = found.get(word, [])
+            return boxes[0] if len(boxes) == 1 else None
+
+        def stacked(first: str, second: str) -> tuple[int, int, int, int] | None:
+            upper, lower = single(first), single(second)
+            if upper is None or lower is None:
+                return None
+            gap = lower[1] - upper[3]
+            height = max(upper[3] - upper[1], lower[3] - lower[1])
+            if not 0 <= gap <= height or abs((upper[0] + upper[2]) - (lower[0] + lower[2])) > 24:
+                return None
+            return (min(upper[0], lower[0]), upper[1], max(upper[2], lower[2]), lower[3])
+
+        details = single("details")
+        upgrade = single("upgrade")
+        military = stacked("military", "operation")
+        zombie = stacked("zombie", "zero")
+        if details is None or upgrade is None or military is None or zombie is None:
+            return None
+        captions = {
+            "Details": details, "Upgrade": upgrade,
+            "Military Operation": military, "Zombie Zero": zombie,
+        }
+        centers = [(box[0] + box[2]) / 2 for box in captions.values()]
+        if not min(centers) < anchor[0] < max(centers):
+            return None
+        return captions
+
+    def radial_target(self, frame: np.ndarray, captions: Mapping[str, tuple[int, int, int, int]] | None) -> BoundTarget | None:
+        if not captions or "Zombie Zero" not in captions:
+            return None
+        return self._padded_target(frame, captions["Zombie Zero"], HALL_OF_WAR_RADIAL_TARGET)
+
+    @staticmethod
+    def same_hall_anchor(entry: BuildingBinding | None, current: BuildingBinding | None) -> bool:
+        return bool(
+            entry is not None and current is not None
+            and entry.building_id == current.building_id == HALL_OF_WAR_ATLAS_BUILDING_ID
+            and entry.screen_anchor is not None and current.screen_anchor is not None
+            and abs(entry.screen_anchor[0] - current.screen_anchor[0]) <= 3.0
+            and abs(entry.screen_anchor[1] - current.screen_anchor[1]) <= 3.0
+        )
+
     def is_clean_home(self, frame: np.ndarray) -> bool:
         return self._native(frame) and is_clean_home_frame(frame)
 
-    def radial_semantics(self, frame: np.ndarray, runtime, captured) -> HomeRadialSemantics | None:
-        text = self.text(frame)
-        if not all(self._contains(text, item) for item in ("Hall of War", "Zombie Zero", "Military Operation", "Upgrade", "Details")):
+    def radial_semantics(self, frame: np.ndarray, runtime, captured, *, entry: BuildingBinding | None,
+                         current: BuildingBinding | None) -> HomeRadialSemantics | None:
+        """Hall radial owned by the immediate-before Atlas Hall binding.
+
+        The radial covers the Hall title, so ownership is the canonical Atlas
+        Hall binding of the tapped entry, re-proved at the same anchor on this
+        exact capture, plus the Hall-only caption set arranged around it.
+        """
+        if entry is None or current is None or not self.same_hall_anchor(entry, current):
             return None
         ordinal = getattr(runtime, "ordinal", None)
         if type(ordinal) is not int or ordinal < 1:
             return None
         identity = identity_from_captured(captured, session_id=str(runtime.session), ordinal=ordinal, label="hall-of-war-radial")
-        owner = OwningFacilityObservation(
-            identity, HALL_OF_WAR_ATLAS_BUILDING_ID, RecognitionState.RECOGNIZED, 0.98,
-            RadialAmbiguityState.NONE, ("visible Hall of War label",),
-        )
-        target = self.bind_text_target(frame, "Zombie Zero", HALL_OF_WAR_RADIAL_TARGET)
+        if current.frame_sha256 != identity.semantic_sha256 or current.overlay_intersects or current.ambiguous_overlap:
+            return None
+        if current.screen_anchor is None:
+            return None
+        captions = self.radial_captions(frame, current.screen_anchor)
+        target = self.radial_target(frame, captions)
         if target is None:
             return None
+        confidence = float(current.confidence)
+        owner = OwningFacilityObservation(
+            identity, HALL_OF_WAR_ATLAS_BUILDING_ID, RecognitionState.RECOGNIZED, confidence,
+            RadialAmbiguityState.NONE,
+            ("immediate-before Atlas Hall of War entry binding",
+             "same-capture Atlas Hall of War binding at the entry anchor",
+             "Hall-only radial captions anchored to the bound Hall of War"),
+        )
         control = RadialControlObservation(
             identity, "hall_of_war_zombie_zero", "Zombie Zero", ControlRole.PRIMARY_ACTION,
-            RecognitionState.RECOGNIZED, 0.98, ActionabilityState.ACTIONABLE,
+            RecognitionState.RECOGNIZED, confidence, ActionabilityState.ACTIONABLE,
             "exact route-owned Hall of War radial label and bound current target",
             ("facility.screen",), ("facility.upgrade", "facility.train_queue"),
-            HALL_OF_WAR_ATLAS_BUILDING_ID, RadialAmbiguityState.NONE, ("visible Zombie Zero label",),
+            HALL_OF_WAR_ATLAS_BUILDING_ID, RadialAmbiguityState.NONE, ("exact stacked Zombie Zero caption",),
+            {"target_roi": ",".join(str(value) for value in target.target_roi)},
         )
         return HomeRadialSemantics(
-            identity, HALL_OF_WAR_RADIAL_ID, RecognitionState.RECOGNIZED, 0.98,
+            identity, HALL_OF_WAR_RADIAL_ID, RecognitionState.RECOGNIZED, confidence,
             owner, (control,), RadialAmbiguityState.NONE,
-            ("Hall of War owner, radial controls and target share one capture",),
+            ("Hall of War owner binding, radial captions and target share one capture",),
+            {"entry_frame_sha256": str(entry.frame_sha256)},
         )
+
+    # Fixed native Zombie Zero menu bands. The large gold total above the
+    # damage line is not white text and never matches the damage label.
+    _MENU_TITLE_BAND = (0, 0, NATIVE_WIDTH, 80)
+    _MENU_DAMAGE_BAND = (75, 730, 675, 875)
+    _MENU_REWARD_BAND = (60, 860, 740, 960)
+    _MENU_FOOTER_BAND = (40, 1080, 760, NATIVE_HEIGHT)
+    _MENU_DAMAGE_LINE = re.compile(r"today[’']?s highest dmg(.*)")
+    _MENU_DAMAGE_VALUE = re.compile(r"\s*:?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)")
+    _MENU_REWARD_HEADERS = ("daily reward", "daily reward (claimed)")
+
+    def zombie_zero_menu(self, frame: np.ndarray) -> ZombieZeroMenu | None:
+        # Bands are read in order and stop at the first missing exact label,
+        # so non-menu frames do not pay for every band's line OCR.
+        title = self._text_lines(frame, self._MENU_TITLE_BAND, self._WHITE_TEXT)
+        titles = [line.roi for line in title or () if line.text == "zombie zero"]
+        if len(titles) != 1:
+            return None
+        damage = self._text_lines(frame, self._MENU_DAMAGE_BAND, self._WHITE_TEXT)
+        damages = [(line.roi, match) for line in damage or () if (match := self._MENU_DAMAGE_LINE.fullmatch(line.text))]
+        if len(damages) != 1:
+            return None
+        reward = self._text_lines(frame, self._MENU_REWARD_BAND, self._GOLD_TEXT)
+        headers = [line for line in reward or () if line.text in self._MENU_REWARD_HEADERS]
+        if len(headers) != 1:
+            return None
+        footer = self._text_lines(frame, self._MENU_FOOTER_BAND, self._WHITE_TEXT)
+        if footer is None:
+            return None
+        damage_roi, label = damages[0]
+        value = self._MENU_DAMAGE_VALUE.fullmatch(label.group(1))
+        return ZombieZeroMenu(
+            titles[0], damage_roi,
+            int(value.group(1).replace(",", "")) if value is not None else None,
+            headers[0].text, headers[0].roi,
+            tuple(line.text for line in footer),
+            self._attack_button(frame, footer),
+        )
+
+    def _gold_button(self, frame: np.ndarray, band: tuple[int, int, int, int], lines: tuple[OCRToken, ...],
+                     label: str) -> tuple[int, int, int, int] | None:
+        # The measured gold button that contains the one exact label line,
+        # not a fixed coordinate.
+        labels = [line.roi for line in lines if line.text == label]
+        if len(labels) != 1:
+            return None
+        lx0, ly0, lx1, ly1 = labels[0]
+        x0, y0, x1, y1 = band
+        gold = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), (8, 120, 120), (30, 255, 255))
+        count, _, stats, _ = cv2.connectedComponentsWithStats(gold)
+        buttons = [
+            (x0 + int(left), y0 + int(top), x0 + int(left + width), y0 + int(top + height))
+            for left, top, width, height, area in stats[1:count]
+            if area >= 2000
+        ]
+        containing = [box for box in buttons if box[0] <= lx0 and box[1] <= ly0 and lx1 <= box[2] and ly1 <= box[3]]
+        return containing[0] if len(containing) == 1 else None
+
+    def _attack_button(self, frame: np.ndarray, footer: tuple[OCRToken, ...]) -> BoundTarget | None:
+        button = self._gold_button(frame, self._MENU_FOOTER_BAND, footer, "attack")
+        return None if button is None else BoundTarget(ATTACK_TARGET, button)
 
     def zombie_zero_page(self, frame: np.ndarray) -> bool:
-        text = self.text(frame)
-        return (
-            self._contains(text, "Zombie Zero")
-            and self._contains(text, "Today's Highest Dmg")
-            and self._contains(text, "Daily Reward")
-        )
+        return self.zombie_zero_menu(frame) is not None
 
     def today_highest_damage(self, frame: np.ndarray) -> int | None:
-        text = self.text(frame, (75, 730, 675, 875))
-        normalized = self._normal(text)
-        match = re.search(r"today s highest dmg\s*[: ]\s*([0-9][0-9,]*)", normalized)
-        if match is None:
-            match = re.search(r"highest dmg\s*[: ]\s*([0-9][0-9,]*)", normalized)
-        if match is None:
-            return None
-        try:
-            return int(match.group(1).replace(",", ""))
-        except ValueError:
-            return None
+        menu = self.zombie_zero_menu(frame)
+        return None if menu is None else menu.today_highest_damage
+
+    @staticmethod
+    def _ready_attack(menu: ZombieZeroMenu) -> BoundTarget | None:
+        # Any other footer text (timer, limit notice) withholds READY.
+        return menu.attack if menu.footer_text == ("attack",) else None
 
     def attempt_state(self, frame: np.ndarray) -> AttemptState:
-        text = self.text(frame)
-        if not self.zombie_zero_page(frame):
+        menu = self.zombie_zero_menu(frame)
+        if menu is None:
             return AttemptState.UNKNOWN
+        text = " ".join((self._normal(self.text(frame)),) + menu.footer_text)
         if re.search(r"\b(?:cooldown|cooling down|in\s+\d)\b", text):
             return AttemptState.BUSY
-        if self.bind_text_target(frame, "Attack", ATTACK_TARGET) is not None:
+        if self._ready_attack(menu) is not None:
             return AttemptState.READY
         if self._contains(text, "unavailable") or self._contains(text, "daily limit"):
             return AttemptState.UNAVAILABLE
         return AttemptState.UNKNOWN
 
+    _DISPATCH_FOOTER_BAND = (40, 1140, 760, NATIVE_HEIGHT)
+
+    def _dispatch_footer(self, frame: np.ndarray) -> tuple[str, tuple[int, int, int, int]] | None:
+        # Formation page: exact "Dispatch" header plus exactly one measured
+        # gold footer button holding "Quick Select" (empty) or "Dispatch"
+        # (populated formation).
+        title = self._text_lines(frame, self._MENU_TITLE_BAND, self._WHITE_TEXT)
+        if len([line for line in title or () if line.text == "dispatch"]) != 1:
+            return None
+        footer = self._text_lines(frame, self._DISPATCH_FOOTER_BAND, self._WHITE_TEXT)
+        if footer is None:
+            return None
+        found = [(label, button) for label in ("quick select", "dispatch")
+                 if (button := self._gold_button(frame, self._DISPATCH_FOOTER_BAND, footer, label)) is not None]
+        return found[0] if len(found) == 1 else None
+
+    def _quick_select_button(self, frame: np.ndarray) -> tuple[int, int, int, int] | None:
+        footer = self._dispatch_footer(frame)
+        return footer[1] if footer is not None and footer[0] == "quick select" else None
+
+    def bind_dispatch(self, frame: np.ndarray) -> BoundTarget | None:
+        # The measured gold footer button with the exact "Dispatch" label,
+        # never the identical page title.
+        footer = self._dispatch_footer(frame)
+        return BoundTarget(DISPATCH_TARGET, footer[1]) if footer is not None and footer[0] == "dispatch" else None
+
     def dispatch_page(self, frame: np.ndarray) -> bool:
-        text = self.text(frame)
-        return self._contains(text, "Dispatch") and self._contains(text, "Quick Select")
+        return self._dispatch_footer(frame) is not None
 
     def bind_attack(self, frame: np.ndarray) -> BoundTarget | None:
-        return self.bind_text_target(frame, "Attack", ATTACK_TARGET)
+        menu = self.zombie_zero_menu(frame)
+        return None if menu is None else self._ready_attack(menu)
 
     def bind_formation_arrow(self, frame: np.ndarray) -> BoundTarget | None:
-        if not self.dispatch_page(frame):
+        # The selector is the one measured round chevron button immediately
+        # left of the current Quick Select button, on the same row.
+        button = self._quick_select_button(frame)
+        if button is None:
             return None
-        quick = self._phrase_boxes(frame, "Quick Select")
-        if len(quick) != 1:
+        bx0, by0, _bx1, by1 = button
+        x0, y0, x1, y1 = max(0, bx0 - 130), by0, bx0, by1
+        if x1 - x0 < 40:
             return None
-        qx0, qy0, qx1, qy1 = quick[0]
-        center_x, center_y = (qx0 + qx1) // 2, (qy0 + qy1) // 2
-        x = center_x - 170
-        roi = (x - 25, center_y - 25, x + 26, center_y + 26)
-        if not (0 <= roi[0] < roi[2] <= NATIVE_WIDTH and 0 <= roi[1] < roi[3] <= NATIVE_HEIGHT):
+        gray = cv2.medianBlur(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY), 3)
+        circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1.2, 30, param1=120, param2=25, minRadius=15, maxRadius=35)
+        if circles is None or len(circles[0]) != 1:
             return None
-        patch = frame[roi[1]:roi[3], roi[0]:roi[2]]
-        gray = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY)
-        edges = cv2.Canny(gray, 55, 150)
-        if float(np.count_nonzero(edges)) / edges.size < 0.055:
+        cx, cy, radius = (int(round(float(value))) for value in circles[0][0])
+        roi = (x0 + cx - radius, y0 + cy - radius, x0 + cx + radius + 1, y0 + cy + radius + 1)
+        if not (x0 <= roi[0] < roi[2] <= x1 and y0 <= roi[1] < roi[3] <= y1):
             return None
-        # The text anchor is Quick Select; the bound selector is explicitly to its left.
+        disc = np.zeros(gray.shape, dtype=np.uint8)
+        cv2.circle(disc, (cx, cy), max(1, radius - 4), 255, -1)
+        chevron = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), (10, 90, 140), (30, 220, 255))
+        if np.count_nonzero(cv2.bitwise_and(chevron, disc)) < 60:
+            return None
         return BoundTarget(FORMATION_ARROW_TARGET, roi)
 
+    _SELECTOR_BAND = (40, 300, 760, 1160)
+    _SELECTOR_ROW = ((0, 80, 70), (12, 255, 200))
+
+    def _troop_set_rows(self, frame: np.ndarray) -> dict[int, tuple[tuple[int, int, int, int], tuple[int, int, int, int]]] | None:
+        """Exact Troop Set 1/2/3 rows of the open selector: measured row panel and its separate Edit control."""
+        if not self._native(frame):
+            return None
+        x0, y0, x1, y1 = self._SELECTOR_BAND
+        panel_mask = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), *self._SELECTOR_ROW)
+        count, _, stats, _ = cv2.connectedComponentsWithStats(panel_mask)
+        panels = [
+            (x0 + int(left), y0 + int(top), x0 + int(left + width), y0 + int(top + height))
+            for left, top, width, height, area in stats[1:count]
+            if 300 <= width <= 420 and 50 <= height <= 75 and area >= 0.75 * width * height
+        ]
+        # Measured geometry first: without three row panels no OCR is spent.
+        if len(panels) < 3 or self.dispatch_page(frame):
+            return None
+        white = self._text_lines(frame, self._SELECTOR_BAND, self._WHITE_TEXT)
+        gold = self._text_lines(frame, self._SELECTOR_BAND, self._GOLD_TEXT)
+        if white is None or gold is None:
+            return None
+
+        def inside(roi: tuple[int, int, int, int], panel: tuple[int, int, int, int]) -> bool:
+            return panel[0] <= roi[0] and roi[2] <= panel[2] and panel[1] <= roi[1] and roi[3] <= panel[3]
+
+        rows: dict[int, tuple[tuple[int, int, int, int], tuple[int, int, int, int]]] = {}
+        for panel in panels:
+            edits = [line.roi for line in gold if line.text == "edit" and inside(line.roi, panel)]
+            labels = [line.roi for line in white if line.text.startswith("troop set") and inside(line.roi, panel)]
+            if not edits and not labels:
+                continue  # locked VIP rows carry no Troop Set label or Edit control
+            if len(edits) != 1 or len(labels) != 1 or labels[0][2] >= edits[0][0]:
+                return None
+            # The narrow set digit can sit apart from "Troop Set"; read the
+            # label once from its measured start to the Edit control.
+            text = self._read_isolated(frame, (labels[0][0] - 4, panel[1] + 6, edits[0][0] - 4, panel[3] - 6), self._WHITE_TEXT)
+            match = re.fullmatch(r"troop set ([123])", text or "")
+            if match is None or int(match.group(1)) in rows:
+                return None
+            rows[int(match.group(1))] = (panel, edits[0])
+        return rows if set(rows) == {1, 2, 3} else None
+
     def troop_set_selector(self, frame: np.ndarray) -> bool:
-        text = self.text(frame)
-        return self._contains(text, "Troop Set 1") and self._contains(text, "Edit") and not self.dispatch_page(frame)
+        return self._troop_set_rows(frame) is not None
 
     def bind_troop_set_one(self, frame: np.ndarray) -> BoundTarget | None:
-        if not self.troop_set_selector(frame):
+        rows = self._troop_set_rows(frame)
+        if rows is None:
             return None
-        target = self.bind_text_target(frame, "Troop Set 1", TROOP_SET_ONE_TARGET)
-        if target is None:
-            return None
-        edit_boxes = self._phrase_boxes(frame, "Edit")
-        if any(not (target.target_roi[2] <= box[0] or box[2] <= target.target_roi[0])
-               and abs((target.target_roi[1] + target.target_roi[3] - box[1] - box[3]) // 2) < 55
-               for box in edit_boxes):
-            return None
-        return target
+        panel, edit = rows[1]
+        # The row body up to, and excluding, its separate Edit control.
+        roi = (panel[0], panel[1], edit[0] - 8, panel[3])
+        return BoundTarget(TROOP_SET_ONE_TARGET, roi) if roi[2] - roi[0] >= 100 else None
+
+    _HERO_BAND = (0, 100, NATIVE_WIDTH, 300)
+
+    def _empty_hero_slot_centres(self, frame: np.ndarray) -> tuple[tuple[int, int], ...]:
+        # Empty Dispatch hero slots show one glowing yellow "+" placeholder.
+        x0, y0, x1, y1 = self._HERO_BAND
+        yellow = cv2.inRange(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV), (18, 90, 170), (40, 255, 255))
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(yellow)
+        centres: list[tuple[int, int]] = []
+        for index in range(1, count):
+            left, top, width, height, area = (int(value) for value in stats[index])
+            if not (30 <= width <= 55 and 30 <= height <= 55 and abs(width - height) <= 8):
+                continue
+            if not 0.25 <= area / float(width * height) <= 0.55:
+                continue
+            shape = labels[top:top + height, left:left + width] == index
+            corner = max(4, min(width, height) // 4)
+            corners = (shape[:corner, :corner], shape[:corner, -corner:], shape[-corner:, :corner], shape[-corner:, -corner:])
+            if not shape[height // 2, width // 2] or any(float(part.mean()) > 0.15 for part in corners):
+                continue
+            centres.append((x0 + left + width // 2, y0 + top + height // 2))
+        return tuple(centres)
 
     def hero_count(self, frame: np.ndarray) -> int:
         if not self._native(frame):
             return 0
+        empty = self._empty_hero_slot_centres(frame)
         count = 0
         for x0, y0, x1, y1 in self._HERO_RECTS:
             patch = frame[y0:y1, x0:x1]
             if patch.shape[:2] != (y1 - y0, x1 - x0):
+                continue
+            if any(x0 <= cx < x1 and y0 <= cy < y1 for cx, cy in empty):
                 continue
             gray = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY)
             edge_ratio = float(np.count_nonzero(cv2.Canny(gray, 60, 160))) / gray.size
@@ -344,15 +644,17 @@ class HallOfWarVision:
                 count += 1
         return count
 
+    # Green footer fraction "current/capacity", below the troop rows.
+    _TROOP_FOOTER_BAND = (40, 1080, 760, 1145)
+    _GREEN_TEXT = ((40, 120, 150), (85, 255, 255))
+    _TROOP_FRACTION = re.compile(r"([0-9]{1,3}(?:,[0-9]{3})*)/([0-9]{1,3}(?:,[0-9]{3})*)")
+
     def troop_counts(self, frame: np.ndarray) -> tuple[int | None, int | None]:
-        text = self.text(frame, (50, 1005, 760, 1165))
-        match = re.search(r"([0-9][0-9,]*)\s*/\s*([0-9][0-9,]*)", text)
-        if not match:
+        lines = self._text_lines(frame, self._TROOP_FOOTER_BAND, self._GREEN_TEXT)
+        matches = [match for line in lines or () if (match := self._TROOP_FRACTION.fullmatch(line.text))]
+        if len(matches) != 1:
             return None, None
-        try:
-            return int(match.group(1).replace(",", "")), int(match.group(2).replace(",", ""))
-        except ValueError:
-            return None, None
+        return int(matches[0].group(1).replace(",", "")), int(matches[0].group(2).replace(",", ""))
 
     def _ocr_lines(self, frame: np.ndarray) -> tuple[tuple[str, tuple[int, int, int, int]], ...]:
         tokens = sorted(self.tokens(frame), key=lambda token: ((token.roi[1] + token.roi[3]) // 2, token.roi[0]))
@@ -418,9 +720,27 @@ class HallOfWarVision:
     def loss_effect_approved(self, frame: np.ndarray) -> bool:
         return self.loss_effect_proof(frame)[0]
 
+    # White toast just below Clear Hero on the owned Dispatch page (native
+    # saved Troop Set 1 capture: label at y367-394).
+    _APPLIED_TOAST_BAND = (40, 330, 760, 470)
+
     def troop_set_one_applied(self, frame: np.ndarray) -> bool:
-        text = self._normal(self.text(frame))
-        return self.dispatch_page(frame) and self._contains(text, "Troop Set 1 formation applied")
+        if not self.dispatch_page(frame):
+            return False
+        toast = self._text_lines(frame, self._APPLIED_TOAST_BAND, self._WHITE_TEXT)
+        anchors = [line.roi for line in toast or () if line.text.startswith("troop set")]
+        if len(anchors) != 1:
+            return False
+        # The narrow set digit drops out as its own component; join the
+        # anchor's same-row line components and read their envelope once.
+        x0, y0, x1, y1 = anchors[0]
+        centre = (y0 + y1) // 2
+        for roi in sorted((line.roi for line in toast or ()), key=lambda roi: roi[0]):
+            if roi[0] > x1 and roi[0] - x1 <= 60 and abs((roi[1] + roi[3]) // 2 - centre) <= 8:
+                x1, y0, y1 = roi[2], min(y0, roi[1]), max(y1, roi[3])
+        text = self._read_isolated(frame, (max(0, x0 - 4), max(0, y0 - 4), min(NATIVE_WIDTH, x1 + 4), min(NATIVE_HEIGHT, y1 + 4)),
+                                   self._WHITE_TEXT)
+        return text == "troop set 1 formation applied"
 
     def formation_signature(self, frame: np.ndarray) -> tuple[str, ...]:
         if not self._native(frame):
@@ -429,17 +749,17 @@ class HallOfWarVision:
                      for x0, y0, x1, y1 in self._HERO_RECTS)
 
     def challenge_reward(self, frame: np.ndarray) -> RewardObservation | None:
-        if not self.zombie_zero_page(frame):
+        located = self._challenge_reward(frame)
+        return None if located is None else located[0]
+
+    def _challenge_reward(self, frame: np.ndarray) -> tuple[RewardObservation, tuple[int, int, int, int]] | None:
+        menu = self.zombie_zero_menu(frame)
+        if menu is None:
             return None
-        text = self._normal(self.text(frame))
-        claimed = self._contains(text, "Daily Reward Claimed")
-        header = self._phrase_boxes(frame, "Daily Reward")
-        if len(header) != 1:
-            # The claimed title is a separate, exact combined phrase.
-            header = self._phrase_boxes(frame, "Daily Reward Claimed")
-        if len(header) != 1:
-            return None
-        y = (header[0][1] + header[0][3]) // 2
+        # Historically observed claimed header: "Daily Reward (Claimed)".
+        claimed = menu.reward_header == "daily reward (claimed)"
+        header = menu.reward_header_roi
+        y = (header[1] + header[3]) // 2
         x0, x1 = 205, 545
         row = frame[max(0, y + 20):min(NATIVE_HEIGHT, y + 145), x0:x1]
         if row.size == 0:
@@ -460,16 +780,16 @@ class HallOfWarVision:
         else:
             state = RewardState.UNKNOWN
         digest = hashlib.sha256(frame.tobytes()).hexdigest()
-        return RewardObservation("ZOMBIE_ZERO", True, state, glow, checkmarks, digest)
+        return RewardObservation("ZOMBIE_ZERO", True, state, glow, checkmarks, digest), header
 
     def bind_reward_row(self, frame: np.ndarray) -> BoundTarget | None:
-        observation = self.challenge_reward(frame)
-        if observation is None or observation.reward is not RewardState.READY or not observation.glowing:
+        located = self._challenge_reward(frame)
+        if located is None:
             return None
-        header = self._phrase_boxes(frame, "Daily Reward")
-        if len(header) != 1:
+        observation, header = located
+        if observation.reward is not RewardState.READY or not observation.glowing:
             return None
-        y0, y1 = header[0][1], min(NATIVE_HEIGHT, header[0][3] + 155)
+        y0, y1 = header[1], min(NATIVE_HEIGHT, header[3] + 155)
         return BoundTarget(REWARD_TARGET, (190, y0, 560, y1))
 
     def result_modal(self, frame: np.ndarray) -> tuple[bool, int | None]:
@@ -548,6 +868,7 @@ class HallOfWarBoundary:
         self.formation_proof: dict[str, Any] | None = None
         self.radial_semantics: HomeRadialSemantics | None = None
         self._last_successor_capture = None
+        self._hall_entry_binding: BuildingBinding | None = None
 
     def _checkpoint(self, *, active_action_id: str | None = None) -> None:
         self.session.runtime_input_lock.assert_held(
@@ -615,7 +936,7 @@ class HallOfWarBoundary:
             if step.disposition in {HomeDriverDisposition.COMPLETE, HomeDriverDisposition.BIND}:
                 binding = step.binding
                 if (binding is None or binding.building_id != HALL_OF_WAR_ATLAS_BUILDING_ID
-                        or binding.frame_sha256 != captured.sha256 or binding.overlay_intersects or binding.ambiguous_overlap):
+                        or binding.frame_sha256 != step.source_frame_sha256 or binding.overlay_intersects or binding.ambiguous_overlap):
                     raise HallOfWarRouteError("hall_of_war_home_atlas_binding_not_current_or_unambiguous")
                 return captured, binding
             if step.disposition is HomeDriverDisposition.BLOCKED:
@@ -639,19 +960,29 @@ class HallOfWarBoundary:
                 zooms += 1
                 continue
             if step.disposition is HomeDriverDisposition.PAN:
-                if pans >= 2 or step.plan is None or not step.plan.pan_start or not step.plan.pan_end:
+                if pans >= 2 or step.plan is None or not step.plan.drag_start or not step.plan.drag_end:
                     raise HallOfWarRouteError("hall_of_war_home_atlas_pan_unavailable_or_over_budget")
                 before_localization = step.localization
-                pan_roi = (min(step.plan.pan_start[0], step.plan.pan_end[0]),
-                           min(step.plan.pan_start[1], step.plan.pan_end[1]),
-                           max(step.plan.pan_start[0], step.plan.pan_end[0]) + 1,
-                           max(step.plan.pan_start[1], step.plan.pan_end[1]) + 1)
-                self.navigation.prepare_source_safety(self._safety(captured, "HOME_BASE", pan_roi))
+                pan_roi = (min(step.plan.drag_start[0], step.plan.drag_end[0]),
+                           min(step.plan.drag_start[1], step.plan.drag_end[1]),
+                           max(step.plan.drag_start[0], step.plan.drag_end[0]) + 1,
+                           max(step.plan.drag_start[1], step.plan.drag_end[1]) + 1)
+                def authorize_pan(before):
+                    nonlocal before_localization
+                    localized_before = self.localizer.localize(before.frame)
+                    if (not self.vision.is_clean_home(before.frame)
+                            or not localized_before.recognized
+                            or localized_before.stale or localized_before.overlay):
+                        raise HallOfWarRouteError("hall_of_war_home_pan_source_not_current")
+                    before_localization = localized_before
+                    self.navigation.prepare_source_safety(self._safety(before, "HOME_BASE", pan_roi))
+
                 self.session.run_action(
                     action_class="navigation", label=f"hall-of-war-home-pan-{pans + 1}",
                     capture=self.runtime.capture,
+                    authorize=authorize_pan,
                     dispatch=lambda before, plan=step.plan: self.navigation.swipe(
-                        before, start=plan.pan_start, end=plan.pan_end,
+                        before, start=plan.drag_start, end=plan.drag_end,
                         action_key=f"hall-of-war-home-pan:{before.sha256}",
                         target_identity=HOME_ATLAS_PAN_TARGET,
                     ),
@@ -1029,8 +1360,34 @@ class HallOfWarBoundary:
         captured = self._last_successor_capture
         if captured is None or not np.array_equal(frame, captured.frame):
             return "unknown"
-        semantics = self.vision.radial_semantics(frame, self.runtime, captured)
+        semantics = self._hall_radial(captured)
         return "home_radial" if semantics is not None and semantics.recognized else "unknown"
+
+    def _hall_radial(self, captured) -> HomeRadialSemantics | None:
+        return self.vision.radial_semantics(
+            captured.frame, self.runtime, captured,
+            entry=self._hall_entry_binding, current=self._hall_binding(captured.frame),
+        )
+
+    def _bind_zombie_zero(self, frame: np.ndarray) -> BoundTarget | None:
+        # Rebind on the immediate-before frame: same Hall anchor as the tapped
+        # entry, the full exact caption set, and the recognized radial target.
+        recognized = self.radial_semantics
+        current = self._hall_binding(frame)
+        if (recognized is None or not recognized.recognized
+                or current is None or current.screen_anchor is None
+                or not self.vision.same_hall_anchor(self._hall_entry_binding, current)):
+            return None
+        target = self.vision.radial_target(frame, self.vision.radial_captions(frame, current.screen_anchor))
+        try:
+            expected = tuple(int(value) for value in recognized.controls[0].metadata["target_roi"].split(","))
+        except (IndexError, KeyError, ValueError):
+            return None
+        if target is None or len(expected) != 4:
+            return None
+        if any(abs(a - b) > 6 for a, b in zip(target.target_roi, expected)):
+            return None
+        return target
 
     def _return_home_from_preset_memory(self, recognize_page: Callable[..., Any]) -> bool:
         def page(captured) -> str:
@@ -1094,7 +1451,7 @@ class HallOfWarBoundary:
                 successor=self._radial_successor,
             )
             radial_capture = self._capture("hall-of-war-radial-current")
-            self.radial_semantics = self.vision.radial_semantics(radial_capture.frame, self.runtime, radial_capture)
+            self.radial_semantics = self._hall_radial(radial_capture)
             if self.radial_semantics is None or not self.radial_semantics.recognized:
                 raise HallOfWarRouteError("hall_of_war_radial_successor_not_recognized")
             self.result["radial_semantics"] = {
@@ -1102,6 +1459,7 @@ class HallOfWarBoundary:
                 "facility_identity": self.radial_semantics.owning_facility.facility_semantic_id,
                 "target_label": "Zombie Zero",
                 "source_frame_sha256": self.radial_semantics.source_frame.semantic_sha256,
+                "entry_frame_sha256": self.radial_semantics.metadata["entry_frame_sha256"],
             }
             control = self.radial_semantics.controls[0]
             if control.control_id != "hall_of_war_zombie_zero" or control.label != "Zombie Zero":
@@ -1109,7 +1467,7 @@ class HallOfWarBoundary:
             self._navigation_tap(
                 label="open-zombie-zero", source_state="HOME_WITH_KNOWN_RADIAL",
                 target_identity=HALL_OF_WAR_RADIAL_TARGET,
-                binder=lambda frame: self.vision.bind_text_target(frame, "Zombie Zero", HALL_OF_WAR_RADIAL_TARGET),
+                binder=self._bind_zombie_zero,
                 successor=lambda frame: "zombie_zero" if self.vision.zombie_zero_page(frame) else "unknown",
             )
             page = self._capture("hall-of-war-zombie-zero-page")
@@ -1335,8 +1693,7 @@ class HallOfWarBoundary:
             self.result.update(status="unresolved", identical_retry_denied=True)
         return self.result
 
-    def _bind_hall_of_war(self, frame: np.ndarray) -> BoundTarget | None:
-        captured = self._current_capture_for(frame)
+    def _hall_binding(self, frame: np.ndarray) -> BuildingBinding | None:
         localization = self.localizer.localize(frame)
         if not localization.recognized or localization.stale or localization.overlay:
             return None
@@ -1346,12 +1703,14 @@ class HallOfWarBoundary:
                 or binding.frame_sha256 != localization.frame_sha256
                 or binding.overlay_intersects or binding.ambiguous_overlap):
             return None
-        return BoundTarget(HALL_OF_WAR_ATLAS_BUILDING_ID, tuple(binding.target_roi))
+        return binding
 
-    def _current_capture_for(self, frame):
-        # The current-frame navigation callback supplies its own captured object;
-        # this compatibility method deliberately does not reconstruct one.
-        return frame
+    def _bind_hall_of_war(self, frame: np.ndarray) -> BoundTarget | None:
+        # Called only from open-building authorization on its immediate-before
+        # frame; that exact binding is the radial's carried owner entry.
+        binding = self._hall_binding(frame)
+        self._hall_entry_binding = binding
+        return None if binding is None else BoundTarget(HALL_OF_WAR_ATLAS_BUILDING_ID, tuple(binding.target_roi))
 
     def _bind_dispatch_target(self, frame: np.ndarray, composite: ChallengeObservation) -> BoundTarget | None:
         if not self.vision.dispatch_page(frame):
@@ -1374,7 +1733,7 @@ class HallOfWarBoundary:
                 or self.vision.roi_sha256(frame, cost_roi) != composite.cost_roi_sha256
                 or self.vision.roi_sha256(frame, loss_roi) != composite.loss_roi_sha256):
             return None
-        return self.vision.bind_text_target(frame, "Dispatch", DISPATCH_TARGET)
+        return self.vision.bind_dispatch(frame)
 
 
 def run_hall_of_war(

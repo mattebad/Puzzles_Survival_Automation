@@ -258,13 +258,20 @@ def ensure_commander_talent_preset(
     invocation_id = getattr(runtime_input_lock, "invocation_id", None)
     if type(owner) is not str or not owner or type(invocation_id) is not str or not invocation_id:
         raise RuntimeError("commander talent verification requires a held owner identity")
-    if generation != invocation_id:
+    session_owner = getattr(session, "owner", None)
+    session_invocation_id = getattr(session, "invocation_id", None)
+    if (type(session_owner) is not str or not session_owner
+            or type(session_invocation_id) is not str or not session_invocation_id):
+        raise RuntimeError("commander talent native session identity is missing")
+    if generation != session_invocation_id:
         raise ValueError("source_generation must match the held native session invocation")
-    if (
-        getattr(session, "owner", owner) != owner
-        or getattr(session, "invocation_id", invocation_id) != invocation_id
-    ):
-        raise RuntimeError("commander talent session identity does not match its held input lock")
+    if (session_owner, session_invocation_id) != (owner, invocation_id):
+        # A canonical borrowed session retains its own generation while its
+        # outer operator holds the input lock. The SDK validates both scopes.
+        assert_session_held = getattr(session, "assert_held", None)
+        if not callable(assert_session_held):
+            raise RuntimeError("commander talent borrowed session ownership cannot be verified")
+        assert_session_held(session_owner, session_invocation_id)
     runtime_input_lock.assert_held(owner, invocation_id)
     checkpoint()
     runtime_input_lock.assert_held(owner, invocation_id)

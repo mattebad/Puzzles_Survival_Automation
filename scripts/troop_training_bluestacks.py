@@ -38,7 +38,6 @@ from automation_service.troop_training import (
     derive_training_action_state,
     make_training_claim_action_key,
     make_training_start_action_key,
-    troop_training_next_due,
 )
 from scripts.commander_talents_bluestacks import (
     COMMANDER_TALENT,
@@ -123,6 +122,12 @@ class _TroopTrainingInputBudgetRuntime:
                 raise RuntimeError("troop-training native input count is unavailable")
             action_key = str(kwargs.get("action_key", ""))
             returning_home = name == "back" and "return-home" in action_key
+            expected_talent_page = kwargs.pop("expected_talent_page", None)
+            if expected_talent_page is not None and (
+                not returning_home
+                or expected_talent_page not in {TALENT_MEMORY, COMMANDER_TALENT, TALENT_PROFILE}
+            ):
+                raise ValueError("expected talent page requires an owned preset Back transition")
             limit = self._max_inputs if returning_home else self._max_inputs - 1
             if current >= limit:
                 raise RuntimeError(
@@ -141,7 +146,13 @@ class _TroopTrainingInputBudgetRuntime:
                 if callable(self._checkpoint):
                     self._checkpoint()
                 if before.sha256 != source.sha256:
-                    raise RuntimeError("troop-training navigation frame changed before input")
+                    if expected_talent_page is None:
+                        raise RuntimeError("troop-training navigation frame changed before input")
+                    # Background animation is not a context change. Rebind only
+                    # these owned Back transitions to the fresh, exact page.
+                    observed = recognize_commander_talent_page(before, required_preset="Training")
+                    if not observed.recognized or observed.page != expected_talent_page:
+                        raise RuntimeError("commander-talent page changed before Back")
 
             def dispatch(before):
                 value(before, *args[1:], **kwargs)
@@ -1197,6 +1208,7 @@ class TroopTrainingIntegratedRoute:
         target_key: str,
         target_roi,
         action_key: str,
+        semantic_action: str,
         action_kind: str,
         subject: str,
         counter_variant: str,
@@ -1251,7 +1263,7 @@ class TroopTrainingIntegratedRoute:
             action_key=action_key,
             task_id=FLOW_ID,
             task_mode="supervised_validation",
-            semantic_action=action_kind,
+            semantic_action=semantic_action,
             expected_runtime_profile_id=PROFILE_ID,
             observation=observation,
             monotonic_now=monotonic_now,
@@ -1273,17 +1285,6 @@ class TroopTrainingIntegratedRoute:
             runtime_session_id=str(runtime.session),
         )
         policy = CentralPolicy(frozenset({FLOW_ID}))
-        issued = policy.issue_capability(request)
-        store.audit(FLOW_ID, "capability_issued", now, issued.audit, action_id)
-        if not issued.authorized or issued.capability is None:
-            if issued.reason_code == "DUPLICATE_ACTION_KEY" or store.action_key_exists(action_key):
-                self.identical_retry_denied = True
-            return {
-                "status": "blocked",
-                "reason": issued.reason_code,
-                "action_key": action_key,
-                "transport_calls": 0,
-            }
 
         post_captures: list[tuple[Any, TrainingScreenObservation, bool]] = []
         dispatch_counts: list[int] = []
@@ -1307,6 +1308,14 @@ class TroopTrainingIntegratedRoute:
             session_before = getattr(session, "input_count", None)
             if type(runtime_before) is not int or type(session_before) is not int:
                 raise RuntimeError("native input accounting is unavailable before consequential dispatch")
+            source_returned = False
+
+            def capture_for_action(label):
+                nonlocal source_returned
+                if not source_returned:
+                    source_returned = True
+                    return captured
+                return runtime.capture(label)
 
             def authorize(before):
                 context.checkpoint()
@@ -1358,7 +1367,7 @@ class TroopTrainingIntegratedRoute:
                 session.run_action(
                     action_class=action_kind,
                     label=f"troop-training-{counter_kind}-{subject}",
-                    capture=runtime.capture,
+                    capture=capture_for_action,
                     dispatch=dispatch,
                     recognize=recognize,
                     authorize=authorize,
@@ -1382,8 +1391,35 @@ class TroopTrainingIntegratedRoute:
                 return TransportResult(actual_count > 0, "TROOP_TRAINING_INPUT_ACCOUNTING_MISMATCH")
             return TransportResult(True, "TROOP_TRAINING_CONSEQUENTIAL_INPUT_SENT")
 
+        immediate: dict[str, Observation] = {}
+
         def recapture():
-            return observation
+            nonlocal captured
+            if "observation" in immediate:
+                return immediate["observation"]
+            context.checkpoint()
+            context.validate_identity()
+            fresh_capture = runtime.capture(f"troop-training-{counter_kind}-pre-dispatch")
+            fresh = recognize_training_with_targets(fresh_capture.frame)
+            if (
+                not fresh.observation.recognized
+                or fresh.target(target_key) != target_roi
+                or not before_positive(fresh.observation)
+            ):
+                raise RuntimeError("training immediate facts or target changed before dispatch")
+            captured = fresh_capture
+            immediate["observation"] = self._policy_observation(
+                fresh_capture,
+                target_identity=target_identity,
+                target_roi=target_roi,
+                control_class=control_class,
+                consequence=consequence,
+                cost_type=cost_type,
+                cost_amount=cost_amount,
+                quantity=action_quantity,
+                postcondition=postcondition,
+            )
+            return immediate["observation"]
 
         def post_observe():
             if not post_captures:
@@ -1413,6 +1449,29 @@ class TroopTrainingIntegratedRoute:
                 and observed.source_state == postcondition
                 and post_captures[-1][2]
             )
+
+        capability_observation = recapture()
+        issue_time = float(context.utc_clock())
+        capability_request = replace(
+            request,
+            observation=capability_observation,
+            monotonic_now=float(context.monotonic_clock()),
+            lease_valid=store.lease_valid_for(session.owner, issue_time),
+            unresolved_action=store.has_action_block(),
+            duplicate_action_key=store.action_key_exists(action_key),
+            policy_phase="pre_dispatch",
+        )
+        issued = policy.issue_capability(capability_request)
+        store.audit(FLOW_ID, "capability_issued", issue_time, issued.audit, action_id)
+        if not issued.authorized or issued.capability is None:
+            if issued.reason_code == "DUPLICATE_ACTION_KEY" or store.action_key_exists(action_key):
+                self.identical_retry_denied = True
+            return {
+                "status": "blocked",
+                "reason": issued.reason_code,
+                "action_key": action_key,
+                "transport_calls": 0,
+            }
 
         execution = SafeActionExecutor(
             store,
@@ -1557,6 +1616,7 @@ class TroopTrainingIntegratedRoute:
             target_key=f"tab:{troop_type}",
             target_roi=target,
             action_key=action_key,
+            semantic_action="TROOP_TRAINING_COMPLETED_BATCH_CLAIM",
             action_kind="TROOP_TRAINING_COMPLETED_BATCH_CLAIM",
             subject="TROOP_TRAINING_COMPLETED_BATCH_CLAIM",
             counter_variant=troop_type,
@@ -1591,6 +1651,25 @@ class TroopTrainingIntegratedRoute:
             self.effect_reconciliation_required = True
             self.identical_retry_denied = True
             return None, None, "completed troop claim successor did not reconcile to the same persisted batch"
+        recovered = derive_training_action_state(
+            self.native_context.action_store.list_actions_for_task(FLOW_ID),
+            runtime_scope=resource_fixed_runtime_binding().runtime_scope,
+            account_id=self.native_context.identity.account_id,
+            server_id=self.native_context.identity.server_id,
+            game_day_id=self.reset_identity,
+        )
+        if (
+            recovered.pending_start_action_keys.get(troop_type) is not None
+            or recovered.queue_generations[troop_type] != state.queue_generation
+        ):
+            self.effect_reconciliation_required = True
+            self.identical_retry_denied = True
+            return None, None, "confirmed troop claim is not reflected in canonical queue history"
+        next_key = recovered.next_start_action_keys.get(troop_type)
+        if next_key is not None:
+            self.start_action_keys[troop_type] = next_key
+        elif troop_type in recovered.blocked_start_variants:
+            self.blocked_start_variants[troop_type] = recovered.blocked_start_variants[troop_type]
         self.pending_start_action_keys.pop(troop_type, None)
         self.pending_start_reset_ids.pop(troop_type, None)
         self.controller.semantic.pending_start_action_keys.pop(troop_type, None)
@@ -2024,6 +2103,12 @@ class TroopTrainingIntegratedRoute:
                 and fresh.overlay_state == "none"
                 and not fresh.queue_active
                 and not fresh.completion_ready
+                and fresh.queue_label is None
+                and fresh.queue_troop_type is None
+                and fresh.queue_tier is None
+                and fresh.queue_quantity is None
+                and fresh.diagnostics.get("duration_source") not in {"queue_band", "queue_timer_band"}
+                and fresh.training_duration_seconds == observation.training_duration_seconds
                 and fresh.selected_tier == config.target_tier
                 and fresh.selected_quantity == quantity
                 and fresh.quantity_maximum == observation.quantity_maximum
@@ -2068,7 +2153,8 @@ class TroopTrainingIntegratedRoute:
             target_key="train",
             target_roi=observation.normal_train_target,
             action_key=action_key,
-            action_kind="TROOP_TRAINING_START",
+            semantic_action="TROOP_TRAINING_START",
+            action_kind="troop_training_start",
             subject=troop_type,
             counter_variant=troop_type,
             action_class=ActionClass.SPEND_OR_STRATEGIC,
@@ -2511,6 +2597,7 @@ def _training_return_to_home_after_preset(context, runtime) -> tuple[Any | None,
         runtime.back(
             captured,
             action_key=f"training:preset:return-home:{page.page}:{captured.sha256}",
+            expected_talent_page=page.page,
         )
         context.checkpoint()
         successor = context.runtime.capture("training-preset-return-home-after")
@@ -2641,12 +2728,6 @@ def run_troop_training_native(context, arguments: Mapping[str, object]) -> Mappi
         and accounting.verified
     ):
         payload["next_due_utc"] = completed_at + 60.0
-    elif result.status in {"completed", "deferred", "partial"} and result.terminal_home_verified:
-        payload["next_due_utc"] = troop_training_next_due(
-            payload,
-            identity,
-            completed_at,
-        )
     return payload
 
 

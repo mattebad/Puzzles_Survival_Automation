@@ -553,7 +553,9 @@ class TrainingController:
                 return "reject_active_queue_quantity"
         if observation.training_duration_seconds is None or observation.training_duration_seconds <= 0:
             return "reject_active_queue_timer_or_tier"
-        completion_at = expected_completion_timestamp(datetime.now(timezone.utc), observation.training_duration_seconds)
+        if observation.captured_at is None:
+            return "reject_active_queue_timestamp"
+        completion_at = expected_completion_timestamp(observation.captured_at, observation.training_duration_seconds)
         previous = self.states[troop_type]
         self.states[troop_type] = replace(
             previous,
