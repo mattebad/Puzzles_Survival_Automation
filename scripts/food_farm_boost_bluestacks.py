@@ -19,7 +19,7 @@ if str(ROOT) not in sys.path:
 
 from safe_action_core import ActionClass, ActionStatus, CentralPolicy, Observation, PolicyRequest, SafeActionExecutor, TransportResult
 from scripts.bounded_tesseract import call_ocr, tesseract_data
-from scripts.home_atlas_bluestacks import bind_or_pan_mapped_home_building
+from scripts.home_atlas_bluestacks import bind_or_pan_mapped_home_building, bluestacks_direct_pan_contract
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas import load_home_atlas
 from tasks.home_atlas_vision import BLUESTACKS_SAFE_INTERACTION_BOX, HUD_MASK_RECTS, BlueStacksHomeLocalizer, bind_visible_building, frame_digest
@@ -691,9 +691,25 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
         # A clean, localized Home need not have a Farm in its safe viewport.
         # Approach an approved mapped Farm through the existing verified pan
         # authority; stop as soon as our normal fresh Farm binder owns a target.
+        # Any mapped Farm is a valid owner, so aim at the first one the shared
+        # planner can actually pan to from this localization; an edge Farm
+        # (e.g. farm.01) may have no recoverable actionable viewport.
+        from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
+
+        safe_region, calibration = bluestacks_direct_pan_contract()
+        approach_id = next(
+            (
+                farm_id for farm_id in farm_ids
+                if (plan := DirectPanNavigator(
+                    atlas, farm_id, safe_region, calibration, maximum_pans=8,
+                ).plan(home_localization)).disposition is PlanDisposition.PAN
+                and plan.drag_start is not None and plan.drag_end is not None
+            ),
+            farm_ids[0],
+        )
         farm_capture, binding, approach_reason = bind_or_pan_mapped_home_building(
             context, current=farm_capture, atlas=atlas, localizer=localizer,
-            building_id=farm_ids[0], product_id=PRODUCT_ID,
+            building_id=approach_id, product_id=PRODUCT_ID,
             binding_for_frame=lambda frame: bind_reachable_farm(frame, atlas, localizer),
             maximum_pans=8,
         )
