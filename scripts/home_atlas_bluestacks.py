@@ -1433,25 +1433,20 @@ def bind_or_pan_mapped_home_building(
         localization = localizer.localize(frame.frame)
         if not localization.recognized or localization.stale or localization.overlay:
             return None, None, "mapped_home_atlas_localization_unknown"
-        plan = navigator.plan(localization)
-        if plan.disposition is not PlanDisposition.PAN or plan.drag_start is None or plan.drag_end is None:
-            return None, None, f"mapped_home_atlas_pan_blocked:{plan.reason}"
-        if type(getattr(runtime, "ordinal", None)) is not int:
-            return None, None, "mapped_home_pan_capture_ordinal_unknown"
-        identity = identity_from_captured(
-            frame,
-            session_id=str(runtime.session),
-            ordinal=int(runtime.ordinal),
-            label=f"{product_id}-atlas-pan-plan",
-        )
+        pan_ordinal = navigator.pan_count + 1
+        plan = None
+        identity = None
+        planned_before = None
         action_key = (
             f"{product_id}|{context.occurrence_key}|atlas-pan:"
-            f"{session.invocation_id}:{navigator.pan_count}"
+            f"{session.invocation_id}:{pan_ordinal}"
         )
         action_id = f"mapped-home-atlas-pan:{hashlib.sha256(action_key.encode()).hexdigest()}"
         pan_result: dict[str, Any] = {}
 
         def post_pan_observer():
+            if identity is None:
+                raise RuntimeError("Home Atlas pan planning identity is unavailable")
             settled = runtime.capture(f"{product_id}-atlas-pan-settled")
             ordinal = getattr(runtime, "ordinal", None)
             if type(ordinal) is not int:
@@ -1467,20 +1462,36 @@ def bind_or_pan_mapped_home_building(
             return settled, settled_identity, progress
 
         def authorize(before):
-            if (
-                frame_digest(before.frame) != frame_digest(frame.frame)
-                or not context.is_clean_home(before.frame)
-            ):
-                raise RuntimeError("Home Atlas pan source changed before route dispatch")
+            nonlocal localization, plan, identity, planned_before
+            if not context.is_clean_home(before.frame):
+                raise RuntimeError("mapped_home_pan_requires_clean_home")
             rebound = localizer.localize(before.frame)
             if not rebound.recognized or rebound.stale or rebound.overlay:
-                raise RuntimeError("Home Atlas pan source is not positively localized")
+                raise RuntimeError("mapped_home_atlas_localization_unknown")
+            ordinal = getattr(runtime, "ordinal", None)
+            if type(ordinal) is not int:
+                raise RuntimeError("mapped_home_pan_capture_ordinal_unknown")
+            # Plan exactly once, on this action's actual source. Animated Home
+            # pixels need not match the earlier caller capture.
+            plan = navigator.plan(rebound)
+            if plan.disposition is not PlanDisposition.PAN or plan.drag_start is None or plan.drag_end is None:
+                raise RuntimeError(f"mapped_home_atlas_pan_blocked:{plan.reason}")
+            identity = identity_from_captured(
+                before,
+                session_id=str(runtime.session),
+                ordinal=ordinal,
+                label=f"{product_id}-atlas-pan-plan",
+            )
+            localization = rebound
+            planned_before = before
 
         def dispatch(before):
+            if before is not planned_before or plan is None or identity is None:
+                raise RuntimeError("mapped_home_atlas_pan_planning_source_mismatch")
             context.checkpoint()
             issued, execution, _observation, telemetry = dispatch_verified_navigate_pan(
                 runtime=runtime,
-                immediate_before=frame,
+                immediate_before=before,
                 identity=identity,
                 drag_start=plan.drag_start,
                 drag_end=plan.drag_end,
@@ -1500,6 +1511,7 @@ def bind_or_pan_mapped_home_building(
                 confirmed=getattr(execution, "status", None) is ActionStatus.CONFIRMED,
                 transport_calls=int(getattr(execution, "transport_calls", 0)),
                 verified=telemetry.get("verified") is True,
+                execution_reason=str(getattr(execution, "reason", "")),
             )
 
         def recognize_pan(captured):
@@ -1518,7 +1530,7 @@ def bind_or_pan_mapped_home_building(
         try:
             result = session.run_action(
                 action_class="navigation",
-                label=f"{product_id}-atlas-pan-{session.invocation_id}-{navigator.pan_count}",
+                label=f"{product_id}-atlas-pan-{session.invocation_id}-{pan_ordinal}",
                 capture=runtime.capture,
                 authorize=authorize,
                 dispatch=dispatch,
@@ -1526,8 +1538,8 @@ def bind_or_pan_mapped_home_building(
                 consequence_class="navigation_only",
                 settled_successor=settled_successor,
             )
-        except Exception:
-            return None, None, "mapped_home_atlas_pan_not_verified"
+        except Exception as exc:
+            return None, None, f"mapped_home_atlas_pan_not_verified:{type(exc).__name__}:{exc}"
         if (
             result.status != "completed"
             or result.state != "HOME_BASE"
@@ -1535,7 +1547,9 @@ def bind_or_pan_mapped_home_building(
             or pan_result.get("confirmed") is not True
             or pan_result.get("transport_calls") != 1
         ):
-            return None, None, "mapped_home_atlas_pan_not_verified"
+            detail = pan_result.get("execution_reason")
+            reason = f"mapped_home_atlas_pan_not_verified:{detail}" if detail else "mapped_home_atlas_pan_not_verified"
+            return None, None, reason
         frame = session.observe(
             runtime.capture, label=f"{product_id}-atlas-pan-{navigator.pan_count}-successor",
         )
