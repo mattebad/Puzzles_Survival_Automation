@@ -117,6 +117,8 @@ class FakeSession:
     def __init__(self, runtime: FakeRuntime, lock: FakeLock) -> None:
         self.runtime = runtime
         self.runtime_input_lock = lock
+        self.owner = lock.owner
+        self.invocation_id = lock.invocation_id
         self.is_active = True
         self.input_count = 0
         self.control_memory: dict[str, object] = {}
