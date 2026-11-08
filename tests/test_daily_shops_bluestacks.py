@@ -594,5 +594,340 @@ class DailyShopsNativeReplayTests(unittest.TestCase):
         self.assertIsNone(port._dialog(captured, current_offer))
 
 
+class NativeDailyShopEntryRuntime:
+    """Retained Home pixels, fake transport; successor text is synthetic, not acceptance."""
+
+    execute = True
+    in_flight_action = None
+
+    def __init__(self, directory, source, *, pan_successor="unchanged", zoom_successor=None):
+        self.session = Path(directory)
+        self.source = source
+        self.pan_successor = pan_successor
+        self.zoom_successor = zoom_successor
+        self.zooms = []
+        self.input_count = 0
+        self.ordinal = 0
+        self.now = 100.0
+        self.state = "home"
+        self.taps = []
+        self.swipes = []
+
+    def capture(self, label):
+        import cv2
+        from scripts.bluestacks_native_runtime import CapturedNativeFrame
+        self.ordinal += 1
+        self.now += 0.25
+        if self.state == "home":
+            frame = cv2.imread(str(self.source))
+        else:
+            marker = {"unknown": 0, "overview": 31, "shop": 63}[self.state]
+            frame = np.full((1280, 800, 3), marker, dtype=np.uint8)
+        # Deliberately encode a different PNG representation than frame_digest.
+        ok, encoded = cv2.imencode(".png", frame, [cv2.IMWRITE_PNG_COMPRESSION, 1])
+        assert ok
+        png = encoded.tobytes()
+        path = self.session / f"{self.ordinal:04d}-{label}.png"
+        path.write_bytes(png)
+        return CapturedNativeFrame(frame, png, hashlib.sha256(png).hexdigest(), self.now, path)
+
+    def tap(self, captured, **target):
+        self.input_count += 1
+        self.taps.append(target["target_identity"])
+        self.state = {
+            "home.building.ruins": "overview",
+            "daily-shops:ruins-exchange": "shop",
+        }[target["target_identity"]]
+
+    def swipe(self, captured, **gesture):
+        self.input_count += 1
+        self.swipes.append(gesture)
+        if self.pan_successor == "unknown":
+            self.state = "unknown"
+
+    def zoom_out(self, captured, *, action_key):
+        self.input_count += 1
+        self.zooms.append((captured, action_key))
+        if self.zoom_successor == "unknown":
+            self.state = "unknown"
+        elif self.zoom_successor is not None:
+            self.source = self.zoom_successor
+
+    def clock(self):
+        return self.now + 0.01
+
+
+class NativeDailyShopEntrySession:
+    owner = "daily-shop-replay"
+    invocation_id = "daily-shop-entry-replay"
+
+    def observe(self, capture, *, label):
+        return capture(label)
+
+    def run_action(self, **action):
+        before = action["capture"]("entry-before")
+        action["authorize"](before)
+        action["dispatch"](before)
+        after = action["settled_successor"]()
+        state = action["recognize"](after)
+        return SimpleNamespace(
+            status="completed" if state != "unknown" else "unresolved", state=state,
+        )
+
+
+def native_daily_shop_entry_port(directory, store, source, *, lease_held=True, **runtime_options):
+    from scripts.startup_normalization import is_clean_home_frame
+    if lease_held:
+        store.acquire_lease(NativeDailyShopEntrySession.owner, 1000.0, 3600.0)
+    runtime = NativeDailyShopEntryRuntime(directory, source, **runtime_options)
+    context = SimpleNamespace(
+        runtime=runtime, session=NativeDailyShopEntrySession(), action_store=store,
+        occurrence_key="daily-shop-entry-reset", monotonic_clock=runtime.clock,
+        utc_clock=lambda: 1000.0, checkpoint=lambda: None, settle_seconds=0.0,
+        is_clean_home=is_clean_home_frame,
+        max_inputs=48,
+    )
+    port = DailyShopsLivePort(context, action_keys=KEYS, settle_seconds=0)
+    # Only the route-owned successor OCR is synthetic. Home pixels, clean-Home
+    # recognition, localization, binding, planning and pan authority remain real.
+    def successor_ocr(captured):
+        marker = int(captured.frame[0, 0, 0])
+        phrases = {
+            31: ("Ruins Challenge", "Exchange"),
+            63: ("3★ Chip Enhance Material",),
+        }.get(marker, ())
+        return tuple(
+            tuple((word, (160 + i * 110, 300 + row * 100,
+                           260 + i * 110, 340 + row * 100))
+                  for i, word in enumerate(phrase.split()))
+            for row, phrase in enumerate(phrases)
+        )
+    port._ocr = successor_ocr
+    return port, runtime
+
+
+class DailyShopMappedEntryTests(unittest.TestCase):
+    ROOT = Path(__file__).resolve().parents[1]
+    TILES = ROOT / "tasks/assets/home_atlas/bluestacks/800x1280/tiles"
+
+    def test_native_visible_binding_uses_semantic_not_transport_digest_and_exchange(self):
+        from tasks.home_atlas_vision import frame_digest
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(
+                    directory, store, self.TILES / "viewport-001.png",
+                )
+                source = runtime.capture("digest-proof")
+                self.assertNotEqual(source.sha256, frame_digest(source.frame))
+                self.assertIsNotNone(port._mapped_ruins(source.frame))
+                self.assertTrue(port.enter_ruins_shop())
+                self.assertEqual(runtime.taps, [
+                    "home.building.ruins", "daily-shops:ruins-exchange",
+                ])
+                self.assertEqual(runtime.swipes, [])
+                self.assertEqual(port.current_tab, RUINS_TAB)
+            finally:
+                store.close()
+
+    def test_unverified_overview_or_exchange_never_advances_to_shop(self):
+        for denied_target in ("home.building.ruins", "daily-shops:ruins-exchange"):
+            with self.subTest(target=denied_target), tempfile.TemporaryDirectory() as directory:
+                store = SafetyStore(Path(directory) / "actions.sqlite3")
+                try:
+                    port, runtime = native_daily_shop_entry_port(
+                        directory, store, self.TILES / "viewport-001.png",
+                    )
+                    tap = runtime.tap
+                    def unknown_successor(captured, **target):
+                        tap(captured, **target)
+                        if target["target_identity"] == denied_target:
+                            runtime.state = "unknown"
+                    runtime.tap = unknown_successor
+                    self.assertFalse(port.enter_ruins_shop())
+                    expected = (["home.building.ruins"] if denied_target == "home.building.ruins"
+                                else ["home.building.ruins", "daily-shops:ruins-exchange"])
+                    self.assertEqual(runtime.taps, expected)
+                    self.assertEqual(port.current_tab, "")
+                    self.assertIn("NOT_VERIFIED", port.entry_reason)
+                finally:
+                    store.close()
+
+    def test_actual_zoomed_source_unchanged_stops_after_one_sdk_zoom(self):
+        import json
+        fixture = self.ROOT / "tests/fixtures/daily_shop_entry"
+        provenance = json.loads((fixture / "provenance.json").read_text())
+        source = fixture / "canonical-home-source.png"
+        self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(),
+                         provenance[source.name]["sha256"])
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(directory, store, source)
+                self.assertFalse(port.enter_ruins_shop())
+                self.assertIn("repeated_zoom_recovery_frame", port.entry_reason)
+                self.assertEqual(len(runtime.zooms), 1)
+                self.assertEqual((runtime.taps, runtime.swipes), ([], []))
+            finally:
+                store.close()
+
+    def test_actual_source_sdk_zoom_then_native_binding_and_exchange(self):
+        source = self.ROOT / "tests/fixtures/daily_shop_entry/canonical-home-source.png"
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(
+                    directory, store, source,
+                    zoom_successor=self.TILES / "viewport-001.png",
+                )
+                self.assertTrue(port.enter_ruins_shop())
+                self.assertEqual(len(runtime.zooms), 1)
+                self.assertEqual(runtime.input_count, 3)
+                self.assertEqual(runtime.taps, [
+                    "home.building.ruins", "daily-shops:ruins-exchange",
+                ])
+                self.assertEqual(runtime.swipes, [])
+            finally:
+                store.close()
+
+    def test_actual_source_unknown_zoom_successor_or_budget_cannot_open_ruins(self):
+        source = self.ROOT / "tests/fixtures/daily_shop_entry/canonical-home-source.png"
+        for budget_exhausted in (False, True):
+            with self.subTest(budget_exhausted=budget_exhausted), tempfile.TemporaryDirectory() as directory:
+                store = SafetyStore(Path(directory) / "actions.sqlite3")
+                try:
+                    port, runtime = native_daily_shop_entry_port(
+                        directory, store, source, zoom_successor="unknown",
+                    )
+                    if budget_exhausted:
+                        runtime.input_count = 48
+                    self.assertFalse(port.enter_ruins_shop())
+                    self.assertEqual(len(runtime.zooms), 0 if budget_exhausted else 1)
+                    self.assertEqual((runtime.taps, runtime.swipes), ([], []))
+                    if budget_exhausted:
+                        self.assertEqual(port.entry_reason, "DAILY_SHOPS_ENTRY_INPUT_BUDGET_EXHAUSTED")
+                finally:
+                    store.close()
+
+    def test_supported_zoom_recovery_is_capped_at_two_accounted_inputs(self):
+        import cv2
+        source = self.ROOT / "tests/fixtures/daily_shop_entry/canonical-home-source.png"
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(directory, store, source)
+                native_zoom = runtime.zoom_out
+                def changed_but_still_zoomed(captured, *, action_key):
+                    native_zoom(captured, action_key=action_key)
+                    # Explicit synthetic HUD-only mutation avoids repeated-image
+                    # rejection while retaining the actual source's zoom geometry.
+                    frame = captured.frame.copy()
+                    frame[0, len(runtime.zooms)] ^= np.uint8(1)
+                    mutated = Path(directory) / f"synthetic-still-zoomed-{len(runtime.zooms)}.png"
+                    self.assertTrue(cv2.imwrite(str(mutated), frame))
+                    runtime.source = mutated
+                runtime.zoom_out = changed_but_still_zoomed
+                self.assertFalse(port.enter_ruins_shop())
+                self.assertEqual(len(runtime.zooms), 2)
+                self.assertEqual(runtime.input_count, 2)
+                self.assertIn("maximum_zoom_recovery_inputs", port.entry_reason)
+                self.assertEqual((runtime.taps, runtime.swipes), ([], []))
+            finally:
+                store.close()
+
+    def test_pan_unchanged_or_unknown_never_opens_ruins_or_retries(self):
+        from tests.support.environment import requires_tesseract
+        # Native pan capability verification uses the production OCR family probe.
+        @requires_tesseract
+        def exercise():
+            for successor in ("unchanged", "unknown"):
+                with self.subTest(successor=successor), tempfile.TemporaryDirectory() as directory:
+                    store = SafetyStore(Path(directory) / "actions.sqlite3")
+                    try:
+                        port, runtime = native_daily_shop_entry_port(
+                            directory, store, self.TILES / "viewport-010.png",
+                            pan_successor=successor,
+                        )
+                        self.assertFalse(port.enter_ruins_shop())
+                        self.assertEqual(len(runtime.swipes), 1)
+                        self.assertEqual(runtime.taps, [])
+                        self.assertIn("mapped_home_atlas_pan_not_verified", port.entry_reason)
+                        # Same occurrence must not resend its unresolved pan after restart.
+                        restarted, _unused = native_daily_shop_entry_port(
+                            directory, store, self.TILES / "viewport-010.png",
+                            pan_successor=successor,
+                        )
+                        restarted.runtime = runtime
+                        restarted.context.runtime = runtime
+                        self.assertFalse(restarted.enter_ruins_shop())
+                        self.assertEqual(len(runtime.swipes), 1)
+                    finally:
+                        store.close()
+        exercise()
+
+    def test_pan_without_owned_lease_dispatches_nothing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(
+                    directory, store, self.TILES / "viewport-010.png", lease_held=False,
+                )
+                self.assertFalse(port.enter_ruins_shop())
+                self.assertEqual((runtime.taps, runtime.swipes, runtime.zooms), ([], [], []))
+                self.assertIn("mapped_home_atlas_pan_not_verified", port.entry_reason)
+            finally:
+                store.close()
+
+    def test_real_navigator_rejects_unchanged_and_unknown_native_successors(self):
+        import cv2
+        from scripts.home_atlas_bluestacks import bluestacks_direct_pan_contract
+        from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(
+                    directory, store, self.TILES / "viewport-010.png",
+                )
+                atlas, localizer = port._home_mapping()
+                initial = localizer.localize(runtime.capture("planning").frame)
+                safe, calibration = bluestacks_direct_pan_contract()
+                for successor in (cv2.imread(str(runtime.source)),
+                                  np.zeros((1280, 800, 3), dtype=np.uint8)):
+                    navigator = DirectPanNavigator(
+                        atlas, "home.building.ruins", safe, calibration, maximum_pans=1,
+                    )
+                    plan = navigator.plan(initial)
+                    self.assertIs(plan.disposition, PlanDisposition.PAN)
+                    runtime.swipe(
+                        runtime.capture("fake-transport-source"),
+                        start=plan.drag_start, end=plan.drag_end,
+                    )
+                    progress = navigator.record_progress(initial, localizer.localize(successor))
+                    self.assertFalse(progress.accepted)
+                    self.assertIsNone(port._mapped_ruins(successor))
+                    self.assertEqual(runtime.taps, [])
+            finally:
+                store.close()
+
+    def test_checkpoint_budget_denial_dispatches_nothing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                port, runtime = native_daily_shop_entry_port(
+                    directory, store, self.TILES / "viewport-010.png",
+                )
+                checkpoints = []
+                def exhausted():
+                    checkpoints.append(True)
+                    if len(checkpoints) > 1:
+                        raise RuntimeError("invocation input budget exhausted")
+                port.context.checkpoint = exhausted
+                self.assertFalse(port.enter_ruins_shop())
+                self.assertEqual(len(checkpoints), 2)
+                self.assertIn("mapped_home_atlas_pan_not_verified", port.entry_reason)
+                self.assertEqual((runtime.taps, runtime.swipes), ([], []))
+            finally:
+                store.close()
+
 if __name__ == "__main__":
     unittest.main()

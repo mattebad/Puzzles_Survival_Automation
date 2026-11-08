@@ -184,6 +184,132 @@ class ActualSafetyStoreAlliancePort(ReplayAllianceShopPort):
             )
 
 
+ENTRY_FIXTURES = Path(__file__).parent / "fixtures" / "alliance_shop_menu"
+
+
+class MenuPixelTransport:
+    """Immutable native pixels; no device, network, or synthetic Shop successor."""
+
+    def __init__(self, *, shop_pixels=False):
+        self.state = "immediate-home.png"
+        self.inputs = []
+        self.shop_pixels = shop_pixels
+        self.other_verified = False
+
+    def capture_png(self):
+        return (ENTRY_FIXTURES / self.state).read_bytes()
+
+    def dispatch_tap(self, point):
+        self.inputs.append(("tap", point))
+        if self.state == "immediate-home.png":
+            self.state = "alliance-menu.png"
+        elif self.shop_pixels:
+            self.state = {
+                "alliance-menu.png": "weekly-top.png",
+                "weekly-top.png": "standard-shop.png",
+                "standard-shop.png": "other.png",
+            }.get(self.state, self.state)
+
+    def dispatch_back(self):
+        self.inputs.append(("back", None))
+        self.state = ("alliance-menu.png" if self.state in {
+            "weekly-top.png", "standard-shop.png", "other.png",
+        } else "immediate-home.png")
+
+
+def native_menu_entry_smoke(directory, *, shop_pixels=False):
+    from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+    transport = MenuPixelTransport(shop_pixels=shop_pixels)
+    runtime = LocalBlueStacksRuntime(transport, Path(directory) / "native-entry", execute=True)
+    context = SimpleNamespace(
+        runtime=runtime,
+        session=SimpleNamespace(observe=lambda capture, *, label: capture(label)),
+        checkpoint=lambda: None,
+        identity=SimpleNamespace(reset_id="pixel-replay-reset"),
+    )
+    port = native.AllianceShopLivePort(context, settle_seconds=0)
+    entered_weekly = port.enter_weekly_offers()
+    if entered_weekly and shop_pixels:
+        transport.other_verified = port.enter_other_offers()
+    returned_home = port.return_home()
+    return entered_weekly, returned_home, runtime, transport
+
+
+class AllianceShopEntryPixelTests(unittest.TestCase):
+    def captured(self, name):
+        from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+        path = ENTRY_FIXTURES / name
+        return captured_native_frame_from_png(path.read_bytes(), captured_monotonic=1, path=path)
+
+    def port(self):
+        context = SimpleNamespace(
+            session=None, runtime=None, checkpoint=lambda: None,
+            identity=SimpleNamespace(reset_id="pixel-replay-reset"),
+        )
+        return native.AllianceShopLivePort(context, settle_seconds=0)
+
+    def test_actual_failure_frame_loses_fullframe_ocr_but_binds_native_footer(self):
+        from scripts.alliance_donation_bluestacks import _home_alliance_target
+        canonical = self.captured("canonical-home.png")
+        immediate = self.captured("immediate-home.png")
+        self.assertEqual(len(native._hits(native._ocr_words(canonical), "Alliance")), 1)
+        self.assertEqual(native._hits(native._ocr_words(immediate), "Alliance"), [])
+        for frame in (canonical, immediate):
+            self.assertEqual(_home_alliance_target(frame)[0], "home-nav:alliance")
+            self.assertEqual(self.port()._page(frame)[0], "home")
+
+    def test_actual_menu_shop_footer_is_not_current_shop_title(self):
+        frame = self.captured("alliance-menu.png")
+        self.assertEqual(self.port()._page(frame)[0], "alliance_menu")
+        hits = native._hits(native._ocr_words(frame, (40, 1180, 760, 1280)), "Alliance Shop")
+        self.assertEqual(len(hits), 1)
+        self.assertGreaterEqual(hits[0][1], 1180)
+
+    def test_actual_selected_tabs_not_incidental_navigation_labels(self):
+        port = self.port()
+        for name, page in (("weekly-top.png", "weekly"), ("weekly-lower.png", "weekly"),
+                           ("standard-shop.png", "alliance"), ("other.png", "other")):
+            with self.subTest(name=name):
+                captured = self.captured(name)
+                self.assertEqual(port._page(captured)[0], page)
+                if page != "weekly":
+                    self.assertTrue(native._hits(
+                        native._ocr_words(captured, (40, 85, 281, 155), psm=7), "Weekly Offers",
+                    ))
+                    self.assertFalse(native._selected_tab(captured, "Weekly Offers", (40, 85, 281, 155)))
+
+    def test_actual_native_runtime_weekly_to_other_entry_and_safe_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            weekly, home, runtime, transport = native_menu_entry_smoke(directory, shop_pixels=True)
+            self.assertTrue(weekly)
+            self.assertTrue(transport.other_verified)
+            self.assertTrue(home)
+            self.assertEqual(runtime.input_count, 6)
+            self.assertEqual(transport.inputs[-1], ("back", None))
+            self.assertFalse(any("buy" in key for key in runtime.action_keys))
+
+    def test_real_runtime_entry_binds_fresh_footer_and_menu_then_safe_back(self):
+        with tempfile.TemporaryDirectory() as directory:
+            weekly, home, runtime, transport = native_menu_entry_smoke(directory)
+            self.assertFalse(weekly)  # No invented Shop/Weekly successor.
+            self.assertTrue(home)
+            self.assertEqual(len(transport.inputs), 3)
+            self.assertEqual(transport.inputs[0][0], "tap")
+            self.assertTrue(603 <= transport.inputs[0][1][0] <= 683)
+            self.assertEqual(transport.inputs[1][0], "tap")
+            self.assertLess(transport.inputs[1][1][0], 260)
+            self.assertEqual(transport.inputs[2], ("back", None))
+            self.assertEqual(runtime.input_count, 3)
+            self.assertFalse(any("buy" in key for key in runtime.action_keys))
+
+    def test_unknown_fresh_back_source_dispatches_nothing(self):
+        port = self.port()
+        captured = self.captured("alliance-menu.png")
+        with patch.object(port, "_capture", return_value=captured), \
+             patch.object(port, "_page", return_value=("unknown", ())):
+            self.assertFalse(port._back())
+
+
 class AllianceShopNativeReplayTests(unittest.TestCase):
     def test_native_confirmed_weekly_and_fallback_preserve_duplicate_guard_without_unknown_signal(self):
         for fallback in (False, True):
