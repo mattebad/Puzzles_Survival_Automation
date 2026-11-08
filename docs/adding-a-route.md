@@ -206,6 +206,9 @@ Existing layout exceptions:
   one free loss cycle and five eligible defense heroes observed; Research had no start/timer proof;
   Food Farm had one owned-item boost with a positive timer and incidental multi-building collection,
   while total inventory and the premium branch remain unproven. These are not route-level acceptance.
+  Research uses the shared bounded OCR caller's deadline rather than passing a duplicate reader
+  timeout. OCR failure never authorizes a start; actual debit and ordinary-queue timer proof remain
+  required for live acceptance.
 
 * **Batch F Hall of War and Troop Training**: canonical-service-only routes with fixed
   bindings; no compatibility runner, validator, operator-registry row, or second input-budget owner
