@@ -73,6 +73,28 @@ def _ocr(frame: np.ndarray, box: Box | None = None, *, psm: int = 11) -> str:
     return _normalized(call_ocr(tesseract_string, enlarged, config=f"--psm {psm}"))
 
 
+def _wallet_points(frame: np.ndarray) -> int | None:
+    """Read the complete numeric wallet field, excluding its currency artwork."""
+
+    box = (109, 112, 195, 165)
+    crop = frame[box[1]:box[3], box[0]:box[2]]
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    digits = cv2.inRange(
+        hsv, np.array([0, 0, 160], dtype=np.uint8),
+        np.array([179, 85, 255], dtype=np.uint8),
+    )
+    visible = cv2.findNonZero(digits)
+    if visible is None:
+        return None
+    x, y, width, height = cv2.boundingRect(visible)
+    if x < 2 or y < 2 or x + width > crop.shape[1] - 2 or y + height > crop.shape[0] - 2:
+        return None
+    text = _ocr(frame, box, psm=7)
+    if re.fullmatch(r"(?:[0-9]+|[0-9]{1,3}(?:[ ,][0-9]{3})+)", text) is None:
+        return None
+    return int(text.replace(",", "").replace(" ", ""))
+
+
 def _ocr_boxes(frame: np.ndarray, *, psm: int = 11) -> list[tuple[str, Box]]:
     enlarged = cv2.resize(frame, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
     data = call_ocr(tesseract_data, enlarged, config=f"--psm {psm}")
@@ -280,7 +302,7 @@ def recognize_ruins_frame(frame: np.ndarray, *, reset_identity: str | None = Non
             RuinsScreenObservation(False, "UNKNOWN", False, None, RuinsControlState.UNKNOWN, RuinsControlState.UNKNOWN,
                                    RuinsControlState.UNKNOWN, (), "unknown", digest, reset_identity), digest, (), diagnostics)
 
-    points = parse_points(_ocr(frame, (40, 120, 175, 180), psm=7))
+    points = _wallet_points(frame)
     control_text = _ocr(frame, RUINS_OVERVIEW_CONTROLS_ROI, psm=6)
     for label, identity in (("exchange", "exchange"), ("progress", "progress"), ("total rank", "total-rank")):
         if label in control_text:

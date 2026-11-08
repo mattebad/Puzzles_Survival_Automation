@@ -172,6 +172,11 @@ Existing layout exceptions:
   mapped building binding and route-owned successor recognition. Session accounting adopts only
   a monotonic cumulative dispatch total from the same retained journal, including startup inputs;
   missing journal rows, interleaved inputs or unchanged/unknown successors fail closed.
+  The native overview title and controls use the same isolated regions as Daily Shops.
+  Wallet OCR excludes the coin artwork and includes the complete numeric field; missing,
+  boundary-clipped or ambiguous text produces an unknown balance, never a guessed maximum
+  or concatenated digits. Actual retained overview pixels and counterfactual failure cases
+  prove these guards offline, not challenge/chest live acceptance.
 * **Batch C Alliance Donation, Alliance Shop, and Daily Shops**: canonical-service-only routes with
   fixed native bindings; they add no legacy operator registry entries. `REGISTERED` describes code
   composition only; production posture and SQLite runtime controls remain disabled, and current
