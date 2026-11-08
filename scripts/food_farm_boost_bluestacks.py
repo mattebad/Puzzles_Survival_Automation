@@ -6,7 +6,7 @@ import json
 import re
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -19,10 +19,12 @@ if str(ROOT) not in sys.path:
 
 from safe_action_core import ActionClass, ActionStatus, CentralPolicy, Observation, PolicyRequest, SafeActionExecutor, TransportResult
 from scripts.bounded_tesseract import call_ocr, tesseract_data
+from scripts.home_atlas_bluestacks import bind_or_pan_mapped_home_building, bluestacks_direct_pan_contract
 from scripts.startup_normalization import is_clean_home_frame
 from tasks.home_atlas import load_home_atlas
 from tasks.home_atlas_vision import BLUESTACKS_SAFE_INTERACTION_BOX, HUD_MASK_RECTS, BlueStacksHomeLocalizer, bind_visible_building, frame_digest
 from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
+from tasks.runtime_identity import FIXED_RUNTIME_SCOPE
 from tasks.resource_boost_disabled import (
     FOOD_FARM_RESOURCE_TYPES,
     FoodFarmBoostChoice,
@@ -365,14 +367,24 @@ def observe_food_farm_boost_panel(
     tokens = _ocr_tokens(captured.frame)
     text = _token_text(tokens)
     folded = " ".join(text.casefold().split())
-    if not _FARM_ID.fullmatch(farm_identity) or "boost" not in folded or "food output" not in folded or "food cap" not in folded:
+    if (
+        not _FARM_ID.fullmatch(farm_identity)
+        or not any(token.text.casefold().strip() == "farm" for token in tokens)
+        or not any(token.text.casefold().strip() == "boost" for token in tokens)
+        or "food output" not in folded or "food cap" not in folded
+    ):
         return None
-    timer = _TIMER.search(folded)
+    timers = tuple(_TIMER.finditer(folded))
     active_seconds = None
-    if timer is not None:
-        hours, minutes, seconds = map(int, timer.groups())
-        if minutes < 60 and seconds < 60:
-            active_seconds = hours * 3600 + minutes * 60 + seconds
+    if "boosting" in folded:
+        if len(timers) != 1:
+            return None
+        hours, minutes, seconds = map(int, timers[0].groups())
+        if minutes >= 60 or seconds >= 60:
+            return None
+        active_seconds = hours * 3600 + minutes * 60 + seconds
+        if not 0 < active_seconds <= ONE_DAY_SECONDS:
+            return None
     balance_tokens = [
         token for token in tokens
         if 560 <= (token.roi[0] + token.roi[2]) // 2 < 720 and token.roi[1] < 100
@@ -381,6 +393,8 @@ def observe_food_farm_boost_panel(
     option_band = (max(0, height - 230), max(0, height - 25))
     diamond_roi = _row_roi(tokens, x0=40, x1=width // 2, y0=option_band[0], y1=option_band[1])
     item_roi = _row_roi(tokens, x0=width // 2, x1=width - 40, y0=option_band[0], y1=option_band[1])
+    if active_seconds is not None and (item_roi is not None or diamond_roi is not None):
+        return None
     diamond_counts = [
         (token, _exact_balance(token.text)) for token in tokens
         if token.roi[1] >= option_band[0] and token.roi[2] <= width // 2
@@ -427,8 +441,13 @@ def _generic_overlay(frame: np.ndarray) -> bool:
 
 
 def _visible_food_farm_boost_text(frame: np.ndarray) -> bool:
-    text = _token_text(_ocr_tokens(frame)).casefold()
-    return "boost" in text and "food output" in text and "food cap" in text
+    tokens = _ocr_tokens(frame)
+    text = _token_text(tokens).casefold()
+    return (
+        any(token.text.casefold().strip() == "farm" for token in tokens)
+        and any(token.text.casefold().strip() == "boost" for token in tokens)
+        and "food output" in text and "food cap" in text
+    )
 
 
 def _evidence_ref(captured, session) -> str:
@@ -473,22 +492,39 @@ def _dispatch_canonical_action(
     action_key: str, action_kind: str, source_state: str, control_class: str,
     consequence: str, postcondition: str, action_class: ActionClass, cost_type: str,
     cost_amount: float, maximum_cost: float, subject: str, semantic_preconditions: tuple[str, ...],
-    after_observer, runtime_profile_id: str,
+    after_observer, runtime_profile_id: str, revalidate_before=None,
 ) -> dict[str, Any]:
     runtime, store, session = context.runtime, context.action_store, context.session
     task_id = FLOW_ID
     action_id = f"food-farm:{hashlib.sha256((action_key + session.invocation_id).encode()).hexdigest()}"
-    immediate_capture = source_capture
-    if immediate_capture.sha256 != binding.frame_sha256:
-        return {"status": "blocked", "reason": "FOOD_FARM_TARGET_REBIND_REQUIRED", "transport_calls": 0}
+    if source_capture.sha256 != binding.frame_sha256:
+        return {"status": "blocked", "reason": "FOOD_FARM_TARGET_REBIND_REQUIRED", "transport_calls": 0,
+                "effect_reconciliation_required": False}
     observation = _route_observation(
-        immediate_capture, context=context, binding=binding, source_state=source_state,
+        source_capture, context=context, binding=binding, source_state=source_state,
         control_class=control_class, consequence=consequence, postcondition=postcondition,
         resource_type=cost_type, cost_amount=cost_amount, quantity=1,
         runtime_profile_id=runtime_profile_id,
     )
     if observation.target_roi != target_roi:
-        return {"status": "blocked", "reason": "FOOD_FARM_TARGET_ROI_CHANGED", "transport_calls": 0}
+        return {"status": "blocked", "reason": "FOOD_FARM_TARGET_ROI_CHANGED", "transport_calls": 0,
+                "effect_reconciliation_required": False}
+    context.checkpoint()
+    context.validate_identity()
+    immediate_capture = runtime.capture("food-farm-action-pre-dispatch")
+    if (
+        immediate_capture.sha256 != source_capture.sha256
+        or immediate_capture.captured_monotonic <= source_capture.captured_monotonic
+        or (revalidate_before is not None and not revalidate_before(immediate_capture))
+    ):
+        return {"status": "blocked", "reason": "FOOD_FARM_CURRENT_ACTION_PROOF_CHANGED", "transport_calls": 0,
+                "effect_reconciliation_required": False}
+    immediate_observation = _route_observation(
+        immediate_capture, context=context, binding=binding, source_state=source_state,
+        control_class=control_class, consequence=consequence, postcondition=postcondition,
+        resource_type=cost_type, cost_amount=cost_amount, quantity=1,
+        runtime_profile_id=runtime_profile_id,
+    )
     now = float(context.utc_clock()) if callable(getattr(context, "utc_clock", None)) else time.time()
     monotonic_now = float(context.monotonic_clock()) if callable(getattr(context, "monotonic_clock", None)) else time.monotonic()
     request = PolicyRequest(
@@ -506,19 +542,32 @@ def _dispatch_canonical_action(
         semantic_postconditions=(postcondition,), runtime_session_id=str(runtime.session),
     )
     policy = CentralPolicy(frozenset({task_id}))
-    issued = policy.issue_capability(request)
+    issued = policy.issue_capability(replace(request, observation=immediate_observation))
     store.audit(task_id, "capability_issued", now, issued.audit, action_id)
     if not issued.authorized or issued.capability is None:
-        return {"status": "blocked", "reason": issued.reason_code, "transport_calls": 0}
+        return {"status": "blocked", "reason": issued.reason_code, "transport_calls": 0,
+                "effect_reconciliation_required": False}
 
     post_captures = []
     post_values = {}
 
     def transport(_intent):
         starting_count = int(getattr(runtime, "input_count", 0))
+        action_capture_supplied = False
+
+        def action_capture(label):
+            nonlocal action_capture_supplied
+            if not action_capture_supplied:
+                action_capture_supplied = True
+                return immediate_capture
+            return runtime.capture(label)
 
         def authorize(before):
-            if before.sha256 != immediate_capture.sha256:
+            if (
+                before.sha256 != immediate_capture.sha256
+                or before.captured_monotonic != immediate_capture.captured_monotonic
+                or (revalidate_before is not None and not revalidate_before(before))
+            ):
                 raise RuntimeError("Food Farm consequential target frame changed before input")
             context.checkpoint()
             context.validate_identity()
@@ -543,7 +592,7 @@ def _dispatch_canonical_action(
         try:
             session.run_action(
                 action_class=action_kind, label=f"food-farm-{action_kind}",
-                capture=runtime.capture, authorize=authorize, dispatch=dispatch,
+                capture=action_capture, authorize=authorize, dispatch=dispatch,
                 recognize=recognize, settled_successor=settled_successor,
                 consequence_class=consequence,
             )
@@ -555,7 +604,7 @@ def _dispatch_canonical_action(
                                "FOOD_FARM_INPUT_NOT_DISPATCHED")
 
     def recapture():
-        return observation
+        return immediate_observation
 
     def post_observe():
         for captured in post_captures:
@@ -637,6 +686,52 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
     binding = bind_reachable_farm(
         farm_capture.frame, atlas, localizer, localization=home_localization
     )
+    farm_ids = _farm_ids(atlas)
+    if binding is None and farm_ids:
+        # A clean, localized Home need not have a Farm in its safe viewport.
+        # Approach an approved mapped Farm through the existing verified pan
+        # authority; stop as soon as our normal fresh Farm binder owns a target.
+        # Any mapped Farm is a valid owner, so aim at the first one the shared
+        # planner can actually pan to from this localization; an edge Farm
+        # (e.g. farm.01) may have no recoverable actionable viewport.
+        from tasks.home_atlas_planner import DirectPanNavigator, PlanDisposition
+
+        safe_region, calibration = bluestacks_direct_pan_contract()
+        approach_id = next(
+            (
+                farm_id for farm_id in farm_ids
+                if (plan := DirectPanNavigator(
+                    atlas, farm_id, safe_region, calibration, maximum_pans=8,
+                ).plan(home_localization)).disposition is PlanDisposition.PAN
+                and plan.drag_start is not None and plan.drag_end is not None
+            ),
+            farm_ids[0],
+        )
+        farm_capture, binding, approach_reason = bind_or_pan_mapped_home_building(
+            context, current=farm_capture, atlas=atlas, localizer=localizer,
+            building_id=approach_id, product_id=PRODUCT_ID,
+            binding_for_frame=lambda frame: bind_reachable_farm(frame, atlas, localizer),
+            maximum_pans=8,
+        )
+        if farm_capture is None or binding is None:
+            # A refused/unknown pan must not reuse the pre-pan Home as terminal
+            # evidence or continue to a collection/boost input.
+            terminal = session.observe(runtime.capture, label="food-farm-approach-blocked-source")
+            terminal_home = False
+            if is_clean_home_frame(terminal.frame):
+                terminal_localization = localizer.localize(terminal.frame)
+                terminal_home = bool(
+                    terminal_localization.recognized
+                    and not terminal_localization.stale and not terminal_localization.overlay
+                )
+            return {
+                "status": "blocked", "reason": f"FOOD_FARM_APPROACH_NOT_VERIFIED:{approach_reason}",
+                "boost_transport_calls": 0, "collection_transport_calls": 0,
+                "collection_count": 0, "collection_effect_accounted": False,
+                "food_farm_dispatch_count": 0, "terminal_home_verified": terminal_home,
+                "terminal_home_frame_sha256": terminal.sha256 if terminal_home else None,
+                "effect_reconciliation_required": False, "identical_retry_denied": True,
+            }
     if binding is None:
         return {"status": "deferred", "reason": "NO_FRESH_REACHABLE_MAPPED_FARM", "boost_transport_calls": 0,
                 "collection_transport_calls": 0, "collection_count": 0, "collection_effect_accounted": False,
@@ -659,7 +754,7 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
         "food_farm_dispatch_count": 0,
     }
     collection_key = food_farm_boost_daily_action_key(
-        runtime_scope=_identity_value(identity, "runtime_scope"),
+        runtime_scope=FIXED_RUNTIME_SCOPE,
         account_id=_identity_value(identity, "account_id"),
         server_id=_identity_value(identity, "server_id"),
         reset_id=_identity_value(identity, "reset_id"), phase="collection",
@@ -667,7 +762,7 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
         collection_occurrence_id="1",
     )
     boost_key = food_farm_boost_daily_action_key(
-        runtime_scope=_identity_value(identity, "runtime_scope"),
+        runtime_scope=FIXED_RUNTIME_SCOPE,
         account_id=_identity_value(identity, "account_id"),
         server_id=_identity_value(identity, "server_id"),
         reset_id=_identity_value(identity, "reset_id"), phase="boost",
@@ -756,6 +851,17 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
             capture_after.update(balances=balances_after, delta=delta, reason=why, verified=verified,
                                  rebound=rebound)
             return verified
+
+        def collection_before(captured):
+            if not is_clean_home_frame(captured.frame):
+                return False
+            rebound = bind_reachable_farm(captured.frame, atlas, localizer)
+            return bool(
+                rebound is not None and rebound.building_id == binding.building_id
+                and rebound.target_roi == binding.target_roi
+                and observe_home_resource_balances(captured.frame) == balances_before
+            )
+
         action = _dispatch_canonical_action(
             context=context, binding=binding, source_capture=farm_capture,
             target_roi=binding.target_roi, action_key=collection_key,
@@ -767,6 +873,7 @@ def run_food_farm_boost_native(context, arguments: Mapping[str, object]) -> Mapp
             semantic_preconditions=preconditions,
             after_observer=collection_after,
             runtime_profile_id=runtime_profile_id,
+            revalidate_before=collection_before,
         )
         collection_accounted = bool(
             action["status"] == "confirmed" and capture_after.get("verified")
@@ -1147,7 +1254,6 @@ def create_service_binding(make_native_route_binding):
         max_inputs=MAX_INPUTS,
         max_actions=MAX_ACTIONS,
         driver=run_food_farm_boost_native,
-        validator=validate_food_farm_native_result,
         lease_seconds=3600.0,
     )
 

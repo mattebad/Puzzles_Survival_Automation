@@ -16,6 +16,7 @@ from safe_action_core import ActionClass, ActionStatus, CentralPolicy, Observati
 from scripts.atlas_flow_startup import normalize_home_atlas_startup
 from scripts.bounded_tesseract import CHECKPOINT as OCR_CHECKPOINT, call_ocr, tesseract_data
 from scripts.home_atlas_bluestacks import BlueStacksHomeLocalizer, DirectPanNavigator, bind_visible_building
+from tasks.home_atlas_vision import frame_digest
 from scripts.navigation_development_boundary import DevelopmentSession
 from tasks.hero_duel_disabled import (
     HERO_DUEL_SURVIVAL, MAX_HERO_DUEL_CYCLES, HeroDuelObservation,
@@ -75,13 +76,18 @@ class HeroDuelVision:
         self.current_event_valid = False
         self.event_identity: str | None = None
         self.excluded: tuple[str, ...] | None = None
+        self.exclusion_portrait_refs: tuple[dict[str, object], ...] = ()
         self.free_opponent_selected = False
         self.defense_saved = False
         self.battle_loaded = False
         self.exit_confirmed = False
+        self.route_pass_balance = None
 
-    def _lines(self, frame):
-        data = call_ocr(tesseract_data, frame, call_timeout=4.0, config="--psm 11")
+    def _lines(self, frame, *, psm=11, scale=1, whitelist=None):
+        config = f"--psm {psm}"
+        if whitelist is not None:
+            config += f" -c tessedit_char_whitelist={whitelist}"
+        data = call_ocr(tesseract_data, frame, call_timeout=4.0, config=config)
         words = []
         for i, text in enumerate(data.get("text", ())):
             try:
@@ -97,7 +103,7 @@ class HeroDuelVision:
         groups = []
         for word in words:
             group = next((candidate for candidate in reversed(groups)
-                          if abs(word["center"][1] - sum(item["center"][1] for item in candidate) / len(candidate)) <= 16), None)
+                          if abs(word["center"][1] - sum(item["center"][1] for item in candidate) / len(candidate)) <= 16 * scale), None)
             if group is None:
                 groups.append([word])
             else:
@@ -124,11 +130,73 @@ class HeroDuelVision:
     @staticmethod
     def bind_phrase(lines, phrase):
         wanted = _norm(phrase)
-        matches = [row for row in lines if wanted and wanted in row["norm"]]
+        exact = [row for row in lines if row["norm"] == wanted]
+        matches = exact or [row for row in lines if wanted and wanted in row["norm"]]
         if len(matches) != 1:
             return None
         x0, y0, x1, y1 = matches[0]["box"]
         return max(0, x0 - 3), max(0, y0 - 3), min(800, x1 + 3), min(1280, y1 + 3)
+
+
+    def _arena_lines(self, frame, lines):
+        """Read gold event labels separately from the illustrated Arena banners.
+
+        Scope the countdown to the measured Survival label, never the Glory card.
+        These are OCR regions only; input remains bound to the fresh label boxes.
+        """
+        if not any(self.has(line, "exchange shop") for line in lines):
+            return lines
+
+        def read_region(image, *, offset=(0, 0), psm=11, whitelist=None):
+            rows = self._lines(cv2.resize(image, None, fx=3, fy=3), psm=psm, scale=3, whitelist=whitelist)
+            result = []
+            for row in rows:
+                x0, y0, x1, y1 = row["box"]
+                box = (x0 // 3 + offset[0], y0 // 3 + offset[1],
+                       (x1 + 2) // 3 + offset[0], (y1 + 2) // 3 + offset[1])
+                result.append({**row, "box": box,
+                               "center": ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2)})
+            return tuple(result)
+
+        header_image = 255 - cv2.inRange(frame[5:65, 330:470], (170, 170, 170), (255, 255, 255))
+        header = read_region(header_image, offset=(330, 5), psm=7)
+        if not any(re.search(r"\barena\b", row["norm"]) for row in header):
+            return lines
+        gold = 255 - cv2.inRange(cv2.cvtColor(frame, cv2.COLOR_BGR2HSV),
+                                (15, 100, 230), (40, 255, 255))
+        labels = read_region(gold)
+        survival = [row for row in labels if row["norm"] == "hero duel survival"]
+        if len(survival) != 1:
+            # Isolate the measured first Hero word's band from animated art.
+            anchors = [box for row in lines for word, box in row["word_boxes"]
+                       if _norm(word) == "hero" and box[1] > 150]
+            if not anchors:
+                return lines
+            anchor = min(anchors, key=lambda box: box[1])
+            left, top = max(0, anchor[0] - 20), max(0, anchor[1] - 12)
+            right, bottom = min(frame.shape[1], anchor[0] + 390), min(frame.shape[0], anchor[3] + 12)
+            labels = read_region(gold[top:bottom, left:right], offset=(left, top), psm=7)
+            survival = [row for row in labels if row["norm"] == "hero duel survival"]
+            if len(survival) != 1:
+                return lines
+        heading_center = survival[0]["center"][1]
+        # Artwork can extend OCR boxes across the heading/Time boundary.
+        # Associate by text-row centers, not non-overlapping box edges.
+        time_words = [box for row in lines for word, box in row["word_boxes"]
+                      if _norm(word) == "time" and heading_center < (box[1] + box[3]) / 2 < heading_center + 100]
+        if not time_words:
+            return (*header, *labels)
+        x0, y0, _, y1 = min(time_words, key=lambda box: box[1])
+        left, right = x0, min(frame.shape[1], x0 + 285)
+        top, bottom = max(0, y0 - 8), min(frame.shape[0], y1 + 8)
+        # Isolate the cyan countdown from the banner art; the latter caused
+        # valid :28/:26 glyphs to OCR as impossible :78/:76 and change the event.
+        timer_image = 255 - cv2.inRange(
+            cv2.cvtColor(frame[top:bottom, left:right], cv2.COLOR_BGR2HSV),
+            (80, 80, 130), (115, 255, 255),
+        )
+        timer = read_region(timer_image, offset=(left, top), psm=7, whitelist="0123456789:")
+        return (*header, *labels, *timer)
 
     @staticmethod
     def hero_name(line):
@@ -197,7 +265,7 @@ class HeroDuelVision:
             return ()
         y = anchors[0]["center"][1]
         candidates = [candidate for candidate in self._hero_candidates(lines)
-                      if y < candidate["center"][1] <= y + 300]
+                      if y < candidate["center"][1] <= y + 450]
         if not candidates:
             return ()
         first_y = min(candidate["center"][1] for candidate in candidates)
@@ -213,8 +281,8 @@ class HeroDuelVision:
 
     def hero_selection_roi(self, lines, name, state, *, add):
         headings = (
-            ("defense formation", "defence formation", "defense lineup", "defence lineup")
-            if state == "defense_formation" else ("attack formation", "attack lineup")
+            ("defense formation", "defence formation", "defense lineup", "defence lineup", "hero lineup")
+            if state == "defense_formation" else ("attack formation", "attack lineup", "your formation")
         )
         formation = self._heading_row_candidates(lines, headings)
         if not formation:
@@ -276,6 +344,51 @@ class HeroDuelVision:
         return max(0, box[0] - 3), max(0, box[1] - 3), min(800, box[2] + 3), min(1280, box[3] + 3)
 
     @staticmethod
+    def panel_close_x_roi(lines, heading):
+        """Bind the single X beside the current route-owned panel heading."""
+        adapted = [
+            {**line, "norm": "emergency details"} if line["norm"] == _norm(heading) else line
+            for line in lines
+        ]
+        return HeroDuelVision.emergency_close_x_roi(adapted)
+
+    @staticmethod
+    def battle_exit_arrow_roi(frame):
+        """Find a fresh pale right-arrow inside a circular battle toolbar control."""
+        h, w = frame.shape[:2]
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv, np.array((0, 0, 165)), np.array((45, 120, 255)))
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        template = np.array(((0, 3), (6, 3), (6, 0), (12, 6), (6, 12), (6, 9), (0, 9)), dtype=np.int32)
+        matches = []
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1, w * .04,
+            param1=100, param2=25, minRadius=int(w * .025), maxRadius=int(w * .05))
+        toolbar = [] if circles is None else [
+            circle for circle in circles[0] if w * .6 < circle[0] < w * .98 and circle[1] < h * .14
+        ]
+        if len(toolbar) != 3:
+            return None
+        cx, cy, radius = max(toolbar, key=lambda circle: circle[0])
+        for contour in contours:
+            x, y, cw, ch = cv2.boundingRect(contour)
+            if not (w * .65 < x < w * .98 and 0 < y < h * .14
+                    and w * .015 <= cw <= w * .07 and .65 <= cw / ch <= 1.8):
+                continue
+            hull_area = cv2.contourArea(cv2.convexHull(contour))
+            if hull_area <= 0 or not .45 <= cv2.contourArea(contour) / hull_area <= .9:
+                continue
+            right_tip = contour[:, 0, :][contour[:, 0, 0] >= x + cw - 2]
+            if not len(right_tip) or np.ptp(right_tip[:, 1]) > ch * .4:
+                continue
+            if cv2.matchShapes(contour, template, cv2.CONTOURS_MATCH_I1, 0) > .22:
+                continue
+            if (abs(cx - (x + cw / 2)) < radius * .5
+                    and abs(cy - (y + ch / 2)) < radius * .5):
+                matches.append((x, y, x + cw, y + ch))
+        return matches[0] if len(matches) == 1 else None
+
+    @staticmethod
     def pass_balance(lines):
         values = [int(match.group(1).replace(",", "")) for line in lines if (match := PASS_RE.search(line["text"]))]
         return values[0] if len(values) == 1 else None
@@ -299,39 +412,191 @@ class HeroDuelVision:
                 horizontal.add(round((int(y0) + int(y1)) / 16))
         return len(vertical) >= 5 and len(horizontal) >= 5
 
+    def _emergency_portrait_evidence(self, captured, lines):
+        """Retain the four unnamed tiles as evidence, not invented hero identities."""
+        anchors = [row for row in lines if self.has(row, "some support heroes cannot be deployed")]
+        if len(anchors) != 1:
+            return (), lines
+        frame = captured.frame
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        contours, _ = cv2.findContours(cv2.inRange(hsv, (0, 100, 90), (179, 255, 255)),
+                                      cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        floor = anchors[0]["box"][3]
+        tiles = sorted((x, y, x + w, y + h) for contour in contours
+                       for x, y, w, h in [cv2.boundingRect(contour)]
+                       if 80 <= w <= 140 and 80 <= h <= 140
+                       and abs(w - h) <= 5 and floor < y < floor + 80)
+        if (len(tiles) != 4 or max(box[1] for box in tiles) - min(box[1] for box in tiles) > 5
+                or any(left[2] >= right[0] for left, right in zip(tiles, tiles[1:]))):
+            return (), lines
+        references = tuple({
+            "ordinal": index, "roi": box, "crop_pixel_sha256": _roi_hash(frame, box),
+            "source_path": str(captured.path), "source_frame_sha256": captured.sha256,
+            "reset_id": self.reset_id, "event_identity": self.event_identity,
+        } for index, box in enumerate(tiles, 1))
+        # The measured gold control must independently read Confirm.
+        controls, _ = cv2.findContours(cv2.inRange(hsv, (10, 80, 90), (40, 255, 255)),
+                                      cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        confirm = []
+        for contour in controls:
+            x, y, w, h = cv2.boundingRect(contour)
+            if not (150 < w < 400 and 40 < h < 110 and y > max(box[3] for box in tiles)):
+                continue
+            crop = frame[y + 5:y + h - 5, x + 5:x + w - 5]
+            white = 255 - cv2.inRange(crop, (175, 175, 175), (255, 255, 255))
+            rows = self._lines(cv2.resize(white, None, fx=3, fy=3), psm=7, scale=3)
+            if len(rows) == 1 and rows[0]["norm"] == "confirm":
+                x0, y0, x1, y1 = rows[0]["box"]
+                box = (x + 5 + x0 // 3, y + 5 + y0 // 3,
+                       x + 5 + (x1 + 2) // 3, y + 5 + (y1 + 2) // 3)
+                confirm.append({**rows[0], "box": box,
+                                "center": ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2),
+                                "word_boxes": ()})
+        if len(confirm) == 1 and not any(row["norm"] == "confirm" for row in lines):
+            lines = (*lines, confirm[0])
+        return references, lines
+
+    def _lineup_portrait_proof(self, captured):
+        """Fail-closed correspondence of checked cards, named slots and four bans."""
+        if len(self.exclusion_portrait_refs) != 4 or not self.event_identity:
+            return None
+        frame = captured.frame
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        names = []
+        for index in range(5):
+            left = 42 + 144 * index
+            rows = self._lines(cv2.resize(gray[430:465, left:left + 140], None, fx=3, fy=3),
+                               psm=7, scale=3)
+            if len(rows) != 1 or self.hero_name(rows[0]) is None:
+                return None
+            names.append(rows[0]["text"].strip())
+        if len(set(names)) != 5:
+            return None
+        gold = cv2.inRange(cv2.cvtColor(frame, cv2.COLOR_BGR2HSV), (10, 60, 170), (40, 255, 255))
+        contours, _ = cv2.findContours(gold, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        checks = []
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+            polygon = cv2.approxPolyDP(contour, .03 * cv2.arcLength(contour, True), True)
+            if (40 <= w <= 65 and 30 <= h <= 50 and 450 <= cv2.contourArea(contour) <= 900
+                    and len(polygon) == 6 and 530 < y < 740):
+                checks.append((x + w // 2, y + h // 2))
+        checks.sort()
+        if (len(checks) != 5 or max(y for _, y in checks) - min(y for _, y in checks) > 5
+                or any(not 125 < b[0] - a[0] < 150 for a, b in zip(checks, checks[1:]))):
+            return None
+        sift = cv2.SIFT_create(nfeatures=400)
+
+        def descriptors(image):
+            _, result = sift.detectAndCompute(image, None)
+            return result if result is not None and len(result) >= 40 else None
+
+        slots = [descriptors(gray[95:380, 42 + 144 * i:182 + 144 * i]) for i in range(5)]
+        cards = [descriptors(gray[y - 64:y + 46, x - 61:x + 61]) for x, y in checks]
+        restricted = []
+        for ref in self.exclusion_portrait_refs:
+            if ref["reset_id"] != self.reset_id or ref["event_identity"] != self.event_identity:
+                return None
+            payload = Path(ref["source_path"]).read_bytes()
+            if hashlib.sha256(payload).hexdigest() != ref["source_frame_sha256"]:
+                return None
+            original = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+            box = tuple(ref["roi"])
+            if original is None or _roi_hash(original, box) != ref["crop_pixel_sha256"]:
+                return None
+            x0, y0, x1, y1 = box
+            restricted.append(descriptors(cv2.cvtColor(original[y0 + 8:y1 - 8, x0 + 8:x1 - 8],
+                                                        cv2.COLOR_BGR2GRAY)))
+        if any(item is None for item in (*slots, *cards, *restricted)):
+            return None
+        matcher = cv2.BFMatcher()
+
+        def pairs(left, right):
+            return {(m[0].queryIdx, m[0].trainIdx) for m in matcher.knnMatch(left, right, k=2)
+                    if len(m) == 2 and m[0].distance < .7 * m[1].distance}
+
+        def score(left, right):
+            return len(pairs(left, right) & {(j, i) for i, j in pairs(right, left)})
+
+        roster_scores = [[score(card, slot) for slot in slots] for card in cards]
+        order = []
+        for scores in roster_scores:
+            ranked = sorted(range(5), key=lambda i: scores[i], reverse=True)
+            if scores[ranked[0]] < 6 or scores[ranked[0]] - scores[ranked[1]] < 4:
+                return None
+            order.append(ranked[0])
+        if len(set(order)) != 5:
+            return None
+        banned_scores = [[score(portrait, slot) for slot in slots] for portrait in restricted]
+        # Four correspondences can support a projective match: even a tentative
+        # match at that level is ambiguous and blocks, below six-match acceptance.
+        if any(value >= 4 for row in banned_scores for value in row):
+            return None
+        return {
+            "source_path": str(captured.path), "source_frame_sha256": captured.sha256,
+            "reset_id": self.reset_id, "event_identity": self.event_identity,
+            "selected_slot_ids": tuple(names), "first_five_roster_ids": tuple(names[i] for i in order),
+            "checked_card_centers": checks, "roster_slot_mutual_matches": roster_scores,
+            "restriction_slot_mutual_matches": banned_scores,
+            "excluded_portrait_refs": self.exclusion_portrait_refs,
+        }
+
     def recognize(self, captured, *, clean_home=False, target_hint=None):
         self.checkpoint()
         lines = self._lines(captured.frame)
+        lines = self._arena_lines(captured.frame, lines)
+        if not clean_home and not any(
+                row["box"][1] < 75 and "hero duel survival" in row["norm"] for row in lines):
+            # Full-frame OCR can lose either title word against the textured header.
+            title_image = cv2.cvtColor(captured.frame[5:65, 200:650], cv2.COLOR_BGR2GRAY)
+            titles = self._lines(cv2.resize(title_image, None, fx=3, fy=3), psm=7, scale=3)
+            if any(row["norm"] == "hero duel survival" for row in titles):
+                lines = (*lines, {"text": "Hero Duel Survival", "norm": "hero duel survival",
+                                 "box": (200, 5, 650, 65), "center": (425, 35), "word_boxes": ()})
         text = "\n".join(line["text"] for line in lines)
         norm = _norm(text)
         state = "unknown"
         if clean_home:
             state = "home"
-        elif "emergency details" in norm:
+        elif "emergency details" in norm or all(marker in norm for marker in (
+                "hero duel survival", "formation first", "some support heroes cannot be deployed")):
             state = "emergency_details"
-        elif "tap to continue" in norm and any(self.has(line, "defeat", "defeated", "loss") for line in lines):
+        elif "challenge now" in norm and any(self.has(line, "activate") for line in lines):
+            state = "challenge_upsell"
+        elif "tap to continue" in norm and (
+                any(self.has(line, "defeat", "defeated", "loss") for line in lines)
+                or ("reward list" in norm and "rank" in norm)):
             state = "loss_result"
         elif any(self.has(line, "warning") for line in lines) and any(self.has(line, "flee") for line in lines):
             state = "flee_warning"
         elif "wave 1 1" in norm and self.board_visible(captured.frame):
             state = "active_battle"
-        elif "save form" in norm and any(self.has(line, "defense", "defence") for line in lines):
+        # A page can be identified before its action control is readable/ready.
+        # Target binding and cycle credit still require their own current proof.
+        elif ("hero lineup" in norm and "opponent formation" not in norm) or (
+                "save form" in norm and any(self.has(line, "defense", "defence") for line in lines)):
             state = "defense_formation"
-        elif any(self.has(line, "opponent", "opponents") for line in lines) and any(self.has(line, "free") for line in lines):
-            state = "opponent_list"
-        elif "challenge now" in norm and any(self.has(line, "activate") for line in lines):
-            state = "challenge_upsell"
-        elif "attack" in norm and any(self.has(line, "challenge") for line in lines):
+        elif ("opponent formation" in norm and "your formation" in norm) or (
+                "attack" in norm and any(self.has(line, "challenge") for line in lines)):
             state = "attack_formation"
+        elif ("challenge opponent" in norm and "hero duel pass" in norm) or (
+                any(self.has(line, "opponent", "opponents") for line in lines)
+                and any(self.has(line, "free") for line in lines)):
+            state = "opponent_list"
         elif "arena" in norm and "hero duel" in norm and "survival" in norm:
             state = "arena"
         elif "hero duel" in norm and "survival" in norm and any(self.has(line, "challenge", "free", "rank") for line in lines):
             state = "hero_duel_overview"
         elif "hero duel" in norm and "survival" in norm:
             state = "event_select"
+        if state == "unknown":
+            title = cv2.cvtColor(captured.frame[5:65, 200:650], cv2.COLOR_BGR2GRAY)
+            heading = self._lines(cv2.resize(title, None, fx=3, fy=3), psm=7, scale=3)
+            if len(heading) == 1 and heading[0]["norm"] == "hero lineup":
+                state = "defense_formation"
 
         overlay = "none"
-        if any(self.has(line, "cash mall", "purchase", "buy now", "recharge") for line in lines):
+        if state != "loss_result" and any(self.has(line, "cash mall", "purchase", "buy now", "recharge") for line in lines):
             overlay = "premium_prompt"
         event_identity = self.event_identity
         event_active = None
@@ -341,6 +606,8 @@ class HeroDuelVision:
             if match:
                 days = int(match.group(1) or 0)
                 hours, minutes, seconds = int(match.group(2)), int(match.group(3)), int(match.group(4) or 0)
+                if minutes >= 60 or seconds >= 60:
+                    continue
                 total = days * 86400 + hours * 3600 + minutes * 60 + seconds
                 if total > 0:
                     timers.append(total)
@@ -365,6 +632,7 @@ class HeroDuelVision:
             event_active = self.event_identity is not None and self.current_event_valid
         excluded = self.excluded
         if state == "emergency_details":
+            self.exclusion_portrait_refs, lines = self._emergency_portrait_evidence(captured, lines)
             anchors = [line for line in lines if self.has(line, "excluded", "cannot use")]
             if len(anchors) == 1:
                 anchor = anchors[0]
@@ -380,20 +648,97 @@ class HeroDuelVision:
                 self.excluded = None
         rows = self.hero_rows(lines)
         displayed = tuple(dict.fromkeys(name for row in rows for name in row))
-        defense = self.heading_row(lines, ("defense formation", "defence formation", "defense lineup", "defence lineup")) if state == "defense_formation" else ()
-        attack = self.heading_row(lines, ("attack formation", "attack lineup")) if state == "attack_formation" else ()
+        defense = self.heading_row(lines, ("defense formation", "defence formation", "defense lineup", "defence lineup", "hero lineup")) if state == "defense_formation" else ()
+        attack = self.heading_row(lines, ("attack formation", "attack lineup", "your formation")) if state == "attack_formation" else ()
+        if state in {"defense_formation", "attack_formation"}:
+            headings = ("hero lineup", "defense formation", "defence formation", "defense lineup", "defence lineup") if state == "defense_formation" else ("attack formation", "attack lineup", "your formation")
+            selected_row = self._heading_row_candidates(lines, headings)
+            if selected_row:
+                bottom = max(candidate["center"][1] for candidate in selected_row)
+                # Selected names do not prove the displayed portrait roster order.
+                displayed = tuple(dict.fromkeys(
+                    candidate["name"] for candidate in self._hero_candidates(lines)
+                    if candidate["center"][1] > bottom + 30))
+            else:
+                displayed = ()
+        portrait_proof = None
+        if state == "defense_formation" and self.exclusion_portrait_refs:
+            portrait_proof = self._lineup_portrait_proof(captured)
+            if portrait_proof is None:
+                excluded, displayed, defense = None, (), ()
+            else:
+                excluded = tuple(f"portrait-crop-sha256:{ref['crop_pixel_sha256']}"
+                                 for ref in self.exclusion_portrait_refs)
+                self.excluded = excluded
+                # Preserve actual slot positions; normalize membership to roster
+                # order for the existing first-five policy, without reselecting.
+                displayed = defense = portrait_proof["first_five_roster_ids"]
+        elif state == "attack_formation" and self.exclusion_portrait_refs:
+            excluded = None
+        if state == "defense_formation" and not any(row["norm"] == "save form" for row in lines):
+            # Read the measured bottom gold control, not a fixed tap point.
+            gold = cv2.inRange(cv2.cvtColor(captured.frame, cv2.COLOR_BGR2HSV),
+                               (10, 80, 90), (40, 255, 255))
+            controls, _ = cv2.findContours(gold, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            buttons = []
+            for contour in controls:
+                x, y, w, h = cv2.boundingRect(contour)
+                if not (150 < w < 400 and 40 < h < 110 and y > 1000):
+                    continue
+                crop = captured.frame[y + 5:y + h - 5, x + 5:x + w - 5]
+                rows = self._lines(cv2.resize(cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY),
+                                              None, fx=3, fy=3), psm=7, scale=3)
+                if len(rows) == 1 and rows[0]["norm"] == "save form":
+                    x0, y0, x1, y1 = rows[0]["box"]
+                    box = (x + 5 + x0 // 3, y + 5 + y0 // 3,
+                           x + 5 + (x1 + 2) // 3, y + 5 + (y1 + 2) // 3)
+                    buttons.append({**rows[0], "box": box, "word_boxes": (),
+                                    "center": ((box[0] + box[2]) // 2, (box[1] + box[3]) // 2)})
+            if len(buttons) == 1:
+                lines = (*lines, buttons[0])
         target_roi = None
         if target_hint and state != "unknown" and overlay == "none":
             if target_hint == ("hero-duel-emergency-close-x", "emergency close x"):
                 target_roi = self.emergency_close_x_roi(lines)
-            else:
+            elif target_hint == ("hero-duel-event-details", "emergency") and state == "hero_duel_overview":
+                boxes = [box for row in lines for word, box in row["word_boxes"]
+                         if _norm(word) == "emergency"]
+                if len(boxes) == 1:
+                    target_roi = boxes[0]
+                else:
+                    label_image = 255 - cv2.inRange(captured.frame[150:192, 400:550],
+                                                   (170, 170, 170), (255, 255, 255))
+                    label_rows = self._lines(cv2.resize(label_image, None, fx=3, fy=3), psm=7, scale=3)
+                    boxes = [box for row in label_rows for word, box in row["word_boxes"]
+                             if _norm(word) == "emergency"]
+                    if len(boxes) == 1:
+                        x0, y0, x1, y1 = boxes[0]
+                        target_roi = (400 + x0 // 3, 150 + y0 // 3,
+                                      400 + (x1 + 2) // 3, 150 + (y1 + 2) // 3)
+            elif target_hint == ("hero-duel-defense-open", "defense") and state == "hero_duel_overview":
+                boxes = [box for row in lines for word, box in row["word_boxes"]
+                         if _norm(word) == "defense"]
+                if len(boxes) == 1:
+                    target_roi = boxes[0]
+            elif target_hint == ("hero-duel-opponents-close", "close"):
+                target_roi = self.panel_close_x_roi(lines, "challenge opponent")
+            elif target_hint == ("hero-duel-battle-exit", "exit") and state == "active_battle":
+                target_roi = self.battle_exit_arrow_roi(captured.frame)
+            elif ((state != "loss_result" or target_hint == ("hero-duel-loss-continue", "tap to continue"))
+                    and (state != "flee_warning" or target_hint == ("hero-duel-warning-flee", "flee"))):
                 target_roi = self.bind_phrase(lines, target_hint[1])
         target = target_hint[0] if target_roi is not None else None
+        observed_pass = self.pass_balance(lines)
+        if (state == "opponent_list" and event_active is True and overlay == "none"
+                and observed_pass is not None):
+            self.route_pass_balance = observed_pass
         return {
             "screen_state": state, "lines": lines, "text": text, "event_identity": event_identity,
             "event_timer_visible": event_timer_visible,
             "event_active": event_active, "free_entries_remaining": self.free_counter(lines),
-            "pass_balance": self.pass_balance(lines), "excluded_hero_ids": excluded,
+            "pass_balance": observed_pass, "excluded_hero_ids": excluded,
+            "excluded_portrait_refs": self.exclusion_portrait_refs,
+            "portrait_eligibility_proof": portrait_proof,
             "displayed_hero_ids": displayed, "defense_hero_ids": defense,
             "defense_save_acknowledged": self.defense_saved, "attack_hero_ids": attack,
             "attack_slots_populated": len(attack) if state == "attack_formation" else None,
@@ -425,6 +770,7 @@ class HeroDuelNativeFlow:
         self.vision = HeroDuelVision(checkpoint=context.checkpoint, reset_id=self.reset_id, utc_clock=context.utc_clock)
         self.event_identity = None
         self.result: dict[str, Any] = {
+            "preset_id": PRODUCT_ID, "runtime_profile_id": PROFILE_ID,
             "status": "blocked", "reason": "hero_duel_route_not_started",
             "duel_dispatch_count": 0, "entry_transport_calls": 0,
             "flee_transport_calls": 0, "defense_save_transport_calls": 0,
@@ -435,6 +781,7 @@ class HeroDuelNativeFlow:
             "selected_listed_opponents": [],
         }
         self.return_back_count = 0
+        self.overview_balances = None
 
     def capture(self, label):
         self.context.checkpoint()
@@ -548,7 +895,7 @@ class HeroDuelNativeFlow:
             fresh = self.capture("hero-duel-arena-building-immediate")
             local = localizer.localize(fresh.frame)
             rebound = bind_visible_building(fresh.frame, local, building, home_is_clean=self.context.is_clean_home) if local.recognized else None
-            if rebound is None or rebound.frame_sha256 != fresh.sha256:
+            if rebound is None or rebound.frame_sha256 != frame_digest(fresh.frame):
                 self.result["reason"] = "arena_atlas_immediate_binding_failed"
                 return None
             successor = {}
@@ -588,7 +935,7 @@ class HeroDuelNativeFlow:
         localization = localizer.localize(current.frame)
         rebound = bind_visible_building(current.frame, localization, building,
             home_is_clean=self.context.is_clean_home) if localization.recognized else None
-        if rebound is None or rebound.frame_sha256 != current.sha256 or rebound.target_roi != expected.target_roi:
+        if rebound is None or rebound.frame_sha256 != frame_digest(current.frame) or rebound.target_roi != expected.target_roi:
             raise HeroDuelRecognitionError("Arena Atlas target changed before dispatch")
 
     def _recognize_arena(self, captured, output):
@@ -600,18 +947,39 @@ class HeroDuelNativeFlow:
     def _observation(self, captured, page, ordinal):
         roi = page.get("target_roi") or (0, 0, 1, 1)
         lines = page["lines"]
+        balances = None
+        if page["screen_state"] == "attack_formation" and self.vision.free_opponent_selected:
+            balances = self.overview_balances
+        elif page["screen_state"] == "flee_warning":
+            record = self.store.get_action_by_key(self.action_key(ordinal, "hero_duel_free_entry"))
+            facts = self._record_preconditions(record)
+            prior = self._prior_free_pass_proof(ordinal)
+            if (self.confirmed(record) and prior is not None
+                    and self._fact_value(facts, "hero_duel_event_identity") == self.event_identity):
+                balances = (prior[0] - 1, prior[1])
+        # Omitted counters retain proven facts; visible contradictions win.
+        free = page.get("free_entries_remaining")
+        passes = page.get("pass_balance")
+        if (passes is None and page["screen_state"] in {"hero_duel_overview", "attack_formation"}
+                and page.get("event_identity") == self.event_identity and page.get("event_active") is True):
+            passes = self.vision.route_pass_balance
+        if balances is not None:
+            free = balances[0] if free is None else free
+            passes = balances[1] if passes is None else passes
         return HeroDuelObservation(
             screen_state=page["screen_state"], source_frame_sha256=captured.sha256,
             evidence_refs=(f"native:{captured.path}",), overlay_state=page["overlay_state"],
             event_identity=page.get("event_identity") or "",
             event_variant=HERO_DUEL_SURVIVAL if page.get("event_identity") else "",
-            event_active=page.get("event_active"), free_entries_remaining=page.get("free_entries_remaining"),
+            event_active=page.get("event_active"), free_entries_remaining=free,
             entry_cost=0 if page.get("free_opponent_selected") else None,
             entry_cost_known=page.get("free_opponent_selected") is True,
-            pass_balance=page.get("pass_balance"), excluded_hero_ids=page.get("excluded_hero_ids"),
+            pass_balance=passes, excluded_hero_ids=page.get("excluded_hero_ids"),
             displayed_hero_ids=page.get("displayed_hero_ids", ()),
-            defense_hero_ids=page.get("defense_hero_ids", ()),
+            defense_hero_ids=page.get("defense_hero_ids") or (
+                tuple(self.result.get("expected_defense_hero_ids", ())) if self.vision.defense_saved else ()),
             defense_save_acknowledged=page.get("defense_save_acknowledged") is True,
+            saved_defense_expected_hero_ids=tuple(self.result.get("expected_defense_hero_ids", ())) if self.vision.defense_saved else (),
             attack_hero_ids=page.get("attack_hero_ids", ()), attack_slots_populated=page.get("attack_slots_populated"),
             listed_opponent_free=page.get("listed_opponent_free") is True,
             free_opponent_selected=page.get("free_opponent_selected") is True,
@@ -650,6 +1018,9 @@ class HeroDuelNativeFlow:
         page = self.observe(immediate, (target_id, phrase))
         if (proposal_page["screen_state"] != source_state or page["screen_state"] != source_state
                 or page["target_roi"] is None or page["overlay_state"] != "none"
+                or proposal_page["target_roi"] != page["target_roi"]
+                or proposal_page["overlay_state"] != "none"
+                or proposal_page.get("event_identity") != self.event_identity
                 or page.get("event_identity") != self.event_identity):
             return {"status": "blocked", "reason": f"{kind}_source_not_bound", "transport_calls": 0}
         game = self._observation(immediate, page, ordinal)
@@ -716,7 +1087,7 @@ class HeroDuelNativeFlow:
                 lease_valid=self.store.lease_valid_for(self.session.owner, self.context.utc_clock()),
                 unresolved_action=self.store.has_action_block(), duplicate_action_key=self.store.action_key_exists(key),
                 game_day_id=self.reset_id, action_class=ActionClass.ZERO_COST_CONSEQUENTIAL,
-                action_kind=kind, subject=None, maximum_cost=0, free_only=True,
+                action_kind=kind, subject=None, resource_or_currency="none", maximum_cost=0, free_only=True,
                 semantic_preconditions=preconditions, semantic_postconditions=(postcondition,),
                 runtime_session_id=str(self.runtime.session))
         self.context.validate_identity()
@@ -725,6 +1096,10 @@ class HeroDuelNativeFlow:
         if not issued.authorized or issued.capability is None:
             return {"status": "blocked", "reason": issued.reason_code, "transport_calls": 0}
         post_frames, post_pages, first_capture = [], {}, [immediate]
+        def verified(post):
+            return (post["screen_state"] == expected_state and post["overlay_state"] == "none"
+                and (kind != "hero_duel_save_defense"
+                     or any(self.vision.has(line, "lineup saved", "formation saved") for line in post["lines"])))
         def action_capture(label):
             return first_capture.pop() if first_capture else self.capture(label)
         def transport(_intent):
@@ -733,7 +1108,7 @@ class HeroDuelNativeFlow:
                 post = self.observe(after)
                 post_frames.append(after)
                 post_pages[str(after.path)] = post
-                return postcondition if post["screen_state"] == expected_state and post["overlay_state"] == "none" else "unknown"
+                return postcondition if verified(post) else "unknown"
             def settled():
                 if self.settle:
                     time.sleep(self.settle)
@@ -752,12 +1127,15 @@ class HeroDuelNativeFlow:
                     runtime_profile_id=PROFILE_ID, width=800, height=1280, valid_png=True, corrupt=False, black=False,
                     source_state=post["screen_state"], overlay_state="none_observed" if post["overlay_state"] == "none" else "unknown",
                     target_identity=None, target_roi=None,
-                    recognized=post["screen_state"] == expected_state, evidence_refs=(str(current.path),))
+                    recognized=verified(post), evidence_refs=(str(current.path),))
         execution = SafeActionExecutor(self.store, policy, self.session.owner, self.context.monotonic_clock,
             transport, lambda: immediate_observation, post_observations,
             lambda _intent, obs: bool(post_frames and obs.frame_sha256 == post_frames[-1].sha256
-                and post_pages[str(post_frames[-1].path)]["screen_state"] == expected_state),
+                and verified(post_pages[str(post_frames[-1].path)])),
             wall_clock=self.context.utc_clock, max_pre_dispatch_attempts=1).execute(request(proposal_observation), issued.capability)
+        if kind == "hero_duel_free_entry" and execution.transport_calls:
+            # Reconciliation needs a fresh returned opponent-list pass reading.
+            self.vision.route_pass_balance = None
         successor = post_frames[-1] if post_frames else None
         record = self.store.get_action_by_key(key)
         if successor is not None and callable(getattr(self.runtime, "reconcile", None)):
@@ -826,10 +1204,14 @@ class HeroDuelNativeFlow:
     def _inspect_exclusions(self, page):
         if page["screen_state"] == "emergency_details":
             if page["excluded_hero_ids"] is None:
-                self.result["reason"] = "emergency_details_exclusions_unreadable"
-                return None
-            self.vision.excluded = tuple(page["excluded_hero_ids"])
-            self.result["excluded_hero_ids"] = list(self.vision.excluded)
+                references = page.get("excluded_portrait_refs", ())
+                if len(references) != 4 or not self.event_identity:
+                    self.result["reason"] = "evidence_required:emergency_details_portrait_exclusions_unresolved"
+                    return None
+                self.result["excluded_portrait_refs"] = list(references)
+            else:
+                self.vision.excluded = tuple(page["excluded_hero_ids"])
+                self.result["excluded_hero_ids"] = list(self.vision.excluded)
             exact_controls = [
                 phrase for phrase in ("confirm", "close", "got it", "understood", "ok")
                 if sum(_norm(line["text"]) == _norm(phrase) for line in page["lines"]) == 1
@@ -848,7 +1230,7 @@ class HeroDuelNativeFlow:
                 {"defense_formation", "hero_duel_overview"}, target_id)
             return step["page"] if step else None
         if page["screen_state"] == "hero_duel_overview" and self.vision.excluded is None:
-            step = self._navigation_tap("open-emergency-details", "emergency details",
+            step = self._navigation_tap("open-emergency-details", "emergency",
                 {"emergency_details"}, "hero-duel-event-details")
             if step is None:
                 return None
@@ -861,14 +1243,24 @@ class HeroDuelNativeFlow:
             if step is None:
                 return None
             page = step["page"]
-        if page["screen_state"] != "defense_formation" or self.vision.excluded is None:
+        if page["screen_state"] != "defense_formation":
             self.result["reason"] = "defense_formation_or_exclusions_unknown"
             return None
         captured = self.capture("hero-duel-defense-source")
         page = self.observe(captured)
+        if page.get("portrait_eligibility_proof") is not None:
+            self.result["defense_portrait_eligibility_proof"] = page["portrait_eligibility_proof"]
+        if page.get("excluded_hero_ids") is None:
+            self.result["defense_roster_observation"] = {
+                "source_path": str(captured.path), "source_frame_sha256": captured.sha256,
+                "reset_id": self.reset_id, "event_identity": self.event_identity,
+                "screen_state": page["screen_state"], "selection_authorized": False,
+            }
+            self.result["reason"] = "evidence_required:defense_roster_portrait_eligibility_unproven"
+            return None
         expected = hero_duel_first_five_eligible(self._observation(captured, page, 1))
         if expected is None:
-            self.result["reason"] = "first_five_eligible_defense_heroes_unbound"
+            self.result["reason"] = "evidence_required:first_five_eligible_defense_roster_identities_unbound"
             return None
         self.result["expected_defense_hero_ids"] = list(expected)
         prior = self.store.get_action_by_key(self.action_key(1, "hero_duel_save_defense"))
@@ -879,7 +1271,7 @@ class HeroDuelNativeFlow:
                 return None
             self.vision.defense_saved = True
             self.result["defense_save_confirmed"] = True
-            step = self._navigation_tap("return-from-defense", "back", {"hero_duel_overview"}, "hero-duel-defense-back")
+            step = self._defense_back("return-from-defense")
             return step["page"] if step else None
         if page["defense_hero_ids"] != expected:
             removable = tuple(name for name in page["defense_hero_ids"] if name not in expected)
@@ -949,6 +1341,7 @@ class HeroDuelNativeFlow:
             raise HeroDuelRecognitionError("Hero Duel hero selection target changed")
 
     def _cycle(self, ordinal, overview):
+        self.overview_balances = (overview.free_entries_remaining, overview.pass_balance)
         page = self.observe(self.capture(f"hero-duel-cycle-{ordinal}-source"))
         if page["screen_state"] == "hero_duel_overview":
             step = self._navigation_tap(f"challenge-now-{ordinal}", "challenge",
@@ -1072,7 +1465,7 @@ class HeroDuelNativeFlow:
             self.result.update(status="reconciliation_required", reason="loss_result_or_continue_target_unbound",
                 effect_reconciliation_required=True, identical_retry_denied=True)
             return False
-        step = self._navigation_tap("loss-continue", "tap to continue", {"hero_duel_overview"}, "hero-duel-loss-continue")
+        step = self._continue_to_overview("loss-continue")
         if step is None:
             self.result.update(status="reconciliation_required", effect_reconciliation_required=True, identical_retry_denied=True)
             return False
@@ -1108,6 +1501,39 @@ class HeroDuelNativeFlow:
                 or page.get("event_identity") != self.event_identity
                 or row is None or row["free_button_roi"] != expected_roi):
             raise HeroDuelRecognitionError("first listed Free opponent changed")
+
+    def _defense_back(self, label):
+        source = self.capture(f"hero-duel-{label}-source")
+        if self.observe(source)["screen_state"] != "defense_formation":
+            self.result["reason"] = "defense_back_source_not_route_owned"
+            return None
+        after = {}
+        action = self.session.run_action(
+            action_class="navigation", label=f"hero-duel-{label}",
+            capture=lambda _label: source,
+            authorize=lambda current: self._authorize_return_back(current, "defense_formation"),
+            dispatch=lambda current: self.runtime.back(current,
+                action_key=f"hero-duel:{label}:{current.sha256}", target_identity="hero-duel-defense-back"),
+            recognize=lambda current: self._recognize_transition(current, {"hero_duel_overview"}, after),
+            settled_successor=lambda: self.capture(f"hero-duel-{label}-settled"),
+            consequence_class="navigation_only")
+        if action.status != "completed" or not after:
+            self.result["reason"] = "defense_back_successor_unverified"
+            return None
+        self.result["navigation_input_count"] += 1
+        return after
+
+    def _continue_to_overview(self, label, *, page=None):
+        if page is None or page["screen_state"] == "loss_result":
+            step = self._navigation_tap(label, "tap to continue",
+                {"opponent_list", "hero_duel_overview"}, "hero-duel-loss-continue")
+            if step is None:
+                return None
+            page = step["page"]
+        if page["screen_state"] == "opponent_list":
+            return self._navigation_tap(label + "-opponents-close", "close",
+                {"hero_duel_overview"}, "hero-duel-opponents-close")
+        return {"page": page} if page["screen_state"] == "hero_duel_overview" else None
 
     def _resume_active_cycle(self, page, ordinal):
         entry_ok, flee_ok = self.cycle_receipts(ordinal)
@@ -1152,17 +1578,20 @@ class HeroDuelNativeFlow:
                 return self._finalize()
             self.result["flee_confirmed_count"] += 1
             page = self.observe(flee["successor"], ("hero-duel-loss-continue", "tap to continue"))
-        if page["screen_state"] == "loss_result" and (flee_ok or self.confirmed(self.store.get_action_by_key(self.action_key(ordinal, "hero_duel_flee")))):
+        if page["screen_state"] in {"loss_result", "opponent_list"} and (flee_ok or self.confirmed(self.store.get_action_by_key(self.action_key(ordinal, "hero_duel_flee")))):
             self.result["flee_confirmed_count"] = 1
-            step = self._navigation_tap("restart-loss-continue", "tap to continue", {"hero_duel_overview"}, "hero-duel-loss-continue")
+            step = self._continue_to_overview("restart-loss-continue", page=page)
             if step is None:
                 return self._finalize()
             overview_capture = self.capture("hero-duel-restart-overview")
             overview_page = self.observe(overview_capture)
             overview = self._observation(overview_capture, overview_page, ordinal)
             timer_fresh = overview_page.get("event_timer_visible") and overview_page.get("event_active") is True
+            canonical = [item for item in range(1, 4) if all(self.cycle_receipts(item))]
             if (not timer_fresh or overview.event_identity != self.event_identity
-                    or overview.free_entries_remaining != proof[0] - 1 or overview.pass_balance != proof[1]):
+                    or overview.free_entries_remaining != proof[0] - 1 or overview.pass_balance != proof[1]
+                    or canonical != list(range(1, ordinal + 1))
+                    or not self._canonical_proofs_match(canonical, overview.pass_balance)):
                 self.result.update(status="reconciliation_required", reason="restart_cycle_missing_fresh_exact_event_free_pass_proof", effect_reconciliation_required=True)
                 return self._finish(overview_page)
             self.result["cycle_proofs"].append({
@@ -1175,15 +1604,14 @@ class HeroDuelNativeFlow:
                 "exit_confirmed": True, "flee_confirmed": True, "loss_result_seen": True,
                 "tap_to_continue_confirmed": True,
             })
-            canonical = [item for item in range(1, 4) if all(self.cycle_receipts(item))]
+            self._retain_canonical_cycle_proofs(canonical, overview.pass_balance)
             disposition = "deferred" if overview.free_entries_remaining > 0 else (
                 "complete_for_reset" if canonical == [1, 2, 3] else "reconciliation_required")
             self.result.update(status=disposition, reason="partial_cycle_reconciled_from_canonical_effects",
                 canonical_confirmed_cycle_ordinals=canonical, final_free_entries_remaining=overview.free_entries_remaining,
                 final_pass_balance=overview.pass_balance, hero_duel_event_identity=self.event_identity,
                 current_event_active=True)
-            if disposition == "deferred":
-                self.result["availability_observed_at_utc"] = self.context.utc_clock()
+            self.result["availability_observed_at_utc"] = self.context.utc_clock()
             if disposition == "reconciliation_required":
                 self.result["effect_reconciliation_required"] = True
             return self._finish(overview_page)
@@ -1240,6 +1668,26 @@ class HeroDuelNativeFlow:
         return (self.confirmed(self.store.get_action_by_key(self.action_key(ordinal, "hero_duel_free_entry"))),
                 self.confirmed(self.store.get_action_by_key(self.action_key(ordinal, "hero_duel_flee"))))
 
+    def _retain_canonical_cycle_proofs(self, ordinals, current_pass):
+        """Reopen a prefix only against exact receipts and reconciled counters."""
+        if not self._canonical_proofs_match(ordinals, current_pass):
+            return
+        existing = {proof["ordinal"] for proof in self.result["cycle_proofs"]}
+        for ordinal in ordinals:
+            if ordinal in existing:
+                continue
+            self.result["cycle_proofs"].append({
+                "ordinal": ordinal, "reset_id": self.reset_id, "event_identity": self.event_identity,
+                "entry_action_key": self.action_key(ordinal, "hero_duel_free_entry"),
+                "flee_action_key": self.action_key(ordinal, "hero_duel_flee"),
+                "free_before": 4 - ordinal, "free_after": 3 - ordinal,
+                "pass_before": current_pass, "pass_after": current_pass,
+                "wave_text": "Wave 1/1", "battle_board_verified": True,
+                "exit_confirmed": True, "flee_confirmed": True, "loss_result_seen": True,
+                "tap_to_continue_confirmed": True, "canonical_receipts_reconciled": True,
+            })
+        self.result["cycle_proofs"].sort(key=lambda proof: proof["ordinal"])
+
     def _finish(self, page):
         if page["screen_state"] in {"home", "hero_duel_overview", "defense_formation", "emergency_details", "event_select", "arena"}:
             self._return_home(page)
@@ -1252,12 +1700,16 @@ class HeroDuelNativeFlow:
         self.vision.event_identity = self.event_identity
         page = self.observe(first)
         self.context.bind_initial_observation(first, extra={"hero_duel_start_screen": page["screen_state"]})
-        if page["screen_state"] in {"active_battle", "flee_warning", "loss_result"}:
+        if self.store.has_action_block():
+            self.result.update(status="reconciliation_required", reason="canonical_unresolved_action",
+                effect_reconciliation_required=True, identical_retry_denied=True)
+            return self._finalize()
+        if page["screen_state"] in {"active_battle", "flee_warning", "loss_result", "opponent_list"}:
             pending = [ordinal for ordinal in range(1, 4)
                        if self.cycle_receipts(ordinal)[0] and not self.cycle_receipts(ordinal)[1]]
             finished = [ordinal for ordinal in range(1, 4)
                         if self.cycle_receipts(ordinal)[0] and self.cycle_receipts(ordinal)[1]]
-            ordinal = pending[0] if len(pending) == 1 else (finished[-1] if page["screen_state"] == "loss_result" and finished else 0)
+            ordinal = pending[0] if len(pending) == 1 else (finished[-1] if page["screen_state"] in {"loss_result", "opponent_list"} and finished else 0)
             if not ordinal:
                 self.result.update(status="reconciliation_required", reason="active_cycle_canonical_ordinal_ambiguous", effect_reconciliation_required=True)
                 return self._finalize()
@@ -1303,7 +1755,7 @@ class HeroDuelNativeFlow:
             self.vision.current_event_valid = True
             self.result["hero_duel_event_identity"] = self.event_identity
         if page["screen_state"] == "defense_formation" and self.vision.excluded is None:
-            step = self._navigation_tap("defense-return-overview", "back", {"hero_duel_overview"}, "hero-duel-defense-back")
+            step = self._defense_back("defense-return-overview")
             if step is None:
                 return self._finish(page)
             page = step["page"]
@@ -1320,6 +1772,21 @@ class HeroDuelNativeFlow:
             return self._finish(page)
         overview_capture = self.capture("hero-duel-free-and-pass-source")
         page = self.observe(overview_capture)
+        if page.get("pass_balance") is None and self.vision.route_pass_balance is None:
+            step = self._navigation_tap("allowance-pass-opponents", "challenge",
+                {"challenge_upsell", "opponent_list"}, "hero-duel-overview-challenge")
+            if step and step["page"]["screen_state"] == "challenge_upsell":
+                step = self._navigation_tap("allowance-pass-free-path", "challenge now",
+                    {"opponent_list"}, "hero-duel-challenge-now")
+            if not step or self.vision.route_pass_balance is None:
+                self.result["reason"] = "current_pass_balance_unobserved"
+                return self._finish(step["page"] if step else page)
+            closed = self._navigation_tap("allowance-pass-close", "close",
+                {"hero_duel_overview"}, "hero-duel-opponents-close")
+            if closed is None:
+                return self._finalize()
+            overview_capture = self.capture("hero-duel-free-and-pass-rebound")
+            page = self.observe(overview_capture)
         overview = self._observation(overview_capture, page, 1)
         free = overview.free_entries_remaining
         if type(free) is not int or not 0 <= free <= 3:
@@ -1338,6 +1805,9 @@ class HeroDuelNativeFlow:
                 or not self._canonical_proofs_match(canonical, overview.pass_balance)):
             self.result.update(status="reconciliation_required", reason="current_reset_usage_lacks_matching_complete_canonical_event_free_pass_proofs", effect_reconciliation_required=True)
             return self._finish(page)
+        self._retain_canonical_cycle_proofs(canonical, overview.pass_balance)
+        self.result.update(final_free_entries_remaining=free, final_pass_balance=overview.pass_balance)
+        self.result["availability_observed_at_utc"] = self.context.utc_clock()
         if free == 0:
             if canonical == [1, 2, 3]:
                 self.result.update(status="already_complete", reason="three_current_reset_cycles_canonically_confirmed", no_work=True)
@@ -1365,7 +1835,7 @@ class HeroDuelNativeFlow:
             home = False
             self.result["reason"] = self.result.get("reason") or "terminal_route_state_unknown"
         final_free = terminal_page.get("free_entries_remaining")
-        final_pass = terminal_page.get("pass_balance")
+        final_pass = self._observation(terminal_capture, terminal_page, 3).pass_balance
         self.result.update(final_free_entries_remaining=final_free, final_pass_balance=final_pass)
         if (not home or type(final_free) is not int or not 0 <= final_free <= 3
                 or type(final_pass) is not int or final_pass != overview.pass_balance
@@ -1386,11 +1856,14 @@ class HeroDuelNativeFlow:
         return self._finalize()
 
     def _finalize(self):
+        if self.result.get("status") == "blocked":
+            self.session.blocker = str(self.result["reason"])
         accounting = self.context.accounting()
         self.result.update(flow_id=FLOW_ID, product_id=PRODUCT_ID, product_revision=PRODUCT_REVISION,
+            reset_id=self.reset_id,
             total_input_count=accounting.input_count, input_accounting_verified=accounting.verified,
             accounting_verified=accounting.verified,
-            committed_action_count=len(self.result["cycle_proofs"]),
+            committed_action_count=max(len(self.result["cycle_proofs"]), self.result["entry_transport_calls"], self.result["flee_transport_calls"]),
             effect_reconciliation_required=bool(self.result.get("effect_reconciliation_required")),
             identical_retry_denied=bool(self.result.get("identical_retry_denied")))
         return self.result

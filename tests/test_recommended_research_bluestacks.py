@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from contextlib import closing
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
+
+from safe_action_core import CentralPolicy, SafetyStore
 
 import cv2
 import numpy as np
@@ -451,6 +456,129 @@ class RecommendedResearchNativeParserTests(unittest.TestCase):
         )
         self.assertIsNone(binding)
 
+
+
+class ResearchFinalFenceRegressionTests(unittest.TestCase):
+    def test_two_view_quote_rebuilt_and_every_changed_authorization_denies(self):
+        with tempfile.TemporaryDirectory() as directory, closing(
+            SafetyStore(Path(directory) / "actions.sqlite")
+        ) as store:
+            root = Path(directory)
+            store.acquire_lease("research-test", 1000.0, 60.0)
+            rows = {
+                1: _ocr([("Research (0/1)", 20, 350), ("24", 430, 600)]),
+                2: _listing_ocr(), 3: _scrolled_detail_ocr(), 4: _top_detail_ocr(),
+            }
+            captures = {}
+            for code in rows:
+                frame = np.full((1280, 800, 3), code, dtype=np.uint8)
+                captures[code] = SimpleNamespace(
+                    frame=frame, sha256=str(code) * 64, captured_monotonic=float(code),
+                    path=root / f"frame-{code}.png",
+                )
+            context = SimpleNamespace(
+                runtime=SimpleNamespace(session=root, action_keys=("entry", "recommendation"), input_count=2),
+                session=SimpleNamespace(owner="research-test"),
+                action_store=store, owner="research-test", invocation_id="fence-regression",
+                occurrence_key="fence-occurrence", identity="fixed-research-identity",
+                checkpoint=lambda: None, validate_identity=lambda: None,
+                accounting=lambda: SimpleNamespace(
+                    verified=True, input_count=2, session_input_count=2, runtime_input_count=2,
+                ),
+                utc_clock=lambda: 1001.0, monotonic_clock=lambda: 5.0,
+                is_clean_home=lambda frame: int(frame[0, 0, 0]) == 1,
+                _recommended_research_center_level=24,
+                _recommended_research_queue1_state="idle",
+                _recommended_research_queue1_remaining=None,
+            )
+            binding = SimpleNamespace(building_id=route.RESEARCH_CENTER_ID, screen_anchor=(400, 580))
+            def model_center_level(frame, _binding):
+                words = route._ocr_words(rows[int(frame[0, 0, 0])])
+                levels = [int(word.text) for word in words if word.text.isdecimal()]
+                return levels[0] if len(levels) == 1 else None
+
+            with (
+                patch.object(route, "_read_words", side_effect=lambda frame, _data=None: route._ocr_words(rows[int(frame[0, 0, 0])])),
+                patch.object(route, "_research_center_level", side_effect=model_center_level),
+            ):
+                listing = route._list_observation(route._source_screen(context, captures[2]), context)
+                quote = route._source_screen(context, captures[3], expected_detail_identity=listing.first_recommendation_identity)
+                top = route._source_screen(context, captures[4], expected_detail_identity=listing.first_recommendation_identity)
+                expected = route._detail_observation(
+                    top, listing, context,
+                    costs=route._merge_top_and_scrolled_resource_rows(top.resource_pairs, quote.resource_pairs),
+                    scrolled_refs=quote.evidence_refs,
+                )
+                context._recommended_research_visit = {
+                    "valid": True, "identity": route._research_visit_identity(context),
+                    "action_keys": context.runtime.action_keys, "input_count": 2,
+                    "home_source": (captures[1].sha256, captures[1].captured_monotonic),
+                    "home_binding": binding, "home_used_at": 1.5,
+                    "home_pixels": hashlib.sha256(captures[1].frame.tobytes()).hexdigest(),
+                    "home_screen": route._source_screen(context, captures[1]),
+                    "center_level": model_center_level(captures[1].frame, binding),
+                    "list_source": (captures[2].sha256, captures[2].captured_monotonic),
+                    "list_used_at": 2.5, "listing": listing,
+                    "list_pixels": hashlib.sha256(captures[2].frame.tobytes()).hexdigest(),
+                    "transitions": ("entry", "recommendation"),
+                }
+                def rebuild():
+                    screen = route._source_screen(context, captures[4], expected_detail_identity=listing.first_recommendation_identity)
+                    return route._fresh_start_detail(
+                        context, captured=captures[4], screen=screen, home=captures[1],
+                        home_binding=binding, listing_capture=captures[2], listing=listing,
+                        quote_capture=captures[3], quote_screen=quote, expected=expected,
+                    )
+                self.assertTrue(tech_upgrade_authorizeable(rebuild(), listing))
+                mutations = [
+                    (4, _ocr([("Troop Load II (8/10)", 120, 650), ("Actual Time 05:56:53", 360, 790),
+                              ("Original Time 09:34:35", 120, 790), ("Research Center: Lv.25", 160, 875),
+                              ("3,003,682/0", 160, 930), ("757,050/0", 160, 985),
+                              ("Research Now", 160, 1125), ("714", 270, 1095), ("Research", 440, 1170)])),
+                    (1, _ocr([("Research (1/1) 00:12:11", 20, 350), ("24", 430, 600)])),
+                    (1, _ocr([("Research (0/1)", 20, 350), ("23", 430, 600)])),
+                    (2, _ocr([("Research Center", 290, 35), ("Recom'd", 300, 125),
+                              ("Rider ATK III", 160, 195), ("Research", 545, 195),
+                              ("Troop Load II", 160, 305), ("Research", 545, 305)])),
+                ]
+                for old, new in (("3,003,682/0", "3,003,682/1"), ("3,003,682/0", "0/1"),
+                                 ("757,050/0", "757,049/0")):
+                    changed = _top_detail_ocr()
+                    changed["text"] = [text.replace(old, new) for text in changed["text"]]
+                    mutations.append((4, changed))
+                changed = _scrolled_detail_ocr()
+                changed["text"] = [text.replace("47,775/0", "47,775/1") for text in changed["text"]]
+                mutations.append((3, changed))
+                for code, replacement in mutations:
+                    original = rows[code]
+                    rows[code] = replacement
+                    original_pixel = int(captures[code].frame[0, 0, 1])
+                    captures[code].frame[0, 0, 1] ^= 128
+                    with self.subTest(code=code, replacement=replacement["text"]):
+                        self.assertIsNone(rebuild())
+                        with self.assertRaisesRegex(RuntimeError, "TARGET_NOT_FRESHLY_BOUND"):
+                            route._guarded_action(
+                                context, CentralPolicy(supervised_tasks=frozenset({route.FLOW_ID})),
+                                captured=captures[4], game_day_id="game-day-2026-11-07",
+                                occurrence_key="changed-quote", action_key="changed-quote:start",
+                                plan_builder=lambda before: None if rebuild() is None else route._page_plan(
+                                    top, state=DETAIL_SCREEN, target=expected.target_identity,
+                                    control="RESEARCH_START", postcondition="RESEARCH_ACTIVE_WITH_TIMER_AND_MATCHED_RESOURCE_DEBIT",
+                                    semantic_action="START_RECOMMENDED_RESEARCH",
+                                ),
+                                recognizes_successor=lambda after: False,
+                                action_class=route.ActionClass.SPEND_OR_STRATEGIC,
+                            )
+                        self.assertIsNone(store.get_action_by_key("changed-quote:start"))
+                    rows[code] = original
+                    captures[code].frame[0, 0, 1] = original_pixel
+                context.monotonic_clock = lambda: 12.0
+                self.assertTrue(tech_upgrade_authorizeable(rebuild(), listing))
+                context.runtime.input_count = 3
+                self.assertIsNone(rebuild())
+                context.runtime.input_count = 2
+                context.monotonic_clock = lambda: 14.0
+                self.assertIsNone(rebuild())
 
 
 if __name__ == "__main__":

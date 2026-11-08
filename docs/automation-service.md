@@ -170,6 +170,50 @@ observed zero inventory, an exact current offer within the approved price ceilin
 effect proof; unknown inventory is not zero. One owned-item boost and positive timer were observed;
 total inventory and the exact premium branch remain unproven. None of this raw investigation is
 route-level live acceptance.
+Duel scene classification recognizes retained defense/attack headings, the formation-details
+dialog, Exit/Flee result and opponent return even when OCR misses an action label. Scene identity
+alone never establishes an eligible hero, free entry or actionable control: missing exclusion/
+eligibility evidence still blocks dispatch. Actual historical desktop images prove classification
+only, not native input binding or three-cycle acceptance. Research refreshes queue, prerequisites,
+paired resource costs/balances and the exact detail control immediately before start; changed,
+expired or ambiguous evidence denies input. Recommendation title/button rereads use measured
+current pixels; an already-open recognized Research page gets at most three guarded Back hops,
+each reaching a recognized nearer parent or Home. Unknown/unchanged successors stop without retry.
+Startup must verify Home; these recovery guards do not establish Research-start acceptance.
+Home/Atlas/owned level and idle queue must be fresh within 10 seconds when entering Research;
+the first recommendation must be fresh within 10 seconds when selected. Their original captures
+and phase-use times may persist only through the same exclusive canonical invocation's verified
+navigation chain, fixed identity/session/lease, existing canonical generation checkpoints and
+unchanged input accounting. Unknown transitions,
+context loss, consuming inputs or restart invalidate that proof. Current detail, prerequisites and
+the resource quote remain subject to the 10-second consuming-use fence and original 5-second
+pre-dispatch source fence; captures are never re-dated. Same-frame OCR decoding is memoized by
+source identity and pixel digest only, not promoted to current evidence. Known pre-start refusal
+with no sent/unresolved effect uses guarded Home return; unknown sent effects permit no input.
+The already-computed Home entry plan is reused only for planning, avoiding duplicate Atlas/phase
+decoding on the same capture. SDK immediate-before authorization always rebinds and proves the
+current Home/queue/owned level again; a fresh clean-Home binding supplies that frame's classification.
+A complete current four-resource scroll supplies its own quote; partial overlapping views still
+require matching overlap. A fully identified scrolled sheet can return Home without a cached
+recommendation identity, but starting still requires the fresh first-recommendation identity.
+The reverse requirements swipe is bound inside the freshly recognized resource rows, not the
+fixed effect header. Its successor must restore the actual duration and prerequisite content;
+the fixed START control alone never proves the sheet returned to the top.
+Research Center level is read from its owner-bound caption and unique badge; only measured tiny
+peripheral plate-border fragments are removed, never interior or glyph-height components. All six
+glyph readings must agree or the prerequisite remains unknown. At night, if terrain merges with
+the dark plate, only a unique closed rim with matching owned geometry and a dark interior can
+isolate that same badge; ambiguous plates stay unknown. The separate excluded Research Now
+price is measured from its own diamond/caption band, never defaulted or substituted for START.
+The left-HUD queue count is read only from the isolated neutral glyphs under the unique HUD
+Research label; three OCR modes must agree and a data read must confirm that text at its own
+confidence of at least 80, otherwise a clipped, missing or disagreeing count stays unknown.
+Farm uses fixed runtime identity, source-bound collection/boost controls and current lease/freshness
+guards. A displayed item cost of one is
+not owned inventory; unproved inventory or premium confirmation/effects remains blocked.
+An offscreen Farm uses the existing bounded, verified Atlas Home pans before binding a reachable
+mapped Farm. An unknown approach stops before collection/boost and captures fresh terminal context.
+
 
 Batch F adds canonical-only Hall of War and Troop Training native service routes. It removes the
 legacy Troop Training operator runner/validator/aliases, leaving eleven operator routes, and keeps

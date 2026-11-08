@@ -5,10 +5,60 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 import sqlite3
+import threading
 import time
 from typing import Any
 
 from contextlib import contextmanager
+
+
+# A third of the default 60-second service-lease TTL used by checkpoints.
+_EXECUTOR_LEASE_KEEPALIVE_SECONDS = 20.0
+
+
+@contextmanager
+def _executor_lease_keepalive(state, run, *, stop, clock, fence_open):
+    """Renew the run's exact live lease while a synchronous native step computes.
+
+    The keepalive never acquires, reclaims, or extends TTL: after the canonical
+    persisted clock guard and a fresh full dispatch fence it only performs the
+    ordinary exact-generation renewal, and stops at the first failed fence.
+    The shared state manager serializes every transaction with its own lock.
+    The route's own checkpoints remain the authority that reports a lost lease.
+    """
+
+    done = threading.Event()
+
+    def renew_while_running():
+        try:
+            while not done.wait(_EXECUTOR_LEASE_KEEPALIVE_SECONDS):
+                if stop.is_set():
+                    return
+                now = clock()
+                if not state.observe_clock(now).accepted or not fence_open(now):
+                    return
+                validation = state.validate_dispatch(
+                    run.run_id, owner_instance_id=run.owner_instance_id,
+                    process_start_token=run.process_start_token, run_token=run.run_token,
+                    lease_generation=run.lease_generation, now_utc_epoch=now,
+                    allow_executor_marker=True,
+                )
+                if not validation.valid or done.is_set() or state.renew_service_lease(
+                    owner_instance_id=run.owner_instance_id,
+                    process_start_token=run.process_start_token,
+                    lease_generation=run.lease_generation, now_utc_epoch=now,
+                ) is None:
+                    return
+        except Exception:
+            return
+
+    worker = threading.Thread(target=renew_while_running, name=f"lease-keepalive-{run.run_id}", daemon=True)
+    worker.start()
+    try:
+        yield
+    finally:
+        done.set()
+        worker.join()
 
 
 @contextmanager
@@ -887,14 +937,17 @@ class AutomationService:
                         raise ServiceError(f"DISPATCH_FENCE_FAILED:{validation.reason}")
                     return now
 
+                def reset_open(now):
+                    # AP occurrences retain their claim identity across midnight;
+                    # a calendar date change does not reset ordinary AP spending.
+                    return (recruitment_reset(now) == identity.reset_id
+                            or not (descriptor.reset_scoped
+                                    or descriptor.recurrence_class is not RecurrenceClass.AP_REGENERATION))
+
                 def checkpoint():
                     nonlocal reset_change
                     now = checkpoint_fences()
-                    # AP occurrences retain their claim identity across midnight;
-                    # a calendar date change does not reset ordinary AP spending.
-                    if (recruitment_reset(now) != identity.reset_id
-                            and (descriptor.reset_scoped
-                                 or descriptor.recurrence_class is not RecurrenceClass.AP_REGENERATION)):
+                    if not reset_open(now):
                         reset_change = ServiceError(f"RESET_CHANGED_DURING_{prefix}")
                         raise reset_change
 
@@ -1088,9 +1141,10 @@ class AutomationService:
                         options["operator_request_id"] = operator_request_id
                     runner_entered = True
                     route_normalized = None
-                    runner_output = runners[flow_id](
-                        identity, previous_reset, checkpoint, **options
-                    )
+                    with _executor_lease_keepalive(state, run, stop=stop, clock=clock, fence_open=reset_open):
+                        runner_output = runners[flow_id](
+                            identity, previous_reset, checkpoint, **options
+                        )
                     if flow_id in {
                         RECOMMENDED_RESEARCH_FLOW_ID,
                         FOOD_FARM_BOOST_FLOW_ID,

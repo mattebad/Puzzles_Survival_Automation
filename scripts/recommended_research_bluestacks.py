@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 import math
 from pathlib import Path
 import re
@@ -29,6 +31,7 @@ from safe_action_core import (
 )
 from tasks.home_atlas import BuildingBinding, HomeAtlas, load_home_atlas
 from tasks.home_atlas_vision import (
+    HUD_MASK_RECTS,
     BlueStacksHomeLocalizer,
     bind_visible_building,
     native_frame_guard,
@@ -62,6 +65,11 @@ _RESEARCH_PANEL_RE = re.compile(r"([0-9][0-9,]*)\s*/\s*([0-9][0-9,]*)")
 _LEVEL_RE = re.compile(r"(?:\(\s*)?([0-9]{1,3})\s*/\s*([0-9]{1,3})(?:\s*\))?")
 _CLOCK_RE = re.compile(r"(?<![0-9])([0-9]{1,2}):([0-9]{2}):([0-9]{2})(?![0-9])")
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
+# Owned intermediate between a detail sheet and the Research Center: one
+# category's technology tree under its white header (actual Research Center
+# categories: Development, Economy, Military, Fortification, Unit Tactics).
+TREE_SCREEN = "RESEARCH_TREE"
+_RESEARCH_TREE_CATEGORIES = frozenset({"development", "economy", "military", "fortification", "unittactics"})
 _UNSAFE_OVERLAY_MARKERS = (
     "insufficientresource",
     "notenoughresource",
@@ -127,6 +135,7 @@ class ResearchScreenObservation:
     active_identity: str | None = None
     active_remaining_seconds: int | None = None
     active_resource_rows: tuple[ResearchResourceRow, ...] = ()
+    research_category: str | None = None
     recognized: bool = False
 
 
@@ -194,10 +203,386 @@ def _read_words(frame: Any, ocr_data: Mapping[str, object] | None = None) -> tup
     if ocr_data is None:
         from scripts.bounded_tesseract import call_ocr, tesseract_data
 
-        ocr_data = call_ocr(tesseract_data, frame, config="--psm 6", timeout=5.0)
+        ocr_data = call_ocr(tesseract_data, frame, config="--psm 6", call_timeout=5.0)
     if not isinstance(ocr_data, Mapping):
         return ()
     return _ocr_words(ocr_data)
+
+
+def _translated_words(data: object, x0: int, y0: int) -> tuple[ResearchWord, ...]:
+    if not isinstance(data, Mapping):
+        return ()
+    try:
+        data = {
+            **data,
+            "left": [x0 + int(value) // 3 for value in data["left"]],
+            "top": [y0 + int(value) // 3 for value in data["top"]],
+            "width": [-(-int(value) // 3) for value in data["width"]],
+            "height": [-(-int(value) // 3) for value in data["height"]],
+        }
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return ()
+    return _ocr_words(data)
+
+
+def _scaled_crop_words(frame: Any, roi: tuple[int, int, int, int], config: str) -> tuple[ResearchWord, ...]:
+    from scripts.bounded_tesseract import call_ocr, tesseract_data
+
+    x0, y0, x1, y1 = roi
+    crop = cv2.resize(cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY), None, fx=3, fy=3)
+    return _translated_words(call_ocr(tesseract_data, crop, config=config, call_timeout=5.0), x0, y0)
+
+
+def _white_ink(crop: Any) -> Any:
+    """Keep only white UI strokes, darkened onto a blank page."""
+
+    white = cv2.inRange(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV), (0, 0, 180), (179, 80, 255))
+    strokes = cv2.dilate(white, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    return cv2.bitwise_not(cv2.bitwise_and(gray, gray, mask=strokes))
+
+
+def _gray(crop: Any) -> Any:
+    return cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+
+
+def _prepared_crop_words(
+    frame: Any, roi: tuple[int, int, int, int], prepare: Callable[[Any], Any], config: str,
+) -> tuple[ResearchWord, ...]:
+    from scripts.bounded_tesseract import call_ocr, tesseract_data
+
+    x0, y0, x1, y1 = roi
+    scaled = cv2.resize(prepare(frame[y0:y1, x0:x1]), None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+    return _translated_words(call_ocr(tesseract_data, scaled, config=config, call_timeout=5.0), x0, y0)
+
+
+def _radial_caption_words(frame: Any, anchor: tuple[float, float]) -> tuple[ResearchWord, ...]:
+    """Read the white radial captions beneath a freshly bound owner anchor.
+
+    Full-frame OCR merges the small outlined captions with the city art, so
+    only white strokes in the owner's caption band are read sparse at 3x.
+    """
+
+    height, width = frame.shape[:2]
+    ax, ay = (int(round(value)) for value in anchor)
+    x0, y0 = max(0, ax - 240), max(0, ay + 40)
+    x1, y1 = min(width, ax + 240), min(height, ay + 210)
+    if x1 - x0 < 24 or y1 - y0 < 24:
+        return ()
+    return _prepared_crop_words(frame, (x0, y0, x1, y1), _white_ink, "--psm 11")
+
+
+# Actual Research Center page rereads measured 95-96 for the title and both
+# Research buttons, and 95-96 for the row title words they anchor.
+_RESEARCH_PAGE_MIN_CONFIDENCE = 80.0
+_ROMAN_TAIL_RE = re.compile(r"(.*\S)\s+([IVXl|]{1,4})")
+
+
+def _canonical_title(title: str) -> str:
+    """Tesseract reads this font's roman-numeral I as l or |; titles end in I/V/X tiers."""
+
+    match = _ROMAN_TAIL_RE.fullmatch(title)
+    if match is None:
+        return title
+    return f"{match.group(1)} {match.group(2).replace('l', 'I').replace('|', 'I')}"
+
+
+def _reread_line_words(
+    reread: Sequence[ResearchWord], block: int, *, gap: int = 40,
+) -> tuple[list[ResearchWord], int]:
+    """Give each horizontally separated reread cluster its own line identity."""
+
+    grouped: list[ResearchWord] = []
+    previous_right: int | None = None
+    previous_y: float | None = None
+    for word in sorted(reread, key=lambda item: (item.roi[1] // 40, item.roi[0])):
+        if (
+            previous_right is not None
+            and previous_y is not None
+            and (word.roi[0] - previous_right > gap or abs(word.center[1] - previous_y) > 20)
+        ):
+            block += 1
+        grouped.append(ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, 0, 0)))
+        previous_right, previous_y = word.roi[2], word.center[1]
+    return grouped, block + 1
+
+
+def _reread_list_rows(
+    frame: Any, words: tuple[ResearchWord, ...], header_bottom: int, block: int,
+    added: list[ResearchWord], replaced: list[tuple[int, int, int, int]],
+) -> int:
+    height, width = frame.shape[:2]
+    buttons = sorted(
+        (
+            word for word in _prepared_crop_words(frame, (330, header_bottom, width, height), _white_ink, "--psm 6")
+            if word.normalized == "research" and word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE
+        ),
+        key=lambda word: (word.roi[1], word.roi[0]),
+    )
+    for button in buttons:
+        bx0, by0, _bx1, by1 = button.roi
+        added.append(ResearchWord(button.text, button.normalized, button.roi, button.confidence, (block, 0, 0)))
+        replaced.append(button.roi)
+        block += 1
+        anchors = [
+            word for word in words
+            if word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE
+            and word.roi[1] > header_bottom
+            and word.roi[2] <= bx0 - 8
+            and by0 - 40 <= word.center[1] <= by1
+        ]
+        if not anchors:
+            continue
+        band = (
+            max(0, min(word.roi[0] for word in anchors) - 8),
+            max(header_bottom, min(word.roi[1] for word in anchors) - 6),
+            bx0 - 8,
+            min(height, max(word.roi[3] for word in anchors) + 6),
+        )
+        row = [word for word in _prepared_crop_words(frame, band, _gray, "--psm 11") if word.normalized]
+        if not row or any(word.confidence < 60 for word in row):
+            continue
+        added.extend(ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, 0, 0)) for word in row)
+        replaced.append((0, band[1], band[2], band[3]))
+        block += 1
+    return block
+
+
+def _detail_title_lines(lines: Sequence[tuple[ResearchWord, ...]]) -> list[tuple[ResearchWord, ...]]:
+    """Sheet title rows: one "(n/m)" level token right of confident title words."""
+
+    labels = (*_phrase_lines(lines, "Original Time"), *_phrase_lines(lines, "Actual Time"))
+    labels_top = min((_line_bounds(line)[1] for line in labels), default=None)
+    titles = []
+    for line in lines:
+        x0, y0, x1, y1 = _line_bounds(line)
+        levels = [word for word in line if _LEVEL_RE.fullmatch(word.text.strip())]
+        if y0 <= 500 or (labels_top is not None and y1 >= labels_top) or len(levels) != 1:
+            continue
+        if any(
+            word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE and word.normalized.isalpha() and word.roi[2] <= levels[0].roi[0]
+            for word in line
+        ):
+            titles.append(line)
+    return titles
+
+
+def _reread_detail_controls(
+    frame: Any, words: tuple[ResearchWord, ...], lines: Sequence[tuple[ResearchWord, ...]], block: int,
+    added: list[ResearchWord], replaced: list[tuple[int, int, int, int]],
+) -> int:
+    """Reread the actual detail sheet's title row and its bottom control pair.
+
+    Measured on the actual Troop Load II sheet: the full-frame pass merged the
+    title with its icon/close glyphs ('@ Troop Load 11 (8/10) x') and dropped
+    both bottom controls; white-ink rereads gave 'Troop Load II (8/10)'
+    (96/96/73-78/93-96) and 'Research Now' 96/96 left of ordinary 'Research' 96.
+    """
+
+    height, width = frame.shape[:2]
+    title_lines = _detail_title_lines(lines)
+    if len(title_lines) == 1:
+        line = title_lines[0]
+        level = next(word for word in line if _LEVEL_RE.fullmatch(word.text.strip()))
+        anchors = [
+            word for word in line
+            if word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE
+            and word.normalized.isalpha()
+            and word.roi[2] <= level.roi[0]
+        ]
+        if anchors:
+            band = (
+                max(0, min(word.roi[0] for word in anchors) - 8),
+                max(0, min(word.roi[1] for word in (*anchors, level)) - 6),
+                min(width, level.roi[2] + 8),
+                min(height, max(word.roi[3] for word in (*anchors, level)) + 6),
+            )
+            row = [word for word in _prepared_crop_words(frame, band, _white_ink, "--psm 7") if word.normalized]
+            if (
+                row
+                and all(word.confidence >= 60 for word in row)
+                and sum(bool(_LEVEL_RE.fullmatch(word.text.strip())) for word in row) == 1
+                and any(word.normalized.isalpha() for word in row)
+            ):
+                added.extend(ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, 0, 0)) for word in row)
+                replaced.append(band)
+                block += 1
+    controls_top = max(_line_bounds(line)[3] for line in lines)
+    if controls_top < height - 24:
+        controls = [
+            word for word in _prepared_crop_words(frame, (0, controls_top, width, height), _white_ink, "--psm 6")
+            if word.normalized in {"research", "now"} and word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE
+        ]
+        grouped, block = _reread_line_words(controls, block)
+        added.extend(grouped)
+        replaced.extend(word.roi for word in grouped)
+        price = _research_now_price_word(frame, grouped, block)
+        if price is not None:
+            added.append(price)
+            block += 1
+    return block
+
+
+# Actual sheet (0014/0020): the excluded premium price sits inside the Research
+# Now button, digits 1204..1221 directly above the caption top 1226, right of a
+# 343-px cyan diamond icon; Full-frame and icon-inclusive reads gave '*714'
+# 48/65, the icon-excluded white reread '714' 96.
+_RESEARCH_NOW_PRICE_BAND_HEIGHT = 28
+_RESEARCH_NOW_DIAMOND_MIN_PIXELS = 120
+
+
+def _research_now_price_word(frame: Any, controls: Sequence[ResearchWord], block: int) -> ResearchWord | None:
+    """Read the excluded Research Now diamond price anchored to its own caption."""
+
+    by_line: dict[tuple[int, int, int], list[ResearchWord]] = {}
+    for word in controls:
+        by_line.setdefault(word.line_id, []).append(word)
+    captions = [
+        line for line in by_line.values()
+        if [word.normalized for word in sorted(line, key=lambda item: item.roi[0])] == ["research", "now"]
+    ]
+    if len(captions) != 1:
+        return None
+    cx0 = min(word.roi[0] for word in captions[0])
+    cy0 = min(word.roi[1] for word in captions[0])
+    cx1 = max(word.roi[2] for word in captions[0])
+    y0, y1 = max(0, cy0 - _RESEARCH_NOW_PRICE_BAND_HEIGHT), cy0 - 1
+    if y1 - y0 < 12 or cx1 - cx0 < 40:
+        return None
+    diamond = cv2.inRange(cv2.cvtColor(frame[y0:y1, cx0:cx1], cv2.COLOR_BGR2HSV), (85, 90, 120), (125, 255, 255))
+    columns = diamond.any(axis=0).nonzero()[0]
+    if int((diamond > 0).sum()) < _RESEARCH_NOW_DIAMOND_MIN_PIXELS or not len(columns):
+        return None
+    digits_x0 = cx0 + int(columns.max()) + 4
+    if cx1 - digits_x0 < 12:
+        return None
+    read = [word for word in _prepared_crop_words(frame, (digits_x0, y0, cx1, y1), _white_ink, "--psm 7") if word.normalized]
+    if len(read) != 1 or read[0].confidence < _RESEARCH_PAGE_MIN_CONFIDENCE or not read[0].text.strip().isdecimal():
+        return None
+    word = read[0]
+    return ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, 0, 0))
+
+
+def _research_page_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[ResearchWord, ...]:
+    """Reread the Research page text the full-frame pass drops.
+
+    The white header band is always reread when no title was found there.
+    With exactly one recommendation header the Research buttons and their
+    anchored row titles are reread; with exactly one Original/Actual Time pair
+    the detail title row and bottom controls are. Nothing is added without a
+    confident current read.
+    """
+
+    lines = _line_groups(words)
+    height, width = frame.shape[:2]
+    block = max((word.line_id[0] for word in words), default=0) + 1
+    added: list[ResearchWord] = []
+    replaced: list[tuple[int, int, int, int]] = []
+    if not any(_line_bounds(line)[1] < 180 for line in _phrase_lines(lines, "Research Center")):
+        for word in _prepared_crop_words(frame, (0, 0, width, 180), _white_ink, "--psm 6"):
+            if word.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE:
+                added.append(ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, word.line_id[1], word.line_id[2])))
+        block += 1
+    headers = [line for line in lines if "recomd" in _normalize(_line_text(line)) or "recommended" in _normalize(_line_text(line))]
+    if len(headers) == 1:
+        block = _reread_list_rows(frame, words, _line_bounds(headers[0])[3], block, added, replaced)
+    elif (
+        len(_phrase_lines(lines, "Original Time")) == 1 and len(_phrase_lines(lines, "Actual Time")) == 1
+    ) or len(_detail_title_lines(lines)) == 1:
+        block = _reread_detail_controls(frame, words, lines, block, added, replaced)
+    if not added:
+        return words
+    retained = tuple(
+        word for word in words
+        if not any(x0 <= word.center[0] <= x1 and y0 <= word.center[1] <= y1 for x0, y0, x1, y1 in replaced)
+    )
+    return (*retained, *added)
+
+
+def _home_research_hud_words(frame: Any, words: tuple[ResearchWord, ...]) -> tuple[ResearchWord, ...]:
+    """Reread the fraction beneath the fresh, measured left-HUD Research label.
+
+    Full-frame OCR can drop the small HUD label entirely, so the label is
+    measured from the shared fixed left-HUD column and must be unique there.
+    """
+    hud = HUD_MASK_RECTS[1]
+    anchors = [word for word in _scaled_crop_words(frame, hud, "--psm 11") if word.normalized == "research"]
+    if len(anchors) != 1:
+        return words
+    anchor = anchors[0]
+    left, top = max(hud[0], anchor.roi[0] - 14), max(hud[1], anchor.roi[1] - 10)
+    right, bottom = min(hud[2], anchor.roi[2] + 18), min(hud[3], anchor.roi[3] + 24)
+    block = max((word.line_id[0] for word in words), default=0) + 1
+    retained = tuple(word for word in words
+                     if not (left <= word.center[0] <= right and top <= word.center[1] <= bottom))
+    clocks = tuple(
+        ResearchWord(word.text, word.normalized, word.roi, word.confidence, (block, word.line_id[1], word.line_id[2]))
+        for word in _scaled_crop_words(frame, (left, top, right, bottom), "--psm 6")
+        if _CLOCK_RE.fullmatch(word.text)
+    )
+    label = ResearchWord(anchor.text, anchor.normalized, anchor.roi, anchor.confidence, (block, 0, 0))
+    fraction_band = (left, anchor.roi[3] + 3, right, min(hud[3], anchor.roi[3] + _HUD_FRACTION_BAND_BELOW_LABEL))
+    fraction = _hud_queue_fraction_word(frame, fraction_band, (block + 1, 0, 0))
+    return (*retained, label, *((fraction,) if fraction is not None else ()), *clocks)
+
+
+# Actual Homes (prerequisite-native 0001/0002, parent-chain 0008): the HUD
+# "(0/1)" strokes are dim neutral white (V 150..180) over changing map art.
+# Whole-crop OCR dropped it on 0002 and a white-ink cut misread it as (3/7);
+# the isolated neutral glyphs at 6x read (0/1) identically in psm 7/8/13 on
+# all three frames. The label OCR bottom varies 406..410 while the fraction
+# spans y 416..431, so the band reaches 28 px below the label bottom and a
+# glyph touching the band edge is treated as clipped.
+_HUD_FRACTION_INK_MIN_VALUE = 150
+_HUD_FRACTION_INK_MAX_SATURATION = 50
+_HUD_FRACTION_BAND_BELOW_LABEL = 28
+
+
+def _hud_queue_fraction_word(
+    frame: Any, band: tuple[int, int, int, int], line_id: tuple[int, int, int],
+) -> ResearchWord | None:
+    """Read the queue fraction glyphs below the HUD label; every mode must agree.
+
+    Agreement of the three string reads selects the text; the returned word
+    keeps the actual TSV confidence of a psm 7 data read of the same crop,
+    which must report exactly that text at the page confidence floor.
+    """
+
+    from scripts.bounded_tesseract import call_ocr, tesseract_data, tesseract_string
+
+    x0, y0, x1, y1 = band
+    if x1 - x0 < 12 or y1 - y0 < 8:
+        return None
+    hsv = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+    ink = ((hsv[:, :, 2] >= _HUD_FRACTION_INK_MIN_VALUE) & (hsv[:, :, 1] <= _HUD_FRACTION_INK_MAX_SATURATION)).astype("uint8") * 255
+    count, labels, stats, _centroids = cv2.connectedComponentsWithStats(ink, connectivity=8)
+    glyph_mask = ((labels > 0) & (stats[labels, cv2.CC_STAT_HEIGHT] >= 6)).astype("uint8") * 255 if count > 1 else ink * 0
+    rows, columns = glyph_mask.nonzero()
+    if not len(rows):
+        return None
+    gx0, gy0, gx1, gy1 = int(columns.min()), int(rows.min()), int(columns.max()), int(rows.max())
+    if gy0 == 0 or gy1 == y1 - y0 - 1 or gx0 == 0 or gx1 == x1 - x0 - 1:
+        return None
+    glyphs = 255 - glyph_mask[gy0:gy1 + 1, gx0:gx1 + 1]
+    padding = max(1, round((gy1 - gy0 + 1) * .15))
+    glyphs = cv2.copyMakeBorder(glyphs, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=255)
+    glyphs = cv2.resize(glyphs, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
+    glyphs = cv2.copyMakeBorder(glyphs, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
+    whitelist = "-c tessedit_char_whitelist=0123456789/()"
+    readings = {
+        re.sub(r"\s+", "", str(call_ocr(tesseract_string, glyphs, config=f"--psm {mode} {whitelist}", call_timeout=5.0)))
+        for mode in (7, 8, 13)
+    }
+    if len(readings) != 1:
+        return None
+    text = readings.pop()
+    if not re.fullmatch(r"\([0-9]/[0-9]\)", text):
+        return None
+    data = call_ocr(tesseract_data, glyphs, config=f"--psm 7 {whitelist}", call_timeout=5.0)
+    read = _ocr_words(data) if isinstance(data, Mapping) else ()
+    if len(read) != 1 or read[0].text != text or read[0].confidence < _RESEARCH_PAGE_MIN_CONFIDENCE:
+        return None
+    return ResearchWord(text, _normalize(text), (x0 + gx0, y0 + gy0, x0 + gx1 + 1, y0 + gy1 + 1), read[0].confidence, line_id)
 
 
 def _phrase_lines(lines: Sequence[tuple[ResearchWord, ...]], phrase: str) -> tuple[tuple[ResearchWord, ...], ...]:
@@ -268,40 +653,45 @@ def _panel_bounds(lines: Sequence[tuple[ResearchWord, ...]], *, top: int, bottom
 
 
 def _queue1_from_lines(lines: Sequence[tuple[ResearchWord, ...]]) -> tuple[str, int | None]:
-    for index, line in enumerate(lines):
-        value = _line_text(line)
-        normalized = _normalize(value)
-        if "research" not in normalized or "researchcenter" in normalized:
-            continue
-        count_index = index
-        match = _LEVEL_RE.search(value)
-        if match is None and normalized == "research" and index + 1 < len(lines):
-            candidate = lines[index + 1]
+    research_lines = [line for line in lines if _normalize(
+        _CLOCK_RE.sub("", _LEVEL_RE.sub("", _line_text(line)))) == "research"]
+    if len(research_lines) != 1:
+        return "unknown", None
+    line = research_lines[0]
+    value = _line_text(line)
+    matches = list(_LEVEL_RE.finditer(value))
+    count_bounds = _line_bounds(line)
+    if not matches:
+        # Global OCR order can interleave unrelated right-side HUD lines.
+        # Associate one numeric fraction geometrically with this Research label.
+        candidates = []
+        for candidate in lines:
+            candidate_value = _line_text(candidate)
             candidate_bounds = _line_bounds(candidate)
-            source_bounds = _line_bounds(line)
-            if (
-                0 <= candidate_bounds[1] - source_bounds[3] <= 60
-                and candidate_bounds[0] <= source_bounds[2] + 35
-                and source_bounds[0] <= candidate_bounds[2] + 35
-            ):
-                match = _LEVEL_RE.search(_line_text(candidate))
-                if match is not None:
-                    count_index = index + 1
-        if match is None:
-            continue
-        current, maximum = (int(part) for part in match.groups())
-        if (current, maximum) == (0, 1):
-            return "idle", None
-        if (current, maximum) == (1, 1):
-            queue_bottom = _line_bounds(lines[count_index])[3]
-            time_candidates = [_clock_seconds(value)]
-            for candidate in lines[count_index + 1:count_index + 3]:
-                x0, y0, _x1, _y1 = _line_bounds(candidate)
-                if y0 - queue_bottom > 90 or x0 > 180:
-                    break
-                time_candidates.append(_clock_seconds(_line_text(candidate)))
-            remaining = next((item for item in time_candidates if item is not None and item > 0), None)
-            return ("busy", remaining) if remaining is not None else ("busy_unknown_timer", None)
+            fractions = list(_LEVEL_RE.finditer(candidate_value))
+            if (len(fractions) == 1 and not _normalize(_LEVEL_RE.sub("", candidate_value))
+                    and 0 <= candidate_bounds[1] - count_bounds[3] <= 60
+                    and candidate_bounds[0] <= count_bounds[2] + 35
+                    and count_bounds[0] <= candidate_bounds[2] + 35):
+                candidates.append((fractions[0], candidate_bounds))
+        if len(candidates) != 1:
+            return "unknown", None
+        match, count_bounds = candidates[0]
+    elif len(matches) == 1:
+        match = matches[0]
+    else:
+        return "unknown", None
+    current, maximum = (int(part) for part in match.groups())
+    if (current, maximum) == (0, 1):
+        return "idle", None
+    if (current, maximum) == (1, 1):
+        times = [_clock_seconds(value)]
+        for candidate in lines:
+            x0, y0, x1, _y1 = _line_bounds(candidate)
+            if 0 <= y0 - count_bounds[3] <= 90 and x0 <= 180 and x1 <= 180:
+                times.append(_clock_seconds(_line_text(candidate)))
+        remaining = [item for item in times if item is not None and item > 0]
+        return ("busy", remaining[0]) if len(remaining) == 1 else ("busy_unknown_timer", None)
     return "unknown", None
 
 
@@ -331,6 +721,8 @@ def _merge_top_and_scrolled_resource_rows(
     top_pairs: Sequence[tuple[int, int]],
     scrolled_pairs: Sequence[tuple[int, int]],
 ) -> tuple[ResearchResourceRow, ...]:
+    if len(scrolled_pairs) == len(RESEARCH_RESOURCES):
+        return _resource_rows_from_pairs(scrolled_pairs)
     if len(top_pairs) == len(RESEARCH_RESOURCES):
         return _resource_rows_from_pairs(top_pairs)
     if (
@@ -357,6 +749,10 @@ def recognize_research_screen(
     if not native_frame_guard(frame) or not _DIGEST_RE.fullmatch(source_frame_sha256 or ""):
         return ResearchScreenObservation("UNKNOWN", source_frame_sha256 or "", refs, "", (), recognized=False)
     words = _read_words(frame, ocr_data)
+    if home_recognized and ocr_data is None:
+        words = _home_research_hud_words(frame, words)
+    elif ocr_data is None:
+        words = _research_page_words(frame, words)
     lines = _line_groups(words)
     text = "\n".join(_line_text(line) for line in lines)
     normalized_text = _normalize(text)
@@ -374,6 +770,10 @@ def recognize_research_screen(
         line for line in _phrase_lines(lines, "Research Center")
         if _line_bounds(line)[1] < 180
     )
+    categories = [
+        line for line in lines
+        if _line_bounds(line)[3] < 90 and _normalize(_line_text(line)) in _RESEARCH_TREE_CATEGORIES
+    ]
     recommendation_lines = tuple(
         line for line in lines
         if "recomd" in _normalize(_line_text(line)) or "recommended" in _normalize(_line_text(line))
@@ -403,9 +803,8 @@ def recognize_research_screen(
                     candidates.append((abs(((y0 + y1) / 2) - ((by0 + by1) / 2)), y0, words_left))
             if candidates:
                 candidates.sort(key=lambda item: (item[0], item[1]))
-                title = " ".join(word.text for word in sorted(candidates[0][2], key=lambda item: item.roi[0])).strip()
+                title = _canonical_title(" ".join(word.text for word in sorted(candidates[0][2], key=lambda item: item.roi[0])).strip())
                 identity = research_identity(title)
-                page_tokens = [word for line in lines if _line_bounds(line)[3] >= header_bottom for word in line]
                 page_bounds = _panel_bounds(lines, top=header_bottom - 20, bottom=max(_line_bounds(line)[3] for line in buttons) + 24)
                 button_roi = _padded_roi((bx0, by0, bx1, by1))
                 if identity and page_bounds and _inside(page_bounds, button_roi):
@@ -433,7 +832,7 @@ def recognize_research_screen(
             continue
         value = _line_text(line)
         match = _LEVEL_RE.search(value)
-        title = value[:match.start()].strip(" ():-") if match else value
+        title = _canonical_title(value[:match.start()].strip(" ():-") if match else value)
         identity = research_identity(title)
         if identity is None or (expected_detail_identity is not None and identity != expected_detail_identity):
             continue
@@ -490,6 +889,23 @@ def recognize_research_screen(
                             diamonds.append((abs(y - (now_bounds[1] + now_bounds[3]) / 2) + abs(x - now_bounds[2]), value))
         research_now_diamonds = min(diamonds)[1] if diamonds else None
         actual_time = _clock_seconds(" ".join(_line_text(line) for line in time_actual_lines))
+        if actual_time is None:
+            # Actual sheet prints both clocks on the row below their labels:
+            # take the one clock directly under the single "Actual" label.
+            labels = [word for line in time_actual_lines for word in line if word.normalized == "actual"]
+            if len(labels) == 1:
+                lx0, _ly0, _lx1, ly1 = labels[0].roi
+                clocks = [
+                    word for word in words
+                    if _CLOCK_RE.fullmatch(word.text.strip())
+                    and 0 <= word.roi[1] - ly1 <= 40
+                    and abs(word.roi[0] - lx0) <= 30
+                ]
+                if len(clocks) == 1:
+                    actual_time = _clock_seconds(clocks[0].text)
+        if now_bounds is not None and detail_button_roi is not None and detail_button_roi[0] <= now_bounds[2]:
+            # The ordinary control must be the one right of Research Now.
+            detail_button_roi = None
         panel_top = detail_title_bounds[1] - 24
         panel_bottom = max(_line_bounds(line)[3] for line in lines if _line_bounds(line)[1] >= panel_top)
         panel = _panel_bounds(lines, top=panel_top, bottom=panel_bottom)
@@ -511,8 +927,12 @@ def recognize_research_screen(
             and detail_button_roi is not None
         )
         scrolled_detail = bool(
-            expected_detail_identity is not None
-            and selected_identity == expected_detail_identity
+            selected_identity is not None
+            and (
+                selected_identity == expected_detail_identity
+                if expected_detail_identity is not None
+                else len(categories) == 1 and len(pairs) == len(RESEARCH_RESOURCES)
+            )
             and now_bounds is not None
             and detail_button_roi is not None
             and len(pairs) >= 2
@@ -575,6 +995,24 @@ def recognize_research_screen(
                     recognized=len(rows) == len(RESEARCH_RESOURCES),
                 )
 
+    if (
+        not home_recognized
+        and not title_lines
+        and not recommendation_lines
+        and not time_actual_lines
+        and not time_original_lines
+        and not research_now_lines
+    ):
+        if len(categories) == 1:
+            return ResearchScreenObservation(
+                screen_state=TREE_SCREEN,
+                frame_sha256=source_frame_sha256,
+                evidence_refs=refs,
+                text=text,
+                words=words,
+                research_category=_line_text(categories[0]),
+                recognized=True,
+            )
     queue_state, queue_remaining = _queue1_from_lines(lines)
     if home_recognized:
         return ResearchScreenObservation(
@@ -590,6 +1028,13 @@ def recognize_research_screen(
     return ResearchScreenObservation("UNKNOWN", source_frame_sha256, refs, text, words, recognized=False)
 
 
+# Measured actual Details/Research captions read 96 on both real radial frames;
+# lower reads are not owner evidence. Upgrade sits under its white arrow icon
+# and the mask can merge them (actual '“Upgrade' conf 41), so it is not required.
+_RADIAL_CAPTION_MIN_CONFIDENCE = 80.0
+_RADIAL_REQUIRED_CAPTIONS = ("details", "research")
+
+
 def recognize_research_radial(
     frame: Any,
     *,
@@ -602,11 +1047,26 @@ def recognize_research_radial(
     """Bind radial Research near a freshly localized owner, not the Home HUD label."""
 
     if (
-        not home_recognized
+        not native_frame_guard(frame)
+        or not _DIGEST_RE.fullmatch(source_frame_sha256 or "")
+        or not home_recognized
         or building_binding.building_id != RESEARCH_CENTER_ID
         or building_binding.screen_anchor is None
     ):
         return None
+    ax, ay = building_binding.screen_anchor
+    captions: list[ResearchWord] = []
+    if ocr_data is None:
+        # Native frames: exactly one owner Details and one Research caption.
+        captions = [
+            word for word in _radial_caption_words(frame, (ax, ay))
+            if word.confidence >= _RADIAL_CAPTION_MIN_CONFIDENCE
+        ]
+        if any(sum(word.normalized == name for word in captions) != 1 for name in _RADIAL_REQUIRED_CAPTIONS):
+            return None
+        details = next(word for word in captions if word.normalized == "details")
+        if not 35 <= math.hypot(details.center[0] - ax, details.center[1] - ay) <= 240:
+            return None
     page = recognize_research_screen(
         frame,
         source_frame_sha256=source_frame_sha256,
@@ -616,13 +1076,15 @@ def recognize_research_radial(
     )
     if page.screen_state in {LIST_SCREEN, DETAIL_SCREEN, ACTIVE_SCREEN}:
         return None
-    ax, ay = building_binding.screen_anchor
-    research_words = (
-        word
-        for line in _line_groups(page.words)
-        if _normalize(_line_text(line)) == "research"
-        for word in line
-    )
+    if ocr_data is None:
+        research_words = (word for word in captions if word.normalized == "research")
+    else:
+        research_words = (
+            word
+            for line in _line_groups(page.words)
+            if _normalize(_line_text(line)) == "research"
+            for word in line
+        )
     choices = [
         word for word in research_words
         if word.normalized == "research"
@@ -685,42 +1147,167 @@ def _source_screen(
     expected_detail_identity: str | None = None,
 ) -> ResearchScreenObservation:
     ref = _capture_ref(context, captured)
-    return recognize_research_screen(
-        captured.frame,
-        source_frame_sha256=str(captured.sha256),
-        evidence_refs=(ref,) if ref else (),
-        home_recognized=context.is_clean_home(captured.frame),
-        expected_detail_identity=expected_detail_identity,
-    )
+    if not native_frame_guard(captured.frame) or not _DIGEST_RE.fullmatch(str(captured.sha256)):
+        return ResearchScreenObservation("UNKNOWN", str(captured.sha256), (ref,) if ref else (), "", (), recognized=False)
+    # Decode immutable captured pixels once per invocation, never re-date them.
+    # The pixel digest prevents mutated frames or a reused source identity from
+    # turning this OCR memo into cached current-screen authority.
+    key = (str(captured.sha256), float(captured.captured_monotonic),
+           expected_detail_identity, ref, hashlib.sha256(captured.frame.tobytes()).hexdigest())
+    cache = getattr(context, "_recommended_research_screen_cache", None)
+    if cache is None:
+        cache = {}
+        context._recommended_research_screen_cache = cache
+    if key not in cache:
+        cache[key] = recognize_research_screen(
+            captured.frame,
+            source_frame_sha256=str(captured.sha256),
+            evidence_refs=(ref,) if ref else (),
+            home_recognized=context.is_clean_home(captured.frame),
+            expected_detail_identity=expected_detail_identity,
+        )
+    return cache[key]
 
 
 def _binding_for_home(context: Any, frame: Any, localizer: BlueStacksHomeLocalizer, building: Any) -> BuildingBinding | None:
+    pixels = hashlib.sha256(frame.tobytes()).hexdigest()
     if not context.is_clean_home(frame):
         return None
     localization = localizer.localize(frame, home_recognized=True)
+    # Binding re-asks for clean Home on the same frame. This exact unchanged
+    # array was just classified; any other or mutated frame is classified anew.
+    # A repeated ~1.5 s classification here pushed the SDK immediate-before
+    # source past the 5 s dispatch age (retained research76 221908 run).
     return bind_visible_building(
         frame,
         localization,
         building,
-        home_is_clean=context.is_clean_home,
+        home_is_clean=lambda candidate: (
+            candidate is frame and hashlib.sha256(candidate.tobytes()).hexdigest() == pixels
+        ) or context.is_clean_home(candidate),
     )
 
 
-def _building_level_from_words(screen: ResearchScreenObservation, binding: BuildingBinding | None) -> int | None:
-    if binding is None or binding.screen_anchor is None:
+def _research_center_level(frame: Any, binding: BuildingBinding | None) -> int | None:
+    """Read the owned Research Center's level badge through its own caption.
+
+    Actual Home (0008, binding roi (320,230,462,394)): the caption "Research
+    Center" sits on the binding's lower edge and every building's level badge
+    is one dark plate up-right of its caption (measured caption-right to
+    plate-left 18..32 px, plate bottom 19..23 px above the caption top on
+    Research Center, Warehouse and Hall of War). A nearest Home number is not
+    owner evidence; only the plate bound to this caption is read.
+
+    The plate's 8-px digits are read like the existing material labels: the
+    neutral white glyphs only, 15% padding, 6x cubic, and every reading must
+    agree. Measured on actual Homes 0008/0027 (16 plates), this gave Research
+    Center 24, Warehouse 24, Gear Factory 24 and Pit 22 exactly; Rider Camp,
+    Hall of War and one Supply Depot read disagreed and stayed unknown, and no
+    plate produced an agreed wrong value. Tesseract confidence was not usable
+    (Research Center '24' at 19..65).
+    """
+
+    if binding is None or binding.ambiguous_overlap or binding.overlay_intersects:
         return None
-    ax, ay = binding.screen_anchor
-    candidates = []
-    for word in screen.words:
-        if not word.normalized.isdecimal():
-            continue
-        x, y = word.center
-        if x < ax or y < ay - 24 or y > ay + 100:
-            continue
-        value = _integer(word.text)
-        if value is not None and 1 <= value <= 99:
-            candidates.append((math.hypot(x - ax, y - ay), value))
-    return min(candidates)[1] if candidates else None
+    from scripts.bounded_tesseract import call_ocr, tesseract_string
+
+    height, width = frame.shape[:2]
+    tx0, _ty0, tx1, ty1 = (int(round(value)) for value in binding.target_roi)
+    band = (max(0, tx0 - 60), max(0, ty1 - 24), min(width, tx1 + 60), min(height, ty1 + 40))
+    if band[2] - band[0] < 24 or band[3] - band[1] < 12:
+        return None
+    words = [word for word in _prepared_crop_words(frame, band, _gray, "--psm 6") if word.normalized]
+    captions = [
+        (first, second) for first in words for second in words
+        if first.normalized == "research" and second.normalized == "center"
+        and first.confidence >= _RESEARCH_PAGE_MIN_CONFIDENCE and second.confidence >= 60
+        and 0 <= second.roi[0] - first.roi[2] <= 12
+        and abs(first.center[1] - second.center[1]) <= 6
+    ]
+    if len(captions) != 1:
+        return None
+    first, second = captions[0]
+    cx0, cy0, cx1 = first.roi[0], min(first.roi[1], second.roi[1]), second.roi[2]
+    if not tx0 <= (cx0 + cx1) / 2 <= tx1:
+        return None
+    wx0, wy0, wx1, wy1 = cx1, max(0, cy0 - 50), min(width, cx1 + 80), cy0
+    if wx1 - wx0 < 30 or wy1 - wy0 < 20:
+        return None
+    window = frame[wy0:wy1, wx0:wx1]
+    dark = (cv2.cvtColor(window, cv2.COLOR_BGR2HSV)[:, :, 2] < 70).astype("uint8")
+    dark = cv2.morphologyEx(dark, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)))
+    count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(dark, connectivity=8)
+    plates = [
+        tuple(int(value) for value in stats[index][:4]) for index in range(1, count)
+        if 18 <= stats[index][2] <= 44 and 10 <= stats[index][3] <= 20
+        and stats[index][4] >= 0.6 * stats[index][2] * stats[index][3]
+        and 10 <= stats[index][0] <= 40
+        and 15 <= wy1 - wy0 - (stats[index][1] + stats[index][3]) <= 30
+    ]
+    plate_inset = 1
+    if not plates:
+        # Actual night Home200932 frames0002/0024: the <70 terrain merges
+        # into the plate, so darkness alone has no isolated component.
+        # Its closed rim remains unique in this same caption-owned window:
+        # 29x15, inset2 excludes the rim while retaining the complete digits.
+        # This is plate segmentation only; the two ink cuts and all six OCR
+        # readings below are unchanged. Ambiguous dark plates never recover.
+        edges = cv2.Canny(cv2.cvtColor(window, cv2.COLOR_BGR2GRAY), 60, 160)
+        contours, _hierarchy = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            px, py, pw, ph = cv2.boundingRect(contour)
+            if (
+                18 <= pw <= 44 and 10 <= ph <= 20
+                and cv2.contourArea(contour) >= .6 * pw * ph
+                and 10 <= px <= 40
+                and 15 <= wy1 - wy0 - (py + ph) <= 30
+            ):
+                interior = window[py + 2:py + ph - 2, px + 2:px + pw - 2]
+                interior_dark = cv2.cvtColor(interior, cv2.COLOR_BGR2HSV)[:, :, 2] < 70
+                if int(interior_dark.sum()) >= .6 * interior_dark.size:
+                    plates.append((px, py, pw, ph))
+        plate_inset = 2
+    if len(plates) != 1:
+        return None
+    px, py, pw, ph = plates[0]
+    plate = cv2.cvtColor(window[py + plate_inset:py + ph - plate_inset, px + plate_inset:px + pw - plate_inset], cv2.COLOR_BGR2HSV)
+    readings = []
+    for minimum_value in _RESEARCH_CENTER_PLATE_INK_VALUES:
+        ink = ((plate[:, :, 2] >= minimum_value) & (plate[:, :, 1] <= 60)).astype("uint8") * 255
+        # Actual panned Home0007: both glyphs are 8px tall inside this
+        # caption-owned plate; its slanted right edge leaves 1..5px fragments
+        # in the outer four columns (largest 3x4). At cut140 a single border
+        # pixel x23 of25 enlarged the OCR crop and produced a spurious "0".
+        # Remove only those small peripheral fragments, never interior ink or
+        # a glyph-height component. Both cuts/all three modes must still agree.
+        count, labels, stats, _centroids = cv2.connectedComponentsWithStats(ink, connectivity=8)
+        for index in range(1, count):
+            ix, _iy, iw, ih, area = (int(value) for value in stats[index])
+            peripheral = ix + iw <= 4 or ix >= ink.shape[1] - 4
+            if peripheral and iw <= 3 and ih <= 4 and area <= 5:
+                ink[labels == index] = 0
+        rows, columns = ink.nonzero()
+        if not len(rows):
+            return None
+        glyphs = 255 - ink[rows.min():rows.max() + 1, columns.min():columns.max() + 1]
+        padding = max(1, round((rows.max() - rows.min() + 1) * .15))
+        glyphs = cv2.copyMakeBorder(glyphs, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=255)
+        glyphs = cv2.resize(glyphs, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
+        glyphs = cv2.copyMakeBorder(glyphs, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
+        readings.extend(
+            re.sub(r"\s+", "", str(call_ocr(
+                tesseract_string, glyphs,
+                config=f"--psm {mode} -c tessedit_char_whitelist=0123456789", call_timeout=5.0,
+            )))
+            for mode in (7, 8, 13)
+        )
+    if len(set(readings)) != 1 or not re.fullmatch(r"[1-9][0-9]?", readings[0]):
+        return None
+    return int(readings[0])
+
+
+# Two neutral-ink cuts of the same plate; all six readings must agree.
+_RESEARCH_CENTER_PLATE_INK_VALUES = (110, 140)
 
 
 def _list_observation(screen: ResearchScreenObservation, context: Any) -> RecommendedResearchListObservation | None:
@@ -830,6 +1417,108 @@ def _detail_observation(
         recognized=True,
     )
 
+def _research_visit_identity(context: Any) -> tuple[Any, ...]:
+    return (
+        id(context), context.invocation_id, context.occurrence_key, context.owner,
+        context.session.owner, str(context.runtime.session), repr(context.identity),
+    )
+
+
+def _research_visit_valid(context: Any) -> bool:
+    proof = getattr(context, "_recommended_research_visit", None)
+    accounting = context.accounting()
+    return bool(
+        isinstance(proof, dict) and proof.get("valid") is True
+        and proof.get("identity") == _research_visit_identity(context)
+        and proof.get("action_keys") == tuple(context.runtime.action_keys)
+        and proof.get("input_count") == context.runtime.input_count
+        and accounting.verified is True
+        and accounting.input_count == accounting.session_input_count
+        == accounting.runtime_input_count == proof.get("input_count")
+        and context.action_store.lease_valid_for(context.owner, context.utc_clock())
+        and not context.action_store.has_action_block()
+    )
+
+
+
+def _fresh_start_detail(
+    context: Any, *, captured: Any, screen: ResearchScreenObservation,
+    home: Any, home_binding: BuildingBinding, listing_capture: Any,
+    listing: RecommendedResearchListObservation, quote_capture: Any,
+    quote_screen: ResearchScreenObservation, expected: TechUpgradeObservation,
+) -> TechUpgradeObservation | None:
+    """Retain phase-fresh entry/selection only across verified exclusive navigation.
+
+    Original source timestamps and phase-use times remain unchanged. Detail and
+    resource affordability are still fresh at consuming use, not inherited from
+    entry or a previous visit.
+    """
+    context.checkpoint()
+    context.validate_identity()
+    proof = getattr(context, "_recommended_research_visit", None)
+    now = context.monotonic_clock()
+    if not _research_visit_valid(context):
+        return None
+    sources = (quote_capture, captured)
+    if any(not 0 <= now - source.captured_monotonic <= 10.0 for source in sources):
+        return None
+    if proof.get("home_source") != (home.sha256, home.captured_monotonic):
+        return None
+    if proof.get("home_binding") != home_binding or home_binding.building_id != RESEARCH_CENTER_ID:
+        return None
+    if proof.get("list_source") != (listing_capture.sha256, listing_capture.captured_monotonic):
+        return None
+    if (
+        not native_frame_guard(home.frame) or not native_frame_guard(listing_capture.frame)
+        or proof["home_pixels"] != hashlib.sha256(home.frame.tobytes()).hexdigest()
+        or proof["list_pixels"] != hashlib.sha256(listing_capture.frame.tobytes()).hexdigest()
+    ):
+        return None
+    if not (
+        0 <= proof["home_used_at"] - home.captured_monotonic <= 10.0
+        and 0 <= proof["list_used_at"] - listing_capture.captured_monotonic <= 10.0
+        and home.captured_monotonic <= listing_capture.captured_monotonic
+        <= quote_capture.captured_monotonic <= captured.captured_monotonic
+        and proof.get("transitions")
+    ):
+        return None
+    home_screen = proof["home_screen"]
+    fresh_listing = proof["listing"]
+    queue_state, queue_remaining = _queue1_from_lines(_line_groups(screen.words))
+    if (
+        home_screen.queue1_state != "idle" or queue_state not in {"unknown", "idle"}
+        or fresh_listing.first_recommendation_identity != listing.first_recommendation_identity
+        or screen.selected_technology_identity != fresh_listing.first_recommendation_identity
+    ):
+        return None
+    context._recommended_research_center_level = proof["center_level"]
+    context._recommended_research_queue1_state = home_screen.queue1_state
+    context._recommended_research_queue1_remaining = queue_remaining
+    fresh_quote = _source_screen(context, quote_capture, expected_detail_identity=fresh_listing.first_recommendation_identity)
+    if fresh_quote != quote_screen:
+        return None
+    costs = (
+        screen.resource_rows if len(screen.resource_rows) == len(RESEARCH_RESOURCES)
+        else _merge_top_and_scrolled_resource_rows(screen.resource_pairs, fresh_quote.resource_pairs)
+    )
+    detail = _detail_observation(
+        screen, fresh_listing, context, costs=costs, scrolled_refs=fresh_quote.evidence_refs,
+    )
+    if detail is None or not tech_upgrade_authorizeable(detail, fresh_listing):
+        return None
+    # A different affordable quote is still a changed authorization, not consent.
+    fields = (
+        "first_recommendation_identity", "selected_technology_identity",
+        "current_level", "target_level", "prerequisites_known", "prerequisites_met",
+        "prerequisite_evidence", "queue1_state", "resource_rows", "duration_seconds",
+        "research_now_diamonds", "target_identity", "target_roi", "panel_bounds",
+    )
+    if any(getattr(detail, field) != getattr(expected, field) for field in fields):
+        return None
+    if any(not 0 <= context.monotonic_clock() - source.captured_monotonic <= 10.0 for source in sources):
+        return None
+    return detail
+
 
 def _policy_observation(
     captured: Any,
@@ -926,7 +1615,7 @@ def _guarded_action(
     action_key: str,
     plan_builder: Callable[[Any], _ActionPlan | None],
     recognizes_successor: Callable[[Any], bool],
-    semantic_preconditions: tuple[str, ...] = (),
+    semantic_preconditions: tuple[str, ...] | Callable[[Any], tuple[str, ...]] = (),
     action_class: ActionClass = ActionClass.NAVIGATION_ONLY,
     action_kind: str | None = None,
     subject: str | None = None,
@@ -936,10 +1625,17 @@ def _guarded_action(
     cost_type: str = "none",
     cost_amount: int = 0,
     consequence_class: str = "navigation_only",
+    initial_plan: _ActionPlan | None = None,
 ) -> tuple[Any, Any | None, bool]:
     """Execute one fresh-bound input through CentralPolicy, the canonical store, and the held session."""
 
-    initial_plan = plan_builder(captured)
+    visit = getattr(context, "_recommended_research_visit", None)
+    if visit is not None and not _research_visit_valid(context):
+        raise RuntimeError("RECOMMENDED_RESEARCH_VISIT_CONTINUITY_LOST")
+    # A caller may already have decoded this immutable planning source.
+    # Authorization below always rebuilds on the SDK immediate-before capture.
+    if initial_plan is None:
+        initial_plan = plan_builder(captured)
     if initial_plan is None:
         raise RuntimeError("RECOMMENDED_RESEARCH_TARGET_NOT_FRESHLY_BOUND")
     action_id = f"{action_key}:{uuid4().hex}"
@@ -950,10 +1646,17 @@ def _guarded_action(
 
     def authorize(before: Any) -> None:
         context.checkpoint()
+        context.validate_identity()
+        if visit is not None and not _research_visit_valid(context):
+            raise RuntimeError("RECOMMENDED_RESEARCH_VISIT_CONTINUITY_LOST")
         plan = plan_builder(before)
         if plan is None or plan.target_identity != initial_plan.target_identity or plan.source_state != initial_plan.source_state:
             raise RuntimeError("RECOMMENDED_RESEARCH_PREINPUT_TARGET_CHANGED")
         references = (_capture_ref(context, before),)
+        if action_class is ActionClass.SPEND_OR_STRATEGIC and visit is not None:
+            references = tuple(dict.fromkeys((
+                *references, visit["home_ref"], visit["list_ref"], visit["quote_ref"],
+            )))
         observation = _policy_observation(
             before,
             plan,
@@ -981,14 +1684,14 @@ def _guarded_action(
             unresolved_action=store.has_action_block(),
             duplicate_action_key=store.action_key_exists(action_key),
             game_day_id=game_day_id,
-            policy_phase="proposal",
+            policy_phase="pre_dispatch",
             action_class=action_class,
             action_kind=action_kind,
             subject=subject,
             resource_or_currency=resource_or_currency,
             maximum_cost=maximum_cost,
             free_only=free_only,
-            semantic_preconditions=semantic_preconditions,
+            semantic_preconditions=semantic_preconditions(before) if callable(semantic_preconditions) else semantic_preconditions,
             semantic_postconditions=(postcondition,),
             runtime_session_id=str(context.runtime.session),
         )
@@ -1003,7 +1706,7 @@ def _guarded_action(
         if not consumed.allow_dispatch:
             store.mark_cancelled(action_id, context.utc_clock(), "capability:" + consumed.reason_code)
             raise RuntimeError(f"RECOMMENDED_RESEARCH_CAPABILITY_DENIED:{consumed.reason_code}")
-        action_state.update(plan=plan, request=request, intent=intent)
+        action_state.update(plan=plan, request=request, intent=intent, before=before)
 
     def dispatch(before: Any) -> None:
         context.checkpoint()
@@ -1022,13 +1725,11 @@ def _guarded_action(
             start_y, end_y = (bottom, top) if plan.scroll_direction == "down" else (top, bottom)
             runtime.swipe(
                 before,
-                start_point=(center_x, start_y),
-                end_point=(center_x, end_y),
+                start=(center_x, start_y),
+                end=(center_x, end_y),
                 target_identity=plan.target_identity,
-                target_roi=plan.target_roi,
                 action_key=action_key,
-                action_class="navigation",
-                consequential=False,
+                duration_ms=500,
             )
         else:
             runtime.tap(
@@ -1066,6 +1767,8 @@ def _guarded_action(
             ),
         )
     except BaseException:
+        if visit is not None:
+            visit["valid"] = False
         if action_state.get("intent") is not None:
             try:
                 row = store.get_action(action_id)
@@ -1090,6 +1793,23 @@ def _guarded_action(
                     store.mark_unresolved(action_id, context.utc_clock(), "route_successor_not_proven")
         except Exception as exc:
             raise RuntimeError("RECOMMENDED_RESEARCH_CANONICAL_RECONCILIATION_FAILED") from exc
+    if visit is not None and action_class is ActionClass.NAVIGATION_ONLY:
+        keys = tuple(context.runtime.action_keys)
+        verified_chain = (
+            result.status == "completed" and action_state.get("post_ok") is True
+            and context.runtime.input_count == visit["input_count"] + 1
+            and keys == visit["action_keys"] + (action_key,)
+            and visit["identity"] == _research_visit_identity(context)
+        )
+        visit["valid"] = verified_chain
+        if verified_chain:
+            before, after = action_state["before"], action_state["post"]
+            visit["transitions"].append({
+                "action_key": action_key, "postcondition": postcondition,
+                "source_sha256": before.sha256, "source_captured_at": before.captured_monotonic,
+                "successor_sha256": after.sha256, "successor_captured_at": after.captured_monotonic,
+            })
+            visit.update(action_keys=keys, input_count=context.runtime.input_count)
     return result, action_state.get("post"), bool(action_state.get("post_ok"))
 
 
@@ -1163,15 +1883,35 @@ def _page_plan(screen: ResearchScreenObservation, *, state: str, target: str, co
     return _ActionPlan(target, roi, state, control, postcondition, semantic_action)
 
 
+# The Back arrow walks detail -> tree -> Research Center -> Home. Each hop must
+# land on a recognized page strictly nearer Home, or on verified clean Home.
+_RETURN_PARENT_STATES: dict[str, frozenset[str]] = {
+    DETAIL_SCREEN: frozenset({TREE_SCREEN, LIST_SCREEN}),
+    TREE_SCREEN: frozenset({LIST_SCREEN}),
+    LIST_SCREEN: frozenset(),
+    ACTIVE_SCREEN: frozenset(),
+}
+_RETURN_HOME_MAX_BACKS = 3
+
+
 def _return_plan(frame: Any, screen: ResearchScreenObservation) -> _ActionPlan | None:
-    if screen.screen_state not in {LIST_SCREEN, DETAIL_SCREEN, ACTIVE_SCREEN}:
+    if screen.screen_state not in _RETURN_PARENT_STATES:
         return None
     from scripts.daily_resource_item_bluestacks import _bag_back_arrow_visual
 
     target = _bag_back_arrow_visual(frame, maximum_left=90, search_right=180)
     if target is None:
         return None
-    roi = tuple(int(value) for value in target)
+    roi = (int(target[0]), int(target[1]), int(target[2]), int(target[3]))
+    if _RETURN_PARENT_STATES[screen.screen_state]:
+        return _ActionPlan(
+            "recommended-research:back-parent",
+            roi,
+            screen.screen_state,
+            "CLOSE",
+            "RECOMMENDED_RESEARCH_PARENT_OR_HOME",
+            "RECOMMENDED_RESEARCH_RETURN_HOME",
+        )
     return _ActionPlan(
         "recommended-research:back-home",
         roi,
@@ -1301,9 +2041,24 @@ def _game_day_id(identity: Any) -> str:
 def _action_key(identity: Any, game_day_id: str) -> str:
     account = getattr(identity, "account_id", None)
     server = getattr(identity, "server_id", None)
-    if not all(type(value) is str and re.fullmatch(r"[A-Za-z0-9._-]+", value, flags=re.ASCII) for value in (account, server)):
+    if not all(type(value) is str and re.fullmatch(r"[A-Za-z0-9:._-]+", value, flags=re.ASCII) for value in (account, server)):
         raise ValueError("account and server identities must be canonical tokens")
-    return f"recommended-research:{account}:{server}:{game_day_id}"
+    scope = json.dumps((account, server, game_day_id), separators=(",", ":"), ensure_ascii=True).encode("ascii")
+    return f"recommended-research:v1:{hashlib.sha256(scope).hexdigest()}"
+
+
+def _navigation_key(context: Any, occurrence_key: str, name: str) -> str:
+    """Non-consuming navigation identity: unique per native invocation, never per retry.
+
+    The durable reset-scoped start key stays ``_action_key``; navigation from a
+    later invocation's fresh source must not collide with retained earlier rows.
+    """
+
+    invocation = getattr(context, "invocation_id", None)
+    if not isinstance(invocation, str) or not invocation.strip():
+        raise RuntimeError("RECOMMENDED_RESEARCH_INVOCATION_ID_REQUIRED")
+    return f"{occurrence_key}:{invocation}:recommended-research:{name}"
+
 
 
 def _home_from_current(
@@ -1314,38 +2069,80 @@ def _home_from_current(
     game_day_id: str,
     occurrence_key: str,
     step: int,
+    key_name: str | None = None,
 ) -> tuple[Any, bool, int]:
-    if context.is_clean_home(current.frame):
-        return current, True, step
-    screen = _source_screen(context, current)
-    plan = _return_plan(current.frame, screen)
-    if plan is None:
+    """Bounded guarded Back chain; every hop needs a recognized nearer successor."""
+    # Home return ends the exclusive forward proof chain; it can never be
+    # resumed as retained entry/selection authority afterwards.
+    context._recommended_research_visit = None
+    if context.action_store.has_action_block():
         return current, False, step
-    action_key = f"{occurrence_key}:recommended-research:return-home:{step}"
-    result, after, verified = _guarded_action(
-        context,
-        policy,
-        captured=current,
-        game_day_id=game_day_id,
-        occurrence_key=occurrence_key,
-        action_key=action_key,
-        plan_builder=lambda fresh_capture: _return_plan(fresh_capture.frame, _source_screen(context, fresh_capture)),
-        recognizes_successor=lambda captured: context.is_clean_home(captured.frame),
-    )
-    del result
-    if after is not None and context.is_clean_home(after.frame):
-        return after, True, step + 1
-    return current, False, step + 1
+
+    for hop in range(_RETURN_HOME_MAX_BACKS):
+        if context.is_clean_home(current.frame):
+            return current, True, step
+        screen = _source_screen(context, current)
+        plan = _return_plan(current.frame, screen)
+        if plan is None:
+            return current, False, step
+        parents = _RETURN_PARENT_STATES[plan.source_state]
+
+        def nearer_home(captured: Any, parents: frozenset[str] = parents) -> bool:
+            if context.is_clean_home(captured.frame):
+                return True
+            if not parents:
+                return False
+            successor = _source_screen(context, captured)
+            return bool(
+                successor.recognized
+                and successor.screen_state in parents
+                and _return_plan(captured.frame, successor) is not None
+            )
+
+        name = f"{key_name}:{hop}" if key_name else f"return-home:{step}"
+        result, after, verified = _guarded_action(
+            context,
+            policy,
+            captured=current,
+            game_day_id=game_day_id,
+            occurrence_key=occurrence_key,
+            action_key=_navigation_key(context, occurrence_key, name),
+            plan_builder=lambda fresh_capture: _return_plan(fresh_capture.frame, _source_screen(context, fresh_capture)),
+            recognizes_successor=nearer_home,
+        )
+        del result
+        step += 1
+        if not verified or after is None:
+            return current, False, step
+        current = after
+    return current, context.is_clean_home(current.frame), step
 
 
 
 
-def _startup(context: Any, game_day_id: str, occurrence_key: str) -> Any:
+def _startup(context: Any, policy: CentralPolicy, game_day_id: str, occurrence_key: str) -> Any:
     initial = context.initial_frame
     if context.is_clean_home(initial.frame):
         if context.session.initial_observation is None:
             context.bind_initial_observation(initial, extra={"route_source": "recommended-research-clean-home"})
         return initial
+    screen = _source_screen(context, initial)
+    if screen.recognized and _return_plan(initial.frame, screen) is not None:
+        # A positively identified Research page (e.g. left open by an earlier
+        # unverified successor): bind that exact source, then the bounded
+        # guarded Back chain (detail -> tree -> list -> Home) to verified Home.
+        if context.session.initial_observation is None:
+            context.bind_initial_observation(initial, extra={
+                "route_source": "recommended-research-existing-page",
+                "research_page_state": screen.screen_state,
+            })
+        home, home_verified, _step = _home_from_current(
+            context, policy, current=initial, game_day_id=game_day_id,
+            occurrence_key=occurrence_key, step=0, key_name="startup-return-home",
+        )
+        if not home_verified:
+            raise RuntimeError("RECOMMENDED_RESEARCH_STARTUP_HOME_NOT_PROVEN")
+        return home
     recovery = context.prepare_startup(
         source_context="recommended_research_clean_home",
         recognize_successor=lambda captured: context.is_clean_home(captured.frame),
@@ -1371,11 +2168,12 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
     if not isinstance(occurrence_key, str) or not occurrence_key.strip():
         raise RuntimeError("RECOMMENDED_RESEARCH_OCCURRENCE_KEY_REQUIRED")
     start_action_key = _action_key(context.identity, game_day_id)
+    policy = CentralPolicy(supervised_tasks=frozenset({FLOW_ID}))
     prior = context.action_store.get_action_by_key(start_action_key)
     if prior is not None:
         status = prior.get("final_status")
         if status == "confirmed":
-            _startup(context, game_day_id, occurrence_key)
+            _startup(context, policy, game_day_id, occurrence_key)
             home = context.session.observe(
                 context.runtime.capture,
                 label="recommended-research-reset-action-home",
@@ -1402,10 +2200,11 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 "identical_retry_denied": pending,
             },
         )
-    policy = CentralPolicy(supervised_tasks=frozenset({FLOW_ID}))
     semantic_progress: dict[str, Any] = {}
+    context._recommended_research_screen_cache = {}
+    context._recommended_research_visit = None
     try:
-        initial = _startup(context, game_day_id, occurrence_key)
+        initial = _startup(context, policy, game_day_id, occurrence_key)
         home = context.session.observe(context.runtime.capture, label="recommended-research-home-source")
         if not context.is_clean_home(home.frame):
             return _normal_result(context, status="blocked", reason="fresh_clean_home_not_proven", game_day_id=game_day_id)
@@ -1423,7 +2222,11 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 terminal_home_verified=True,
             )
         if queue_state != "idle":
-            return _normal_result(context, status="blocked", reason="research_queue1_state_unknown_or_timer_unproven", game_day_id=game_day_id, queue1_state=queue_state)
+            return _normal_result(
+                context, status="blocked", reason="research_queue1_state_unknown_or_timer_unproven",
+                game_day_id=game_day_id, queue1_state=queue_state,
+                queue1_remaining_seconds=queue_remaining, terminal_home_verified=True,
+            )
         atlas: HomeAtlas = load_home_atlas(ATLAS_PATH)
         localizer = BlueStacksHomeLocalizer(atlas, ATLAS_PATH)
         building = atlas.lookup_building(RESEARCH_CENTER_ID)
@@ -1452,20 +2255,54 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 return _normal_result(
                     context, status="blocked", reason="research_queue1_state_unknown_or_timer_unproven",
                     game_day_id=game_day_id, queue1_state=queue_state,
+                    queue1_remaining_seconds=queue_remaining,
+                    terminal_home_verified=home_screen.screen_state == "HOME_BASE" and home_screen.recognized,
                 )
         home = entry_home
-        center_level = _building_level_from_words(home_screen, binding)
-        context._recommended_research_center_level = center_level
-        context._recommended_research_queue1_state = queue_state
-        context._recommended_research_queue1_remaining = queue_remaining
+        visit = {
+            "identity": _research_visit_identity(context), "valid": True,
+            "action_keys": tuple(context.runtime.action_keys),
+            "input_count": context.runtime.input_count, "transitions": [],
+        }
+        context._recommended_research_visit = visit
         owner_binding: dict[str, BuildingBinding | None] = {"value": binding}
         occurrence = occurrence_key
         step = 0
 
         def building_plan(captured: Any) -> _ActionPlan | None:
+            nonlocal home, binding
             current_binding = _binding_for_home(context, captured.frame, localizer, building)
             if current_binding is None:
                 return None
+            # This fresh binding already proved clean Home on these exact
+            # pixels. Do not run the same Home classifier again during the
+            # dispatch-age window; the canonical reader still guards frame
+            # shape/digest and reads the actual current queue.
+            current_home = recognize_research_screen(
+                captured.frame, source_frame_sha256=str(captured.sha256),
+                evidence_refs=(_capture_ref(context, captured),),
+                home_recognized=True,
+            )
+            pixels = hashlib.sha256(captured.frame.tobytes()).hexdigest()
+            current_level = _research_center_level(captured.frame, current_binding)
+            used_at = context.monotonic_clock()
+            if (
+                not 0 <= used_at - captured.captured_monotonic <= 10.0
+                or current_home.queue1_state != "idle" or current_level is None
+                or not _research_visit_valid(context)
+            ):
+                return None
+            home, binding = captured, current_binding
+            context._recommended_research_center_level = current_level
+            context._recommended_research_queue1_state = current_home.queue1_state
+            context._recommended_research_queue1_remaining = current_home.queue1_remaining_seconds
+            visit.update(
+                home_source=(captured.sha256, captured.captured_monotonic),
+                home_used_at=used_at, home_screen=current_home, center_level=current_level,
+                home_ref=_capture_ref(context, captured),
+                home_pixels=pixels,
+                home_binding=current_binding,
+            )
             owner_binding["value"] = current_binding
             return _ActionPlan(
                 RESEARCH_CENTER_ID,
@@ -1476,6 +2313,47 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 "RECOMMENDED_RESEARCH_OPEN_CENTER",
             )
 
+        def entry_dispatch_plan(captured: Any) -> _ActionPlan | None:
+            # SDK immediate-before revalidation on its own actual capture:
+            # clean Home plus the Atlas-bound Research Center target, nothing
+            # cached. The queue/level phase proof stays bound to the entry-phase
+            # capture with its original timestamps and is not re-dated onto
+            # this frame. Re-running that OCR here measured 5.8 s offline on
+            # the retained 221908 frames, past the 5 s dispatch age (STALE_FRAME).
+            proof = getattr(context, "_recommended_research_visit", None)
+            if proof is not visit or visit.get("home_source") != (home.sha256, home.captured_monotonic):
+                return None
+            current_binding = _binding_for_home(context, captured.frame, localizer, building)
+            used_at = context.monotonic_clock()
+            if (
+                current_binding is None
+                or current_binding.building_id != RESEARCH_CENTER_ID
+                or not 0 <= used_at - captured.captured_monotonic <= 10.0
+                or not _research_visit_valid(context)
+            ):
+                return None
+            owner_binding["value"] = current_binding
+            x0, y0, x1, y1 = current_binding.target_roi
+            return _ActionPlan(
+                RESEARCH_CENTER_ID,
+                (x0, y0, x1, y1),
+                "HOME_BASE",
+                "GO",
+                "RESEARCH_RADIAL",
+                "RECOMMENDED_RESEARCH_OPEN_CENTER",
+            )
+
+        # A real new capture after Atlas planning, not a re-dated source. The
+        # full phase proof (binding, queue idle, center level) is decoded once
+        # here; the SDK immediate-before capture then rebinds only the target.
+        home = context.session.observe(context.runtime.capture, label="recommended-research-entry-phase-source")
+        entry_plan = building_plan(home)
+        if entry_plan is None:
+            context._recommended_research_visit = None
+            return _normal_result(
+                context, status="blocked", reason="research_entry_phase_proof_unknown_or_expired",
+                game_day_id=game_day_id, terminal_home_verified=context.is_clean_home(home.frame),
+            )
         radial_state: dict[str, ResearchScreenObservation | None] = {"value": None}
 
         def radial_successor(captured: Any) -> bool:
@@ -1492,20 +2370,28 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             radial_state["value"] = screen
             return screen is not None
 
-        result, after, verified = _guarded_action(
-            context,
-            policy,
-            captured=home,
-            game_day_id=game_day_id,
-            occurrence_key=occurrence,
-            action_key=f"{occurrence}:recommended-research:open-center",
-            plan_builder=building_plan,
-            recognizes_successor=radial_successor,
-        )
-        step += 1
-        if not verified or after is None or radial_state["value"] is None:
-            return _normal_result(context, status="blocked", reason="research_center_radial_successor_unverified", game_day_id=game_day_id, route_steps=step)
+        if radial_successor(home):
+            # Restart on this owner's already-open radial: resume from the same
+            # fresh capture that bound the Atlas owner instead of re-tapping it.
+            after = home
+        else:
+            result, after, verified = _guarded_action(
+                context,
+                policy,
+                captured=home,
+                game_day_id=game_day_id,
+                occurrence_key=occurrence,
+                action_key=_navigation_key(context, occurrence, "open-center"),
+                plan_builder=entry_dispatch_plan,
+                recognizes_successor=radial_successor,
+                initial_plan=entry_plan,
+            )
+            step += 1
+            if not verified or after is None or radial_state["value"] is None:
+                return _normal_result(context, status="blocked", reason="research_center_radial_successor_unverified", game_day_id=game_day_id, route_steps=step)
         radial = radial_state["value"]
+        if radial is None:
+            return _normal_result(context, status="blocked", reason="research_center_radial_successor_unverified", game_day_id=game_day_id, route_steps=step)
         radial_target = radial.list_research_target_roi
         if radial_target is None:
             return _normal_result(context, status="blocked", reason="radial_research_control_unavailable", game_day_id=game_day_id, route_steps=step)
@@ -1546,7 +2432,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             captured=after,
             game_day_id=game_day_id,
             occurrence_key=occurrence,
-            action_key=f"{occurrence}:recommended-research:radial-research",
+            action_key=_navigation_key(context, occurrence, "radial-research"),
             plan_builder=radial_plan,
             recognizes_successor=list_successor,
         )
@@ -1556,18 +2442,30 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             current, home_verified, step = _home_from_current(context, policy, current=current, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
             return _normal_result(context, status="blocked", reason="research_center_page_successor_unverified", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
         list_screen = list_state["value"]
+        listing_capture = after
         listing = _list_observation(list_screen, context)
         if listing is None or not research_list_navigation_authorizeable(listing):
             current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
             return _normal_result(context, status="blocked", reason="first_recommendation_list_control_unavailable", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
 
         def list_button_plan(captured: Any) -> _ActionPlan | None:
+            nonlocal listing_capture, listing
             fresh_screen = _source_screen(context, captured)
             fresh_listing = _list_observation(fresh_screen, context)
             if fresh_listing is None or fresh_listing.first_recommendation_identity != listing.first_recommendation_identity:
                 return None
             if not research_list_navigation_authorizeable(fresh_listing):
                 return None
+            used_at = context.monotonic_clock()
+            if not 0 <= used_at - captured.captured_monotonic <= 10.0 or not _research_visit_valid(context):
+                return None
+            listing_capture, listing = captured, fresh_listing
+            visit.update(
+                list_source=(captured.sha256, captured.captured_monotonic),
+                list_used_at=used_at, listing=fresh_listing,
+                list_ref=_capture_ref(context, captured),
+                list_pixels=hashlib.sha256(captured.frame.tobytes()).hexdigest(),
+            )
             return _ActionPlan(
                 fresh_listing.target_identity,
                 tuple(fresh_listing.target_roi),
@@ -1611,8 +2509,9 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                     selected_technology_identity=screen.selected_technology_identity,
                     current_level=screen.current_level,
                     target_level=screen.target_level,
-                    prerequisites_known=bool(screen.prerequisite_lines),
-                    prerequisites_met=bool(screen.prerequisite_lines),
+                    # Navigation proof only: row text is not prerequisite proof.
+                    prerequisites_known=False,
+                    prerequisites_met=False,
                     prerequisite_evidence=screen.prerequisite_evidence,
                     queue1_state=getattr(context, "_recommended_research_queue1_state", "unknown"),
                     queue1_remaining_seconds=getattr(context, "_recommended_research_queue1_remaining", None),
@@ -1640,7 +2539,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             captured=after,
             game_day_id=game_day_id,
             occurrence_key=occurrence,
-            action_key=f"{occurrence}:recommended-research:list-research",
+            action_key=_navigation_key(context, occurrence, "list-research"),
             plan_builder=list_button_plan,
             recognizes_successor=detail_successor,
         )
@@ -1652,6 +2551,8 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
 
         detail_screen = detail_screen_state["value"]
         scrolled_refs: list[str] = []
+        quote_capture = after
+        quote_screen = detail_screen
         if len(detail_screen.resource_rows) != len(RESEARCH_RESOURCES):
             if detail_screen.scroll_roi is None:
                 current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
@@ -1704,7 +2605,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 captured=after,
                 game_day_id=game_day_id,
                 occurrence_key=occurrence,
-                action_key=f"{occurrence}:recommended-research:requirements-scroll-down",
+                action_key=_navigation_key(context, occurrence, "requirements-scroll-down"),
                 plan_builder=scroll_down_plan,
                 recognizes_successor=scrolled_successor,
             )
@@ -1714,6 +2615,8 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 current, home_verified, step = _home_from_current(context, policy, current=current, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
                 return _normal_result(context, status="blocked", reason="all_four_scrolled_resource_rows_unverified", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
             scrolled_screen = scrolled_screen_state["value"]
+            quote_capture = after_scroll
+            quote_screen = scrolled_screen
             costs = scrolled_costs["value"]
             scrolled_refs.append(_reference(context, after_scroll))
 
@@ -1725,9 +2628,24 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 )
                 if screen.screen_state != DETAIL_SCREEN or screen.scroll_roi is None:
                     return None
+                # Only the requirement rows scroll. On the actual bottom view
+                # the old panel-wide gesture began on the fixed Troop Load
+                # effect above the first resource (193600 frames0018..0021),
+                # leaving the content unchanged. Bind this reverse swipe to
+                # the freshly read four-row requirement region instead.
+                requirement_lines = [
+                    line for line in _line_groups(screen.words)
+                    if _line_bounds(line)[1] >= screen.scroll_roi[1]
+                    and _line_bounds(line)[3] <= screen.scroll_roi[3]
+                    and _paired_amounts(_line_text(line)) is not None
+                ]
+                if len(requirement_lines) != len(RESEARCH_RESOURCES):
+                    return None
+                x0, _y0, x1, y1 = screen.scroll_roi
+                requirement_roi = (x0, min(_line_bounds(line)[1] for line in requirement_lines), x1, y1)
                 return _ActionPlan(
                     f"recommended-research:{listing.first_recommendation_identity}:requirements-scroll",
-                    screen.scroll_roi,
+                    requirement_roi,
                     DETAIL_SCREEN,
                     "GO",
                     "RESEARCH_DETAIL_START_CONTROL_VISIBLE",
@@ -1747,6 +2665,16 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 top_screen_state["value"] = screen
                 return (
                     screen.screen_state == DETAIL_SCREEN
+                    and screen.recognized
+                    # START is fixed at the bottom even while the requirements
+                    # remain scrolled. Actual 193600 run frame0020 still showed
+                    # all four resources immediately after the upward swipe;
+                    # accepting that frame skipped the SDK's settled capture.
+                    # Prove the top content returned, not merely its fixed CTA.
+                    and screen.duration_seconds is not None
+                    and bool(screen.prerequisite_lines)
+                    and screen.prerequisite_level is not None
+                    and len(screen.prerequisite_evidence) == len(screen.prerequisite_lines)
                     and screen.detail_research_target_roi is not None
                     and screen.selected_technology_identity == listing.first_recommendation_identity
                 )
@@ -1757,7 +2685,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 captured=after_scroll,
                 game_day_id=game_day_id,
                 occurrence_key=occurrence,
-                action_key=f"{occurrence}:recommended-research:requirements-scroll-up",
+                action_key=_navigation_key(context, occurrence, "requirements-scroll-up"),
                 plan_builder=scroll_up_plan,
                 recognizes_successor=top_successor,
             )
@@ -1814,7 +2742,6 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
         if not tech_upgrade_authorizeable(detail, listing):
             current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
             return _normal_result(context, status="blocked", reason="recommended_research_exact_start_guard_failed", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
-        tokens = _research_start_preconditions(detail, game_day_id)
         start_plan = _page_plan(
             detail_screen,
             state=DETAIL_SCREEN,
@@ -1827,19 +2754,56 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             current, home_verified, step = _home_from_current(context, policy, current=after, game_day_id=game_day_id, occurrence_key=occurrence, step=step)
             return _normal_result(context, status="blocked", reason="research_start_or_premium_target_not_isolated", game_day_id=game_day_id, terminal_home_verified=home_verified, route_steps=step)
 
+        # Entry/selection retain their phase-use provenance only through this
+        # verified exclusive navigation chain. Affordability/detail do not:
+        # both still have to be fresh at the consuming fence.
+        start_source_ages = {
+            name: context.monotonic_clock() - source.captured_monotonic
+            for name, source in (
+                ("resource_quote", quote_capture), ("detail", after),
+            )
+        }
+        if not _research_visit_valid(context) or any(not 0 <= age <= 10.0 for age in start_source_ages.values()):
+            current, home_verified, step = _home_from_current(
+                context, policy, current=after, game_day_id=game_day_id,
+                occurrence_key=occurrence, step=step,
+            )
+            return _normal_result(
+                context, status="blocked", reason="research_cross_page_source_expired",
+                game_day_id=game_day_id, terminal_home_verified=home_verified,
+                route_steps=step, source_ages_seconds=start_source_ages,
+                **selection_facts,
+            )
+        visit["quote_ref"] = _capture_ref(context, quote_capture)
+        semantic_progress["phase_proof"] = {
+            "invocation_id": context.invocation_id,
+            "home": {"frame_sha256": home.sha256, "captured_at": home.captured_monotonic, "used_at": visit["home_used_at"]},
+            "recommendation": {"frame_sha256": listing_capture.sha256, "captured_at": listing_capture.captured_monotonic, "used_at": visit["list_used_at"]},
+            "resource_quote": {"frame_sha256": quote_capture.sha256, "captured_at": quote_capture.captured_monotonic},
+            "transitions": list(visit["transitions"]),
+        }
+
         active_state: dict[str, ResearchActiveObservation | None] = {"value": None}
 
         def start_plan_builder(captured: Any) -> _ActionPlan | None:
+            nonlocal detail
+            context.checkpoint()
+            context.validate_identity()
             screen = _source_screen(
-                context,
-                captured,
+                context, captured,
                 expected_detail_identity=listing.first_recommendation_identity,
             )
-            if screen.screen_state != DETAIL_SCREEN or screen.detail_research_target_roi is None:
+            fresh_detail = _fresh_start_detail(
+                context, captured=captured, screen=screen, home=home,
+                home_binding=binding, listing_capture=listing_capture,
+                listing=listing, quote_capture=quote_capture,
+                quote_screen=quote_screen,
+                expected=detail,
+            )
+            if fresh_detail is None:
                 return None
-            current_identity = research_identity(listing.first_recommendation_title)
-            if current_identity != listing.first_recommendation_identity:
-                return None
+            detail = fresh_detail
+            current_identity = detail.first_recommendation_identity
             now_bounds = screen.research_now_target_roi
             target_roi = screen.detail_research_target_roi
             if now_bounds is None or not (target_roi[2] <= now_bounds[0] or now_bounds[2] <= target_roi[0] or target_roi[3] <= now_bounds[1] or now_bounds[3] <= target_roi[1]):
@@ -1887,7 +2851,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             action_key=start_action_key,
             plan_builder=start_plan_builder,
             recognizes_successor=active_successor,
-            semantic_preconditions=tokens,
+            semantic_preconditions=lambda captured: _research_start_preconditions(detail, game_day_id),
             action_class=ActionClass.SPEND_OR_STRATEGIC,
             action_kind="research_start",
             subject=detail.first_recommendation_identity,
@@ -1920,7 +2884,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 status="unresolved",
                 reason="research_start_successor_or_paired_debit_unknown",
                 game_day_id=game_day_id,
-                research_transport_calls=start_calls,
+                start_calls=start_calls,
                 committed_action_count=int(semantic_progress.get("start_semantically_verified") is True),
                 effect_reconciliation_required=True,
                 identical_retry_denied=True,
@@ -1937,7 +2901,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
                 status="unresolved",
                 reason="research_confirmed_but_home_successor_unverified",
                 game_day_id=game_day_id,
-                research_transport_calls=start_calls,
+                start_calls=start_calls,
                 committed_action_count=1,
                 effect_reconciliation_required=True,
                 identical_retry_denied=True,
@@ -1950,7 +2914,7 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             status="completed",
             reason="recommended_research_started_and_paired_debit_verified",
             game_day_id=game_day_id,
-            research_transport_calls=start_calls,
+            start_calls=start_calls,
             committed_action_count=1,
             terminal_home_verified=True,
             route_steps=step,
@@ -1976,6 +2940,43 @@ def run_native_route(context: Any, arguments: Mapping[str, object]) -> Mapping[s
             or row_status in {"prepared", "input_sent", "unresolved"}
             or row_lookup_failed
         )
+        if (
+            not possible_effect and not context.action_store.has_action_block()
+            and isinstance(exc, RuntimeError) and str(exc).startswith((
+                "RECOMMENDED_RESEARCH_TARGET_NOT_FRESHLY_BOUND",
+                "RECOMMENDED_RESEARCH_PREINPUT_TARGET_CHANGED",
+                "RECOMMENDED_RESEARCH_VISIT_CONTINUITY_LOST",
+            ))
+        ):
+            # Only known pre-START/no-dispatch refusal can navigate out.
+            # Revalidate ownership and inspect a real current capture first;
+            # unknown/sent effects never enter this recovery branch.
+            try:
+                context.checkpoint()
+                context.validate_identity()
+                recovery_source = context.session.observe(
+                    context.runtime.capture, label="recommended-research-prestart-refusal-source",
+                )
+                recovery_screen = _source_screen(context, recovery_source)
+                if context.is_clean_home(recovery_source.frame) or (
+                    recovery_screen.recognized and _return_plan(recovery_source.frame, recovery_screen) is not None
+                ):
+                    _, recovered, recovery_step = _home_from_current(
+                        context, policy, current=recovery_source, game_day_id=game_day_id,
+                        occurrence_key=occurrence_key, step=locals().get("step", 0),
+                        key_name="prestart-refusal-return-home",
+                    )
+                    if recovered:
+                        return _normal_result(
+                            context, status="blocked", reason="research_prestart_proof_refused",
+                            refusal=str(exc), game_day_id=game_day_id,
+                            terminal_home_verified=True, route_steps=recovery_step,
+                            **semantic_progress,
+                        )
+            except Exception:
+                # Existing failure reporting retains all journals/evidence.
+                pass
+            possible_effect = possible_effect or context.action_store.has_action_block()
         if isinstance(row, Mapping) and row_status in {"prepared", "input_sent", "unresolved"}:
             try:
                 context.action_store.mark_unresolved(
