@@ -424,6 +424,186 @@ class AllianceShopInventoryPixelTests(unittest.TestCase):
         self.assertEqual(result.selected_offer["quantity"], 1)
 
 
+DIALOG_FIXTURES = ENTRY_FIXTURES / "quantity-dialog"
+DIALOG_OFFER = DIALOG_FIXTURES / "0011-alliance-shop-weekly-scan-1.png"
+DIALOG_LIST = DIALOG_FIXTURES / "0013-alliance-shop-open-quantity-dialog-immediate-before.png"
+DIALOG_MODAL = DIALOG_FIXTURES / "0015-alliance-shop-open-quantity-dialog-settled.png"
+
+
+def altered_png(path, change):
+    frame = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    change(frame)
+    valid, encoded = cv2.imencode(".png", frame)
+    assert valid
+    return encoded.tobytes()
+
+
+def diamond_total(frame):
+    diamond = cv2.imread(str(DIALOG_OFFER), cv2.IMREAD_COLOR)[465:489, 598:624]
+    frame[510:552, 238:280] = cv2.resize(diamond, (42, 42))
+
+
+def erase_title(frame):
+    frame[460:500, 240:540] = frame[575:615, 240:540].copy()
+
+
+class QuantityModalTransport:
+    """Actual modal pixels; only the measured close X returns to the actual Weekly list."""
+
+    def __init__(self, start, *, modal=None):
+        self.state, self.modal, self.inputs = start, modal, []
+
+    def capture_png(self):
+        return self.state if isinstance(self.state, bytes) else self.state.read_bytes()
+
+    def dispatch_tap(self, point):
+        self.inputs.append(("tap", point))
+        if self.state == DIALOG_LIST and self.modal is not None:
+            self.state = self.modal
+        elif (self.state == DIALOG_MODAL or isinstance(self.state, bytes)) and (
+            671 <= point[0] <= 706 and 389 <= point[1] <= 425
+        ):
+            self.state = DIALOG_LIST
+
+    def dispatch_back(self):
+        self.inputs.append(("back", None))
+        self.state = (ENTRY_FIXTURES / "alliance-menu.png" if self.state == DIALOG_LIST
+                      else ENTRY_FIXTURES / "immediate-home.png")
+
+
+class AllianceShopQuantityModalPixelTests(unittest.TestCase):
+    def captured(self, path, png=None):
+        from scripts.bluestacks_native_runtime import captured_native_frame_from_png
+        return captured_native_frame_from_png(png or path.read_bytes(), captured_monotonic=1, path=path)
+
+    def port(self, transport, directory):
+        from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+        runtime = LocalBlueStacksRuntime(transport, Path(directory) / "native", execute=True)
+        context = SimpleNamespace(
+            runtime=runtime, checkpoint=lambda: None,
+            session=SimpleNamespace(observe=lambda capture, *, label: capture(label)),
+            identity=SimpleNamespace(reset_id="pixel-replay-reset"),
+        )
+        return native.AllianceShopLivePort(context, settle_seconds=0), runtime
+
+    def selected(self, port):
+        row = port._read_offer(self.captured(DIALOG_OFFER), "Bioenhance Scheme", ALLIANCE_WEEKLY_SHOP, None)
+        self.assertTrue(row.recognized)
+        return row
+
+    def test_actual_modal_binds_exact_quantity_total_coin_and_inner_buy(self):
+        from tasks.purchases_disabled import purchase_dialog_matches
+        with tempfile.TemporaryDirectory() as directory:
+            port, runtime = self.port(QuantityModalTransport(DIALOG_MODAL), directory)
+            row = self.selected(port)
+            dialog = port._quantity_dialog(self.captured(DIALOG_MODAL), row)
+            self.assertEqual(dialog, QuantityDialog(
+                ALLIANCE_WEEKLY_SHOP, "Bioenhance Scheme", ALLIANCE_CURRENCY,
+                80000, 1, 80000, dialog.inner_buy_roi, True,
+            ))
+            self.assertTrue(purchase_dialog_matches(
+                row, quantity=1, selected_quantity=dialog.selected_quantity,
+                displayed_total=dialog.total, shop_identity=row.shop_identity,
+            ))
+            x0, y0, x1, y1 = dialog.inner_buy_roi
+            self.assertTrue(277 <= x0 < x1 <= 523 and 785 <= y0 < y1 <= 864)
+            self.assertIsNone(port._quantity_dialog(self.captured(DIALOG_LIST), row))
+            self.assertIsNone(port._quantity_dialog(
+                self.captured(DIALOG_MODAL), replace(row, item_identity="Joy Coin"),
+            ))
+            self.assertEqual(runtime.input_count, 0)
+
+    def test_modal_total_currency_needs_current_offer_alliance_coin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            port, _runtime = self.port(QuantityModalTransport(DIALOG_MODAL), directory)
+            row = self.selected(port)
+            unbound = native.AllianceShopLivePort(SimpleNamespace(
+                session=None, runtime=None, checkpoint=lambda: None,
+                identity=SimpleNamespace(reset_id="pixel-replay-reset"),
+            ), settle_seconds=0)
+            diamond = self.captured(DIALOG_MODAL, altered_png(DIALOG_MODAL, diamond_total))
+            for name, reader, frame in (("diamond", port, diamond),
+                                        ("no-current-coin", unbound, self.captured(DIALOG_MODAL))):
+                with self.subTest(name=name):
+                    dialog = reader._quantity_dialog(frame, row)
+                    self.assertEqual(dialog.selected_quantity, 1)
+                    self.assertFalse(dialog.recognized)
+                    self.assertEqual(dialog.currency_identity, "UNKNOWN")
+                    self.assertIsNone(dialog.total)
+
+    def test_own_modal_closes_by_measured_x_then_safe_back_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            transport = QuantityModalTransport(DIALOG_MODAL)
+            port, runtime = self.port(transport, directory)
+            self.assertTrue(port.return_home())
+            self.assertEqual(transport.inputs[0], ("tap", (688, 407)))
+            self.assertEqual(transport.inputs[1:], [("back", None), ("back", None)])
+            self.assertEqual(runtime.input_count, 3)
+            self.assertFalse(any("buy" in key for key in runtime.action_keys))
+
+    def test_unknown_modal_dispatches_nothing(self):
+        def erase_close(frame):
+            frame[385:430, 665:712] = frame[440:485, 665:712].copy()
+        for change in (erase_title, erase_close):
+            with self.subTest(change=change.__name__), tempfile.TemporaryDirectory() as directory:
+                transport = QuantityModalTransport(altered_png(DIALOG_MODAL, change))
+                port, runtime = self.port(transport, directory)
+                self.assertFalse(port.return_home())
+                self.assertFalse(port.cancel_quantity_dialog())
+                self.assertEqual(transport.inputs, [])
+                self.assertEqual(runtime.input_count, 0)
+
+    def test_unproven_modal_currency_is_cancelled_with_zero_purchase(self):
+        with tempfile.TemporaryDirectory() as directory:
+            transport = QuantityModalTransport(DIALOG_LIST, modal=altered_png(DIALOG_MODAL, diamond_total))
+            port, runtime = self.port(transport, directory)
+            row = self.selected(port)
+            port.action_status = lambda _key: None
+            port.enter_weekly_offers = lambda: setattr(port, "current_tab", "weekly") or True
+            port.scan_weekly_offers = lambda: OfferScan((row,), True)
+            port.purchase_one = lambda *_args: self.fail("inner Buy must not be reached")
+            result = AllianceShopPurchaseRoute(port, action_key="modal-currency-cancel").run()
+            self.assertEqual((result.status, result.reason), ("blocked", "ALLIANCE_QUANTITY_DIALOG_NOT_EXACT"))
+            self.assertEqual((result.purchase_transport_calls, result.committed_action_count), (0, 0))
+            self.assertTrue(result.terminal_home_verified)
+            self.assertEqual([kind for kind, _point in transport.inputs], ["tap", "tap", "back", "back"])
+            self.assertEqual(transport.inputs[1], ("tap", (688, 407)))
+            self.assertEqual(runtime.input_count, 4)
+            self.assertFalse(any("inner-buy" in key for key in runtime.action_keys))
+
+    def test_startup_closes_only_own_modal_before_binding_canonical_home(self):
+        from scripts.bluestacks_native_runtime import LocalBlueStacksRuntime
+        from scripts.startup_normalization import is_clean_home_frame
+        for start, recovered in ((DIALOG_MODAL, True), (altered_png(DIALOG_MODAL, erase_title), False)):
+            with self.subTest(recovered=recovered), tempfile.TemporaryDirectory() as directory:
+                transport = QuantityModalTransport(start)
+                runtime = LocalBlueStacksRuntime(transport, Path(directory) / "native", execute=True)
+                bound = []
+                context = SimpleNamespace(
+                    runtime=runtime, checkpoint=lambda: None, validate_identity=lambda: None,
+                    is_clean_home=is_clean_home_frame, occurrence_key="occurrence",
+                    identity=SimpleNamespace(reset_id="pixel-replay-reset", account_id="a", server_id="s"),
+                    session=SimpleNamespace(
+                        observe=lambda capture, *, label: capture(label),
+                        adopt_retained_transport_count=lambda _count, source: None,
+                        session_directory=Path(directory) / "native",
+                    ),
+                    accounting=lambda: SimpleNamespace(verified=True, input_count=runtime.input_count),
+                    bind_initial_observation=lambda source, extra: bound.append((source, extra)),
+                )
+                entered = {"status": "route-entered", "purchase_transport_calls": 0, "committed_action_count": 0}
+                with patch.object(native, "run_alliance_shop_route", lambda _port, action_key: dict(entered)):
+                    result = native._service_driver(context, {"action_key": "key", "settle_seconds": 0})
+                if recovered:
+                    self.assertEqual(result["status"], "route-entered")
+                    self.assertEqual(len(bound), 1)
+                    self.assertTrue(is_clean_home_frame(bound[0][0].frame))
+                    self.assertEqual(transport.inputs, [("tap", (688, 407)), ("back", None), ("back", None)])
+                else:
+                    self.assertEqual(result["reason"], "ALLIANCE_CANONICAL_HOME_NOT_RECOGNIZED")
+                    self.assertEqual((bound, transport.inputs, result["input_count"]), ([], [], 0))
+
+
 class AllianceShopNativeReplayTests(unittest.TestCase):
     def test_native_confirmed_weekly_and_fallback_preserve_duplicate_guard_without_unknown_signal(self):
         for fallback in (False, True):

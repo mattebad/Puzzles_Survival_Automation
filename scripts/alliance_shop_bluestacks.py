@@ -413,25 +413,6 @@ def _numbers(line):
     return values
 
 
-def _icon(captured, word):
-    x0, y0, _x1, y1 = word.roi
-    cy = (y0 + y1) // 2
-    if x0 < 42 or cy < 20 or cy + 20 > 1280:
-        return None
-    patch = captured.frame[cy - 20:cy + 20, x0 - 42:x0 - 5]
-    return cv2.resize(cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY), (32, 32))
-
-
-def _icon_matches(a, b):
-    if a is None or b is None or a.shape != b.shape:
-        return False
-    first, second = a.astype(np.float32), b.astype(np.float32)
-    first -= float(first.mean())
-    second -= float(second.mean())
-    norm = float(np.linalg.norm(first) * np.linalg.norm(second))
-    return norm > 1e-6 and float(np.sum(first * second) / norm) >= 0.86
-
-
 def _offer_buttons(captured):
     """Measured gold offer controls, excluding item art and red Use controls."""
     hsv = cv2.cvtColor(captured.frame, cv2.COLOR_BGR2HSV)
@@ -457,15 +438,20 @@ def _offer_button(captured, item):
     return matches[0] if len(matches) == 1 else None
 
 
-def _alliance_coin_box(captured, roi):
-    """Locate the header Alliance Coin inside ``roi``; diamonds and unknown icons fail."""
+def _header_coin(captured):
+    """Current Alliance Coin balance icon; dialogs blur it, so offers cache this reference."""
+    return cv2.cvtColor(captured.frame[14:58, 560:604], cv2.COLOR_BGR2GRAY)
+
+
+def _alliance_coin_box(captured, roi, *, reference=None, sizes=range(22, 33)):
+    """Locate the Alliance Coin inside ``roi``; diamonds and unknown icons fail."""
     # The native balance coin has a + overlay at its lower right. Match its
     # unobscured interior at current scale, retaining the existing 0.86 gate.
-    reference = cv2.cvtColor(captured.frame[14:58, 560:604], cv2.COLOR_BGR2GRAY)
+    reference = _header_coin(captured) if reference is None else reference
     left, top, right, bottom = roi
     search = cv2.cvtColor(captured.frame[top:bottom, left:right], cv2.COLOR_BGR2GRAY)
     best_score, best_box = -1.0, None
-    for size in range(22, 33):
+    for size in sizes:
         if search.shape[0] < size or search.shape[1] < size:
             continue
         yy, xx = np.indices((size, size))
@@ -509,6 +495,114 @@ def _selected_tab(captured, label, roi):
         return False
     blue, green, red = patch[:, :, 0], patch[:, :, 1], patch[:, :, 2]
     return float(np.mean((red > 55) & (red > green * 1.4) & (red > blue * 1.3))) >= 0.45
+
+
+ALLIANCE_DIALOG_ITEMS = (*ALLIANCE_WEEKLY_ITEMS, ALLIANCE_FALLBACK_ITEM)
+
+
+@dataclass(frozen=True)
+class _DialogLayout:
+    """Measured allowlisted Alliance quantity modal controls; values are read separately."""
+
+    button: tuple[int, int, int, int]
+    buy: tuple[int, int, int, int]
+    item: str
+    title: tuple[int, int, int, int]
+    select: tuple[int, int, int, int]
+    close: tuple[int, int, int, int]
+
+
+def _filled_rects(mask, accept, *, offset=(0, 0), fill=0.9):
+    contours, _hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    found = []
+    for contour in contours:
+        x, y, width, height = cv2.boundingRect(contour)
+        if accept(x + offset[0], width, height) and cv2.contourArea(contour) >= width * height * fill:
+            found.append((x + offset[0], y + offset[1], x + offset[0] + width, y + offset[1] + height))
+    return found
+
+
+def _dialog_buy_button(captured):
+    """The modal's one centred gold Buy control; offer-card Buy controls are narrower."""
+    hsv = cv2.cvtColor(captured.frame, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, np.array((10, 75, 100), dtype=np.uint8),
+                       np.array((40, 255, 255), dtype=np.uint8))
+    buttons = _filled_rects(
+        mask, lambda x, width, height: 200 <= width <= 300 and 55 <= height <= 100
+        and abs(x + width / 2 - 400) <= 40,
+    )
+    return buttons[0] if len(buttons) == 1 else None
+
+
+def _dialog_close(captured, roi):
+    """One white diagonal-cross glyph in the modal header, never Back or a guessed corner."""
+    left, top, right, bottom = roi
+    hsv = cv2.cvtColor(captured.frame[top:bottom, left:right], cv2.COLOR_BGR2HSV)
+    white = cv2.inRange(hsv, np.array((0, 0, 200), dtype=np.uint8),
+                        np.array((180, 60, 255), dtype=np.uint8))
+    count, labels, stats, _centroids = cv2.connectedComponentsWithStats(white)
+    steps = np.linspace(0.1, 0.9, 9)
+    found = []
+    for label in range(1, count):
+        x, y, width, height, _area = (int(value) for value in stats[label])
+        if not (24 <= width <= 50 and 24 <= height <= 50 and abs(width - height) <= 6):
+            continue
+        glyph = labels[y:y + height, x:x + width] == label
+        diagonal = sum(bool(glyph[int(t * (height - 1)), int(t * (width - 1))]) for t in steps)
+        anti = sum(bool(glyph[int(t * (height - 1)), int((1 - t) * (width - 1))]) for t in steps)
+        edges = (glyph[0, width // 2], glyph[height - 1, width // 2],
+                 glyph[height // 2, 0], glyph[height // 2, width - 1])
+        if diagonal >= 8 and anti >= 8 and not any(edges) and 0.3 <= float(glyph.mean()) <= 0.6:
+            found.append((left + x, top + y, left + x + width, top + y + height))
+    return found[0] if len(found) == 1 else None
+
+
+def _dialog_layout(captured):
+    button = _dialog_buy_button(captured)
+    if button is None:
+        return None
+    bx0, by0, bx1, by1 = button
+    buys = _hits(_ocr_words(captured, (bx0 + 2, by0 + 2, bx1 - 2, by1 - 2), psm=7), "Buy")
+    if len(buys) != 1:
+        return None
+    words = _ocr_words(captured, (40, max(0, by0 - 420), 760, by0))
+    selects = _hits(words, "Select Quantity")
+    titles = [(item, hit) for item in ALLIANCE_DIALOG_ITEMS for hit in _hits(words, item)]
+    if len(selects) != 1 or len(titles) != 1 or not titles[0][1][3] < selects[0][1]:
+        return None
+    item, title = titles[0]
+    close = _dialog_close(captured, (bx1, max(0, title[1] - 110), 800, title[1] - 10))
+    if close is None:
+        return None
+    return _DialogLayout(button, buys[0], item, title, selects[0], close)
+
+
+def _dialog_quantity(captured, top, bottom):
+    """Selected quantity from the measured value box and its ``/maximum`` label."""
+    gray = cv2.cvtColor(captured.frame, cv2.COLOR_BGR2GRAY)
+    strips = _filled_rects(
+        cv2.inRange(gray[top:bottom, 40:760], 49, 58),
+        lambda _x, width, height: width >= 400 and 50 <= height <= 90, offset=(40, top),
+    )
+    if len(strips) != 1:
+        return None
+    sx0, sy0, sx1, sy1 = strips[0]
+    boxes = _filled_rects(
+        cv2.inRange(gray[sy0 + 3:sy1 - 3, sx0:sx1], 36, 47),
+        lambda _x, width, height: 70 <= width <= 150 and 35 <= height <= 60, offset=(sx0, sy0 + 3),
+    )
+    if len(boxes) != 1:
+        return None
+    x0, y0, x1, y1 = boxes[0]
+    selected_words = _ocr_words(captured, (x0 + 3, y0 + 3, x1 - 3, y1 - 3), psm=7)
+    selected = [value for line in _lines(selected_words) for value, _word in _numbers(line)]
+    maximum_words = _ocr_words(captured, (x1 + 2, y0, sx1 - 2, y1), psm=7)
+    if len(selected_words) != 1 or len(selected) != 1 or len(maximum_words) != 1:
+        return None
+    maximum = re.fullmatch(r"/\s*(\d+)", maximum_words[0].text)
+    if maximum is None or not 1 <= selected[0] <= int(maximum.group(1)):
+        return None
+    return selected[0], int(maximum.group(1))
 
 
 class AllianceShopLivePort:
@@ -781,7 +875,7 @@ class AllianceShopLivePort:
         coin_known = price is not None
         balance = balances[0] if len(balances) == 1 and coin_known else None
         if price is not None and coin_known:
-            self.currency_icons[f"{shop}:{item}"] = _icon(captured, price[1])
+            self.currency_icons[f"{shop}:{item}"] = _header_coin(captured)
         return ShopOffer(
             shop_identity=shop,
             item_identity=item,
@@ -909,34 +1003,48 @@ class AllianceShopLivePort:
         return buys[0]
 
     def _quantity_dialog(self, captured, offer):
-        words = self._words(captured)
-        if len(_hits(words, offer.item_identity)) != 1:
+        self.context.checkpoint()
+        layout = _dialog_layout(captured)
+        if layout is None or layout.item != offer.item_identity:
             return None
-        totals = [line for line in _lines(words) if "total" in " ".join(word.text for word in line).casefold()]
-        quantities = []
-        for line in _lines(words):
-            text = " ".join(word.text for word in line)
-            match = re.search(r"(?<!\d)(\d[\d,]*)\s*/\s*(\d[\d,]*)(?!\d)", text)
-            if match:
-                quantities.append((int(match.group(1).replace(",", "")), line))
-        if len(totals) != 1 or len(quantities) != 1:
+        quantity = _dialog_quantity(captured, layout.select[3] + 5, layout.button[1] - 5)
+        if quantity is None:
             return None
-        total_numbers = _numbers(totals[0])
-        if len(total_numbers) != 1:
-            return None
-        total, total_word = total_numbers[0]
-        expected_icon = self.currency_icons.get(offer.offer_identity)
-        if not _icon_matches(expected_icon, _icon(captured, total_word)):
-            return None
-        quantity, quantity_line = quantities[0]
-        quantity_y = sum((word.roi[1] + word.roi[3]) / 2 for word in quantity_line) / len(quantity_line)
-        buys = [roi for roi in _hits(words, "Buy") if (roi[1] + roi[3]) / 2 > quantity_y]
-        if not buys:
-            return None
-        buy_roi = max(buys, key=lambda roi: roi[1])
+        # The modal blurs the header, so bind its Total coin to this offer's current header
+        # coin, then read only the Total row to the coin's right.
+        title, reference = layout.title, self.currency_icons.get(offer.offer_identity)
+        coin = None if reference is None else _alliance_coin_box(
+            captured, (max(0, title[0] - 40), title[3], title[0] + 60, layout.select[1]),
+            reference=reference, sizes=range(22, 47),
+        )
+        total = None
+        if coin is not None:
+            words = _ocr_words(captured, (coin[2] + 1, max(0, coin[1] - 4), 760, coin[3] + 4), psm=7)
+            totals = [value for line in _lines(words) for value, _word in _numbers(line)]
+            if len(words) == 2 and _norm(words[0].text) == "total" and len(totals) == 1:
+                total = totals[0]
         return QuantityDialog(
-            offer.shop_identity, offer.item_identity, offer.currency_identity,
-            offer.unit_price, quantity, total, buy_roi, True,
+            offer.shop_identity, offer.item_identity,
+            offer.currency_identity if total is not None else "UNKNOWN",
+            offer.unit_price, quantity[0], total, layout.buy, total is not None,
+        )
+
+    def _own_dialog_close(self, captured):
+        """Close control of a positively recognized Alliance allowlist quantity modal."""
+        self.context.checkpoint()
+        layout = _dialog_layout(captured)
+        return None if layout is None else layout.close
+
+    def _close_own_dialog(self, action_name):
+        def bind(before):
+            close = self._own_dialog_close(before)
+            if close is None:
+                raise ValueError("Alliance quantity dialog close control is not recognized")
+            return close
+        shop_pages = {self.current_tab} if self.current_tab else {"weekly", "alliance", "other"}
+        return self._tap_roi(
+            bind, "alliance-shop:quantity-dialog-close", action_name,
+            lambda frame: self._page(frame)[0] in shop_pages,
         )
 
     def open_quantity_dialog(self, offer):
@@ -958,16 +1066,7 @@ class AllianceShopLivePort:
         return self._quantity_dialog(dialog_frame, offer)
 
     def cancel_quantity_dialog(self):
-        captured = self._capture("alliance-shop-quantity-cancel-source")
-        hits = _hits(self._words(captured), "X")
-        if len(hits) != 1:
-            return False
-        return self._tap_roi(
-            lambda before: _hits(self._words(before), "X")[0]
-            if len(_hits(self._words(before), "X")) == 1 else None,
-            "alliance-shop:quantity-dialog-close", "cancel-quantity-dialog",
-            lambda frame: self._page(frame)[0] == self.current_tab,
-        )
+        return self._close_own_dialog("cancel-quantity-dialog")
 
     def purchase_one(self, offer, dialog, action_key):
         if self.last_dialog is None:
@@ -978,10 +1077,14 @@ class AllianceShopLivePort:
         )
 
     def return_home(self):
-        for _ in range(4):
+        for _ in range(5):
             captured = self._capture("alliance-shop-home-return-source")
             if self._home(captured):
                 return True
+            if self._own_dialog_close(captured) is not None:
+                if not self._close_own_dialog("close-quantity-dialog"):
+                    return False
+                continue
             if self._page(captured)[0] not in {"weekly", "other", "alliance", "alliance_menu"}:
                 return False
             if not self._back():
@@ -1316,26 +1419,36 @@ def _purchase_alliance_offer(context, port, offer, dialog, action_key, *, settle
 def _service_driver(context, arguments: Mapping[str, object]) -> Mapping[str, object]:
     from tasks.profile import ACTIVE_RUNTIME_PROFILE_ID
 
+    action_key = arguments.get("action_key")
+    if not isinstance(action_key, str) or not action_key:
+        raise ValueError("Alliance Shop canonical action key is missing")
+    port = AllianceShopLivePort(context, settle_seconds=float(arguments.get("settle_seconds", 1.0)))
     context.validate_identity()
     source = context.session.observe(context.runtime.capture, label="alliance-shop-canonical-home-source")
+    if not context.is_clean_home(source.frame):
+        # Only a positively recognized own Alliance Shop page or quantity modal is closed or
+        # backed out; unknown/manual contexts return without input.
+        try:
+            port.return_home()
+        finally:
+            context.session.adopt_retained_transport_count(
+                context.runtime.input_count, source=str(context.runtime.events),
+            )
+        source = context.session.observe(context.runtime.capture, label="alliance-shop-recovered-home-source")
     if not context.is_clean_home(source.frame):
         return {
             "status": "blocked",
             "reason": "ALLIANCE_CANONICAL_HOME_NOT_RECOGNIZED",
             "purchase_transport_calls": 0,
             "committed_action_count": 0,
-            "accounting_verified": False,
+            "accounting_verified": context.accounting().verified,
             "terminal_home_verified": False,
             "effect_reconciliation_required": False,
             "identical_retry_denied": False,
-            "input_count": 0,
-            "total_input_count": 0,
+            "input_count": context.runtime.input_count,
+            "total_input_count": context.runtime.input_count,
         }
     context.bind_initial_observation(source, extra={"source_state": "HOME_BASE", "home_verified": True})
-    action_key = arguments.get("action_key")
-    if not isinstance(action_key, str) or not action_key:
-        raise ValueError("Alliance Shop canonical action key is missing")
-    port = AllianceShopLivePort(context, settle_seconds=float(arguments.get("settle_seconds", 1.0)))
     try:
         result = run_alliance_shop_route(port, action_key=action_key)
     finally:

@@ -184,6 +184,12 @@ Existing layout exceptions:
   scrolling avoids Buy controls, and end-of-list evidence excludes the ticking header.
   Unresolved ownership, price, stock or currency remains incomplete, not preferred-offer
   absence or fallback authority.
+  Quantity dialogs bind the exact allowlisted title, measured selected quantity and
+  numeric total independently; the Total coin must match the fresh offer-frame coin
+  at the existing threshold, never the blurred modal background. A positively identified
+  own modal may close through its freshly rebound white X and return via known Alliance
+  pages to verified Home, including on restart. Unknown modal structure receives no
+  guessed dismissal or Buy. Actual-pixel replay proves these guards, not purchase effects.
   Daily Shops reuses canonical Atlas startup normalization and its scrcpy simultaneous-pointer
   transport for at most two accounted zoom inputs; the sequential virtual-touch pinch is not
   a substitute for an observed camera transition. It then uses shared bounded calculated pans,
