@@ -185,6 +185,12 @@ Existing layout exceptions:
   fresh mapped Ruins binding and route-owned Ruins/Exchange successors. Unknown or unchanged
   navigation stops; an absent action-store lease dispatches nothing. These are offline-proven
   entry guards, not purchase-effect or route-level live acceptance.
+  Ruins title and navigation controls use isolated current-frame regions shared with the
+  Ruins observer, rather than full-page OCR over decorative Back art. A supervised native
+  visit reached the actual Ruins overview after one scrcpy zoom and mapped entry; it made
+  no purchase and remains unaccepted. On restart, Daily Shops may return from its positively
+  recognized overview/shop context to freshly verified Home before a new mapped entry.
+  Unknown contexts receive no speculative Back; recovery inputs remain in canonical totals.
 
 * **Batch D Nano Material Production and Nanoweapon**: canonical-service-only routes with fixed
   native bindings and no operator rows. Nano Material Production uses a non-reset-scoped timer
