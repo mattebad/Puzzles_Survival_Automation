@@ -289,13 +289,21 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
         output = re.fullmatch(r"produces ([1-9][0-9]*) ([1-9][0-9]*) material s at random upgrade gear", _normal(line))
         if output is not None:
             output_ranges.append((int(output[1]), int(output[2])))
-    complete_profile = bool(
-        len(claim_crop) == 1 and len(_phrase_lines(claim_crop, "Claim")) == 1
-        and len(output_ranges) == 1 and output_ranges[0][0] <= output_ranges[0][1]
+    output_profile = bool(
+        len(output_ranges) == 1 and output_ranges[0][0] <= output_ranges[0][1]
         and len(_phrase_lines(output_lines, "Factory to increase output.")) == 1
+    )
+    complete_profile = bool(
+        output_profile
+        and len(claim_crop) == 1 and len(_phrase_lines(claim_crop, "Claim")) == 1
         and not starts and not timers and len(claims) <= 1
     )
-    if not one_slot and not complete_profile:
+    idle_profile = bool(
+        output_profile
+        and len(claim_crop) == 1 and len(_phrase_lines(claim_crop, "Produce")) == 1
+        and not starts and not timers and not claims
+    )
+    if not one_slot and not (complete_profile or idle_profile):
         return _PanelRead(None, None, "one_slot_state_not_recognized")
     control = None
     if complete_profile:
@@ -303,6 +311,11 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
         # an OCR'd START quote, timer, or literal active/completed counter.
         production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "complete", 0, 1, None, True, False
         control, duration, cost_known = _MATERIAL_COMPLETE_CLAIM_CONTROL, None, True
+    elif idle_profile:
+        # Actual Claim successor: the same empty slot exposes Produce. This
+        # proves idle, but neither a duration nor a zero-cost START quote.
+        production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "idle", 0, 0, None, False, True
+        control, duration, cost_known = _MATERIAL_COMPLETE_CLAIM_CONTROL, None, False
     elif len(claims) == 1 and len(starts) == 0 and len(timers) == 1 and timers[0][0] == 0 and len(complete_markers) == 1 and cost_known:
         production_state, active_count, completed_count, remaining, claim_visible, start_enabled = "complete", 0, 1, 0, True, False
         control = _word_roi(claims[0][1])
@@ -315,7 +328,7 @@ def _panel_observation(captured, *, context, occurrence_key: str) -> _PanelRead:
     else:
         return _PanelRead(None, None, "production_state_unknown_or_ambiguous")
     panel_words = tuple(word for _line, line_words in lines for word in line_words)
-    panel = _MATERIAL_COMPLETE_PANEL if complete_profile else _bounds(panel_words)
+    panel = _MATERIAL_COMPLETE_PANEL if complete_profile or idle_profile else _bounds(panel_words)
     if panel is None or control is None or not (panel[0] <= control[0] < control[2] <= panel[2] and panel[1] <= control[1] < control[3] <= panel[3]):
         return _PanelRead(None, None, "production_target_bounds_unknown")
     evidence_ref = _evidence_ref(captured, context.session)

@@ -165,6 +165,8 @@ terminal Home. Return uses the native runtime's supported `BACK`, not desktop `E
 Material Claim/Start re-proves the same slot, exact quote and occurrence on the SDK immediate-before
 capture, then binds Core capability and transport to that capture. Background animation alone is
 not a selector change. The completed output caption is read in its measured crop, not full-page OCR.
+The observed Claim successor exposes Produce on the empty slot. That proves the Claim's
+complete-to-idle transition, not a 21,600-second zero-cost START quote; an unquoted restart blocks.
 The full-page Gear Factory hub is recognized only from its measured 2x bright-glyph title crop
 ("Gear Factory") plus the measured Nanoweapon label crop; the Nanoweapon tap is that tile's measured
 label plate within the shared safe box. A run that starts on this recognized hub continues from it.
