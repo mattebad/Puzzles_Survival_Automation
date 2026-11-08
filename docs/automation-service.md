@@ -282,6 +282,14 @@ flow-delivery lease, execute Resource Use, clear gameplay history, change contro
 route acceptance. The November 8 supervised smoke verified one Back and settled Home with
 zero item uses or spend; the full #66 owned-item decrement scenario remains `evidence_required`.
 
+Daily rewards terminal Home references are relative to the native runtime's evidence
+directory, not its parent development-session directory; the adapter retains the
+exact file, containment and SHA-256 checks. The November 8 native visit observed
+zero points, no aggregate Claim and five static chests, then returned Home using
+two navigation inputs and no reward attempts. Its original adapter rejection is
+preserved. Retained-frame replay and focused checks prove the corrected path
+contract offline; this does not establish a new live chest-claim acceptance.
+
 ## Local checks
 
 Run focused checks from the repository root:

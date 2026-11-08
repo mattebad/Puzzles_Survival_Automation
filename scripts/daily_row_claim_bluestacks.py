@@ -3544,7 +3544,7 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
         try:
             scan_projection = verified_static_scan(source_scan, result["chests_collected"])
             accounting_now = context.accounting()
-            terminal_ref = _frame_ref(home_capture, session.session_directory)
+            terminal_ref = _frame_ref(home_capture, runtime.session)
             terminal_path = terminal_ref["path"]
             if not isinstance(terminal_path, str) or not terminal_path:
                 raise DailyRowClaimRecognitionError(
@@ -3579,7 +3579,7 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
                     "frame_path": terminal_ref["path"],
                     "frame_sha256": terminal_ref["sha256"],
                 },
-                native_session_directory=str(session.session_directory),
+                native_session_directory=str(runtime.session),
                 milestone_scan=scan_projection,
                 no_work=False,
             )
@@ -3605,7 +3605,7 @@ def run_daily_rewards_from_home(context: Any, arguments: Mapping[str, object]) -
                 "frame_path": terminal_ref["path"],
                 "frame_sha256": terminal_ref["sha256"],
             },
-            native_session_directory=str(session.session_directory),
+            native_session_directory=str(runtime.session),
             milestone_scan=scan_projection,
             unclaimed_ready_chest_count=0,
             no_work=no_work,
