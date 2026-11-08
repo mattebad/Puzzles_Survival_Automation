@@ -16,6 +16,7 @@ from safe_action_core import ActionClass, ActionStatus, CentralPolicy, Observati
 from scripts.atlas_flow_startup import normalize_home_atlas_startup
 from scripts.bounded_tesseract import CHECKPOINT as OCR_CHECKPOINT, call_ocr, tesseract_data
 from scripts.home_atlas_bluestacks import BlueStacksHomeLocalizer, DirectPanNavigator, bind_visible_building
+from tasks.home_atlas_vision import frame_digest
 from scripts.navigation_development_boundary import DevelopmentSession
 from tasks.hero_duel_disabled import (
     HERO_DUEL_SURVIVAL, MAX_HERO_DUEL_CYCLES, HeroDuelObservation,
@@ -626,7 +627,7 @@ class HeroDuelNativeFlow:
             fresh = self.capture("hero-duel-arena-building-immediate")
             local = localizer.localize(fresh.frame)
             rebound = bind_visible_building(fresh.frame, local, building, home_is_clean=self.context.is_clean_home) if local.recognized else None
-            if rebound is None or rebound.frame_sha256 != fresh.sha256:
+            if rebound is None or rebound.frame_sha256 != frame_digest(fresh.frame):
                 self.result["reason"] = "arena_atlas_immediate_binding_failed"
                 return None
             successor = {}
@@ -666,7 +667,7 @@ class HeroDuelNativeFlow:
         localization = localizer.localize(current.frame)
         rebound = bind_visible_building(current.frame, localization, building,
             home_is_clean=self.context.is_clean_home) if localization.recognized else None
-        if rebound is None or rebound.frame_sha256 != current.sha256 or rebound.target_roi != expected.target_roi:
+        if rebound is None or rebound.frame_sha256 != frame_digest(current.frame) or rebound.target_roi != expected.target_roi:
             raise HeroDuelRecognitionError("Arena Atlas target changed before dispatch")
 
     def _recognize_arena(self, captured, output):
@@ -1573,6 +1574,8 @@ class HeroDuelNativeFlow:
         return self._finalize()
 
     def _finalize(self):
+        if self.result.get("status") == "blocked":
+            self.session.blocker = str(self.result["reason"])
         accounting = self.context.accounting()
         self.result.update(flow_id=FLOW_ID, product_id=PRODUCT_ID, product_revision=PRODUCT_REVISION,
             reset_id=self.reset_id,
