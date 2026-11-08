@@ -51,6 +51,7 @@ from tasks.hero_upgrade_disabled import (
     hero_upgrade_batch_spec,
     normal_upgrade_input_limit,
 )
+from tasks.home_nav_recognition import recognize_home_nav
 from tasks.profile import BLUESTACKS_NATIVE_TARGET_PROVENANCE
 from automation_service.registry import (
     WALI_UPGRADE_FLOW_ID as FLOW_ID,
@@ -1209,18 +1210,16 @@ def _route_page(
 ) -> _View:
     if _home_verified(context, captured, home):
         words = _ocr_words(captured.frame)
-        lines = _lines(words)
-        targets = [
-            (text, line_words)
-            for text, line_words in lines
-            if _normal(text) in {"hero", "heroes"} and line_words and _line_center_y(line_words) >= 1080
-        ]
+        # The Hero dock label sits over its portrait and alert badge, so
+        # full-frame OCR does not read it; bind the shared template-recognized
+        # Home navigation strip's measured Hero button instead.
+        point = recognize_home_nav(captured.frame).button_tap_point("hero")
         return _View(
             "home",
             None,
             words,
-            lines,
-            home_hero_target=_box(targets[0][1], pad=8) if len(targets) == 1 else None,
+            _lines(words),
+            home_hero_target=None if point is None else (point[0] - 4, point[1] - 4, point[0] + 4, point[1] + 4),
             reason="verified_home",
         )
     return _view(
