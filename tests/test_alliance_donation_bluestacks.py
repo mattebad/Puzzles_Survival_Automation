@@ -140,6 +140,9 @@ class FakeRuntime:
             "ALLIANCE_HOME": "HOME",
         }[self.state]
 
+    def swipe(self, source, *, start, end, action_key, target_identity, duration_ms=400) -> None:
+        raise AssertionError("fake runtime swipe must be configured for a reveal scenario")
+
 
 @dataclass(frozen=True)
 class _FakeIdentity:
@@ -400,8 +403,8 @@ class AllianceDonationNativeSmokeTests(unittest.TestCase):
 class AllianceDonationActualFrameTests(unittest.TestCase):
     fixture = Path(__file__).parent / "fixtures" / "alliance_donation_menu" / "donation77-0004.png"
 
-    def _captured(self, frame=None):
-        png = self.fixture.read_bytes()
+    def _captured(self, frame=None, *, fixture=None):
+        png = (fixture or self.fixture).read_bytes()
         if frame is not None:
             encoded, data = cv2.imencode(".png", frame)
             self.assertTrue(encoded)
@@ -447,6 +450,75 @@ class AllianceDonationActualFrameTests(unittest.TestCase):
                     surface = route.recognize_surface(captured, reset_id="d", evidence_ref="fixture")
                 self.assertEqual(surface.state, expected)
                 self.assertIsNone(surface.target_roi)  # No invented HOT binding.
+
+    def _clipped_hot(self, frame=None):
+        fixture = self.fixture.with_name("donation77-0028-clipped-hot.png")
+        return self._captured(frame, fixture=fixture)
+
+    def test_actual_bottom_hot_requests_reveal_without_guessing_identity(self):
+        captured = self._clipped_hot()
+        self.assertEqual(captured.sha256, "82d9cb255eda50c886c8870c0cd611e9345b0b9092b973094dc927a01e2d44c4")
+        surface = route.recognize_surface(captured, reset_id="game-day-2026-11-08", evidence_ref="retained")
+        self.assertEqual(surface.state, "TECH_TREE")
+        self.assertEqual(surface.reason, "clipped_hot_requires_reveal")
+        self.assertIsNotNone(surface.hot_roi)
+        self.assertIsNone(surface.target_roi)
+        self.assertIsNone(surface.tech_slug)
+        self.assertIsNone(surface.donation)
+        with tempfile.TemporaryDirectory() as directory:
+            store = SafetyStore(Path(directory) / "actions.sqlite3")
+            try:
+                context = FakeContext(Path(directory), store)
+                calls = []
+                context.runtime.capture = lambda _label: captured
+                context.runtime.swipe = lambda source, **kwargs: calls.append((source, kwargs))
+                context.runtime.last_capture = captured
+                after = route._reveal_clipped_hot(context, surface)
+                self.assertIsNone(after)  # Static fake transport cannot prove an offscreen identity.
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(context.session.input_count, 1)
+                self.assertEqual(context.runtime.donation_count, 0)
+                self.assertEqual(store.list_actions_for_task(ALLIANCE_DONATION_FLOW_ID), [])
+                source, gesture = calls[0]
+                self.assertEqual(source.sha256, captured.sha256)
+                self.assertEqual(gesture["duration_ms"], 500)
+                self.assertGreater(gesture["start"][1], gesture["end"][1])
+                self.assertLessEqual(gesture["start"][1] - gesture["end"][1], 320)
+                self.assertEqual(gesture["target_identity"], "alliance-tech:reveal-current-clipped-hot")
+            finally:
+                store.close()
+
+    def test_no_hot_wrong_context_and_ambiguous_hot_refuse_reveal_input(self):
+        original = self._clipped_hot()
+        source = route.recognize_surface(original, reset_id="d", evidence_ref="retained")
+        variants = {}
+        no_hot = original.frame.copy()
+        no_hot[1205:1265, 410:545] = 0
+        variants["no_hot"] = no_hot
+        wrong = original.frame.copy()
+        wrong[0:70, 200:600] = 0
+        variants["wrong_context"] = wrong
+        ambiguous = original.frame.copy()
+        ambiguous[1215:1260, 217:339] = original.frame[1215:1260, 417:539]
+        variants["ambiguous"] = ambiguous
+        for name, frame in variants.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                captured = self._clipped_hot(frame)
+                surface = route.recognize_surface(captured, reset_id="d", evidence_ref="mutated")
+                self.assertIsNone(surface.target_roi)
+                self.assertIsNone(surface.hot_roi)
+                store = SafetyStore(Path(directory) / "actions.sqlite3")
+                try:
+                    context = FakeContext(Path(directory), store)
+                    context.runtime.last_capture = captured
+                    context.runtime.capture = lambda _label: captured
+                    with self.assertRaisesRegex(RuntimeError, "reveal source changed"):
+                        route._reveal_clipped_hot(context, source)
+                    self.assertEqual(context.session.input_count, 0)
+                    self.assertEqual(context.runtime.input_count, 0)
+                    self.assertEqual(context.runtime.donation_count, 0)
+                finally:
+                    store.close()
 
 
 
