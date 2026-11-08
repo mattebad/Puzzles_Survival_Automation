@@ -180,6 +180,9 @@ expired or ambiguous evidence denies input. Recommendation title/button rereads 
 current pixels; an already-open recognized Research page gets at most three guarded Back hops,
 each reaching a recognized nearer parent or Home. Unknown/unchanged successors stop without retry.
 Startup must verify Home; these recovery guards do not establish Research-start acceptance.
+A complete current four-resource scroll supplies its own quote; partial overlapping views still
+require matching overlap. A fully identified scrolled sheet can return Home without a cached
+recommendation identity, but starting still requires the fresh first-recommendation identity.
 Farm uses fixed runtime identity, source-bound collection/boost controls and current lease/freshness
 guards. A displayed item cost of one is
 not owned inventory; unproved inventory or premium confirmation/effects remains blocked.
