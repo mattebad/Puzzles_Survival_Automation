@@ -192,6 +192,11 @@ Existing layout exceptions:
   uses original-workspace-relative paths; native pixels and source hashes are preserved.
   Alliance Shop rebinds the fresh Home footer through the shared recognizer and distinguishes
   the actual Alliance title and red-selected Shop tabs from incidental navigation labels.
+  Current offer fields are isolated against measured Buy controls; price OCR excludes the
+  matched currency artwork and keeps the original currency-match threshold. Inventory
+  scrolling avoids Buy controls, and end-of-list evidence excludes the ticking header.
+  Unresolved ownership, price, stock or currency remains incomplete, not preferred-offer
+  absence or fallback authority.
   Daily Shops reuses canonical Atlas startup normalization and its scrcpy simultaneous-pointer
   transport for at most two accounted zoom inputs; the sequential virtual-touch pinch is not
   a substitute for an observed camera transition. It then uses shared bounded calculated pans,
