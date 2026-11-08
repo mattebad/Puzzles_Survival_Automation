@@ -141,6 +141,10 @@ def build_parser() -> argparse.ArgumentParser:
     inspect.add_argument("--expected-consecutive-failures", type=int, default=None)
     inspect.add_argument("--attest-untracked-failures", type=int, default=0,
                          help="exact count of failures that predate the attempt ledger, attested by --evidence")
+    inspect.add_argument("--attest-zero-gameplay-attempt", type=int, action="append", default=[],
+                         metavar="ATTEMPT_SEQ",
+                         help="ledger attempt with missing/unverified accounting whose zero gameplay effect "
+                              "--evidence proves; repeat for exactly every such attempt in the window")
     inspect.add_argument("--evidence", type=Path, default=None,
                          help="retained inspection evidence file inside the repository")
     inspect.add_argument("--reason", default=None)
@@ -308,6 +312,7 @@ def _inspect_rearm(args: argparse.Namespace, state_path: Path) -> int:
                 review = state.review_flow_inspection(
                     args.flow_id,
                     attested_untracked_failures=args.attest_untracked_failures,
+                    attested_zero_gameplay_attempts=tuple(args.attest_zero_gameplay_attempt),
                     now_utc_epoch=now,
                 )
             print(json.dumps({
@@ -338,6 +343,7 @@ def _inspect_rearm(args: argparse.Namespace, state_path: Path) -> int:
                 reason=args.reason,
                 evidence_path=args.evidence,
                 attested_untracked_failures=args.attest_untracked_failures,
+                attested_zero_gameplay_attempts=tuple(args.attest_zero_gameplay_attempt),
                 now_utc_epoch=now,
             )
             flow = state.get_flow(args.flow_id)

@@ -110,8 +110,15 @@ earlier source scopes; accepted daily routes are not forced to repeat for covera
   - the clock has not rolled back;
   - the flow is blocked for exhaustion (`EXECUTOR_INTERRUPTED` is excluded);
   - none of the flow's actions are RESERVED/DISPATCHING/UNKNOWN;
-  - no current-window run or ledger attempt is FAILED, uncertain, abandoned, accounting-marked
-    or consequential (consumed actions or a dispatched action).
+  - no current-window run or ledger attempt is FAILED, uncertain, abandoned
+    or consequential (consumed actions or a dispatched action);
+  - accounting-marked attempts remain blocked unless the operator explicitly
+    attests their zero gameplay effect from retained native/controller evidence.
+    Repeat `--attest-zero-gameplay-attempt ATTEMPT_SEQ` for exactly those attempts,
+    in preview and mutation. Zero default counters are not proof. The evidence
+    file is hashed, not interpreted: the operator must substantiate every named
+    attempt. The exact set is retained in the existing immutable inspection audit.
+    This never admits UNKNOWN/dispatched effects or changes resource authority.
 
   The rearm writes one immutable `flow_inspections` audit record and clears the block. It sets
   the baseline to the retained failure count, which gives exactly `max_attempts` new attempts.
