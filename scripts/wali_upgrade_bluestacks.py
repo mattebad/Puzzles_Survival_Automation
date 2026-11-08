@@ -2131,7 +2131,7 @@ def _dispatch_consequential(
             reconcile,
             wall_clock=lambda: float(context.utc_clock()),
             max_pre_dispatch_attempts=1,
-        ).execute(request, issued.capability)
+        ).execute(capability_request, issued.capability)
         row = store.get_action_by_key(action_key)
     except Exception as exc:
         ending_runtime_inputs = int(getattr(runtime, "input_count", starting_runtime_inputs))
